@@ -16,7 +16,7 @@ import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { COLORS, errorEmbed, successEmbed, infoEmbed, feedStatusEmoji, truncate } from '../utils/embeds.js';
 import { sendConfigPanel, sendFeedsPanel, buildAddFeedModal, sendRoleSelectionPanel, sendChannelSelectionPanel, sendDigestPanel, sendDigestRoleSelectionPanel, buildDigestModal, sendYouTubeConfigPanel, sendYouTubeRoleSelectionPanel, sendGlobalKeywordsPanel, sendFeedKeywordsPanel, buildKeywordModal } from '../panels/configPanel.js';
-import { sendSetupStep1, sendSetupStep2, sendSetupStep3, sendSetupStep4, sendSetupStep5, sendSetupFinish } from '../panels/setupPanel.js';
+import { sendSetupStep1, sendSetupStep2, sendSetupStep3, sendSetupStep4, sendSetupStep5, sendSetupFinish, buildSetupDigestModal } from '../panels/setupPanel.js';
 import { sendApprovedItem } from '../services/notificationService.js';
 import { sendDMSubscribePanel } from '../services/notificationService.js';
 import { translate } from '../services/translationService.js';
@@ -53,7 +53,6 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   const { customId, guildId, user } = interaction;
   if (!guildId) return;
 
-  // ── Setup Interactions ────────────────────────────────────────────────
   if (customId.startsWith('setup:')) {
     const parts = customId.split(':');
     const step = parts[1];
@@ -80,14 +79,16 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       await prisma.guild.update({ where: { id: guildId }, data: { translationEnabled: !guild?.translationEnabled } });
       await sendSetupStep5(client, guildId, interaction);
     }
-    else if (step === 'reset_mod_role') {
-      await prisma.guild.update({ where: { id: guildId }, data: { moderatorRoleId: null } });
-      await sendSetupStep2(client, guildId, interaction);
+    else if (step === 'digest_time_btn') {
+      const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+      await interaction.showModal(buildSetupDigestModal(guild));
+    }
+    else if (step === 'digest_clear_role') {
+      await prisma.guild.update({ where: { id: guildId }, data: { digestRoleId: null } as any });
+      await sendSetupStep4(client, guildId, interaction);
     }
     return;
   }
-
-  // ── Config Panel Buttons ─────────────────────────────────────────────────
 
   if (customId === 'config:feeds') {
     await sendFeedsPanel(client, guildId, interaction);
@@ -296,15 +297,12 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
-  // ── Validation Buttons (validate:approve/reject/translate/pin:type:id) ───
-
   if (customId.startsWith('validate:')) {
     const parts = customId.split(':');
-    const action = parts[1]; // approve | reject | translate | pin
+    const action = parts[1];
     const type = parts[2] as 'rss' | 'youtube';
     const itemId = parts[3];
 
-    // Check permissions
     const member = interaction.member as GuildMember;
     if (!(await canModerate(member, guildId))) {
       await interaction.reply({ content: '❌ Vous n\'avez pas le rôle modérateur requis pour cette action.', ephemeral: true });
@@ -322,7 +320,6 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       }
       logger.success('Handler', `Approved ${type} item ${itemId} by ${user.tag}`);
 
-      // Start keyword inclusion dialog
       if (type === 'rss') {
         const item = await prisma.feedItem.findUnique({ where: { id: itemId }, include: { feed: true } });
         if (item) {
@@ -344,7 +341,6 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       }
       logger.info('Handler', `Rejected ${type} item ${itemId}`);
 
-      // Start keyword exclusion dialog
       if (type === 'rss') {
         const item = await prisma.feedItem.findUnique({ where: { id: itemId }, include: { feed: true } });
         if (item) {
@@ -387,14 +383,10 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
-  // ── Keyword filter dialog buttons ────────────────────────────────────────
-
   if (customId.startsWith('kw:')) {
     await handleKeywordButton(interaction);
     return;
   }
-
-  // ── Public post pin button ────────────────────────────────────────────────
 
   if (customId.startsWith('public:pin:')) {
     const parts = customId.split(':');
@@ -444,8 +436,6 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
-  // ── Subscribe Button (public channel) ────────────────────────────────────
-
   if (customId.startsWith('subscribe:feed:')) {
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
     try {
@@ -456,8 +446,6 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     }
     return;
   }
-
-  // ── DM Subscribe toggles ─────────────────────────────────────────────────
 
   if (customId.startsWith('dm:toggle:')) {
     const feedId = customId.split(':')[2];
@@ -470,15 +458,12 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       await prisma.userFeedSub.create({ data: { userId: user.id, feedId } });
     }
 
-    // Find the guildId from the feed
     const feed = await prisma.feed.findUnique({ where: { id: feedId } });
     if (feed) {
       await sendDMSubscribePanel(user, feed.guildId);
     }
     return;
   }
-
-  // ── News Submission Add Feed Buttons ─────────────────────────────────────
 
   if (customId.startsWith('news:add_detected:') || customId.startsWith('news:add_manual:')) {
     const sessionId = customId.split(':')[2];
@@ -528,8 +513,6 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   }
 }
 
-// ── Keyword Dialog Helpers ───────────────────────────────────────────────────
-
 async function startKeywordDialog(
   interaction: ButtonInteraction,
   itemId: string,
@@ -570,7 +553,6 @@ async function startKeywordDialog(
     flags: [MessageFlags.Ephemeral],
   });
 
-  // Store message ID so we can edit later
   const session = getSession(key);
   if (session) session.messageId = msg.id;
 }
@@ -778,9 +760,17 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
       await prisma.guild.update({ where: { id: guildId }, data: { digestFrequency: val as any } });
       await sendSetupStep4(client, guildId, interaction);
     }
-    else if (step === 'trans_lang') {
-      await prisma.guild.update({ where: { id: guildId }, data: { defaultTranslateTo: val } });
-      await sendSetupStep5(client, guildId, interaction);
+    else if (step === 'select_yt_short_role') {
+      await prisma.guild.update({ where: { id: guildId }, data: { youtubeShortRoleId: val } });
+      await sendSetupStep3(client, guildId, interaction);
+    }
+    else if (step === 'select_yt_video_role') {
+      await prisma.guild.update({ where: { id: guildId }, data: { youtubeVideoRoleId: val } });
+      await sendSetupStep3(client, guildId, interaction);
+    }
+    else if (step === 'select_digest_role') {
+      await prisma.guild.update({ where: { id: guildId }, data: { digestRoleId: val } as any });
+      await sendSetupStep4(client, guildId, interaction);
     }
     return;
   }
@@ -928,9 +918,21 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
 
     await interaction.editReply({ embeds: [successEmbed('Flux ajouté !', `**${name}** → \`${url}\``)] });
 
-    if (interaction.channel) {
-      await sendFeedsPanel(client, guildId, interaction.channel as TextChannel);
+    if (interaction.channel instanceof TextChannel) {
+      await interaction.channel.send({ embeds: [successEmbed('Flux ajouté !', `**${name}** a été configuré.`)] });
     }
+    return;
+  }
+
+  if (customId === 'modal:setup:digest_time') {
+    const time = interaction.fields.getTextInputValue('digest_time');
+    await prisma.guild.update({
+      where: { id: guildId },
+      data: { digestTime: time },
+    });
+    await interaction.deferUpdate();
+    await sendSetupStep4(client, guildId, interaction);
+    return;
   }
 
   if (customId === 'modal:digest:config') {

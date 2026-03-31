@@ -10,6 +10,9 @@ import {
   type Client,
   type TextChannel,
   StringSelectMenuBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+  ModalBuilder,
 } from 'discord.js';
 import prisma from '../utils/db.js';
 import { COLORS } from '../utils/embeds.js';
@@ -174,20 +177,25 @@ export async function sendSetupStep3(
       .setCustomId('setup:yt_channel')
       .setPlaceholder('Salon pour les vidéos (optionnel)...')
       .addChannelTypes(ChannelType.GuildText);
-    
-    const roleSelect = new RoleSelectMenuBuilder()
-      .setCustomId('setup:yt_role')
-      .setPlaceholder('Rôle à mentionner (optionnel)...');
+
+    const shortRoleSelect = new RoleSelectMenuBuilder()
+      .setCustomId('setup:select_yt_short_role')
+      .setPlaceholder('Rôle pour les SHORTS (optionnel)...');
+
+    const videoRoleSelect = new RoleSelectMenuBuilder()
+      .setCustomId('setup:select_yt_video_role')
+      .setPlaceholder('Rôle pour les VIDÉOS (optionnel)...');
 
     const rowChan = new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(chanSelect);
-    const rowRole = new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(roleSelect);
+    const rowShort = new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(shortRoleSelect);
+    const rowVideo = new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(videoRoleSelect);
     
     const rowNav = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId('setup:step2').setLabel('Précédent').setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId('setup:step4').setLabel('Suivant').setStyle(ButtonStyle.Primary)
     );
 
-    await renderSetup(target, { embeds: [embed], components: [row1, rowChan, rowRole, rowNav] });
+    await renderSetup(target, { embeds: [embed], components: [row1, rowChan, rowShort, rowVideo, rowNav] });
   } else {
     const rowNav = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId('setup:step2').setLabel('Précédent').setStyle(ButtonStyle.Secondary),
@@ -233,13 +241,22 @@ export async function sendSetupStep4(
         { label: 'Hebdomadaire', value: 'WEEKLY', emoji: '📅' },
       ]);
 
+    const roleSelect = new RoleSelectMenuBuilder()
+      .setCustomId('setup:select_digest_role')
+      .setPlaceholder('Rôle à mentionner (optionnel)...');
+
     const rowFreq = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(freqSelect);
+    const rowRole = new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(roleSelect);
+    const rowTime = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId('setup:digest_time_btn').setLabel("Heure d'envoi").setStyle(ButtonStyle.Secondary).setEmoji('⌚'),
+      new ButtonBuilder().setCustomId('setup:digest_clear_role').setLabel('SANS rôle mention').setStyle(ButtonStyle.Danger)
+    );
     const rowNav = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId('setup:step3').setLabel('Précédent').setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId('setup:step5').setLabel('Suivant').setStyle(ButtonStyle.Primary)
     );
 
-    await renderSetup(target, { embeds: [embed], components: [row1, rowFreq, rowNav] });
+    await renderSetup(target, { embeds: [embed], components: [row1, rowFreq, rowRole, rowTime, rowNav] });
   } else {
     const rowNav = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId('setup:step3').setLabel('Précédent').setStyle(ButtonStyle.Secondary),
@@ -321,4 +338,21 @@ export async function sendSetupFinish(
   );
 
   await renderSetup(target, { embeds: [embed], components: [row] });
+}
+
+export function buildSetupDigestModal(guild?: any): ModalBuilder {
+  return new ModalBuilder()
+    .setCustomId('modal:setup:digest_time')
+    .setTitle("⌚ Heure du Digest")
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId('digest_time')
+          .setLabel("Heure d'envoi (HH:MM)")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setMaxLength(5)
+          .setValue(guild?.digestTime ?? '08:00'),
+      ),
+    );
 }
