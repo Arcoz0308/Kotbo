@@ -1,0 +1,112 @@
+import dotenv from 'dotenv';
+import path from 'path';
+dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
+
+import {
+  Client,
+  GatewayIntentBits,
+  Collection,
+  Events,
+  type ChatInputCommandInteraction,
+  type AutocompleteInteraction,
+  MessageFlags,
+} from 'discord.js';
+import { logger } from './utils/logger.js';
+import { registerCrons } from './events/crons.js';
+import {
+  handleButton,
+  handleSelectMenu,
+  handleModalSubmit,
+} from './handlers/interactionHandler.js';
+import * as setupCmd from './commands/setup.js';
+import * as configCmd from './commands/config.js';
+import * as feedCmd from './commands/feed.js';
+// import * as statsCmd from './commands/stats.js';
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.DirectMessages,
+  ],
+});
+
+
+type SlashCommand = {
+  data: { name: string; toJSON: () => unknown };
+  execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  autocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;
+};
+
+const commands = new Collection<string, SlashCommand>();
+[setupCmd, configCmd, feedCmd].forEach((cmd) => {
+  commands.set(cmd.data.name, cmd as SlashCommand);
+});
+
+
+client.once(Events.ClientReady, async (c) => {
+  logger.success('Bot', `Connecté en tant que ${c.user.tag}`);
+  logger.info('Bot', `Serveur cible : GUILD_ID=${process.env.GUILD_ID}`);
+
+  const guildId = process.env.GUILD_ID;
+  const nathanYtChannelId = process.env.NATHAN_YOUTUBE_CHANNEL_ID;
+  if (guildId && nathanYtChannelId) {
+    const prisma = (await import('./utils/db.js')).default;
+    await prisma.guild.upsert({
+      where: { id: guildId },
+      update: { nathanYtChannelId, youtubeEnabled: true },
+      create: { id: guildId, nathanYtChannelId, youtubeEnabled: true },
+    }).catch(e => logger.error('Bot', 'Failed to sync YouTube configuration:', e));
+    logger.info('Bot', `YouTube configuration synchronisée pour la guilde ${guildId} (${nathanYtChannelId})`);
+  }
+
+  await registerCrons(client);
+});
+
+client.on(Events.InteractionCreate, async (interaction) => {
+  try {
+    if (interaction.isChatInputCommand()) {
+      const cmd = commands.get(interaction.commandName);
+      if (!cmd) return;
+      await cmd.execute(interaction);
+    }
+
+    else if (interaction.isAutocomplete()) {
+      const cmd = commands.get(interaction.commandName);
+      if (cmd?.autocomplete) await cmd.autocomplete(interaction);
+    }
+
+    else if (interaction.isButton()) {
+      await handleButton(interaction, client);
+    }
+
+    else if (interaction.isAnySelectMenu()) {
+      await handleSelectMenu(interaction, client);
+    }
+
+    else if (interaction.isModalSubmit()) {
+      await handleModalSubmit(interaction, client);
+    }
+  } catch (err) {
+    logger.error('Event', 'InteractionCreate error:', err);
+    try {
+      const msg = { content: '❌ Une erreur est survenue.', ephemeral: true };
+      if ('replied' in interaction && interaction.replied) return;
+      if ('deferred' in interaction && interaction.deferred) {
+        await (interaction as ChatInputCommandInteraction).followUp(msg);
+      } else if ('reply' in interaction) {
+        await (interaction as ChatInputCommandInteraction).reply(msg);
+      }
+    } catch (e){
+      logger.error('Event', 'InteractionCreate error:', e);
+    }
+  }
+});
+
+const token = process.env.DISCORD_TOKEN;
+if (!token) {
+  logger.error('Bot', 'DISCORD_TOKEN non défini dans .env !');
+  process.exit(1);
+}
+
+client.login(token);

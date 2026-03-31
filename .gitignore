@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+*.log
+.svelte-kit/
+build/
+.DS_Store
+bun.lockb

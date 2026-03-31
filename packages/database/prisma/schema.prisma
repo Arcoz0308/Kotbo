@@ -1,0 +1,155 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+model Guild {
+  id String @id
+
+  configChannelId String?
+  publicChannelId String?
+  digestChannelId String?
+
+  youtubeEnabled    Boolean @default(false)
+  nathanYtChannelId String?
+  nathanChannelId   String? 
+  youtubeChannelId  String? 
+  youtubeShortRoleId String?
+  youtubeVideoRoleId String?
+
+  moderatorRoleId   String?
+
+  digestEnabled    Boolean         @default(false)
+  digestFrequency  DigestFrequency @default(DAILY)
+  digestTime       String          @default("08:00") // HH:MM
+  digestCount      Int             @default(10)
+  digestRoleId     String?         
+  digestCustomText String?         
+
+  translationEnabled Boolean @default(false)
+  defaultTranslateTo String  @default("FR")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  feeds        Feed[]
+  youtubeItems YouTubeItem[]
+
+  @@map("guilds")
+}
+
+model Feed {
+  id      String @id @default(cuid())
+  guildId String
+
+  name        String
+  url         String
+  category    String  @default("Général")
+  enabled     Boolean @default(true)
+  autoPublish Boolean @default(false)
+
+  includeKeywords String[] @default([])
+  excludeKeywords String[] @default([])
+  ignoredKeywords String[] @default([])
+
+  language    String?
+  translateTo String?
+
+  roleId   String?
+  autoRole Boolean @default(false)
+
+  guild       Guild         @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  items       FeedItem[]
+  subscribers UserFeedSub[]
+
+  lastPolledAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([guildId, url])
+  @@map("feeds")
+}
+
+model FeedItem {
+  id     String @id @default(cuid())
+  feedId String
+
+  guid        String
+  title       String
+  url         String
+  description String?
+  imageUrl    String?
+  author      String?
+  publishedAt DateTime
+
+  titleTranslated       String?
+  descriptionTranslated String?
+
+  status          ItemStatus @default(PENDING)
+  queueMessageId  String?
+  publicMessageId String?
+  pinned          Boolean    @default(false)
+
+  feed Feed @relation(fields: [feedId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([feedId, guid])
+  @@map("feed_items")
+}
+
+model YouTubeItem {
+  id      String @id @default(cuid())
+  guildId String
+
+  videoId      String   @unique
+  title        String
+  description  String?
+  channelName  String
+  channelId    String
+  thumbnailUrl String?
+  isShort      Boolean  @default(false)
+  publishedAt  DateTime
+
+  status          ItemStatus @default(PENDING)
+  queueMessageId  String?
+  publicMessageId String?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("youtube_items")
+}
+
+model UserFeedSub {
+  id     String @id @default(cuid())
+  userId String
+  feedId String
+
+  feed Feed @relation(fields: [feedId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, feedId])
+  @@map("user_feed_subs")
+}
+
+enum ItemStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum DigestFrequency {
+  DAILY
+  WEEKLY
+}

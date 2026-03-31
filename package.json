@@ -1,0 +1,20 @@
+{
+  "name": "kotbo",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev:bot": "bun run --filter @kotbo/bot dev",
+    "dev": "bun run --filter @kotbo/bot dev",
+    "db:generate": "bun run --filter @kotbo/database generate",
+    "db:generate:force": "powershell -ExecutionPolicy RemoteSigned -File ./scripts/fix-prisma.ps1",
+    "db:migrate": "bun run --filter @kotbo/database migrate",
+    "db:push": "bun run --filter @kotbo/database push",
+    "db:seed": "bun run --filter @kotbo/database seed",
+    "db:studio": "bun run --filter @kotbo/database studio",
+    "deploy-commands": "bun run --filter @kotbo/bot deploy-commands",
+    "deploy": "bun db:push && bun db:seed && bun deploy-commands && bun dev"
+  },
+  "devDependencies": {
+    "bun-types": "^1.3.11"
+  }
+}
