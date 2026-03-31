@@ -8,55 +8,44 @@ import {
 import prisma from '../utils/db.js';
 import { successEmbed, errorEmbed } from '../utils/embeds.js';
 import { sendConfigPanel } from '../panels/configPanel.js';
+import { sendSetupWelcome, sendSetupStep1 } from '../panels/setupPanel.js';
 
 export const data = new SlashCommandBuilder()
   .setName('setup')
-  .setDescription('⚙️ Configuration initiale du bot de news')
+  .setDescription('⚙️ Configuration interactive et pas à pas de Kotbo')
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addChannelOption((o) =>
     o
       .setName('config')
-      .setDescription('Salon de configuration et de validation des news')
-      .addChannelTypes(ChannelType.GuildText)
-      .setRequired(true),
+      .setDescription('Salon de configuration et de validation (optionnel, peut être défini après)')
+      .addChannelTypes(ChannelType.GuildText),
   )
   .addChannelOption((o) =>
     o
       .setName('public')
-      .setDescription('Salon public où les news validées sont publiées')
-      .addChannelTypes(ChannelType.GuildText)
-      .setRequired(true),
+      .setDescription('Salon public des news (optionnel, peut être défini après)')
+      .addChannelTypes(ChannelType.GuildText),
   );
 
 export async function execute(interaction: ChatInputCommandInteraction) {
-  await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
-
   const guildId = interaction.guildId!;
-  const configChannel = interaction.options.getChannel('config', true);
-  const publicChannel = interaction.options.getChannel('public', true);
+  const configChannel = interaction.options.getChannel('config');
+  const publicChannel = interaction.options.getChannel('public');
 
-  await prisma.guild.upsert({
-    where: { id: guildId },
-    update: {
-      configChannelId: configChannel.id,
-      publicChannelId: publicChannel.id,
-    },
-    create: {
-      id: guildId,
-      configChannelId: configChannel.id,
-      publicChannelId: publicChannel.id,
-    },
-  });
+  if (configChannel || publicChannel) {
+    const updateData: any = {};
+    if (configChannel) updateData.configChannelId = configChannel.id;
+    if (publicChannel) updateData.publicChannelId = publicChannel.id;
 
-  // Post config panel in config channel
-  await sendConfigPanel(interaction.client, guildId, configChannel as import('discord.js').TextChannel);
+    await prisma.guild.upsert({
+      where: { id: guildId },
+      update: updateData,
+      create: { id: guildId, ...updateData },
+    });
 
-  await interaction.editReply({
-    embeds: [
-      successEmbed(
-        'Bot configuré !',
-        `✅ Config : <#${configChannel.id}>\n✅ Public : <#${publicChannel.id}>\n\nLe panneau de configuration a été posté dans <#${configChannel.id}>.`,
-      ),
-    ],
-  });
+    await sendSetupStep1(interaction.client, guildId, interaction);
+  } else {
+    // Start from welcome
+    await sendSetupWelcome(interaction.client, guildId, interaction);
+  }
 }

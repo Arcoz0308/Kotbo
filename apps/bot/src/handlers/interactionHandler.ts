@@ -14,8 +14,9 @@ import {
 } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
-import { COLORS, errorEmbed, successEmbed, feedStatusEmoji, truncate } from '../utils/embeds.js';
+import { COLORS, errorEmbed, successEmbed, infoEmbed, feedStatusEmoji, truncate } from '../utils/embeds.js';
 import { sendConfigPanel, sendFeedsPanel, buildAddFeedModal, sendRoleSelectionPanel, sendChannelSelectionPanel, sendDigestPanel, sendDigestRoleSelectionPanel, buildDigestModal, sendYouTubeConfigPanel, sendYouTubeRoleSelectionPanel, sendGlobalKeywordsPanel, sendFeedKeywordsPanel, buildKeywordModal } from '../panels/configPanel.js';
+import { sendSetupStep1, sendSetupStep2, sendSetupStep3, sendSetupStep4, sendSetupStep5, sendSetupFinish } from '../panels/setupPanel.js';
 import { sendApprovedItem } from '../services/notificationService.js';
 import { sendDMSubscribePanel } from '../services/notificationService.js';
 import { translate } from '../services/translationService.js';
@@ -29,6 +30,10 @@ import {
   sessionKey,
   type KeywordSession,
 } from './keywordSessionStore.js';
+import { getNewsSession, deleteNewsSession } from './newsSessionStore.js';
+import { sendToValidationQueue } from '../services/notificationService.js';
+import { TextInputBuilder, TextInputStyle } from 'discord.js';
+import { ModalBuilder } from 'discord.js';
 
 async function canModerate(member: GuildMember | null, guildId: string): Promise<boolean> {
   if (!member) return false;
@@ -47,6 +52,40 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
   const { customId, guildId, user } = interaction;
   if (!guildId) return;
+
+  // ── Setup Interactions ────────────────────────────────────────────────
+  if (customId.startsWith('setup:')) {
+    const parts = customId.split(':');
+    const step = parts[1];
+
+    if (step === 'step1') await sendSetupStep1(client, guildId, interaction);
+    else if (step === 'step2') await sendSetupStep2(client, guildId, interaction);
+    else if (step === 'step3') await sendSetupStep3(client, guildId, interaction);
+    else if (step === 'step4') await sendSetupStep4(client, guildId, interaction);
+    else if (step === 'step5') await sendSetupStep5(client, guildId, interaction);
+    else if (step === 'finish') await sendSetupFinish(client, guildId, interaction);
+
+    else if (step === 'yt_toggle') {
+      const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+      await prisma.guild.update({ where: { id: guildId }, data: { youtubeEnabled: !guild?.youtubeEnabled } });
+      await sendSetupStep3(client, guildId, interaction);
+    }
+    else if (step === 'digest_toggle') {
+      const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+      await prisma.guild.update({ where: { id: guildId }, data: { digestEnabled: !guild?.digestEnabled } });
+      await sendSetupStep4(client, guildId, interaction);
+    }
+    else if (step === 'trans_toggle') {
+      const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+      await prisma.guild.update({ where: { id: guildId }, data: { translationEnabled: !guild?.translationEnabled } });
+      await sendSetupStep5(client, guildId, interaction);
+    }
+    else if (step === 'reset_mod_role') {
+      await prisma.guild.update({ where: { id: guildId }, data: { moderatorRoleId: null } });
+      await sendSetupStep2(client, guildId, interaction);
+    }
+    return;
+  }
 
   // ── Config Panel Buttons ─────────────────────────────────────────────────
 
@@ -438,6 +477,55 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     }
     return;
   }
+
+  // ── News Submission Add Feed Buttons ─────────────────────────────────────
+
+  if (customId.startsWith('news:add_detected:') || customId.startsWith('news:add_manual:')) {
+    const sessionId = customId.split(':')[2];
+    const session = getNewsSession(sessionId);
+
+    if (!session) {
+      await interaction.reply({ content: '❌ Cette session a expiré. Veuillez relancer la commande `/news submit`.', ephemeral: true });
+      return;
+    }
+
+    const isDetected = customId.startsWith('news:add_detected:');
+    
+    const modal = new ModalBuilder()
+      .setCustomId(`modal:news:add_feed:${sessionId}`)
+      .setTitle('Ajouter le flux RSS');
+
+    const nameInput = new TextInputBuilder()
+        .setCustomId('feed_name')
+        .setLabel('Nom du flux')
+        .setPlaceholder('Ex: Presse-Citron, Journal du Geek...')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true);
+
+    const urlInput = new TextInputBuilder()
+        .setCustomId('feed_url')
+        .setLabel('URL du flux RSS')
+        .setValue(isDetected ? session.metadata.rssUrl! : '')
+        .setPlaceholder('https://exemple.com/rss')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true);
+
+    const categoryInput = new TextInputBuilder()
+        .setCustomId('feed_category')
+        .setLabel('Catégorie')
+        .setPlaceholder('Ex: Tech FR, IA & Dev, Général...')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(false);
+
+    modal.addComponents(
+        new ActionRowBuilder<TextInputBuilder>().addComponents(nameInput),
+        new ActionRowBuilder<TextInputBuilder>().addComponents(urlInput),
+        new ActionRowBuilder<TextInputBuilder>().addComponents(categoryInput)
+    );
+
+    await interaction.showModal(modal);
+    return;
+  }
 }
 
 // ── Keyword Dialog Helpers ───────────────────────────────────────────────────
@@ -654,6 +742,49 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
   const { customId, guildId, values } = interaction;
   if (!guildId) return;
 
+  if (customId.startsWith('setup:')) {
+    const step = customId.split(':')[1];
+    const val = values[0];
+
+    if (step === 'select_config_channel') {
+      await prisma.guild.upsert({
+        where: { id: guildId },
+        update: { configChannelId: val },
+        create: { id: guildId, configChannelId: val },
+      });
+      await sendSetupStep1(client, guildId, interaction);
+    }
+    else if (step === 'select_public_channel') {
+      await prisma.guild.upsert({
+        where: { id: guildId },
+        update: { publicChannelId: val },
+        create: { id: guildId, publicChannelId: val },
+      });
+      await sendSetupStep1(client, guildId, interaction);
+    }
+    else if (step === 'select_mod_role') {
+      await prisma.guild.update({ where: { id: guildId }, data: { moderatorRoleId: val } });
+      await sendSetupStep2(client, guildId, interaction);
+    }
+    else if (step === 'yt_channel') {
+      await prisma.guild.update({ where: { id: guildId }, data: { youtubeChannelId: val } });
+      await sendSetupStep3(client, guildId, interaction);
+    }
+    else if (step === 'yt_role') {
+      await prisma.guild.update({ where: { id: guildId }, data: { youtubeVideoRoleId: val } });
+      await sendSetupStep3(client, guildId, interaction);
+    }
+    else if (step === 'digest_freq') {
+      await prisma.guild.update({ where: { id: guildId }, data: { digestFrequency: val as any } });
+      await sendSetupStep4(client, guildId, interaction);
+    }
+    else if (step === 'trans_lang') {
+      await prisma.guild.update({ where: { id: guildId }, data: { defaultTranslateTo: val } });
+      await sendSetupStep5(client, guildId, interaction);
+    }
+    return;
+  }
+
   if (customId === 'config:feed:select') {
     const feedId = values[0];
     const feed = await prisma.feed.findUnique({ where: { id: feedId } });
@@ -857,5 +988,66 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
         await sendFeedKeywordsPanel(client, guildId, feedId, interaction.channel as TextChannel);
       }
     }
+  }
+
+  if (customId.startsWith('modal:news:add_feed:')) {
+    const sessionId = customId.split(':')[3];
+    const session = getNewsSession(sessionId);
+
+    if (!session) {
+      await interaction.reply({ content: '❌ Session expirée.', ephemeral: true });
+      return;
+    }
+
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+    const name = interaction.fields.getTextInputValue('feed_name');
+    const rssUrl = interaction.fields.getTextInputValue('feed_url');
+    const category = interaction.fields.getTextInputValue('feed_category') || 'Général';
+
+    try {
+      new URL(rssUrl);
+    } catch {
+      await interaction.editReply({ embeds: [errorEmbed('URL invalide', 'Veuillez entrer une URL de flux RSS valide.')] });
+      return;
+    }
+
+    // 1. Create the feed
+    const feed = await prisma.feed.upsert({
+      where: { guildId_url: { guildId, url: rssUrl } },
+      update: { name, category },
+      create: { guildId, name, url: rssUrl, category, enabled: true }
+    });
+
+    // 2. Create the item
+    const guid = session.url;
+    const existingItem = await prisma.feedItem.findUnique({
+      where: { feedId_guid: { feedId: feed.id, guid } }
+    });
+
+    if (existingItem) {
+        await interaction.editReply({ embeds: [infoEmbed('Déjà existant', 'Cet article a déjà été soumis.')] });
+    } else {
+        const item = await prisma.feedItem.create({
+            data: {
+                feedId: feed.id,
+                guid,
+                url: session.url,
+                title: session.metadata.title || 'Sans titre',
+                description: session.metadata.description,
+                imageUrl: session.metadata.imageUrl,
+                publishedAt: new Date(),
+                status: 'PENDING',
+            }
+        });
+
+        await sendToValidationQueue(client, item.id, 'rss');
+
+        await interaction.editReply({
+            embeds: [successEmbed('Flux ajouté et article soumis !', `Le flux **${name}** a été ajouté et l'article a été envoyé en validation.`)]
+        });
+    }
+
+    deleteNewsSession(sessionId);
   }
 }
