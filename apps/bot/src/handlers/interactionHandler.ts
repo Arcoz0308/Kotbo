@@ -102,12 +102,23 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
   if (customId.startsWith('config:kw:global:')) {
     const action = customId.split(':')[3];
-    if (action === 'clear') {
+    if (action === 'clear_confirm') {
+      const embed = new EmbedBuilder()
+        .setColor(COLORS.danger)
+        .setTitle('⚠ Confirmation')
+        .setDescription('Êtes-vous sûr de vouloir effacer TOUS les mots-clés globaux ?');
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId('config:kw:global:clear_execute').setLabel('Oui, tout effacer').setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId('config:keywords').setLabel('Annuler').setStyle(ButtonStyle.Secondary),
+      );
+      await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+    } else if (action === 'clear_execute') {
       await prisma.guild.update({
         where: { id: guildId },
         data: { globalIncludeKeywords: [], globalExcludeKeywords: [], globalIgnoredKeywords: [] },
       });
-      await sendGlobalKeywordsPanel(client, guildId, interaction);
+      await interaction.reply({ content: '✅ Tous les mots-clés globaux ont été effacés.', ephemeral: true });
+      await sendGlobalKeywordsPanel(client, guildId, interaction.channel as TextChannel);
     } else {
       const modeNames = { include: 'Inclure (Global)', exclude: 'Exclure (Global)', ignore: 'Ignorer (Global)' };
       await interaction.showModal(buildKeywordModal(`modal:kw:global:${action}`, modeNames[action as keyof typeof modeNames]));
@@ -122,14 +133,27 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   }
 
   if (customId.startsWith('config:kw:feed:')) {
-    const action = customId.split(':')[3];
-    const feedId = customId.split(':')[4];
-    if (action === 'clear') {
+    const parts = customId.split(':');
+    const action = parts[3];
+    const feedId = parts[4];
+    
+    if (action === 'clear_confirm') {
+      const embed = new EmbedBuilder()
+        .setColor(COLORS.danger)
+        .setTitle('⚠ Confirmation')
+        .setDescription('Êtes-vous sûr de vouloir effacer TOUS les mots-clés de ce flux ?');
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(`config:kw:feed:clear_execute:${feedId}`).setLabel('Oui, tout effacer').setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId(`config:kw:feed_panel:${feedId}`).setLabel('Annuler').setStyle(ButtonStyle.Secondary),
+      );
+      await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+    } else if (action === 'clear_execute') {
        await prisma.feed.update({
          where: { id: feedId },
          data: { includeKeywords: [], excludeKeywords: [], ignoredKeywords: [] },
        });
-       await sendFeedKeywordsPanel(client, guildId, feedId, interaction);
+       await interaction.reply({ content: '✅ Tous les mots-clés du flux ont été effacés.', ephemeral: true });
+       await sendFeedKeywordsPanel(client, guildId, feedId, interaction.channel as TextChannel);
     } else {
       const modeNames = { include: 'Inclure (Flux)', exclude: 'Exclure (Flux)', ignore: 'Ignorer (Flux)' };
       await interaction.showModal(buildKeywordModal(`modal:kw:feed:${action}:${feedId}`, modeNames[action as keyof typeof modeNames]));
@@ -660,33 +684,30 @@ async function handleKeywordButton(interaction: ButtonInteraction): Promise<void
       confirmMsg = `${emoji} \`${word}\` ajouté aux mots-clés **${filterMode === 'exclude' ? 'exclus' : 'inclus'}** de **${feed.name}**.`;
     }
   } else if (action === 'all') {
-    const feeds = await prisma.feed.findMany({ where: { guildId: session.guildId } });
-    let updated = 0;
-    for (const feed of feeds) {
-      const existing = filterMode === 'exclude' ? feed.excludeKeywords : feed.includeKeywords;
-      if (!existing.includes(word)) {
-        await prisma.feed.update({
-          where: { id: feed.id },
+    const field = filterMode === 'exclude' ? 'globalExcludeKeywords' : 'globalIncludeKeywords';
+    const guild = await prisma.guild.findUnique({ where: { id: session.guildId } });
+    if (guild) {
+      const current = guild[field];
+      if (!current.includes(word)) {
+        await prisma.guild.update({
+          where: { id: session.guildId },
           data: { [field]: { push: word } },
         });
-        updated++;
       }
     }
     const emoji = filterMode === 'exclude' ? '🚫' : '✅';
-    confirmMsg = `${emoji} \`${word}\` ajouté aux mots-clés **${filterMode === 'exclude' ? 'exclus' : 'inclus'}** de **${updated} flux**.`;
+    confirmMsg = `${emoji} \`${word}\` ajouté aux mots-clés **${filterMode === 'exclude' ? 'exclus' : 'inclus'}** globaux.`;
   } else if (action === 'ignore_all') {
-    const feeds = await prisma.feed.findMany({ where: { guildId: session.guildId } });
-    let updated = 0;
-    for (const feed of feeds) {
-      if (!feed.ignoredKeywords.includes(word)) {
-        await prisma.feed.update({
-          where: { id: feed.id },
-          data: { ignoredKeywords: { push: word } },
+    const guild = await prisma.guild.findUnique({ where: { id: session.guildId } });
+    if (guild) {
+      if (!guild.globalIgnoredKeywords.includes(word)) {
+        await prisma.guild.update({
+          where: { id: session.guildId },
+          data: { globalIgnoredKeywords: { push: word } },
         });
-        updated++;
       }
     }
-    confirmMsg = `🗑️ \`${word}\` complètement ignoré (ne sera plus proposé).`;
+    confirmMsg = `🗑️ \`${word}\` complètement ignoré (globalement).`;
   } else {
     confirmMsg = `⏭️ \`${word}\` passé.`;
   }
@@ -860,6 +881,33 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
       data: { digestRoleId: roleId } as any,
     });
     await sendDigestPanel(client, guildId, interaction);
+    return;
+  }
+
+  if (customId === 'config:kw:remove') {
+    const [scope, ...rest] = values[0].split(':');
+
+    if (scope === 'global') {
+      const [action, keyword] = rest;
+      const field = action === 'include' ? 'globalIncludeKeywords' : action === 'exclude' ? 'globalExcludeKeywords' : 'globalIgnoredKeywords';
+      const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+      if (guild) {
+        const updated = (guild[field] as string[]).filter((k) => k !== keyword);
+        await prisma.guild.update({ where: { id: guildId }, data: { [field]: updated } });
+        await interaction.reply({ content: `✅ Mot-clé \`${keyword}\` supprimé (Global).`, ephemeral: true });
+        await sendGlobalKeywordsPanel(client, guildId, interaction.channel as TextChannel);
+      }
+    } else if (scope === 'feed') {
+      const [feedId, action, keyword] = rest;
+      const field = action === 'include' ? 'includeKeywords' : action === 'exclude' ? 'excludeKeywords' : 'ignoredKeywords';
+      const feed = await prisma.feed.findUnique({ where: { id: feedId } });
+      if (feed) {
+        const updated = (feed[field as 'includeKeywords' | 'excludeKeywords' | 'ignoredKeywords']).filter((k) => k !== keyword);
+        await prisma.feed.update({ where: { id: feedId }, data: { [field]: updated } });
+        await interaction.reply({ content: `✅ Mot-clé \`${keyword}\` supprimé (Flux: ${feed.name}).`, ephemeral: true });
+        await sendFeedKeywordsPanel(client, guildId, feedId, interaction.channel as TextChannel);
+      }
+    }
     return;
   }
 }

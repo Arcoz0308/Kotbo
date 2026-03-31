@@ -372,28 +372,54 @@ export async function sendGlobalKeywordsPanel(
   const guild = await prisma.guild.findUnique({ where: { id: guildId } });
   if (!guild) return;
 
+  const formatKws = (kws: string[]) => {
+    if (kws.length === 0) return '*Aucun*';
+    let str = kws.map((w) => `\`${w}\``).join(', ');
+    if (str.length > 1000) {
+      str = str.slice(0, 997) + '...';
+    }
+    return str;
+  };
+
   const embed = new EmbedBuilder()
     .setColor(COLORS.primary)
     .setTitle('🔑 Mots-clés Globaux')
     .setDescription('Ces mots-clés s\'appliquent à TOUS les flux RSS du serveur.')
     .addFields(
-      { name: '✅ Toujours inclure', value: guild.globalIncludeKeywords.length ? guild.globalIncludeKeywords.map((w) => `\`${w}\``).join(', ') : '*Aucun*', inline: false },
-      { name: '🚫 Toujours exclure', value: guild.globalExcludeKeywords.length ? guild.globalExcludeKeywords.map((w) => `\`${w}\``).join(', ') : '*Aucun*', inline: false },
-      { name: '🗑️ Mots ignorés (Apprentissage)', value: guild.globalIgnoredKeywords.length ? guild.globalIgnoredKeywords.map((w) => `\`${w}\``).join(', ') : '*Aucun*', inline: false },
+      { name: `✅ Toujours inclure (${guild.globalIncludeKeywords.length})`, value: formatKws(guild.globalIncludeKeywords), inline: false },
+      { name: `🚫 Toujours exclure (${guild.globalExcludeKeywords.length})`, value: formatKws(guild.globalExcludeKeywords), inline: false },
+      { name: `🗑️ Mots ignorés (${guild.globalIgnoredKeywords.length})`, value: formatKws(guild.globalIgnoredKeywords), inline: false },
     );
 
   const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId('config:kw:global:include').setLabel('➕ Inclure').setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId('config:kw:global:exclude').setLabel('➖ Exclure').setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId('config:kw:global:ignore').setLabel('🗑️ Ignorer').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('config:kw:global:clear').setLabel('🧹 Tout effacer').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('config:kw:global:clear_confirm').setLabel('🧹 Tout effacer').setStyle(ButtonStyle.Danger),
   );
 
-  const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+  const allKeywords = [
+    ...guild.globalIncludeKeywords.map(k => ({ label: `[Inclure] ${truncate(k, 50)}`, value: `global:include:${k}` })),
+    ...guild.globalExcludeKeywords.map(k => ({ label: `[Exclure] ${truncate(k, 50)}`, value: `global:exclude:${k}` })),
+    ...guild.globalIgnoredKeywords.map(k => ({ label: `[Ignorer] ${truncate(k, 50)}`, value: `global:ignore:${k}` })),
+  ].slice(0, 25);
+
+  const components: any[] = [row1];
+
+  if (allKeywords.length > 0) {
+    const select = new StringSelectMenuBuilder()
+      .setCustomId('config:kw:remove')
+      .setPlaceholder('Sélectionner un mot-clé à supprimer...')
+      .addOptions(allKeywords);
+    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select));
+  }
+
+  const rowBack = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId('config:back').setLabel('◀ Retour Menu').setStyle(ButtonStyle.Secondary),
   );
+  components.push(rowBack);
 
-  await renderPanel(target, { embeds: [embed], components: [row1, row2] });
+  await renderPanel(target, { embeds: [embed], components });
 }
 
 export async function sendFeedKeywordsPanel(
@@ -405,29 +431,54 @@ export async function sendFeedKeywordsPanel(
   const feed = await prisma.feed.findUnique({ where: { id: feedId } });
   if (!feed) return;
 
+  const formatKws = (kws: string[]) => {
+    if (kws.length === 0) return '*Aucun*';
+    let str = kws.map((w) => `\`${w}\``).join(', ');
+    if (str.length > 1000) {
+      str = str.slice(0, 997) + '...';
+    }
+    return str;
+  };
+
   const embed = new EmbedBuilder()
     .setColor(COLORS.primary)
     .setTitle(`🔑 Mots-clés limités à un flux`)
     .setDescription(`Configuration des mots-clés pour le flux **${feed.name}**.\n*Note : les mots-clés globaux s'ajoutent à ceux-ci.*`)
     .addFields(
-      { name: '✅ Inclure', value: feed.includeKeywords.length ? feed.includeKeywords.map((w) => `\`${w}\``).join(', ') : '*Aucun*', inline: false },
-      { name: '🚫 Exclure', value: feed.excludeKeywords.length ? feed.excludeKeywords.map((w) => `\`${w}\``).join(', ') : '*Aucun*', inline: false },
-      { name: '🗑️ Mots ignorés', value: feed.ignoredKeywords.length ? feed.ignoredKeywords.map((w) => `\`${w}\``).join(', ') : '*Aucun*', inline: false },
+      { name: `✅ Inclure (${feed.includeKeywords.length})`, value: formatKws(feed.includeKeywords), inline: false },
+      { name: `🚫 Exclure (${feed.excludeKeywords.length})`, value: formatKws(feed.excludeKeywords), inline: false },
+      { name: `🗑️ Mots ignorés (${feed.ignoredKeywords.length})`, value: formatKws(feed.ignoredKeywords), inline: false },
     );
 
   const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(`config:kw:feed:include:${feed.id}`).setLabel('➕ Inclure').setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId(`config:kw:feed:exclude:${feed.id}`).setLabel('➖ Exclure').setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId(`config:kw:feed:ignore:${feed.id}`).setLabel('🗑️ Ignorer').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`config:kw:feed:clear:${feed.id}`).setLabel('🧹 Tout effacer').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(`config:kw:feed:clear_confirm:${feed.id}`).setLabel('🧹 Tout effacer').setStyle(ButtonStyle.Danger),
   );
 
-  // Return to feed selection or main feeds panel
+  const allKeywords = [
+    ...feed.includeKeywords.map(k => ({ label: `[Inclure] ${truncate(k, 50)}`, value: `feed:${feed.id}:include:${k}` })),
+    ...feed.excludeKeywords.map(k => ({ label: `[Exclure] ${truncate(k, 50)}`, value: `feed:${feed.id}:exclude:${k}` })),
+    ...feed.ignoredKeywords.map(k => ({ label: `[Ignorer] ${truncate(k, 50)}`, value: `feed:${feed.id}:ignore:${k}` })),
+  ].slice(0, 25);
+
+  const components: any[] = [row1];
+
+  if (allKeywords.length > 0) {
+    const select = new StringSelectMenuBuilder()
+      .setCustomId('config:kw:remove')
+      .setPlaceholder('Sélectionner un mot-clé à supprimer...')
+      .addOptions(allKeywords);
+    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select));
+  }
+
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId('config:feeds').setLabel('◀ Retour Flux').setStyle(ButtonStyle.Secondary),
   );
+  components.push(row2);
 
-  await renderPanel(target, { embeds: [embed], components: [row1, row2] });
+  await renderPanel(target, { embeds: [embed], components });
 }
 
 export function buildKeywordModal(
