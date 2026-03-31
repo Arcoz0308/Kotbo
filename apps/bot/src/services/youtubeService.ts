@@ -1,4 +1,5 @@
 import Parser from 'rss-parser';
+import pLimit from 'p-limit';
 import type { Client } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
@@ -30,13 +31,14 @@ export async function pollYouTubeChannel(
   }
 
   const items = (parsed.items ?? []).slice(0, 5);
+  const limit = pLimit(2); // Max 2 Shorts checks simultanés par guilde
 
-  for (const item of items) {
+  const tasks = items.map(item => limit(async () => {
     const videoId = extractVideoId(item.link ?? item.id ?? '');
-    if (!videoId) continue;
+    if (!videoId) return;
 
     const exists = await prisma.youTubeItem.findUnique({ where: { videoId } });
-    if (exists) continue;
+    if (exists) return;
 
     const title = item.title ?? 'Nouvelle vidéo';
     const description = item.contentSnippet ?? null;
@@ -62,7 +64,9 @@ export async function pollYouTubeChannel(
 
     logger.info('YouTube', `New ${isShort ? 'Short' : 'video'}: "${title}" by ${channelName}`);
     await sendToValidationQueue(client, dbItem.id, 'youtube');
-  }
+  }));
+
+  await Promise.all(tasks);
 }
 
 async function isYouTubeShort(videoId: string): Promise<boolean> {
@@ -81,13 +85,17 @@ export async function pollAllYouTubeChannels(client: Client): Promise<void> {
   const guilds = await prisma.guild.findMany({
     where: { youtubeEnabled: true, nathanYtChannelId: { not: null } },
   });
-  for (const guild of guilds) {
-    if (guild.nathanYtChannelId) {
-      await pollYouTubeChannel(client, guild.id, guild.nathanYtChannelId).catch((e) =>
-        logger.error('YouTube', 'Poll error:', e),
-      );
+
+  const limit = pLimit(3); // Traiter 3 guildes simultanément
+  const tasks = guilds.map(guild => limit(async () => {
+    try {
+      await pollYouTubeChannel(client, guild.id, guild.nathanYtChannelId!);
+    } catch (e) {
+      logger.error('YouTube', `Error polling guild ${guild.id}:`, e);
     }
-  }
+  }));
+
+  await Promise.all(tasks);
 }
 
 function extractVideoId(url: string): string | null {
