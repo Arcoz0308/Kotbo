@@ -149,7 +149,7 @@ export async function sendApprovedItem(
 
     const pinBtn = new ButtonBuilder()
       .setCustomId(`public:pin:rss:${itemId}`)
-      .setLabel('Épingler')
+      .setLabel(item.pinned ? 'Désépingler' : 'Épingler')
       .setEmoji('📌')
       .setStyle(ButtonStyle.Secondary);
 

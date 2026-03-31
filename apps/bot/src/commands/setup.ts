@@ -49,7 +49,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   });
 
   // Post config panel in config channel
-  await sendConfigPanel(interaction.client, guildId, configChannel.id);
+  await sendConfigPanel(interaction.client, guildId, configChannel as import('discord.js').TextChannel);
 
   await interaction.editReply({
     embeds: [

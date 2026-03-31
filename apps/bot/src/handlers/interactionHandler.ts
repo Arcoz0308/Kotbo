@@ -321,10 +321,44 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     const itemId = parts[3];
     await interaction.deferUpdate();
     try {
-      await interaction.message.pin();
-      if (type === 'rss') await prisma.feedItem.update({ where: { id: itemId }, data: { pinned: true } });
+      if (type === 'rss') {
+        const item = await prisma.feedItem.findUnique({ where: { id: itemId } });
+        if (!item) return;
+
+        const isPinned = item.pinned;
+
+        if (isPinned) {
+          await interaction.message.unpin();
+          await prisma.feedItem.update({ where: { id: itemId }, data: { pinned: false } });
+        } else {
+          await interaction.message.pin();
+          await prisma.feedItem.update({ where: { id: itemId }, data: { pinned: true } });
+          
+          setTimeout(async () => {
+            if (interaction.channel) {
+              const fetched = await interaction.channel.messages.fetch({ limit: 10 }).catch(() => null);
+              if (fetched) {
+                const sysMsg = fetched.find((m) => m.type === 6 && m.reference?.messageId === interaction.message.id);
+                if (sysMsg) await sysMsg.delete().catch(() => null);
+              }
+            }
+          }, 1500);
+        }
+
+        const row = interaction.message.components[0] as import('discord.js').ActionRow<import('discord.js').MessageActionRowComponent>;
+        if (row && row.components) {
+          const updatedComponents = row.components.map((c) => {
+            const btn = c as import('discord.js').ButtonComponent;
+            if (btn.customId === customId) {
+              return ButtonBuilder.from(btn).setLabel(isPinned ? 'Épingler' : 'Désépingler');
+            }
+            return ButtonBuilder.from(btn);
+          });
+          await interaction.message.edit({ components: [new ActionRowBuilder<ButtonBuilder>().addComponents(updatedComponents)] });
+        }
+      }
     } catch {
-      await interaction.followUp({ content: '❌ Impossible d\'épingler ce message.', flags: [MessageFlags.Ephemeral] });
+      await interaction.followUp({ content: '❌ Impossible de modifier l\'épinglage de ce message.', flags: [MessageFlags.Ephemeral] });
     }
     return;
   }
