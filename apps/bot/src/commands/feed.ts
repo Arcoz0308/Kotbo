@@ -51,6 +51,13 @@ export const data = new SlashCommandBuilder()
       .addStringOption((o) => o.setName('nom').setDescription('Nom du flux').setRequired(true).setAutocomplete(true)),
   )
   .addSubcommand((sc) =>
+    sc
+      .setName('autopub')
+      .setDescription('Activer/désactiver l\'auto-pub d\'un flux RSS')
+      .addStringOption((o) => o.setName('nom').setDescription('Nom du flux').setRequired(true).setAutocomplete(true))
+      .addBooleanOption((o) => o.setName('auto_publier').setDescription('Activer ou désactiver l\'auto-pub').setRequired(true)),
+  )
+  .addSubcommand((sc) =>
     sc.setName('list').setDescription('Lister tous les flux RSS')
   )
   .addSubcommand((sc) =>
@@ -135,13 +142,28 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     });
   }
 
+  else if (sub === 'autopub') {
+    const name = interaction.options.getString('nom', true);
+    const autoPublish = interaction.options.getBoolean('auto_publier', true);
+    const feed = await prisma.feed.findFirst({ where: { guildId, name } });
+    if (!feed) {
+      await interaction.editReply({ embeds: [errorEmbed('Flux introuvable', `Aucun flux nommé **${name}**`)] });
+      return;
+    }
+
+    const updated = await prisma.feed.update({ where: { id: feed.id }, data: { autoPublish } });
+    await interaction.editReply({
+      embeds: [successEmbed('Auto-pub mis à jour', `**${updated.name}** : Auto-pub ${updated.autoPublish ? 'activée ✅' : 'désactivée ❌'}`)],
+    });
+  }
+
   else if (sub === 'list') {
     const feeds = await prisma.feed.findMany({ where: { guildId }, orderBy: { category: 'asc' } });
     if (feeds.length === 0) {
       await interaction.editReply({ embeds: [infoEmbed('Aucun flux', 'Ajoutez un flux avec `/feed add`.')] });
       return;
     }
-    const lines = feeds.map((f) => `${feedStatusEmoji(f.enabled)} **${f.name}** — ${categoryEmoji(f.category)} ${f.category}`);
+    const lines = feeds.map((f) => `${feedStatusEmoji(f.enabled)} **${f.name}** — ${categoryEmoji(f.category)} ${f.category} — Auto-pub : ${f.autoPublish ? 'Oui' : 'Non'}`);
     await interaction.editReply({
       embeds: [infoEmbed(`Flux RSS (${feeds.length})`, lines.join('\n'))],
     });

@@ -311,6 +311,16 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
+  if (customId.startsWith('feed:autopub:')) {
+    const feedId = customId.split(':')[2];
+    const feed = await prisma.feed.findUnique({ where: { id: feedId } });
+    if (feed) {
+      await prisma.feed.update({ where: { id: feedId }, data: { autoPublish: !feed.autoPublish } });
+      await sendFeedsPanel(client, guildId, interaction);
+    }
+    return;
+  }
+
   if (customId.startsWith('feed:delete:')) {
     const feedId = customId.split(':')[2];
     const feed = await prisma.feed.findUnique({ where: { id: feedId } });
@@ -820,6 +830,7 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`config:kw:feed_panel:${feedId}`).setLabel('🔑 Mots-clés').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(`feed:toggle:${feedId}`).setLabel(feed.enabled ? '🔴 Désactiver' : '🟢 Activer').setStyle(feed.enabled ? ButtonStyle.Danger : ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`feed:autopub:${feedId}`).setLabel(feed.autoPublish ? '⚡ Désactiver auto-pub' : '⚡ Activer auto-pub').setStyle(feed.autoPublish ? ButtonStyle.Danger : ButtonStyle.Success),
       new ButtonBuilder().setCustomId(`feed:delete:${feedId}`).setLabel('🗑️ Supprimer').setStyle(ButtonStyle.Danger),
       new ButtonBuilder().setCustomId('config:feeds').setLabel('◀ Retour').setStyle(ButtonStyle.Secondary),
     );
