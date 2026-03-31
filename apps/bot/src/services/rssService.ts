@@ -1,4 +1,5 @@
 import Parser from 'rss-parser';
+import pLimit from 'p-limit';
 import type { Client } from 'discord.js';
 import prisma from '../utils/db';
 import { logger } from '../utils/logger';
@@ -81,24 +82,47 @@ export async function pollFeed(
   }
 
   const cutoff = feed.lastPolledAt;
-  const items = (parsed.items ?? []).slice(0, 20);
-  let newCount = 0;
-
-  for (const item of items) {
-    const guid = item.guid ?? item.link ?? item.title ?? '';
-    if (!guid) continue;
-
+  const rawItems = (parsed.items ?? []).slice(0, 20);
+  
+  // 1. Filtrer par date avant de toucher à la DB
+  const candidateItems = rawItems.filter(item => {
     const publishedAt = item.pubDate ? new Date(item.pubDate) : new Date();
-    if (publishedAt <= cutoff) continue;
+    return publishedAt > cutoff;
+  });
 
-    const exists = await prisma.feedItem.findFirst({ where: { feedId: feed.id, guid } });
-    if (exists) continue;
+  if (candidateItems.length === 0) {
+    await prisma.feed.update({ where: { id: feed.id }, data: { lastPolledAt: now } });
+    return;
+  }
 
+  // 2. Vérifier l'existence en batch
+  const guids = candidateItems.map(item => item.guid ?? item.link ?? item.title ?? '').filter(Boolean);
+  const existingItems = await prisma.feedItem.findMany({
+    where: { feedId: feed.id, guid: { in: guids } },
+    select: { guid: true }
+  });
+  const existingGuids = new Set(existingItems.map(i => i.guid));
+
+  const newItems = candidateItems.filter(item => {
+    const guid = item.guid ?? item.link ?? item.title ?? '';
+    return guid && !existingGuids.has(guid);
+  });
+
+  if (newItems.length === 0) {
+    await prisma.feed.update({ where: { id: feed.id }, data: { lastPolledAt: now } });
+    return;
+  }
+
+  // 3. Traitement parallèle des nouveaux items (traductions, etc.)
+  const limit = pLimit(3); // Max 3 traductions simultanées par flux
+  const tasks = newItems.map(item => limit(async () => {
+    const guid = item.guid ?? item.link ?? item.title ?? '';
     const title = item.title ?? 'Sans titre';
     const url = item.link ?? '';
     const description = item.contentSnippet ?? item.content?.replace(/<[^>]*>/g, '').slice(0, 500) ?? null;
     const author = (item as any).creator ?? (item as any).author ?? null;
     const imageUrl = extractImageFromItem(item);
+    const publishedAt = item.pubDate ? new Date(item.pubDate) : new Date();
 
     const combinedInclude = Array.from(new Set([...feed.guild.globalIncludeKeywords, ...feed.includeKeywords]));
     const combinedExclude = Array.from(new Set([...feed.guild.globalExcludeKeywords, ...feed.excludeKeywords]));
@@ -106,7 +130,7 @@ export async function pollFeed(
     const textToFilter = `${title} ${description ?? ''}`;
     if (!matchesKeywordFilter(textToFilter, combinedInclude, combinedExclude)) {
       logger.debug('RSS', `Filtered out: "${title}" (keyword filter)`);
-      continue;
+      return null;
     }
 
     const detectedLang = detectLanguage(`${title} ${description ?? ''}`);
@@ -119,10 +143,13 @@ export async function pollFeed(
       detectedLang.toUpperCase() !== feed.translateTo.toUpperCase();
 
     if (shouldTranslate && feed.translateTo) {
-      titleTranslated = await translate(title, feed.translateTo, detectedLang ?? undefined);
-      if (description) {
-        descTranslated = await translate(description.slice(0, 1000), feed.translateTo, detectedLang ?? undefined);
-      }
+      // On lance les deux traductions en parallèle
+      const [tTitle, tDesc] = await Promise.all([
+        translate(title, feed.translateTo!, detectedLang ?? undefined),
+        description ? translate(description.slice(0, 1000), feed.translateTo!, detectedLang ?? undefined) : Promise.resolve(null)
+      ]);
+      titleTranslated = tTitle;
+      descTranslated = tDesc;
     }
 
     const dbItem = await prisma.feedItem.create({
@@ -140,7 +167,6 @@ export async function pollFeed(
       },
     });
 
-    newCount++;
     if (feed.autoPublish) {
       logger.info('RSS', `Auto-publishing item: "${title}" from ${feed.name}`);
       await publishItem(client, dbItem.id);
@@ -148,23 +174,38 @@ export async function pollFeed(
       logger.info('RSS', `Queueing item for validation: "${title}" from ${feed.name}`);
       await sendToValidationQueue(client, dbItem.id, 'rss');
     }
-  }
+
+    return dbItem;
+  }));
+
+  const results = await Promise.all(tasks);
+  const createdCount = results.filter(Boolean).length;
 
   await prisma.feed.update({ where: { id: feed.id }, data: { lastPolledAt: now } });
-  if (newCount > 0) logger.info('RSS', `${feed.name}: ${newCount} nouveaux articles`);
+  if (createdCount > 0) logger.info('RSS', `${feed.name}: ${createdCount} nouveaux articles`);
 }
 
 export async function pollAllFeeds(client: Client): Promise<void> {
   const guilds = await prisma.guild.findMany({
     include: { feeds: { where: { enabled: true } } },
   });
-  for (const guild of guilds) {
-    for (const feed of guild.feeds) {
-      await pollFeed(client, feed.id).catch((e) =>
-        logger.error('RSS', `Error polling ${feed.name}:`, e),
-      );
+
+  const allFeeds = guilds.flatMap(g => g.feeds);
+  if (allFeeds.length === 0) return;
+
+  logger.info('RSS', `Starting poll for ${allFeeds.length} feeds across ${guilds.length} guilds...`);
+  
+  const limit = pLimit(5); // Traiter 5 flux simultanément
+  const tasks = allFeeds.map(feed => limit(async () => {
+    try {
+      await pollFeed(client, feed.id);
+    } catch (e) {
+      logger.error('RSS', `Error polling ${feed.name}:`, e);
     }
-  }
+  }));
+
+  await Promise.all(tasks);
+  logger.info('RSS', 'Finished polling all feeds.');
 }
 
 export async function publishItem(client: Client, itemId: string): Promise<void> {

@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, type ChatInputCommandInteraction, EmbedBuilder } from 'discord.js';
+import { SlashCommandBuilder, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import { errorEmbed, COLORS } from '../utils/embeds.js';
 import prisma from '../utils/db.js';
 import fs from 'fs/promises';
@@ -22,7 +22,10 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction: ChatInputCommandInteraction) {
   const guildId = interaction.guildId;
   if (!guildId) {
-    await interaction.reply({ embeds: [errorEmbed('Impossible', 'Cette commande doit être utilisée dans un serveur.')], ephemeral: true });
+    await interaction.reply({ 
+      embeds: [errorEmbed('Impossible', 'Cette commande doit être utilisée dans un serveur.')], 
+      flags: [MessageFlags.Ephemeral] 
+    });
     return;
   }
 
@@ -31,7 +34,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     version,
     totalFeeds,
     enabledFeeds,
-    uniqueSubscribers,
+    subs,
     feedItemsTreated,
     ytItemsTreated,
     feedItemsPublished,
@@ -41,12 +44,14 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     getVersion(),
     prisma.feed.count({ where: { guildId } }),
     prisma.feed.count({ where: { guildId, enabled: true } }),
-    prisma.userFeedSub.count({ where: { feed: { guildId } }, distinct: ['userId'] }),
+    prisma.userFeedSub.findMany({ where: { feed: { guildId } }, distinct: ['userId'], select: { userId: true } }),
     prisma.feedItem.count({ where: { feed: { guildId }, status: { not: 'PENDING' } } }),
-    prisma.youtubeItem.count({ where: { guildId, status: { not: 'PENDING' } } }),
+    prisma.youTubeItem.count({ where: { guildId, status: { not: 'PENDING' } } }),
     prisma.feedItem.count({ where: { feed: { guildId }, status: 'APPROVED' } }),
-    prisma.youtubeItem.count({ where: { guildId, status: 'APPROVED' } }),
+    prisma.youTubeItem.count({ where: { guildId, status: 'APPROVED' } }),
   ]);
+
+  const uniqueSubscribers = subs.length;
 
   const totalTreated = feedItemsTreated + ytItemsTreated;
   const totalPublished = feedItemsPublished + ytItemsPublished;
@@ -94,5 +99,5 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     .setFooter({ text: `Kotbo News · ${interaction.guild?.name ?? 'Serveur'}`, iconURL: interaction.guild?.iconURL() ?? undefined })
     .setTimestamp();
 
-  await interaction.reply({ embeds: [embed], ephemeral: true });
+  await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
 }

@@ -111,13 +111,13 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
         new ButtonBuilder().setCustomId('config:kw:global:clear_execute').setLabel('Oui, tout effacer').setStyle(ButtonStyle.Danger),
         new ButtonBuilder().setCustomId('config:keywords').setLabel('Annuler').setStyle(ButtonStyle.Secondary),
       );
-      await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+      await interaction.reply({ embeds: [embed], components: [row], flags: [MessageFlags.Ephemeral] });
     } else if (action === 'clear_execute') {
       await prisma.guild.update({
         where: { id: guildId },
         data: { globalIncludeKeywords: [], globalExcludeKeywords: [], globalIgnoredKeywords: [] },
       });
-      await interaction.reply({ content: '✅ Tous les mots-clés globaux ont été effacés.', ephemeral: true });
+      await interaction.reply({ content: '✅ Tous les mots-clés globaux ont été effacés.', flags: [MessageFlags.Ephemeral] });
       await sendGlobalKeywordsPanel(client, guildId, interaction.channel as TextChannel);
     } else {
       const modeNames = { include: 'Inclure (Global)', exclude: 'Exclure (Global)', ignore: 'Ignorer (Global)' };
@@ -146,13 +146,13 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
         new ButtonBuilder().setCustomId(`config:kw:feed:clear_execute:${feedId}`).setLabel('Oui, tout effacer').setStyle(ButtonStyle.Danger),
         new ButtonBuilder().setCustomId(`config:kw:feed_panel:${feedId}`).setLabel('Annuler').setStyle(ButtonStyle.Secondary),
       );
-      await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+      await interaction.reply({ embeds: [embed], components: [row], flags: [MessageFlags.Ephemeral] });
     } else if (action === 'clear_execute') {
        await prisma.feed.update({
          where: { id: feedId },
          data: { includeKeywords: [], excludeKeywords: [], ignoredKeywords: [] },
        });
-       await interaction.reply({ content: '✅ Tous les mots-clés du flux ont été effacés.', ephemeral: true });
+       await interaction.reply({ content: '✅ Tous les mots-clés du flux ont été effacés.', flags: [MessageFlags.Ephemeral] });
        await sendFeedKeywordsPanel(client, guildId, feedId, interaction.channel as TextChannel);
     } else {
       const modeNames = { include: 'Inclure (Flux)', exclude: 'Exclure (Flux)', ignore: 'Ignorer (Flux)' };
@@ -282,7 +282,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   if (customId === 'config:channels') {
     await interaction.reply({
       content: '📌 Pour modifier les salons de base (Config/Public), utilisez `/setup`. Pour le salon YouTube, utilisez le bouton "Salon YT" ci-dessous.',
-      ephemeral: true,
+      flags: [MessageFlags.Ephemeral],
     });
     return;
   }
@@ -349,7 +349,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
     const member = interaction.member as GuildMember;
     if (!(await canModerate(member, guildId))) {
-      await interaction.reply({ content: '❌ Vous n\'avez pas le rôle modérateur requis pour cette action.', ephemeral: true });
+      await interaction.reply({ content: '❌ Vous n\'avez pas le rôle modérateur requis pour cette action.', flags: [MessageFlags.Ephemeral] });
       return;
     }
 
@@ -514,7 +514,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     const session = getNewsSession(sessionId);
 
     if (!session) {
-      await interaction.reply({ content: '❌ Cette session a expiré. Veuillez relancer la commande `/news submit`.', ephemeral: true });
+      await interaction.reply({ content: '❌ Cette session a expiré. Veuillez relancer la commande `/news submit`.', flags: [MessageFlags.Ephemeral] });
       return;
     }
 

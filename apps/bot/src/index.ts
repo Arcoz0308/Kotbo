@@ -99,12 +99,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     logger.error('Event', 'InteractionCreate error:', err);
     try {
-      const msg = { content: '❌ Une erreur est survenue.', ephemeral: true };
       if ('replied' in interaction && interaction.replied) return;
+      
+      const replyOptions = { content: '❌ Une erreur est survenue.', flags: [MessageFlags.Ephemeral] };
+      
       if ('deferred' in interaction && interaction.deferred) {
-        await (interaction as ChatInputCommandInteraction).followUp(msg);
+        await (interaction as ChatInputCommandInteraction).followUp(replyOptions);
       } else if ('reply' in interaction) {
-        await (interaction as ChatInputCommandInteraction).reply(msg);
+        await (interaction as ChatInputCommandInteraction).reply(replyOptions);
       }
     } catch (e){
       if (e instanceof DiscordAPIError && e.code === 10062) {
