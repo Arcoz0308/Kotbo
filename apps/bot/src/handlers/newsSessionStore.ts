@@ -32,6 +32,15 @@ export function deleteNewsSession(id: string): void {
   sessions.delete(id);
 }
 
+export function updateNewsSession(id: string, metadata: { title: string | null; description: string | null }): void {
+  const session = sessions.get(id);
+  if (session) {
+    session.metadata.title = metadata.title;
+    session.metadata.description = metadata.description;
+    sessions.set(id, session);
+  }
+}
+
 // Cleanup expired sessions every minute
 setInterval(() => {
   const now = Date.now();

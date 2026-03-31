@@ -31,7 +31,7 @@ import {
   sessionKey,
   type KeywordSession,
 } from './keywordSessionStore.js';
-import { getNewsSession, deleteNewsSession } from './newsSessionStore.js';
+import { getNewsSession, deleteNewsSession, updateNewsSession } from './newsSessionStore.js';
 import { sendToValidationQueue } from '../services/notificationService.js';
 import { TextInputBuilder, TextInputStyle } from 'discord.js';
 import { ModalBuilder } from 'discord.js';
@@ -551,6 +551,98 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
         new ActionRowBuilder<TextInputBuilder>().addComponents(nameInput),
         new ActionRowBuilder<TextInputBuilder>().addComponents(urlInput),
         new ActionRowBuilder<TextInputBuilder>().addComponents(categoryInput)
+    );
+
+    await interaction.showModal(modal);
+    return;
+  }
+
+  if (customId.startsWith('news:publish_no_feed:')) {
+    const sessionId = customId.split(':')[2];
+    const session = getNewsSession(sessionId);
+
+    if (!session) {
+      await interaction.reply({ content: '❌ Cette session a expiré.', flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+    // Check if item already exists
+    const urlObj = new URL(session.url);
+    const hostname = urlObj.hostname.replace('www.', '');
+
+    // Find or create 'Manual' feed
+    let manualFeed = await prisma.feed.findUnique({
+      where: { guildId_url: { guildId, url: 'manual' } }
+    });
+
+    if (!manualFeed) {
+      manualFeed = await prisma.feed.create({
+        data: {
+          guildId,
+          name: 'Soumissions manuelles',
+          url: 'manual',
+          category: 'Manuel',
+          enabled: true,
+          autoPublish: false
+        }
+      });
+    }
+
+    const item = await prisma.feedItem.create({
+      data: {
+        feedId: manualFeed.id,
+        guid: session.url,
+        url: session.url,
+        title: session.metadata.title || 'Sans titre',
+        description: session.metadata.description,
+        imageUrl: session.metadata.imageUrl,
+        publishedAt: new Date(),
+        status: 'PENDING',
+      }
+    });
+
+    await sendToValidationQueue(client, item.id, 'rss');
+
+    await interaction.editReply({
+      embeds: [successEmbed('Article soumis !', `L'article a été envoyé en validation.\n\n**${session.metadata.title || 'Sans titre'}**`) ]
+    });
+
+    deleteNewsSession(sessionId);
+    return;
+  }
+
+  if (customId.startsWith('news:edit_metadata:')) {
+    const sessionId = customId.split(':')[2];
+    const session = getNewsSession(sessionId);
+
+    if (!session) {
+      await interaction.reply({ content: '❌ Cette session a expiré.', flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    const modal = new ModalBuilder()
+      .setCustomId(`modal:news:edit_metadata:${sessionId}`)
+      .setTitle('Modifier la news');
+
+    const titleInput = new TextInputBuilder()
+      .setCustomId('news_title')
+      .setLabel('Titre de l\'article')
+      .setValue(session.metadata.title || '')
+      .setStyle(TextInputStyle.Short)
+      .setRequired(true);
+
+    const descInput = new TextInputBuilder()
+      .setCustomId('news_description')
+      .setLabel('Début du texte / Description')
+      .setValue(session.metadata.description || '')
+      .setStyle(TextInputStyle.Paragraph)
+      .setRequired(false);
+
+    modal.addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(titleInput),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(descInput)
     );
 
     await interaction.showModal(modal);
@@ -1126,5 +1218,66 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
     }
 
     deleteNewsSession(sessionId);
+  }
+
+  if (customId.startsWith('modal:news:edit_metadata:')) {
+    const sessionId = customId.split(':')[3];
+    const session = getNewsSession(sessionId);
+
+    if (!session) {
+      await interaction.reply({ content: '❌ Session expirée.', ephemeral: true });
+      return;
+    }
+
+    const title = interaction.fields.getTextInputValue('news_title');
+    const description = interaction.fields.getTextInputValue('news_description');
+
+    updateNewsSession(sessionId, { title, description });
+
+    // Refresh the confirmation message
+    const updatedSession = getNewsSession(sessionId)!;
+    const hostname = new URL(updatedSession.url).hostname.replace('www.', '');
+
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.warning)
+      .setTitle('🔍 Flux RSS non trouvé')
+      .setDescription(`Le site **${hostname}** n'est pas dans votre liste de flux RSS.\n\n` +
+        `**Titre :** ${updatedSession.metadata.title || '*Non détecté*'}\n` +
+        `**Description :** ${updatedSession.metadata.description ? (updatedSession.metadata.description.length > 200 ? updatedSession.metadata.description.substring(0, 200) + '...' : updatedSession.metadata.description) : '*Non détectée*'}\n\n` +
+        (updatedSession.metadata.rssUrl 
+          ? `Un flux RSS a été détecté : \`${updatedSession.metadata.rssUrl}\`.\n` 
+          : "Aucun flux RSS n'a été détecté automatiquement.\n"))
+      .setTimestamp();
+
+    if (updatedSession.metadata.imageUrl) embed.setThumbnail(updatedSession.metadata.imageUrl);
+
+    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`news:publish_no_feed:${sessionId}`)
+        .setLabel('Publier sans ajouter')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`news:edit_metadata:${sessionId}`)
+        .setLabel('Modifier')
+        .setStyle(ButtonStyle.Secondary)
+    );
+
+    if (updatedSession.metadata.rssUrl) {
+      row.addComponents(
+        new ButtonBuilder()
+          .setCustomId(`news:add_detected:${sessionId}`)
+          .setLabel('Ajouter le flux')
+          .setStyle(ButtonStyle.Primary)
+      );
+    } else {
+      row.addComponents(
+        new ButtonBuilder()
+          .setCustomId(`news:add_manual:${sessionId}`)
+          .setLabel('Ajouter manuellement')
+          .setStyle(ButtonStyle.Secondary)
+      );
+    }
+
+    await (interaction as any).update({ embeds: [embed], components: [row] });
   }
 }

@@ -100,28 +100,43 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       .setColor(COLORS.warning)
       .setTitle('🔍 Flux RSS non trouvé')
       .setDescription(`Le site **${hostname}** n'est pas dans votre liste de flux RSS.\n\n` +
+        `**Titre :** ${metadata.title || '*Non détecté*'}\n` +
+        `**Description :** ${metadata.description ? (metadata.description.length > 200 ? metadata.description.substring(0, 200) + '...' : metadata.description) : '*Non détectée*'}\n\n` +
         (metadata.rssUrl 
-          ? `Un flux RSS a été détecté : \`${metadata.rssUrl}\`.\nVoulez-vous l'ajouter pour soumettre cet article ?` 
-          : "Aucun flux RSS n'a été détecté automatiquement.\nVoulez-vous ajouter un flux manuellement pour ce site ?"))
+          ? `Un flux RSS a été détecté : \`${metadata.rssUrl}\`.\n` 
+          : "Aucun flux RSS n'a été détecté automatiquement.\n"))
       .setTimestamp();
+
+    if (metadata.imageUrl) embed.setThumbnail(metadata.imageUrl);
 
     const row = new ActionRowBuilder<ButtonBuilder>();
     
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`news:publish_no_feed:${sessionId}`)
+        .setLabel('Publier sans ajouter')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`news:edit_metadata:${sessionId}`)
+        .setLabel('Modifier')
+        .setStyle(ButtonStyle.Secondary)
+    );
+
     if (metadata.rssUrl) {
       row.addComponents(
         new ButtonBuilder()
           .setCustomId(`news:add_detected:${sessionId}`)
-          .setLabel('Ajouter le flux détecté')
-          .setStyle(ButtonStyle.Success)
+          .setLabel('Ajouter le flux')
+          .setStyle(ButtonStyle.Primary)
+      );
+    } else {
+      row.addComponents(
+        new ButtonBuilder()
+          .setCustomId(`news:add_manual:${sessionId}`)
+          .setLabel('Ajouter manuellement')
+          .setStyle(ButtonStyle.Secondary)
       );
     }
-
-    row.addComponents(
-      new ButtonBuilder()
-        .setCustomId(`news:add_manual:${sessionId}`)
-        .setLabel('Ajouter manuellement')
-        .setStyle(ButtonStyle.Secondary)
-    );
 
     await interaction.editReply({ embeds: [embed], components: [row] });
   }
