@@ -9,7 +9,8 @@ import {
   MessageFlags,
 } from 'discord.js';
 import prisma from '../utils/db.js';
-import { successEmbed, errorEmbed, infoEmbed, feedStatusEmoji, categoryEmoji, truncate } from '../utils/embeds.js';
+import { successEmbed, errorEmbed, infoEmbed, feedStatusEmoji, categoryEmoji, truncate, COLORS } from '../utils/embeds.js';
+import { createPagination } from '../utils/pagination.js';
 
 export const data = new SlashCommandBuilder()
   .setName('feed')
@@ -167,8 +168,12 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       return;
     }
     const lines = feeds.map((f) => `${feedStatusEmoji(f.enabled)} **${f.name}** — ${categoryEmoji(f.category)} ${f.category} — Auto-pub : ${f.autoPublish ? 'Oui' : 'Non'}`);
-    await interaction.editReply({
-      embeds: [infoEmbed(`Flux RSS (${feeds.length})`, lines.join('\n'))],
+    await createPagination({
+      interaction,
+      items: lines,
+      pageSize: 15,
+      title: `Flux RSS (${feeds.length})`,
+      color: COLORS.info,
     });
   }
 
@@ -192,8 +197,12 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       return `${statusIcon} **${f.name}**\n   └ Dernier poll : ${lastPoll}${errorText}`;
     });
 
-    await interaction.editReply({
-      embeds: [infoEmbed(`État des flux RSS`, lines.join('\n'))],
+    await createPagination({
+      interaction,
+      items: lines,
+      pageSize: 10,
+      title: `État des flux RSS`,
+      color: COLORS.info,
     });
   }
 
