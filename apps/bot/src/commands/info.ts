@@ -1,5 +1,5 @@
-import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
-import { infoEmbed, errorEmbed } from '../utils/embeds.js';
+import { SlashCommandBuilder, type ChatInputCommandInteraction, EmbedBuilder } from 'discord.js';
+import { errorEmbed, COLORS } from '../utils/embeds.js';
 import prisma from '../utils/db.js';
 import fs from 'fs/promises';
 
@@ -26,30 +26,73 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     return;
   }
 
-  const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+  const [
+    guild,
+    version,
+    totalFeeds,
+    enabledFeeds,
+    uniqueSubscribers,
+    feedItemsTreated,
+    ytItemsTreated,
+    feedItemsPublished,
+    ytItemsPublished,
+  ] = await Promise.all([
+    prisma.guild.findUnique({ where: { id: guildId } }),
+    getVersion(),
+    prisma.feed.count({ where: { guildId } }),
+    prisma.feed.count({ where: { guildId, enabled: true } }),
+    prisma.userFeedSub.count({ where: { feed: { guildId } }, distinct: ['userId'] }),
+    prisma.feedItem.count({ where: { feed: { guildId }, status: { not: 'PENDING' } } }),
+    prisma.youtubeItem.count({ where: { guildId, status: { not: 'PENDING' } } }),
+    prisma.feedItem.count({ where: { feed: { guildId }, status: 'APPROVED' } }),
+    prisma.youtubeItem.count({ where: { guildId, status: 'APPROVED' } }),
+  ]);
 
-  const version = await getVersion();
+  const totalTreated = feedItemsTreated + ytItemsTreated;
+  const totalPublished = feedItemsPublished + ytItemsPublished;
   const uptime = process.uptime();
-  const guildCount = interaction.client.guilds.cache.size;
-  const userCount = interaction.client.users.cache.size;
 
-  const fields = [
-    { name: 'Bot', value: `${interaction.client.user?.tag ?? '?' } (${interaction.client.user?.id ?? '?'})`, inline: false },
-    { name: 'Version', value: version, inline: true },
-    { name: 'Uptime', value: `${Math.floor(uptime / 60)} min`, inline: true },
-    { name: 'Guilds', value: `${guildCount}`, inline: true },
-    { name: 'Utilisateurs en cache', value: `${userCount}`, inline: true },
-  ];
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.info)
+    .setTitle('ℹ️ Informations Kotbo')
+    .setThumbnail(interaction.client.user?.displayAvatarURL() ?? null)
+    .addFields(
+      { 
+        name: '🤖 Bot & État', 
+        value: `**Version:** \`${version}\`\n**Uptime:** \`${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m\`\n**Serveurs:** ${interaction.client.guilds.cache.size}`, 
+        inline: true 
+      },
+      { 
+        name: '📊 Global', 
+        value: `**Latence:** \`${interaction.client.ws.ping}ms\`\n**Utilisateurs:** ${interaction.client.users.cache.size}\n**Mémoire:** \`${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB\``, 
+        inline: true 
+      },
+      
+      { name: '\u200B', value: '\u200B', inline: false },
 
-  if (guild) {
-    const postsFeedCount = await prisma.feed.count({ where: { guildId } });
-    fields.push({ name: 'Serveur', value: `${interaction.guild?.name ?? 'Inconnu'} (${guild.id})`, inline: false });
-    fields.push({ name: 'Flux RSS (total)', value: `${postsFeedCount}`, inline: true });
-    fields.push({ name: 'YouTube activé', value: `${guild.youtubeEnabled ? 'Oui' : 'Non'}`, inline: true });
-    fields.push({ name: 'Channel config', value: `${guild.configChannelId ?? 'Non défini'}`, inline: false });
-    fields.push({ name: 'Channel public', value: `${guild.publicChannelId ?? 'Non défini'}`, inline: false });
-    fields.push({ name: 'Channel digest', value: `${guild.digestChannelId ?? 'Non défini'}`, inline: false });
-  }
+      { 
+        name: '📡 Sources & Audience', 
+        value: `**Flux RSS:** \`${enabledFeeds}/${totalFeeds}\` actifs\n**YouTube:** ${guild?.youtubeEnabled ? '✅' : '❌'}\n**Abonnés MP:** \`${uniqueSubscribers}\` unique(s)`, 
+        inline: true 
+      },
+      { 
+        name: '📰 Statistiques News', 
+        value: `**Traitées:** \`${totalTreated}\` news\n**Publiées:** \`${totalPublished}\` news\n**Approbation:** \`${totalTreated > 0 ? Math.round((totalPublished / totalTreated) * 100) : 0}%\``, 
+        inline: true 
+      },
 
-  await interaction.reply({ embeds: [infoEmbed('Informations Kotbo', undefined, fields)], ephemeral: true });
+      { 
+        name: '⚙️ Configuration Channels', 
+        value: [
+          `**Validation:** ${guild?.configChannelId ? `<#${guild.configChannelId}>` : '`Non défini`'}`,
+          `**Public:** ${guild?.publicChannelId ? `<#${guild.publicChannelId}>` : '`Non défini`'}`,
+          `**Digest:** ${guild?.digestChannelId ? `<#${guild.digestChannelId}>` : '`Non défini`'}`
+        ].join('\n'),
+        inline: false 
+      }
+    )
+    .setFooter({ text: `Kotbo News · ${interaction.guild?.name ?? 'Serveur'}`, iconURL: interaction.guild?.iconURL() ?? undefined })
+    .setTimestamp();
+
+  await interaction.reply({ embeds: [embed], ephemeral: true });
 }
