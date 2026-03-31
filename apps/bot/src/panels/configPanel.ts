@@ -83,6 +83,7 @@ export async function sendConfigPanel(
   );
 
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId('config:keywords').setLabel('🔑 Mots-clés Globaux').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('config:set_mod_role').setLabel('🛡️ Rôle Mod').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('config:set_yt_channel').setLabel('📺 Salon YT').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('config:refresh').setLabel('🔄 Actualiser').setStyle(ButtonStyle.Secondary),
@@ -359,6 +360,91 @@ export function buildDigestModal(guild?: any): ModalBuilder {
       ),
       new ActionRowBuilder<TextInputBuilder>().addComponents(
         new TextInputBuilder().setCustomId('digest_text').setLabel("Texte d'introduction (optionnel)").setStyle(TextInputStyle.Paragraph).setRequired(false).setMaxLength(500).setValue(guild?.digestCustomText ?? ''),
+      ),
+    );
+}
+
+export async function sendGlobalKeywordsPanel(
+  client: Client,
+  guildId: string,
+  target: TextChannel | BaseInteraction,
+): Promise<void> {
+  const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+  if (!guild) return;
+
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.primary)
+    .setTitle('🔑 Mots-clés Globaux')
+    .setDescription('Ces mots-clés s\'appliquent à TOUS les flux RSS du serveur.')
+    .addFields(
+      { name: '✅ Toujours inclure', value: guild.globalIncludeKeywords.length ? guild.globalIncludeKeywords.map((w) => `\`${w}\``).join(', ') : '*Aucun*', inline: false },
+      { name: '🚫 Toujours exclure', value: guild.globalExcludeKeywords.length ? guild.globalExcludeKeywords.map((w) => `\`${w}\``).join(', ') : '*Aucun*', inline: false },
+      { name: '🗑️ Mots ignorés (Apprentissage)', value: guild.globalIgnoredKeywords.length ? guild.globalIgnoredKeywords.map((w) => `\`${w}\``).join(', ') : '*Aucun*', inline: false },
+    );
+
+  const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId('config:kw:global:include').setLabel('➕ Inclure').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId('config:kw:global:exclude').setLabel('➖ Exclure').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('config:kw:global:ignore').setLabel('🗑️ Ignorer').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('config:kw:global:clear').setLabel('🧹 Tout effacer').setStyle(ButtonStyle.Danger),
+  );
+
+  const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId('config:back').setLabel('◀ Retour Menu').setStyle(ButtonStyle.Secondary),
+  );
+
+  await renderPanel(target, { embeds: [embed], components: [row1, row2] });
+}
+
+export async function sendFeedKeywordsPanel(
+  client: Client,
+  guildId: string,
+  feedId: string,
+  target: TextChannel | BaseInteraction,
+): Promise<void> {
+  const feed = await prisma.feed.findUnique({ where: { id: feedId } });
+  if (!feed) return;
+
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.primary)
+    .setTitle(`🔑 Mots-clés limités à un flux`)
+    .setDescription(`Configuration des mots-clés pour le flux **${feed.name}**.\n*Note : les mots-clés globaux s'ajoutent à ceux-ci.*`)
+    .addFields(
+      { name: '✅ Inclure', value: feed.includeKeywords.length ? feed.includeKeywords.map((w) => `\`${w}\``).join(', ') : '*Aucun*', inline: false },
+      { name: '🚫 Exclure', value: feed.excludeKeywords.length ? feed.excludeKeywords.map((w) => `\`${w}\``).join(', ') : '*Aucun*', inline: false },
+      { name: '🗑️ Mots ignorés', value: feed.ignoredKeywords.length ? feed.ignoredKeywords.map((w) => `\`${w}\``).join(', ') : '*Aucun*', inline: false },
+    );
+
+  const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`config:kw:feed:include:${feed.id}`).setLabel('➕ Inclure').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`config:kw:feed:exclude:${feed.id}`).setLabel('➖ Exclure').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(`config:kw:feed:ignore:${feed.id}`).setLabel('🗑️ Ignorer').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`config:kw:feed:clear:${feed.id}`).setLabel('🧹 Tout effacer').setStyle(ButtonStyle.Danger),
+  );
+
+  // Return to feed selection or main feeds panel
+  const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId('config:feeds').setLabel('◀ Retour Flux').setStyle(ButtonStyle.Secondary),
+  );
+
+  await renderPanel(target, { embeds: [embed], components: [row1, row2] });
+}
+
+export function buildKeywordModal(
+  customId: string,
+  title: string,
+): ModalBuilder {
+  return new ModalBuilder()
+    .setCustomId(customId)
+    .setTitle(truncate(title, 45))
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId('keywords_input')
+          .setLabel('Nouveau(x) mot(s) (séparés par ",")')
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true)
+          .setPlaceholder('ex: appel, iphone, ios\n\n(Ceux-ci seront ajoutés à la liste existante)'),
       ),
     );
 }

@@ -15,7 +15,7 @@ import {
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { COLORS, errorEmbed, successEmbed, feedStatusEmoji, truncate } from '../utils/embeds.js';
-import { sendConfigPanel, sendFeedsPanel, buildAddFeedModal, sendRoleSelectionPanel, sendChannelSelectionPanel, sendDigestPanel, sendDigestRoleSelectionPanel, buildDigestModal, sendYouTubeConfigPanel, sendYouTubeRoleSelectionPanel } from '../panels/configPanel.js';
+import { sendConfigPanel, sendFeedsPanel, buildAddFeedModal, sendRoleSelectionPanel, sendChannelSelectionPanel, sendDigestPanel, sendDigestRoleSelectionPanel, buildDigestModal, sendYouTubeConfigPanel, sendYouTubeRoleSelectionPanel, sendGlobalKeywordsPanel, sendFeedKeywordsPanel, buildKeywordModal } from '../panels/configPanel.js';
 import { sendApprovedItem } from '../services/notificationService.js';
 import { sendDMSubscribePanel } from '../services/notificationService.js';
 import { translate } from '../services/translationService.js';
@@ -52,6 +52,48 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
   if (customId === 'config:feeds') {
     await sendFeedsPanel(client, guildId, interaction);
+    return;
+  }
+
+  if (customId === 'config:keywords') {
+    await sendGlobalKeywordsPanel(client, guildId, interaction);
+    return;
+  }
+
+  if (customId.startsWith('config:kw:global:')) {
+    const action = customId.split(':')[3];
+    if (action === 'clear') {
+      await prisma.guild.update({
+        where: { id: guildId },
+        data: { globalIncludeKeywords: [], globalExcludeKeywords: [], globalIgnoredKeywords: [] },
+      });
+      await sendGlobalKeywordsPanel(client, guildId, interaction);
+    } else {
+      const modeNames = { include: 'Inclure (Global)', exclude: 'Exclure (Global)', ignore: 'Ignorer (Global)' };
+      await interaction.showModal(buildKeywordModal(`modal:kw:global:${action}`, modeNames[action as keyof typeof modeNames]));
+    }
+    return;
+  }
+
+  if (customId.startsWith('config:kw:feed_panel:')) {
+    const feedId = customId.split(':')[3];
+    await sendFeedKeywordsPanel(client, guildId, feedId, interaction);
+    return;
+  }
+
+  if (customId.startsWith('config:kw:feed:')) {
+    const action = customId.split(':')[3];
+    const feedId = customId.split(':')[4];
+    if (action === 'clear') {
+       await prisma.feed.update({
+         where: { id: feedId },
+         data: { includeKeywords: [], excludeKeywords: [], ignoredKeywords: [] },
+       });
+       await sendFeedKeywordsPanel(client, guildId, feedId, interaction);
+    } else {
+      const modeNames = { include: 'Inclure (Flux)', exclude: 'Exclure (Flux)', ignore: 'Ignorer (Flux)' };
+      await interaction.showModal(buildKeywordModal(`modal:kw:feed:${action}:${feedId}`, modeNames[action as keyof typeof modeNames]));
+    }
     return;
   }
 
@@ -409,14 +451,17 @@ async function startKeywordDialog(
   description: string | null | undefined,
   mode: 'include' | 'exclude',
 ): Promise<void> {
-  const feed = await prisma.feed.findUnique({ where: { id: feedId } });
+  const feed = await prisma.feed.findUnique({ where: { id: feedId }, include: { guild: true } });
   if (!feed) return;
 
   const rawKeywords = extractKeywords(title, description);
   const keywords = rawKeywords.filter((w) => {
     return !feed.includeKeywords.includes(w) &&
            !feed.excludeKeywords.includes(w) &&
-           !feed.ignoredKeywords.includes(w);
+           !feed.ignoredKeywords.includes(w) &&
+           !feed.guild.globalIncludeKeywords.includes(w) &&
+           !feed.guild.globalExcludeKeywords.includes(w) &&
+           !feed.guild.globalIgnoredKeywords.includes(w);
   });
 
   if (keywords.length === 0) return;
@@ -631,6 +676,7 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
       .setTimestamp();
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`config:kw:feed_panel:${feedId}`).setLabel('🔑 Mots-clés').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(`feed:toggle:${feedId}`).setLabel(feed.enabled ? '🔴 Désactiver' : '🟢 Activer').setStyle(feed.enabled ? ButtonStyle.Danger : ButtonStyle.Success),
       new ButtonBuilder().setCustomId(`feed:delete:${feedId}`).setLabel('🗑️ Supprimer').setStyle(ButtonStyle.Danger),
       new ButtonBuilder().setCustomId('config:feeds').setLabel('◀ Retour').setStyle(ButtonStyle.Secondary),
@@ -773,6 +819,43 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
 
     if (interaction.channel) {
       await sendDigestPanel(client, guildId, interaction.channel as TextChannel);
+    }
+  }
+
+  if (customId.startsWith('modal:kw:')) {
+    await interaction.deferUpdate();
+    const parts = customId.split(':'); 
+    const scope = parts[2]; 
+    const action = parts[3]; 
+    const feedId = parts[4]; 
+
+    const rawInput = interaction.fields.getTextInputValue('keywords_input');
+    const newWords = rawInput.split(',').map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
+
+    if (newWords.length === 0) return;
+
+    if (scope === 'global') {
+      const field = action === 'include' ? 'globalIncludeKeywords' : action === 'exclude' ? 'globalExcludeKeywords' : 'globalIgnoredKeywords';
+      const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+      if (guild) {
+        const current = guild[field];
+        const updated = Array.from(new Set([...current, ...newWords]));
+        await prisma.guild.update({ where: { id: guildId }, data: { [field]: updated } });
+      }
+      if (interaction.channel) {
+        await sendGlobalKeywordsPanel(client, guildId, interaction.channel as TextChannel);
+      }
+    } else if (scope === 'feed' && feedId) {
+      const field = action === 'include' ? 'includeKeywords' : action === 'exclude' ? 'excludeKeywords' : 'ignoredKeywords';
+      const feed = await prisma.feed.findUnique({ where: { id: feedId } });
+      if (feed) {
+        const current = feed[field as 'includeKeywords' | 'excludeKeywords' | 'ignoredKeywords'];
+        const updated = Array.from(new Set([...current, ...newWords]));
+        await prisma.feed.update({ where: { id: feedId }, data: { [field]: updated } });
+      }
+      if (interaction.channel) {
+        await sendFeedKeywordsPanel(client, guildId, feedId, interaction.channel as TextChannel);
+      }
     }
   }
 }

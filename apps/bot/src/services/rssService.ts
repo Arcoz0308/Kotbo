@@ -91,8 +91,11 @@ export async function pollFeed(
     const author = (item as any).creator ?? (item as any).author ?? null;
     const imageUrl = extractImageFromItem(item);
 
+    const combinedInclude = Array.from(new Set([...feed.guild.globalIncludeKeywords, ...feed.includeKeywords]));
+    const combinedExclude = Array.from(new Set([...feed.guild.globalExcludeKeywords, ...feed.excludeKeywords]));
+
     const textToFilter = `${title} ${description ?? ''}`;
-    if (!matchesKeywordFilter(textToFilter, feed.includeKeywords, feed.excludeKeywords)) {
+    if (!matchesKeywordFilter(textToFilter, combinedInclude, combinedExclude)) {
       logger.debug('RSS', `Filtered out: "${title}" (keyword filter)`);
       continue;
     }
