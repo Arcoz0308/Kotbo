@@ -234,7 +234,7 @@ export async function sendApprovedItem(
       .setURL(`https://www.youtube.com/watch?v=${item.videoId}`);
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(watchBtn);
-    const mentionRoleId = item.isShort ? (item.guild as any).youtubeShortRoleId : (item.guild as any).youtubeVideoRoleId;
+    const mentionRoleId = item.isShort ? item.guild.youtubeShortRoleId : item.guild.youtubeVideoRoleId;
     const content = mentionRoleId ? `<@&${mentionRoleId}>` : '';
 
     const msg = await channel.send({ content, embeds: [embed], components: [row] });

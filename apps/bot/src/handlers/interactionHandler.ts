@@ -14,6 +14,7 @@ import {
 } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
+import { DigestFrequency } from '../../../../node_modules/.prisma/client/index.js';
 import { COLORS, errorEmbed, successEmbed, infoEmbed, feedStatusEmoji, truncate } from '../utils/embeds.js';
 import { sendConfigPanel, sendFeedsPanel, buildAddFeedModal, sendRoleSelectionPanel, sendChannelSelectionPanel, sendDigestPanel, sendDigestRoleSelectionPanel, buildDigestModal, sendYouTubeConfigPanel, sendYouTubeRoleSelectionPanel, sendGlobalKeywordsPanel, sendFeedKeywordsPanel, buildKeywordModal } from '../panels/configPanel.js';
 import { sendSetupStep1, sendSetupStep2, sendSetupStep3, sendSetupStep4, sendSetupStep5, sendSetupFinish, buildSetupDigestModal } from '../panels/setupPanel.js';
@@ -84,7 +85,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       await interaction.showModal(buildSetupDigestModal(guild));
     }
     else if (step === 'digest_clear_role') {
-      await prisma.guild.update({ where: { id: guildId }, data: { digestRoleId: null } as any });
+      await prisma.guild.update({ where: { id: guildId }, data: { digestRoleId: null } });
       await sendSetupStep4(client, guildId, interaction);
     }
     return;
@@ -245,10 +246,10 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   if (customId === 'config:digest:freq') {
     const guild = await prisma.guild.findUnique({ where: { id: guildId } });
     if (!guild) return;
-    const currentFreq = (guild as any).digestFrequency;
+    const currentFreq = guild.digestFrequency;
     await prisma.guild.update({
       where: { id: guildId },
-      data: { digestFrequency: currentFreq === 'DAILY' ? 'WEEKLY' : 'DAILY' } as any,
+      data: { digestFrequency: currentFreq === DigestFrequency.DAILY ? DigestFrequency.WEEKLY : DigestFrequency.DAILY },
     });
     await sendDigestPanel(client, guildId, interaction);
     return;
@@ -266,7 +267,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   }
 
   if (customId === 'config:digest:reset_role') {
-    await prisma.guild.update({ where: { id: guildId }, data: { digestRoleId: null } as any });
+    await prisma.guild.update({ where: { id: guildId }, data: { digestRoleId: null } });
     await sendDigestPanel(client, guildId, interaction);
     return;
   }
@@ -798,7 +799,7 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
       await sendSetupStep3(client, guildId, interaction);
     }
     else if (step === 'digest_freq') {
-      await prisma.guild.update({ where: { id: guildId }, data: { digestFrequency: val as any } });
+      await prisma.guild.update({ where: { id: guildId }, data: { digestFrequency: val as DigestFrequency } });
       await sendSetupStep4(client, guildId, interaction);
     }
     else if (step === 'select_yt_short_role') {
@@ -810,7 +811,7 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
       await sendSetupStep3(client, guildId, interaction);
     }
     else if (step === 'select_digest_role') {
-      await prisma.guild.update({ where: { id: guildId }, data: { digestRoleId: val } as any });
+      await prisma.guild.update({ where: { id: guildId }, data: { digestRoleId: val } });
       await sendSetupStep4(client, guildId, interaction);
     }
     return;
@@ -899,7 +900,7 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
     const roleId = values[0];
     await prisma.guild.update({
       where: { id: guildId },
-      data: { digestRoleId: roleId } as any,
+      data: { digestRoleId: roleId },
     });
     await sendDigestPanel(client, guildId, interaction);
     return;
@@ -1021,7 +1022,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
 
     await prisma.guild.update({
       where: { id: guildId },
-      data: { digestTime: time, digestCustomText: text } as any,
+      data: { digestTime: time, digestCustomText: text },
     });
 
     if (interaction.channel) {

@@ -101,7 +101,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     try {
       if ('replied' in interaction && interaction.replied) return;
       
-      const replyOptions = { content: '❌ Une erreur est survenue.', flags: [MessageFlags.Ephemeral] } as any;
+      const replyOptions: import('discord.js').InteractionReplyOptions = { content: '❌ Une erreur est survenue.', flags: [MessageFlags.Ephemeral] };
       
       if ('deferred' in interaction && interaction.deferred) {
         await (interaction as ChatInputCommandInteraction).followUp(replyOptions);

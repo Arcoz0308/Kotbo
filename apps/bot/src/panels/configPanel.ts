@@ -28,8 +28,16 @@ async function renderPanel(
       if (target.deferred || target.replied) {
         await target.editReply(payload);
       } else {
-        if (target.isMessageComponent() || target.isModalSubmit()) {
-          await (target as any).update(payload);
+        if (target.isMessageComponent()) {
+          await target.update(payload);
+        } else if (target.isModalSubmit()) {
+          if (target.deferred || target.replied) {
+            await target.editReply(payload);
+          } else {
+            // For modals, we often want to update the original message if possible
+            // Using a type-safe check/cast if needed, or just deferUpdate + editReply
+            await target.reply(payload);
+          }
         } else {
           await target.reply(payload);
         }
@@ -358,7 +366,7 @@ export async function sendDigestRoleSelectionPanel(
   await renderPanel(target, { embeds: [embed], components: [row1, row2] });
 }
 
-export function buildDigestModal(guild?: any): ModalBuilder {
+export function buildDigestModal(guild?: { digestTime?: string | null, digestCustomText?: string | null } | null): ModalBuilder {
   return new ModalBuilder()
     .setCustomId('modal:digest:config')
     .setTitle("📅 Paramètres du Digest")

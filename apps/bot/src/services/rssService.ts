@@ -19,7 +19,15 @@ const parser = new Parser({
   },
 });
 
-function extractImageFromItem(item: any): string | null {
+type CustomItem = Parser.Item & {
+  creator?: string;
+  author?: string;
+  mediaContent?: { '$'?: { url?: string } };
+  mediaThumbnail?: { '$'?: { url?: string } };
+  enclosure?: { url?: string; type?: string };
+};
+
+function extractImageFromItem(item: CustomItem): string | null {
   const mc = item['mediaContent'];
   if (mc?.['$']?.['url']) return String(mc['$']['url']);
 
@@ -120,7 +128,7 @@ export async function pollFeed(
     const title = item.title ?? 'Sans titre';
     const url = item.link ?? '';
     const description = item.contentSnippet ?? item.content?.replace(/<[^>]*>/g, '').slice(0, 500) ?? null;
-    const author = (item as any).creator ?? (item as any).author ?? null;
+    const author = (item as CustomItem).creator ?? (item as CustomItem).author ?? null;
     const imageUrl = extractImageFromItem(item);
     const publishedAt = item.pubDate ? new Date(item.pubDate) : new Date();
 

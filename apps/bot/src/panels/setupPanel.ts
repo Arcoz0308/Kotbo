@@ -26,8 +26,18 @@ async function renderSetup(
       if (target.deferred || target.replied) {
         await target.editReply(payload);
       } else {
-        if (target.isMessageComponent() || target.isModalSubmit()) {
-          await (target as any).update(payload);
+        if (target.isMessageComponent()) {
+          await target.update(payload);
+        } else if (target.isModalSubmit()) {
+          if (target.deferred || target.replied) {
+            await target.editReply(payload);
+          } else {
+            try {
+              await (target as any).update(payload);
+            } catch {
+              await target.reply(payload);
+            }
+          }
         } else {
           await target.reply(payload);
         }
@@ -340,7 +350,7 @@ export async function sendSetupFinish(
   await renderSetup(target, { embeds: [embed], components: [row] });
 }
 
-export function buildSetupDigestModal(guild?: any): ModalBuilder {
+export function buildSetupDigestModal(guild?: { digestTime?: string | null } | null): ModalBuilder {
   return new ModalBuilder()
     .setCustomId('modal:setup:digest_time')
     .setTitle("⌚ Heure du Digest")
