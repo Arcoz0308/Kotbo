@@ -25,10 +25,16 @@ export async function sendToValidationQueue(
 ): Promise<void> {
   if (type === 'rss') {
     const item = await prisma.feedItem.findUnique({ where: { id: itemId }, include: { feed: { include: { guild: true } } } });
-    if (!item?.feed?.guild?.configChannelId) return;
+    if (!item?.feed?.guild?.configChannelId) {
+      logger.warn('Notif', `Cannot queue RSS item "${item?.title}": configChannelId (validation channel) is not set for guild ${item?.feed?.guildId}`);
+      return;
+    }
 
     const channel = await client.channels.fetch(item.feed.guild.configChannelId).catch(() => null) as TextChannel | null;
-    if (!channel) return;
+    if (!channel) {
+      logger.error('Notif', `Validation channel ${item.feed.guild.configChannelId} not found for guild ${item.feed.guildId}`);
+      return;
+    }
 
     const embed = buildNewsEmbed({
       title: item.titleTranslated ?? item.title,
@@ -54,10 +60,16 @@ export async function sendToValidationQueue(
     logger.success('Notif', `Queued RSS item "${item.title}" for validation`);
   } else {
     const item = await prisma.youTubeItem.findUnique({ where: { id: itemId }, include: { guild: true } });
-    if (!item?.guild?.configChannelId) return;
+    if (!item?.guild?.configChannelId) {
+      logger.warn('Notif', `Cannot queue YouTube item "${item?.title}": configChannelId (validation channel) is not set for guild ${item?.guildId}`);
+      return;
+    }
 
     const channel = await client.channels.fetch(item.guild.configChannelId).catch(() => null) as TextChannel | null;
-    if (!channel) return;
+    if (!channel) {
+      logger.error('Notif', `Validation channel ${item.guild.configChannelId} not found for guild ${item.guildId}`);
+      return;
+    }
 
     const embed = buildYouTubeEmbed({
       title: item.title,
@@ -124,10 +136,16 @@ export async function sendApprovedItem(
 ): Promise<void> {
   if (type === 'rss') {
     const item = await prisma.feedItem.findUnique({ where: { id: itemId }, include: { feed: { include: { guild: true } } } });
-    if (!item?.feed?.guild?.publicChannelId) return;
+    if (!item?.feed?.guild?.publicChannelId) {
+      logger.warn('Notif', `Cannot publish RSS item "${item?.title}": publicChannelId is not set for guild ${item?.feed?.guildId}`);
+      return;
+    }
 
     const channel = await client.channels.fetch(item.feed.guild.publicChannelId).catch(() => null) as TextChannel | null;
-    if (!channel) return;
+    if (!channel) {
+      logger.error('Notif', `Public channel ${item.feed.guild.publicChannelId} not found for guild ${item.feed.guildId}`);
+      return;
+    }
 
     const embed = buildNewsEmbed({
       title: item.titleTranslated ?? item.title,
@@ -182,10 +200,16 @@ export async function sendApprovedItem(
     if (!item) return;
 
     const channelId = item.guild.youtubeChannelId ?? item.guild.nathanChannelId ?? item.guild.publicChannelId;
-    if (!channelId) return;
+    if (!channelId) {
+      logger.warn('Notif', `Cannot publish YouTube item "${item.title}": no destination channel set for guild ${item.guildId}`);
+      return;
+    }
 
     const channel = await client.channels.fetch(channelId).catch(() => null) as TextChannel | null;
-    if (!channel) return;
+    if (!channel) {
+      logger.error('Notif', `Destination channel ${channelId} not found for YouTube item in guild ${item.guildId}`);
+      return;
+    }
 
     const embed = buildYouTubeEmbed({
       title: item.title,

@@ -53,7 +53,16 @@ export async function pollFeed(
     where: { id: feedId },
     include: { guild: true },
   });
-  if (!feed || !feed.enabled || !feed.guild.configChannelId) return;
+  if (!feed || !feed.enabled) return;
+
+  if (!feed.autoPublish && !feed.guild.configChannelId) {
+    logger.warn('RSS', `Skipping poll for "${feed.name}": manual validation required but configChannelId is not set.`);
+    return;
+  }
+  if (feed.autoPublish && !feed.guild.publicChannelId) {
+    logger.warn('RSS', `Skipping poll for "${feed.name}": auto-publish enabled but publicChannelId is not set.`);
+    return;
+  }
 
   let parsed;
   try {
@@ -132,11 +141,11 @@ export async function pollFeed(
     });
 
     newCount++;
-    logger.info('RSS', `New item: "${title}" from ${feed.name}`);
-
     if (feed.autoPublish) {
+      logger.info('RSS', `Auto-publishing item: "${title}" from ${feed.name}`);
       await publishItem(client, dbItem.id);
     } else {
+      logger.info('RSS', `Queueing item for validation: "${title}" from ${feed.name}`);
       await sendToValidationQueue(client, dbItem.id, 'rss');
     }
   }

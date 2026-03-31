@@ -12,7 +12,12 @@ export async function pollYouTubeChannel(
   channelId: string,
 ): Promise<void> {
   const guild = await prisma.guild.findUnique({ where: { id: guildId } });
-  if (!guild || !guild.youtubeEnabled || !guild.configChannelId) return;
+  if (!guild || !guild.youtubeEnabled) return;
+
+  if (!guild.configChannelId) {
+    logger.warn('YouTube', `Skipping poll for guild ${guildId}: youtubeEnabled is true but configChannelId (validation channel) is not set.`);
+    return;
+  }
 
   const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
 

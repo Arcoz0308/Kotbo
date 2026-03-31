@@ -947,10 +947,10 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
       return;
     }
 
-    const guild = await prisma.guild.findUnique({ where: { id: guildId } });
-    if (!guild) {
-      await prisma.guild.create({ data: { id: guildId } });
-    }
+    const guild = await prisma.guild.findUnique({ where: { id: guildId } }) || 
+                  await prisma.guild.create({ data: { id: guildId } });
+
+    const autoPublish = autoPublishInput === 'oui' || autoPublishInput === 'yes' || autoPublishInput === 'true';
 
     await prisma.feed.create({
       data: {
@@ -958,16 +958,21 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
         name,
         url,
         category,
-        autoPublish: autoPublishInput === 'oui' || autoPublishInput === 'yes',
+        autoPublish,
         language,
         translateTo,
       },
     });
 
-    await interaction.editReply({ embeds: [successEmbed('Flux ajouté !', `**${name}** → \`${url}\``)] });
+    let successDesc = `**${name}** → \`${url}\` (Auto-pub: ${autoPublish ? '✅ Oui' : '❌ Non'})`;
+    if (!autoPublish && !guild.configChannelId) {
+      successDesc += '\n\n⚠️ **Attention** : Aucun salon de modération n\'est configuré. Les articles ne pourront pas être validés tant que vous n\'aurez pas défini le salon de modération via `/setup` ou `/config`.';
+    }
+
+    await interaction.editReply({ embeds: [successEmbed('Flux ajouté !', successDesc)] });
 
     if (interaction.channel instanceof TextChannel) {
-      await interaction.channel.send({ embeds: [successEmbed('Flux ajouté !', `**${name}** a été configuré.`)] });
+      await interaction.channel.send({ embeds: [successEmbed('Flux ajouté !', `**${name}** a été configuré. (Auto-pub: ${autoPublish ? 'Oui' : 'Non'})`)] });
     }
     return;
   }
