@@ -73,6 +73,8 @@ model Feed {
   subscribers UserFeedSub[]
 
   lastPolledAt DateTime?
+  lastPollError String?
+  lastPollStatus String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 

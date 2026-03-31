@@ -66,10 +66,12 @@ export async function pollFeed(
 
   if (!feed.autoPublish && !feed.guild.configChannelId) {
     logger.warn('RSS', `Skipping poll for "${feed.name}": manual validation required but configChannelId is not set.`);
+    await prisma.feed.update({ where: { id: feed.id }, data: { lastPollStatus: 'ERROR', lastPollError: 'Channel de validation non configuré' } });
     return;
   }
   if (feed.autoPublish && !feed.guild.publicChannelId) {
     logger.warn('RSS', `Skipping poll for "${feed.name}": auto-publish enabled but publicChannelId is not set.`);
+    await prisma.feed.update({ where: { id: feed.id }, data: { lastPollStatus: 'ERROR', lastPollError: 'Channel public non configuré' } });
     return;
   }
 
@@ -78,6 +80,10 @@ export async function pollFeed(
     parsed = await parser.parseURL(feed.url);
   } catch (err) {
     logger.warn('RSS', `Failed to parse ${feed.name}: ${err}`);
+    await prisma.feed.update({
+      where: { id: feed.id },
+      data: { lastPollStatus: 'ERROR', lastPollError: String(err) }
+    });
     return;
   }
 
@@ -99,7 +105,7 @@ export async function pollFeed(
   });
 
   if (candidateItems.length === 0) {
-    await prisma.feed.update({ where: { id: feed.id }, data: { lastPolledAt: now } });
+    await prisma.feed.update({ where: { id: feed.id }, data: { lastPolledAt: now, lastPollStatus: 'SUCCESS', lastPollError: null } });
     return;
   }
 
@@ -117,7 +123,7 @@ export async function pollFeed(
   });
 
   if (newItems.length === 0) {
-    await prisma.feed.update({ where: { id: feed.id }, data: { lastPolledAt: now } });
+    await prisma.feed.update({ where: { id: feed.id }, data: { lastPolledAt: now, lastPollStatus: 'SUCCESS', lastPollError: null } });
     return;
   }
 
@@ -189,7 +195,7 @@ export async function pollFeed(
   const results = await Promise.all(tasks);
   const createdCount = results.filter(Boolean).length;
 
-  await prisma.feed.update({ where: { id: feed.id }, data: { lastPolledAt: now } });
+  await prisma.feed.update({ where: { id: feed.id }, data: { lastPolledAt: now, lastPollStatus: 'SUCCESS', lastPollError: null } });
   if (createdCount > 0) logger.info('RSS', `${feed.name}: ${createdCount} nouveaux articles`);
 }
 

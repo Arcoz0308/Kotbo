@@ -61,6 +61,9 @@ export const data = new SlashCommandBuilder()
     sc.setName('list').setDescription('Lister tous les flux RSS')
   )
   .addSubcommand((sc) =>
+    sc.setName('status').setDescription('Vérifier l\'état technique des flux RSS')
+  )
+  .addSubcommand((sc) =>
     sc
       .setName('keywords')
       .setDescription('Définir des mots-clés filtre pour un flux')
@@ -166,6 +169,31 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const lines = feeds.map((f) => `${feedStatusEmoji(f.enabled)} **${f.name}** — ${categoryEmoji(f.category)} ${f.category} — Auto-pub : ${f.autoPublish ? 'Oui' : 'Non'}`);
     await interaction.editReply({
       embeds: [infoEmbed(`Flux RSS (${feeds.length})`, lines.join('\n'))],
+    });
+  }
+
+  else if (sub === 'status') {
+    const feeds = await prisma.feed.findMany({ where: { guildId }, orderBy: { name: 'asc' } });
+    if (feeds.length === 0) {
+      await interaction.editReply({ embeds: [infoEmbed('Aucun flux', 'Ajoutez un flux avec `/feed add`.')] });
+      return;
+    }
+
+    const lines = feeds.map((f) => {
+      if (!f.enabled) return `⚪ **${f.name}** (Désactivé)`;
+
+      let statusIcon = '⏳';
+      if (f.lastPollStatus === 'SUCCESS') statusIcon = '✅';
+      else if (f.lastPollStatus === 'ERROR') statusIcon = '❌';
+
+      const lastPoll = f.lastPolledAt ? `<t:${Math.floor(f.lastPolledAt.getTime() / 1000)}:R>` : 'Jamais';
+      const errorText = f.lastPollError ? `\n   └ ⚠️ *${truncate(f.lastPollError, 100)}*` : '';
+      
+      return `${statusIcon} **${f.name}**\n   └ Dernier poll : ${lastPoll}${errorText}`;
+    });
+
+    await interaction.editReply({
+      embeds: [infoEmbed(`État des flux RSS`, lines.join('\n'))],
     });
   }
 
