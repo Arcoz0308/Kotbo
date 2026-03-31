@@ -8,9 +8,11 @@ import * as setupCmd from './commands/setup.js';
 import * as configCmd from './commands/config.js';
 import * as feedCmd from './commands/feed.js';
 import * as newsCmd from './commands/news.js';
+import * as pingCmd from './commands/ping.js';
+import * as infoCmd from './commands/info.js';
 // import * as statsCmd from './commands/stats.js';
 
-const commands = [setupCmd, configCmd, feedCmd, newsCmd].map((cmd) => cmd.data.toJSON());
+const commands = [setupCmd, configCmd, feedCmd, newsCmd, pingCmd, infoCmd].map((cmd) => cmd.data.toJSON());
 
 const token = process.env.DISCORD_TOKEN;
 const clientId = process.env.DISCORD_CLIENT_ID;

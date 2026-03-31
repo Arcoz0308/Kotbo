@@ -22,6 +22,8 @@ import * as setupCmd from './commands/setup.js';
 import * as configCmd from './commands/config.js';
 import * as feedCmd from './commands/feed.js';
 import * as newsCmd from './commands/news.js';
+import * as pingCmd from './commands/ping.js';
+import * as infoCmd from './commands/info.js';
 // import * as statsCmd from './commands/stats.js';
 
 const client = new Client({
@@ -40,7 +42,7 @@ type SlashCommand = {
 };
 
 const commands = new Collection<string, SlashCommand>();
-[setupCmd, configCmd, feedCmd, newsCmd].forEach((cmd) => {
+[setupCmd, configCmd, feedCmd, newsCmd, pingCmd, infoCmd].forEach((cmd) => {
   commands.set(cmd.data.name, cmd as SlashCommand);
 });
 

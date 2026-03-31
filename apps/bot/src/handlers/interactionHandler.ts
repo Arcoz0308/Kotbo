@@ -171,6 +171,16 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
+  if (customId === 'config:feed:autopub_all') {
+    const feeds = await prisma.feed.findMany({ where: { guildId } });
+    if (feeds.length) {
+      const allAutoPublish = feeds.every((f) => f.autoPublish);
+      await prisma.feed.updateMany({ where: { guildId }, data: { autoPublish: !allAutoPublish } });
+    }
+    await sendFeedsPanel(client, guildId, interaction);
+    return;
+  }
+
   if (customId === 'config:youtube_panel') {
     await sendYouTubeConfigPanel(client, guildId, interaction);
     return;

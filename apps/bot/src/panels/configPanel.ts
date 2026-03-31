@@ -118,10 +118,14 @@ export async function sendFeedsPanel(
     byCategory.get(f.category)!.push(f);
   }
 
+  const allAutoPublish = feeds.every((f) => f.autoPublish);
   const embed = new EmbedBuilder()
     .setColor(COLORS.primary)
     .setTitle(`📡 Gestion des Flux RSS (${feeds.length})`)
-    .setDescription('Cliquez sur un flux pour le configurer, ou utilisez les boutons rapides.');
+    .setDescription(
+      `Cliquez sur un flux pour le configurer, ou utilisez les boutons rapides.\n` +
+      `Statut auto-publication global : ${allAutoPublish ? '🟢 Activé pour tous' : '🔴 Désactivé / partiel'}`,
+    );
 
   for (const [cat, catFeeds] of byCategory) {
     embed.addFields({
@@ -144,6 +148,10 @@ export async function sendFeedsPanel(
 
   const row1 = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId('config:feed:autopub_all')
+      .setLabel(allAutoPublish ? '⚡ Désactiver auto-pub (tous)' : '⚡ Activer auto-pub (tous)')
+      .setStyle(allAutoPublish ? ButtonStyle.Danger : ButtonStyle.Success),
     new ButtonBuilder().setCustomId('config:feed:add').setLabel('➕ Ajouter').setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId('config:back').setLabel('◀ Retour').setStyle(ButtonStyle.Secondary),
   );
