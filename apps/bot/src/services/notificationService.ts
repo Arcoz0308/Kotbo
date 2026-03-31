@@ -4,6 +4,7 @@ import {
   ButtonStyle,
   EmbedBuilder,
   type Client,
+  type Message,
   type TextChannel,
   type User,
 } from 'discord.js';
@@ -174,6 +175,12 @@ export async function sendApprovedItem(
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(subscribeBtn, pinBtn);
     const msg = await channel.send({ embeds: [embed], components: [row] });
 
+    await createDiscussionThreadFromMessage(
+      msg,
+      item.titleTranslated ?? item.title,
+      item.descriptionTranslated ?? item.description ?? '',
+    );
+
     if (item.pinned) {
       await msg.pin().catch(() => null);
     }
@@ -232,10 +239,42 @@ export async function sendApprovedItem(
 
     const msg = await channel.send({ content, embeds: [embed], components: [row] });
 
+    await createDiscussionThreadFromMessage(msg, item.title, item.description ?? '');
+
     await prisma.youTubeItem.update({
       where: { id: item.id },
       data: { status: 'APPROVED', publicMessageId: msg.id },
     });
+  }
+}
+
+async function createDiscussionThreadFromMessage(
+  message: Message,
+  title: string,
+  textIntro: string,
+): Promise<void> {
+  try {
+    const thread = await message.startThread({
+      name: title.length > 100 ? `${title.slice(0, 97)}...` : title,
+      autoArchiveDuration: 1440,
+      reason: 'Discussion automatique après validation de news',
+    });
+
+    const debateRules =
+      '**Introduction**\n' +
+      `${textIntro ? `${textIntro}\n\n` : ''}` +
+      '**Règles de débat**\n' +
+      '1. Restez respectueux envers les autres participants.\n' +
+      '2. Pas d’insultes, de harcèlement ou d’attaques personnelles.\n' +
+      '3. Restez sur le sujet et apportez des arguments concrets.\n' +
+      '4. Citez vos sources lorsque c’est possible.\n' +
+      '5. Pas de spam ou de publicité non sollicitée.\n' +
+      '6. Evitez les contenus sensibles/choquants.\n\n' +
+      '🗣️ **Discutez ici du contenu publié !**';
+
+    await thread.send({ content: debateRules });
+  } catch (e) {
+    logger.warn('Notif', `Could not create discussion thread for approved item '${title}': ${e}`);
   }
 }
 

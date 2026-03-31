@@ -10,6 +10,7 @@ import {
   type ChatInputCommandInteraction,
   type AutocompleteInteraction,
   MessageFlags,
+  DiscordAPIError,
 } from 'discord.js';
 import { logger } from './utils/logger.js';
 import { registerCrons } from './events/crons.js';
@@ -91,6 +92,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await handleModalSubmit(interaction, client);
     }
   } catch (err) {
+    if (err instanceof DiscordAPIError && err.code === 10062) {
+      logger.warn('Event', 'InteractionCreate: DiscordAPIError 10062 (Unknown interaction) ignored.');
+      return;
+    }
+
     logger.error('Event', 'InteractionCreate error:', err);
     try {
       const msg = { content: '❌ Une erreur est survenue.', ephemeral: true };
@@ -101,6 +107,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await (interaction as ChatInputCommandInteraction).reply(msg);
       }
     } catch (e){
+      if (e instanceof DiscordAPIError && e.code === 10062) {
+        logger.warn('Event', 'InteractionCreate follow-up: DiscordAPIError 10062 ignored.');
+        return;
+      }
       logger.error('Event', 'InteractionCreate error:', e);
     }
   }
