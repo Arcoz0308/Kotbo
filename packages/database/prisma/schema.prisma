@@ -44,6 +44,7 @@ model Guild {
 
   feeds        Feed[]
   youtubeItems YouTubeItem[]
+  youtubeSubscriptions YouTubeSubscription[]
 
   @@map("guilds")
 }
@@ -134,6 +135,17 @@ model YouTubeItem {
   updatedAt DateTime @updatedAt
 
   @@map("youtube_items")
+}
+
+model YouTubeSubscription {
+  id         String   @id @default(cuid())
+  guildId    String
+  channelId  String
+  guild      Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([guildId, channelId])
+  @@map("youtube_subscriptions")
 }
 
 model UserFeedSub {

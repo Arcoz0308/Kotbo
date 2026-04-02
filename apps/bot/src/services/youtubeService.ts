@@ -16,8 +16,7 @@ export async function pollYouTubeChannel(
   if (!guild || !guild.youtubeEnabled) return;
 
   if (!guild.configChannelId) {
-    logger.warn('YouTube', `Skipping poll for guild ${guildId}: youtubeEnabled is true but configChannelId (validation channel) is not set.`);
-    return;
+    logger.warn('YouTube', `Guild ${guildId} has YouTube enabled but no configChannelId (validation channel) is set; auto-approval path will be used.`);
   }
 
   const feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
@@ -82,16 +81,43 @@ async function isYouTubeShort(videoId: string): Promise<boolean> {
 }
 
 export async function pollAllYouTubeChannels(client: Client): Promise<void> {
-  const guilds = await prisma.guild.findMany({
-    where: { youtubeEnabled: true, nathanYtChannelId: { not: null } },
-  });
+  const subs = await (prisma as any).youTubeSubscription?.findMany?.({ include: { guild: true } }) ?? [];
 
-  const limit = pLimit(3); // Traiter 3 guildes simultanément
-  const tasks = guilds.map(guild => limit(async () => {
-    try {
-      await pollYouTubeChannel(client, guild.id, guild.nathanYtChannelId!);
-    } catch (e) {
-      logger.error('YouTube', `Error polling guild ${guild.id}:`, e);
+  if (subs.length === 0) {
+    const guilds = await prisma.guild.findMany({
+      where: { youtubeEnabled: true, nathanYtChannelId: { not: null } },
+    });
+
+    const limit = pLimit(3); // Traiter 3 guildes simultanément
+    const tasks = guilds.map(guild => limit(async () => {
+      try {
+        await pollYouTubeChannel(client, guild.id, guild.nathanYtChannelId!);
+      } catch (e) {
+        logger.error('YouTube', `Error polling guild ${guild.id}:`, e);
+      }
+    }));
+
+    await Promise.all(tasks);
+    return;
+  }
+
+  const byGuild = new Map<string, { guild: any; channelIds: string[] }>();
+  for (const s of subs) {
+    if (!s.guild || !s.channelId) continue;
+    if (!s.guild.youtubeEnabled) continue;
+    const existing = byGuild.get(s.guildId) ?? { guild: s.guild, channelIds: [] };
+    existing.channelIds.push(s.channelId);
+    byGuild.set(s.guildId, existing);
+  }
+
+  const limit = pLimit(3);
+  const tasks = Array.from(byGuild.entries()).map(([guildId, { guild, channelIds }]) => limit(async () => {
+    for (const channelId of channelIds) {
+      try {
+        await pollYouTubeChannel(client, guildId, channelId);
+      } catch (e) {
+        logger.error('YouTube', `Error polling subscription ${channelId} for guild ${guildId}:`, e);
+      }
     }
   }));
 

@@ -61,14 +61,19 @@ export async function sendToValidationQueue(
     logger.success('Notif', `Queued RSS item "${item.title}" for validation`);
   } else {
     const item = await prisma.youTubeItem.findUnique({ where: { id: itemId }, include: { guild: true } });
-    if (!item?.guild?.configChannelId) {
-      logger.warn('Notif', `Cannot queue YouTube item "${item?.title}": configChannelId (validation channel) is not set for guild ${item?.guildId}`);
+    if (!item) return;
+
+    if (!item.guild?.configChannelId) {
+      logger.warn('Notif', `YouTube item "${item.title}" has no configChannelId set for guild ${item.guildId}; sending directly to public destination.`);
+      await sendApprovedItem(client, item.id, 'youtube');
       return;
     }
 
     const channel = await client.channels.fetch(item.guild.configChannelId).catch(() => null) as TextChannel | null;
     if (!channel) {
       logger.error('Notif', `Validation channel ${item.guild.configChannelId} not found for guild ${item.guildId}`);
+      // try direct publish as fallback
+      await sendApprovedItem(client, item.id, 'youtube');
       return;
     }
 
