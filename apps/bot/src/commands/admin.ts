@@ -53,6 +53,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       where: { id: guildId },
       select: {
         dailyAlgoChannelId: true,
+        dailyAlgoValidationChannelId: true,
         dailyAlgoEnabled: true,
         dailyAlgoTime: true,
         githubReleasesChannelId: true,
@@ -70,6 +71,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
             {
               name: 'Salon Daily Algo',
               value: guild?.dailyAlgoChannelId ? `<#${guild.dailyAlgoChannelId}>` : '❌ Non configuré',
+              inline: true,
+            },
+            {
+              name: 'Salon validation Daily Algo',
+              value: guild?.dailyAlgoValidationChannelId ? `<#${guild.dailyAlgoValidationChannelId}>` : '❌ Non configuré',
               inline: true,
             },
             {

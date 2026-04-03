@@ -43,6 +43,7 @@ model Guild {
   
   dailyAlgoEnabled         Boolean @default(false)
   dailyAlgoChannelId       String?
+  dailyAlgoValidationChannelId String?
   dailyAlgoTime            String  @default("09:00") // HH:MM
   
   githubReleasesEnabled    Boolean @default(false)
@@ -57,6 +58,7 @@ model Guild {
   feeds        Feed[]
   youtubeItems YouTubeItem[]
   youtubeSubscriptions YouTubeSubscription[]
+  dailyAlgoRuns DailyAlgoRun[]
 
   @@map("guilds")
 }
@@ -192,11 +194,64 @@ model DailyAlgoProblem {
   language    String   @default("fr")
   createdAt   DateTime @default(now())
 
+  runs DailyAlgoRun[]
+
   @@map("daily_algo_problems")
   @@index([language])
 }
 
+model DailyAlgoRun {
+  id String @id @default(cuid())
+
+  guildId String
+  problemId String
+
+  challengeChannelId String
+  validationChannelId String?
+  challengeMessageId String?
+  summarySentAt DateTime?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  problem DailyAlgoProblem @relation(fields: [problemId], references: [id])
+  submissions DailyAlgoSubmission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("daily_algo_runs")
+  @@index([guildId, createdAt])
+}
+
+model DailyAlgoSubmission {
+  id String @id @default(cuid())
+
+  runId String
+  authorId String
+  authorName String
+  solution String
+
+  status DailyAlgoSubmissionStatus @default(PENDING)
+  validationMessageId String?
+  validatedById String?
+  validatedAt DateTime?
+
+  run DailyAlgoRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("daily_algo_submissions")
+  @@index([runId, status])
+  @@index([authorId])
+}
+
 enum ItemStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum DailyAlgoSubmissionStatus {
   PENDING
   APPROVED
   REJECTED

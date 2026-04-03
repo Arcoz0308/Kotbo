@@ -3,6 +3,7 @@ import cron from 'node-cron';
 import { pollAllFeeds } from '../services/rssService.js';
 import { pollAllYouTubeChannels } from '../services/youtubeService.js';
 import { runDigestForAllGuilds, runDailyAlgoForAllGuilds } from '../services/digestService.js';
+import { runDailyAlgoSummariesForAllGuilds } from '../services/dailyAlgoService.js';
 import { logger } from '../utils/logger.js';
 
 export async function registerCrons(client: Client): Promise<void> {
@@ -31,6 +32,11 @@ export async function registerCrons(client: Client): Promise<void> {
     const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     logger.debug('Cron', `Vérification du daily algo à ${currentTime}...`);
     await runDailyAlgoForAllGuilds(client).catch((e) => logger.error('Cron', 'Erreur Daily Algo :', e));
+  });
+
+  cron.schedule('59 23 * * *', async () => {
+    logger.debug('Cron', 'Génération du bilan quotidien Daily Algo...');
+    await runDailyAlgoSummariesForAllGuilds(client).catch((e) => logger.error('Cron', 'Erreur bilan Daily Algo :', e));
   });
 
   logger.success('Cron', 'Tous les jobs cron sont enregistrés');

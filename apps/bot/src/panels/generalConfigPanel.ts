@@ -85,7 +85,7 @@ export async function sendMainConfigPanel(
       {
         name: '📚 Daily Algo',
         value: guild.dailyAlgoEnabled
-          ? `✅ ${guild.dailyAlgoChannelId ? 'Salon OK' : 'Salon manquant'} • ${guild.dailyAlgoTime} UTC`
+          ? `✅ ${guild.dailyAlgoChannelId ? 'Défi OK' : 'Défi manquant'} • ${guild.dailyAlgoValidationChannelId ? 'Validation OK' : 'Validation manquante'} • ${guild.dailyAlgoTime} UTC`
           : '❌ Désactivé',
         inline: true,
       },
@@ -272,7 +272,7 @@ export async function sendDailyAlgoConfig(
   const embed = new EmbedBuilder()
     .setColor(0xffbe0b)
     .setTitle('📚 Configuration - Daily Algo')
-    .setDescription('Défis algorithmiques quotidiens à 9h00')
+    .setDescription('Défis algorithmiques quotidiens avec validation manuelle des réponses')
     .addFields(
       {
         name: 'Statut',
@@ -280,8 +280,13 @@ export async function sendDailyAlgoConfig(
         inline: false,
       },
       {
-        name: 'Canal',
+        name: 'Canal du défi',
         value: guild.dailyAlgoChannelId ? `<#${guild.dailyAlgoChannelId}>` : '❌ Non configuré',
+        inline: false,
+      },
+      {
+        name: 'Canal de validation',
+        value: guild.dailyAlgoValidationChannelId ? `<#${guild.dailyAlgoValidationChannelId}>` : '❌ Non configuré',
         inline: false,
       },
       {
@@ -303,7 +308,12 @@ export async function sendDailyAlgoConfig(
 
   const clearChannelBtn = new ButtonBuilder()
     .setCustomId('cfg:clear:daily-algo:channel')
-    .setLabel('🧹 Retirer le salon')
+    .setLabel('🧹 Retirer le salon du défi')
+    .setStyle(ButtonStyle.Danger);
+
+  const clearValidationBtn = new ButtonBuilder()
+    .setCustomId('cfg:clear:daily-algo:validation-channel')
+    .setLabel('🧹 Retirer le salon de validation')
     .setStyle(ButtonStyle.Danger);
 
   const backBtn = new ButtonBuilder()
@@ -313,17 +323,26 @@ export async function sendDailyAlgoConfig(
 
   const channelSelect = new ChannelSelectMenuBuilder()
     .setCustomId('cfg:select:daily-algo:channel')
-    .setPlaceholder('Choisir le salon Daily Algo')
+    .setPlaceholder('Choisir le salon du défi Daily Algo')
     .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
     .setMinValues(1)
     .setMaxValues(1);
 
-  const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(toggleBtn, timeBtn, clearChannelBtn, backBtn);
+  const validationSelect = new ChannelSelectMenuBuilder()
+    .setCustomId('cfg:select:daily-algo:validation-channel')
+    .setPlaceholder('Choisir le salon de validation des réponses')
+    .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+    .setMinValues(1)
+    .setMaxValues(1);
+
+  const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(toggleBtn, timeBtn, backBtn);
   const row2 = new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(channelSelect);
+  const row3 = new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(validationSelect);
+  const row4 = new ActionRowBuilder<ButtonBuilder>().addComponents(clearChannelBtn, clearValidationBtn);
 
   await renderPanel(interaction, {
     embeds: [embed],
-    components: [row1, row2],
+    components: [row1, row2, row3, row4],
   });
 }
 

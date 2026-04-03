@@ -5,18 +5,20 @@ import {
   TextInputBuilder,
   TextInputStyle,
   ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
 } from 'discord.js';
 import { logger } from '../utils/logger.js';
+import { queueDailyAlgoSubmission } from '../services/dailyAlgoService.js';
 
 export function registerDailyAlgoHandlers(client: Client): void {
   client.on('interactionCreate', async interaction => {
     if (!interaction.isButton()) return;
-    if (interaction.customId !== 'daily-algo-submit') return;
+    if (!interaction.customId.startsWith('daily-algo-submit:')) return;
+
+    const runId = interaction.customId.split(':')[1];
+    if (!runId) return;
 
     const modal = new ModalBuilder()
-      .setCustomId('daily-algo-solution')
+      .setCustomId(`daily-algo-solution:${runId}`)
       .setTitle('Solution du Daily Algo');
 
     const solutionInput = new TextInputBuilder()
@@ -35,37 +37,43 @@ export function registerDailyAlgoHandlers(client: Client): void {
 
   client.on('interactionCreate', async interaction => {
     if (!interaction.isModalSubmit()) return;
-    if (interaction.customId !== 'daily-algo-solution') return;
+    if (!interaction.customId.startsWith('daily-algo-solution:')) return;
+
+    const runId = interaction.customId.split(':')[1];
+    if (!runId) return;
 
     const solutionCode = interaction.fields.getTextInputValue('solution-code');
 
     try {
-      await interaction.reply({
-        content: `✅ Solution reçue de ${interaction.user.toString()} !\n\n||${solutionCode}||`,
+      await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+      await queueDailyAlgoSubmission({
+        client,
+        runId,
+        authorId: interaction.user.id,
+        authorName: interaction.user.globalName ?? interaction.user.username,
+        solution: solutionCode,
       });
 
       await interaction.user.send({
-        content: '✅ Ta solution pour le Daily Algo a bien été enregistrée !',
+        content: '✅ Ta réponse pour le Daily Algo a bien été enregistrée et envoyée en validation !',
       }).catch(() => {
         logger.debug('DailyAlgo', `Impossible d'envoyer un MP à ${interaction.user.username}`);
       });
     } catch (error) {
       logger.error('DailyAlgo', 'Erreur lors du traitement de la soumission de solution :', error);
-      await interaction.reply({
-        content: '❌ Erreur lors de la soumission',
-        flags: [MessageFlags.Ephemeral],
-      });
+      const message = error instanceof Error ? error.message : 'Erreur lors de la soumission';
+
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply({ content: `❌ ${message}` });
+      } else {
+        await interaction.reply({
+          content: `❌ ${message}`,
+          flags: [MessageFlags.Ephemeral],
+        });
+      }
     }
   });
 
   logger.success('DailyAlgo', 'Gestionnaires de bouton et de modal enregistrés');
-}
-
-export function getDailyAlgoButtonRow() {
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId('daily-algo-submit')
-      .setLabel('📝 Soumettre ma solution')
-      .setStyle(ButtonStyle.Primary)
-  );
 }

@@ -22,6 +22,7 @@ import { sendSetupStep1, sendSetupStep2, sendSetupStep3, sendSetupStep4, sendSet
 import { sendApprovedItem } from '../services/notificationService.js';
 import { sendDMSubscribePanel } from '../services/notificationService.js';
 import { translate } from '../services/translationService.js';
+import { reviewDailyAlgoSubmission } from '../services/dailyAlgoService.js';
 import { PermissionFlagsBits, type GuildMember } from 'discord.js';
 import { extractKeywords } from '../utils/keywords.js';
 import {
@@ -364,6 +365,17 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     await interaction.deferUpdate();
 
     if (action === 'approve') {
+      if (type === 'daily-algo') {
+        await reviewDailyAlgoSubmission({
+          client,
+          submissionId: itemId,
+          action: 'approve',
+          moderatorId: user.id,
+        });
+        logger.success('Handler', `Approved daily algo submission ${itemId} by ${user.tag}`);
+        return;
+      }
+
       await sendApprovedItem(client, itemId, type);
       try {
         await interaction.message.delete();
@@ -381,6 +393,17 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     }
 
     else if (action === 'reject') {
+      if (type === 'daily-algo') {
+        await reviewDailyAlgoSubmission({
+          client,
+          submissionId: itemId,
+          action: 'reject',
+          moderatorId: user.id,
+        });
+        logger.info('Handler', `Rejected daily algo submission ${itemId}`);
+        return;
+      }
+
       if (type === 'rss') {
         await prisma.feedItem.update({ where: { id: itemId }, data: { status: 'REJECTED' } });
       } else {

@@ -124,6 +124,10 @@ export async function handleConfigButton(interaction: ButtonInteraction): Promis
       await prisma.guild.update({ where: { id: guildId }, data: { dailyAlgoChannelId: null } });
       await interaction.reply({ embeds: [successEmbed('Daily Algo', 'Salon supprimé.')], flags: [MessageFlags.Ephemeral] });
       await sendDailyAlgoConfig(interaction, guildId);
+    } else if (customId === 'cfg:clear:daily-algo:validation-channel') {
+      await prisma.guild.update({ where: { id: guildId }, data: { dailyAlgoValidationChannelId: null } });
+      await interaction.reply({ embeds: [successEmbed('Daily Algo', 'Salon de validation supprimé.')], flags: [MessageFlags.Ephemeral] });
+      await sendDailyAlgoConfig(interaction, guildId);
     } else if (customId === 'cfg:clear:github-releases:channel') {
       await prisma.guild.update({ where: { id: guildId }, data: { githubReleasesChannelId: null } });
       await interaction.reply({ embeds: [successEmbed('Releases GitHub', 'Salon supprimé.')], flags: [MessageFlags.Ephemeral] });
@@ -215,6 +219,13 @@ export async function handleConfigChannelSelect(interaction: ChannelSelectMenuIn
     if (customId === 'cfg:select:daily-algo:channel') {
       await prisma.guild.update({ where: { id: guildId }, data: { dailyAlgoChannelId: channelId } });
       await interaction.reply({ embeds: [successEmbed('Daily Algo', `Salon configuré : <#${channelId}>`)], flags: [MessageFlags.Ephemeral] });
+      await sendDailyAlgoConfig(interaction, guildId);
+      return;
+    }
+
+    if (customId === 'cfg:select:daily-algo:validation-channel') {
+      await prisma.guild.update({ where: { id: guildId }, data: { dailyAlgoValidationChannelId: channelId } });
+      await interaction.reply({ embeds: [successEmbed('Daily Algo', `Salon de validation configuré : <#${channelId}>`)], flags: [MessageFlags.Ephemeral] });
       await sendDailyAlgoConfig(interaction, guildId);
       return;
     }

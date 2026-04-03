@@ -2,7 +2,7 @@ import { EmbedBuilder, type Client, type TextChannel } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { COLORS, truncate, categoryEmoji } from '../utils/embeds.js';
-import { getDailyAlgoButtonRow } from '../handlers/dailyAlgoHandler.js';
+import { getDailyAlgoButtonRow } from './dailyAlgoService.js';
 
 export async function sendDigest(client: Client, guildId: string): Promise<void> {
   const guild = await prisma.guild.findUnique({
@@ -170,6 +170,15 @@ export async function sendDailyAlgo(client: Client, guildId: string): Promise<vo
   const randomIndex = Math.floor(Math.random() * problems.length);
   const problem = problems[randomIndex]!;
 
+  const run = await prisma.dailyAlgoRun.create({
+    data: {
+      guildId: guild.id,
+      problemId: problem.id,
+      challengeChannelId: channel.id,
+      validationChannelId: guild.dailyAlgoValidationChannelId ?? null,
+    },
+  });
+
   const today = new Date().toLocaleDateString('fr-FR', { 
     day: '2-digit', 
     month: 'long', 
@@ -188,13 +197,24 @@ export async function sendDailyAlgo(client: Client, guildId: string): Promise<vo
       value: `\`${truncate(problem.difficulty, 32)}\``,
       inline: true,
     })
-    .setDescription('Clique sur le bouton ci-dessous pour soumettre ta solution.')
+    .addFields({
+      name: '📩 Salon des réponses',
+      value: run.validationChannelId ? `<#${run.validationChannelId}>` : `<#${channel.id}>`,
+      inline: true,
+    })
+    .setDescription('Clique sur le bouton ci-dessous pour soumettre ta solution. Un modérateur pourra ensuite la valider ou la rejeter.')
     .setTimestamp()
     .setFooter({ text: 'Kotbo · Daily Algo' });
 
-  const row = getDailyAlgoButtonRow();
+  const row = getDailyAlgoButtonRow(run.id);
 
-  await channel.send({ embeds: [embed], components: [row] });
+  const message = await channel.send({ embeds: [embed], components: [row] });
+
+  await prisma.dailyAlgoRun.update({
+    where: { id: run.id },
+    data: { challengeMessageId: message.id },
+  });
+
   logger.success('DailyAlgo', `Daily Algo envoyé pour la guilde ${guildId}`);
 }
 
