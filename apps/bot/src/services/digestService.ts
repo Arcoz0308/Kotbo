@@ -2,6 +2,7 @@ import { EmbedBuilder, type Client, type TextChannel } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { COLORS, truncate, categoryEmoji } from '../utils/embeds.js';
+import { getDailyAlgoButtonRow } from '../handlers/dailyAlgoHandler.js';
 
 export async function sendDigest(client: Client, guildId: string): Promise<void> {
   const guild = await prisma.guild.findUnique({
@@ -118,5 +119,37 @@ function normalizeTime(time: string): string {
   }
   
   logger.warn('Digest', `Format d'heure invalide: "${time}", utilisant la valeur par défaut "08:00"`);
-  return '08:00';
+ 
+
+export async function sendDailyAlgo(client: Client, guildId: string): Promise<void> {
+  const guild = await prisma.guild.findUnique({
+    where: { id: guildId },
+  });
+
+  if (!guild || !guild.dailyAlgoEnabled) return;
+
+  const channelId = guild.dailyAlgoChannelId;
+  if (!channelId) return;
+
+  const channel = await client.channels.fetch(channelId).catch(() => null) as TextChannel | null;
+  if (!channel) return;
+
+  const today = new Date().toLocaleDateString('fr-FR', { 
+    day: '2-digit', 
+    month: 'long', 
+    year: 'numeric' 
+  });
+
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.info)
+    .setTitle(`💻 Daily Algo du ${today}`)
+    .setDescription('Trouve la solution à ce problème algorithmique quotidien !\n\nClique sur le bouton ci-dessous pour soumettre ta solution.')
+    .setTimestamp()
+    .setFooter({ text: 'Kotbo · Daily Algo' });
+
+  const row = getDailyAlgoButtonRow();
+
+  await channel.send({ embeds: [embed], components: [row] });
+  logger.success('DailyAlgo', `Sent daily algo for guild ${guildId}`);
+} return '08:00';
 }

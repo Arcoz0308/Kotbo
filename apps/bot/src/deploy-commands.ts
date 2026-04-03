@@ -17,6 +17,7 @@ import * as devutilsCmd from './commands/devutils.js';
 import * as statusCmd from './commands/status.js';
 import * as adminCmd from './commands/admin.js';
 import * as helpCmd from './commands/help.js';
+import * as postCmd from './commands/post.js';
 // import * as statsCmd from './commands/stats.js';
 
 const commands = [
@@ -32,6 +33,7 @@ const commands = [
   devutilsCmd,
   statusCmd,
   adminCmd,
+  postCmd,
   helpCmd,
 ].map((cmd) => cmd.data.toJSON());
 
