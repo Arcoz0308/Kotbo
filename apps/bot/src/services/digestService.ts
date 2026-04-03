@@ -119,7 +119,8 @@ function normalizeTime(time: string): string {
   }
   
   logger.warn('Digest', `Format d'heure invalide: "${time}", utilisant la valeur par défaut "08:00"`);
- 
+  return '08:00';
+}
 
 export async function sendDailyAlgo(client: Client, guildId: string): Promise<void> {
   const guild = await prisma.guild.findUnique({
@@ -151,5 +152,4 @@ export async function sendDailyAlgo(client: Client, guildId: string): Promise<vo
 
   await channel.send({ embeds: [embed], components: [row] });
   logger.success('DailyAlgo', `Sent daily algo for guild ${guildId}`);
-} return '08:00';
 }

@@ -20,6 +20,7 @@ import * as epochCmd from './epoch.js';
 import * as devutilsCmd from './devutils.js';
 import * as statusCmd from './status.js';
 import * as adminCmd from './admin.js';
+import * as postCmd from './post.js';
 
 type CommandJson = {
   name: string;
@@ -40,6 +41,7 @@ const COMMANDS: CommandJson[] = [
   devutilsCmd,
   statusCmd,
   adminCmd,
+  postCmd,
 ].map((cmd) => cmd.data.toJSON() as CommandJson);
 
 const OPTION_TYPE_LABEL: Record<number, string> = {
