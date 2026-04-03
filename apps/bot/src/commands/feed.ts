@@ -11,6 +11,7 @@ import {
 import prisma from '../utils/db.js';
 import { successEmbed, errorEmbed, infoEmbed, feedStatusEmoji, categoryEmoji, truncate, COLORS } from '../utils/embeds.js';
 import { createPagination } from '../utils/pagination.js';
+import { fetchArticleMetadata } from '../utils/metadataParser.js';
 
 export const data = new SlashCommandBuilder()
   .setName('feed')
@@ -107,18 +108,21 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       return;
     }
 
-    const existing = await prisma.feed.findFirst({ where: { guildId, url } });
+    const metadata = await fetchArticleMetadata(url);
+    const feedUrl = metadata.rssUrl ?? url;
+
+    const existing = await prisma.feed.findFirst({ where: { guildId, url: feedUrl } });
     if (existing) {
       await interaction.editReply({ embeds: [errorEmbed('Flux existant', `Ce flux existe déjà : **${existing.name}**`)] });
       return;
     }
 
     await prisma.feed.create({
-      data: { guildId, name, url, category, autoPublish, language, translateTo },
+      data: { guildId, name, url: feedUrl, category, autoPublish, language, translateTo },
     });
 
     await interaction.editReply({
-      embeds: [successEmbed('Flux ajouté !', `**${name}** (${categoryEmoji(category)} ${category})\n\`${url}\`\nAuto-publication : ${autoPublish ? 'Oui' : 'Non'}`)],
+      embeds: [successEmbed('Flux ajouté !', `**${name}** (${categoryEmoji(category)} ${category})\n\`${feedUrl}\`\nAuto-publication : ${autoPublish ? 'Oui' : 'Non'}`)],
     });
   }
 

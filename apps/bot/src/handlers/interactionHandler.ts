@@ -36,6 +36,7 @@ import { getNewsSession, deleteNewsSession, updateNewsSession } from './newsSess
 import { sendToValidationQueue } from '../services/notificationService.js';
 import { TextInputBuilder, TextInputStyle } from 'discord.js';
 import { ModalBuilder } from 'discord.js';
+import { fetchArticleMetadata } from '../utils/metadataParser.js';
 
 async function canModerate(member: GuildMember | null, guildId: string): Promise<boolean> {
   if (!member) return false;
@@ -1075,7 +1076,10 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
       return;
     }
 
-    const existing = await prisma.feed.findFirst({ where: { guildId, url } });
+    const metadata = await fetchArticleMetadata(url);
+    const feedUrl = metadata.rssUrl ?? url;
+
+    const existing = await prisma.feed.findFirst({ where: { guildId, url: feedUrl } });
     if (existing) {
       await interaction.editReply({ embeds: [errorEmbed('Flux existant', `Ce flux existe déjà : **${existing.name}**`)] });
       return;
@@ -1090,7 +1094,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
       data: {
         guildId,
         name,
-        url,
+        url: feedUrl,
         category,
         autoPublish,
         language,
@@ -1098,7 +1102,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
       },
     });
 
-    let successDesc = `**${name}** → \`${url}\` (Auto-publication : ${autoPublish ? '✅ Oui' : '❌ Non'})`;
+    let successDesc = `**${name}** → \`${feedUrl}\` (Auto-publication : ${autoPublish ? '✅ Oui' : '❌ Non'})`;
     if (!autoPublish && !guild.configChannelId) {
       successDesc += '\n\n⚠️ **Attention** : Aucun salon de modération n\'est configuré. Les articles ne pourront pas être validés tant que vous n\'aurez pas défini le salon de modération via `/setup` ou `/config`.';
     }

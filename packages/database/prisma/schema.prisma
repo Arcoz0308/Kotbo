@@ -183,6 +183,19 @@ model DeveloperExcuse {
   @@index([language])
 }
 
+model DailyAlgoProblem {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  solution    String
+  difficulty  String   @default("moyen") // facile, moyen, difficile
+  language    String   @default("fr")
+  createdAt   DateTime @default(now())
+
+  @@map("daily_algo_problems")
+  @@index([language])
+}
+
 enum ItemStatus {
   PENDING
   APPROVED

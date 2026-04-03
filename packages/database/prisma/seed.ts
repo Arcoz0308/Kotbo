@@ -76,7 +76,68 @@ const DEFAULT_DEVELOPER_EXCUSES = [
   'C’est une incompatibilité de navigateur.',
   'La base de données était lente ce jour-là.',
 ];
-
+const DEFAULT_DAILY_ALGO_PROBLEMS = [
+  {
+    title: 'Inverser une chaîne',
+    description: 'Écris une fonction qui inverse une chaîne de caractères sans utiliser les méthodes built-in.',
+    solution: 'Utilise une boucle ou la récursion pour parcourir la chaîne à l\'envers.',
+    difficulty: 'facile',
+  },
+  {
+    title: 'Fibonacci',
+    description: 'Implémente une fonction qui retourne le Nième nombre de Fibonacci de manière efficace.',
+    solution: 'Utilise la programmation dynamique ou la récursion avec mémoïsation pour éviter les recalculs.',
+    difficulty: 'moyen',
+  },
+  {
+    title: 'Vérifier un palindrome',
+    description: 'Écris une fonction pour vérifier si une chaîne est un palindrome (ignore les espaces et la casse).',
+    solution: 'Compare la chaîne avec sa version inversée après normalisation.',
+    difficulty: 'facile',
+  },
+  {
+    title: 'Deux sommes',
+    description: 'Trouve deux nombres dans un tableau qui s\'additionnent pour égaler une cible.',
+    solution: 'Utilise une Map/Set pour stocker les nombres vus et trouve le complément en O(n).',
+    difficulty: 'moyen',
+  },
+  {
+    title: 'Parenthèses valides',
+    description: 'Vérifie si une chaîne de parenthèses/crochets/accolades est correctement équilibrée.',
+    solution: 'Utilise une pile (stack) pour tracker les ouvertures et vérifier les fermetures.',
+    difficulty: 'moyen',
+  },
+  {
+    title: 'Nombre premier',
+    description: 'Crée une fonction pour vérifier si un nombre donné est un nombre premier.',
+    solution: 'Vérifie les diviseurs jusqu\'à la racine carrée du nombre.',
+    difficulty: 'facile',
+  },
+  {
+    title: 'Maximum de tableau',
+    description: 'Trouve l\'élément maximum dans un tableau sans utiliser Math.max().',
+    solution: 'Parcours le tableau en gardant trace du maximum rencontré.',
+    difficulty: 'facile',
+  },
+  {
+    title: 'Fusionner deux tableaux triés',
+    description: 'Fusionne deux tableaux triés en un seul tableau trié en O(n + m).',
+    solution: 'Utilise deux pointeurs pour comparer et ajouter le plus petit élément en priorité.',
+    difficulty: 'moyen',
+  },
+  {
+    title: 'Anagrammes',
+    description: 'Détermine si deux chaînes sont des anagrammes (même lettres, ordre différent).',
+    solution: 'Compare les fréquences de caractères ou les chaînes triées.',
+    difficulty: 'facile',
+  },
+  {
+    title: 'Sous-tableau avec somme max',
+    description: 'Trouve la somme maximale d\'un sous-tableau contigu (Kadane\'s algorithm).',
+    solution: 'Utilise la programmation dynamique pour tracker la somme locale et globale.',
+    difficulty: 'difficile',
+  },
+];
 async function main() {
   console.log(`🌱 Seeding ${DEFAULT_FEEDS.length} flux RSS pour le serveur ${guildId}...`);
 
@@ -130,7 +191,32 @@ async function main() {
     console.log(`  ✅ ${excuse}`);
   }
 
-  console.log(`\n✨ Seed terminé : ${created} flux créés, ${skipped} ignorés, ${excusesCreated} excuses créées, ${excusesSkipped} excuses ignorées`);
+  console.log(`\n🌱 Seeding ${DEFAULT_DAILY_ALGO_PROBLEMS.length} problèmes de Daily Algo...`);
+
+  let algoCreated = 0;
+  let algoSkipped = 0;
+
+  for (const problem of DEFAULT_DAILY_ALGO_PROBLEMS) {
+    const existing = await prisma.dailyAlgoProblem.findFirst({ where: { title: problem.title, language: 'fr' } });
+    if (existing) {
+      algoSkipped++;
+      continue;
+    }
+
+    await prisma.dailyAlgoProblem.create({
+      data: {
+        title: problem.title,
+        description: problem.description,
+        solution: problem.solution,
+        difficulty: problem.difficulty,
+        language: 'fr',
+      },
+    });
+    algoCreated++;
+    console.log(`  ✅ ${problem.title}`);
+  }
+
+  console.log(`\n✨ Seed terminé : ${created} flux créés, ${skipped} ignorés, ${excusesCreated} excuses créées, ${excusesSkipped} excuses ignorées, ${algoCreated} problèmes d'algo créés, ${algoSkipped} problèmes ignorés`);
 }
 
 main()

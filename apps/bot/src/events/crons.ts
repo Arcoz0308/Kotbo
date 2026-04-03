@@ -2,7 +2,7 @@ import { type Client, Events } from 'discord.js';
 import cron from 'node-cron';
 import { pollAllFeeds } from '../services/rssService.js';
 import { pollAllYouTubeChannels } from '../services/youtubeService.js';
-import { runDigestForAllGuilds } from '../services/digestService.js';
+import { runDigestForAllGuilds, runDailyAlgoForAllGuilds } from '../services/digestService.js';
 import { logger } from '../utils/logger.js';
 
 export async function registerCrons(client: Client): Promise<void> {
@@ -24,6 +24,13 @@ export async function registerCrons(client: Client): Promise<void> {
     const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     logger.debug('Cron', `Vérification du digest à ${currentTime}...`);
     await runDigestForAllGuilds(client).catch((e) => logger.error('Cron', 'Erreur Digest :', e));
+  });
+
+  cron.schedule('* * * * *', async () => {
+    const now = new Date();
+    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    logger.debug('Cron', `Vérification du daily algo à ${currentTime}...`);
+    await runDailyAlgoForAllGuilds(client).catch((e) => logger.error('Cron', 'Erreur Daily Algo :', e));
   });
 
   logger.success('Cron', 'Tous les jobs cron sont enregistrés');

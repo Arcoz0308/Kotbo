@@ -135,6 +135,18 @@ export async function sendDailyAlgo(client: Client, guildId: string): Promise<vo
   const channel = await client.channels.fetch(channelId).catch(() => null) as TextChannel | null;
   if (!channel) return;
 
+  const problems = await prisma.dailyAlgoProblem.findMany({
+    where: { language: 'fr' },
+  });
+
+  if (problems.length === 0) {
+    logger.warn('DailyAlgo', `No problems found for guild ${guildId}`);
+    return;
+  }
+
+  const randomIndex = Math.floor(Math.random() * problems.length);
+  const problem = problems[randomIndex]!;
+
   const today = new Date().toLocaleDateString('fr-FR', { 
     day: '2-digit', 
     month: 'long', 
@@ -144,7 +156,16 @@ export async function sendDailyAlgo(client: Client, guildId: string): Promise<vo
   const embed = new EmbedBuilder()
     .setColor(COLORS.info)
     .setTitle(`💻 Daily Algo du ${today}`)
-    .setDescription('Trouve la solution à ce problème algorithmique quotidien !\n\nClique sur le bouton ci-dessous pour soumettre ta solution.')
+    .addFields({
+      name: '📌 Problème',
+      value: `**${problem.title}**\n\n${problem.description}`,
+    })
+    .addFields({
+      name: '⚙️ Difficulté',
+      value: `\`${problem.difficulty}\``,
+      inline: true,
+    })
+    .setDescription('Clique sur le bouton ci-dessous pour soumettre ta solution.')
     .setTimestamp()
     .setFooter({ text: 'Kotbo · Daily Algo' });
 
@@ -152,4 +173,30 @@ export async function sendDailyAlgo(client: Client, guildId: string): Promise<vo
 
   await channel.send({ embeds: [embed], components: [row] });
   logger.success('DailyAlgo', `Sent daily algo for guild ${guildId}`);
+}
+
+export async function runDailyAlgoForAllGuilds(client: Client): Promise<void> {
+  const now = new Date();
+  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+  const allGuilds = await prisma.guild.findMany({
+    where: { dailyAlgoEnabled: true },
+  });
+
+  logger.debug('DailyAlgo', `${allGuilds.length} guilds avec daily algo activé`);
+
+  const matchingGuilds = allGuilds.filter((guild) => {
+    const normalizedTime = normalizeTime(guild.dailyAlgoTime);
+    return normalizedTime === currentTime;
+  });
+
+  if (matchingGuilds.length > 0) {
+    logger.info('DailyAlgo', `${matchingGuilds.length} guild(s) à ${currentTime}`);
+  }
+
+  for (const guild of matchingGuilds) {
+    await sendDailyAlgo(client, guild.id).catch((e) =>
+      logger.error('DailyAlgo', `Error for guild ${guild.id}:`, e),
+    );
+  }
 }

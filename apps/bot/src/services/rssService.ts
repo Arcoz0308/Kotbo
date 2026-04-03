@@ -2,6 +2,7 @@ import Parser from 'rss-parser';
 import pLimit from 'p-limit';
 import type { Client } from 'discord.js';
 import prisma from '../utils/db';
+import { fetchArticleMetadata } from '../utils/metadataParser';
 import { logger } from '../utils/logger';
 import { detectLanguage } from '../utils/language';
 import { translate } from './translationService';
@@ -116,13 +117,30 @@ export async function pollFeed(
   try {
     parsed = await parser.parseURL(feed.url);
   } catch (err) {
-    const errorMessage = formatRssError(err);
-    logger.warn('RSS', `Échec du parsing de ${feed.name}: ${errorMessage}`);
-    await prisma.feed.update({
-      where: { id: feed.id },
-      data: { lastPolledAt: now, lastPollStatus: 'ERROR', lastPollError: errorMessage }
-    });
-    return;
+    const discovered = await fetchArticleMetadata(feed.url);
+
+    if (discovered.rssUrl && discovered.rssUrl !== feed.url) {
+      try {
+        parsed = await parser.parseURL(discovered.rssUrl);
+        logger.info('RSS', `Flux "${feed.name}" résolu via un lien RSS détecté automatiquement.`);
+      } catch (fallbackErr) {
+        const errorMessage = formatRssError(fallbackErr);
+        logger.warn('RSS', `Échec du parsing de ${feed.name}: ${errorMessage}`);
+        await prisma.feed.update({
+          where: { id: feed.id },
+          data: { lastPolledAt: now, lastPollStatus: 'ERROR', lastPollError: errorMessage }
+        });
+        return;
+      }
+    } else {
+      const errorMessage = formatRssError(err);
+      logger.warn('RSS', `Échec du parsing de ${feed.name}: ${errorMessage}`);
+      await prisma.feed.update({
+        where: { id: feed.id },
+        data: { lastPolledAt: now, lastPollStatus: 'ERROR', lastPollError: errorMessage }
+      });
+      return;
+    }
   }
 
   if (!feed.lastPolledAt) {
