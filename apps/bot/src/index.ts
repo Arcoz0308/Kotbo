@@ -31,6 +31,7 @@ import * as epochCmd from './commands/epoch.js';
 import * as devutilsCmd from './commands/devutils.js';
 import * as statusCmd from './commands/status.js';
 import * as adminCmd from './commands/admin.js';
+import * as helpCmd from './commands/help.js';
 import { registerCodePoliceListener } from './events/codePolice.js';
 import { registerDailyAlgoHandlers } from './handlers/dailyAlgoHandler.js';
 // import * as statsCmd from './commands/stats.js';
@@ -51,7 +52,7 @@ type SlashCommand = {
 };
 
 const commands = new Collection<string, SlashCommand>();
-[setupCmd, configCmd, feedCmd, newsCmd, pingCmd, infoCmd, youtubeCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd].forEach((cmd) => {
+[setupCmd, configCmd, feedCmd, newsCmd, pingCmd, infoCmd, youtubeCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd].forEach((cmd) => {
   commands.set(cmd.data.name, cmd as SlashCommand);
 });
 

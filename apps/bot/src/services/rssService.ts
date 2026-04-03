@@ -7,9 +7,23 @@ import { detectLanguage } from '../utils/language';
 import { translate } from './translationService';
 import { sendToValidationQueue } from './notificationService';
 
+const RSS_FAILURE_COOLDOWN_MS = 15 * 60 * 1000;
+
 const parser = new Parser({
   timeout: 10000,
-  headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
+  headers: {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+    Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*;q=0.8',
+    'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8',
+    'Cache-Control': 'no-cache',
+    Pragma: 'no-cache',
+    Referer: 'https://www.google.com/',
+  },
+  xml2js: {
+    strict: false,
+    normalizeTags: true,
+    trim: true,
+  },
   customFields: {
     item: [
       ['media:content', 'mediaContent', { keepArray: false }],
@@ -31,6 +45,11 @@ function formatRssError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error ?? 'Erreur inconnue');
   const firstLine = raw.split('\n').map((line) => line.trim()).find(Boolean) ?? 'Erreur inconnue';
   return firstLine;
+}
+
+function shouldSkipFailedFeed(feed: { lastPollStatus: string | null; lastPolledAt: Date | null }, now: Date): boolean {
+  if (feed.lastPollStatus !== 'ERROR' || !feed.lastPolledAt) return false;
+  return now.getTime() - feed.lastPolledAt.getTime() < RSS_FAILURE_COOLDOWN_MS;
 }
 
 function extractImageFromItem(item: CustomItem): string | null {
@@ -72,12 +91,24 @@ export async function pollFeed(
 
   if (!feed.autoPublish && !feed.guild.configChannelId) {
     logger.warn('RSS', `Skipping poll for "${feed.name}": manual validation required but configChannelId is not set.`);
-    await prisma.feed.update({ where: { id: feed.id }, data: { lastPollStatus: 'ERROR', lastPollError: 'Channel de validation non configuré' } });
+    await prisma.feed.update({
+      where: { id: feed.id },
+      data: { lastPolledAt: new Date(), lastPollStatus: 'ERROR', lastPollError: 'Channel de validation non configuré' },
+    });
     return;
   }
   if (feed.autoPublish && !feed.guild.publicChannelId) {
     logger.warn('RSS', `Poll ignorée pour "${feed.name}" : auto-publication activée mais publicChannelId non défini.`);
-    await prisma.feed.update({ where: { id: feed.id }, data: { lastPollStatus: 'ERROR', lastPollError: 'Channel public non configuré' } });
+    await prisma.feed.update({
+      where: { id: feed.id },
+      data: { lastPolledAt: new Date(), lastPollStatus: 'ERROR', lastPollError: 'Channel public non configuré' },
+    });
+    return;
+  }
+
+  const now = new Date();
+  if (shouldSkipFailedFeed(feed, now)) {
+    logger.debug('RSS', `Flux "${feed.name}" temporairement ignoré après un échec récent.`);
     return;
   }
 
@@ -89,12 +120,10 @@ export async function pollFeed(
     logger.warn('RSS', `Échec du parsing de ${feed.name}: ${errorMessage}`);
     await prisma.feed.update({
       where: { id: feed.id },
-      data: { lastPollStatus: 'ERROR', lastPollError: errorMessage }
+      data: { lastPolledAt: now, lastPollStatus: 'ERROR', lastPollError: errorMessage }
     });
     return;
   }
-
-  const now = new Date();
 
   if (!feed.lastPolledAt) {
     await prisma.feed.update({ where: { id: feed.id }, data: { lastPolledAt: now } });
