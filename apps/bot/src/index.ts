@@ -7,6 +7,7 @@ import {
   GatewayIntentBits,
   Collection,
   Events,
+  ActivityType,
   type ChatInputCommandInteraction,
   type AutocompleteInteraction,
   MessageFlags,
@@ -36,6 +37,7 @@ import * as postCmd from './commands/post.js';
 import * as dailyAlgoCmd from './commands/dailyAlgo.js';
 import { registerCodePoliceListener } from './events/codePolice.js';
 import { registerDailyAlgoHandlers } from './handlers/dailyAlgoHandler.js';
+import botPackageJson from '../package.json';
 // import * as statsCmd from './commands/stats.js';
 
 const client = new Client({
@@ -62,6 +64,7 @@ const commands = new Collection<string, SlashCommand>();
 
 client.once(Events.ClientReady, async (c) => {
   logger.success('Bot', `Connecté en tant que ${c.user.tag}`);
+  c.user.setActivity(`/help | v${botPackageJson.version}`, { type: ActivityType.Playing });
 
   registerCodePoliceListener(client);
   registerDailyAlgoHandlers(client);

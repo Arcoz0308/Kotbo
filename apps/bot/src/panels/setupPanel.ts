@@ -17,6 +17,12 @@ import {
 import prisma from '../utils/db.js';
 import { COLORS } from '../utils/embeds.js';
 
+function canUpdateInteraction(value: unknown): value is { update: (options: unknown) => Promise<unknown> } {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as { update?: unknown };
+  return typeof candidate.update === 'function';
+}
+
 async function renderSetup(
   target: TextChannel | BaseInteraction,
   payload: any,
@@ -32,9 +38,9 @@ async function renderSetup(
           if (target.deferred || target.replied) {
             await target.editReply(payload);
           } else {
-            try {
-              await (target as any).update(payload);
-            } catch {
+            if (canUpdateInteraction(target)) {
+              await target.update(payload);
+            } else {
               await target.reply(payload);
             }
           }

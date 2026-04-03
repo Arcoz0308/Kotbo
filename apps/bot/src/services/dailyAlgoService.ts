@@ -6,6 +6,7 @@ import {
   type Client,
   type TextChannel,
 } from 'discord.js';
+import { Prisma } from '@prisma/client';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { COLORS, truncate } from '../utils/embeds.js';
@@ -16,6 +17,20 @@ export type DailyAlgoDispatchResult = {
   problemTitle: string;
   dateKey: string;
 };
+
+const dailyAlgoRunDispatchSelect = {
+  id: true,
+  challengeChannelId: true,
+  validationChannelId: true,
+  challengeMessageId: true,
+  problem: {
+    select: {
+      title: true,
+      description: true,
+      difficulty: true,
+    },
+  },
+} as const;
 
 type DailyAlgoRunMessageData = {
   id: string;
@@ -28,6 +43,24 @@ type DailyAlgoRunMessageData = {
     difficulty: string;
   };
 };
+
+type DailyAlgoRunDispatchPayload = Prisma.DailyAlgoRunGetPayload<{
+  select: typeof dailyAlgoRunDispatchSelect;
+}>;
+
+function toDailyAlgoRunMessageData(run: DailyAlgoRunDispatchPayload): DailyAlgoRunMessageData {
+  return {
+    id: run.id,
+    challengeChannelId: run.challengeChannelId,
+    validationChannelId: run.validationChannelId,
+    challengeMessageId: run.challengeMessageId,
+    problem: {
+      title: run.problem.title,
+      description: run.problem.description,
+      difficulty: run.problem.difficulty,
+    },
+  };
+}
 
 export function getDailyAlgoButtonRow(runId: string) {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -465,27 +498,17 @@ export async function sendDailyAlgo(client: Client, guildId: string): Promise<Da
   }
 
   const dateKey = getLocalDateKey();
-  const existingRun: any = await prisma.dailyAlgoRun.findUnique({
+  const existingRunRaw = await prisma.dailyAlgoRun.findFirst({
     where: {
-      guildId_dateKey: {
-        guildId,
-        dateKey,
-      },
+      guildId,
+      dateKey,
     },
-    select: {
-      id: true,
-      challengeChannelId: true,
-      validationChannelId: true,
-      challengeMessageId: true,
-      problem: {
-        select: {
-          title: true,
-          description: true,
-          difficulty: true,
-        },
-      },
-    },
+    select: dailyAlgoRunDispatchSelect,
   });
+
+  const existingRun: DailyAlgoRunMessageData | null = existingRunRaw
+    ? toDailyAlgoRunMessageData(existingRunRaw)
+    : null;
 
   if (existingRun?.challengeMessageId) {
     logger.info('DailyAlgo', `Daily Algo déjà publié pour ${guildId} le ${dateKey}`);
@@ -497,10 +520,10 @@ export async function sendDailyAlgo(client: Client, guildId: string): Promise<Da
     };
   }
 
-  let run: any = existingRun;
+  let run = existingRun;
 
   if (!run) {
-    const problemCandidates: any[] = await prisma.dailyAlgoProblem.findMany({
+    const problemCandidates = await prisma.dailyAlgoProblem.findMany({
       where: {
         language: 'fr',
         usedAt: null,
@@ -517,7 +540,7 @@ export async function sendDailyAlgo(client: Client, guildId: string): Promise<Da
 
     for (const candidate of problemCandidates) {
       try {
-        const createdRun: any = await prisma.$transaction(async (tx) => {
+        const createdRunRaw = await prisma.$transaction(async (tx) => {
           const createdRun = await tx.dailyAlgoRun.create({
             data: {
               guildId: guild.id,
@@ -526,12 +549,10 @@ export async function sendDailyAlgo(client: Client, guildId: string): Promise<Da
               challengeChannelId: channelId,
               validationChannelId: guild.dailyAlgoValidationChannelId ?? null,
             },
-            include: {
-              problem: true,
-            },
+            select: dailyAlgoRunDispatchSelect,
           });
 
-          const reservedProblem: any = await tx.dailyAlgoProblem.updateMany({
+          const reservedProblem = await tx.dailyAlgoProblem.updateMany({
             where: {
               id: candidate.id,
               usedAt: null,
@@ -545,18 +566,10 @@ export async function sendDailyAlgo(client: Client, guildId: string): Promise<Da
             throw new Error('Le problème Daily Algo a déjà été utilisé.');
           }
 
-          return {
-            id: createdRun.id,
-            challengeChannelId: createdRun.challengeChannelId,
-            validationChannelId: createdRun.validationChannelId,
-            challengeMessageId: createdRun.challengeMessageId,
-            problem: {
-              title: createdRun.problem.title,
-              description: createdRun.problem.description,
-              difficulty: createdRun.problem.difficulty,
-            },
-          } as DailyAlgoRunMessageData;
+          return createdRun;
         });
+
+        const createdRun = toDailyAlgoRunMessageData(createdRunRaw);
 
         run = createdRun;
 
@@ -564,27 +577,17 @@ export async function sendDailyAlgo(client: Client, guildId: string): Promise<Da
       } catch (error) {
         logger.warn('DailyAlgo', `Impossible de réserver le problème ${candidate.id}, nouvel essai...`, error);
 
-        const currentRun: any = await prisma.dailyAlgoRun.findUnique({
+        const currentRunRaw = await prisma.dailyAlgoRun.findFirst({
           where: {
-            guildId_dateKey: {
-              guildId,
-              dateKey,
-            },
+            guildId,
+            dateKey,
           },
-          select: {
-            id: true,
-            challengeChannelId: true,
-            validationChannelId: true,
-            challengeMessageId: true,
-            problem: {
-              select: {
-                title: true,
-                description: true,
-                difficulty: true,
-              },
-            },
-          },
+          select: dailyAlgoRunDispatchSelect,
         });
+
+        const currentRun: DailyAlgoRunMessageData | null = currentRunRaw
+          ? toDailyAlgoRunMessageData(currentRunRaw)
+          : null;
         if (currentRun) {
           run = currentRun;
           break;

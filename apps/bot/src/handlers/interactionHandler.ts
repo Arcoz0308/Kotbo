@@ -39,6 +39,12 @@ import { TextInputBuilder, TextInputStyle } from 'discord.js';
 import { ModalBuilder } from 'discord.js';
 import { fetchArticleMetadata } from '../utils/metadataParser.js';
 
+function canUpdateInteraction(value: unknown): value is { update: (options: unknown) => Promise<unknown> } {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as { update?: unknown };
+  return typeof candidate.update === 'function';
+}
+
 async function canModerate(member: GuildMember | null, guildId: string): Promise<boolean> {
   if (!member) return false;
   if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
@@ -1332,6 +1338,10 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
       );
     }
 
-    await (interaction as any).update({ embeds: [embed], components: [row] });
+    if (canUpdateInteraction(interaction)) {
+      await interaction.update({ embeds: [embed], components: [row] });
+    } else {
+      await interaction.reply({ embeds: [embed], components: [row], flags: [MessageFlags.Ephemeral] });
+    }
   }
 }

@@ -81,7 +81,7 @@ async function isYouTubeShort(videoId: string): Promise<boolean> {
 }
 
 export async function pollAllYouTubeChannels(client: Client): Promise<void> {
-  const subs = await (prisma as any).youTubeSubscription?.findMany?.({ include: { guild: true } }) ?? [];
+  const subs = await prisma.youTubeSubscription.findMany({ include: { guild: true } });
 
   if (subs.length === 0) {
     const guilds = await prisma.guild.findMany({
@@ -101,7 +101,7 @@ export async function pollAllYouTubeChannels(client: Client): Promise<void> {
     return;
   }
 
-  const byGuild = new Map<string, { guild: any; channelIds: string[] }>();
+  const byGuild = new Map<string, { guild: (typeof subs)[number]['guild']; channelIds: string[] }>();
   for (const s of subs) {
     if (!s.guild || !s.channelId) continue;
     if (!s.guild.youtubeEnabled) continue;

@@ -41,7 +41,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   const guild = await prisma.guild.findUnique({ where: { id: interaction.guildId } });
   const isAdmin = member.permissions.has(PermissionFlagsBits.Administrator);
-  const isMod = !!(guild?.moderatorRoleId && (member.roles as any).cache.has(guild.moderatorRoleId));
+  const isMod = !!(guild?.moderatorRoleId && member.roles.cache.has(guild.moderatorRoleId));
   if (!isAdmin && !isMod) {
     await interaction.editReply({ embeds: [errorEmbed('Permissions', 'Vous devez être administrateur ou modérateur pour utiliser cette commande.')] });
     return;
@@ -56,7 +56,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       return;
     }
     try {
-      await (prisma as any).youTubeSubscription.create({
+      await prisma.youTubeSubscription.create({
         data: { guildId: interaction.guildId, channelId },
       });
       await interaction.editReply({ embeds: [successEmbed('Abonnement ajouté', `La chaîne \`${channelId}\` est désormais suivie.`)] });
@@ -78,12 +78,12 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       return;
     }
     try {
-      const existing = await (prisma as any).youTubeSubscription.findFirst({ where: { guildId: interaction.guildId, channelId } });
+      const existing = await prisma.youTubeSubscription.findFirst({ where: { guildId: interaction.guildId, channelId } });
       if (!existing) {
         await interaction.editReply({ embeds: [infoEmbed('Non trouvé', `La chaîne \`${channelId}\` n'est pas suivie.`)] });
         return;
       }
-      await (prisma as any).youTubeSubscription.delete({ where: { id: existing.id } });
+      await prisma.youTubeSubscription.delete({ where: { id: existing.id } });
       await interaction.editReply({ embeds: [successEmbed('Abonnement supprimé', `La chaîne \`${channelId}\` n'est plus suivie.`)] });
     } catch (e) {
       await interaction.editReply({ embeds: [errorEmbed('Erreur', 'Impossible de supprimer l\'abonnement.')] });
@@ -92,12 +92,12 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 
   if (sub === 'list') {
-    const subs = await (prisma as any).youTubeSubscription.findMany({ where: { guildId: interaction.guildId } });
+    const subs = await prisma.youTubeSubscription.findMany({ where: { guildId: interaction.guildId } });
     if (!subs.length) {
       await interaction.editReply({ embeds: [infoEmbed('Aucune chaîne', 'Aucune chaîne suivie pour ce serveur.')] });
       return;
     }
-    const lines = subs.map((s: any) => `• \`${s.channelId}\``).join('\n');
+    const lines = subs.map((s) => `• \`${s.channelId}\``).join('\n');
     await interaction.editReply({ embeds: [infoEmbed('Chaînes suivies', lines)] });
     return;
   }
