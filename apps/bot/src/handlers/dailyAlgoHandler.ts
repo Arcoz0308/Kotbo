@@ -1,5 +1,6 @@
 import {
   type Client,
+  MessageFlags,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
@@ -52,7 +53,7 @@ export function registerDailyAlgoHandlers(client: Client): void {
       logger.error('DailyAlgo', 'Erreur lors du traitement de la soumission de solution :', error);
       await interaction.reply({
         content: '❌ Erreur lors de la soumission',
-        ephemeral: true,
+        flags: [MessageFlags.Ephemeral],
       });
     }
   });

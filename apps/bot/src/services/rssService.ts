@@ -27,6 +27,12 @@ type CustomItem = Parser.Item & {
   enclosure?: { url?: string; type?: string };
 };
 
+function formatRssError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error ?? 'Erreur inconnue');
+  const firstLine = raw.split('\n').map((line) => line.trim()).find(Boolean) ?? 'Erreur inconnue';
+  return firstLine;
+}
+
 function extractImageFromItem(item: CustomItem): string | null {
   const mc = item['mediaContent'];
   if (mc?.['$']?.['url']) return String(mc['$']['url']);
@@ -79,10 +85,11 @@ export async function pollFeed(
   try {
     parsed = await parser.parseURL(feed.url);
   } catch (err) {
-    logger.warn('RSS', `Failed to parse ${feed.name}: ${err}`);
+    const errorMessage = formatRssError(err);
+    logger.warn('RSS', `Échec du parsing de ${feed.name}: ${errorMessage}`);
     await prisma.feed.update({
       where: { id: feed.id },
-      data: { lastPollStatus: 'ERROR', lastPollError: String(err) }
+      data: { lastPollStatus: 'ERROR', lastPollError: errorMessage }
     });
     return;
   }
@@ -207,19 +214,19 @@ export async function pollAllFeeds(client: Client): Promise<void> {
   const allFeeds = guilds.flatMap(g => g.feeds);
   if (allFeeds.length === 0) return;
 
-  logger.info('RSS', `Starting poll for ${allFeeds.length} feeds across ${guilds.length} guilds...`);
+  logger.info('RSS', `Démarrage du polling de ${allFeeds.length} flux sur ${guilds.length} serveur(s)...`);
   
   const limit = pLimit(5); // Traiter 5 flux simultanément
   const tasks = allFeeds.map(feed => limit(async () => {
     try {
       await pollFeed(client, feed.id);
     } catch (e) {
-      logger.error('RSS', `Error polling ${feed.name}:`, e);
+      logger.error('RSS', `Erreur pendant le polling de ${feed.name}:`, e);
     }
   }));
 
   await Promise.all(tasks);
-  logger.info('RSS', 'Finished polling all feeds.');
+  logger.info('RSS', 'Polling terminé pour tous les flux.');
 }
 
 export async function publishItem(client: Client, itemId: string): Promise<void> {

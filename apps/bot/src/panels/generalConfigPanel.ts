@@ -10,6 +10,7 @@ import {
   StringSelectMenuOptionBuilder,
   TextInputBuilder,
   TextInputStyle,
+  MessageFlags,
   type ButtonInteraction,
   type ChannelSelectMenuInteraction,
   type ChatInputCommandInteraction,
@@ -46,7 +47,10 @@ async function renderPanel(interaction: PanelInteraction, payload: InteractionRe
     return;
   }
 
-  await interaction.reply({ ...payload, ephemeral: true });
+  await interaction.reply({
+    ...payload,
+    flags: payload.flags ?? [MessageFlags.Ephemeral],
+  });
 }
 
 export async function sendMainConfigPanel(

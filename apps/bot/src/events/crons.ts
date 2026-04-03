@@ -8,20 +8,20 @@ import { logger } from '../utils/logger.js';
 export async function registerCrons(client: Client): Promise<void> {
   // RSS polling every 5 minutes
   cron.schedule('*/5 * * * *', async () => {
-    logger.debug('Cron', 'Polling RSS feeds...');
-    await pollAllFeeds(client).catch((e) => logger.error('Cron', 'RSS poll error:', e));
+    logger.debug('Cron', 'Polling RSS en cours...');
+    await pollAllFeeds(client).catch((e) => logger.error('Cron', 'Erreur de polling RSS :', e));
   });
 
   // YouTube polling every 15 minutes
   cron.schedule('*/15 * * * *', async () => {
-    logger.debug('Cron', 'Polling YouTube channels...');
-    await pollAllYouTubeChannels(client).catch((e) => logger.error('Cron', 'YouTube poll error:', e));
+    logger.debug('Cron', 'Polling YouTube en cours...');
+    await pollAllYouTubeChannels(client).catch((e) => logger.error('Cron', 'Erreur de polling YouTube :', e));
   });
 
   // Digest: check every minute (sends only at matching HH:MM)
   cron.schedule('* * * * *', async () => {
-    await runDigestForAllGuilds(client).catch((e) => logger.error('Cron', 'Digest error:', e));
+    await runDigestForAllGuilds(client).catch((e) => logger.error('Cron', 'Erreur Digest :', e));
   });
 
-  logger.success('Cron', 'All cron jobs registered');
+  logger.success('Cron', 'Tous les jobs cron sont enregistrés');
 }

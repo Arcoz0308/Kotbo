@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, type ChatInputCommandInteraction, PermissionFlagsBits, type GuildMember } from 'discord.js';
+import { SlashCommandBuilder, type ChatInputCommandInteraction, PermissionFlagsBits, type GuildMember, MessageFlags } from 'discord.js';
 import prisma from '../utils/db.js';
 import { successEmbed, errorEmbed, infoEmbed } from '../utils/embeds.js';
 
@@ -31,7 +31,7 @@ export const data = new SlashCommandBuilder()
     .setDescription('Lister les chaînes suivies par ce serveur'));
 
 export async function execute(interaction: ChatInputCommandInteraction) {
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
   const member = interaction.member as GuildMember | null;
   if (!interaction.guildId || !member) {

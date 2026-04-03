@@ -1008,7 +1008,7 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
       if (guild) {
         const updated = (guild[field] as string[]).filter((k) => k !== keyword);
         await prisma.guild.update({ where: { id: guildId }, data: { [field]: updated } });
-        await interaction.reply({ content: `✅ Mot-clé \`${keyword}\` supprimé (Global).`, ephemeral: true });
+        await interaction.reply({ content: `✅ Mot-clé \`${keyword}\` supprimé (Global).`, flags: [MessageFlags.Ephemeral] });
         await sendGlobalKeywordsPanel(client, guildId, interaction.channel as TextChannel);
       }
     } else if (scope === 'feed') {
@@ -1018,7 +1018,7 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
       if (feed) {
         const updated = (feed[field as 'includeKeywords' | 'excludeKeywords' | 'ignoredKeywords']).filter((k) => k !== keyword);
         await prisma.feed.update({ where: { id: feedId }, data: { [field]: updated } });
-        await interaction.reply({ content: `✅ Mot-clé \`${keyword}\` supprimé (Flux: ${feed.name}).`, ephemeral: true });
+        await interaction.reply({ content: `✅ Mot-clé \`${keyword}\` supprimé (Flux: ${feed.name}).`, flags: [MessageFlags.Ephemeral] });
         await sendFeedKeywordsPanel(client, guildId, feedId, interaction.channel as TextChannel);
       }
     }
@@ -1164,7 +1164,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
     const session = getNewsSession(sessionId);
 
     if (!session) {
-      await interaction.reply({ content: '❌ Session expirée.', ephemeral: true });
+      await interaction.reply({ content: '❌ Session expirée.', flags: [MessageFlags.Ephemeral] });
       return;
     }
 
@@ -1225,7 +1225,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
     const session = getNewsSession(sessionId);
 
     if (!session) {
-      await interaction.reply({ content: '❌ Session expirée.', ephemeral: true });
+      await interaction.reply({ content: '❌ Session expirée.', flags: [MessageFlags.Ephemeral] });
       return;
     }
 
