@@ -20,6 +20,9 @@ export async function registerCrons(client: Client): Promise<void> {
 
   // Digest: check every minute (sends only at matching HH:MM)
   cron.schedule('* * * * *', async () => {
+    const now = new Date();
+    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    logger.debug('Cron', `Vérification du digest à ${currentTime}...`);
     await runDigestForAllGuilds(client).catch((e) => logger.error('Cron', 'Erreur Digest :', e));
   });
 

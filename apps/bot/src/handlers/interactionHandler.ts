@@ -1113,11 +1113,18 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
 
   if (customId === 'modal:setup:digest_time') {
     const time = interaction.fields.getTextInputValue('digest_time');
+
+    if (!/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(time)) {
+      await interaction.deferUpdate();
+      await interaction.followUp({ content: "❌ Format d'heure invalide. Utilisez HH:MM (ex: 06:00)", flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    await interaction.deferUpdate();
     await prisma.guild.update({
       where: { id: guildId },
       data: { digestTime: time },
     });
-    await interaction.deferUpdate();
     await sendSetupStep4(client, guildId, interaction);
     return;
   }

@@ -81,17 +81,42 @@ export async function runDigestForAllGuilds(client: Client): Promise<void> {
   const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
   const currentDay = now.getDay(); // 0 = Sunday
 
-  const guilds = await prisma.guild.findMany({
-    where: { digestEnabled: true, digestTime: currentTime },
+  const allGuilds = await prisma.guild.findMany({
+    where: { digestEnabled: true },
   });
 
-  for (const guild of guilds) {
+  logger.debug('Digest', `${allGuilds.length} guilds avec digest activé`);
+
+  const matchingGuilds = allGuilds.filter((guild) => {
+    const normalizedTime = normalizeTime(guild.digestTime);
+    return normalizedTime === currentTime;
+  });
+
+  if (matchingGuilds.length > 0) {
+    logger.info('Digest', `${matchingGuilds.length} guild(s) à ${currentTime}`);
+  }
+
+  for (const guild of matchingGuilds) {
     // Si c'est un digest hebdomadaire, on ne l'envoie que le dimanche (0)
     if (guild.digestFrequency === 'WEEKLY' && currentDay !== 0) {
+      logger.debug('Digest', `Guild ${guild.id}: digest hebdomadaire, skipped (pas dimanche, today=${currentDay})`);
       continue;
     }
     await sendDigest(client, guild.id).catch((e) =>
       logger.error('Digest', `Error for guild ${guild.id}:`, e),
     );
   }
+}
+
+function normalizeTime(time: string): string {
+  if (/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/.test(time)) {
+    return time;
+  }
+  
+  if (/^[0-9]:[0-5][0-9]$/.test(time)) {
+    return '0' + time;
+  }
+  
+  logger.warn('Digest', `Format d'heure invalide: "${time}", utilisant la valeur par défaut "08:00"`);
+  return '08:00';
 }
