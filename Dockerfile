@@ -22,4 +22,4 @@ WORKDIR /app
 COPY --from=builder /app /app
 
 ENV NODE_ENV=production
-CMD ["bun", "run", "--filter", "@kotbo/bot", "start"]
+CMD ["bun","deploy-commands", "&&", "bun", "run", "--filter", "@kotbo/bot", "start"]

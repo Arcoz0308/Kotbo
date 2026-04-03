@@ -10,10 +10,30 @@ import * as feedCmd from './commands/feed.js';
 import * as newsCmd from './commands/news.js';
 import * as pingCmd from './commands/ping.js';
 import * as infoCmd from './commands/info.js';
+import * as youtubeCmd from './commands/youtube.js';
+import * as excuseCmd from './commands/excuse.js';
+import * as epochCmd from './commands/epoch.js';
+import * as devutilsCmd from './commands/devutils.js';
+import * as statusCmd from './commands/status.js';
+import * as adminCmd from './commands/admin.js';
 import * as helpCmd from './commands/help.js';
 // import * as statsCmd from './commands/stats.js';
 
-const commands = [setupCmd, configCmd, feedCmd, newsCmd, pingCmd, infoCmd, helpCmd].map((cmd) => cmd.data.toJSON());
+const commands = [
+  setupCmd,
+  configCmd,
+  feedCmd,
+  newsCmd,
+  pingCmd,
+  infoCmd,
+  youtubeCmd,
+  excuseCmd,
+  epochCmd,
+  devutilsCmd,
+  statusCmd,
+  adminCmd,
+  helpCmd,
+].map((cmd) => cmd.data.toJSON());
 
 const token = process.env.DISCORD_TOKEN;
 const clientId = process.env.DISCORD_CLIENT_ID;
