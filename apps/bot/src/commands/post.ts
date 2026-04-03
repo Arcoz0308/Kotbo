@@ -4,6 +4,14 @@ import { sendDailyAlgo } from '../services/digestService.js';
 import { successEmbed, errorEmbed } from '../utils/embeds.js';
 import { logger } from '../utils/logger.js';
 
+function formatPostError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message.split('\n').map((line) => line.trim()).find(Boolean) ?? 'Erreur inconnue';
+  }
+
+  return String(error ?? 'Erreur inconnue');
+}
+
 export const data = new SlashCommandBuilder()
   .setName('post')
   .setDescription('🚀 Poster le digest et/ou le daily algo')
@@ -47,7 +55,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   } catch (error) {
     logger.error('Post', `Erreur lors du post (${subcommand}):`, error);
     await interaction.editReply({
-      embeds: [errorEmbed('❌ Erreur', 'Impossible de poster le contenu.')],
+      embeds: [errorEmbed('❌ Erreur', `Impossible de poster le contenu : ${formatPostError(error)}`)],
     });
   }
 }

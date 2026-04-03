@@ -37,9 +37,11 @@ export async function sendDigest(client: Client, guildId: string): Promise<void>
   });
 
   if (items.length === 0) {
-    logger.info('Digest', `No items for guild ${guildId}, skipping`);
+    logger.info('Digest', `Aucun article pour la guilde ${guildId}, envoi ignoré.`);
     return;
   }
+
+  const digestTypeStr = guild.digestFrequency === 'WEEKLY' ? 'hebdomadaire' : 'quotidien';
 
   // Group by category
   const byCategory = new Map<string, typeof items>();
@@ -49,23 +51,30 @@ export async function sendDigest(client: Client, guildId: string): Promise<void>
     byCategory.get(cat)!.push(item);
   }
 
-  const digestTypeStr = guild.digestFrequency === 'WEEKLY' ? 'hebdomadaire' : 'quotidien';
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.info)
-    .setTitle(`📰 Digest ${digestTypeStr} du ${new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}`)
-    .setDescription(`**${items.length} article${items.length > 1 ? 's' : ''}** validé${items.length > 1 ? 's' : ''} ${guild.digestFrequency === 'WEEKLY' ? 'cette semaine' : 'aujourd\'hui'}`)
-    .setTimestamp()
-    .setFooter({ text: `Kotbo News · Digest ${digestTypeStr}` });
+  const categoryChunks = chunkEntries(Array.from(byCategory.entries()), 25);
+  const embeds = categoryChunks.map((chunk, index) => {
+    const embed = new EmbedBuilder()
+      .setColor(COLORS.info)
+      .setTitle(
+        `📰 Digest ${digestTypeStr} du ${new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}` +
+        (categoryChunks.length > 1 ? ` (${index + 1}/${categoryChunks.length})` : '')
+      )
+      .setDescription(`**${items.length} article${items.length > 1 ? 's' : ''}** validé${items.length > 1 ? 's' : ''} ${guild.digestFrequency === 'WEEKLY' ? 'cette semaine' : 'aujourd\'hui'}`)
+      .setTimestamp()
+      .setFooter({ text: `Kotbo News · Digest ${digestTypeStr}` });
 
-  for (const [category, catItems] of byCategory) {
-    const lines = catItems
-      .map((i) => `• [${truncate(i.titleTranslated ?? i.title, 80)}](${i.url})`)
-      .join('\n');
-    embed.addFields({
-      name: `${categoryEmoji(category)} ${category}`,
-      value: truncate(lines, 1024),
-    });
-  }
+    for (const [category, catItems] of chunk) {
+      const lines = catItems
+        .map((i) => `• [${truncate(i.titleTranslated ?? i.title, 80)}](${i.url})`)
+        .join('\n');
+      embed.addFields({
+        name: `${categoryEmoji(category)} ${category}`,
+        value: truncate(lines, 1024),
+      });
+    }
+
+    return embed;
+  });
 
   const mention = guild.digestRoleId ? `<@&${guild.digestRoleId}>` : null;
   const customText = guild.digestCustomText ? guild.digestCustomText : null;
@@ -73,7 +82,13 @@ export async function sendDigest(client: Client, guildId: string): Promise<void>
   const contentParts = [mention, customText].filter(Boolean);
   const content = contentParts.length > 0 ? contentParts.join('\n\n') : undefined;
 
-  await channel.send({ content, embeds: [embed] });
+  for (let index = 0; index < embeds.length; index += 10) {
+    const batch = embeds.slice(index, index + 10);
+    await channel.send({
+      content: index === 0 ? content : undefined,
+      embeds: batch,
+    });
+  }
   logger.success('Digest', `Sent ${digestTypeStr} digest for guild ${guildId} (${items.length} items)`);
 }
 
@@ -122,6 +137,14 @@ function normalizeTime(time: string): string {
   return '08:00';
 }
 
+function chunkEntries<T>(entries: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < entries.length; index += size) {
+    chunks.push(entries.slice(index, index + size));
+  }
+  return chunks;
+}
+
 export async function sendDailyAlgo(client: Client, guildId: string): Promise<void> {
   const guild = await prisma.guild.findUnique({
     where: { id: guildId },
@@ -140,7 +163,7 @@ export async function sendDailyAlgo(client: Client, guildId: string): Promise<vo
   });
 
   if (problems.length === 0) {
-    logger.warn('DailyAlgo', `No problems found for guild ${guildId}`);
+    logger.warn('DailyAlgo', `Aucun problème trouvé pour la guilde ${guildId}.`);
     return;
   }
 
@@ -158,11 +181,11 @@ export async function sendDailyAlgo(client: Client, guildId: string): Promise<vo
     .setTitle(`💻 Daily Algo du ${today}`)
     .addFields({
       name: '📌 Problème',
-      value: `**${problem.title}**\n\n${problem.description}`,
+      value: `**${truncate(problem.title, 220)}**\n\n${truncate(problem.description, 900)}`,
     })
     .addFields({
       name: '⚙️ Difficulté',
-      value: `\`${problem.difficulty}\``,
+      value: `\`${truncate(problem.difficulty, 32)}\``,
       inline: true,
     })
     .setDescription('Clique sur le bouton ci-dessous pour soumettre ta solution.')
@@ -172,7 +195,7 @@ export async function sendDailyAlgo(client: Client, guildId: string): Promise<vo
   const row = getDailyAlgoButtonRow();
 
   await channel.send({ embeds: [embed], components: [row] });
-  logger.success('DailyAlgo', `Sent daily algo for guild ${guildId}`);
+  logger.success('DailyAlgo', `Daily Algo envoyé pour la guilde ${guildId}`);
 }
 
 export async function runDailyAlgoForAllGuilds(client: Client): Promise<void> {
