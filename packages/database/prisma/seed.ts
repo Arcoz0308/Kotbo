@@ -1,7 +1,20 @@
+import path from 'node:path';
+import { config as loadEnv } from 'dotenv';
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 
+loadEnv({ path: path.resolve(import.meta.dir, '../../.env') });
+loadEnv({ path: path.resolve(import.meta.dir, '../../../.env') });
 
-const prisma = new PrismaClient();
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  console.error('❌ DATABASE_URL non défini dans .env');
+  process.exit(1);
+}
+
+const adapter = new PrismaPg({ connectionString });
+
+const prisma = new PrismaClient({ adapter });
 
 const GUILD_ID = process.env.GUILD_ID;
 if (!GUILD_ID) {
