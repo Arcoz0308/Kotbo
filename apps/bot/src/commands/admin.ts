@@ -13,6 +13,40 @@ export const data = new SlashCommandBuilder()
   )
   .addSubcommand(sub =>
     sub
+      .setName('add-daily-algo')
+      .setDescription('Ajoute un nouveau problème dans la banque Daily Algo')
+      .addStringOption(option =>
+        option
+          .setName('titre')
+          .setDescription('Titre du problème')
+          .setRequired(true),
+      )
+      .addStringOption(option =>
+        option
+          .setName('question')
+          .setDescription('Énoncé du Daily Algo')
+          .setRequired(true),
+      )
+      .addStringOption(option =>
+        option
+          .setName('solution')
+          .setDescription('Solution attendue')
+          .setRequired(true),
+      )
+      .addStringOption(option =>
+        option
+          .setName('difficulte')
+          .setDescription('Niveau de difficulté')
+          .addChoices(
+            { name: 'Facile', value: 'facile' },
+            { name: 'Moyen', value: 'moyen' },
+            { name: 'Difficile', value: 'difficile' },
+          )
+          .setRequired(true),
+      )
+  )
+  .addSubcommand(sub =>
+    sub
       .setName('set-algo-channel')
       .setDescription('Définit le salon pour le Daily Algo')
       .addChannelOption(option =>
@@ -96,6 +130,51 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
               inline: false,
             },
           ]
+        ),
+      ],
+      flags: 64,
+    });
+  } else if (subcommand === 'add-daily-algo') {
+    const titre = interaction.options.getString('titre', true).trim();
+    const question = interaction.options.getString('question', true).trim();
+    const solution = interaction.options.getString('solution', true).trim();
+    const difficulte = interaction.options.getString('difficulte', true).trim();
+
+    const existing = await prisma.dailyAlgoProblem.findFirst({
+      where: {
+        title: titre,
+        language: 'fr',
+      },
+    });
+
+    if (existing) {
+      await interaction.reply({
+        embeds: [
+          infoEmbed(
+            'Daily Algo déjà présent',
+            `Le problème **${titre}** existe déjà dans la banque française.`
+          ),
+        ],
+        flags: 64,
+      });
+      return;
+    }
+
+    await prisma.dailyAlgoProblem.create({
+      data: {
+        title: titre,
+        description: question,
+        solution,
+        difficulty: difficulte,
+        language: 'fr',
+      },
+    });
+
+    await interaction.reply({
+      embeds: [
+        successEmbed(
+          'Daily Algo ajouté',
+          `Le problème **${titre}** a été ajouté à la banque et pourra être sélectionné une seule fois.`
         ),
       ],
       flags: 64,

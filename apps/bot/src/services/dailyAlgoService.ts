@@ -10,6 +10,25 @@ import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { COLORS, truncate } from '../utils/embeds.js';
 
+export type DailyAlgoDispatchResult = {
+  status: 'created' | 'resent' | 'exists';
+  runId: string;
+  problemTitle: string;
+  dateKey: string;
+};
+
+type DailyAlgoRunMessageData = {
+  id: string;
+  challengeChannelId: string;
+  validationChannelId: string | null;
+  challengeMessageId: string | null;
+  problem: {
+    title: string;
+    description: string;
+    difficulty: string;
+  };
+};
+
 export function getDailyAlgoButtonRow(runId: string) {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
@@ -17,6 +36,81 @@ export function getDailyAlgoButtonRow(runId: string) {
       .setLabel('📝 Soumettre ma solution')
       .setStyle(ButtonStyle.Primary),
   );
+}
+
+export function getLocalDateKey(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+export function formatDailyAlgoDate(dateKey: string): string {
+  const [year, month, day] = dateKey.split('-').map((value) => Number(value));
+
+  if (!year || !month || !day) {
+    return dateKey;
+  }
+
+  return new Date(year, month - 1, day).toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+function buildDailyAlgoEmbed(params: {
+  title: string;
+  problemTitle: string;
+  description: string;
+  difficulty: string;
+  validationChannelId: string | null;
+  footerText?: string;
+}) {
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.info)
+    .setTitle(params.title)
+    .addFields({
+      name: '📌 Problème',
+      value: `**${truncate(params.problemTitle, 220)}**\n\n${truncate(params.description, 900)}`,
+    })
+    .addFields({
+      name: '⚙️ Difficulté',
+      value: `\`${truncate(params.difficulty, 32)}\``,
+      inline: true,
+    })
+    .addFields({
+      name: '📩 Salon des réponses',
+      value: params.validationChannelId ? `<#${params.validationChannelId}>` : 'Salon configuré du Daily Algo',
+      inline: true,
+    })
+    .setTimestamp()
+    .setFooter({ text: params.footerText ?? 'Kotbo · Daily Algo' });
+
+  return embed;
+}
+
+async function sendDailyAlgoRunMessage(client: Client, run: DailyAlgoRunMessageData) {
+  const channel = await client.channels.fetch(run.challengeChannelId).catch(() => null) as TextChannel | null;
+
+  if (!channel) {
+    throw new Error('Le salon du Daily Algo est introuvable.');
+  }
+
+  const dateLabel = formatDailyAlgoDate(getLocalDateKey());
+  const embed = buildDailyAlgoEmbed({
+    title: `💻 Daily Algo du ${dateLabel}`,
+    problemTitle: run.problem.title,
+    description: run.problem.description,
+    difficulty: run.problem.difficulty,
+    validationChannelId: run.validationChannelId,
+  });
+
+  return channel.send({
+    embeds: [embed],
+    components: [getDailyAlgoButtonRow(run.id)],
+  });
 }
 
 export function buildDailyAlgoValidationButtons(submissionId: string, disabled = false) {
@@ -99,6 +193,34 @@ export async function queueDailyAlgoSubmission(params: {
   });
 
   logger.success('DailyAlgo', `Réponse de ${submission.authorName} envoyée en validation pour la guilde ${run.guildId}`);
+}
+
+export async function getPreviousDailyAlgoRun(guildId: string) {
+  const todayKey = getLocalDateKey();
+
+  return prisma.dailyAlgoRun.findFirst({
+    where: {
+      guildId,
+      dateKey: {
+        lt: todayKey,
+      },
+    },
+    orderBy: {
+      dateKey: 'desc',
+    },
+    select: {
+      id: true,
+      dateKey: true,
+      createdAt: true,
+      problem: {
+        select: {
+          title: true,
+          description: true,
+          difficulty: true,
+        },
+      },
+    },
+  });
 }
 
 export async function reviewDailyAlgoSubmission(params: {
@@ -322,4 +444,181 @@ function splitLines(lines: string[], maxLength: number): string[] {
   }
 
   return chunks;
+}
+
+export async function sendDailyAlgo(client: Client, guildId: string): Promise<DailyAlgoDispatchResult> {
+  const guild = await prisma.guild.findUnique({
+    where: { id: guildId },
+  });
+
+  if (!guild) {
+    throw new Error('La guilde Daily Algo est introuvable.');
+  }
+
+  if (!guild.dailyAlgoEnabled) {
+    throw new Error('Le Daily Algo n\'est pas activé pour ce serveur.');
+  }
+
+  const channelId = guild.dailyAlgoChannelId;
+  if (!channelId) {
+    throw new Error('Le salon du Daily Algo n\'est pas configuré.');
+  }
+
+  const dateKey = getLocalDateKey();
+  const existingRun: any = await prisma.dailyAlgoRun.findUnique({
+    where: {
+      guildId_dateKey: {
+        guildId,
+        dateKey,
+      },
+    },
+    select: {
+      id: true,
+      challengeChannelId: true,
+      validationChannelId: true,
+      challengeMessageId: true,
+      problem: {
+        select: {
+          title: true,
+          description: true,
+          difficulty: true,
+        },
+      },
+    },
+  });
+
+  if (existingRun?.challengeMessageId) {
+    logger.info('DailyAlgo', `Daily Algo déjà publié pour ${guildId} le ${dateKey}`);
+    return {
+      status: 'exists',
+      runId: existingRun.id,
+      problemTitle: existingRun.problem.title,
+      dateKey,
+    };
+  }
+
+  let run: any = existingRun;
+
+  if (!run) {
+    const problemCandidates: any[] = await prisma.dailyAlgoProblem.findMany({
+      where: {
+        language: 'fr',
+        usedAt: null,
+      },
+      orderBy: [
+        { createdAt: 'asc' },
+        { id: 'asc' },
+      ],
+    });
+
+    if (problemCandidates.length === 0) {
+      throw new Error('Aucun Daily Algo disponible. Ajoute de nouveaux problèmes dans la base.');
+    }
+
+    for (const candidate of problemCandidates) {
+      try {
+        const createdRun: any = await prisma.$transaction(async (tx) => {
+          const createdRun = await tx.dailyAlgoRun.create({
+            data: {
+              guildId: guild.id,
+              dateKey,
+              problemId: candidate.id,
+              challengeChannelId: channelId,
+              validationChannelId: guild.dailyAlgoValidationChannelId ?? null,
+            },
+            include: {
+              problem: true,
+            },
+          });
+
+          const reservedProblem: any = await tx.dailyAlgoProblem.updateMany({
+            where: {
+              id: candidate.id,
+              usedAt: null,
+            },
+            data: {
+              usedAt: new Date(),
+            },
+          });
+
+          if (reservedProblem.count === 0) {
+            throw new Error('Le problème Daily Algo a déjà été utilisé.');
+          }
+
+          return {
+            id: createdRun.id,
+            challengeChannelId: createdRun.challengeChannelId,
+            validationChannelId: createdRun.validationChannelId,
+            challengeMessageId: createdRun.challengeMessageId,
+            problem: {
+              title: createdRun.problem.title,
+              description: createdRun.problem.description,
+              difficulty: createdRun.problem.difficulty,
+            },
+          } as DailyAlgoRunMessageData;
+        });
+
+        run = createdRun;
+
+        break;
+      } catch (error) {
+        logger.warn('DailyAlgo', `Impossible de réserver le problème ${candidate.id}, nouvel essai...`, error);
+
+        const currentRun: any = await prisma.dailyAlgoRun.findUnique({
+          where: {
+            guildId_dateKey: {
+              guildId,
+              dateKey,
+            },
+          },
+          select: {
+            id: true,
+            challengeChannelId: true,
+            validationChannelId: true,
+            challengeMessageId: true,
+            problem: {
+              select: {
+                title: true,
+                description: true,
+                difficulty: true,
+              },
+            },
+          },
+        });
+        if (currentRun) {
+          run = currentRun;
+          break;
+        }
+      }
+    }
+
+    if (!run) {
+      throw new Error('Impossible de réserver un Daily Algo disponible.');
+    }
+  }
+
+  if (!run.challengeMessageId) {
+    const message = await sendDailyAlgoRunMessage(client, run);
+
+    await prisma.dailyAlgoRun.update({
+      where: { id: run.id },
+      data: { challengeMessageId: message.id },
+    });
+
+    logger.success('DailyAlgo', `Daily Algo envoyé pour la guilde ${guildId}`);
+
+    return {
+      status: existingRun ? 'resent' : 'created',
+      runId: run.id,
+      problemTitle: run.problem.title,
+      dateKey,
+    };
+  }
+
+  return {
+    status: 'exists',
+    runId: run.id,
+    problemTitle: run.problem.title,
+    dateKey,
+  };
 }

@@ -2,7 +2,7 @@ import { EmbedBuilder, type Client, type TextChannel } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { COLORS, truncate, categoryEmoji } from '../utils/embeds.js';
-import { getDailyAlgoButtonRow } from './dailyAlgoService.js';
+import { getDailyAlgoButtonRow, sendDailyAlgo as publishDailyAlgo, type DailyAlgoDispatchResult } from './dailyAlgoService.js';
 
 export async function sendDigest(client: Client, guildId: string): Promise<void> {
   const guild = await prisma.guild.findUnique({
@@ -145,77 +145,8 @@ function chunkEntries<T>(entries: T[], size: number): T[][] {
   return chunks;
 }
 
-export async function sendDailyAlgo(client: Client, guildId: string): Promise<void> {
-  const guild = await prisma.guild.findUnique({
-    where: { id: guildId },
-  });
-
-  if (!guild || !guild.dailyAlgoEnabled) return;
-
-  const channelId = guild.dailyAlgoChannelId;
-  if (!channelId) return;
-
-  const channel = await client.channels.fetch(channelId).catch(() => null) as TextChannel | null;
-  if (!channel) return;
-
-  const problems = await prisma.dailyAlgoProblem.findMany({
-    where: { language: 'fr' },
-  });
-
-  if (problems.length === 0) {
-    logger.warn('DailyAlgo', `Aucun problème trouvé pour la guilde ${guildId}.`);
-    return;
-  }
-
-  const randomIndex = Math.floor(Math.random() * problems.length);
-  const problem = problems[randomIndex]!;
-
-  const run = await prisma.dailyAlgoRun.create({
-    data: {
-      guildId: guild.id,
-      problemId: problem.id,
-      challengeChannelId: channel.id,
-      validationChannelId: guild.dailyAlgoValidationChannelId ?? null,
-    },
-  });
-
-  const today = new Date().toLocaleDateString('fr-FR', { 
-    day: '2-digit', 
-    month: 'long', 
-    year: 'numeric' 
-  });
-
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.info)
-    .setTitle(`💻 Daily Algo du ${today}`)
-    .addFields({
-      name: '📌 Problème',
-      value: `**${truncate(problem.title, 220)}**\n\n${truncate(problem.description, 900)}`,
-    })
-    .addFields({
-      name: '⚙️ Difficulté',
-      value: `\`${truncate(problem.difficulty, 32)}\``,
-      inline: true,
-    })
-    .addFields({
-      name: '📩 Salon des réponses',
-      value: run.validationChannelId ? `<#${run.validationChannelId}>` : `<#${channel.id}>`,
-      inline: true,
-    })
-    .setDescription('Clique sur le bouton ci-dessous pour soumettre ta solution. Un modérateur pourra ensuite la valider ou la rejeter.')
-    .setTimestamp()
-    .setFooter({ text: 'Kotbo · Daily Algo' });
-
-  const row = getDailyAlgoButtonRow(run.id);
-
-  const message = await channel.send({ embeds: [embed], components: [row] });
-
-  await prisma.dailyAlgoRun.update({
-    where: { id: run.id },
-    data: { challengeMessageId: message.id },
-  });
-
-  logger.success('DailyAlgo', `Daily Algo envoyé pour la guilde ${guildId}`);
+export async function sendDailyAlgo(client: Client, guildId: string): Promise<DailyAlgoDispatchResult> {
+  return publishDailyAlgo(client, guildId);
 }
 
 export async function runDailyAlgoForAllGuilds(client: Client): Promise<void> {

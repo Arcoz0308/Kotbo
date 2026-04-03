@@ -1,7 +1,8 @@
 import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { sendDigest } from '../services/digestService.js';
-import { sendDailyAlgo } from '../services/digestService.js';
-import { successEmbed, errorEmbed } from '../utils/embeds.js';
+import { sendDailyAlgo } from '../services/dailyAlgoService.js';
+import { formatDailyAlgoDate } from '../services/dailyAlgoService.js';
+import { successEmbed, errorEmbed, infoEmbed } from '../utils/embeds.js';
 import { logger } from '../utils/logger.js';
 
 function formatPostError(error: unknown): string {
@@ -47,10 +48,17 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         embeds: [successEmbed('✅ Digest envoyé', 'Le digest a été posté dans le salon configuré.')],
       });
     } else if (subcommand === 'daily-algo') {
-      await sendDailyAlgo(interaction.client, guildId);
-      await interaction.editReply({
-        embeds: [successEmbed('✅ Daily Algo envoyé', 'Le daily algo a été posté dans le salon configuré.')],
-      });
+      const result = await sendDailyAlgo(interaction.client, guildId);
+
+      if (result.status === 'exists') {
+        await interaction.editReply({
+          embeds: [infoEmbed('Daily Algo déjà publié', `Le Daily Algo du ${formatDailyAlgoDate(result.dateKey)} a déjà été envoyé.`)],
+        });
+      } else {
+        await interaction.editReply({
+          embeds: [successEmbed('✅ Daily Algo envoyé', 'Le daily algo a été posté dans le salon configuré.')],
+        });
+      }
     }
   } catch (error) {
     logger.error('Post', `Erreur lors du post (${subcommand}):`, error);

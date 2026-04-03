@@ -18,6 +18,7 @@ import * as statusCmd from './commands/status.js';
 import * as adminCmd from './commands/admin.js';
 import * as helpCmd from './commands/help.js';
 import * as postCmd from './commands/post.js';
+import * as dailyAlgoCmd from './commands/dailyAlgo.js';
 // import * as statsCmd from './commands/stats.js';
 
 const commands = [
@@ -35,6 +36,7 @@ const commands = [
   adminCmd,
   postCmd,
   helpCmd,
+  dailyAlgoCmd,
 ].map((cmd) => cmd.data.toJSON());
 
 const token = process.env.DISCORD_TOKEN;

@@ -192,18 +192,21 @@ model DailyAlgoProblem {
   solution    String
   difficulty  String   @default("moyen") // facile, moyen, difficile
   language    String   @default("fr")
+  usedAt      DateTime?
   createdAt   DateTime @default(now())
 
   runs DailyAlgoRun[]
 
   @@map("daily_algo_problems")
   @@index([language])
+  @@index([language, usedAt])
 }
 
 model DailyAlgoRun {
   id String @id @default(cuid())
 
   guildId String
+  dateKey String?
   problemId String
 
   challengeChannelId String
@@ -220,6 +223,7 @@ model DailyAlgoRun {
 
   @@map("daily_algo_runs")
   @@index([guildId, createdAt])
+  @@unique([guildId, dateKey])
 }
 
 model DailyAlgoSubmission {
