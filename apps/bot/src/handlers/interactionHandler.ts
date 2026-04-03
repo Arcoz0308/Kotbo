@@ -17,6 +17,7 @@ import { logger } from '../utils/logger.js';
 import { DigestFrequency } from '@prisma/client';
 import { COLORS, errorEmbed, successEmbed, infoEmbed, feedStatusEmoji, truncate } from '../utils/embeds.js';
 import { sendConfigPanel, sendFeedsPanel, buildAddFeedModal, sendRoleSelectionPanel, sendChannelSelectionPanel, sendDigestPanel, sendDigestRoleSelectionPanel, buildDigestModal, sendYouTubeConfigPanel, sendYouTubeRoleSelectionPanel, sendGlobalKeywordsPanel, sendFeedKeywordsPanel, buildKeywordModal } from '../panels/configPanel.js';
+import { handleConfigButton, handleConfigChannelSelect, handleConfigModal, handleConfigSelectMenu } from './configHandler.js';
 import { sendSetupStep1, sendSetupStep2, sendSetupStep3, sendSetupStep4, sendSetupStep5, sendSetupFinish, buildSetupDigestModal } from '../panels/setupPanel.js';
 import { sendApprovedItem } from '../services/notificationService.js';
 import { sendDMSubscribePanel } from '../services/notificationService.js';
@@ -88,6 +89,11 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       await prisma.guild.update({ where: { id: guildId }, data: { digestRoleId: null } });
       await sendSetupStep4(client, guildId, interaction);
     }
+    return;
+  }
+
+  if (customId.startsWith('cfg:')) {
+    await handleConfigButton(interaction);
     return;
   }
 
@@ -858,6 +864,15 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
   const { customId, guildId, values } = interaction;
   if (!guildId) return;
 
+  if (customId.startsWith('cfg:')) {
+    if (interaction.isChannelSelectMenu()) {
+      await handleConfigChannelSelect(interaction);
+    } else {
+      await handleConfigSelectMenu(interaction);
+    }
+    return;
+  }
+
   if (customId.startsWith('setup:')) {
     const step = customId.split(':')[1];
     const val = values[0];
@@ -1029,6 +1044,11 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
 export async function handleModalSubmit(interaction: ModalSubmitInteraction, client: Client): Promise<void> {
   const { customId, guildId } = interaction;
   if (!guildId) return;
+
+  if (customId.startsWith('cfg:')) {
+    await handleConfigModal(interaction);
+    return;
+  }
 
   if (customId === 'modal:feed:add') {
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
