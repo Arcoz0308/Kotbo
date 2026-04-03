@@ -1,5 +1,5 @@
 -- CreateTable
-CREATE TABLE "daily_algo_problems" (
+CREATE TABLE IF NOT EXISTS "daily_algo_problems" (
     "id" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT NOT NULL,
@@ -11,4 +11,4 @@ CREATE TABLE "daily_algo_problems" (
     CONSTRAINT "daily_algo_problems_pkey" PRIMARY KEY ("id")
 );
 
-CREATE INDEX "daily_algo_problems_language_idx" ON "daily_algo_problems"("language");
+CREATE INDEX IF NOT EXISTS "daily_algo_problems_language_idx" ON "daily_algo_problems"("language");
