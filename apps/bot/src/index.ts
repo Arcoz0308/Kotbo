@@ -69,7 +69,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
   try {
     if (interaction.isChatInputCommand()) {
       const cmd = commands.get(interaction.commandName);
-      if (!cmd) return;
+      if (!cmd) {
+        await interaction.reply({
+          content: '⚠️ Cette commande n\'est pas encore disponible sur cette instance du bot. Redémarre le bot puis redéploie les commandes.',
+          flags: [MessageFlags.Ephemeral],
+        });
+        return;
+      }
       await cmd.execute(interaction);
     }
 
