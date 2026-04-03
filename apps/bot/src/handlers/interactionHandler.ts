@@ -579,7 +579,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     const categoryInput = new TextInputBuilder()
         .setCustomId('feed_category')
         .setLabel('Catégorie')
-        .setPlaceholder('Ex: Tech FR, IA & Dev, Général...')
+      .setPlaceholder('Ex: Actualité Tech Générale (France), Intelligence Artificielle & Dev, Général...')
         .setStyle(TextInputStyle.Short)
         .setRequired(false);
 

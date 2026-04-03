@@ -11,37 +11,51 @@ export interface CategoryTheme {
   icon: string;
 }
 
+const FRANCE_THEME: CategoryTheme = {
+  emoji: '🇫🇷',
+  color: 0x3a86ff,  // bleu
+  label: 'Actualité Tech Générale (France)',
+  icon: '🔵 Actualité Tech Générale (France)',
+};
+
+const INTERNATIONAL_THEME: CategoryTheme = {
+  emoji: '🌐',
+  color: 0x8338ec,  // violet
+  label: 'Références Internationales (Anglais)',
+  icon: '🟣 Références Internationales (Anglais)',
+};
+
+const CYBER_THEME: CategoryTheme = {
+  emoji: '🛡️',
+  color: 0x06d6a0,  // turquoise
+  label: 'Cybersécurité & Open Source',
+  icon: '🟢 Cybersécurité & Open Source',
+};
+
+const AI_DEV_THEME: CategoryTheme = {
+  emoji: '🧠',
+  color: 0xffbe0b,  // ambre
+  label: 'Intelligence Artificielle & Dev',
+  icon: '🟡 Intelligence Artificielle & Dev',
+};
+
+const HARDWARE_THEME: CategoryTheme = {
+  emoji: '🎮',
+  color: 0xff006e,  // Rose
+  label: 'Hardware & Gaming',
+  icon: '🔴 Hardware & Gaming',
+};
+
 const CATEGORY_THEMES: Record<string, CategoryTheme> = {
-  'Tech FR': {
-    emoji: '🇫🇷',
-    color: 0x3a86ff,  // bleu
-    label: 'Tech FR',
-    icon: '🔵 Tech FR',
-  },
-  'Tech EN': {
-    emoji: '🌐',
-    color: 0x8338ec,  // violet
-    label: 'Tech EN',
-    icon: '🟣 Tech EN',
-  },
-  'Cybersécurité': {
-    emoji: '🛡️',
-    color: 0x06d6a0,  // turquoise
-    label: 'Cybersécurité',
-    icon: '🟢 Cybersécurité',
-  },
-  'IA & Dev': {
-    emoji: '🧠',
-    color: 0xffbe0b,  // ambre
-    label: 'IA & Dev',
-    icon: '🟡 IA & Dev',
-  },
-  'Hardware & Gaming': {
-    emoji: '🎮',
-    color: 0xff006e,  // Rose
-    label: 'Hardware & Gaming',
-    icon: '🔴 Hardware & Gaming',
-  },
+  'Actualité Tech Générale (France)': FRANCE_THEME,
+  'Tech FR': FRANCE_THEME,
+  'Références Internationales (Anglais)': INTERNATIONAL_THEME,
+  'Tech EN': INTERNATIONAL_THEME,
+  'Cybersécurité & Open Source': CYBER_THEME,
+  'Cybersécurité': CYBER_THEME,
+  'Intelligence Artificielle & Dev': AI_DEV_THEME,
+  'IA & Dev': AI_DEV_THEME,
+  'Hardware & Gaming': HARDWARE_THEME,
   'YouTube': {
     emoji: '▶️',
     color: 0xff0000,  // Rouge YouTube

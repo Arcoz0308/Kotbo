@@ -292,7 +292,7 @@ export function buildAddFeedModal(): ModalBuilder {
         new TextInputBuilder().setCustomId('feed_url').setLabel('URL du flux RSS').setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(500),
       ),
       new ActionRowBuilder<TextInputBuilder>().addComponents(
-        new TextInputBuilder().setCustomId('feed_category').setLabel('Catégorie (ex: Tech FR, Cybersécurité...)').setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(50).setPlaceholder('Général'),
+        new TextInputBuilder().setCustomId('feed_category').setLabel('Catégorie (ex: Actualité Tech Générale (France), Cybersécurité & Open Source...)').setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(50).setPlaceholder('Général'),
       ),
       new ActionRowBuilder<TextInputBuilder>().addComponents(
         new TextInputBuilder().setCustomId('feed_lang').setLabel('Langue source (ex: fr, en) · Traduction cible (ex: FR)').setStyle(TextInputStyle.Short).setRequired(false).setMaxLength(10).setPlaceholder('ex: en → FR pour auto-traduire'),

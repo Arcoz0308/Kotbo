@@ -28,10 +28,10 @@ export const data = new SlashCommandBuilder()
           .setName('categorie')
           .setDescription('Catégorie')
           .addChoices(
-            { name: '🇫🇷 Tech FR', value: 'Tech FR' },
-            { name: '🌍 Tech EN', value: 'Tech EN' },
-            { name: '🛡️ Cybersécurité', value: 'Cybersécurité' },
-            { name: '🤖 IA & Dev', value: 'IA & Dev' },
+            { name: '🇫🇷 Actualité Tech Générale (France)', value: 'Actualité Tech Générale (France)' },
+            { name: '🌍 Références Internationales (Anglais)', value: 'Références Internationales (Anglais)' },
+            { name: '🛡️ Cybersécurité & Open Source', value: 'Cybersécurité & Open Source' },
+            { name: '🤖 Intelligence Artificielle & Dev', value: 'Intelligence Artificielle & Dev' },
             { name: '💻 Hardware & Gaming', value: 'Hardware & Gaming' },
             { name: '📰 Général', value: 'Général' },
           ),

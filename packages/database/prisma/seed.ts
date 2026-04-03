@@ -25,31 +25,31 @@ if (!GUILD_ID) {
 const guildId: string = GUILD_ID;
 
 const DEFAULT_FEEDS = [
-  // 🇫🇷 Tech FR
-  { name: 'Presse-Citron', url: 'https://www.presse-citron.net/feed/', category: 'Tech FR', language: 'fr' },
-  { name: 'Le Journal du Geek', url: 'https://www.journaldugeek.com/feed/', category: 'Tech FR', language: 'fr' },
-  { name: 'Numerama', url: 'https://www.numerama.com/feed/', category: 'Tech FR', language: 'fr' },
-  { name: 'Next (ex-Next INpact)', url: 'https://next.ink/feed/', category: 'Tech FR', language: 'fr' },
-  { name: "L'Usine Digitale", url: 'https://www.usine-digitale.fr/rss', category: 'Tech FR', language: 'fr' },
+  // 🇫🇷 Actualité Tech Générale (France)
+  { name: 'Presse-Citron', url: 'https://www.presse-citron.net/feed/', category: 'Actualité Tech Générale (France)', language: 'fr' },
+  { name: 'Le Journal du Geek', url: 'https://www.journaldugeek.com/feed/', category: 'Actualité Tech Générale (France)', language: 'fr' },
+  { name: 'Numerama', url: 'https://www.numerama.com/feed/', category: 'Actualité Tech Générale (France)', language: 'fr' },
+  { name: 'Next (ex-Next INpact)', url: 'https://next.ink/feed/', category: 'Actualité Tech Générale (France)', language: 'fr' },
+  { name: "L'Usine Digitale", url: 'https://www.usine-digitale.fr/rss', category: 'Actualité Tech Générale (France)', language: 'fr' },
 
-  // 🌍 Tech EN
-  { name: 'The Verge', url: 'https://www.theverge.com/rss/index.xml', category: 'Tech EN', language: 'en' },
-  { name: 'TechCrunch', url: 'https://techcrunch.com/feed/', category: 'Tech EN', language: 'en' },
-  { name: 'Ars Technica', url: 'http://feeds.arstechnica.com/arstechnica/index', category: 'Tech EN', language: 'en' },
-  { name: 'Wired', url: 'https://www.wired.com/feed/rss', category: 'Tech EN', language: 'en' },
-  { name: 'Hacker News', url: 'https://hnrss.org/frontpage', category: 'Tech EN', language: 'en' },
+  // 🌍 Références Internationales (Anglais)
+  { name: 'The Verge', url: 'https://www.theverge.com/rss/index.xml', category: 'Références Internationales (Anglais)', language: 'en' },
+  { name: 'TechCrunch', url: 'https://techcrunch.com/feed/', category: 'Références Internationales (Anglais)', language: 'en' },
+  { name: 'Ars Technica', url: 'http://feeds.arstechnica.com/arstechnica/index', category: 'Références Internationales (Anglais)', language: 'en' },
+  { name: 'Wired', url: 'https://www.wired.com/feed/rss', category: 'Références Internationales (Anglais)', language: 'en' },
+  { name: 'Hacker News (Top)', url: 'https://hnrss.org/frontpage', category: 'Références Internationales (Anglais)', language: 'en' },
 
-  // 🛡️ Cybersécurité
-  { name: 'Korben', url: 'https://korben.info/feed', category: 'Cybersécurité', language: 'fr' },
-  { name: 'LeMagIT Sécurité', url: 'https://www.lemagit.fr/rss/Securite.xml', category: 'Cybersécurité', language: 'fr' },
-  { name: 'CNIL', url: 'https://www.cnil.fr/fr/rss.xml', category: 'Cybersécurité', language: 'fr' },
-  { name: 'The Hacker News', url: 'https://feeds.feedburner.com/TheHackersNews', category: 'Cybersécurité', language: 'en' },
+  // 🛡️ Cybersécurité & Open Source
+  { name: 'Korben', url: 'https://korben.info/feed', category: 'Cybersécurité & Open Source', language: 'fr' },
+  { name: 'LeMagIT (Sécurité)', url: 'https://www.lemagit.fr/rss/Securite.xml', category: 'Cybersécurité & Open Source', language: 'fr' },
+  { name: 'CNIL (Actus)', url: 'https://www.cnil.fr/fr/rss.xml', category: 'Cybersécurité & Open Source', language: 'fr' },
+  { name: 'The Hacker News', url: 'https://feeds.feedburner.com/TheHackersNews', category: 'Cybersécurité & Open Source', language: 'en' },
 
-  // 🤖 IA & Dev
-  { name: 'OpenAI Blog', url: 'https://openai.com/news/rss', category: 'IA & Dev', language: 'en' },
-  { name: 'Google News AI', url: 'https://news.google.com/rss/search?q=Artificial+Intelligence', category: 'IA & Dev', language: 'en' },
-  { name: 'Baeldung', url: 'https://www.baeldung.com/feed', category: 'IA & Dev', language: 'en' },
-  { name: 'GitHub Blog', url: 'https://github.blog/feed/', category: 'IA & Dev', language: 'en' },
+  // 🤖 Intelligence Artificielle & Dev
+  { name: 'OpenAI Blog', url: 'https://openai.com/news/rss', category: 'Intelligence Artificielle & Dev', language: 'en' },
+  { name: 'Google News (AI)', url: 'https://news.google.com/rss/search?q=Artificial+Intelligence', category: 'Intelligence Artificielle & Dev', language: 'en' },
+  { name: 'Baeldung (Dev)', url: 'https://www.baeldung.com/feed', category: 'Intelligence Artificielle & Dev', language: 'en' },
+  { name: 'GitHub Blog', url: 'https://github.blog/feed/', category: 'Intelligence Artificielle & Dev', language: 'en' },
 
   // 💻 Hardware & Gaming
   { name: 'CowcotLand', url: 'https://www.cowcotland.com/news.rss', category: 'Hardware & Gaming', language: 'fr' },
