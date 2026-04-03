@@ -218,7 +218,7 @@ export async function generateStatsImage(guildId: string): Promise<Buffer> {
 
   ctx.fillStyle = '#3b4048';
   ctx.font = '12px sans-serif';
-  ctx.fillText('Kotbo News Bot  •  Powered by RSS & YouTube', 40, H - 12);
+  ctx.fillText('Kotbo • RSS et YouTube', 40, H - 12);
 
   ctx.fillStyle = '#3b4048';
   ctx.font = '12px sans-serif';

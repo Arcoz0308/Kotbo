@@ -26,6 +26,13 @@ import * as newsCmd from './commands/news.js';
 import * as pingCmd from './commands/ping.js';
 import * as infoCmd from './commands/info.js';
 import * as youtubeCmd from './commands/youtube.js';
+import * as excuseCmd from './commands/excuse.js';
+import * as epochCmd from './commands/epoch.js';
+import * as devutilsCmd from './commands/devutils.js';
+import * as statusCmd from './commands/status.js';
+import * as adminCmd from './commands/admin.js';
+import { registerCodePoliceListener } from './events/codePolice.js';
+import { registerDailyAlgoHandlers } from './handlers/dailyAlgoHandler.js';
 // import * as statsCmd from './commands/stats.js';
 
 const client = new Client({
@@ -44,27 +51,16 @@ type SlashCommand = {
 };
 
 const commands = new Collection<string, SlashCommand>();
-[setupCmd, configCmd, feedCmd, newsCmd, pingCmd, infoCmd, youtubeCmd].forEach((cmd) => {
+[setupCmd, configCmd, feedCmd, newsCmd, pingCmd, infoCmd, youtubeCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd].forEach((cmd) => {
   commands.set(cmd.data.name, cmd as SlashCommand);
 });
 
 
 client.once(Events.ClientReady, async (c) => {
   logger.success('Bot', `Connecté en tant que ${c.user.tag}`);
-  logger.info('Bot', `Serveur cible : GUILD_ID=${process.env.GUILD_ID}`);
 
-  const guildId = process.env.GUILD_ID;
-  const nathanYtChannelId = process.env.NATHAN_YOUTUBE_CHANNEL_ID;
-  if (guildId && nathanYtChannelId) {
-    const prisma = (await import('./utils/db.js')).default;
-    await prisma.guild.upsert({
-      where: { id: guildId },
-      update: { nathanYtChannelId, youtubeEnabled: true },
-      create: { id: guildId, nathanYtChannelId, youtubeEnabled: true },
-    }).catch(e => logger.error('Bot', 'Failed to sync YouTube configuration:', e));
-    logger.info('Bot', `YouTube configuration synchronisée pour la guilde ${guildId} (${nathanYtChannelId})`);
-  }
-
+  registerCodePoliceListener(client);
+  registerDailyAlgoHandlers(client);
   await registerCrons(client);
 });
 

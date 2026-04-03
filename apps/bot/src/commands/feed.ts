@@ -54,9 +54,9 @@ export const data = new SlashCommandBuilder()
   .addSubcommand((sc) =>
     sc
       .setName('autopub')
-      .setDescription('Activer/désactiver l\'auto-pub d\'un flux RSS')
+      .setDescription('Activer ou désactiver l\'auto-publication d\'un flux RSS')
       .addStringOption((o) => o.setName('nom').setDescription('Nom du flux').setRequired(true).setAutocomplete(true))
-      .addBooleanOption((o) => o.setName('auto_publier').setDescription('Activer ou désactiver l\'auto-pub').setRequired(true)),
+      .addBooleanOption((o) => o.setName('auto_publier').setDescription('Activer ou désactiver l\'auto-publication').setRequired(true)),
   )
   .addSubcommand((sc) =>
     sc.setName('list').setDescription('Lister tous les flux RSS')
@@ -101,7 +101,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const translateTo = interaction.options.getString('traduire_en') ?? null;
 
     try {
-      new URL(url); // validate URL
+      new URL(url); // Vérifie l'URL
     } catch {
       await interaction.editReply({ embeds: [errorEmbed('URL invalide', 'Veuillez entrer une URL valide.')] });
       return;
@@ -118,7 +118,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     });
 
     await interaction.editReply({
-      embeds: [successEmbed('Flux ajouté !', `**${name}** (${categoryEmoji(category)} ${category})\n\`${url}\`\nAuto-publier : ${autoPublish ? 'Oui' : 'Non'}`)],
+      embeds: [successEmbed('Flux ajouté !', `**${name}** (${categoryEmoji(category)} ${category})\n\`${url}\`\nAuto-publication : ${autoPublish ? 'Oui' : 'Non'}`)],
     });
   }
 
@@ -157,7 +157,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     const updated = await prisma.feed.update({ where: { id: feed.id }, data: { autoPublish } });
     await interaction.editReply({
-      embeds: [successEmbed('Auto-pub mis à jour', `**${updated.name}** : Auto-pub ${updated.autoPublish ? 'activée ✅' : 'désactivée ❌'}`)],
+      embeds: [successEmbed('Auto-publication mise à jour', `**${updated.name}** : auto-publication ${updated.autoPublish ? 'activée ✅' : 'désactivée ❌'}`)],
     });
   }
 
@@ -167,7 +167,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       await interaction.editReply({ embeds: [infoEmbed('Aucun flux', 'Ajoutez un flux avec `/feed add`.')] });
       return;
     }
-    const lines = feeds.map((f) => `${feedStatusEmoji(f.enabled)} **${f.name}** — ${categoryEmoji(f.category)} ${f.category} — Auto-pub : ${f.autoPublish ? 'Oui' : 'Non'}`);
+    const lines = feeds.map((f) => `${feedStatusEmoji(f.enabled)} **${f.name}** — ${categoryEmoji(f.category)} ${f.category} — Auto-publication : ${f.autoPublish ? 'Oui' : 'Non'}`);
     await createPagination({
       interaction,
       items: lines,

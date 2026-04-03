@@ -279,7 +279,7 @@ async function createDiscussionThreadFromMessage(
 
     await thread.send({ content: debateRules });
   } catch (e) {
-    logger.warn('Notif', `Could not create discussion thread for approved item '${title}': ${e}`);
+    logger.warn('Notif', `Impossible de créer un fil de discussion pour l'élément approuvé « ${title} » : ${e}`);
   }
 }
 

@@ -70,7 +70,7 @@ export async function pollFeed(
     return;
   }
   if (feed.autoPublish && !feed.guild.publicChannelId) {
-    logger.warn('RSS', `Skipping poll for "${feed.name}": auto-publish enabled but publicChannelId is not set.`);
+    logger.warn('RSS', `Poll ignorée pour "${feed.name}" : auto-publication activée mais publicChannelId non défini.`);
     await prisma.feed.update({ where: { id: feed.id }, data: { lastPollStatus: 'ERROR', lastPollError: 'Channel public non configuré' } });
     return;
   }
@@ -182,7 +182,7 @@ export async function pollFeed(
     });
 
     if (feed.autoPublish) {
-      logger.info('RSS', `Auto-publishing item: "${title}" from ${feed.name}`);
+      logger.info('RSS', `Auto-publication de l'élément : "${title}" depuis ${feed.name}`);
       await publishItem(client, dbItem.id);
     } else {
       logger.info('RSS', `Queueing item for validation: "${title}" from ${feed.name}`);
@@ -196,7 +196,7 @@ export async function pollFeed(
   const createdCount = results.filter(Boolean).length;
 
   await prisma.feed.update({ where: { id: feed.id }, data: { lastPolledAt: now, lastPollStatus: 'SUCCESS', lastPollError: null } });
-  if (createdCount > 0) logger.info('RSS', `${feed.name}: ${createdCount} nouveaux articles`);
+  if (createdCount > 0) logger.info('RSS', `${feed.name} : ${createdCount} nouveaux articles`);
 }
 
 export async function pollAllFeeds(client: Client): Promise<void> {

@@ -59,8 +59,8 @@ const CATEGORY_THEMES: Record<string, CategoryTheme> = {
 const DEFAULT_THEME: CategoryTheme = {
   emoji: '📰',
   color: 0x5865f2,
-  label: 'News',
-  icon: '📰 News',
+  label: 'Actualités',
+  icon: '📰 Actualités',
 };
 
 export function getCategoryTheme(category: string): CategoryTheme {
@@ -81,7 +81,7 @@ export function baseEmbed(color: ColorResolvable = COLORS.primary) {
   return new EmbedBuilder()
     .setColor(color)
     .setTimestamp()
-    .setFooter({ text: 'Kotbo News Bot' });
+    .setFooter({ text: 'Kotbo · Bot d’actualité' });
 }
 
 export function successEmbed(title: string, description?: string) {
@@ -185,8 +185,8 @@ export function buildYouTubeEmbed(opts: YouTubeEmbedOptions): EmbedBuilder {
 
   embed.setFooter({
     text: opts.isValidation
-      ? `🔴 YouTube  ·  Video ID: ${opts.videoId}`
-      : '🔴 YouTube  ·  Kotbo News',
+      ? `🔴 YouTube  ·  ID vidéo : ${opts.videoId}`
+      : '🔴 YouTube  ·  Kotbo',
   });
 
   return embed;

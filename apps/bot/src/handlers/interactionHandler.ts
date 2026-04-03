@@ -921,7 +921,7 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
         { name: '🔗 URL', value: truncate(feed.url, 100), inline: false },
         { name: '🏷️ Catégorie', value: feed.category, inline: true },
         { name: '📶 Statut', value: feedStatusEmoji(feed.enabled) + ' ' + (feed.enabled ? 'Actif' : 'Inactif'), inline: true },
-        { name: '⚡ Auto-pub', value: feed.autoPublish ? 'Oui' : 'Non', inline: true },
+        { name: '⚡ Auto-publication', value: feed.autoPublish ? 'Oui' : 'Non', inline: true },
         { name: '🌍 Langue', value: feed.language ?? 'Auto', inline: true },
         { name: '🌐 Traduire en', value: feed.translateTo ?? 'Désactivé', inline: true },
         { name: '🔔 Rôle', value: feed.roleId ? `<@&${feed.roleId}>` : 'Aucun', inline: true },
@@ -933,7 +933,7 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`config:kw:feed_panel:${feedId}`).setLabel('🔑 Mots-clés').setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(`feed:toggle:${feedId}`).setLabel(feed.enabled ? '🔴 Désactiver' : '🟢 Activer').setStyle(feed.enabled ? ButtonStyle.Danger : ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(`feed:autopub:${feedId}`).setLabel(feed.autoPublish ? '⚡ Désactiver auto-pub' : '⚡ Activer auto-pub').setStyle(feed.autoPublish ? ButtonStyle.Danger : ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`feed:autopub:${feedId}`).setLabel(feed.autoPublish ? '⚡ Désactiver l’auto-publication' : '⚡ Activer l’auto-publication').setStyle(feed.autoPublish ? ButtonStyle.Danger : ButtonStyle.Success),
       new ButtonBuilder().setCustomId(`feed:delete:${feedId}`).setLabel('🗑️ Supprimer').setStyle(ButtonStyle.Danger),
       new ButtonBuilder().setCustomId('config:feeds').setLabel('◀ Retour').setStyle(ButtonStyle.Secondary),
     );
@@ -1078,7 +1078,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
       },
     });
 
-    let successDesc = `**${name}** → \`${url}\` (Auto-pub: ${autoPublish ? '✅ Oui' : '❌ Non'})`;
+    let successDesc = `**${name}** → \`${url}\` (Auto-publication : ${autoPublish ? '✅ Oui' : '❌ Non'})`;
     if (!autoPublish && !guild.configChannelId) {
       successDesc += '\n\n⚠️ **Attention** : Aucun salon de modération n\'est configuré. Les articles ne pourront pas être validés tant que vous n\'aurez pas défini le salon de modération via `/setup` ou `/config`.';
     }
@@ -1086,7 +1086,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
     await interaction.editReply({ embeds: [successEmbed('Flux ajouté !', successDesc)] });
 
     if (interaction.channel instanceof TextChannel) {
-      await interaction.channel.send({ embeds: [successEmbed('Flux ajouté !', `**${name}** a été configuré. (Auto-pub: ${autoPublish ? 'Oui' : 'Non'})`)] });
+      await interaction.channel.send({ embeds: [successEmbed('Flux ajouté !', `**${name}** a été configuré. (Auto-publication : ${autoPublish ? 'Oui' : 'Non'})`)] });
     }
     return;
   }

@@ -17,7 +17,7 @@ async function getVersion() {
 
 export const data = new SlashCommandBuilder()
   .setName('info')
-  .setDescription('ℹ️ Info sur le bot (version, état, configuration)');
+  .setDescription('ℹ️ Informations sur le bot (version, état, configuration)');
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   const guildId = interaction.guildId;
@@ -63,7 +63,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     .setThumbnail(interaction.client.user?.displayAvatarURL() ?? null)
     .addFields(
       { 
-        name: '🤖 Bot & État', 
+        name: '🤖 Bot & état', 
         value: `**Version:** \`${version}\`\n**Uptime:** \`${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m\`\n**Serveurs:** ${interaction.client.guilds.cache.size}`, 
         inline: true 
       },
@@ -76,27 +76,27 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       { name: '\u200B', value: '\u200B', inline: false },
 
       { 
-        name: '📡 Sources & Audience', 
+        name: '📡 Sources & audience', 
         value: `**Flux RSS:** \`${enabledFeeds}/${totalFeeds}\` actifs\n**YouTube:** ${guild?.youtubeEnabled ? '✅' : '❌'}\n**Abonnés MP:** \`${uniqueSubscribers}\` unique(s)`, 
         inline: true 
       },
       { 
-        name: '📰 Statistiques News', 
+        name: '📰 Statistiques des actualités', 
         value: `**Traitées:** \`${totalTreated}\` news\n**Publiées:** \`${totalPublished}\` news\n**Approbation:** \`${totalTreated > 0 ? Math.round((totalPublished / totalTreated) * 100) : 0}%\``, 
         inline: true 
       },
 
       { 
-        name: '⚙️ Configuration Channels', 
+        name: '⚙️ Configuration des salons', 
         value: [
-          `**Validation:** ${guild?.configChannelId ? `<#${guild.configChannelId}>` : '`Non défini`'}`,
-          `**Public:** ${guild?.publicChannelId ? `<#${guild.publicChannelId}>` : '`Non défini`'}`,
-          `**Digest:** ${guild?.digestChannelId ? `<#${guild.digestChannelId}>` : '`Non défini`'}`
+          `**Validation :** ${guild?.configChannelId ? `<#${guild.configChannelId}>` : 'Non défini'}`,
+          `**Public :** ${guild?.publicChannelId ? `<#${guild.publicChannelId}>` : 'Non défini'}`,
+          `**Digest :** ${guild?.digestChannelId ? `<#${guild.digestChannelId}>` : 'Non défini'}`
         ].join('\n'),
         inline: false 
       }
     )
-    .setFooter({ text: `Kotbo News · ${interaction.guild?.name ?? 'Serveur'}`, iconURL: interaction.guild?.iconURL() ?? undefined })
+    .setFooter({ text: `Kotbo · ${interaction.guild?.name ?? 'Serveur'}`, iconURL: interaction.guild?.iconURL() ?? undefined })
     .setTimestamp();
 
   await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });

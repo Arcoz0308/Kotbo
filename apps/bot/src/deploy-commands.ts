@@ -19,23 +19,23 @@ const clientId = process.env.DISCORD_CLIENT_ID;
 const guildId = process.env.GUILD_ID;
 
 if (!token || !clientId) {
-  logger.error('Deploy', 'DISCORD_TOKEN et DISCORD_CLIENT_ID requis dans .env');
+  logger.error('Déploiement', 'DISCORD_TOKEN et DISCORD_CLIENT_ID sont requis dans .env');
   process.exit(1);
 }
 
 const rest = new REST().setToken(token);
 
 try {
-  logger.info('Deploy', `Déploiement de ${commands.length} commandes...`);
+  logger.info('Déploiement', `Déploiement de ${commands.length} commandes...`);
 
   if (guildId) {
     await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: commands });
-    logger.success('Deploy', `Commandes déployées sur le serveur ${guildId}`);
+    logger.success('Déploiement', `Commandes déployées sur le serveur ${guildId}`);
   } else {
     await rest.put(Routes.applicationCommands(clientId), { body: commands });
-    logger.success('Deploy', 'Commandes déployées globalement (délai jusqu\'à 1h)');
+    logger.success('Déploiement', 'Commandes déployées globalement (délai jusqu\'à 1h)');
   }
 } catch (err) {
-  logger.error('Deploy', 'Erreur de déploiement:', err);
+  logger.error('Déploiement', 'Échec du déploiement :', err);
   process.exit(1);
 }

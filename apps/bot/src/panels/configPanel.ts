@@ -80,10 +80,10 @@ export async function sendConfigPanel(
       { name: '🛡️ Modérateurs', value: guild.moderatorRoleId ? `<@&${guild.moderatorRoleId}>` : '❌ Admin uniquement', inline: true },
     )
     .setTimestamp()
-    .setFooter({ text: 'Kotbo News Bot · Admin only' });
+    .setFooter({ text: 'Kotbo · Réservé aux administrateurs' });
 
   const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId('config:feeds').setLabel('📡 Gérer les Flux').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('config:feeds').setLabel('📡 Gérer les flux').setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId('config:youtube_panel').setLabel('▶️ YouTube').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('config:digest').setLabel('📅 Digest').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('config:translation').setLabel('🌐 Traduction').setStyle(ButtonStyle.Secondary),
@@ -91,7 +91,7 @@ export async function sendConfigPanel(
   );
 
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId('config:keywords').setLabel('🔑 Mots-clés Globaux').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('config:keywords').setLabel('🔑 Mots-clés globaux').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('config:set_mod_role').setLabel('🛡️ Rôle Mod').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('config:set_yt_channel').setLabel('📺 Salon YT').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('config:refresh').setLabel('🔄 Actualiser').setStyle(ButtonStyle.Secondary),
@@ -132,7 +132,7 @@ export async function sendFeedsPanel(
     .setTitle(`📡 Gestion des Flux RSS (${feeds.length})`)
     .setDescription(
       `Cliquez sur un flux pour le configurer, ou utilisez les boutons rapides.\n` +
-      `Statut auto-publication global : ${allAutoPublish ? '🟢 Activé pour tous' : '🔴 Désactivé / partiel'}`,
+      `Statut de l'auto-publication globale : ${allAutoPublish ? '🟢 Activée pour tous' : '🔴 Désactivée / partielle'}`,
     );
 
   for (const [cat, catFeeds] of byCategory) {
@@ -158,7 +158,7 @@ export async function sendFeedsPanel(
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId('config:feed:autopub_all')
-      .setLabel(allAutoPublish ? '⚡ Désactiver auto-pub (tous)' : '⚡ Activer auto-pub (tous)')
+      .setLabel(allAutoPublish ? '⚡ Désactiver l’auto-publication (tous)' : '⚡ Activer l’auto-publication (tous)')
       .setStyle(allAutoPublish ? ButtonStyle.Danger : ButtonStyle.Success),
     new ButtonBuilder().setCustomId('config:feed:add').setLabel('➕ Ajouter').setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId('config:back').setLabel('◀ Retour').setStyle(ButtonStyle.Secondary),
@@ -175,7 +175,7 @@ export async function sendRoleSelectionPanel(
   const embed = new EmbedBuilder()
     .setColor(COLORS.primary)
     .setTitle('🛡️ Configuration du Rôle Modérateur')
-    .setDescription('Sélectionnez le rôle qui sera autorisé à valider, rejeter et épingler les news.\n\n*Les administrateurs conservent toujours ces droits.*');
+    .setDescription('Sélectionnez le rôle qui sera autorisé à valider, rejeter et épingler les actualités.\n\n*Les administrateurs conservent toujours ces droits.*');
 
   const select = new RoleSelectMenuBuilder()
     .setCustomId('config:select_mod_role')
@@ -199,8 +199,8 @@ export async function sendChannelSelectionPanel(
 ): Promise<void> {
   const embed = new EmbedBuilder()
     .setColor(COLORS.primary)
-    .setTitle('📺 Configuration du Salon YouTube')
-    .setDescription('Sélectionnez le salon où seront envoyées les vidéos YouTube validées.\n\n*Si non défini, le salon public sera utilisé.*');
+    .setTitle('📺 Configuration du salon YouTube')
+    .setDescription('Sélectionnez le salon où seront envoyées les vidéos YouTube validées.\n\n*Si rien n’est défini, le salon public sera utilisé.*');
 
   const select = new ChannelSelectMenuBuilder()
     .setCustomId('config:select_yt_channel')
@@ -266,7 +266,7 @@ export async function sendYouTubeRoleSelectionPanel(
 
   const select = new RoleSelectMenuBuilder()
     .setCustomId(`config:select_yt_${type}_role`)
-    .setPlaceholder('Choisir un rôle...')
+      .setPlaceholder('Choisir un rôle...')
     .setMinValues(1)
     .setMaxValues(1);
 
@@ -317,24 +317,24 @@ export async function sendDigestPanel(
 
   const embed = new EmbedBuilder()
     .setColor(COLORS.primary)
-    .setTitle('📅 Configuration du Digest')
+    .setTitle('📅 Configuration du digest')
     .setDescription('Configurez le récapitulatif des articles validés.')
     .addFields(
       { name: 'Statut', value: guild.digestEnabled ? '🟢 Activé' : '🔴 Désactivé', inline: true },
-      { name: 'Fréquence', value: freq === 'WEEKLY' ? '📅 Hebdomadaire (Dimanche)' : '📆 Quotidien', inline: true },
+      { name: 'Fréquence', value: freq === 'WEEKLY' ? '📅 Hebdomadaire (dimanche)' : '📆 Quotidien', inline: true },
       { name: 'Heure', value: guild.digestTime, inline: true },
       { name: "Rôle à mentionner", value: roleId ? `<@&${roleId}>` : "❌ Aucun", inline: true },
-      { name: "Texte d'intro", value: customText ? "✅ Défini" : "❌ Non défini", inline: true },
+      { name: "Texte d'introduction", value: customText ? "✅ Défini" : "❌ Non défini", inline: true },
     );
 
   const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId('config:digest:toggle').setLabel(guild.digestEnabled ? '🔴 Désactiver' : '🟢 Activer').setStyle(guild.digestEnabled ? ButtonStyle.Danger : ButtonStyle.Success),
-    new ButtonBuilder().setCustomId('config:digest:freq').setLabel(freq === 'DAILY' ? 'Passer en Hebdo' : 'Passer en Quotidien').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId('config:digest:text').setLabel('📝 Texte & Heure').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('config:digest:freq').setLabel(freq === 'DAILY' ? 'Passer en hebdomadaire' : 'Passer en quotidien').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('config:digest:text').setLabel('📝 Texte et heure').setStyle(ButtonStyle.Secondary),
   );
 
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId('config:digest:role').setLabel('🛡️ Rôle mention').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('config:digest:role').setLabel('🛡️ Rôle à mentionner').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('config:back').setLabel('◀ Retour Menu').setStyle(ButtonStyle.Secondary),
   );
 
@@ -348,7 +348,7 @@ export async function sendDigestRoleSelectionPanel(
 ): Promise<void> {
   const embed = new EmbedBuilder()
     .setColor(COLORS.primary)
-    .setTitle("🛡️ Configuration du Rôle pour le Digest")
+    .setTitle('🛡️ Configuration du rôle pour le digest')
     .setDescription("Sélectionnez le rôle qui sera mentionné lors de l'envoi du digest.");
 
   const select = new RoleSelectMenuBuilder()
@@ -369,7 +369,7 @@ export async function sendDigestRoleSelectionPanel(
 export function buildDigestModal(guild?: { digestTime?: string | null, digestCustomText?: string | null } | null): ModalBuilder {
   return new ModalBuilder()
     .setCustomId('modal:digest:config')
-    .setTitle("📅 Paramètres du Digest")
+    .setTitle('📅 Paramètres du digest')
     .addComponents(
       new ActionRowBuilder<TextInputBuilder>().addComponents(
         new TextInputBuilder().setCustomId('digest_time').setLabel("Heure d'envoi (HH:MM)").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(5).setValue(guild?.digestTime ?? '08:00'),

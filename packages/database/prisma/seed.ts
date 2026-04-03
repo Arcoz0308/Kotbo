@@ -45,6 +45,25 @@ const DEFAULT_FEEDS = [
   { name: 'Eurogamer', url: 'https://www.eurogamer.net/feed/news', category: 'Hardware & Gaming', language: 'en' },
 ];
 
+const DEFAULT_DEVELOPER_EXCUSES = [
+  'Ça fonctionnait sur ma machine.',
+  "C'est un problème de cache.",
+  "C'est une fonctionnalité, pas un bug.",
+  "L'API externe était indisponible.",
+  "Je pense que c'est un souci de localStorage.",
+  'Tout dépend du timing.',
+  'Il faut vider le cache du navigateur.',
+  'Il manque un point-virgule quelque part.',
+  'C’est une classique condition de course.',
+  'Le serveur n’était pas prêt.',
+  'Ça marche en production, je ne sais pas pourquoi.',
+  'Le client n’a pas donné assez de détails.',
+  "C'est un problème en aval.",
+  'Je l’avais corrigé localement, mais j’ai oublié de commit.',
+  'C’est une incompatibilité de navigateur.',
+  'La base de données était lente ce jour-là.',
+];
+
 async function main() {
   console.log(`🌱 Seeding ${DEFAULT_FEEDS.length} flux RSS pour le serveur ${guildId}...`);
 
@@ -76,7 +95,29 @@ async function main() {
     console.log(`  ✅ ${feed.name}`);
   }
 
-  console.log(`\n✨ Seed terminé : ${created} créés, ${skipped} ignorés (déjà existants)`);
+  console.log(`\n🌱 Seeding ${DEFAULT_DEVELOPER_EXCUSES.length} excuses développeur...`);
+
+  let excusesCreated = 0;
+  let excusesSkipped = 0;
+
+  for (const excuse of DEFAULT_DEVELOPER_EXCUSES) {
+    const existing = await prisma.developerExcuse.findFirst({ where: { text: excuse, language: 'fr' } });
+    if (existing) {
+      excusesSkipped++;
+      continue;
+    }
+
+    await prisma.developerExcuse.create({
+      data: {
+        text: excuse,
+        language: 'fr',
+      },
+    });
+    excusesCreated++;
+    console.log(`  ✅ ${excuse}`);
+  }
+
+  console.log(`\n✨ Seed terminé : ${created} flux créés, ${skipped} ignorés, ${excusesCreated} excuses créées, ${excusesSkipped} excuses ignorées`);
 }
 
 main()
