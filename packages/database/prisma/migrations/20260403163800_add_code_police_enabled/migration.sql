@@ -1,0 +1,2 @@
+ALTER TABLE "guilds"
+ADD COLUMN IF NOT EXISTS "codePoliceEnabled" BOOLEAN NOT NULL DEFAULT false;
