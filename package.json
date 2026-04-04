@@ -4,7 +4,12 @@
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "dev:bot": "bun run --filter @kotbo/bot dev",
+    "dev:bot:safe": "bun run --filter @kotbo/bot dev:safe",
     "dev": "bun run --filter @kotbo/bot dev",
+    "test:bot": "bun run --filter @kotbo/bot test:unit",
+    "coverage:bot": "bun run --filter @kotbo/bot coverage:gate",
+    "test": "bun run test:bot",
+    "quality:bot": "bun run --filter @kotbo/bot quality:gate",
     "db:generate": "bun run --filter @kotbo/database generate",
     "db:generate:force": "powershell -ExecutionPolicy RemoteSigned -File ./scripts/fix-prisma.ps1",
     "db:migrate": "bun run --filter @kotbo/database migrate",
@@ -12,7 +17,7 @@
     "db:seed": "bun run --filter @kotbo/database seed",
     "db:studio": "bun run --filter @kotbo/database studio",
     "deploy-commands": "bun run --filter @kotbo/bot deploy-commands",
-    "deploy": "bun db:push && bun db:seed && bun deploy-commands && bun dev"
+    "deploy": "bun run quality:bot && bun db:push && bun db:seed && bun deploy-commands && bun run dev:bot:safe"
   },
   "dependencies": {
     "@prisma/client-runtime-utils": "^7.6.0"

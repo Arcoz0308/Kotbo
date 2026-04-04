@@ -10,17 +10,15 @@ import {
   StringSelectMenuOptionBuilder,
   TextInputBuilder,
   TextInputStyle,
-  MessageFlags,
   type ButtonInteraction,
   type ChannelSelectMenuInteraction,
   type ChatInputCommandInteraction,
-  type InteractionReplyOptions,
-  type InteractionUpdateOptions,
   type ModalSubmitInteraction,
   type SelectMenuInteraction,
 } from 'discord.js';
 import prisma from '../utils/db.js';
 import { errorEmbed } from '../utils/embeds.js';
+import { renderPanelTarget } from '../utils/interactionResponses.js';
 
 type PanelInteraction =
   | ChatInputCommandInteraction
@@ -29,30 +27,6 @@ type PanelInteraction =
   | ChannelSelectMenuInteraction
   | ModalSubmitInteraction;
 
-async function renderPanel(interaction: PanelInteraction, payload: InteractionReplyOptions): Promise<void> {
-  const updatablePayload: InteractionUpdateOptions = {
-    content: payload.content,
-    embeds: payload.embeds,
-    components: payload.components,
-    allowedMentions: payload.allowedMentions,
-  };
-
-  if (interaction.isRepliable() && (interaction.deferred || interaction.replied)) {
-    await interaction.editReply(updatablePayload);
-    return;
-  }
-
-  if ('update' in interaction) {
-    await interaction.update(updatablePayload);
-    return;
-  }
-
-  await interaction.reply({
-    ...payload,
-    flags: payload.flags ?? [MessageFlags.Ephemeral],
-  });
-}
-
 export async function sendMainConfigPanel(
   interaction: PanelInteraction,
   guildId: string
@@ -60,7 +34,7 @@ export async function sendMainConfigPanel(
   const guild = await prisma.guild.findUnique({ where: { id: guildId } });
   
   if (!guild) {
-    await renderPanel(interaction, {
+    await renderPanelTarget(interaction, {
       embeds: [errorEmbed('Erreur', 'Serveur non trouvé dans la base de données')],
       flags: 64,
     });
@@ -136,7 +110,7 @@ export async function sendMainConfigPanel(
     new ButtonBuilder().setCustomId('cfg:section:news').setLabel('📰 Ouvrir les flux d’actualité').setStyle(ButtonStyle.Primary),
   );
 
-  await renderPanel(interaction, {
+  await renderPanelTarget(interaction, {
     embeds: [embed],
     components: [row1, row2],
   });
@@ -152,7 +126,7 @@ export async function sendNewsConfigSectionPanel(
   });
 
   if (!guild) {
-    await renderPanel(interaction, {
+    await renderPanelTarget(interaction, {
       embeds: [errorEmbed('Erreur', 'Serveur non trouvé dans la base de données')],
       flags: 64,
     });
@@ -213,7 +187,7 @@ export async function sendNewsConfigSectionPanel(
     new ButtonBuilder().setCustomId('cfg:back:main').setLabel('← Menu général').setStyle(ButtonStyle.Secondary),
   );
 
-  await renderPanel(interaction, {
+  await renderPanelTarget(interaction, {
     embeds: [embed],
     components: [row1, row2],
   });
@@ -256,7 +230,7 @@ export async function sendCodePoliceConfig(
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(toggleBtn, backBtn);
 
-  await renderPanel(interaction, {
+  await renderPanelTarget(interaction, {
     embeds: [embed],
     components: [row],
   });
@@ -340,7 +314,7 @@ export async function sendDailyAlgoConfig(
   const row3 = new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(validationSelect);
   const row4 = new ActionRowBuilder<ButtonBuilder>().addComponents(clearChannelBtn, clearValidationBtn);
 
-  await renderPanel(interaction, {
+  await renderPanelTarget(interaction, {
     embeds: [embed],
     components: [row1, row2, row3, row4],
   });
@@ -407,7 +381,7 @@ export async function sendGitHubReleasesConfig(
   const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(toggleBtn, reposBtn, clearChannelBtn, backBtn);
   const row2 = new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(channelSelect);
 
-  await renderPanel(interaction, {
+  await renderPanelTarget(interaction, {
     embeds: [embed],
     components: [row1, row2],
   });
@@ -450,7 +424,7 @@ export async function sendStatusConfig(interaction: PanelInteraction, guildId: s
       .setMaxValues(1),
   );
 
-  await renderPanel(interaction, {
+  await renderPanelTarget(interaction, {
     embeds: [embed],
     components: [row1, row2],
   });

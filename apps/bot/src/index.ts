@@ -14,6 +14,7 @@ import {
   DiscordAPIError,
 } from 'discord.js';
 import { logger } from './utils/logger.js';
+import { replyOrFollowUp } from './utils/interactionResponses.js';
 import { registerCrons } from './events/crons.js';
 import {
   handleButton,
@@ -110,14 +111,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     logger.error('Event', 'InteractionCreate error:', err);
     try {
-      const replyOptions: import('discord.js').InteractionReplyOptions = { content: '❌ Une erreur est survenue.', flags: [MessageFlags.Ephemeral] };
-
       if (interaction.isRepliable()) {
-        if (interaction.deferred || interaction.replied) {
-          await interaction.followUp(replyOptions);
-        } else {
-          await interaction.reply(replyOptions);
-        }
+        await replyOrFollowUp(interaction, { content: '❌ Une erreur est survenue.', flags: [MessageFlags.Ephemeral] });
       }
     } catch (e){
       if (e instanceof DiscordAPIError && e.code === 40060) {

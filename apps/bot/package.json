@@ -1,11 +1,20 @@
 {
   "name": "@kotbo/bot",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "scripts": {
+    "prestart": "bun run quality:gate",
     "dev": "bun run --watch src/index.ts",
+    "dev:safe": "bun run quality:gate && bun run --watch src/index.ts",
     "start": "bun run src/index.ts",
-    "deploy-commands": "bun run src/deploy-commands.ts"
+    "start:safe": "bun run quality:gate && bun run src/index.ts",
+    "deploy-commands": "bun run src/deploy-commands.ts",
+    "test:unit": "bun test src/tests",
+    "test:coverage": "bun test --coverage src/tests",
+    "coverage:gate": "bun run scripts/coverage-gate.ts",
+    "test:watch": "bun test --watch src/tests",
+    "typecheck": "bun x tsc -p tsconfig.json --noEmit",
+    "quality:gate": "bun run test:unit && bun run coverage:gate"
   },
   "dependencies": {
     "@kotbo/database": "workspace:*",

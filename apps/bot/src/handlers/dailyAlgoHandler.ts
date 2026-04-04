@@ -8,6 +8,7 @@ import {
 } from 'discord.js';
 import { logger } from '../utils/logger.js';
 import { queueDailyAlgoSubmission } from '../services/dailyAlgoService.js';
+import { replyOrFollowUp } from '../utils/interactionResponses.js';
 
 export function registerDailyAlgoHandlers(client: Client): void {
   client.on('interactionCreate', async interaction => {
@@ -63,15 +64,10 @@ export function registerDailyAlgoHandlers(client: Client): void {
     } catch (error) {
       logger.error('DailyAlgo', 'Erreur lors du traitement de la soumission de solution :', error);
       const message = error instanceof Error ? error.message : 'Erreur lors de la soumission';
-
-      if (interaction.deferred || interaction.replied) {
-        await interaction.editReply({ content: `❌ ${message}` });
-      } else {
-        await interaction.reply({
-          content: `❌ ${message}`,
-          flags: [MessageFlags.Ephemeral],
-        });
-      }
+      await replyOrFollowUp(interaction, {
+        content: `❌ ${message}`,
+        flags: [MessageFlags.Ephemeral],
+      });
     }
   });
 

@@ -13,40 +13,10 @@ import {
   ChannelSelectMenuBuilder,
   ChannelType,
   BaseInteraction,
-  type MessageEditOptions,
-  type MessageCreateOptions,
 } from 'discord.js';
 import prisma from '../utils/db.js';
 import { COLORS, categoryEmoji, feedStatusEmoji, truncate } from '../utils/embeds.js';
-
-async function renderPanel(
-  target: TextChannel | BaseInteraction,
-  payload: any,
-) {
-  if (target instanceof BaseInteraction) {
-    if (target.isRepliable()) {
-      if (target.deferred || target.replied) {
-        await target.editReply(payload);
-      } else {
-        if (target.isMessageComponent()) {
-          await target.update(payload);
-        } else if (target.isModalSubmit()) {
-          if (target.deferred || target.replied) {
-            await target.editReply(payload);
-          } else {
-            // For modals, we often want to update the original message if possible
-            // Using a type-safe check/cast if needed, or just deferUpdate + editReply
-            await target.reply(payload);
-          }
-        } else {
-          await target.reply(payload);
-        }
-      }
-    }
-  } else {
-    await target.send(payload);
-  }
-}
+import { renderPanelTarget } from '../utils/interactionResponses.js';
 
 export async function sendConfigPanel(
   client: Client,
@@ -97,7 +67,7 @@ export async function sendConfigPanel(
     new ButtonBuilder().setCustomId('config:refresh').setLabel('🔄 Actualiser').setStyle(ButtonStyle.Secondary),
   );
 
-  await renderPanel(target, { embeds: [embed], components: [row1, row2] });
+  await renderPanelTarget(target, { embeds: [embed], components: [row1, row2] });
 }
 
 export async function sendFeedsPanel(
@@ -116,7 +86,7 @@ export async function sendFeedsPanel(
       new ButtonBuilder().setCustomId('config:feed:add').setLabel('➕ Ajouter un flux').setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId('config:back').setLabel('◀ Retour').setStyle(ButtonStyle.Secondary),
     );
-    await renderPanel(target, { embeds: [embed], components: [row] });
+    await renderPanelTarget(target, { embeds: [embed], components: [row] });
     return;
   }
 
@@ -164,7 +134,7 @@ export async function sendFeedsPanel(
     new ButtonBuilder().setCustomId('config:back').setLabel('◀ Retour').setStyle(ButtonStyle.Secondary),
   );
 
-  await renderPanel(target, { embeds: [embed], components: [row1, row2] });
+  await renderPanelTarget(target, { embeds: [embed], components: [row1, row2] });
 }
 
 export async function sendRoleSelectionPanel(
@@ -189,7 +159,7 @@ export async function sendRoleSelectionPanel(
     new ButtonBuilder().setCustomId('config:reset_mod_role').setLabel('🗑️ Réinitialiser').setStyle(ButtonStyle.Danger),
   );
 
-  await renderPanel(target, { embeds: [embed], components: [row1, row2] });
+  await renderPanelTarget(target, { embeds: [embed], components: [row1, row2] });
 }
 
 export async function sendChannelSelectionPanel(
@@ -213,7 +183,7 @@ export async function sendChannelSelectionPanel(
     new ButtonBuilder().setCustomId('config:reset_yt_channel').setLabel('🗑️ Réinitialiser').setStyle(ButtonStyle.Danger),
   );
 
-  await renderPanel(target, { embeds: [embed], components: [row1, row2] });
+  await renderPanelTarget(target, { embeds: [embed], components: [row1, row2] });
 }
 
 export async function sendYouTubeConfigPanel(
@@ -250,7 +220,7 @@ export async function sendYouTubeConfigPanel(
     new ButtonBuilder().setCustomId('config:back').setLabel('◀ Retour').setStyle(ButtonStyle.Secondary),
   );
 
-  await renderPanel(target, { embeds: [embed], components: [row1, row2] });
+  await renderPanelTarget(target, { embeds: [embed], components: [row1, row2] });
 }
 
 export async function sendYouTubeRoleSelectionPanel(
@@ -276,7 +246,7 @@ export async function sendYouTubeRoleSelectionPanel(
     new ButtonBuilder().setCustomId(`config:reset_yt_${type}_role`).setLabel('🗑️ Réinitialiser').setStyle(ButtonStyle.Danger),
   );
 
-  await renderPanel(target, { embeds: [embed], components: [row1, row2] });
+  await renderPanelTarget(target, { embeds: [embed], components: [row1, row2] });
 }
 
 
@@ -338,7 +308,7 @@ export async function sendDigestPanel(
     new ButtonBuilder().setCustomId('config:back').setLabel('◀ Retour Menu').setStyle(ButtonStyle.Secondary),
   );
 
-  await renderPanel(target, { embeds: [embed], components: [row1, row2] });
+  await renderPanelTarget(target, { embeds: [embed], components: [row1, row2] });
 }
 
 export async function sendDigestRoleSelectionPanel(
@@ -363,7 +333,7 @@ export async function sendDigestRoleSelectionPanel(
     new ButtonBuilder().setCustomId('config:digest:reset_role').setLabel('🗑️ Réinitialiser').setStyle(ButtonStyle.Danger),
   );
 
-  await renderPanel(target, { embeds: [embed], components: [row1, row2] });
+  await renderPanelTarget(target, { embeds: [embed], components: [row1, row2] });
 }
 
 export function buildDigestModal(guild?: { digestTime?: string | null, digestCustomText?: string | null } | null): ModalBuilder {
@@ -435,7 +405,7 @@ export async function sendGlobalKeywordsPanel(
   );
   components.push(rowBack);
 
-  await renderPanel(target, { embeds: [embed], components });
+  await renderPanelTarget(target, { embeds: [embed], components });
 }
 
 export async function sendFeedKeywordsPanel(
@@ -494,7 +464,7 @@ export async function sendFeedKeywordsPanel(
   );
   components.push(row2);
 
-  await renderPanel(target, { embeds: [embed], components });
+  await renderPanelTarget(target, { embeds: [embed], components });
 }
 
 export function buildKeywordModal(

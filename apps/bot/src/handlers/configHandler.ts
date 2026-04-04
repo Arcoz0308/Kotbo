@@ -18,27 +18,14 @@ import {
 } from '../panels/generalConfigPanel.js';
 import { errorEmbed, successEmbed } from '../utils/embeds.js';
 import { logger } from '../utils/logger.js';
+import { replyOrFollowUp } from '../utils/interactionResponses.js';
+import { toggleGuildBoolean } from '../utils/prismaToggles.js';
 
-async function replyConfigError(interaction: {
-  deferred?: boolean;
-  replied?: boolean;
-  isRepliable: () => boolean;
-  followUp: (options: object) => Promise<unknown>;
-  reply: (options: object) => Promise<unknown>;
-}): Promise<void> {
-  const payload = {
+async function replyConfigError(interaction: ButtonInteraction | ModalSubmitInteraction | ChannelSelectMenuInteraction): Promise<void> {
+  await replyOrFollowUp(interaction, {
     embeds: [errorEmbed('Erreur', 'Une erreur est survenue')],
     flags: [MessageFlags.Ephemeral],
-  };
-
-  if (!interaction.isRepliable()) return;
-
-  if (interaction.deferred || interaction.replied) {
-    await interaction.followUp(payload);
-    return;
-  }
-
-  await interaction.reply(payload);
+  });
 }
 
 export async function handleConfigSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
@@ -77,19 +64,14 @@ export async function handleConfigButton(interaction: ButtonInteraction): Promis
     } else if (customId === 'cfg:section:news') {
       await sendNewsConfigSectionPanel(interaction, guildId);
     } else if (customId === 'cfg:toggle:code-police') {
-      const guild = await prisma.guild.findUnique({ where: { id: guildId } });
-      if (!guild) return;
-
-      await prisma.guild.update({
-        where: { id: guildId },
-        data: { codePoliceEnabled: !guild.codePoliceEnabled },
-      });
+      const next = await toggleGuildBoolean(guildId, 'codePoliceEnabled');
+      if (next === null) return;
 
       await interaction.reply({
         embeds: [
           successEmbed(
             'Police du code',
-            `✅ ${!guild.codePoliceEnabled ? 'Activé' : 'Désactivé'}`
+            `✅ ${next ? 'Activé' : 'Désactivé'}`
           ),
         ],
         flags: [MessageFlags.Ephemeral],
@@ -97,19 +79,14 @@ export async function handleConfigButton(interaction: ButtonInteraction): Promis
 
       await sendCodePoliceConfig(interaction, guildId);
     } else if (customId === 'cfg:toggle:daily-algo') {
-      const guild = await prisma.guild.findUnique({ where: { id: guildId } });
-      if (!guild) return;
-
-      await prisma.guild.update({
-        where: { id: guildId },
-        data: { dailyAlgoEnabled: !guild.dailyAlgoEnabled },
-      });
+      const next = await toggleGuildBoolean(guildId, 'dailyAlgoEnabled');
+      if (next === null) return;
 
       await interaction.reply({
         embeds: [
           successEmbed(
             'Daily Algo',
-            `✅ ${!guild.dailyAlgoEnabled ? 'Activé' : 'Désactivé'}`
+            `✅ ${next ? 'Activé' : 'Désactivé'}`
           ),
         ],
         flags: [MessageFlags.Ephemeral],
@@ -117,19 +94,14 @@ export async function handleConfigButton(interaction: ButtonInteraction): Promis
 
       await sendDailyAlgoConfig(interaction, guildId);
     } else if (customId === 'cfg:toggle:github-releases') {
-      const guild = await prisma.guild.findUnique({ where: { id: guildId } });
-      if (!guild) return;
-
-      await prisma.guild.update({
-        where: { id: guildId },
-        data: { githubReleasesEnabled: !guild.githubReleasesEnabled },
-      });
+      const next = await toggleGuildBoolean(guildId, 'githubReleasesEnabled');
+      if (next === null) return;
 
       await interaction.reply({
         embeds: [
           successEmbed(
             'Releases GitHub',
-            `✅ ${!guild.githubReleasesEnabled ? 'Activé' : 'Désactivé'}`
+            `✅ ${next ? 'Activé' : 'Désactivé'}`
           ),
         ],
         flags: [MessageFlags.Ephemeral],

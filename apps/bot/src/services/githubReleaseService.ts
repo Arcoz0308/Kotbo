@@ -1,6 +1,6 @@
 import { logger } from '../utils/logger.js';
 
-interface GitHubRelease {
+export interface GitHubRelease {
   id: number;
   tag_name: string;
   name: string;
@@ -19,13 +19,20 @@ interface StoredRelease {
 
 const releaseStore: Map<string, StoredRelease> = new Map();
 
-export async function checkRepositoryReleases(guildId: string, owner: string, repo: string): Promise<GitHubRelease | null> {
+type FetchFn = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
+
+export async function checkRepositoryReleases(
+  guildId: string,
+  owner: string,
+  repo: string,
+  fetchFn: FetchFn = fetch,
+): Promise<GitHubRelease | null> {
   const key = `${owner}/${repo}`;
   const storeKey = `${guildId}:${key}`;
   const stored = releaseStore.get(storeKey);
 
   try {
-    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/latest`, {
+    const response = await fetchFn(`https://api.github.com/repos/${owner}/${repo}/releases/latest`, {
       headers: {
         Accept: 'application/vnd.github.v3+json',
       },
@@ -73,4 +80,8 @@ export function formatReleaseMessage(release: GitHubRelease, repo: string): stri
 
 export function initializeReleaseStore(): void {
   logger.success('GitHubAggregator', 'Release tracking initialized');
+}
+
+export function resetReleaseStoreForTests(): void {
+  releaseStore.clear();
 }

@@ -39,6 +39,10 @@ import { TextInputBuilder, TextInputStyle } from 'discord.js';
 import { ModalBuilder } from 'discord.js';
 import { fetchArticleMetadata } from '../utils/metadataParser.js';
 import { applyTopicFeedback, extractInterestTopics } from '../services/interestService.js';
+import { renderPanelTarget } from '../utils/interactionResponses.js';
+import { parseModalSessionId, parseNewsSessionId, parseSetupStep, parseValidateRoute } from './interactionRoutes.js';
+import { toggleFeedBoolean, toggleGuildBoolean } from '../utils/prismaToggles.js';
+import { normalizeCommaKeywords, requireSingleSelectedValue, validateTimeField } from '../utils/interactionValidation.js';
 
 function canUpdateInteraction(value: unknown): value is { update: (options: unknown) => Promise<unknown> } {
   if (!value || typeof value !== 'object') return false;
@@ -110,9 +114,9 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
   if (!guildId) return;
 
-  if (customId.startsWith('setup:')) {
-    const parts = customId.split(':');
-    const step = parts[1];
+  const setupStep = parseSetupStep(customId);
+  if (setupStep) {
+    const step = setupStep;
 
     if (step === 'step1') await sendSetupStep1(client, guildId, interaction);
     else if (step === 'step2') await sendSetupStep2(client, guildId, interaction);
@@ -122,18 +126,15 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     else if (step === 'finish') await sendSetupFinish(client, guildId, interaction);
 
     else if (step === 'yt_toggle') {
-      const guild = await prisma.guild.findUnique({ where: { id: guildId } });
-      await prisma.guild.update({ where: { id: guildId }, data: { youtubeEnabled: !guild?.youtubeEnabled } });
+      await toggleGuildBoolean(guildId, 'youtubeEnabled');
       await sendSetupStep3(client, guildId, interaction);
     }
     else if (step === 'digest_toggle') {
-      const guild = await prisma.guild.findUnique({ where: { id: guildId } });
-      await prisma.guild.update({ where: { id: guildId }, data: { digestEnabled: !guild?.digestEnabled } });
+      await toggleGuildBoolean(guildId, 'digestEnabled');
       await sendSetupStep4(client, guildId, interaction);
     }
     else if (step === 'trans_toggle') {
-      const guild = await prisma.guild.findUnique({ where: { id: guildId } });
-      await prisma.guild.update({ where: { id: guildId }, data: { translationEnabled: !guild?.translationEnabled } });
+      await toggleGuildBoolean(guildId, 'translationEnabled');
       await sendSetupStep5(client, guildId, interaction);
     }
     else if (step === 'digest_time_btn') {
@@ -249,13 +250,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   }
 
   if (customId === 'config:youtube_toggle') {
-    const guild = await prisma.guild.findUnique({ where: { id: guildId } });
-    if (!guild) return;
-
-    await prisma.guild.update({
-      where: { id: guildId },
-      data: { youtubeEnabled: !guild.youtubeEnabled },
-    });
+    await toggleGuildBoolean(guildId, 'youtubeEnabled');
     
     await sendYouTubeConfigPanel(client, guildId, interaction);
     return;
@@ -294,12 +289,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   }
 
   if (customId === 'config:digest:toggle') {
-    const guild = await prisma.guild.findUnique({ where: { id: guildId } });
-    if (!guild) return;
-    await prisma.guild.update({
-      where: { id: guildId },
-      data: { digestEnabled: !guild.digestEnabled },
-    });
+    await toggleGuildBoolean(guildId, 'digestEnabled');
     await sendDigestPanel(client, guildId, interaction);
     return;
   }
@@ -334,9 +324,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   }
 
   if (customId === 'config:translation') {
-    const guild = await prisma.guild.findUnique({ where: { id: guildId } });
-    if (!guild) return;
-    await prisma.guild.update({ where: { id: guildId }, data: { translationEnabled: !guild.translationEnabled } });
+    await toggleGuildBoolean(guildId, 'translationEnabled');
     await sendConfigPanel(client, guildId, interaction);
     return;
   }
@@ -375,9 +363,8 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
   if (customId.startsWith('feed:toggle:')) {
     const feedId = customId.split(':')[2];
-    const feed = await prisma.feed.findUnique({ where: { id: feedId } });
-    if (feed) {
-      await prisma.feed.update({ where: { id: feedId }, data: { enabled: !feed.enabled } });
+    const toggled = await toggleFeedBoolean(feedId, 'enabled');
+    if (toggled !== null) {
       await sendFeedsPanel(client, guildId, interaction);
     }
     return;
@@ -385,9 +372,8 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
   if (customId.startsWith('feed:autopub:')) {
     const feedId = customId.split(':')[2];
-    const feed = await prisma.feed.findUnique({ where: { id: feedId } });
-    if (feed) {
-      await prisma.feed.update({ where: { id: feedId }, data: { autoPublish: !feed.autoPublish } });
+    const toggled = await toggleFeedBoolean(feedId, 'autoPublish');
+    if (toggled !== null) {
       await sendFeedsPanel(client, guildId, interaction);
     }
     return;
@@ -403,11 +389,9 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
-  if (customId.startsWith('validate:')) {
-    const parts = customId.split(':');
-    const action = parts[1];
-    const type = parts[2] as 'rss' | 'youtube' | 'daily-algo';
-    const itemId = parts[3];
+  const validateRoute = parseValidateRoute(customId);
+  if (validateRoute) {
+    const { action, type, itemId } = validateRoute;
 
     const member = interaction.member as GuildMember;
     if (!(await canModerate(member, guildId))) {
@@ -596,7 +580,8 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   }
 
   if (customId.startsWith('news:add_detected:') || customId.startsWith('news:add_manual:')) {
-    const sessionId = customId.split(':')[2];
+    const sessionId = parseNewsSessionId(customId, customId.startsWith('news:add_detected:') ? 'news:add_detected:' : 'news:add_manual:');
+    if (!sessionId) return;
     const session = getNewsSession(sessionId);
 
     if (!session) {
@@ -643,7 +628,8 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   }
 
   if (customId.startsWith('news:publish_no_feed:')) {
-    const sessionId = customId.split(':')[2];
+    const sessionId = parseNewsSessionId(customId, 'news:publish_no_feed:');
+    if (!sessionId) return;
     const session = getNewsSession(sessionId);
 
     if (!session) {
@@ -699,7 +685,8 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   }
 
   if (customId.startsWith('news:edit_metadata:')) {
-    const sessionId = customId.split(':')[2];
+    const sessionId = parseNewsSessionId(customId, 'news:edit_metadata:');
+    if (!sessionId) return;
     const session = getNewsSession(sessionId);
 
     if (!session) {
@@ -983,9 +970,11 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
     return;
   }
 
-  if (customId.startsWith('setup:')) {
-    const step = customId.split(':')[1];
-    const val = values[0];
+  const setupStep = parseSetupStep(customId);
+  if (setupStep) {
+    const step = setupStep;
+    const val = await requireSingleSelectedValue(interaction, 'valeur');
+    if (!val) return;
 
     if (step === 'select_config_channel') {
       await prisma.guild.upsert({
@@ -1035,7 +1024,8 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
   }
 
   if (customId === 'config:feed:select') {
-    const feedId = values[0];
+    const feedId = await requireSingleSelectedValue(interaction, 'flux');
+    if (!feedId) return;
     const feed = await prisma.feed.findUnique({ where: { id: feedId } });
     if (!feed) return;
 
@@ -1063,18 +1053,13 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
       new ButtonBuilder().setCustomId('config:feeds').setLabel('◀ Retour').setStyle(ButtonStyle.Secondary),
     );
 
-    if (interaction.isRepliable()) {
-      if (interaction.deferred || interaction.replied) {
-        await interaction.editReply({ embeds: [embed], components: [row] });
-      } else {
-        await interaction.update({ embeds: [embed], components: [row] });
-      }
-    }
+    await renderPanelTarget(interaction, { embeds: [embed], components: [row] });
     return;
   }
 
   if (customId === 'config:select_mod_role') {
-    const roleId = values[0];
+    const roleId = await requireSingleSelectedValue(interaction, 'rôle');
+    if (!roleId) return;
     await prisma.guild.update({
       where: { id: guildId },
       data: { moderatorRoleId: roleId },
@@ -1084,7 +1069,8 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
   }
 
   if (customId === 'config:select_yt_channel') {
-    const channelId = values[0];
+    const channelId = await requireSingleSelectedValue(interaction, 'salon');
+    if (!channelId) return;
     await prisma.guild.update({
       where: { id: guildId },
       data: { youtubeChannelId: channelId },
@@ -1094,7 +1080,8 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
   }
 
   if (customId === 'config:select_yt_short_role') {
-    const roleId = values[0];
+    const roleId = await requireSingleSelectedValue(interaction, 'rôle');
+    if (!roleId) return;
     await prisma.guild.update({
       where: { id: guildId },
       data: { youtubeShortRoleId: roleId },
@@ -1104,7 +1091,8 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
   }
 
   if (customId === 'config:select_yt_video_role') {
-    const roleId = values[0];
+    const roleId = await requireSingleSelectedValue(interaction, 'rôle');
+    if (!roleId) return;
     await prisma.guild.update({
       where: { id: guildId },
       data: { youtubeVideoRoleId: roleId },
@@ -1114,7 +1102,8 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
   }
 
   if (customId === 'config:digest:select_role') {
-    const roleId = values[0];
+    const roleId = await requireSingleSelectedValue(interaction, 'rôle');
+    if (!roleId) return;
     await prisma.guild.update({
       where: { id: guildId },
       data: { digestRoleId: roleId },
@@ -1124,7 +1113,9 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
   }
 
   if (customId === 'config:kw:remove') {
-    const [scope, ...rest] = values[0].split(':');
+    const selectedValue = await requireSingleSelectedValue(interaction, 'mot-clé');
+    if (!selectedValue) return;
+    const [scope, ...rest] = selectedValue.split(':');
 
     if (scope === 'global') {
       const [action, keyword] = rest;
@@ -1227,11 +1218,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
   if (customId === 'modal:setup:digest_time') {
     const time = interaction.fields.getTextInputValue('digest_time');
 
-    if (!/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(time)) {
-      await interaction.deferUpdate();
-      await interaction.followUp({ content: "❌ Format d'heure invalide. Utilisez HH:MM (ex: 06:00)", flags: [MessageFlags.Ephemeral] });
-      return;
-    }
+    if (!(await validateTimeField(interaction, time, '06:00'))) return;
 
     await interaction.deferUpdate();
     await prisma.guild.update({
@@ -1247,10 +1234,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
     const time = interaction.fields.getTextInputValue('digest_time');
     let text = interaction.fields.getTextInputValue('digest_text')?.trim() || null;
 
-    if (!/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(time)) {
-      await interaction.followUp({ content: "❌ Format d'heure invalide. Utilisez HH:MM (ex: 08:00)", flags: [MessageFlags.Ephemeral] });
-      return;
-    }
+    if (!(await validateTimeField(interaction, time, '08:00'))) return;
 
     await prisma.guild.update({
       where: { id: guildId },
@@ -1270,7 +1254,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
     const feedId = parts[4]; 
 
     const rawInput = interaction.fields.getTextInputValue('keywords_input');
-    const newWords = rawInput.split(',').map(s => s.trim().toLowerCase()).filter(s => s.length > 0);
+    const newWords = normalizeCommaKeywords(rawInput);
 
     if (newWords.length === 0) return;
 
@@ -1300,7 +1284,8 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
   }
 
   if (customId.startsWith('modal:news:add_feed:')) {
-    const sessionId = customId.split(':')[3];
+    const sessionId = parseModalSessionId(customId, 'modal:news:add_feed:');
+    if (!sessionId) return;
     const session = getNewsSession(sessionId);
 
     if (!session) {
@@ -1361,7 +1346,8 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
   }
 
   if (customId.startsWith('modal:news:edit_metadata:')) {
-    const sessionId = customId.split(':')[3];
+    const sessionId = parseModalSessionId(customId, 'modal:news:edit_metadata:');
+    if (!sessionId) return;
     const session = getNewsSession(sessionId);
 
     if (!session) {

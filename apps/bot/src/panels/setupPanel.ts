@@ -16,43 +16,7 @@ import {
 } from 'discord.js';
 import prisma from '../utils/db.js';
 import { COLORS } from '../utils/embeds.js';
-
-function canUpdateInteraction(value: unknown): value is { update: (options: unknown) => Promise<unknown> } {
-  if (!value || typeof value !== 'object') return false;
-  const candidate = value as { update?: unknown };
-  return typeof candidate.update === 'function';
-}
-
-async function renderSetup(
-  target: TextChannel | BaseInteraction,
-  payload: any,
-) {
-  if (target instanceof BaseInteraction) {
-    if (target.isRepliable()) {
-      if (target.deferred || target.replied) {
-        await target.editReply(payload);
-      } else {
-        if (target.isMessageComponent()) {
-          await target.update(payload);
-        } else if (target.isModalSubmit()) {
-          if (target.deferred || target.replied) {
-            await target.editReply(payload);
-          } else {
-            if (canUpdateInteraction(target)) {
-              await target.update(payload);
-            } else {
-              await target.reply(payload);
-            }
-          }
-        } else {
-          await target.reply(payload);
-        }
-      }
-    }
-  } else {
-    await target.send(payload);
-  }
-}
+import { renderPanelTarget } from '../utils/interactionResponses.js';
 
 export async function sendSetupWelcome(
   client: Client,
@@ -82,7 +46,7 @@ export async function sendSetupWelcome(
       .setEmoji('🏁')
   );
 
-  await renderSetup(target, { embeds: [embed], components: [row] });
+  await renderPanelTarget(target, { embeds: [embed], components: [row] });
 }
 
 export async function sendSetupStep1(
@@ -124,7 +88,7 @@ export async function sendSetupStep1(
       .setDisabled(!guild?.configChannelId || !guild?.publicChannelId)
   );
 
-  await renderSetup(target, { embeds: [embed], components: [row1, row2, row3] });
+  await renderPanelTarget(target, { embeds: [embed], components: [row1, row2, row3] });
 }
 
 export async function sendSetupStep2(
@@ -156,7 +120,7 @@ export async function sendSetupStep2(
     new ButtonBuilder().setCustomId('setup:reset_mod_role').setLabel('Réinitialiser').setStyle(ButtonStyle.Danger)
   );
 
-  await renderSetup(target, { embeds: [embed], components: [row1, row2] });
+  await renderPanelTarget(target, { embeds: [embed], components: [row1, row2] });
 }
 
 export async function sendSetupStep3(
@@ -211,13 +175,13 @@ export async function sendSetupStep3(
       new ButtonBuilder().setCustomId('setup:step4').setLabel('Suivant').setStyle(ButtonStyle.Primary)
     );
 
-    await renderSetup(target, { embeds: [embed], components: [row1, rowChan, rowShort, rowVideo, rowNav] });
+    await renderPanelTarget(target, { embeds: [embed], components: [row1, rowChan, rowShort, rowVideo, rowNav] });
   } else {
     const rowNav = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId('setup:step2').setLabel('Précédent').setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId('setup:step4').setLabel('Suivant').setStyle(ButtonStyle.Primary)
     );
-    await renderSetup(target, { embeds: [embed], components: [row1, rowNav] });
+    await renderPanelTarget(target, { embeds: [embed], components: [row1, rowNav] });
   }
 }
 
@@ -272,13 +236,13 @@ export async function sendSetupStep4(
       new ButtonBuilder().setCustomId('setup:step5').setLabel('Suivant').setStyle(ButtonStyle.Primary)
     );
 
-    await renderSetup(target, { embeds: [embed], components: [row1, rowFreq, rowRole, rowTime, rowNav] });
+    await renderPanelTarget(target, { embeds: [embed], components: [row1, rowFreq, rowRole, rowTime, rowNav] });
   } else {
     const rowNav = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId('setup:step3').setLabel('Précédent').setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId('setup:step5').setLabel('Suivant').setStyle(ButtonStyle.Primary)
     );
-    await renderSetup(target, { embeds: [embed], components: [row1, rowNav] });
+    await renderPanelTarget(target, { embeds: [embed], components: [row1, rowNav] });
   }
 }
 
@@ -321,7 +285,7 @@ export async function sendSetupStep5(
     new ButtonBuilder().setCustomId('setup:finish').setLabel('Terminer').setStyle(ButtonStyle.Success)
   );
 
-  await renderSetup(target, { embeds: [embed], components: [row1, rowLang, rowNav] });
+  await renderPanelTarget(target, { embeds: [embed], components: [row1, rowLang, rowNav] });
 }
 
 export async function sendSetupFinish(
@@ -353,7 +317,7 @@ export async function sendSetupFinish(
       .setStyle(ButtonStyle.Primary)
   );
 
-  await renderSetup(target, { embeds: [embed], components: [row] });
+  await renderPanelTarget(target, { embeds: [embed], components: [row] });
 }
 
 export function buildSetupDigestModal(guild?: { digestTime?: string | null } | null): ModalBuilder {
