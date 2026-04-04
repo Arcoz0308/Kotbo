@@ -63,6 +63,24 @@ export async function replyOrFollowUp(
   await interaction.reply(payload);
 }
 
+export async function acknowledgeInteraction(
+  interaction: BaseInteraction,
+  flags: InteractionReplyOptions['flags'] = [MessageFlags.Ephemeral],
+): Promise<void> {
+  if (!interaction.isRepliable() || interaction.deferred || interaction.replied) return;
+
+  const candidate = interaction as unknown as { deferUpdate?: () => Promise<void>; deferReply?: (options: InteractionReplyOptions) => Promise<void> };
+
+  if (typeof candidate.deferUpdate === 'function' && interaction.isMessageComponent()) {
+    await candidate.deferUpdate();
+    return;
+  }
+
+  if (typeof candidate.deferReply === 'function') {
+    await candidate.deferReply({ flags });
+  }
+}
+
 export async function renderPanelTarget(
   target: TextChannel | BaseInteraction,
   payload: InteractionReplyOptions,

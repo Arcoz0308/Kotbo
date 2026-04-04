@@ -64,10 +64,11 @@ export async function handleConfigButton(interaction: ButtonInteraction): Promis
     } else if (customId === 'cfg:section:news') {
       await sendNewsConfigSectionPanel(interaction, guildId);
     } else if (customId === 'cfg:toggle:code-police') {
+      await interaction.deferUpdate();
       const next = await toggleGuildBoolean(guildId, 'codePoliceEnabled');
       if (next === null) return;
 
-      await interaction.reply({
+      await interaction.followUp({
         embeds: [
           successEmbed(
             'Police du code',
@@ -79,10 +80,11 @@ export async function handleConfigButton(interaction: ButtonInteraction): Promis
 
       await sendCodePoliceConfig(interaction, guildId);
     } else if (customId === 'cfg:toggle:daily-algo') {
+      await interaction.deferUpdate();
       const next = await toggleGuildBoolean(guildId, 'dailyAlgoEnabled');
       if (next === null) return;
 
-      await interaction.reply({
+      await interaction.followUp({
         embeds: [
           successEmbed(
             'Daily Algo',
@@ -94,10 +96,11 @@ export async function handleConfigButton(interaction: ButtonInteraction): Promis
 
       await sendDailyAlgoConfig(interaction, guildId);
     } else if (customId === 'cfg:toggle:github-releases') {
+      await interaction.deferUpdate();
       const next = await toggleGuildBoolean(guildId, 'githubReleasesEnabled');
       if (next === null) return;
 
-      await interaction.reply({
+      await interaction.followUp({
         embeds: [
           successEmbed(
             'Releases GitHub',
@@ -115,20 +118,24 @@ export async function handleConfigButton(interaction: ButtonInteraction): Promis
       const modal = await buildSetReposModal();
       await interaction.showModal(modal);
     } else if (customId === 'cfg:clear:daily-algo:channel') {
+      await interaction.deferUpdate();
       await prisma.guild.update({ where: { id: guildId }, data: { dailyAlgoChannelId: null } });
-      await interaction.reply({ embeds: [successEmbed('Daily Algo', 'Salon supprimé.')], flags: [MessageFlags.Ephemeral] });
+      await interaction.followUp({ embeds: [successEmbed('Daily Algo', 'Salon supprimé.')], flags: [MessageFlags.Ephemeral] });
       await sendDailyAlgoConfig(interaction, guildId);
     } else if (customId === 'cfg:clear:daily-algo:validation-channel') {
+      await interaction.deferUpdate();
       await prisma.guild.update({ where: { id: guildId }, data: { dailyAlgoValidationChannelId: null } });
-      await interaction.reply({ embeds: [successEmbed('Daily Algo', 'Salon de validation supprimé.')], flags: [MessageFlags.Ephemeral] });
+      await interaction.followUp({ embeds: [successEmbed('Daily Algo', 'Salon de validation supprimé.')], flags: [MessageFlags.Ephemeral] });
       await sendDailyAlgoConfig(interaction, guildId);
     } else if (customId === 'cfg:clear:github-releases:channel') {
+      await interaction.deferUpdate();
       await prisma.guild.update({ where: { id: guildId }, data: { githubReleasesChannelId: null } });
-      await interaction.reply({ embeds: [successEmbed('Releases GitHub', 'Salon supprimé.')], flags: [MessageFlags.Ephemeral] });
+      await interaction.followUp({ embeds: [successEmbed('Releases GitHub', 'Salon supprimé.')], flags: [MessageFlags.Ephemeral] });
       await sendGitHubReleasesConfig(interaction, guildId);
     } else if (customId === 'cfg:clear:status:channel') {
+      await interaction.deferUpdate();
       await prisma.guild.update({ where: { id: guildId }, data: { statusCheckChannelId: null } });
-      await interaction.reply({ embeds: [successEmbed('Vérificateur de statut', 'Restriction supprimée.')], flags: [MessageFlags.Ephemeral] });
+      await interaction.followUp({ embeds: [successEmbed('Vérificateur de statut', 'Restriction supprimée.')], flags: [MessageFlags.Ephemeral] });
       await sendStatusConfig(interaction, guildId);
     }
   } catch (error) {
@@ -143,11 +150,12 @@ export async function handleConfigModal(interaction: ModalSubmitInteraction): Pr
 
   try {
     if (customId === 'cfg:modal:daily-algo:time') {
+      await interaction.deferUpdate();
       const time = interaction.fields.getTextInputValue('time');
 
       // Validate time format HH:MM
       if (!/^([0-1]\d|2[0-3]):([0-5]\d)$/.test(time)) {
-        await interaction.reply({
+        await interaction.editReply({
           embeds: [errorEmbed('Format invalide', 'Utilise le format HH:MM (ex: 09:00)')],
           flags: [MessageFlags.Ephemeral],
         });
@@ -159,13 +167,14 @@ export async function handleConfigModal(interaction: ModalSubmitInteraction): Pr
         data: { dailyAlgoTime: time },
       });
 
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [successEmbed('Daily Algo', `Heure configurée : ${time} UTC`)],
         flags: [MessageFlags.Ephemeral],
       });
 
       await sendDailyAlgoConfig(interaction, guildId);
     } else if (customId === 'cfg:modal:github-releases:repos') {
+      await interaction.deferUpdate();
       const reposText = interaction.fields.getTextInputValue('repos');
       const repos = reposText
         .split('\n')
@@ -173,7 +182,7 @@ export async function handleConfigModal(interaction: ModalSubmitInteraction): Pr
         .filter(r => r.length > 0 && r.includes('/'));
 
       if (repos.length === 0) {
-        await interaction.reply({
+        await interaction.editReply({
           embeds: [errorEmbed('Erreur', 'Au moins un dépôt est requis (format : owner/repo)')],
           flags: [MessageFlags.Ephemeral],
         });
@@ -185,7 +194,7 @@ export async function handleConfigModal(interaction: ModalSubmitInteraction): Pr
         data: { githubRepositories: repos },
       });
 
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [successEmbed('Releases GitHub', `${repos.length} dépôts configurés`)],
         flags: [MessageFlags.Ephemeral],
       });
@@ -204,30 +213,32 @@ export async function handleConfigChannelSelect(interaction: ChannelSelectMenuIn
   const channelId = interaction.values[0]!;
 
   try {
+    await interaction.deferUpdate();
+
     if (customId === 'cfg:select:daily-algo:channel') {
       await prisma.guild.update({ where: { id: guildId }, data: { dailyAlgoChannelId: channelId } });
-      await interaction.reply({ embeds: [successEmbed('Daily Algo', `Salon configuré : <#${channelId}>`)], flags: [MessageFlags.Ephemeral] });
+      await interaction.followUp({ embeds: [successEmbed('Daily Algo', `Salon configuré : <#${channelId}>`)], flags: [MessageFlags.Ephemeral] });
       await sendDailyAlgoConfig(interaction, guildId);
       return;
     }
 
     if (customId === 'cfg:select:daily-algo:validation-channel') {
       await prisma.guild.update({ where: { id: guildId }, data: { dailyAlgoValidationChannelId: channelId } });
-      await interaction.reply({ embeds: [successEmbed('Daily Algo', `Salon de validation configuré : <#${channelId}>`)], flags: [MessageFlags.Ephemeral] });
+      await interaction.followUp({ embeds: [successEmbed('Daily Algo', `Salon de validation configuré : <#${channelId}>`)], flags: [MessageFlags.Ephemeral] });
       await sendDailyAlgoConfig(interaction, guildId);
       return;
     }
 
     if (customId === 'cfg:select:github-releases:channel') {
       await prisma.guild.update({ where: { id: guildId }, data: { githubReleasesChannelId: channelId } });
-      await interaction.reply({ embeds: [successEmbed('Releases GitHub', `Salon configuré : <#${channelId}>`)], flags: [MessageFlags.Ephemeral] });
+      await interaction.followUp({ embeds: [successEmbed('Releases GitHub', `Salon configuré : <#${channelId}>`)], flags: [MessageFlags.Ephemeral] });
       await sendGitHubReleasesConfig(interaction, guildId);
       return;
     }
 
     if (customId === 'cfg:select:status:channel') {
       await prisma.guild.update({ where: { id: guildId }, data: { statusCheckChannelId: channelId } });
-      await interaction.reply({ embeds: [successEmbed('Vérificateur de statut', `Salon autorisé : <#${channelId}>`)], flags: [MessageFlags.Ephemeral] });
+      await interaction.followUp({ embeds: [successEmbed('Vérificateur de statut', `Salon autorisé : <#${channelId}>`)], flags: [MessageFlags.Ephemeral] });
       await sendStatusConfig(interaction, guildId);
       return;
     }

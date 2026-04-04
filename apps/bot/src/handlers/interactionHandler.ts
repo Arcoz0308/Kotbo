@@ -176,11 +176,12 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       );
       await interaction.reply({ embeds: [embed], components: [row], flags: [MessageFlags.Ephemeral] });
     } else if (action === 'clear_execute') {
+      await interaction.deferUpdate();
       await prisma.guild.update({
         where: { id: guildId },
         data: { globalIncludeKeywords: [], globalExcludeKeywords: [], globalIgnoredKeywords: [] },
       });
-      await interaction.reply({ content: '✅ Tous les mots-clés globaux ont été effacés.', flags: [MessageFlags.Ephemeral] });
+      await interaction.followUp({ content: '✅ Tous les mots-clés globaux ont été effacés.', flags: [MessageFlags.Ephemeral] });
       await sendGlobalKeywordsPanel(client, guildId, interaction.channel as TextChannel);
     } else {
       const modeNames = { include: 'Inclure (Global)', exclude: 'Exclure (Global)', ignore: 'Ignorer (Global)' };
@@ -211,11 +212,12 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       );
       await interaction.reply({ embeds: [embed], components: [row], flags: [MessageFlags.Ephemeral] });
     } else if (action === 'clear_execute') {
+       await interaction.deferUpdate();
        await prisma.feed.update({
          where: { id: feedId },
          data: { includeKeywords: [], excludeKeywords: [], ignoredKeywords: [] },
        });
-       await interaction.reply({ content: '✅ Tous les mots-clés du flux ont été effacés.', flags: [MessageFlags.Ephemeral] });
+       await interaction.followUp({ content: '✅ Tous les mots-clés du flux ont été effacés.', flags: [MessageFlags.Ephemeral] });
        await sendFeedKeywordsPanel(client, guildId, feedId, interaction.channel as TextChannel);
     } else {
       const modeNames = { include: 'Inclure (Flux)', exclude: 'Exclure (Flux)', ignore: 'Ignorer (Flux)' };
@@ -250,6 +252,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   }
 
   if (customId === 'config:youtube_toggle') {
+    await interaction.deferUpdate();
     await toggleGuildBoolean(guildId, 'youtubeEnabled');
     
     await sendYouTubeConfigPanel(client, guildId, interaction);
@@ -267,12 +270,14 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   }
 
   if (customId === 'config:reset_yt_short_role') {
+    await interaction.deferUpdate();
     await prisma.guild.update({ where: { id: guildId }, data: { youtubeShortRoleId: null } });
     await sendYouTubeConfigPanel(client, guildId, interaction);
     return;
   }
 
   if (customId === 'config:reset_yt_video_role') {
+    await interaction.deferUpdate();
     await prisma.guild.update({ where: { id: guildId }, data: { youtubeVideoRoleId: null } });
     await sendYouTubeConfigPanel(client, guildId, interaction);
     return;
@@ -289,12 +294,14 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   }
 
   if (customId === 'config:digest:toggle') {
+    await interaction.deferUpdate();
     await toggleGuildBoolean(guildId, 'digestEnabled');
     await sendDigestPanel(client, guildId, interaction);
     return;
   }
 
   if (customId === 'config:digest:freq') {
+    await interaction.deferUpdate();
     const guild = await prisma.guild.findUnique({ where: { id: guildId } });
     if (!guild) return;
     const currentFreq = guild.digestFrequency;
@@ -318,12 +325,14 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   }
 
   if (customId === 'config:digest:reset_role') {
+    await interaction.deferUpdate();
     await prisma.guild.update({ where: { id: guildId }, data: { digestRoleId: null } });
     await sendDigestPanel(client, guildId, interaction);
     return;
   }
 
   if (customId === 'config:translation') {
+    await interaction.deferUpdate();
     await toggleGuildBoolean(guildId, 'translationEnabled');
     await sendConfigPanel(client, guildId, interaction);
     return;
@@ -363,6 +372,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
   if (customId.startsWith('feed:toggle:')) {
     const feedId = customId.split(':')[2];
+    await interaction.deferUpdate();
     const toggled = await toggleFeedBoolean(feedId, 'enabled');
     if (toggled !== null) {
       await sendFeedsPanel(client, guildId, interaction);
@@ -372,6 +382,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
   if (customId.startsWith('feed:autopub:')) {
     const feedId = customId.split(':')[2];
+    await interaction.deferUpdate();
     const toggled = await toggleFeedBoolean(feedId, 'autoPublish');
     if (toggled !== null) {
       await sendFeedsPanel(client, guildId, interaction);
@@ -381,6 +392,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
   if (customId.startsWith('feed:delete:')) {
     const feedId = customId.split(':')[2];
+    await interaction.deferUpdate();
     const feed = await prisma.feed.findUnique({ where: { id: feedId } });
     if (feed) {
       await prisma.feed.delete({ where: { id: feedId } });
@@ -1115,6 +1127,7 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
   if (customId === 'config:kw:remove') {
     const selectedValue = await requireSingleSelectedValue(interaction, 'mot-clé');
     if (!selectedValue) return;
+    await interaction.deferUpdate();
     const [scope, ...rest] = selectedValue.split(':');
 
     if (scope === 'global') {
@@ -1124,7 +1137,7 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
       if (guild) {
         const updated = (guild[field] as string[]).filter((k) => k !== keyword);
         await prisma.guild.update({ where: { id: guildId }, data: { [field]: updated } });
-        await interaction.reply({ content: `✅ Mot-clé \`${keyword}\` supprimé (Global).`, flags: [MessageFlags.Ephemeral] });
+        await interaction.followUp({ content: `✅ Mot-clé \`${keyword}\` supprimé (Global).`, flags: [MessageFlags.Ephemeral] });
         await sendGlobalKeywordsPanel(client, guildId, interaction.channel as TextChannel);
       }
     } else if (scope === 'feed') {
@@ -1134,7 +1147,7 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
       if (feed) {
         const updated = (feed[field as 'includeKeywords' | 'excludeKeywords' | 'ignoredKeywords']).filter((k) => k !== keyword);
         await prisma.feed.update({ where: { id: feedId }, data: { [field]: updated } });
-        await interaction.reply({ content: `✅ Mot-clé \`${keyword}\` supprimé (Flux: ${feed.name}).`, flags: [MessageFlags.Ephemeral] });
+        await interaction.followUp({ content: `✅ Mot-clé \`${keyword}\` supprimé (Flux: ${feed.name}).`, flags: [MessageFlags.Ephemeral] });
         await sendFeedKeywordsPanel(client, guildId, feedId, interaction.channel as TextChannel);
       }
     }

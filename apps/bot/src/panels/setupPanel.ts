@@ -16,13 +16,14 @@ import {
 } from 'discord.js';
 import prisma from '../utils/db.js';
 import { COLORS } from '../utils/embeds.js';
-import { renderPanelTarget } from '../utils/interactionResponses.js';
+import { acknowledgeInteraction, renderPanelTarget } from '../utils/interactionResponses.js';
 
 export async function sendSetupWelcome(
   client: Client,
   guildId: string,
   target: TextChannel | BaseInteraction,
 ): Promise<void> {
+  await acknowledgeInteraction(target);
   const embed = new EmbedBuilder()
     .setColor(COLORS.primary)
     .setTitle('🚀 Bienvenue sur Kotbo !')
@@ -54,6 +55,7 @@ export async function sendSetupStep1(
   guildId: string,
   target: TextChannel | BaseInteraction,
 ): Promise<void> {
+  await acknowledgeInteraction(target);
   const guild = await prisma.guild.findUnique({ where: { id: guildId } });
   
   const embed = new EmbedBuilder()
@@ -96,6 +98,7 @@ export async function sendSetupStep2(
   guildId: string,
   target: TextChannel | BaseInteraction,
 ): Promise<void> {
+  await acknowledgeInteraction(target);
   const guild = await prisma.guild.findUnique({ where: { id: guildId } });
 
   const embed = new EmbedBuilder()
@@ -128,6 +131,7 @@ export async function sendSetupStep3(
   guildId: string,
   target: TextChannel | BaseInteraction,
 ): Promise<void> {
+  await acknowledgeInteraction(target);
   const guild = await prisma.guild.findUnique({ where: { id: guildId } });
 
   const embed = new EmbedBuilder()
@@ -190,6 +194,7 @@ export async function sendSetupStep4(
   guildId: string,
   target: TextChannel | BaseInteraction,
 ): Promise<void> {
+  await acknowledgeInteraction(target);
   const guild = await prisma.guild.findUnique({ where: { id: guildId } });
 
   const embed = new EmbedBuilder()
@@ -251,6 +256,7 @@ export async function sendSetupStep5(
   guildId: string,
   target: TextChannel | BaseInteraction,
 ): Promise<void> {
+  await acknowledgeInteraction(target);
   const guild = await prisma.guild.findUnique({ where: { id: guildId } });
 
   const embed = new EmbedBuilder()
@@ -293,6 +299,7 @@ export async function sendSetupFinish(
   guildId: string,
   target: TextChannel | BaseInteraction,
 ): Promise<void> {
+  await acknowledgeInteraction(target);
   const guild = await prisma.guild.findUnique({ where: { id: guildId } });
 
   const embed = new EmbedBuilder()

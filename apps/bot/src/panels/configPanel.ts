@@ -16,13 +16,14 @@ import {
 } from 'discord.js';
 import prisma from '../utils/db.js';
 import { COLORS, categoryEmoji, feedStatusEmoji, truncate } from '../utils/embeds.js';
-import { renderPanelTarget } from '../utils/interactionResponses.js';
+import { acknowledgeInteraction, renderPanelTarget } from '../utils/interactionResponses.js';
 
 export async function sendConfigPanel(
   client: Client,
   guildId: string,
   target: TextChannel | BaseInteraction,
 ): Promise<void> {
+  await acknowledgeInteraction(target);
   const guild = await prisma.guild.findUnique({
     where: { id: guildId },
     include: { feeds: { orderBy: { category: 'asc' } } },
@@ -75,6 +76,7 @@ export async function sendFeedsPanel(
   guildId: string,
   target: TextChannel | BaseInteraction,
 ): Promise<void> {
+  await acknowledgeInteraction(target);
   const feeds = await prisma.feed.findMany({ where: { guildId }, orderBy: { category: 'asc' } });
 
   if (feeds.length === 0) {
@@ -142,6 +144,7 @@ export async function sendRoleSelectionPanel(
   guildId: string,
   target: TextChannel | BaseInteraction,
 ): Promise<void> {
+  await acknowledgeInteraction(target);
   const embed = new EmbedBuilder()
     .setColor(COLORS.primary)
     .setTitle('🛡️ Configuration du Rôle Modérateur')
@@ -167,6 +170,7 @@ export async function sendChannelSelectionPanel(
   guildId: string,
   target: TextChannel | BaseInteraction,
 ): Promise<void> {
+  await acknowledgeInteraction(target);
   const embed = new EmbedBuilder()
     .setColor(COLORS.primary)
     .setTitle('📺 Configuration du salon YouTube')
@@ -191,6 +195,7 @@ export async function sendYouTubeConfigPanel(
   guildId: string,
   target: TextChannel | BaseInteraction,
 ): Promise<void> {
+  await acknowledgeInteraction(target);
   const guild = await prisma.guild.findUnique({ where: { id: guildId } });
   if (!guild) return;
 
@@ -229,6 +234,7 @@ export async function sendYouTubeRoleSelectionPanel(
   target: TextChannel | BaseInteraction,
   type: 'short' | 'video'
 ): Promise<void> {
+  await acknowledgeInteraction(target);
   const embed = new EmbedBuilder()
     .setColor(COLORS.primary)
     .setTitle(type === 'short' ? '📱 Rôle pour les Shorts' : '🎥 Rôle pour les Vidéos')
@@ -278,6 +284,7 @@ export async function sendDigestPanel(
   guildId: string,
   target: TextChannel | BaseInteraction,
 ): Promise<void> {
+  await acknowledgeInteraction(target);
   const guild = await prisma.guild.findUnique({ where: { id: guildId } });
   if (!guild) return;
 
@@ -316,6 +323,7 @@ export async function sendDigestRoleSelectionPanel(
   guildId: string,
   target: TextChannel | BaseInteraction,
 ): Promise<void> {
+  await acknowledgeInteraction(target);
   const embed = new EmbedBuilder()
     .setColor(COLORS.primary)
     .setTitle('🛡️ Configuration du rôle pour le digest')
@@ -355,6 +363,7 @@ export async function sendGlobalKeywordsPanel(
   guildId: string,
   target: TextChannel | BaseInteraction,
 ): Promise<void> {
+  await acknowledgeInteraction(target);
   const guild = await prisma.guild.findUnique({ where: { id: guildId } });
   if (!guild) return;
 
@@ -414,6 +423,7 @@ export async function sendFeedKeywordsPanel(
   feedId: string,
   target: TextChannel | BaseInteraction,
 ): Promise<void> {
+  await acknowledgeInteraction(target);
   const feed = await prisma.feed.findUnique({ where: { id: feedId } });
   if (!feed) return;
 

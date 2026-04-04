@@ -18,7 +18,7 @@ import {
 } from 'discord.js';
 import prisma from '../utils/db.js';
 import { errorEmbed } from '../utils/embeds.js';
-import { renderPanelTarget } from '../utils/interactionResponses.js';
+import { acknowledgeInteraction, renderPanelTarget } from '../utils/interactionResponses.js';
 
 type PanelInteraction =
   | ChatInputCommandInteraction
@@ -31,6 +31,7 @@ export async function sendMainConfigPanel(
   interaction: PanelInteraction,
   guildId: string
 ): Promise<void> {
+  await acknowledgeInteraction(interaction);
   const guild = await prisma.guild.findUnique({ where: { id: guildId } });
   
   if (!guild) {
@@ -120,6 +121,7 @@ export async function sendNewsConfigSectionPanel(
   interaction: PanelInteraction,
   guildId: string
 ): Promise<void> {
+  await acknowledgeInteraction(interaction);
   const guild = await prisma.guild.findUnique({
     where: { id: guildId },
     include: { feeds: true },
@@ -197,6 +199,7 @@ export async function sendCodePoliceConfig(
   interaction: PanelInteraction,
   guildId: string
 ): Promise<void> {
+  await acknowledgeInteraction(interaction);
   const guild = await prisma.guild.findUnique({ where: { id: guildId } });
   if (!guild) return;
 
@@ -240,6 +243,7 @@ export async function sendDailyAlgoConfig(
   interaction: PanelInteraction,
   guildId: string
 ): Promise<void> {
+  await acknowledgeInteraction(interaction);
   const guild = await prisma.guild.findUnique({ where: { id: guildId } });
   if (!guild) return;
 
@@ -324,6 +328,7 @@ export async function sendGitHubReleasesConfig(
   interaction: PanelInteraction,
   guildId: string
 ): Promise<void> {
+  await acknowledgeInteraction(interaction);
   const guild = await prisma.guild.findUnique({ where: { id: guildId } });
   if (!guild) return;
 
@@ -388,6 +393,7 @@ export async function sendGitHubReleasesConfig(
 }
 
 export async function sendStatusConfig(interaction: PanelInteraction, guildId: string): Promise<void> {
+  await acknowledgeInteraction(interaction);
   const guild = await prisma.guild.findUnique({ where: { id: guildId } });
   if (!guild) return;
 
