@@ -1,90 +1,28 @@
 import { type Client, PermissionFlagsBits } from 'discord.js';
+import { analyzeCodeContent, buildCorrectedMessage, buildSafetyWarning, hasRawCodeIndicators, isAlreadyFormatted, loadCodePoliceRules } from '../services/codePoliceService.js';
 import { logger } from '../utils/logger.js';
-import prisma from '../utils/db.js';
 
-const CODE_KEYWORDS = [
-  'function',
-  'const',
-  'let',
-  'var',
-  'return',
-  'import',
-  'export',
-  'async',
-  'await',
-  'class',
-  'interface',
-  'type',
-  'enum',
-  'def',
-  'public',
-  'private',
-  'protected',
-  'null',
-  'undefined',
-  'console.log',
-  'print',
-  'println',
-];
-const codePoliceCache = new Map<string, { enabled: boolean; expiresAt: number }>();
-
-function getLongestFence(content: string): number {
-  const matches = content.match(/`+/g) ?? [];
-  return matches.reduce((max, sequence) => Math.max(max, sequence.length), 0);
-}
-
-function wrapInCodeFence(content: string): string {
-  const fenceLength = Math.max(3, getLongestFence(content) + 1);
-  const fence = '`'.repeat(fenceLength);
-  return `${fence}\n${content}\n${fence}`;
-}
-
-function buildCorrectedMessage(authorTag: string, content: string): string {
-  const advice = 'Sur Discord, utilise les blocs de code (\\`\\`\\`) pour une meilleure lisibilité. Ajoute aussi le langage si possible, par exemple \\`\\`\\`js ou \\`\\`\\`python.';
-  const header = `${authorTag}, voici ton message avec une meilleure mise en forme :`;
-  const maxContentLength = 1500;
-  const shortenedContent = content.length > maxContentLength
-    ? `${content.slice(0, maxContentLength)}\n…(message tronqué pour rester lisible)`
-    : content;
-
-  return `${header}\n${wrapInCodeFence(shortenedContent)}\n\n💡 **Conseil :** ${advice}`;
-}
-
-function hasRawCodeIndicators(content: string): boolean {
-  const trimmed = content.trim();
-  if (trimmed.length < 8) return false;
-
-  const indicators = [
-    CODE_KEYWORDS.some(keyword => new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(trimmed)),
-    /[{}[\]();=>]/.test(trimmed),
-    /(?:^|\n)\s*(?:if|for|while|switch|try|catch|else)\s*\(/i.test(trimmed),
-    /(?:^|\n)\s*(?:def|class|function|const|let|var|import|export)\b/i.test(trimmed),
-    /(?:^|\n)\s{2,}\S/.test(trimmed),
-  ];
-
-  return indicators.filter(Boolean).length >= 2;
-}
-
-function isAlreadyFormatted(content: string): boolean {
-  return /```[\s\S]*?```/.test(content) || /`[^`]*`/.test(content);
-}
+const codePoliceEnabledCache = new Map<string, { enabled: boolean; expiresAt: number }>();
 
 async function isCodePoliceEnabled(guildId: string): Promise<boolean> {
-  const cached = codePoliceCache.get(guildId);
+  const cached = codePoliceEnabledCache.get(guildId);
   const now = Date.now();
   if (cached && cached.expiresAt > now) {
     return cached.enabled;
   }
 
+  const { default: prisma } = await import('../utils/db.js');
   const guild = await prisma.guild.findUnique({
     where: { id: guildId },
     select: { codePoliceEnabled: true },
   });
 
   const enabled = guild?.codePoliceEnabled ?? false;
-  codePoliceCache.set(guildId, { enabled, expiresAt: now + 60_000 });
+  codePoliceEnabledCache.set(guildId, { enabled, expiresAt: now + 60_000 });
   return enabled;
 }
+
+export { analyzeCodeContent } from '../services/codePoliceService.js';
 
 export function registerCodePoliceListener(client: Client): void {
   client.on('messageCreate', async message => {
@@ -95,7 +33,8 @@ export function registerCodePoliceListener(client: Client): void {
     const enabled = await isCodePoliceEnabled(message.guildId);
     if (!enabled) return;
 
-    if (!hasRawCodeIndicators(message.content) || isAlreadyFormatted(message.content)) {
+    const rules = await loadCodePoliceRules(message.guildId);
+    if (!hasRawCodeIndicators(message.content, rules) || isAlreadyFormatted(message.content)) {
       return;
     }
 
@@ -107,7 +46,19 @@ export function registerCodePoliceListener(client: Client): void {
         }
       }
 
-      const correctedContent = buildCorrectedMessage(message.author.toString(), message.content.trim());
+      const analysis = analyzeCodeContent(message.content, rules);
+
+      if (analysis.shouldBlock) {
+        await message.channel.send({
+          content: buildSafetyWarning(message.author.toString(), analysis, rules),
+        });
+        await message.delete();
+
+        logger.warn('CodePolice', `Contenu potentiellement dangereux détecté pour ${message.author.username} dans ${message.guild?.name ?? 'MP'}`);
+        return;
+      }
+
+      const correctedContent = buildCorrectedMessage(message.author.toString(), message.content.trim(), analysis, rules);
       await message.channel.send({
         content: correctedContent,
       });

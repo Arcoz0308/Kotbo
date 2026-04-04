@@ -41,6 +41,7 @@ model Guild {
   preferencesMigrated Boolean @default(false)
 
   codePoliceEnabled        Boolean @default(false)
+  codePoliceRules          CodePoliceRule[]
   
   dailyAlgoEnabled         Boolean @default(false)
   dailyAlgoChannelId       String?
@@ -64,6 +65,32 @@ model Guild {
   interestFeedback NewsInterestFeedback[]
 
   @@map("guilds")
+}
+
+model CodePoliceRule {
+  id String @id @default(cuid())
+
+  key String @unique
+  guildId String?
+
+  category CodePoliceRuleCategory
+  matchType CodePoliceMatchType @default(EXACT)
+  language String?
+  pattern String
+  label String
+  feedback String
+  severity CodePoliceSeverity @default(WARNING)
+  enabled Boolean @default(true)
+
+  guild Guild? @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("code_police_rules")
+  @@index([guildId, category])
+  @@index([category, enabled])
+  @@index([language])
 }
 
 model Feed {
@@ -327,4 +354,21 @@ enum DailyAlgoSubmissionStatus {
 enum DigestFrequency {
   DAILY
   WEEKLY
+}
+
+enum CodePoliceRuleCategory {
+  SIGNAL
+  DANGER
+  LANGUAGE_FEEDBACK
+}
+
+enum CodePoliceMatchType {
+  EXACT
+  REGEX
+}
+
+enum CodePoliceSeverity {
+  INFO
+  WARNING
+  DANGER
 }
