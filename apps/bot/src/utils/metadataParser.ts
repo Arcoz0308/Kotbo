@@ -45,23 +45,9 @@ export async function fetchArticleMetadata(url: string): Promise<ArticleMetadata
             html.match(/<meta name="twitter:image" content="([^"]+)"/i);
     if (match) metadata.imageUrl = match[1];
 
-    // 4. Extract RSS Link
-    match = html.match(/<link[^>]+type="application\/rss\+xml"[^>]+href="([^"]+)"/i) ||
-            html.match(/<link[^>]+href="([^"]+)"[^>]+type="application\/rss\+xml"/i) ||
-            html.match(/<link[^>]+type="application\/atom\+xml"[^>]+href="([^"]+)"/i) ||
-            html.match(/<link[^>]+href="([^"]+)"[^>]+type="application\/atom\+xml"/i);
-    
-    if (match) {
-      let rssUrl = match[1];
-      if (rssUrl.startsWith('/')) {
-        const urlObj = new URL(url);
-        rssUrl = `${urlObj.protocol}//${urlObj.host}${rssUrl}`;
-      } else if (!rssUrl.startsWith('http')) {
-        const urlObj = new URL(url);
-        const path = urlObj.pathname.substring(0, urlObj.pathname.lastIndexOf('/') + 1);
-        rssUrl = `${urlObj.protocol}//${urlObj.host}${path}${rssUrl}`;
-      }
-      metadata.rssUrl = rssUrl;
+    const discoveredFeedLinks = extractFeedLinks(html, url);
+    if (discoveredFeedLinks.length > 0) {
+      metadata.rssUrl = discoveredFeedLinks[0];
     }
 
     return metadata;
@@ -69,6 +55,59 @@ export async function fetchArticleMetadata(url: string): Promise<ArticleMetadata
     logger.error('Metadata', `Error fetching metadata for ${url}:`, error);
     return { title: null, description: null, imageUrl: null, rssUrl: null };
   }
+}
+
+function extractFeedLinks(html: string, baseUrl: string): string[] {
+  const links: string[] = [];
+  const seen = new Set<string>();
+  const linkTags = html.match(/<link\b[^>]*>/gi) ?? [];
+
+  for (const tag of linkTags) {
+    const attrs = parseTagAttributes(tag);
+    const rel = (attrs.rel ?? '').toLowerCase();
+    const type = (attrs.type ?? '').toLowerCase();
+    const href = attrs.href;
+
+    if (!href) continue;
+
+    const looksLikeFeedType =
+      type.includes('application/rss+xml') ||
+      type.includes('application/atom+xml') ||
+      type.includes('application/rdf+xml') ||
+      type.includes('text/xml') ||
+      type.includes('application/xml');
+
+    const looksLikeFeedHref = /rss|atom|feed|xml/i.test(href);
+    const isAlternate = rel.split(/\s+/).includes('alternate');
+
+    if (!looksLikeFeedType && !(isAlternate && looksLikeFeedHref)) continue;
+
+    try {
+      const resolved = new URL(href, baseUrl).toString();
+      if (!seen.has(resolved)) {
+        seen.add(resolved);
+        links.push(resolved);
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return links;
+}
+
+function parseTagAttributes(tag: string): Record<string, string> {
+  const attrs: Record<string, string> = {};
+  const attrRegex = /([a-zA-Z_:][\w:.-]*)\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = attrRegex.exec(tag)) !== null) {
+    const key = match[1].toLowerCase();
+    const value = match[3] ?? match[4] ?? match[5] ?? '';
+    attrs[key] = value;
+  }
+
+  return attrs;
 }
 
 function decodeHtmlEntities(text: string): string {

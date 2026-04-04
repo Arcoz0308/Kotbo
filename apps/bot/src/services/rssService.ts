@@ -48,6 +48,42 @@ function formatRssError(error: unknown): string {
   return firstLine;
 }
 
+function isFeedRecognitionError(error: unknown): boolean {
+  const message = formatRssError(error).toLowerCase();
+  return message.includes('feed not recognized as rss 1 or 2');
+}
+
+function buildFallbackFeedUrls(pageUrl: string): string[] {
+  try {
+    const base = new URL(pageUrl);
+    const candidates = [
+      '/feed',
+      '/rss',
+      '/rss.xml',
+      '/feed.xml',
+      '/atom.xml',
+      '/index.xml',
+      '/feeds/posts/default?alt=rss',
+    ];
+    return candidates.map((path) => new URL(path, `${base.protocol}//${base.host}`).toString());
+  } catch {
+    return [];
+  }
+}
+
+async function tryParseCandidates(urls: string[]): Promise<{ parsed: Parser.Output<CustomItem>; usedUrl: string } | null> {
+  for (const candidate of urls) {
+    try {
+      const parsed = await parser.parseURL(candidate);
+      return { parsed: parsed as Parser.Output<CustomItem>, usedUrl: candidate };
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
 function shouldSkipFailedFeed(feed: { lastPollStatus: string | null; lastPolledAt: Date | null }, now: Date): boolean {
   if (feed.lastPollStatus !== 'ERROR' || !feed.lastPolledAt) return false;
   return now.getTime() - feed.lastPolledAt.getTime() < RSS_FAILURE_COOLDOWN_MS;
@@ -118,20 +154,19 @@ export async function pollFeed(
     parsed = await parser.parseURL(feed.url);
   } catch (err) {
     const discovered = await fetchArticleMetadata(feed.url);
+    const candidateUrls = Array.from(new Set([
+      discovered.rssUrl,
+      ...(isFeedRecognitionError(err) ? buildFallbackFeedUrls(feed.url) : []),
+    ].filter((u): u is string => Boolean(u && u !== feed.url))));
 
-    if (discovered.rssUrl && discovered.rssUrl !== feed.url) {
-      try {
-        parsed = await parser.parseURL(discovered.rssUrl);
-        logger.info('RSS', `Flux "${feed.name}" résolu via un lien RSS détecté automatiquement.`);
-      } catch (fallbackErr) {
-        const errorMessage = formatRssError(fallbackErr);
-        logger.warn('RSS', `Échec du parsing de ${feed.name}: ${errorMessage}`);
-        await prisma.feed.update({
-          where: { id: feed.id },
-          data: { lastPolledAt: now, lastPollStatus: 'ERROR', lastPollError: errorMessage }
-        });
-        return;
-      }
+    const candidateResult = await tryParseCandidates(candidateUrls);
+    if (candidateResult) {
+      parsed = candidateResult.parsed;
+      logger.info('RSS', `Flux "${feed.name}" résolu automatiquement vers ${candidateResult.usedUrl}.`);
+      await prisma.feed.update({
+        where: { id: feed.id },
+        data: { url: candidateResult.usedUrl },
+      });
     } else {
       const errorMessage = formatRssError(err);
       logger.warn('RSS', `Échec du parsing de ${feed.name}: ${errorMessage}`);
