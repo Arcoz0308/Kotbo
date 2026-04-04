@@ -119,6 +119,7 @@ function matchesKeywordFilter(
 export async function pollFeed(
   client: Client,
   feedId: string,
+  options?: { forceRefresh?: boolean },
 ): Promise<void> {
   const feed = await prisma.feed.findUnique({
     where: { id: feedId },
@@ -144,7 +145,8 @@ export async function pollFeed(
   }
 
   const now = new Date();
-  if (shouldSkipFailedFeed(feed, now)) {
+  const shouldForceRefresh = options?.forceRefresh ?? false;
+  if (!shouldForceRefresh && shouldSkipFailedFeed(feed, now)) {
     logger.debug('RSS', `Flux "${feed.name}" temporairement ignoré après un échec récent.`);
     return;
   }
@@ -179,7 +181,10 @@ export async function pollFeed(
   }
 
   if (!feed.lastPolledAt) {
-    await prisma.feed.update({ where: { id: feed.id }, data: { lastPolledAt: now } });
+    await prisma.feed.update({
+      where: { id: feed.id },
+      data: { lastPolledAt: now, lastPollStatus: 'SUCCESS', lastPollError: null },
+    });
     logger.info('RSS', `Premier poll de "${feed.name}" — baseline enregistrée, anciens articles ignorés.`);
     return;
   }
@@ -337,7 +342,7 @@ export async function pollGuildFeeds(
   const tasks = enabledFeeds.map((feed) =>
     limit(async () => {
       try {
-        await pollFeed(client, feed.id);
+        await pollFeed(client, feed.id, { forceRefresh: true });
       } catch (error) {
         failedFeeds += 1;
         logger.error('RSS', `Erreur pendant la mise à jour manuelle de ${feed.name}:`, error);
