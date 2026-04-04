@@ -8,6 +8,7 @@ import * as setupCmd from './commands/setup.js';
 import * as configCmd from './commands/config.js';
 import * as feedCmd from './commands/feed.js';
 import * as newsCmd from './commands/news.js';
+import * as newsRecoveryCmd from './commands/news-rattrapage.js';
 import * as pingCmd from './commands/ping.js';
 import * as infoCmd from './commands/info.js';
 import * as youtubeCmd from './commands/youtube.js';
@@ -26,6 +27,7 @@ const commands = [
   configCmd,
   feedCmd,
   newsCmd,
+  newsRecoveryCmd,
   pingCmd,
   infoCmd,
   youtubeCmd,

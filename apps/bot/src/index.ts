@@ -24,6 +24,7 @@ import * as setupCmd from './commands/setup.js';
 import * as configCmd from './commands/config.js';
 import * as feedCmd from './commands/feed.js';
 import * as newsCmd from './commands/news.js';
+import * as newsRecoveryCmd from './commands/news-rattrapage.js';
 import * as pingCmd from './commands/ping.js';
 import * as infoCmd from './commands/info.js';
 import * as youtubeCmd from './commands/youtube.js';
@@ -57,7 +58,7 @@ type SlashCommand = {
 };
 
 const commands = new Collection<string, SlashCommand>();
-[setupCmd, configCmd, feedCmd, newsCmd, pingCmd, infoCmd, youtubeCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd, postCmd, dailyAlgoCmd].forEach((cmd) => {
+[setupCmd, configCmd, feedCmd, newsCmd, newsRecoveryCmd, pingCmd, infoCmd, youtubeCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd, postCmd, dailyAlgoCmd].forEach((cmd) => {
   commands.set(cmd.data.name, cmd as SlashCommand);
 });
 
@@ -109,16 +110,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     logger.error('Event', 'InteractionCreate error:', err);
     try {
-      if ('replied' in interaction && interaction.replied) return;
-      
       const replyOptions: import('discord.js').InteractionReplyOptions = { content: '❌ Une erreur est survenue.', flags: [MessageFlags.Ephemeral] };
-      
-      if ('deferred' in interaction && interaction.deferred) {
-        await (interaction as ChatInputCommandInteraction).followUp(replyOptions);
-      } else if ('reply' in interaction) {
-        await (interaction as ChatInputCommandInteraction).reply(replyOptions);
+
+      if (interaction.isRepliable()) {
+        if (interaction.deferred || interaction.replied) {
+          await interaction.followUp(replyOptions);
+        } else {
+          await interaction.reply(replyOptions);
+        }
       }
     } catch (e){
+      if (e instanceof DiscordAPIError && e.code === 40060) {
+        logger.warn('Event', 'InteractionCreate follow-up: DiscordAPIError 40060 (already acknowledged) ignored.');
+        return;
+      }
       if (e instanceof DiscordAPIError && e.code === 10062) {
         logger.warn('Event', 'InteractionCreate follow-up: DiscordAPIError 10062 ignored.');
         return;

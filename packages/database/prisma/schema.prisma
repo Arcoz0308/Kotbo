@@ -38,6 +38,7 @@ model Guild {
   globalIncludeKeywords String[] @default([])
   globalExcludeKeywords String[] @default([])
   globalIgnoredKeywords String[] @default([])
+  preferencesMigrated Boolean @default(false)
 
   codePoliceEnabled        Boolean @default(false)
   
@@ -59,6 +60,8 @@ model Guild {
   youtubeItems YouTubeItem[]
   youtubeSubscriptions YouTubeSubscription[]
   dailyAlgoRuns DailyAlgoRun[]
+  interestTopics InterestTopicScore[]
+  interestFeedback NewsInterestFeedback[]
 
   @@map("guilds")
 }
@@ -113,6 +116,10 @@ model FeedItem {
   descriptionTranslated String?
 
   status          ItemStatus @default(PENDING)
+  interestDecision InterestDecision @default(ALLOWED)
+  interestScore Float?
+  interestReason String?
+  topics String[] @default([])
   queueMessageId  String?
   publicMessageId String?
   pinned          Boolean    @default(false)
@@ -123,7 +130,50 @@ model FeedItem {
   updatedAt DateTime @updatedAt
 
   @@unique([feedId, guid])
+  @@index([interestDecision, createdAt])
   @@map("feed_items")
+}
+
+model InterestTopicScore {
+  id String @id @default(cuid())
+
+  guildId String
+  userId String @default("__guild__")
+  topic String
+  score Float @default(0)
+  positiveCount Int @default(0)
+  negativeCount Int @default(0)
+  lastInteractedAt DateTime @default(now())
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, userId, topic])
+  @@index([guildId, userId])
+  @@index([topic])
+  @@map("interest_topic_scores")
+}
+
+model NewsInterestFeedback {
+  id String @id @default(cuid())
+
+  guildId String
+  userId String?
+  feedItemId String?
+  topic String
+  value Int
+  source FeedbackSource
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([guildId, createdAt])
+  @@index([userId, createdAt])
+  @@index([feedItemId])
+  @@map("news_interest_feedback")
 }
 
 model YouTubeItem {
@@ -253,6 +303,19 @@ enum ItemStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+enum InterestDecision {
+  ALLOWED
+  FILTERED_OUT
+}
+
+enum FeedbackSource {
+  STAFF_APPROVE
+  STAFF_REJECT
+  USER_INTERESTING
+  USER_NOT_INTERESTING
+  RECOVERY_OVERRIDE
 }
 
 enum DailyAlgoSubmissionStatus {

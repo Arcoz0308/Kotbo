@@ -2,7 +2,7 @@ import {
   type ChannelSelectMenuInteraction,
   type ButtonInteraction,
   type ModalSubmitInteraction,
-  type SelectMenuInteraction,
+  type StringSelectMenuInteraction,
   MessageFlags,
 } from 'discord.js';
 import prisma from '../utils/db.js';
@@ -19,7 +19,29 @@ import {
 import { errorEmbed, successEmbed } from '../utils/embeds.js';
 import { logger } from '../utils/logger.js';
 
-export async function handleConfigSelectMenu(interaction: SelectMenuInteraction): Promise<void> {
+async function replyConfigError(interaction: {
+  deferred?: boolean;
+  replied?: boolean;
+  isRepliable: () => boolean;
+  followUp: (options: object) => Promise<unknown>;
+  reply: (options: object) => Promise<unknown>;
+}): Promise<void> {
+  const payload = {
+    embeds: [errorEmbed('Erreur', 'Une erreur est survenue')],
+    flags: [MessageFlags.Ephemeral],
+  };
+
+  if (!interaction.isRepliable()) return;
+
+  if (interaction.deferred || interaction.replied) {
+    await interaction.followUp(payload);
+    return;
+  }
+
+  await interaction.reply(payload);
+}
+
+export async function handleConfigSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
   const guildId = interaction.guildId!;
   const value = interaction.values[0]!;
 
@@ -139,10 +161,7 @@ export async function handleConfigButton(interaction: ButtonInteraction): Promis
     }
   } catch (error) {
     logger.error('ConfigHandler', 'Erreur lors du traitement du bouton de configuration :', error);
-    await interaction.reply({
-      embeds: [errorEmbed('Erreur', 'Une erreur est survenue')],
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyConfigError(interaction);
   }
 }
 
@@ -203,10 +222,7 @@ export async function handleConfigModal(interaction: ModalSubmitInteraction): Pr
     }
   } catch (error) {
     logger.error('ConfigHandler', 'Erreur lors du traitement de la modal de configuration :', error);
-    await interaction.reply({
-      embeds: [errorEmbed('Erreur', 'Une erreur est survenue')],
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyConfigError(interaction);
   }
 }
 
@@ -245,9 +261,6 @@ export async function handleConfigChannelSelect(interaction: ChannelSelectMenuIn
     }
   } catch (error) {
     logger.error('ConfigHandler', 'Erreur lors du traitement de la sélection de salon :', error);
-    await interaction.reply({
-      embeds: [errorEmbed('Erreur', 'Une erreur est survenue')],
-      flags: [MessageFlags.Ephemeral],
-    });
+    await replyConfigError(interaction);
   }
 }

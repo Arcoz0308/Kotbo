@@ -38,6 +38,7 @@ import { sendToValidationQueue } from '../services/notificationService.js';
 import { TextInputBuilder, TextInputStyle } from 'discord.js';
 import { ModalBuilder } from 'discord.js';
 import { fetchArticleMetadata } from '../utils/metadataParser.js';
+import { applyTopicFeedback, extractInterestTopics } from '../services/interestService.js';
 
 function canUpdateInteraction(value: unknown): value is { update: (options: unknown) => Promise<unknown> } {
   if (!value || typeof value !== 'object') return false;
@@ -61,6 +62,52 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   if (!interaction.isButton()) return;
 
   const { customId, guildId, user } = interaction;
+
+  if (customId.startsWith('interest:rss:')) {
+    const [, , itemId, direction] = customId.split(':');
+    const item = await prisma.feedItem.findUnique({ where: { id: itemId }, include: { feed: true } });
+    if (!item) {
+      await interaction.reply({ content: '❌ News introuvable pour ce feedback.', flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    const topics = item.topics.length > 0 ? item.topics : extractInterestTopics(item.title, item.description);
+
+    await applyTopicFeedback({
+      guildId: item.feed.guildId,
+      userId: user.id,
+      topics,
+      source: direction === 'up' ? 'USER_INTERESTING' : 'USER_NOT_INTERESTING',
+      isPositive: direction === 'up',
+      feedItemId: item.id,
+    });
+
+    const text = direction === 'up'
+      ? '✅ Merci, je vais proposer plus de sujets similaires.'
+      : '✅ Bien reçu, je vais réduire ce type de sujets.';
+
+    await interaction.reply({ content: text, flags: [MessageFlags.Ephemeral] });
+    return;
+  }
+
+  if (customId.startsWith('dm:toggle:')) {
+    const feedId = customId.split(':')[2];
+    await interaction.deferUpdate();
+
+    const existing = await prisma.userFeedSub.findFirst({ where: { userId: user.id, feedId } });
+    if (existing) {
+      await prisma.userFeedSub.delete({ where: { id: existing.id } });
+    } else {
+      await prisma.userFeedSub.create({ data: { userId: user.id, feedId } });
+    }
+
+    const feed = await prisma.feed.findUnique({ where: { id: feedId } });
+    if (feed) {
+      await sendDMSubscribePanel(user, feed.guildId);
+    }
+    return;
+  }
+
   if (!guildId) return;
 
   if (customId.startsWith('setup:')) {
@@ -359,7 +406,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   if (customId.startsWith('validate:')) {
     const parts = customId.split(':');
     const action = parts[1];
-    const type = parts[2] as 'rss' | 'youtube';
+    const type = parts[2] as 'rss' | 'youtube' | 'daily-algo';
     const itemId = parts[3];
 
     const member = interaction.member as GuildMember;
@@ -382,7 +429,9 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
         return;
       }
 
-      await sendApprovedItem(client, itemId, type);
+      if (type === 'rss' || type === 'youtube') {
+        await sendApprovedItem(client, itemId, type);
+      }
       try {
         await interaction.message.delete();
       } catch (e) {
@@ -393,7 +442,16 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       if (type === 'rss') {
         const item = await prisma.feedItem.findUnique({ where: { id: itemId }, include: { feed: true } });
         if (item) {
-          await startKeywordDialog(interaction, itemId, item.feed.id, guildId, item.title, item.description, 'include');
+          const topics = item.topics.length > 0 ? item.topics : extractInterestTopics(item.title, item.description);
+          await applyTopicFeedback({
+            guildId,
+            userId: user.id,
+            topics,
+            source: 'STAFF_APPROVE',
+            isPositive: true,
+            feedItemId: item.id,
+            applyToGuildProfile: true,
+          });
         }
       }
     }
@@ -425,7 +483,16 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       if (type === 'rss') {
         const item = await prisma.feedItem.findUnique({ where: { id: itemId }, include: { feed: true } });
         if (item) {
-          await startKeywordDialog(interaction, itemId, item.feed.id, guildId, item.title, item.description, 'exclude');
+          const topics = item.topics.length > 0 ? item.topics : extractInterestTopics(item.title, item.description);
+          await applyTopicFeedback({
+            guildId,
+            userId: user.id,
+            topics,
+            source: 'STAFF_REJECT',
+            isPositive: false,
+            feedItemId: item.id,
+            applyToGuildProfile: true,
+          });
         }
       }
     }
@@ -524,24 +591,6 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       await interaction.editReply({ content: '📬 Panneau d\'abonnement envoyé en message privé !' });
     } catch {
       await interaction.editReply({ content: '❌ Impossible de vous envoyer un message privé. Vérifiez vos paramètres Discord.' });
-    }
-    return;
-  }
-
-  if (customId.startsWith('dm:toggle:')) {
-    const feedId = customId.split(':')[2];
-    await interaction.deferUpdate();
-
-    const existing = await prisma.userFeedSub.findFirst({ where: { userId: user.id, feedId } });
-    if (existing) {
-      await prisma.userFeedSub.delete({ where: { id: existing.id } });
-    } else {
-      await prisma.userFeedSub.create({ data: { userId: user.id, feedId } });
-    }
-
-    const feed = await prisma.feed.findUnique({ where: { id: feedId } });
-    if (feed) {
-      await sendDMSubscribePanel(user, feed.guildId);
     }
     return;
   }
@@ -894,11 +943,42 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
   const { customId, guildId, values } = interaction;
   if (!guildId) return;
 
+  if (customId.startsWith('news:recovery:topics')) {
+    if (!interaction.isStringSelectMenu()) return;
+
+    const member = interaction.member as GuildMember;
+    const canApplyGuild = await canModerate(member, guildId);
+
+    for (const itemId of values) {
+      const item = await prisma.feedItem.findUnique({ where: { id: itemId }, include: { feed: true } });
+      if (!item) continue;
+
+      const topics = item.topics.length > 0 ? item.topics : extractInterestTopics(item.title, item.description);
+      await applyTopicFeedback({
+        guildId,
+        userId: interaction.user.id,
+        topics,
+        source: 'RECOVERY_OVERRIDE',
+        isPositive: true,
+        feedItemId: item.id,
+        applyToGuildProfile: canApplyGuild,
+      });
+    }
+
+    await interaction.reply({
+      content: `✅ ${values.length} sujet(s) ont été marqués comme intéressants.`,
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
   if (customId.startsWith('cfg:')) {
     if (interaction.isChannelSelectMenu()) {
       await handleConfigChannelSelect(interaction);
-    } else {
+    } else if (interaction.isStringSelectMenu()) {
       await handleConfigSelectMenu(interaction);
+    } else {
+      return;
     }
     return;
   }

@@ -177,7 +177,19 @@ export async function sendApprovedItem(
       .setEmoji('📌')
       .setStyle(ButtonStyle.Secondary);
 
-    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(subscribeBtn, pinBtn);
+    const interestingBtn = new ButtonBuilder()
+      .setCustomId(`interest:rss:${itemId}:up`)
+      .setLabel('Intéressant')
+      .setEmoji('👍')
+      .setStyle(ButtonStyle.Success);
+
+    const notInterestingBtn = new ButtonBuilder()
+      .setCustomId(`interest:rss:${itemId}:down`)
+      .setLabel('Pas intéressant')
+      .setEmoji('👎')
+      .setStyle(ButtonStyle.Danger);
+
+    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(subscribeBtn, pinBtn, interestingBtn, notInterestingBtn);
     const msg = await channel.send({ embeds: [embed], components: [row] });
 
     await createDiscussionThreadFromMessage(
@@ -195,7 +207,7 @@ export async function sendApprovedItem(
       data: { status: 'APPROVED', publicMessageId: msg.id },
     });
 
-    await sendDMsToSubscribers(client, item.feed.id, embed);
+    await sendDMsToSubscribers(client, item.feed.id, item.id, embed);
 
     const guild = await client.guilds.fetch(item.feed.guildId).catch(() => null);
     if (guild && item.feed.roleId) {
@@ -286,13 +298,27 @@ async function createDiscussionThreadFromMessage(
 async function sendDMsToSubscribers(
   client: Client,
   feedId: string,
+  itemId: string,
   newsEmbed: EmbedBuilder,
 ): Promise<void> {
   const subs = await prisma.userFeedSub.findMany({ where: { feedId } });
+  const feedbackRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`interest:rss:${itemId}:up`)
+      .setLabel('Intéressant')
+      .setEmoji('👍')
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(`interest:rss:${itemId}:down`)
+      .setLabel('Pas intéressant')
+      .setEmoji('👎')
+      .setStyle(ButtonStyle.Danger),
+  );
+
   for (const sub of subs) {
     try {
       const user = await client.users.fetch(sub.userId);
-      await user.send({ embeds: [newsEmbed] });
+      await user.send({ embeds: [newsEmbed], components: [feedbackRow] });
     } catch (e) {
       logger.error('Notification', 'Failed to send DM to subscriber:', e);
     }

@@ -7,6 +7,36 @@ import { logger } from '../utils/logger';
 import { detectLanguage } from '../utils/language';
 import { translate } from './translationService';
 import { sendToValidationQueue } from './notificationService';
+import {
+  evaluateInterestDecision,
+  extractInterestTopics,
+  migrateLegacyKeywordPreferences,
+} from './interestService.js';
+
+async function safelyUpdateFeedUrl(feed: { id: string; guildId: string; name: string }, nextUrl: string): Promise<boolean> {
+  const existing = await prisma.feed.findFirst({
+    where: {
+      guildId: feed.guildId,
+      url: nextUrl,
+      NOT: { id: feed.id },
+    },
+    select: { id: true, name: true },
+  });
+
+  if (existing) {
+    logger.warn(
+      'RSS',
+      `URL résolue ignorée pour "${feed.name}": ${nextUrl} déjà utilisée par "${existing.name}" (${existing.id}).`,
+    );
+    return false;
+  }
+
+  await prisma.feed.update({
+    where: { id: feed.id },
+    data: { url: nextUrl },
+  });
+  return true;
+}
 
 const RSS_FAILURE_COOLDOWN_MS = 15 * 60 * 1000;
 const FEED_REQUEST_HEADERS: Record<string, string> = {
@@ -126,17 +156,6 @@ function extractImageFromItem(item: CustomItem): string | null {
   return null;
 }
 
-function matchesKeywordFilter(
-  text: string,
-  includeKeywords: string[],
-  excludeKeywords: string[],
-): boolean {
-  const lower = text.toLowerCase();
-  if (excludeKeywords.some((kw) => lower.includes(kw.toLowerCase()))) return false;
-  if (includeKeywords.length > 0 && !includeKeywords.some((kw) => lower.includes(kw.toLowerCase()))) return false;
-  return true;
-}
-
 export async function pollFeed(
   client: Client,
   feedId: string,
@@ -148,13 +167,14 @@ export async function pollFeed(
   });
   if (!feed || !feed.enabled) return;
 
+  await migrateLegacyKeywordPreferences(feed.guildId);
+
   const effectiveFeedUrl = resolveKnownFeedAlias(feed.url);
   if (effectiveFeedUrl !== feed.url) {
-    await prisma.feed.update({
-      where: { id: feed.id },
-      data: { url: effectiveFeedUrl },
-    });
-    logger.info('RSS', `Flux "${feed.name}" migré automatiquement vers ${effectiveFeedUrl}.`);
+    const updated = await safelyUpdateFeedUrl(feed, effectiveFeedUrl);
+    if (updated) {
+      logger.info('RSS', `Flux "${feed.name}" migré automatiquement vers ${effectiveFeedUrl}.`);
+    }
   }
 
   if (!feed.autoPublish && !feed.guild.configChannelId) {
@@ -195,11 +215,10 @@ export async function pollFeed(
     const candidateResult = await tryParseCandidates(candidateUrls);
     if (candidateResult) {
       parsed = candidateResult.parsed;
-      logger.info('RSS', `Flux "${feed.name}" résolu automatiquement vers ${candidateResult.usedUrl}.`);
-      await prisma.feed.update({
-        where: { id: feed.id },
-        data: { url: candidateResult.usedUrl },
-      });
+      const updated = await safelyUpdateFeedUrl(feed, candidateResult.usedUrl);
+      if (updated) {
+        logger.info('RSS', `Flux "${feed.name}" résolu automatiquement vers ${candidateResult.usedUrl}.`);
+      }
     } else {
       const errorMessage = formatRssError(err);
       logger.warn('RSS', `Échec du parsing de ${feed.name}: ${errorMessage}`);
@@ -263,12 +282,32 @@ export async function pollFeed(
     const imageUrl = extractImageFromItem(item);
     const publishedAt = item.pubDate ? new Date(item.pubDate) : new Date();
 
-    const combinedInclude = Array.from(new Set([...feed.guild.globalIncludeKeywords, ...feed.includeKeywords]));
-    const combinedExclude = Array.from(new Set([...feed.guild.globalExcludeKeywords, ...feed.excludeKeywords]));
+    const topics = extractInterestTopics(title, description);
+    const interest = await evaluateInterestDecision({
+      guildId: feed.guildId,
+      topics,
+    });
 
-    const textToFilter = `${title} ${description ?? ''}`;
-    if (!matchesKeywordFilter(textToFilter, combinedInclude, combinedExclude)) {
-      logger.debug('RSS', `Filtered out: "${title}" (keyword filter)`);
+    if (interest.decision === 'FILTERED_OUT') {
+      await prisma.feedItem.create({
+        data: {
+          feedId: feed.id,
+          guid,
+          title,
+          url,
+          description,
+          imageUrl,
+          author,
+          publishedAt,
+          topics,
+          interestDecision: 'FILTERED_OUT',
+          interestScore: interest.score,
+          interestReason: interest.reason,
+          status: 'REJECTED',
+        },
+      });
+
+      logger.info('RSS', `News filtrée par goûts: "${title}" (${interest.reason})`);
       return null;
     }
 
@@ -303,6 +342,10 @@ export async function pollFeed(
         publishedAt,
         titleTranslated,
         descriptionTranslated: descTranslated,
+        topics,
+        interestDecision: 'ALLOWED',
+        interestScore: interest.score,
+        interestReason: interest.reason,
       },
     });
 

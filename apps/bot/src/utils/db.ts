@@ -1,10 +1,13 @@
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { config as loadEnv } from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 
-loadEnv({ path: path.resolve(import.meta.dir, '../../../../.env') });
-loadEnv({ path: path.resolve(import.meta.dir, '../../.env') });
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
+
+loadEnv({ path: path.resolve(currentDir, '../../../../.env') });
+loadEnv({ path: path.resolve(currentDir, '../../.env') });
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
