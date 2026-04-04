@@ -41,18 +41,18 @@ const DEFAULT_FEEDS = [
 
   // 🛡️ Cybersécurité & Open Source
   { name: 'Korben', url: 'https://korben.info/feed', category: 'Cybersécurité & Open Source', language: 'fr' },
-  { name: 'LeMagIT (Sécurité)', url: 'https://www.lemagit.fr/rss/Securite.xml', category: 'Cybersécurité & Open Source', language: 'fr' },
+  { name: 'CERT-FR (ANSSI)', url: 'https://www.cert.ssi.gouv.fr/feed/', category: 'Cybersécurité & Open Source', language: 'fr' },
   { name: 'CNIL (Actus)', url: 'https://www.cnil.fr/fr/rss.xml', category: 'Cybersécurité & Open Source', language: 'fr' },
   { name: 'The Hacker News', url: 'https://feeds.feedburner.com/TheHackersNews', category: 'Cybersécurité & Open Source', language: 'en' },
 
   // 🤖 Intelligence Artificielle & Dev
-  { name: 'OpenAI Blog', url: 'https://openai.com/news/rss', category: 'Intelligence Artificielle & Dev', language: 'en' },
+  { name: 'OpenAI Blog', url: 'https://openai.com/blog/rss.xml', category: 'Intelligence Artificielle & Dev', language: 'en' },
   { name: 'Google News (AI)', url: 'https://news.google.com/rss/search?q=Artificial+Intelligence', category: 'Intelligence Artificielle & Dev', language: 'en' },
   { name: 'Baeldung (Dev)', url: 'https://www.baeldung.com/feed', category: 'Intelligence Artificielle & Dev', language: 'en' },
   { name: 'GitHub Blog', url: 'https://github.blog/feed/', category: 'Intelligence Artificielle & Dev', language: 'en' },
 
   // 💻 Hardware & Gaming
-  { name: 'CowcotLand', url: 'https://www.cowcotland.com/news.rss', category: 'Hardware & Gaming', language: 'fr' },
+  { name: "Tom's Hardware France", url: 'https://www.tomshardware.fr/feed/', category: 'Hardware & Gaming', language: 'fr' },
   { name: 'Comptoir du Hardware', url: 'http://www.comptoir-hardware.com/home.xml', category: 'Hardware & Gaming', language: 'fr' },
   { name: 'Frandroid', url: 'https://www.frandroid.com/feed', category: 'Hardware & Gaming', language: 'fr' },
   { name: 'Eurogamer', url: 'https://www.eurogamer.net/feed/news', category: 'Hardware & Gaming', language: 'en' },

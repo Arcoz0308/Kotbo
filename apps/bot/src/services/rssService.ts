@@ -9,22 +9,21 @@ import { translate } from './translationService';
 import { sendToValidationQueue } from './notificationService';
 
 const RSS_FAILURE_COOLDOWN_MS = 15 * 60 * 1000;
+const FEED_REQUEST_HEADERS: Record<string, string> = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+  Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*;q=0.8',
+  'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8',
+  'Cache-Control': 'no-cache',
+  Pragma: 'no-cache',
+  Referer: 'https://www.google.com/',
+};
+const KNOWN_FEED_ALIASES: Record<string, string> = {
+  'https://openai.com/news/rss': 'https://openai.com/blog/rss.xml',
+};
 
 const parser = new Parser({
   timeout: 10000,
-  headers: {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-    Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*;q=0.8',
-    'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8',
-    'Cache-Control': 'no-cache',
-    Pragma: 'no-cache',
-    Referer: 'https://www.google.com/',
-  },
-  xml2js: {
-    strict: false,
-    normalizeTags: true,
-    trim: true,
-  },
+  headers: FEED_REQUEST_HEADERS,
   customFields: {
     item: [
       ['media:content', 'mediaContent', { keepArray: false }],
@@ -48,9 +47,31 @@ function formatRssError(error: unknown): string {
   return firstLine;
 }
 
-function isFeedRecognitionError(error: unknown): boolean {
-  const message = formatRssError(error).toLowerCase();
-  return message.includes('feed not recognized as rss 1 or 2');
+function looksLikeXmlFeed(raw: string): boolean {
+  const snippet = raw.trimStart().slice(0, 3000).toLowerCase();
+  return snippet.includes('<rss') || snippet.includes('<feed') || snippet.includes('<rdf:rdf');
+}
+
+function resolveKnownFeedAlias(url: string): string {
+  return KNOWN_FEED_ALIASES[url] ?? url;
+}
+
+async function parseFeedFromUrl(url: string): Promise<Parser.Output<CustomItem>> {
+  const response = await fetch(url, {
+    headers: FEED_REQUEST_HEADERS,
+    redirect: 'follow',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Status code ${response.status}`);
+  }
+
+  const body = await response.text();
+  if (!looksLikeXmlFeed(body)) {
+    throw new Error('Feed not recognized as RSS 1 or 2.');
+  }
+
+  return (await parser.parseString(body)) as Parser.Output<CustomItem>;
 }
 
 function buildFallbackFeedUrls(pageUrl: string): string[] {
@@ -74,7 +95,7 @@ function buildFallbackFeedUrls(pageUrl: string): string[] {
 async function tryParseCandidates(urls: string[]): Promise<{ parsed: Parser.Output<CustomItem>; usedUrl: string } | null> {
   for (const candidate of urls) {
     try {
-      const parsed = await parser.parseURL(candidate);
+      const parsed = await parseFeedFromUrl(candidate);
       return { parsed: parsed as Parser.Output<CustomItem>, usedUrl: candidate };
     } catch {
       continue;
@@ -127,6 +148,15 @@ export async function pollFeed(
   });
   if (!feed || !feed.enabled) return;
 
+  const effectiveFeedUrl = resolveKnownFeedAlias(feed.url);
+  if (effectiveFeedUrl !== feed.url) {
+    await prisma.feed.update({
+      where: { id: feed.id },
+      data: { url: effectiveFeedUrl },
+    });
+    logger.info('RSS', `Flux "${feed.name}" migré automatiquement vers ${effectiveFeedUrl}.`);
+  }
+
   if (!feed.autoPublish && !feed.guild.configChannelId) {
     logger.warn('RSS', `Skipping poll for "${feed.name}": manual validation required but configChannelId is not set.`);
     await prisma.feed.update({
@@ -153,13 +183,14 @@ export async function pollFeed(
 
   let parsed;
   try {
-    parsed = await parser.parseURL(feed.url);
+    parsed = await parseFeedFromUrl(effectiveFeedUrl);
   } catch (err) {
-    const discovered = await fetchArticleMetadata(feed.url);
+    const discovered = await fetchArticleMetadata(effectiveFeedUrl);
     const candidateUrls = Array.from(new Set([
       discovered.rssUrl,
-      ...(isFeedRecognitionError(err) ? buildFallbackFeedUrls(feed.url) : []),
-    ].filter((u): u is string => Boolean(u && u !== feed.url))));
+      ...buildFallbackFeedUrls(effectiveFeedUrl),
+      resolveKnownFeedAlias(effectiveFeedUrl),
+    ].filter((u): u is string => Boolean(u && u !== effectiveFeedUrl))));
 
     const candidateResult = await tryParseCandidates(candidateUrls);
     if (candidateResult) {
