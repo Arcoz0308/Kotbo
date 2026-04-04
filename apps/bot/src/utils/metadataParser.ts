@@ -7,7 +7,12 @@ export interface ArticleMetadata {
   rssUrl: string | null;
 }
 
-export async function fetchArticleMetadata(url: string): Promise<ArticleMetadata> {
+interface FetchArticleMetadataOptions {
+  logErrors?: boolean;
+}
+
+export async function fetchArticleMetadata(url: string, options?: FetchArticleMetadataOptions): Promise<ArticleMetadata> {
+  const shouldLogErrors = options?.logErrors ?? true;
   try {
     const response = await fetch(url, {
       headers: {
@@ -16,7 +21,7 @@ export async function fetchArticleMetadata(url: string): Promise<ArticleMetadata
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch URL: ${response.statusText}`);
+      throw new Error(`Échec de récupération URL: ${response.status} ${response.statusText}`.trim());
     }
 
     const html = await response.text();
@@ -52,7 +57,9 @@ export async function fetchArticleMetadata(url: string): Promise<ArticleMetadata
 
     return metadata;
   } catch (error) {
-    logger.error('Metadata', `Error fetching metadata for ${url}:`, error);
+    if (shouldLogErrors) {
+      logger.error('Metadata', `Erreur lors de la récupération des métadonnées pour ${url}:`, error);
+    }
     return { title: null, description: null, imageUrl: null, rssUrl: null };
   }
 }

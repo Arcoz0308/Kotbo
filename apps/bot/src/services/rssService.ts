@@ -178,7 +178,7 @@ export async function pollFeed(
   }
 
   if (!feed.autoPublish && !feed.guild.configChannelId) {
-    logger.warn('RSS', `Skipping poll for "${feed.name}": manual validation required but configChannelId is not set.`);
+    logger.warn('RSS', `Poll ignorée pour "${feed.name}" : validation manuelle requise mais configChannelId non défini.`);
     await prisma.feed.update({
       where: { id: feed.id },
       data: { lastPolledAt: new Date(), lastPollStatus: 'ERROR', lastPollError: 'Channel de validation non configuré' },
@@ -205,7 +205,7 @@ export async function pollFeed(
   try {
     parsed = await parseFeedFromUrl(effectiveFeedUrl);
   } catch (err) {
-    const discovered = await fetchArticleMetadata(effectiveFeedUrl);
+    const discovered = await fetchArticleMetadata(effectiveFeedUrl, { logErrors: false });
     const candidateUrls = Array.from(new Set([
       discovered.rssUrl,
       ...buildFallbackFeedUrls(effectiveFeedUrl),
@@ -353,7 +353,7 @@ export async function pollFeed(
       logger.info('RSS', `Auto-publication de l'élément : "${title}" depuis ${feed.name}`);
       await publishItem(client, dbItem.id);
     } else {
-      logger.info('RSS', `Queueing item for validation: "${title}" from ${feed.name}`);
+      logger.info('RSS', `Élément mis en file de validation : "${title}" depuis ${feed.name}`);
       await sendToValidationQueue(client, dbItem.id, 'rss');
     }
 
