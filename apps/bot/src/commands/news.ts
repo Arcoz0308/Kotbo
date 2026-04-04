@@ -108,10 +108,10 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const items = await prisma.feedItem.findMany({
       where: {
         feed: { guildId },
-        publishedAt: { gte: since, lte: now },
+        createdAt: { gte: since, lte: now },
       },
       include: { feed: true },
-      orderBy: { publishedAt: 'asc' },
+      orderBy: { createdAt: 'asc' },
     });
 
     if (items.length === 0) {
@@ -126,7 +126,12 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       return;
     }
 
-    const candidates = items.filter((item) => !item.queueMessageId && !item.publicMessageId && item.status === 'PENDING');
+    const candidates = items.filter((item) => {
+      const alreadyInValidation = Boolean(item.queueMessageId);
+      const alreadyInPublic = Boolean(item.publicMessageId);
+      const alreadyHandledByStatus = item.status === 'APPROVED' || item.status === 'REJECTED';
+      return !alreadyInValidation && !alreadyInPublic && !alreadyHandledByStatus;
+    });
     const skippedCount = items.length - candidates.length;
 
     if (candidates.length === 0) {
