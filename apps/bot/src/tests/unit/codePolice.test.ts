@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { analyzeCodeContent, type CodePoliceRule } from '../../services/codePoliceService';
+import { analyzeCodeContent, hasRawCodeIndicators, type CodePoliceRule } from '../../services/codePoliceService';
 
 const rules: CodePoliceRule[] = [
   { key: 'signal.js.function', category: 'SIGNAL', matchType: 'EXACT', language: 'javascript', pattern: 'function', label: 'Fonction JavaScript', feedback: 'Repère une définition de fonction JavaScript.', severity: 'INFO', enabled: true },
@@ -76,5 +76,13 @@ describe('codePolice analysis', () => {
 
     expect(analysis.language).toBe('python');
     expect(analysis.risks.some((risk) => risk.title.includes('Récursion potentiellement sans cas de sortie'))).toBe(true);
+  });
+
+  test('ignore les mentions Discord quand il n’y a pas de vrai signal de code', () => {
+    const mentionRules: CodePoliceRule[] = [
+      { key: 'signal.syntax.block', category: 'SIGNAL', matchType: 'REGEX', language: 'generic', pattern: '[{}\\[\\]();=>]', label: 'Syntaxe de bloc', feedback: 'Repère une syntaxe de bloc typique du code.', severity: 'INFO', enabled: true },
+    ];
+
+    expect(hasRawCodeIndicators('<@123456789> salut, ça va ?', mentionRules)).toBe(false);
   });
 });

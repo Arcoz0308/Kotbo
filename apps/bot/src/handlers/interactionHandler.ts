@@ -16,7 +16,8 @@ import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { DigestFrequency } from '@prisma/client';
 import { COLORS, errorEmbed, successEmbed, infoEmbed, feedStatusEmoji, truncate } from '../utils/embeds.js';
-import { sendConfigPanel, sendFeedsPanel, buildAddFeedModal, sendRoleSelectionPanel, sendChannelSelectionPanel, sendDigestPanel, sendDigestRoleSelectionPanel, buildDigestModal, sendYouTubeConfigPanel, sendYouTubeRoleSelectionPanel, sendGlobalKeywordsPanel, sendFeedKeywordsPanel, buildKeywordModal } from '../panels/configPanel.js';
+import { sendFeedsPanel, buildAddFeedModal, sendRoleSelectionPanel, sendChannelSelectionPanel, sendDigestPanel, sendDigestRoleSelectionPanel, buildDigestModal, sendYouTubeConfigPanel, sendYouTubeRoleSelectionPanel, sendGlobalKeywordsPanel, sendFeedKeywordsPanel, buildKeywordModal } from '../panels/configPanel.js';
+import { sendMainConfigPanel } from '../panels/generalConfigPanel.js';
 import { handleConfigButton, handleConfigChannelSelect, handleConfigModal, handleConfigSelectMenu } from './configHandler.js';
 import { sendSetupStep1, sendSetupStep2, sendSetupStep3, sendSetupStep4, sendSetupStep5, sendSetupFinish, buildSetupDigestModal } from '../panels/setupPanel.js';
 import { sendApprovedItem } from '../services/notificationService.js';
@@ -227,7 +228,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   }
 
   if (customId === 'config:back' || customId === 'config:refresh') {
-    await sendConfigPanel(client, guildId, interaction);
+    await sendMainConfigPanel(interaction, guildId);
     return;
   }
 
@@ -334,7 +335,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   if (customId === 'config:translation') {
     await interaction.deferUpdate();
     await toggleGuildBoolean(guildId, 'translationEnabled');
-    await sendConfigPanel(client, guildId, interaction);
+    await sendMainConfigPanel(interaction, guildId);
     return;
   }
 
@@ -358,13 +359,13 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
   if (customId === 'config:reset_mod_role') {
     await prisma.guild.update({ where: { id: guildId }, data: { moderatorRoleId: null } });
-    await sendConfigPanel(client, guildId, interaction);
+    await sendMainConfigPanel(interaction, guildId);
     return;
   }
 
   if (customId === 'config:reset_yt_channel') {
     await prisma.guild.update({ where: { id: guildId }, data: { youtubeChannelId: null } });
-    await sendConfigPanel(client, guildId, interaction);
+    await sendMainConfigPanel(interaction, guildId);
     return;
   }
 
@@ -1076,7 +1077,7 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
       where: { id: guildId },
       data: { moderatorRoleId: roleId },
     });
-    await sendConfigPanel(client, guildId, interaction);
+    await sendMainConfigPanel(interaction, guildId);
     return;
   }
 

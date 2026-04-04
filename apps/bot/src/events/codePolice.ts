@@ -4,6 +4,15 @@ import { logger } from '../utils/logger.js';
 
 const codePoliceEnabledCache = new Map<string, { enabled: boolean; expiresAt: number }>();
 
+export function invalidateCodePoliceEnabledCache(guildId?: string): void {
+  if (guildId) {
+    codePoliceEnabledCache.delete(guildId);
+    return;
+  }
+
+  codePoliceEnabledCache.clear();
+}
+
 async function isCodePoliceEnabled(guildId: string): Promise<boolean> {
   const cached = codePoliceEnabledCache.get(guildId);
   const now = Date.now();
@@ -34,7 +43,9 @@ export function registerCodePoliceListener(client: Client): void {
     if (!enabled) return;
 
     const rules = await loadCodePoliceRules(message.guildId);
-    if (!hasRawCodeIndicators(message.content, rules) || isAlreadyFormatted(message.content)) {
+    const hasCodeIndicators = hasRawCodeIndicators(message.content, rules);
+
+    if (!hasCodeIndicators || isAlreadyFormatted(message.content)) {
       return;
     }
 

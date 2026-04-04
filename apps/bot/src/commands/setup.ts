@@ -7,7 +7,6 @@ import {
 } from 'discord.js';
 import prisma from '../utils/db.js';
 import { successEmbed, errorEmbed } from '../utils/embeds.js';
-import { sendConfigPanel } from '../panels/configPanel.js';
 import { sendSetupWelcome, sendSetupStep1 } from '../panels/setupPanel.js';
 
 export const data = new SlashCommandBuilder()

@@ -65,6 +65,10 @@ function summarizeSignalHits(content: string, rules: CodePoliceRule[]): string[]
     .map((rule) => rule.label);
 }
 
+function hasDiscordMentions(content: string): boolean {
+  return /<@!?\d+>|<@&\d+>|<#\d+>|@everyone|@here/.test(content);
+}
+
 function detectDangerousPatterns(content: string, rules: CodePoliceRule[]): CodeRisk[] {
   return rules
     .filter((rule) => rule.category === 'DANGER' && matchesRule(content, rule))
@@ -239,6 +243,14 @@ export function hasRawCodeIndicators(content: string, rules: CodePoliceRule[]): 
 
   const signalHits = summarizeSignalHits(trimmed, rules);
   const dangerHits = detectDangerousPatterns(trimmed, rules);
+  const hasMentions = hasDiscordMentions(trimmed);
+  const hasSpecificSignalHits = rules.some(
+    (rule) => rule.category === 'SIGNAL' && rule.language !== 'generic' && matchesRule(trimmed, rule)
+  );
+
+  if (hasMentions && !hasSpecificSignalHits && dangerHits.length === 0) {
+    return false;
+  }
 
   return signalHits.length >= 1 || dangerHits.length > 0;
 }

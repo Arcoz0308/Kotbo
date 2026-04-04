@@ -20,6 +20,7 @@ import { errorEmbed, successEmbed } from '../utils/embeds.js';
 import { logger } from '../utils/logger.js';
 import { replyOrFollowUp } from '../utils/interactionResponses.js';
 import { toggleGuildBoolean } from '../utils/prismaToggles.js';
+import { invalidateCodePoliceEnabledCache } from '../events/codePolice.js';
 
 async function replyConfigError(interaction: ButtonInteraction | ModalSubmitInteraction | ChannelSelectMenuInteraction): Promise<void> {
   await replyOrFollowUp(interaction, {
@@ -77,6 +78,8 @@ export async function handleConfigButton(interaction: ButtonInteraction): Promis
       await interaction.deferUpdate();
       const next = await toggleGuildBoolean(guildId, 'codePoliceEnabled');
       if (next === null) return;
+
+      invalidateCodePoliceEnabledCache(guildId);
 
       await interaction.followUp({
         embeds: [

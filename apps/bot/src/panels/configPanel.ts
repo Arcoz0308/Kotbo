@@ -86,7 +86,7 @@ export async function sendFeedsPanel(
       .setDescription('Aucun flux configuré. Utilisez `/feed add` ou le bouton ci-dessous.');
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId('config:feed:add').setLabel('➕ Ajouter un flux').setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId('config:back').setLabel('◀ Retour').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('cfg:back:main').setLabel('◀ Retour').setStyle(ButtonStyle.Secondary),
     );
     await renderPanelTarget(target, { embeds: [embed], components: [row] });
     return;
@@ -133,7 +133,7 @@ export async function sendFeedsPanel(
       .setLabel(allAutoPublish ? '⚡ Désactiver l’auto-publication (tous)' : '⚡ Activer l’auto-publication (tous)')
       .setStyle(allAutoPublish ? ButtonStyle.Danger : ButtonStyle.Success),
     new ButtonBuilder().setCustomId('config:feed:add').setLabel('➕ Ajouter').setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId('config:back').setLabel('◀ Retour').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('cfg:back:main').setLabel('◀ Retour').setStyle(ButtonStyle.Secondary),
   );
 
   await renderPanelTarget(target, { embeds: [embed], components: [row1, row2] });
@@ -158,7 +158,7 @@ export async function sendRoleSelectionPanel(
 
   const row1 = new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(select);
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId('config:back').setLabel('◀ Retour').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('cfg:back:main').setLabel('◀ Retour').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('config:reset_mod_role').setLabel('🗑️ Réinitialiser').setStyle(ButtonStyle.Danger),
   );
 
@@ -183,7 +183,7 @@ export async function sendChannelSelectionPanel(
 
   const row1 = new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(select);
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId('config:back').setLabel('◀ Retour').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('cfg:back:main').setLabel('◀ Retour').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('config:reset_yt_channel').setLabel('🗑️ Réinitialiser').setStyle(ButtonStyle.Danger),
   );
 
@@ -222,7 +222,7 @@ export async function sendYouTubeConfigPanel(
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId('config:yt_role_short').setLabel('📱 Rôle Shorts').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('config:yt_role_video').setLabel('🎥 Rôle Vidéos').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('config:back').setLabel('◀ Retour').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('cfg:back:main').setLabel('◀ Retour').setStyle(ButtonStyle.Secondary),
   );
 
   await renderPanelTarget(target, { embeds: [embed], components: [row1, row2] });
@@ -312,7 +312,7 @@ export async function sendDigestPanel(
 
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId('config:digest:role').setLabel('🛡️ Rôle à mentionner').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('config:back').setLabel('◀ Retour Menu').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('cfg:back:main').setLabel('◀ Retour Menu').setStyle(ButtonStyle.Secondary),
   );
 
   await renderPanelTarget(target, { embeds: [embed], components: [row1, row2] });
@@ -410,7 +410,7 @@ export async function sendGlobalKeywordsPanel(
   }
 
   const rowBack = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId('config:back').setLabel('◀ Retour Menu').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('cfg:back:main').setLabel('◀ Retour Menu').setStyle(ButtonStyle.Secondary),
   );
   components.push(rowBack);
 
