@@ -12,18 +12,35 @@ import {
 import prisma from '../utils/db.js';
 import { errorEmbed, successEmbed, infoEmbed, COLORS } from '../utils/embeds.js';
 import { fetchArticleMetadata } from '../utils/metadataParser.js';
-import { sendToValidationQueue } from '../services/notificationService.js';
+import { sendApprovedItem, sendToValidationQueue } from '../services/notificationService.js';
 import { getParisDayRange } from '../services/interestService.js';
 
 export const data = new SlashCommandBuilder()
   .setName('news')
-  .setDescription('📰 Soumettre manuellement une news')
+  .setDescription('📰 Gérer les news')
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
   .addSubcommand((sc) =>
     sc
       .setName('submit')
       .setDescription('Soumettre un article via son lien')
       .addStringOption((o) => o.setName('url').setDescription("L'URL de l'article").setRequired(true)),
+  )
+  .addSubcommand((sc) =>
+    sc
+      .setName('lot')
+      .setDescription('Publier toutes les news d’une période donnée')
+      .addStringOption((o) =>
+        o
+          .setName('duree')
+          .setDescription('Fenêtre à traiter (ex: 30m, 6h, 2j, 1w)')
+          .setRequired(true),
+      )
+      .addBooleanOption((o) =>
+        o
+          .setName('auto_publier')
+          .setDescription('Publier directement dans le salon public ? sinon en validation')
+          .setRequired(true),
+      ),
   )
   .addSubcommand((sc) =>
     sc
@@ -43,6 +60,126 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
   const subcommand = interaction.options.getSubcommand();
+  if (subcommand === 'lot') {
+    const guildId = interaction.guildId!;
+    const durationInput = interaction.options.getString('duree', true);
+    const autoPublish = interaction.options.getBoolean('auto_publier', true);
+    const window = parseDurationWindow(durationInput);
+
+    if (!window) {
+      await interaction.editReply({
+        embeds: [
+          errorEmbed(
+            'Fenêtre invalide',
+            'Utilise une durée du type `30m`, `6h`, `2j` ou `1w`.',
+          ),
+        ],
+      });
+      return;
+    }
+
+    const guild = await prisma.guild.findUnique({
+      where: { id: guildId },
+      select: { configChannelId: true, publicChannelId: true },
+    });
+
+    if (!guild) {
+      await interaction.editReply({ embeds: [errorEmbed('Serveur introuvable', 'Impossible de charger la configuration du serveur.')] });
+      return;
+    }
+
+    if (autoPublish && !guild.publicChannelId) {
+      await interaction.editReply({
+        embeds: [errorEmbed('Salon public manquant', 'L’auto-publication est activée, mais aucun salon public n’est configuré.')],
+      });
+      return;
+    }
+
+    if (!autoPublish && !guild.configChannelId) {
+      await interaction.editReply({
+        embeds: [errorEmbed('Salon de validation manquant', 'La validation est demandée, mais aucun salon de validation n’est configuré.')],
+      });
+      return;
+    }
+
+    const now = new Date();
+    const since = new Date(now.getTime() - window.ms);
+
+    const items = await prisma.feedItem.findMany({
+      where: {
+        feed: { guildId },
+        publishedAt: { gte: since, lte: now },
+      },
+      include: { feed: true },
+      orderBy: { publishedAt: 'asc' },
+    });
+
+    if (items.length === 0) {
+      await interaction.editReply({
+        embeds: [
+          infoEmbed(
+            'Aucune news trouvée',
+            `Aucune news n’a été trouvée sur la période **${window.label}**.`,
+          ),
+        ],
+      });
+      return;
+    }
+
+    const candidates = items.filter((item) => !item.queueMessageId && !item.publicMessageId && item.status === 'PENDING');
+    const skippedCount = items.length - candidates.length;
+
+    if (candidates.length === 0) {
+      await interaction.editReply({
+        embeds: [
+          infoEmbed(
+            'News déjà traitées',
+            `Les **${items.length}** news trouvées sur **${window.label}** ont déjà été envoyées ou publiées.`,
+          ),
+        ],
+      });
+      return;
+    }
+
+    const failures: string[] = [];
+    let processedCount = 0;
+
+    for (const item of candidates) {
+      try {
+        if (autoPublish) {
+          await sendApprovedItem(interaction.client, item.id, 'rss');
+        } else {
+          await sendToValidationQueue(interaction.client, item.id, 'rss');
+        }
+        processedCount += 1;
+      } catch {
+        failures.push(item.title);
+      }
+    }
+
+    const destination = autoPublish ? 'auto-publication' : 'validation';
+    const summaryLines = [
+      `Période traitée : **${window.label}**`,
+      `News trouvées : **${items.length}**`,
+      `News envoyées en ${destination} : **${processedCount}**`,
+      skippedCount > 0 ? `News déjà traitées ignorées : **${skippedCount}**` : null,
+      failures.length > 0 ? `Échecs : **${failures.length}**` : null,
+    ].filter((line): line is string => Boolean(line));
+
+    const resultEmbed = processedCount > 0
+      ? successEmbed(
+          autoPublish ? 'Lot auto-publié' : 'Lot envoyé en validation',
+          summaryLines.join('\n') + (failures.length > 0 ? `\n\nArticles en erreur : ${failures.slice(0, 5).join(', ')}` : ''),
+        )
+      : errorEmbed(
+          'Lot non traité',
+          summaryLines.join('\n') + (failures.length > 0 ? `\n\nArticles en erreur : ${failures.slice(0, 5).join(', ')}` : ''),
+        );
+
+    await interaction.editReply({ embeds: [resultEmbed] });
+    return;
+  }
+
   if (subcommand === 'rattrapage') {
     const guildId = interaction.guildId!;
     const limit = interaction.options.getInteger('limite') ?? 50;
@@ -232,5 +369,39 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     await interaction.editReply({ embeds: [embed], components: [row] });
   }
+}
+
+function parseDurationWindow(input: string): { ms: number; label: string } | null {
+  const normalized = input.trim().toLowerCase();
+  const match = normalized.match(/^(\d+)(m|h|d|j|w)$/);
+  if (!match) return null;
+
+  const amount = Number(match[1]);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+
+  const unit = match[2];
+  const multiplierByUnit: Record<string, number> = {
+    m: 60 * 1000,
+    h: 60 * 60 * 1000,
+    d: 24 * 60 * 60 * 1000,
+    j: 24 * 60 * 60 * 1000,
+    w: 7 * 24 * 60 * 60 * 1000,
+  };
+
+  const ms = amount * multiplierByUnit[unit];
+  if (!Number.isFinite(ms) || ms <= 0) return null;
+
+  const unitLabelByUnit: Record<string, string> = {
+    m: amount === 1 ? 'minute' : 'minutes',
+    h: amount === 1 ? 'heure' : 'heures',
+    d: amount === 1 ? 'jour' : 'jours',
+    j: amount === 1 ? 'jour' : 'jours',
+    w: amount === 1 ? 'semaine' : 'semaines',
+  };
+
+  return {
+    ms,
+    label: `${amount} ${unitLabelByUnit[unit]}`,
+  };
 }
 

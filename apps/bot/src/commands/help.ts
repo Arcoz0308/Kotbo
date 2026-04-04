@@ -22,6 +22,7 @@ import * as statusCmd from './status.js';
 import * as adminCmd from './admin.js';
 import * as postCmd from './post.js';
 import * as dailyAlgoCmd from './dailyAlgo.js';
+import * as newsRecoveryCmd from './news-rattrapage.js';
 
 type CommandJson = {
   name: string;
@@ -29,22 +30,109 @@ type CommandJson = {
   options?: APIApplicationCommandOption[];
 };
 
-const COMMANDS: CommandJson[] = [
-  setupCmd,
-  configCmd,
-  feedCmd,
-  newsCmd,
-  pingCmd,
-  infoCmd,
-  youtubeCmd,
-  excuseCmd,
-  epochCmd,
-  devutilsCmd,
-  statusCmd,
-  adminCmd,
-  postCmd,
-  dailyAlgoCmd,
-].map((cmd) => cmd.data.toJSON() as CommandJson);
+type HelpCategory = 'Mise en route' | 'Flux & actualités' | 'Outils' | 'Administration';
+
+type HelpCommand = CommandJson & {
+  icon: string;
+  category: HelpCategory;
+  summary: string;
+};
+
+const COMMANDS: HelpCommand[] = [
+  {
+    command: setupCmd,
+    icon: '🚀',
+    category: 'Mise en route',
+    summary: 'Assistant de configuration guidée du serveur',
+  },
+  {
+    command: configCmd,
+    icon: '⚙️',
+    category: 'Mise en route',
+    summary: 'Panneau central pour régler toutes les fonctionnalités',
+  },
+  {
+    command: infoCmd,
+    icon: 'ℹ️',
+    category: 'Mise en route',
+    summary: 'Affiche l’état du bot et les statistiques du serveur',
+  },
+  {
+    command: pingCmd,
+    icon: '🏓',
+    category: 'Mise en route',
+    summary: 'Mesure la latence du bot et de l’API Discord',
+  },
+  {
+    command: feedCmd,
+    icon: '📡',
+    category: 'Flux & actualités',
+    summary: 'Gère les flux RSS du serveur, leurs filtres et leurs rôles',
+  },
+  {
+    command: newsCmd,
+    icon: '📰',
+    category: 'Flux & actualités',
+    summary: 'Soumet une news manuellement ou consulte les sujets filtrés',
+  },
+  {
+    command: newsRecoveryCmd,
+    icon: '🧠',
+    category: 'Flux & actualités',
+    summary: 'Reclasse les news filtrées du jour pour les remettre en avant',
+  },
+  {
+    command: youtubeCmd,
+    icon: '▶️',
+    category: 'Flux & actualités',
+    summary: 'Suit les chaînes YouTube et publie leurs nouvelles vidéos',
+  },
+  {
+    command: postCmd,
+    icon: '🚀',
+    category: 'Flux & actualités',
+    summary: 'Publie le digest et/ou le Daily Algo du serveur',
+  },
+  {
+    command: dailyAlgoCmd,
+    icon: '📚',
+    category: 'Flux & actualités',
+    summary: 'Affiche le Daily Algo précédent',
+  },
+  {
+    command: statusCmd,
+    icon: '🌐',
+    category: 'Outils',
+    summary: 'Vérifie rapidement le statut HTTP d’une URL',
+  },
+  {
+    command: epochCmd,
+    icon: '🕐',
+    category: 'Outils',
+    summary: 'Convertit les timestamps Unix en dates lisibles',
+  },
+  {
+    command: devutilsCmd,
+    icon: '🛠️',
+    category: 'Outils',
+    summary: 'Décode des JWT, manipule la Base64 et génère des hash',
+  },
+  {
+    command: excuseCmd,
+    icon: '😅',
+    category: 'Outils',
+    summary: 'Génère une excuse de développeur aléatoire',
+  },
+  {
+    command: adminCmd,
+    icon: '🔧',
+    category: 'Administration',
+    summary: 'Réunit les commandes de maintenance et de configuration avancée',
+  },
+].map(({ command, ...meta }) => ({
+  ...meta,
+  ...(command.data.toJSON() as CommandJson),
+}));
 
 const OPTION_TYPE_LABEL: Record<number, string> = {
   [ApplicationCommandOptionType.String]: 'texte',
@@ -60,11 +148,11 @@ const OPTION_TYPE_LABEL: Record<number, string> = {
 
 export const data = new SlashCommandBuilder()
   .setName('help')
-  .setDescription('❓ Affiche l’aide des commandes disponibles')
+  .setDescription('❓ Centre d’aide interactif des commandes Kotbo')
   .addStringOption((o) =>
     o
       .setName('cmd')
-      .setDescription('Nom de la commande à détailler (ex: feed)')
+      .setDescription('Nom de la commande à détailler (ex: feed, news, admin)')
       .setAutocomplete(true),
   );
 
@@ -121,29 +209,51 @@ function formatOptionTree(commandName: string, options?: APIApplicationCommandOp
   return truncate(lines.join('\n'));
 }
 
+function formatCommandLine(command: HelpCommand) {
+  return `• ${command.icon} \`/${command.name}\` — ${command.summary}`;
+}
+
 function buildGeneralHelpEmbed() {
-  const commandLines = COMMANDS
-    .slice()
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .map((cmd) => `• \`/${cmd.name}\` - ${cmd.description}`);
+  const categories: HelpCategory[] = ['Mise en route', 'Flux & actualités', 'Outils', 'Administration'];
+  const commandSections = categories.map((category) => ({
+    name: category,
+    value: truncate(
+      COMMANDS.filter((command) => command.category === category)
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map(formatCommandLine)
+        .join('\n'),
+    ),
+  }));
 
   return new EmbedBuilder()
     .setColor(COLORS.info)
-    .setTitle('❓ Aide des commandes')
-    .setDescription('Utilise `/help cmd:<nom>` pour afficher le détail d’une commande (options, sous-commandes, etc.).')
-    .addFields({
-      name: '📚 Commandes disponibles',
-      value: truncate(commandLines.join('\n')),
-    })
-    .setFooter({ text: 'Kotbo · Exemple : /help cmd:feed' })
+    .setTitle('❓ Centre d’aide Kotbo')
+    .setDescription('Parcours les commandes par catégorie, puis utilise `/help cmd:<nom>` pour voir les sous-commandes et les options détaillées.')
+    .addFields(
+      ...commandSections.map((section) => ({
+        name: `📌 ${section.name}`,
+        value: section.value || 'Aucune commande dans cette catégorie.',
+      })),
+      {
+        name: '💡 Astuce',
+        value: 'L’autocomplétion propose les commandes disponibles. Exemples : `/help cmd:feed`, `/help cmd:news`, `/help cmd:admin`.',
+      },
+    )
+    .setFooter({ text: `Kotbo · ${COMMANDS.length} commandes disponibles` })
     .setTimestamp();
 }
 
 function buildCommandHelpEmbed(command: CommandJson) {
+  const summary = COMMANDS.find((entry) => entry.name === command.name)?.summary ?? command.description ?? 'Sans description';
+
   return new EmbedBuilder()
     .setColor(COLORS.info)
     .setTitle(`❓ /${command.name}`)
-    .setDescription(command.description || 'Sans description')
+    .setDescription(summary)
+    .addFields({
+      name: '🧾 Résumé',
+      value: truncate(summary),
+    })
     .addFields({
       name: '🧩 Options et sous-commandes',
       value: formatOptionTree(command.name, command.options),
@@ -176,7 +286,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   if (!command) {
     await interaction.reply({
-      content: `❌ Commande inconnue: \`/${requestedCmd}\`. Utilise l’autocomplétion de \`cmd\` pour choisir une commande valide.`,
+      content: `❌ Commande inconnue : \`/${requestedCmd}\`. Utilise l’autocomplétion de \`cmd\` pour choisir une commande valide.`,
       flags: [MessageFlags.Ephemeral],
     });
     return;
