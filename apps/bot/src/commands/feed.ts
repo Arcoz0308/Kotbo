@@ -12,6 +12,7 @@ import prisma from '../utils/db.js';
 import { successEmbed, errorEmbed, infoEmbed, feedStatusEmoji, categoryEmoji, truncate, COLORS } from '../utils/embeds.js';
 import { createPagination } from '../utils/pagination.js';
 import { fetchArticleMetadata } from '../utils/metadataParser.js';
+import { pollGuildFeeds } from '../services/rssService.js';
 
 export const data = new SlashCommandBuilder()
   .setName('feed')
@@ -64,6 +65,9 @@ export const data = new SlashCommandBuilder()
   )
   .addSubcommand((sc) =>
     sc.setName('status').setDescription('Vérifier l\'état technique des flux RSS')
+  )
+  .addSubcommand((sc) =>
+    sc.setName('update').setDescription('Lancer immédiatement la mise à jour des flux RSS')
   )
   .addSubcommand((sc) =>
     sc
@@ -207,6 +211,33 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       pageSize: 10,
       title: `État des flux RSS`,
       color: COLORS.info,
+    });
+  }
+
+  else if (sub === 'update') {
+    const stats = await pollGuildFeeds(interaction.client, guildId);
+
+    if (stats.totalFeeds === 0) {
+      await interaction.editReply({
+        embeds: [infoEmbed('Aucun flux', 'Ajoutez un flux avec `/feed add` pour lancer une mise à jour.')],
+      });
+      return;
+    }
+
+    if (stats.enabledFeeds === 0) {
+      await interaction.editReply({
+        embeds: [infoEmbed('Aucun flux actif', 'Tous les flux sont désactivés. Activez-les avec `/feed toggle`.')],
+      });
+      return;
+    }
+
+    await interaction.editReply({
+      embeds: [
+        successEmbed(
+          'Mise à jour RSS terminée',
+          `Flux traités : **${stats.processedFeeds}/${stats.enabledFeeds}**\nÉchecs : **${stats.failedFeeds}**\nTotal configuré : **${stats.totalFeeds}**`,
+        ),
+      ],
     });
   }
 

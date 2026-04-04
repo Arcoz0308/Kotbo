@@ -311,6 +311,50 @@ export async function pollAllFeeds(client: Client): Promise<void> {
   logger.info('RSS', 'Polling terminé pour tous les flux.');
 }
 
+export async function pollGuildFeeds(
+  client: Client,
+  guildId: string,
+): Promise<{ totalFeeds: number; enabledFeeds: number; processedFeeds: number; failedFeeds: number }> {
+  const guild = await prisma.guild.findUnique({
+    where: { id: guildId },
+    include: { feeds: true },
+  });
+
+  if (!guild) {
+    return { totalFeeds: 0, enabledFeeds: 0, processedFeeds: 0, failedFeeds: 0 };
+  }
+
+  const enabledFeeds = guild.feeds.filter((feed) => feed.enabled);
+  if (enabledFeeds.length === 0) {
+    return { totalFeeds: guild.feeds.length, enabledFeeds: 0, processedFeeds: 0, failedFeeds: 0 };
+  }
+
+  logger.info('RSS', `Mise à jour manuelle: ${enabledFeeds.length} flux sur la guilde ${guildId}.`);
+
+  const limit = pLimit(5);
+  let failedFeeds = 0;
+
+  const tasks = enabledFeeds.map((feed) =>
+    limit(async () => {
+      try {
+        await pollFeed(client, feed.id);
+      } catch (error) {
+        failedFeeds += 1;
+        logger.error('RSS', `Erreur pendant la mise à jour manuelle de ${feed.name}:`, error);
+      }
+    }),
+  );
+
+  await Promise.all(tasks);
+
+  return {
+    totalFeeds: guild.feeds.length,
+    enabledFeeds: enabledFeeds.length,
+    processedFeeds: enabledFeeds.length,
+    failedFeeds,
+  };
+}
+
 export async function publishItem(client: Client, itemId: string): Promise<void> {
   const { sendApprovedItem } = await import('./notificationService');
   await sendApprovedItem(client, itemId);
