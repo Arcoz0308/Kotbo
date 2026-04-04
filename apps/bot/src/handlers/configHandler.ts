@@ -63,6 +63,16 @@ export async function handleConfigButton(interaction: ButtonInteraction): Promis
       await sendMainConfigPanel(interaction, guildId);
     } else if (customId === 'cfg:section:news') {
       await sendNewsConfigSectionPanel(interaction, guildId);
+    } else if (customId === 'cfg:section:code-police') {
+      await sendCodePoliceConfig(interaction, guildId);
+    } else if (customId === 'cfg:section:daily-algo') {
+      await sendDailyAlgoConfig(interaction, guildId);
+    } else if (customId === 'cfg:section:github-releases') {
+      await sendGitHubReleasesConfig(interaction, guildId);
+    } else if (customId === 'cfg:section:status') {
+      await sendStatusConfig(interaction, guildId);
+    } else if (customId === 'cfg:refresh') {
+      await sendMainConfigPanel(interaction, guildId);
     } else if (customId === 'cfg:toggle:code-police') {
       await interaction.deferUpdate();
       const next = await toggleGuildBoolean(guildId, 'codePoliceEnabled');
@@ -72,7 +82,7 @@ export async function handleConfigButton(interaction: ButtonInteraction): Promis
         embeds: [
           successEmbed(
             'Police du code',
-            `✅ ${next ? 'Activé' : 'Désactivé'}`
+            next ? 'La Police du code est désormais activée.' : 'La Police du code est désormais désactivée.'
           ),
         ],
         flags: [MessageFlags.Ephemeral],

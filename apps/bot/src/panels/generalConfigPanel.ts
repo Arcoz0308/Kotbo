@@ -6,8 +6,6 @@ import {
   ChannelType,
   EmbedBuilder,
   ModalBuilder,
-  StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder,
   TextInputBuilder,
   TextInputStyle,
   type ButtonInteraction,
@@ -27,12 +25,31 @@ type PanelInteraction =
   | ChannelSelectMenuInteraction
   | ModalSubmitInteraction;
 
+function formatToggleState(enabled: boolean): string {
+  return enabled ? '🟢 Activé' : '⚪ Désactivé';
+}
+
+function formatChannel(channelId?: string | null, fallback = 'Aucun'): string {
+  return channelId ? `<#${channelId}>` : fallback;
+}
+
+function formatRole(roleId?: string | null, fallback = 'Aucun'): string {
+  return roleId ? `<@&${roleId}>` : fallback;
+}
+
+function formatDigestFrequency(frequency: string): string {
+  return frequency === 'WEEKLY' ? 'Hebdomadaire' : 'Quotidien';
+}
+
 export async function sendMainConfigPanel(
   interaction: PanelInteraction,
   guildId: string
 ): Promise<void> {
   await acknowledgeInteraction(interaction);
-  const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+  const guild = await prisma.guild.findUnique({
+    where: { id: guildId },
+    include: { feeds: { select: { enabled: true } } },
+  });
   
   if (!guild) {
     await renderPanelTarget(interaction, {
@@ -42,73 +59,65 @@ export async function sendMainConfigPanel(
     return;
   }
 
+  const feedCount = guild.feeds.length;
+  const activeFeeds = guild.feeds.filter((feed) => feed.enabled).length;
+
   const embed = new EmbedBuilder()
     .setColor(0x5865f2)
-    .setTitle('⚙️ Hub de Configuration Kotbo')
-    .setDescription('Navigation globale : ouvre une section puis configure chaque fonctionnalité dans son sous-menu.')
+    .setTitle('🧭 Dashboard de configuration Kotbo')
+    .setDescription('Vue d’ensemble du serveur. Ouvre une section ci-dessous pour ajuster un module précis.')
     .addFields(
       {
-        name: '📰 Flux d’actualité (RSS / YouTube / Digest)',
-        value: 'Géré via le panneau historique',
+        name: '📰 Flux d’actualité',
+        value: `RSS : ${activeFeeds}/${feedCount}\nYouTube : ${formatToggleState(guild.youtubeEnabled)}\nDigest : ${formatToggleState(guild.digestEnabled)}\nTraduction : ${formatToggleState(guild.translationEnabled)}`,
         inline: true,
       },
       {
-        name: '🚨 Police du code',
-        value: guild.codePoliceEnabled ? '✅ Activé' : '❌ Désactivé',
+        name: '🚨 Automatisations',
+        value: `Police du code : ${formatToggleState(guild.codePoliceEnabled)}\nDaily Algo : ${formatToggleState(guild.dailyAlgoEnabled)}\nReleases GitHub : ${formatToggleState(guild.githubReleasesEnabled)}`,
+        inline: true,
+      },
+      {
+        name: '📌 Salons & accès',
+        value: `Public : ${formatChannel(guild.publicChannelId)}\nDigest : ${formatChannel(guild.digestChannelId ?? guild.publicChannelId)}\nYouTube : ${formatChannel(guild.youtubeChannelId ?? guild.nathanChannelId)}\n\n/status : ${guild.statusCheckChannelId ? `<#${guild.statusCheckChannelId}>` : 'Aucune restriction'}`,
         inline: true,
       },
       {
         name: '📚 Daily Algo',
         value: guild.dailyAlgoEnabled
-          ? `✅ ${guild.dailyAlgoChannelId ? 'Défi OK' : 'Défi manquant'} • ${guild.dailyAlgoValidationChannelId ? 'Validation OK' : 'Validation manquante'} • ${guild.dailyAlgoTime} UTC`
-          : '❌ Désactivé',
+          ? `${guild.dailyAlgoTime} UTC\nDéfi : ${formatChannel(guild.dailyAlgoChannelId, 'Non configuré')}\nValidation : ${formatChannel(guild.dailyAlgoValidationChannelId, 'Non configuré')}`
+          : 'Désactivé',
         inline: true,
       },
       {
         name: '📦 Releases GitHub',
         value: guild.githubReleasesEnabled
-          ? `✅ ${guild.githubReleasesChannelId ? 'Salon OK' : 'Salon manquant'} • ${guild.githubRepositories.length} repos`
-          : '❌ Désactivé',
+          ? `${guild.githubRepositories.length} dépôt${guild.githubRepositories.length > 1 ? 's' : ''}\nSalon : ${formatChannel(guild.githubReleasesChannelId, 'Non configuré')}`
+          : 'Désactivé',
         inline: true,
       },
       {
-        name: '🌐 Restriction de /status',
-        value: guild.statusCheckChannelId ? `<#${guild.statusCheckChannelId}>` : 'Aucune restriction',
+        name: '🛡️ Encadrement',
+        value: `Rôle modérateur : ${formatRole(guild.moderatorRoleId)}\nFréquence digest : ${formatDigestFrequency(guild.digestFrequency)}`,
         inline: true,
       }
     )
-    .setFooter({ text: '100 % des salons des fonctionnalités sont configurables en BDD' })
+    .setFooter({ text: 'Kotbo · Tableau de bord de configuration' })
     .setTimestamp();
 
-  const selectMenu = new StringSelectMenuBuilder()
-    .setCustomId('cfg:main:select')
-    .setPlaceholder('Choisis une section')
-    .addOptions(
-      new StringSelectMenuOptionBuilder()
-        .setLabel('📰 Flux d’actualité')
-        .setDescription('RSS, YouTube, digest, traduction, rôles, salons')
-        .setValue('cfg:section:news'),
-      new StringSelectMenuOptionBuilder()
-        .setLabel('🚨 Police du code')
-        .setDescription('Reformatte automatiquement le code')
-        .setValue('cfg:section:code-police'),
-      new StringSelectMenuOptionBuilder()
-        .setLabel('📚 Daily Algo')
-        .setDescription('Défi algorithmique quotidien')
-        .setValue('cfg:section:daily-algo'),
-      new StringSelectMenuOptionBuilder()
-        .setLabel('📦 Releases GitHub')
-        .setDescription('Notifications de nouvelles releases')
-        .setValue('cfg:section:github-releases'),
-      new StringSelectMenuOptionBuilder()
-        .setLabel('🌐 Vérificateur de statut')
-        .setDescription('Restriction de canal pour /status')
-        .setValue('cfg:section:status')
-    );
+  const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId('config:feeds').setLabel('📰 Flux').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('cfg:section:code-police').setLabel('🚨 Code').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('cfg:section:daily-algo').setLabel('📚 Daily Algo').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('cfg:section:github-releases').setLabel('📦 GitHub').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('cfg:section:status').setLabel('🌐 /status').setStyle(ButtonStyle.Secondary),
+  );
 
-  const row1 = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId('cfg:section:news').setLabel('📰 Ouvrir les flux d’actualité').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('config:channels').setLabel('📌 Salons').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('config:set_mod_role').setLabel('🛡️ Rôle mod').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('config:set_yt_channel').setLabel('📺 Salon YT').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('cfg:refresh').setLabel('🔄 Actualiser').setStyle(ButtonStyle.Secondary),
   );
 
   await renderPanelTarget(interaction, {
@@ -205,30 +214,39 @@ export async function sendCodePoliceConfig(
 
   const embed = new EmbedBuilder()
     .setColor(0xff006e)
-    .setTitle('🚨 Configuration - Police du code')
-    .setDescription('Le bot reformatte automatiquement le code non formaté')
+    .setTitle('🚨 Police du code')
+    .setDescription('Détecte les messages qui ressemblent à du code brut et les reformate automatiquement pour les rendre lisibles.')
     .addFields(
       {
         name: 'Statut',
-        value: guild.codePoliceEnabled ? '✅ **Activé**' : '❌ **Désactivé**',
+        value: guild.codePoliceEnabled ? '🟢 **Activée**' : '⚪ **Désactivée**',
+        inline: true,
+      },
+      {
+        name: 'Détection',
+        value: 'Cherche les mots-clés de code et la syntaxe typique des langages courants.',
+        inline: true,
+      },
+      {
+        name: 'Action',
+        value: 'Le message est reposté dans un bloc de code puis l’original est supprimé.',
         inline: false,
       },
       {
-        name: 'Fonctionnalité',
-        value:
-          'Détecte les messages avec du code brut, supprime le message original et le reposte avec des backticks.',
+        name: 'Bon réflexe',
+        value: 'Ajoute trois backticks autour du code ou précise le langage pour une coloration syntaxique plus propre.',
         inline: false,
       }
     );
 
   const toggleBtn = new ButtonBuilder()
     .setCustomId('cfg:toggle:code-police')
-    .setLabel(guild.codePoliceEnabled ? 'Désactiver' : 'Activer')
+    .setLabel(guild.codePoliceEnabled ? 'Désactiver la police' : 'Activer la police')
     .setStyle(guild.codePoliceEnabled ? ButtonStyle.Danger : ButtonStyle.Success);
 
   const backBtn = new ButtonBuilder()
     .setCustomId('cfg:back:main')
-    .setLabel('← Retour')
+    .setLabel('← Tableau de bord')
     .setStyle(ButtonStyle.Secondary);
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(toggleBtn, backBtn);

@@ -1,18 +1,68 @@
-import { type Client, ChannelType, PermissionFlagsBits, ThreadChannel } from 'discord.js';
+import { type Client, PermissionFlagsBits } from 'discord.js';
 import { logger } from '../utils/logger.js';
 import prisma from '../utils/db.js';
 
-const CODE_KEYWORDS = ['function', 'const', 'let', 'var', 'return', 'import', 'export', 'async', 'await', 'class', 'interface', 'type', 'def', 'class', 'function', 'const', 'public', 'private', 'null', 'undefined'];
+const CODE_KEYWORDS = [
+  'function',
+  'const',
+  'let',
+  'var',
+  'return',
+  'import',
+  'export',
+  'async',
+  'await',
+  'class',
+  'interface',
+  'type',
+  'enum',
+  'def',
+  'public',
+  'private',
+  'protected',
+  'null',
+  'undefined',
+  'console.log',
+  'print',
+  'println',
+];
 const codePoliceCache = new Map<string, { enabled: boolean; expiresAt: number }>();
 
+function getLongestFence(content: string): number {
+  const matches = content.match(/`+/g) ?? [];
+  return matches.reduce((max, sequence) => Math.max(max, sequence.length), 0);
+}
+
+function wrapInCodeFence(content: string): string {
+  const fenceLength = Math.max(3, getLongestFence(content) + 1);
+  const fence = '`'.repeat(fenceLength);
+  return `${fence}\n${content}\n${fence}`;
+}
+
+function buildCorrectedMessage(authorTag: string, content: string): string {
+  const advice = 'Sur Discord, utilise les blocs de code (\\`\\`\\`) pour une meilleure lisibilité. Ajoute aussi le langage si possible, par exemple \\`\\`\\`js ou \\`\\`\\`python.';
+  const header = `${authorTag}, voici ton message avec une meilleure mise en forme :`;
+  const maxContentLength = 1500;
+  const shortenedContent = content.length > maxContentLength
+    ? `${content.slice(0, maxContentLength)}\n…(message tronqué pour rester lisible)`
+    : content;
+
+  return `${header}\n${wrapInCodeFence(shortenedContent)}\n\n💡 **Conseil :** ${advice}`;
+}
+
 function hasRawCodeIndicators(content: string): boolean {
-  const hasCodeKeywords = CODE_KEYWORDS.some(keyword =>
-    new RegExp(`\\b${keyword}\\b`, 'i').test(content)
-  );
+  const trimmed = content.trim();
+  if (trimmed.length < 8) return false;
 
-  const hasCodeSyntax = /[{}[\]();=>]/.test(content);
+  const indicators = [
+    CODE_KEYWORDS.some(keyword => new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(trimmed)),
+    /[{}[\]();=>]/.test(trimmed),
+    /(?:^|\n)\s*(?:if|for|while|switch|try|catch|else)\s*\(/i.test(trimmed),
+    /(?:^|\n)\s*(?:def|class|function|const|let|var|import|export)\b/i.test(trimmed),
+    /(?:^|\n)\s{2,}\S/.test(trimmed),
+  ];
 
-  return hasCodeKeywords && hasCodeSyntax;
+  return indicators.filter(Boolean).length >= 2;
 }
 
 function isAlreadyFormatted(content: string): boolean {
@@ -57,16 +107,14 @@ export function registerCodePoliceListener(client: Client): void {
         }
       }
 
-      const codeBlock = message.content;
-
-      const advice = 'Sur Discord, utilise les blocs de code (```) pour une meilleure lisibilité. Tape ``` suivi du langage (ex : ```js, ```python) pour la coloration syntaxique.';
-      const correctedMessage = await message.channel.send({
-        content: `${message.author.toString()}, voici ton message avec la bonne mise en forme :\n\`\`\`\n${codeBlock}\n\`\`\`\n\n💡 **Conseil:** ${advice}`,
+      const correctedContent = buildCorrectedMessage(message.author.toString(), message.content.trim());
+      await message.channel.send({
+        content: correctedContent,
       });
 
       await message.delete();
 
-      logger.debug('CodePolice', `Code reformatté pour ${message.author.username} dans ${message.guild?.name ?? 'MP'}`);
+      logger.debug('CodePolice', `Message de code reformatté pour ${message.author.username} dans ${message.guild?.name ?? 'MP'}`);
     } catch (error) {
       logger.error('CodePolice', 'Erreur lors du traitement du message de code :', error);
     }
