@@ -159,7 +159,7 @@ RSS poll (toutes les 5 min)
 - ORM: Prisma
 - Planification: node-cron
 - Parsing RSS: rss-parser
-- Traduction: @vitalets/google-translate-api + fallback LibreTranslate/MyMemory (si quota Google)
+- Traduction: LibreTranslate local (self-hosted via Docker Compose)
 
 ## Installation locale rapide
 
@@ -193,9 +193,9 @@ Variables principales :
 - `DATABASE_URL`: connexion PostgreSQL Prisma.
 - `LOG_LEVEL`: `info` ou `debug`.
 - `NATHAN_YOUTUBE_CHANNEL_ID`: optionnel, fallback historique YouTube.
-- `LIBRETRANSLATE_URL`: optionnel, URL d'une instance LibreTranslate (`http://libretranslate:5000` en docker compose).
+- `LIBRETRANSLATE_URL`: URL de l'instance LibreTranslate (`http://libretranslate:5000` en docker compose).
 - `LIBRETRANSLATE_API_KEY`: optionnel, cle API LibreTranslate si l'instance choisie en exige une.
-- `GOOGLE_TRANSLATE_QUOTA_COOLDOWN_MS`: cooldown anti-spam apres quota Google (defaut: `600000`, soit 10 min).
+- `TRANSLATION_TIMEOUT_MS`: timeout des appels traduction (defaut: `7000`).
 
 ## Base de donnees Prisma
 

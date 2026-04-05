@@ -39,6 +39,7 @@ import * as postCmd from './commands/post.js';
 import * as dailyAlgoCmd from './commands/dailyAlgo.js';
 import { registerCodePoliceListener } from './events/codePolice.js';
 import { registerDailyAlgoHandlers } from './handlers/dailyAlgoHandler.js';
+import { checkTranslationProviderHealth } from './services/translationService.js';
 import botPackageJson from '../package.json';
 // import * as statsCmd from './commands/stats.js';
 
@@ -67,6 +68,8 @@ const commands = new Collection<string, SlashCommand>();
 client.once(Events.ClientReady, async (c) => {
   logger.success('Bot', `Connecté en tant que ${c.user.tag}`);
   c.user.setActivity(`/help | v${botPackageJson.version}`, { type: ActivityType.Playing });
+
+  await checkTranslationProviderHealth();
 
   registerCodePoliceListener(client);
   registerDailyAlgoHandlers(client);
