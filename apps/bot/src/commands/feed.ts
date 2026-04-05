@@ -14,6 +14,76 @@ import { createPagination } from '../utils/pagination.js';
 import { fetchArticleMetadata } from '../utils/metadataParser.js';
 import { pollGuildFeeds } from '../services/rssService.js';
 
+function clampScore(value: number): number {
+  return Math.max(0, Math.min(100, value));
+}
+
+function getHealthEmoji(score: number): string {
+  if (score >= 80) return '🟢';
+  if (score >= 55) return '🟡';
+  return '🔴';
+}
+
+function getHealthHints(feed: {
+  enabled: boolean;
+  autoPublish: boolean;
+  lastPolledAt: Date | null;
+  lastPollStatus: string | null;
+  lastPollError: string | null;
+}, recentItemCount: number, guild: { configChannelId: string | null; publicChannelId: string | null }): { score: number; hints: string[] } {
+  if (!feed.enabled) {
+    return { score: 0, hints: ['Flux désactivé'] };
+  }
+
+  let score = 100;
+  const hints: string[] = [];
+
+  if (!feed.lastPolledAt) {
+    score -= 25;
+    hints.push('Jamais pollé');
+  }
+
+  if (feed.lastPollStatus === 'ERROR') {
+    score -= 45;
+    hints.push('Dernier poll en erreur');
+  }
+
+  if (feed.lastPolledAt) {
+    const ageMs = Date.now() - feed.lastPolledAt.getTime();
+    const sixHours = 6 * 60 * 60 * 1000;
+    const oneDay = 24 * 60 * 60 * 1000;
+
+    if (ageMs > oneDay) {
+      score -= 35;
+      hints.push('Poll ancien (>24h)');
+    } else if (ageMs > sixHours) {
+      score -= 20;
+      hints.push('Poll vieillissant (>6h)');
+    }
+  }
+
+  if (recentItemCount === 0) {
+    score -= 15;
+    hints.push('Aucun article sur 7 jours');
+  }
+
+  if (!feed.autoPublish && !guild.configChannelId) {
+    score -= 30;
+    hints.push('Salon de validation manquant');
+  }
+
+  if (feed.autoPublish && !guild.publicChannelId) {
+    score -= 30;
+    hints.push('Salon public manquant');
+  }
+
+  if (feed.lastPollError && feed.lastPollStatus === 'ERROR') {
+    hints.push(`Erreur: ${truncate(feed.lastPollError, 70)}`);
+  }
+
+  return { score: clampScore(score), hints: hints.slice(0, 3) };
+}
+
 export const data = new SlashCommandBuilder()
   .setName('feed')
   .setDescription('📡 Gestion des flux RSS')
@@ -192,6 +262,18 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       return;
     }
 
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const recentCounts = await prisma.feedItem.groupBy({
+      by: ['feedId'],
+      where: {
+        feedId: { in: feeds.map((feed) => feed.id) },
+        createdAt: { gte: since },
+      },
+      _count: { _all: true },
+    });
+
+    const countMap = new Map<string, number>(recentCounts.map((entry) => [entry.feedId, entry._count._all]));
+
     const lines = feeds.map((f) => {
       if (!f.enabled) return `⚪ **${f.name}** (Désactivé)`;
 
@@ -200,9 +282,14 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       else if (f.lastPollStatus === 'ERROR') statusIcon = '❌';
 
       const lastPoll = f.lastPolledAt ? `<t:${Math.floor(f.lastPolledAt.getTime() / 1000)}:R>` : 'Jamais';
-      const errorText = f.lastPollError ? `\n   └ ⚠️ *${truncate(f.lastPollError, 100)}*` : '';
-      
-      return `${statusIcon} **${f.name}**\n   └ Dernier poll : ${lastPoll}${errorText}`;
+      const recentCount = countMap.get(f.id) ?? 0;
+      const health = getHealthHints(f, recentCount, {
+        configChannelId: guild.configChannelId,
+        publicChannelId: guild.publicChannelId,
+      });
+      const hintsText = health.hints.length > 0 ? `\n   └ ${health.hints.join(' • ')}` : '';
+
+      return `${statusIcon} **${f.name}**\n   └ Dernier poll: ${lastPoll} · Articles 7j: ${recentCount} · Santé: ${getHealthEmoji(health.score)} ${health.score}/100${hintsText}`;
     });
 
     await createPagination({

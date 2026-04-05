@@ -73,7 +73,7 @@ const COMMANDS: HelpCommand[] = [
     command: newsCmd,
     icon: '📰',
     category: 'Flux & actualités',
-    summary: 'Soumet une news manuellement ou consulte les sujets filtrés',
+    summary: 'Soumet une news, consulte le rattrapage et reçoit un fil personnalisé',
   },
   {
     command: newsRecoveryCmd,

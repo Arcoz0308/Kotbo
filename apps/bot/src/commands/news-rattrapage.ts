@@ -11,6 +11,13 @@ import prisma from '../utils/db.js';
 import { COLORS, infoEmbed } from '../utils/embeds.js';
 import { getParisDayRange } from '../services/interestService.js';
 
+function computeRecoveryPriority(item: { createdAt: Date; interestScore: number | null }): number {
+  const ageHours = Math.max(0, (Date.now() - item.createdAt.getTime()) / (1000 * 60 * 60));
+  const freshnessBoost = Math.max(0, 1.5 - (ageHours / 24));
+  const negativePenalty = Math.max(0, Math.abs(Math.min(0, item.interestScore ?? 0)));
+  return freshnessBoost - (negativePenalty * 0.35);
+}
+
 export const data = new SlashCommandBuilder()
   .setName('news-rattrapage')
   .setDescription('🧠 Liste les news filtrées aujourd\'hui et permet de les reclasser')
@@ -49,9 +56,16 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     return;
   }
 
-  const lines = filteredItems.map((item, index) => {
+  const prioritizedItems = [...filteredItems]
+    .map((item) => ({ item, priority: computeRecoveryPriority(item) }))
+    .sort((a, b) => b.priority - a.priority)
+    .map((entry) => entry.item);
+
+  const lines = prioritizedItems.map((item, index) => {
     const topics = item.topics.length > 0 ? item.topics.slice(0, 3).join(', ') : 'sujet non détecté';
-    return `${index + 1}. **${item.title}**\n   ↳ ${item.feed.name} • ${topics}`;
+    const score = typeof item.interestScore === 'number' ? item.interestScore.toFixed(2) : 'n/a';
+    const reason = item.interestReason ? item.interestReason.slice(0, 90) : 'raison non disponible';
+    return `${index + 1}. **${item.title}**\n   ↳ ${item.feed.name} • ${topics}\n   ↳ score ${score} • ${reason}`;
   });
 
   const embed = new EmbedBuilder()
@@ -61,10 +75,10 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     .setFooter({ text: 'Sélectionne les sujets à reclasser comme intéressants.' })
     .setTimestamp();
 
-  const options = filteredItems.slice(0, 50).map((item) => ({
+  const options = prioritizedItems.slice(0, 50).map((item) => ({
     label: item.title.length > 95 ? `${item.title.slice(0, 92)}...` : item.title,
     value: item.id,
-    description: (item.topics.length > 0 ? item.topics.join(', ') : item.feed.name).slice(0, 95),
+    description: (`${item.feed.name} • score ${(item.interestScore ?? 0).toFixed(2)}`).slice(0, 95),
   }));
 
   const rows: ActionRowBuilder<StringSelectMenuBuilder>[] = [];

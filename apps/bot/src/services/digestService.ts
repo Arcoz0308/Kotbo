@@ -1,8 +1,25 @@
-import { EmbedBuilder, type Client, type TextChannel } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, type Client, type TextChannel } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { COLORS, truncate, categoryEmoji } from '../utils/embeds.js';
 import { getDailyAlgoButtonRow, sendDailyAlgo as publishDailyAlgo, type DailyAlgoDispatchResult } from './dailyAlgoService.js';
+import { extractInterestTopics } from './interestService.js';
+
+export function extractDigestTopics(items: Array<{ title: string; description: string | null; topics: string[] }>): string[] {
+  const topicWeights = new Map<string, number>();
+
+  for (const item of items) {
+    const itemTopics = item.topics.length > 0 ? item.topics : extractInterestTopics(item.title, item.description);
+    for (const topic of itemTopics) {
+      topicWeights.set(topic, (topicWeights.get(topic) ?? 0) + 1);
+    }
+  }
+
+  return Array.from(topicWeights.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([topic]) => topic);
+}
 
 export async function sendDigest(client: Client, guildId: string): Promise<void> {
   const guild = await prisma.guild.findUnique({
@@ -41,6 +58,12 @@ export async function sendDigest(client: Client, guildId: string): Promise<void>
     return;
   }
 
+  const digestTopics = extractDigestTopics(items.map((item) => ({
+    title: item.titleTranslated ?? item.title,
+    description: item.descriptionTranslated ?? item.description,
+    topics: item.topics,
+  })));
+
   const digestTypeStr = guild.digestFrequency === 'WEEKLY' ? 'hebdomadaire' : 'quotidien';
 
   // Group by category
@@ -78,15 +101,30 @@ export async function sendDigest(client: Client, guildId: string): Promise<void>
 
   const mention = guild.digestRoleId ? `<@&${guild.digestRoleId}>` : null;
   const customText = guild.digestCustomText ? guild.digestCustomText : null;
+  const digestTopicText = digestTopics.length > 0 ? `🏷️ Thèmes dominants: ${digestTopics.map((topic) => `\`${topic}\``).join(', ')}` : null;
   
-  const contentParts = [mention, customText].filter(Boolean);
+  const contentParts = [mention, customText, digestTopicText].filter(Boolean);
   const content = contentParts.length > 0 ? contentParts.join('\n\n') : undefined;
+
+  const feedbackRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId('digest:feedback:up')
+      .setLabel('Plus de ce type de digest')
+      .setEmoji('👍')
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId('digest:feedback:down')
+      .setLabel('Moins de ce type de digest')
+      .setEmoji('👎')
+      .setStyle(ButtonStyle.Danger),
+  );
 
   for (let index = 0; index < embeds.length; index += 10) {
     const batch = embeds.slice(index, index + 10);
     await channel.send({
       content: index === 0 ? content : undefined,
       embeds: batch,
+      components: index === 0 ? [feedbackRow] : undefined,
     });
   }
   logger.success('Digest', `Sent ${digestTypeStr} digest for guild ${guildId} (${items.length} items)`);

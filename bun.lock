@@ -13,7 +13,7 @@
     },
     "apps/bot": {
       "name": "@kotbo/bot",
-      "version": "1.2.13",
+      "version": "1.3.0",
       "dependencies": {
         "@kotbo/database": "workspace:*",
         "@napi-rs/canvas": "^0.1.65",

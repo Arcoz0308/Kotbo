@@ -39,6 +39,19 @@ async function safelyUpdateFeedUrl(feed: { id: string; guildId: string; name: st
 }
 
 const RSS_FAILURE_COOLDOWN_MS = 15 * 60 * 1000;
+const BREAKING_AUTO_PUBLISH_ENABLED = process.env.KOTBO_BREAKING_AUTOPUBLISH === 'true';
+const BREAKING_KEYWORDS = [
+  'incident',
+  'outage',
+  'zero-day',
+  'zero day',
+  'breach',
+  'faille critique',
+  'urgence',
+  'critical vulnerability',
+  'rce',
+  'cve-',
+];
 const FEED_REQUEST_HEADERS: Record<string, string> = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
   Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*;q=0.8',
@@ -156,6 +169,33 @@ function extractImageFromItem(item: CustomItem): string | null {
   return null;
 }
 
+function isBreakingNews(title: string, description: string | null | undefined, category: string, publishedAt: Date): boolean {
+  const text = `${title} ${description ?? ''}`.toLowerCase();
+  const hasBreakingKeyword = BREAKING_KEYWORDS.some((keyword) => text.includes(keyword));
+  const hasPriorityCategory = /cyber|sécurité|intelligence artificielle|ia/i.test(category);
+  const isRecent = Date.now() - publishedAt.getTime() <= 3 * 60 * 60 * 1000;
+
+  return hasBreakingKeyword && hasPriorityCategory && isRecent;
+}
+
+function computeEditorialPriority(args: {
+  title: string;
+  description: string | null | undefined;
+  publishedAt: Date;
+  category: string;
+  feedLastPollStatus: string | null;
+  predictedInterestScore: number;
+}): number {
+  const ageHours = Math.max(0, (Date.now() - args.publishedAt.getTime()) / (1000 * 60 * 60));
+  const freshnessScore = Math.max(0, 45 - Math.min(45, ageHours * 6));
+  const interestScore = Math.max(-10, Math.min(10, args.predictedInterestScore * 10));
+  const reliabilityBoost = args.feedLastPollStatus === 'SUCCESS' ? 8 : 0;
+  const categoryBoost = /cyber|sécurité|intelligence artificielle|ia/i.test(args.category) ? 12 : 0;
+  const breakingBoost = isBreakingNews(args.title, args.description, args.category, args.publishedAt) ? 20 : 0;
+
+  return Math.round(freshnessScore + interestScore + reliabilityBoost + categoryBoost + breakingBoost);
+}
+
 export async function pollFeed(
   client: Client,
   feedId: string,
@@ -271,9 +311,43 @@ export async function pollFeed(
     return;
   }
 
+  const prioritizedItems = [...newItems].sort((a, b) => {
+    const aTitle = a.title ?? 'Sans titre';
+    const aDescription = a.contentSnippet ?? a.content?.replace(/<[^>]*>/g, '').slice(0, 500) ?? null;
+    const aPublishedAt = a.pubDate ? new Date(a.pubDate) : now;
+    const aTopics = extractInterestTopics(aTitle, aDescription);
+    const aInterestSignal = Math.min(1, aTopics.length / 8);
+
+    const bTitle = b.title ?? 'Sans titre';
+    const bDescription = b.contentSnippet ?? b.content?.replace(/<[^>]*>/g, '').slice(0, 500) ?? null;
+    const bPublishedAt = b.pubDate ? new Date(b.pubDate) : now;
+    const bTopics = extractInterestTopics(bTitle, bDescription);
+    const bInterestSignal = Math.min(1, bTopics.length / 8);
+
+    const aPriority = computeEditorialPriority({
+      title: aTitle,
+      description: aDescription,
+      publishedAt: aPublishedAt,
+      category: feed.category,
+      feedLastPollStatus: feed.lastPollStatus,
+      predictedInterestScore: aInterestSignal,
+    });
+
+    const bPriority = computeEditorialPriority({
+      title: bTitle,
+      description: bDescription,
+      publishedAt: bPublishedAt,
+      category: feed.category,
+      feedLastPollStatus: feed.lastPollStatus,
+      predictedInterestScore: bInterestSignal,
+    });
+
+    return bPriority - aPriority;
+  });
+
   // 3. Traitement parallèle des nouveaux items (traductions, etc.)
   const limit = pLimit(3); // Max 3 traductions simultanées par flux
-  const tasks = newItems.map(item => limit(async () => {
+  const tasks = prioritizedItems.map(item => limit(async () => {
     const guid = item.guid ?? item.link ?? item.title ?? '';
     const title = item.title ?? 'Sans titre';
     const url = item.link ?? '';
@@ -281,6 +355,7 @@ export async function pollFeed(
     const author = (item as CustomItem).creator ?? (item as CustomItem).author ?? null;
     const imageUrl = extractImageFromItem(item);
     const publishedAt = item.pubDate ? new Date(item.pubDate) : new Date();
+    const breaking = isBreakingNews(title, description, feed.category, publishedAt);
 
     const topics = extractInterestTopics(title, description);
     const interest = await evaluateInterestDecision({
@@ -346,10 +421,13 @@ export async function pollFeed(
         interestDecision: 'ALLOWED',
         interestScore: interest.score,
         interestReason: interest.reason,
+        pinned: breaking,
       },
     });
 
-    if (feed.autoPublish) {
+    const shouldBreakingAutoPublish = breaking && BREAKING_AUTO_PUBLISH_ENABLED && Boolean(feed.guild.publicChannelId);
+
+    if (feed.autoPublish || shouldBreakingAutoPublish) {
       logger.info('RSS', `Auto-publication de l'élément : "${title}" depuis ${feed.name}`);
       await publishItem(client, dbItem.id);
     } else {

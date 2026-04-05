@@ -24,6 +24,7 @@ import { sendApprovedItem } from '../services/notificationService.js';
 import { sendDMSubscribePanel } from '../services/notificationService.js';
 import { translate } from '../services/translationService.js';
 import { reviewDailyAlgoSubmission } from '../services/dailyAlgoService.js';
+import { extractDigestTopics } from '../services/digestService.js';
 import { PermissionFlagsBits, type GuildMember } from 'discord.js';
 import { extractKeywords } from '../utils/keywords.js';
 import {
@@ -75,6 +76,67 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   if (!interaction.isButton()) return;
 
   const { customId, guildId, user } = interaction;
+
+  if (customId.startsWith('digest:feedback:')) {
+    if (!guildId) {
+      await interaction.reply({ content: '❌ Ce feedback doit être envoyé depuis un serveur.', flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    const direction = customId.endsWith(':up') ? 'up' : 'down';
+    const since = new Date();
+    since.setHours(0, 0, 0, 0);
+
+    const feedIds = (await prisma.feed.findMany({ where: { guildId }, select: { id: true } })).map((feed) => feed.id);
+    if (feedIds.length === 0) {
+      await interaction.reply({ content: 'ℹ️ Aucun flux configuré pour ce serveur.', flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    const recentItems = await prisma.feedItem.findMany({
+      where: {
+        feedId: { in: feedIds },
+        status: 'APPROVED',
+        createdAt: { gte: since },
+      },
+      select: {
+        id: true,
+        title: true,
+        titleTranslated: true,
+        description: true,
+        descriptionTranslated: true,
+        topics: true,
+      },
+      orderBy: { publishedAt: 'desc' },
+      take: 40,
+    });
+
+    const digestTopics = extractDigestTopics(recentItems.map((item) => ({
+      title: item.titleTranslated ?? item.title,
+      description: item.descriptionTranslated ?? item.description,
+      topics: item.topics,
+    })));
+
+    if (digestTopics.length === 0) {
+      await interaction.reply({ content: 'ℹ️ Je n’ai pas assez de signal pour apprendre depuis ce digest.', flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    await applyTopicFeedback({
+      guildId,
+      userId: user.id,
+      topics: digestTopics,
+      source: direction === 'up' ? 'USER_INTERESTING' : 'USER_NOT_INTERESTING',
+      isPositive: direction === 'up',
+    });
+
+    const text = direction === 'up'
+      ? `✅ Merci. Je vais favoriser ces thèmes: ${digestTopics.slice(0, 4).join(', ')}`
+      : `✅ Bien reçu. Je vais réduire ces thèmes: ${digestTopics.slice(0, 4).join(', ')}`;
+
+    await interaction.reply({ content: text, flags: [MessageFlags.Ephemeral] });
+    return;
+  }
 
   if (customId.startsWith('interest:rss:')) {
     const [, , itemId, direction] = customId.split(':');
@@ -1007,10 +1069,21 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
         feedItemId: item.id,
         applyToGuildProfile: canApplyGuild,
       });
+
+      await prisma.feedItem.update({
+        where: { id: item.id },
+        data: {
+          interestDecision: 'ALLOWED',
+          status: 'PENDING',
+          interestReason: 'Reclassé via rattrapage modération',
+          queueMessageId: null,
+          publicMessageId: null,
+        },
+      });
     }
 
     await interaction.reply({
-      content: `✅ ${values.length} sujet(s) ont été marqués comme intéressants.`,
+      content: `✅ ${values.length} sujet(s) ont été marqués comme intéressants et reclassés en file de traitement.`,
       flags: [MessageFlags.Ephemeral],
     });
     return;
