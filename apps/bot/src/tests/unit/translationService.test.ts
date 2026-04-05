@@ -213,4 +213,195 @@ describe('translationService', () => {
     expect(googleCalls).toBe(1);
     expect(fallbackCalls).toBe(2);
   });
+
+  test('vérifie isTranslationAvailable retourne true', async () => {
+    type TranslationDeps = Parameters<typeof createTranslationService>[0];
+
+    const translator: TranslationDeps['translator'] = async () => ({
+      text: 'test',
+      raw: {
+        sentences: [],
+        src: 'test',
+        confidence: 1,
+        ld_result: {
+          srclangs: ['en'],
+          srclangs_confidences: [1],
+          extended_srclangs: ['en'],
+        },
+      },
+    });
+
+    const service = createTranslationService({
+      translator,
+      log: {
+        info: () => {},
+        success: () => {},
+        warn: () => {},
+        error: () => {},
+        debug: () => {},
+      },
+    });
+
+    expect(service.isTranslationAvailable()).toBe(true);
+  });
+
+  test('retourne null si traducteur retourne du texte vide', async () => {
+    type TranslationDeps = Parameters<typeof createTranslationService>[0];
+
+    const translator: TranslationDeps['translator'] = async () => ({
+      text: '',
+      raw: {
+        sentences: [],
+        src: 'test',
+        confidence: 1,
+        ld_result: {
+          srclangs: ['en'],
+          srclangs_confidences: [1],
+          extended_srclangs: ['en'],
+        },
+      },
+    });
+
+    const service = createTranslationService({
+      translator,
+      log: {
+        info: () => {},
+        success: () => {},
+        warn: () => {},
+        error: () => {},
+        debug: () => {},
+      },
+    });
+
+    const result = await service.translate('test', 'FR');
+    expect(result).toBe('');
+  });
+
+  test('tolère un error message sans Error native', async () => {
+    type TranslationDeps = Parameters<typeof createTranslationService>[0];
+
+    const translator: TranslationDeps['translator'] = async () => {
+      throw { message: 'custom error object' };
+    };
+
+    const service = createTranslationService({
+      translator,
+      log: {
+        info: () => {},
+        success: () => {},
+        warn: () => {},
+        error: () => {},
+        debug: () => {},
+      },
+      fallbackTranslators: [
+        {
+          name: 'Fallback',
+          translate: async () => 'fallback',
+        },
+      ],
+    });
+
+    const result = await service.translate('test', 'FR');
+    expect(result).toBeNull();
+  });
+
+  test('nettoie le cache avec clearCacheForTests', async () => {
+    type TranslationDeps = Parameters<typeof createTranslationService>[0];
+
+    let callCount = 0;
+    const translator: TranslationDeps['translator'] = async () => {
+      callCount++;
+      return {
+        text: `result-${callCount}`,
+        raw: {
+          sentences: [],
+          src: 'test',
+          confidence: 1,
+          ld_result: {
+            srclangs: ['en'],
+            srclangs_confidences: [1],
+            extended_srclangs: ['en'],
+          },
+        },
+      };
+    };
+
+    const service = createTranslationService({
+      translator,
+      log: {
+        info: () => {},
+        success: () => {},
+        warn: () => {},
+        error: () => {},
+        debug: () => {},
+      },
+    });
+
+    const first = await service.translate('hello', 'FR');
+    service.clearCacheForTests();
+    const second = await service.translate('hello', 'FR');
+
+    expect(first).toBe('result-1');
+    expect(second).toBe('result-2');
+  });
+
+  test('passe sourceLang automatique si non spécifié', async () => {
+    type TranslationDeps = Parameters<typeof createTranslationService>[0];
+
+    const translator: TranslationDeps['translator'] = async () => ({
+      text: 'translated',
+      raw: {
+        sentences: [],
+        src: 'auto',
+        confidence: 1,
+        ld_result: {
+          srclangs: ['en'],
+          srclangs_confidences: [1],
+          extended_srclangs: ['en'],
+        },
+      },
+    });
+
+    const service = createTranslationService({
+      translator,
+      log: {
+        info: () => {},
+        success: () => {},
+        warn: () => {},
+        error: () => {},
+        debug: () => {},
+      },
+    });
+
+    const result = await service.translate('test', 'FR');
+    expect(result).toBe('translated');
+  });
+
+  test('fallback retourne null si traducteur échoue silencieusement', async () => {
+    type TranslationDeps = Parameters<typeof createTranslationService>[0];
+
+    const translator: TranslationDeps['translator'] = async () => {
+      throw new Error('too many');
+    };
+
+    const service = createTranslationService({
+      translator,
+      log: {
+        info: () => {},
+        success: () => {},
+        warn: () => {},
+        error: () => {},
+        debug: () => {},
+      },
+      fallbackTranslators: [
+        {
+          name: 'EmptyFallback',
+          translate: async () => null,
+        },
+      ],
+    });
+
+    const result = await service.translate('test', 'FR');
+    expect(result).toBeNull();
+  });
 });

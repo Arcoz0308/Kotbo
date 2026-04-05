@@ -51,6 +51,14 @@ function canUpdateInteraction(value: unknown): value is { update: (options: unkn
   return typeof candidate.update === 'function';
 }
 
+function normalizeTargetLanguage(value: string | null | undefined): 'FR' | 'EN' | 'ES' | 'DE' {
+  const normalized = value?.trim().toUpperCase();
+  if (normalized === 'EN' || normalized === 'ES' || normalized === 'DE') {
+    return normalized;
+  }
+  return 'FR';
+}
+
 async function canModerate(member: GuildMember | null, guildId: string): Promise<boolean> {
   if (!member) return false;
   if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
@@ -499,7 +507,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       const item = await prisma.feedItem.findUnique({ where: { id: itemId } });
       if (!item) return;
       const guild = await prisma.guild.findUnique({ where: { id: guildId } });
-      const targetLang = guild?.defaultTranslateTo ?? 'FR';
+      const targetLang = normalizeTargetLanguage(guild?.defaultTranslateTo);
 
       const titleFR = await translate(item.title, targetLang);
       const descFR = item.description ? await translate(item.description, targetLang) : null;
@@ -1032,6 +1040,15 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
     else if (step === 'select_digest_role') {
       await prisma.guild.update({ where: { id: guildId }, data: { digestRoleId: val } });
       await sendSetupStep4(client, guildId, interaction);
+    }
+    else if (step === 'trans_lang') {
+      const targetLang = normalizeTargetLanguage(val);
+      await prisma.guild.upsert({
+        where: { id: guildId },
+        update: { defaultTranslateTo: targetLang },
+        create: { id: guildId, defaultTranslateTo: targetLang },
+      });
+      await sendSetupStep5(client, guildId, interaction);
     }
     return;
   }
