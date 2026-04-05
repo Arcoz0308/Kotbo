@@ -123,6 +123,7 @@ export interface NewsEmbedOptions {
   imageUrl?: string | null;
   author?: string | null;
   translated?: boolean;
+  translationPending?: boolean;
   isValidation?: boolean;
   itemId?: string;
 }
@@ -158,11 +159,15 @@ export function buildNewsEmbed(opts: NewsEmbedOptions): EmbedBuilder {
 
   if (opts.author) embed.setAuthor({ name: opts.author });
 
-  if (opts.isValidation) {
-    embed.setFooter({ text: `${theme.icon}  ·  ID: ${opts.itemId ?? '—'}` });
-  } else {
-    embed.setFooter({ text: `${theme.icon}  ·  Kotbo News` });
-  }
+  const baseFooter = opts.isValidation
+    ? `${theme.icon}  ·  ID: ${opts.itemId ?? '—'}`
+    : `${theme.icon}  ·  Kotbo News`;
+
+  const footerText = opts.translationPending
+    ? `${baseFooter}  ·  ⏳ Traduction en cours`
+    : baseFooter;
+
+  embed.setFooter({ text: footerText });
 
   return embed;
 }

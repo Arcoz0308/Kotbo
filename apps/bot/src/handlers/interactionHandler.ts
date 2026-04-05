@@ -509,20 +509,56 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       const guild = await prisma.guild.findUnique({ where: { id: guildId } });
       const targetLang = normalizeTargetLanguage(guild?.defaultTranslateTo);
 
-      const titleFR = await translate(item.title, targetLang);
-      const descFR = item.description ? await translate(item.description, targetLang) : null;
+      const currentEmbed = interaction.message.embeds[0];
+      const baseFooterText = currentEmbed?.footer?.text ?? '';
+      const pendingFooterText = baseFooterText
+        ? `${baseFooterText} · ⏳ Traduction en cours`
+        : '⏳ Traduction en cours';
 
-      if (titleFR) {
-        await prisma.feedItem.update({
-          where: { id: itemId },
-          data: { titleTranslated: titleFR, descriptionTranslated: descFR },
-        });
-        const embed = EmbedBuilder.from(interaction.message.embeds[0])
-          .setTitle(truncate(titleFR, 256))
-          .setDescription(descFR ?? interaction.message.embeds[0].description);
-        await interaction.message.edit({ embeds: [embed] });
-      } else {
+      if (currentEmbed) {
+        const pendingEmbed = EmbedBuilder.from(currentEmbed).setFooter({ text: pendingFooterText });
+        await interaction.message.edit({ embeds: [pendingEmbed] });
+      }
+
+      const [titleTranslated, descriptionTranslated] = await Promise.all([
+        translate(item.title, targetLang),
+        item.description ? translate(item.description, targetLang) : Promise.resolve(null),
+      ]);
+
+      if (!titleTranslated && !descriptionTranslated) {
+        if (currentEmbed) {
+          const revertedEmbed = EmbedBuilder.from(currentEmbed).setFooter({ text: baseFooterText || 'Kotbo · Bot d’actualité' });
+          await interaction.message.edit({ embeds: [revertedEmbed] });
+        }
         await interaction.followUp({ content: '⚠️ Erreur lors de la traduction.', flags: [MessageFlags.Ephemeral] });
+        return;
+      }
+
+      const updateData: { titleTranslated?: string; descriptionTranslated?: string } = {};
+      if (titleTranslated) updateData.titleTranslated = titleTranslated;
+      if (descriptionTranslated) updateData.descriptionTranslated = descriptionTranslated;
+
+      await prisma.feedItem.update({
+        where: { id: itemId },
+        data: updateData,
+      });
+
+      const nextTitle = titleTranslated ?? item.titleTranslated ?? item.title;
+      const nextDescription = descriptionTranslated ?? item.descriptionTranslated ?? item.description ?? currentEmbed?.description ?? null;
+      const hasSourceDescription = Boolean((item.description ?? '').trim());
+      const hasTitleTranslation = Boolean((titleTranslated ?? item.titleTranslated ?? '').trim());
+      const hasDescriptionTranslation = !hasSourceDescription || Boolean((descriptionTranslated ?? item.descriptionTranslated ?? '').trim());
+      const translationPending = !(hasTitleTranslation && hasDescriptionTranslation);
+      const finalFooterText = translationPending
+        ? (baseFooterText ? `${baseFooterText} · ⏳ Traduction en cours` : '⏳ Traduction en cours')
+        : (baseFooterText || 'Kotbo · Bot d’actualité');
+
+      if (currentEmbed) {
+        const updatedEmbed = EmbedBuilder.from(currentEmbed)
+          .setTitle(truncate(nextTitle, 256))
+          .setDescription(nextDescription)
+          .setFooter({ text: finalFooterText });
+        await interaction.message.edit({ embeds: [updatedEmbed] });
       }
     }
 

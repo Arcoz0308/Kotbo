@@ -19,6 +19,21 @@ import {
   getCategoryTheme,
 } from '../utils/embeds.js';
 
+function getRssTranslationState(item: {
+  titleTranslated: string | null;
+  description: string | null;
+  descriptionTranslated: string | null;
+}): { translated: boolean; translationPending: boolean } {
+  const hasTitleTranslation = Boolean(item.titleTranslated?.trim());
+  const hasSourceDescription = Boolean(item.description?.trim());
+  const hasDescriptionTranslation = !hasSourceDescription || Boolean(item.descriptionTranslated?.trim());
+  const translated = hasTitleTranslation && hasDescriptionTranslation;
+  const hasAnyTranslation = hasTitleTranslation || Boolean(item.descriptionTranslated?.trim());
+  const translationPending = hasAnyTranslation && !translated;
+
+  return { translated, translationPending };
+}
+
 export async function sendToValidationQueue(
   client: Client,
   itemId: string,
@@ -37,6 +52,7 @@ export async function sendToValidationQueue(
       return;
     }
 
+    const translationState = getRssTranslationState(item);
     const embed = buildNewsEmbed({
       title: item.titleTranslated ?? item.title,
       url: item.url,
@@ -46,7 +62,8 @@ export async function sendToValidationQueue(
       publishedAt: item.publishedAt,
       imageUrl: item.imageUrl,
       author: item.author,
-      translated: !!item.titleTranslated,
+      translated: translationState.translated,
+      translationPending: translationState.translationPending,
       isValidation: true,
       itemId: item.id,
     });
@@ -153,6 +170,7 @@ export async function sendApprovedItem(
       return;
     }
 
+    const translationState = getRssTranslationState(item);
     const embed = buildNewsEmbed({
       title: item.titleTranslated ?? item.title,
       url: item.url,
@@ -162,7 +180,8 @@ export async function sendApprovedItem(
       publishedAt: item.publishedAt,
       imageUrl: item.imageUrl,
       author: item.author,
-      translated: !!item.titleTranslated,
+      translated: translationState.translated,
+      translationPending: translationState.translationPending,
     });
 
     const subscribeBtn = new ButtonBuilder()
