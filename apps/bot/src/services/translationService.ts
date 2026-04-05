@@ -96,17 +96,34 @@ function splitIntoChunks(text: string, maxLen: number): string[] {
   return chunks;
 }
 
+function normalizeBaseUrl(url: string): string {
+  return url.trim().replace(/\/$/, '');
+}
+
+function buildLibreTranslateBaseUrls(): string[] {
+  const envUrl = process.env.LIBRETRANSLATE_URL?.trim();
+  const candidates = [
+    envUrl,
+    'http://localhost:5000',
+    'http://127.0.0.1:5000',
+    'http://libretranslate:5000',
+  ].filter((v): v is string => Boolean(v && v.trim()));
+
+  return Array.from(new Set(candidates.map(normalizeBaseUrl)));
+}
+
 function createLibreTranslateProvider(): TranslationProvider {
-  const baseUrl = process.env.LIBRETRANSLATE_URL?.trim() || 'http://libretranslate:5000';
+  const baseUrls = buildLibreTranslateBaseUrls();
   const apiKey = process.env.LIBRETRANSLATE_API_KEY?.trim();
   const timeoutMsRaw = Number(process.env.TRANSLATION_TIMEOUT_MS ?? '7000');
   const timeoutMs = Number.isFinite(timeoutMsRaw) && timeoutMsRaw > 0 ? timeoutMsRaw : 7000;
+  let preferredBaseUrl = baseUrls[0] ?? 'http://localhost:5000';
 
-  async function translateChunk(chunk: string, targetLang: string, sourceLang?: string): Promise<string | null> {
+  async function translateChunk(baseUrl: string, chunk: string, targetLang: string, sourceLang?: string): Promise<string | null> {
     const source = normalizeLangCode(sourceLang, 'source');
     const target = normalizeLangCode(targetLang, 'target');
 
-    const response = await fetch(`${baseUrl.replace(/\/$/, '')}/translate`, {
+    const response = await fetch(`${baseUrl}/translate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -151,6 +168,10 @@ function createLibreTranslateProvider(): TranslationProvider {
     return translatedText && translatedText.length > 0 ? translatedText : null;
   }
 
+  function getOrderedBaseUrls(): string[] {
+    return [preferredBaseUrl, ...baseUrls.filter((url) => url !== preferredBaseUrl)];
+  }
+
   return {
     name: 'LibreTranslate',
     async translate(text: string, targetLang: string, sourceLang?: string): Promise<string | null> {
@@ -158,7 +179,25 @@ function createLibreTranslateProvider(): TranslationProvider {
       const translatedChunks: string[] = [];
 
       for (const chunk of chunks) {
-        const translated = await translateChunk(chunk, targetLang, sourceLang);
+        let translated: string | null = null;
+        let lastError: unknown = null;
+
+        for (const baseUrl of getOrderedBaseUrls()) {
+          try {
+            translated = await translateChunk(baseUrl, chunk, targetLang, sourceLang);
+            preferredBaseUrl = baseUrl;
+            break;
+          } catch (error) {
+            lastError = error;
+          }
+        }
+
+        if (translated === null && lastError) {
+          throw new Error(
+            `Unable to connect. Is the computer able to access the url? Tried: ${getOrderedBaseUrls().join(', ')}. Derniere erreur: ${getErrorMessage(lastError)}`,
+          );
+        }
+
         if (!translated) return null;
         translatedChunks.push(translated);
       }
@@ -166,21 +205,28 @@ function createLibreTranslateProvider(): TranslationProvider {
       return translatedChunks.join(' ').trim() || null;
     },
     async healthcheck(): Promise<boolean> {
-      try {
-        const response = await fetch(`${baseUrl.replace(/\/$/, '')}/languages`, {
-          headers: { Accept: 'application/json' },
-          signal: withTimeout(5000),
-        });
-        if (!response.ok) return false;
+      for (const baseUrl of getOrderedBaseUrls()) {
+        try {
+          const response = await fetch(`${baseUrl}/languages`, {
+            headers: { Accept: 'application/json' },
+            signal: withTimeout(5000),
+          });
+          if (!response.ok) continue;
 
-        const rawBody = await response.text();
-        if (!rawBody.trim() || rawBody.trimStart().startsWith('<')) return false;
+          const rawBody = await response.text();
+          if (!rawBody.trim() || rawBody.trimStart().startsWith('<')) continue;
 
-        const payload = JSON.parse(rawBody) as unknown;
-        return Array.isArray(payload);
-      } catch {
-        return false;
+          const payload = JSON.parse(rawBody) as unknown;
+          if (Array.isArray(payload)) {
+            preferredBaseUrl = baseUrl;
+            return true;
+          }
+        } catch {
+          continue;
+        }
       }
+
+      return false;
     },
   };
 }
@@ -230,10 +276,11 @@ const translationService = createTranslationService({
 
 export async function checkTranslationProviderHealth(): Promise<boolean> {
   const healthy = await localProvider.healthcheck();
+  const configuredUrl = process.env.LIBRETRANSLATE_URL?.trim() || '(non défini)';
   if (healthy) {
-    logger.success('Translation', 'LibreTranslate local est pret (healthcheck OK).');
+    logger.success('Translation', `LibreTranslate local est pret (healthcheck OK). URL configuree: ${configuredUrl}`);
   } else {
-    logger.warn('Translation', 'LibreTranslate local indisponible ou reponse invalide (healthcheck KO).');
+    logger.warn('Translation', `LibreTranslate local indisponible ou reponse invalide (healthcheck KO). URL configuree: ${configuredUrl}`);
   }
   return healthy;
 }
