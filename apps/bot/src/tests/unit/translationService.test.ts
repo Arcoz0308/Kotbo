@@ -72,4 +72,145 @@ describe('translationService', () => {
     const result = await service.translate('hello', 'FR');
     expect(result).toBeNull();
   });
+
+  test('utilise un fallback quand Google echoue', async () => {
+    type TranslationDeps = Parameters<typeof createTranslationService>[0];
+
+    const translator: TranslationDeps['translator'] = async () => {
+      throw new Error('too many requests');
+    };
+
+    let fallbackCalls = 0;
+    const service = createTranslationService({
+      translator,
+      log: {
+        info: () => {},
+        success: () => {},
+        warn: () => {},
+        error: () => {},
+        debug: () => {},
+      },
+      fallbackTranslators: [
+        {
+          name: 'FallbackTest',
+          translate: async () => {
+            fallbackCalls += 1;
+            return 'salut';
+          },
+        },
+      ],
+    });
+
+    const result = await service.translate('hello', 'FR', 'EN');
+
+    expect(result).toBe('salut');
+    expect(fallbackCalls).toBe(1);
+  });
+
+  test('retourne null si tous les fallbacks echouent', async () => {
+    type TranslationDeps = Parameters<typeof createTranslationService>[0];
+
+    const translator: TranslationDeps['translator'] = async () => {
+      throw new Error('primary down');
+    };
+
+    const service = createTranslationService({
+      translator,
+      log: {
+        info: () => {},
+        success: () => {},
+        warn: () => {},
+        error: () => {},
+        debug: () => {},
+      },
+      fallbackTranslators: [
+        {
+          name: 'FallbackKo',
+          translate: async () => {
+            throw new Error('fallback down');
+          },
+        },
+      ],
+    });
+
+    const result = await service.translate('hello', 'FR');
+    expect(result).toBeNull();
+  });
+
+  test('n\'utilise pas les fallbacks si l\'erreur Google n\'est pas un quota', async () => {
+    type TranslationDeps = Parameters<typeof createTranslationService>[0];
+
+    const translator: TranslationDeps['translator'] = async () => {
+      throw new Error('socket timeout');
+    };
+
+    let fallbackCalls = 0;
+    const service = createTranslationService({
+      translator,
+      log: {
+        info: () => {},
+        success: () => {},
+        warn: () => {},
+        error: () => {},
+        debug: () => {},
+      },
+      fallbackTranslators: [
+        {
+          name: 'FallbackDoitPasEtreAppele',
+          translate: async () => {
+            fallbackCalls += 1;
+            return 'salut';
+          },
+        },
+      ],
+    });
+
+    const result = await service.translate('hello', 'FR');
+    expect(result).toBeNull();
+    expect(fallbackCalls).toBe(0);
+  });
+
+  test('active un cooldown Google apres quota et passe directement en fallback', async () => {
+    type TranslationDeps = Parameters<typeof createTranslationService>[0];
+
+    let now = 1_000;
+    let googleCalls = 0;
+    let fallbackCalls = 0;
+
+    const translator: TranslationDeps['translator'] = async () => {
+      googleCalls += 1;
+      throw new Error('TooManyRequestsError: Too Many Requests');
+    };
+
+    const service = createTranslationService({
+      translator,
+      log: {
+        info: () => {},
+        success: () => {},
+        warn: () => {},
+        error: () => {},
+        debug: () => {},
+      },
+      now: () => now,
+      googleQuotaCooldownMs: 60_000,
+      fallbackTranslators: [
+        {
+          name: 'FallbackCooldown',
+          translate: async () => {
+            fallbackCalls += 1;
+            return 'fallback-ok';
+          },
+        },
+      ],
+    });
+
+    const first = await service.translate('hello', 'FR');
+    now += 10_000;
+    const second = await service.translate('world', 'FR');
+
+    expect(first).toBe('fallback-ok');
+    expect(second).toBe('fallback-ok');
+    expect(googleCalls).toBe(1);
+    expect(fallbackCalls).toBe(2);
+  });
 });
