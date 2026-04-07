@@ -58,7 +58,7 @@
         
         <div class="flex flex-col items-center text-center mb-12">
           <div class="w-32 h-32 flex items-center justify-center mb-8 group hover:rotate-6 transition-transform duration-500 overflow-visible">
-            <img src="./public/favicon.svg" alt="Kotbo Logo" class="w-full h-full object-contain drop-shadow-2xl group-hover:scale-110 transition-transform" />
+            <img src="/favicon.svg" alt="Kotbo Logo" class="w-full h-full object-contain drop-shadow-2xl group-hover:scale-110 transition-transform" />
           </div>
           <h1 class="font-headline text-3xl font-black tracking-tighter text-on-surface mb-3 leading-tight">
             Bienvenue sur votre Dashboard
