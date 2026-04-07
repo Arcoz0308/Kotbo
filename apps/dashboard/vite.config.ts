@@ -1,12 +1,14 @@
 import { existsSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 import tailwindcss from '@tailwindcss/vite'
 
 
-const localEnvDir = resolve(process.cwd(), '.')
-const rootEnvDir = resolve(process.cwd(), '../..')
+const dashboardDir = dirname(fileURLToPath(new URL('.', import.meta.url)))
+const localEnvDir = resolve(dashboardDir, '.')
+const rootEnvDir = resolve(dashboardDir, '../..')
 const envDir = existsSync(resolve(localEnvDir, '.env')) ? localEnvDir : rootEnvDir
 
 export default defineConfig({
