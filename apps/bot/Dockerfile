@@ -1,5 +1,5 @@
 # Stage 1: Build stage
-FROM oven/bun:latest-alpine AS builder
+FROM oven/bun:1-alpine AS builder
 
 WORKDIR /app
 
@@ -21,7 +21,7 @@ COPY apps/bot apps/bot
 RUN bun run db:generate
 
 # Stage 2: Runtime stage
-FROM oven/bun:latest-alpine
+FROM oven/bun:1-alpine
 
 WORKDIR /app
 
