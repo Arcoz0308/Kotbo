@@ -1,13 +1,29 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
+  import { API_BASE_URL } from '../lib/api';
   import { router } from 'tinro';
 
   let errorMessage = $state(null);
-  const discordClientId = (import.meta.env.DISCORD_CLIENT_ID ?? '').trim();
-  const discordRedirectUri = (import.meta.env.DISCORD_REDIRECT_URI ?? '').trim();
+  let discordClientId = (import.meta.env.VITE_DISCORD_CLIENT_ID ?? import.meta.env.DISCORD_CLIENT_ID ?? '').trim();
+  const discordRedirectUri = (import.meta.env.VITE_DISCORD_REDIRECT_URI ?? import.meta.env.DISCORD_REDIRECT_URI ?? '').trim();
+
+  async function hydrateOAuthConfig() {
+    if (discordClientId) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/config`);
+      if (!response.ok) return;
+      const data = await response.json() as { discordClientId?: string };
+      discordClientId = (data.discordClientId ?? '').trim();
+    } catch {
+      // Le fallback est best-effort, la validation côté login affichera l'erreur si nécessaire.
+    }
+  }
 
   const loginWithDiscord = async () => {
+    await hydrateOAuthConfig();
+
     if (!discordClientId) {
       errorMessage = 'Configuration OAuth invalide: DISCORD_CLIENT_ID est manquant.';
       return;
@@ -28,6 +44,8 @@
   };
 
   onMount(async () => {
+    await hydrateOAuthConfig();
+
     if (authStore.isAuthenticated) {
       router.goto('/');
     }
