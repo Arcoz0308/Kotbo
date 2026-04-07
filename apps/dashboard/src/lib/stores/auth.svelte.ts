@@ -53,6 +53,10 @@ class AuthStore {
                 this.guilds = data.guilds;
                 if (!this.selectedGuildId && this.guilds.length > 0) {
                     this.setGuild(this.guilds[0].id);
+                } else if (this.selectedGuildId && !this.guilds.some((guild) => guild.id === this.selectedGuildId) && this.guilds.length > 0) {
+                    this.setGuild(this.guilds[0].id);
+                } else if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new Event('kotbo-dashboard-refresh-request'));
                 }
             }
         } catch (err) {
@@ -63,6 +67,10 @@ class AuthStore {
     setGuild(guildId) {
         this.selectedGuildId = guildId;
         localStorage.setItem('kotbo_guild_id', guildId);
+
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('kotbo-dashboard-refresh-request'));
+        }
     }
 
     logout() {

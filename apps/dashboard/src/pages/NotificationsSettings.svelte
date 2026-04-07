@@ -3,6 +3,8 @@
   import { updateGlobalSettings, updateNotificationsSettings } from '../lib/api';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
+  import FormInput from '../lib/components/FormInput.svelte';
+  import FormSelect from '../lib/components/FormSelect.svelte';
   import { refreshDashboardOnMount } from '../lib/dashboardLifecycle';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
 
@@ -139,34 +141,34 @@
       <div class="space-y-6">
         <div class="space-y-2">
           <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="moderator-role">Rôle modérateur dashboard</label>
-          <select
+          <FormSelect
             id="moderator-role"
             bind:value={notificationsDraft.moderatorRoleId}
-            class="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold"
+            className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold"
             disabled={!canManageSettings}
           >
             <option value="">Admin uniquement</option>
             {#each availableRoles as role}
               <option value={role.id}>@{role.name}</option>
             {/each}
-          </select>
+          </FormSelect>
           <p class="text-xs text-on-surface-variant">Les membres de ce rôle peuvent accéder au dashboard avec des permissions limitées.</p>
         </div>
 
         <div class="space-y-2">
           <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="discord-channel">Salon d'alertes</label>
-          <select
+          <FormSelect
             id="discord-channel"
             bind:value={notificationsDraft.discordChannel}
             onchange={persistDiscordChannel}
             disabled={!canManageSettings}
-            class="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold"
+            className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold"
           >
             <option value="">Sélectionner un salon</option>
             {#each availableChannels as channel}
               <option value={channel.mention}>#{channel.name}</option>
             {/each}
-          </select>
+          </FormSelect>
         </div>
         
         <div class="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
@@ -240,11 +242,11 @@
             </div>
             <p class="text-xs text-on-surface-variant">Recevoir un rapport par email si le bot crash.</p>
             {#if notificationsDraft.emailEnabled}
-              <input
+              <FormInput
                 type="email"
                 bind:value={notificationsDraft.email}
                 placeholder="admin@exemple.fr"
-                class="mt-3 w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/20 transition-all"
+                className="mt-3 w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/20 transition-all"
               />
             {/if}
           </div>

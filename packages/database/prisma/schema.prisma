@@ -65,6 +65,8 @@ model Guild {
   interestFeedback NewsInterestFeedback[]
   dashboardSettings DashboardSettings?
   dashboardAuditLogs DashboardAuditLog[]
+  sanctions Sanction[]
+  sanctionReports SanctionReport[]
 
   @@map("guilds")
 }
@@ -78,6 +80,7 @@ model DashboardSettings {
   debugLog Boolean @default(false)
   killSwitchEnabled Boolean @default(false)
   severityByModule Json?
+  commandRestrictions Json?
   messageTemplate String @default("🔔 {titre}\n\n{resume}\n\nSource: {source}\nAuteur: {auteur}\n\nPublié automatiquement par Kotbo.")
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
@@ -367,6 +370,71 @@ model DailyAlgoSubmission {
   @@index([authorId])
 }
 
+model Sanction {
+  id String @id @default(cuid())
+
+  guildId String
+  type SanctionType
+  status SanctionStatus @default(ACTIVE)
+
+  targetUserId String
+  targetTag String?
+  moderatorUserId String
+  moderatorTag String?
+
+  reason String
+  durationSeconds Int?
+  expiresAt DateTime?
+  nextActionAt DateTime?
+
+  resolvedAt DateTime?
+  resolutionNote String?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  reports SanctionReport[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, createdAt])
+  @@index([guildId, status, type])
+  @@index([status, nextActionAt])
+  @@map("sanctions")
+}
+
+model SanctionReport {
+  id String @id @default(cuid())
+
+  guildId String
+  sanctionId String?
+
+  staffPseudo String
+  incidentAt DateTime
+  memberPseudo String
+  memberReference String
+
+  sanctionType SanctionType
+  sanctionDurationLabel String?
+  brokenRules String
+  detailedReason String
+  evidenceLinks String[] @default([])
+  additionalNotes String?
+
+  createdByUserId String
+  createdByTag String?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  sanction Sanction? @relation(fields: [sanctionId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, createdAt])
+  @@index([guildId, sanctionType])
+  @@index([sanctionId])
+  @@map("sanction_reports")
+}
+
 enum ItemStatus {
   PENDING
   APPROVED
@@ -412,4 +480,18 @@ enum CodePoliceSeverity {
   INFO
   WARNING
   DANGER
+}
+
+enum SanctionType {
+  WARN
+  KICK
+  TIMEOUT
+  TEMP_BAN
+  BAN
+}
+
+enum SanctionStatus {
+  ACTIVE
+  RESOLVED
+  FAILED
 }

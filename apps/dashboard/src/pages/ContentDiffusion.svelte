@@ -9,6 +9,8 @@
   import { refreshDashboardOnMount } from "../lib/dashboardLifecycle";
   import FilterChips from "../lib/components/FilterChips.svelte";
   import MetricCard from "../lib/components/MetricCard.svelte";
+  import FormInput from "../lib/components/FormInput.svelte";
+  import FormSelect from "../lib/components/FormSelect.svelte";
 
   let { initialFilter = "À valider" } = $props();
 
@@ -438,45 +440,46 @@
   <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-8 items-start">
     <div class="space-y-6">
       <div class="rounded-[2.5rem] border border-outline-variant/20 bg-surface-container/70 p-5 md:p-6 shadow-sm backdrop-blur-xl">
-        <div class="flex flex-col gap-4 2xl:flex-row 2xl:items-center 2xl:justify-between">
-          <div class="min-w-0 2xl:flex-1">
+        <div class="grid gap-4 lg:grid-cols-[210px_minmax(0,1fr)] lg:items-start">
+          <div class="min-w-0">
             <FilterChips
               options={filterOptions}
               selected={filter}
               onSelect={(value) => (filter = value)}
               getCount={getFilterCount}
               showCount={true}
-              containerClass="flex flex-wrap items-center gap-3"
-              buttonClass="px-5 py-2.5 rounded-full text-xs font-black transition-all uppercase tracking-widest border"
+              containerClass="flex flex-row flex-wrap items-center gap-3 lg:flex-col lg:items-stretch"
+              buttonClass="inline-flex w-full items-center justify-between gap-2 px-5 py-2.5 rounded-full text-xs font-black transition-all uppercase tracking-widest border"
+              countClass="ml-3 text-[10px] font-black opacity-70"
               activeClass="bg-primary text-on-primary border-primary shadow-lg shadow-primary/20"
               inactiveClass="bg-surface-container-low text-on-surface-variant/65 border-outline-variant/20 hover:bg-surface-container-hover hover:text-on-surface"
             />
           </div>
 
-          <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center 2xl:justify-end">
-            <label class="relative w-full sm:min-w-72 sm:flex-1 2xl:max-w-80">
+          <div class="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center lg:flex-nowrap lg:justify-end">
+            <label class="relative w-full sm:min-w-72 sm:flex-1 lg:max-w-90 lg:flex-none">
               <span class="material-symbols-outlined pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/40 text-xl">search</span>
-              <input
+              <FormInput
                 bind:value={search}
                 type="search"
                 placeholder="Rechercher un titre, une source, un auteur..."
-                class="w-full rounded-full border border-outline-variant/20 bg-surface-container-low px-12 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/40 outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+                className="w-full rounded-full border border-outline-variant/20 bg-surface-container-low px-12 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/40 outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
               />
             </label>
 
-            <select
+            <FormSelect
               bind:value={sortMode}
-              class="shrink-0 rounded-full border border-outline-variant/20 bg-surface-container-low px-5 py-3 text-sm font-semibold text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+              className="w-full shrink-0 rounded-full border border-outline-variant/20 bg-surface-container-low px-5 py-3 text-sm font-semibold text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 sm:w-auto lg:w-44"
             >
               <option value="schedule-desc">Plus récents</option>
               <option value="schedule-asc">Plus proches</option>
-            </select>
+            </FormSelect>
 
-            <div class="flex items-center gap-2 shrink-0 flex-wrap">
+            <div class="flex w-full items-center gap-2 shrink-0 flex-wrap sm:w-auto sm:justify-end lg:flex-nowrap">
               <button
                 onclick={handleTranslateAll}
                 disabled={!canModerateContent || bulkTranslationInProgress || filteredContent.length === 0}
-                class="inline-flex items-center gap-1 rounded-full px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] transition-colors {(!canModerateContent || bulkTranslationInProgress || filteredContent.length === 0)
+                class="inline-flex items-center gap-1 whitespace-nowrap rounded-full px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] transition-colors {(!canModerateContent || bulkTranslationInProgress || filteredContent.length === 0)
                   ? 'cursor-not-allowed border border-blue-500/10 bg-blue-500/5 text-blue-700/35'
                   : 'border border-blue-500/20 bg-blue-500/8 text-blue-700 hover:bg-blue-600 hover:text-white'}"
               >
@@ -490,14 +493,14 @@
               </button>
               <a
                 href="/content/filtered"
-                class="inline-flex items-center gap-1 rounded-full border border-slate-500/20 bg-slate-500/8 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-600 transition-colors hover:bg-slate-500/15"
+                class="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-slate-500/20 bg-slate-500/8 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-600 transition-colors hover:bg-slate-500/15"
               >
                 <span class="material-symbols-outlined text-sm">filter_alt</span>
                 Filtrées
               </a>
               <a
                 href="/content"
-                class="inline-flex items-center gap-1 rounded-full border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant/70 transition-colors hover:text-on-surface"
+                class="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant/70 transition-colors hover:text-on-surface"
               >
                 <span class="material-symbols-outlined text-sm">newsstand</span>
                 Toutes

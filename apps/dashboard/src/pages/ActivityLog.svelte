@@ -2,6 +2,8 @@
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { refreshDashboardOnMount } from '../lib/dashboardLifecycle';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
+  import FormInput from '../lib/components/FormInput.svelte';
+  import FormSelect from '../lib/components/FormSelect.svelte';
 
   refreshDashboardOnMount();
 
@@ -59,35 +61,35 @@
       <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="search">Recherche</label>
       <div class="relative">
         <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
-        <input 
-          id="search" 
-          type="text" 
+        <FormInput
+          id="search"
+          type="text"
           bind:value={searchQuery}
-          placeholder="Action, Détails, Module, Utilisateur..." 
-          class="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all" 
+          placeholder="Action, Détails, Module, Utilisateur..."
+          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all"
         />
       </div>
     </div>
     <div class="space-y-2">
       <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="category">Module</label>
-      <select 
-        id="category" 
+      <FormSelect
+        id="category"
         bind:value={categoryFilter}
-        class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all"
+        className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all"
       >
         <option>Toutes les catégories</option>
         {#each [...new Set(dashboardStore.state.auditTrail.map(l => l.module))] as mod}
           <option value={mod}>{mod}</option>
         {/each}
-      </select>
+      </FormSelect>
     </div>
     <div class="space-y-2">
       <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="severity">Type</label>
-      <select id="severity" bind:value={severityFilter} class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all">
+      <FormSelect id="severity" bind:value={severityFilter} className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all">
         <option>Tous les types</option>
         <option>Automatique</option>
         <option>Manuel</option>
-      </select>
+      </FormSelect>
     </div>
   </div>
 </div>

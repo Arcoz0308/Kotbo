@@ -7,6 +7,7 @@
     { name: "Vue d'ensemble", icon: "grid", href: "/" },
     { name: "Modules", icon: "sparkles", href: "/modules" },
     { name: "Contenu", icon: "newspaper", href: "/content" },
+    { name: "Sanctions", icon: "gavel", href: "/sanctions" },
     { name: "Analytics", icon: "pie", href: "/analytics" },
   ];
 
@@ -25,11 +26,12 @@
 
   const secondaryItems = [
     { name: "Paramètres globaux", icon: "gears", href: "/settings" },
+    { name: "Commandes", icon: "admin_panel_settings", href: "/command-access" },
     { name: "Journal d'activité", icon: "grades", href: "/activity" },
   ];
 
   const visibleSecondaryItems = $derived(
-    canManageSettings ? secondaryItems : secondaryItems.filter((item) => item.href !== '/settings')
+    canManageSettings ? secondaryItems : secondaryItems.filter((item) => item.href !== '/settings' && item.href !== '/command-access')
   );
 
   const LOGO_URL = "/favicon.svg";
@@ -80,7 +82,7 @@
 
   
   <div class="p-6">
-    <div class="bg-gradient-to-br from-primary to-primary-container p-5 rounded-3xl text-on-primary shadow-2xl shadow-primary/20 relative overflow-hidden group">
+    <div class="bg-linear-to-br from-primary to-primary-container p-5 rounded-3xl text-on-primary shadow-2xl shadow-primary/20 relative overflow-hidden group">
       <div class="absolute -top-12 -right-12 w-24 h-24 bg-white/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
       <p class="text-[10px] font-bold uppercase tracking-widest opacity-60 mb-1">Status</p>
       <div class="flex items-center gap-2">

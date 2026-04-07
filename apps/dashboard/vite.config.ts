@@ -6,7 +6,7 @@ import { svelte } from '@sveltejs/vite-plugin-svelte'
 import tailwindcss from '@tailwindcss/vite'
 
 
-const dashboardDir = dirname(fileURLToPath(new URL('.', import.meta.url)))
+const dashboardDir = dirname(fileURLToPath(import.meta.url))
 const localEnvDir = resolve(dashboardDir, '.')
 const rootEnvDir = resolve(dashboardDir, '../..')
 const envDir = existsSync(resolve(localEnvDir, '.env')) ? localEnvDir : rootEnvDir

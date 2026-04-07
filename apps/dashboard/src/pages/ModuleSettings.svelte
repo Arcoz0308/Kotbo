@@ -7,6 +7,8 @@
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
+  import FormInput from '../lib/components/FormInput.svelte';
+  import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
 
   let { moduleId } = $props();
 
@@ -20,6 +22,8 @@
 
   let youtubeReferenceChannelId = $state('');
   let desiredModuleStatus = $state('inactive');
+  let deleteFeedModalOpen = $state(false);
+  let pendingFeedDeletion = $state<{ id: string; name: string } | null>(null);
   const formAction = createAsyncActionState();
 
   onMount(async () => {
@@ -33,26 +37,39 @@
     desiredModuleStatus = module.status === 'active' ? 'active' : 'inactive';
   });
 
-  async function handleDeleteFeed(feedId) {
+  function openDeleteFeedModal(feed: { id: string; name: string }) {
     if (!canManageSettings) {
       formAction.setError('Seuls les administrateurs peuvent modifier ce module.');
       return;
     }
 
-    if (confirm('Voulez-vous vraiment supprimer ce flux ?')) {
-      await formAction.run(
-        async () => {
-          const success = await deleteFeed(feedId);
-          if (!success) return false;
-          await dashboardStore.refresh();
-          return true;
-        },
-        {
-          successMessage: 'Flux RSS supprimé.',
-          failureMessage: 'Impossible de supprimer ce flux.'
-        }
-      );
-    }
+    pendingFeedDeletion = { id: feed.id, name: feed.name };
+    deleteFeedModalOpen = true;
+  }
+
+  function closeDeleteFeedModal() {
+    deleteFeedModalOpen = false;
+    pendingFeedDeletion = null;
+  }
+
+  async function confirmDeleteFeed() {
+    if (!pendingFeedDeletion) return;
+
+    const feedId = pendingFeedDeletion.id;
+    closeDeleteFeedModal();
+
+    await formAction.run(
+      async () => {
+        const success = await deleteFeed(feedId);
+        if (!success) return false;
+        await dashboardStore.refresh();
+        return true;
+      },
+      {
+        successMessage: 'Flux RSS supprimé.',
+        failureMessage: 'Impossible de supprimer ce flux.'
+      }
+    );
   }
 
   async function handleSave() {
@@ -356,7 +373,7 @@
                       <span class="material-symbols-outlined">edit</span>
                     </button>
                     <button 
-                      onclick={() => handleDeleteFeed(feed.id)}
+                      onclick={() => openDeleteFeedModal(feed)}
                       disabled={!canManageSettings}
                       class="p-3 text-on-surface-variant/20 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
                       title="Supprimer le flux"
@@ -414,55 +431,55 @@
                   <div class="border-t border-outline-variant/15 pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="space-y-2">
                       <label for="feed-name" class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Nom du flux</label>
-                      <input
+                      <FormInput
                         id="feed-name"
                         bind:value={feedDraft.name}
                         disabled={!canManageSettings}
-                        class="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-semibold outline-none focus:border-primary/40"
+                        className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-semibold outline-none focus:border-primary/40"
                         placeholder="Nom lisible"
                       />
                     </div>
 
                     <div class="space-y-2">
                       <label for="feed-category" class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Catégorie</label>
-                      <input
+                      <FormInput
                         id="feed-category"
                         bind:value={feedDraft.category}
                         disabled={!canManageSettings}
-                        class="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-semibold outline-none focus:border-primary/40"
+                        className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-semibold outline-none focus:border-primary/40"
                         placeholder="Catégorie"
                       />
                     </div>
 
                     <div class="space-y-2 md:col-span-2">
                       <label for="feed-url" class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">URL du flux</label>
-                      <input
+                      <FormInput
                         id="feed-url"
                         bind:value={feedDraft.url}
                         disabled={!canManageSettings}
-                        class="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-semibold outline-none focus:border-primary/40"
+                        className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-semibold outline-none focus:border-primary/40"
                         placeholder="https://..."
                       />
                     </div>
 
                     <div class="space-y-2">
                       <label for="feed-include-keywords" class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Mots-clés inclus (séparés par virgule)</label>
-                      <input
+                      <FormInput
                         id="feed-include-keywords"
                         bind:value={feedDraft.includeKeywords}
                         disabled={!canManageSettings}
-                        class="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-semibold outline-none focus:border-primary/40"
+                        className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-semibold outline-none focus:border-primary/40"
                         placeholder="ia, open-source, release"
                       />
                     </div>
 
                     <div class="space-y-2">
                       <label for="feed-exclude-keywords" class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Mots-clés exclus (séparés par virgule)</label>
-                      <input
+                      <FormInput
                         id="feed-exclude-keywords"
                         bind:value={feedDraft.excludeKeywords}
                         disabled={!canManageSettings}
-                        class="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-semibold outline-none focus:border-primary/40"
+                        className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-semibold outline-none focus:border-primary/40"
                         placeholder="sponsorisé, promo"
                       />
                     </div>
@@ -504,12 +521,12 @@
           <div class="premium-card p-10 rounded-[3rem] space-y-10 group">
              <div class="space-y-4">
                 <label class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.25em] ml-2 block" for="yt-id">ID de la chaîne de référence</label>
-                <input 
-                  id="yt-id" 
-                  type="text" 
+                <FormInput
+                  id="yt-id"
+                  type="text"
                   bind:value={youtubeReferenceChannelId}
                   disabled={!canManageSettings}
-                  class="w-full px-6 py-4 bg-surface-container-low border border-outline-variant/10 focus:border-red-500/30 focus:shadow-xl focus:shadow-red-500/5 transition-all rounded-2xl text-sm font-bold outline-none" 
+                  className="w-full px-6 py-4 bg-surface-container-low border border-outline-variant/10 focus:border-red-500/30 focus:shadow-xl focus:shadow-red-500/5 transition-all rounded-2xl text-sm font-bold outline-none"
                   placeholder="UCxxxxxxxxxxxxxxxxx"
                 />
                 <p class="text-[10px] text-slate-400 ml-2">L'ID de la chaîne YouTube dont les nouvelles vidéos seront automatiquement publiées.</p>
@@ -528,16 +545,11 @@
                   <p class="text-sm font-black text-on-surface">Activation du module</p>
                   <p class="text-xs text-on-surface-variant/70 mt-1">Définissez l'état opérationnel de ce module et appliquez via "Enregistrer".</p>
                 </div>
-                <label class="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={desiredModuleStatus === 'active'}
-                    disabled={!canManageSettings}
-                    onchange={() => (desiredModuleStatus = desiredModuleStatus === 'active' ? 'inactive' : 'active')}
-                    class="sr-only peer"
-                  />
-                  <div class="w-14 h-7 bg-slate-200 dark:bg-slate-700 rounded-full peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-1 after:left-1 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                </label>
+                <ToggleSwitch
+                  checked={desiredModuleStatus === 'active'}
+                  disabled={!canManageSettings}
+                  onToggle={() => (desiredModuleStatus = desiredModuleStatus === 'active' ? 'inactive' : 'active')}
+                />
               </div>
 
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -561,6 +573,34 @@
     </div>
   </div>
 </div>
+
+{#if deleteFeedModalOpen && pendingFeedDeletion}
+  <div class="fixed inset-0 z-80 bg-black/45 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="delete-feed-title">
+    <div class="w-full max-w-md rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-6 space-y-4">
+      <div>
+        <p class="text-[10px] font-black uppercase tracking-[0.2em] text-red-500">Confirmation</p>
+        <h3 id="delete-feed-title" class="mt-1 text-lg font-black text-on-surface">Supprimer ce flux RSS ?</h3>
+        <p class="mt-2 text-sm text-on-surface-variant">
+          Le flux <span class="font-bold text-on-surface">{pendingFeedDeletion.name}</span> sera supprimé de cette instance.
+        </p>
+      </div>
+      <div class="flex items-center justify-end gap-2">
+        <button
+          onclick={closeDeleteFeedModal}
+          class="px-4 py-2 rounded-xl border border-outline-variant/30 text-xs font-black uppercase tracking-[0.12em] text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
+        >
+          Annuler
+        </button>
+        <button
+          onclick={confirmDeleteFeed}
+          class="px-4 py-2 rounded-xl bg-red-600 text-white text-xs font-black uppercase tracking-[0.12em] hover:bg-red-700 transition-colors"
+        >
+          Supprimer
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .scrollbar-hide::-webkit-scrollbar { display: none; }

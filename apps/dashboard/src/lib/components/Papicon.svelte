@@ -12,7 +12,8 @@
   const fallbackIconName = "Grid";
 
   const iconAliases = {
-    "alert-triangle": "AlertTriangle"
+    "alert-triangle": "AlertTriangle",
+    "gavel": "Policy"
   };
 
   function toPapiconsName(value) {

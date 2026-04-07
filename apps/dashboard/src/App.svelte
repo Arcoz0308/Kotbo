@@ -12,9 +12,11 @@
   import ContentDiffusion from './pages/ContentDiffusion.svelte';
   import ActivityLog from './pages/ActivityLog.svelte';
   import NotificationsSettings from './pages/NotificationsSettings.svelte';
+  import CommandAccess from './pages/CommandAccess.svelte';
   import ModuleSettings from './pages/ModuleSettings.svelte';
+  import Sanctions from './pages/Sanctions.svelte';
 
-  const adminOnlyPrefixes = ['/modules', '/module-settings', '/settings', '/notifications', '/automations'];
+    const adminOnlyPrefixes = ['/modules', '/module-settings', '/settings', '/notifications', '/automations', '/command-access'];
 
   function isAdminOnlyRoute(path: string) {
     return adminOnlyPrefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
@@ -81,6 +83,9 @@
       <Route path="/activity">
         <ActivityLog />
       </Route>
+      <Route path="/sanctions">
+        <Sanctions />
+      </Route>
       {#if canManageSettings}
         <Route path="/modules">
           <ModuleCatalog />
@@ -90,6 +95,9 @@
         </Route>
         <Route path="/notifications">
           <NotificationsSettings />
+        </Route>
+        <Route path="/command-access">
+          <CommandAccess />
         </Route>
         <Route path="/settings">
           <NotificationsSettings />

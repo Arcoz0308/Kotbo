@@ -40,7 +40,19 @@ async function authorizedFetch(url, options = {}) {
 }
 
 function getGuildId(guildId) {
-  return guildId || authStore.selectedGuildId;
+  const requestedGuildId = guildId || authStore.selectedGuildId;
+  if (!requestedGuildId) return null;
+
+  if (authStore.guilds.length === 0) {
+    return requestedGuildId;
+  }
+
+  const accessibleGuild = authStore.guilds.find((guild) => guild.id === requestedGuildId);
+  if (accessibleGuild) {
+    return requestedGuildId;
+  }
+
+  return authStore.guilds[0]?.id ?? requestedGuildId;
 }
 
 async function dashboardMutation(path, {
@@ -189,5 +201,31 @@ export async function updateNotificationsSettings(notifications, guildId = authS
     payload: notifications,
     guildId,
     errorContext: 'API Error (Notifications):'
+  });
+}
+
+export async function updateCommandAccessSettings(commandRestrictions, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/command-access', {
+    method: 'PUT',
+    payload: { commandRestrictions },
+    guildId,
+    errorContext: 'API Error (Command Access):'
+  });
+}
+
+export async function createSanctionReport(report, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/sanctions/reports', {
+    method: 'POST',
+    payload: report,
+    guildId,
+    errorContext: 'API Error (Sanction Report):'
+  });
+}
+
+export async function deleteSanction(sanctionId, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/sanctions/${sanctionId}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Delete Sanction):'
   });
 }

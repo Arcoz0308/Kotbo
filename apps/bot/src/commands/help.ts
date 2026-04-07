@@ -23,6 +23,7 @@ import * as adminCmd from './admin.js';
 import * as postCmd from './post.js';
 import * as dailyAlgoCmd from './dailyAlgo.js';
 import * as newsRecoveryCmd from './news-rattrapage.js';
+import * as sanctionCmd from './sanction.js';
 
 type CommandJson = {
   name: string;
@@ -129,8 +130,15 @@ const COMMANDS: HelpCommand[] = [
     category: 'Administration',
     summary: 'Réunit les commandes de maintenance et de configuration avancée',
   },
+  {
+    command: sanctionCmd,
+    icon: '🛡️',
+    category: 'Administration',
+    summary: 'Gère les sanctions: warn, timeout, kick, ban et tempban',
+  },
 ].map(({ command, ...meta }) => ({
   ...meta,
+  category: meta.category as HelpCategory,
   ...(command.data.toJSON() as CommandJson),
 }));
 

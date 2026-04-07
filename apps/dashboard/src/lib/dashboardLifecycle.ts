@@ -33,9 +33,15 @@ function waitForBrowserIdle() {
 
 export function refreshDashboardOnMount() {
   onMount(() => {
-    dashboardStore.refresh();
+    const handleRefreshRequest = () => {
+      dashboardStore.refresh();
+    };
 
-    if (!authStore.token) return;
+    window.addEventListener('kotbo-dashboard-refresh-request', handleRefreshRequest);
+
+    if (authStore.guilds.length > 0) {
+      dashboardStore.refresh();
+    }
 
     let socket = null;
     let reconnectTimer = null;
@@ -83,19 +89,22 @@ export function refreshDashboardOnMount() {
       };
     };
 
-    if (document.readyState === 'complete') {
-      connect();
-    } else {
-      loadListener = () => {
+    if (authStore.token) {
+      if (document.readyState === 'complete') {
         connect();
-      };
-      window.addEventListener('load', loadListener, { once: true });
+      } else {
+        loadListener = () => {
+          connect();
+        };
+        window.addEventListener('load', loadListener, { once: true });
+      }
     }
 
     return () => {
       intentionallyClosed = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
       if (loadListener) window.removeEventListener('load', loadListener);
+      window.removeEventListener('kotbo-dashboard-refresh-request', handleRefreshRequest);
       if (socket) socket.close();
     };
   });

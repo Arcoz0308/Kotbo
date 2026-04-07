@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { ChannelType, type Client, type TextChannel } from 'discord.js';
+import { SanctionType } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 import WebSocket, { WebSocketServer } from 'ws';
 import prisma from '../utils/db.js';
@@ -7,6 +8,11 @@ import { logger } from '../utils/logger.js';
 import { translate } from '../services/translationService.js';
 import { sendApprovedItem } from '../services/notificationService.js';
 import { applyTopicFeedback, extractInterestTopics } from '../services/interestService.js';
+import {
+  COMMAND_CATALOG,
+  normalizeCommandRestrictions,
+  type CommandRestrictionRule,
+} from '../utils/commandAccess.js';
 
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
@@ -85,6 +91,43 @@ type AuditEntry = {
   dateIso: string;
 };
 
+type DashboardSanctionType = 'WARN' | 'KICK' | 'TIMEOUT' | 'TEMP_BAN' | 'BAN';
+type DashboardSanctionStatus = 'ACTIVE' | 'RESOLVED' | 'FAILED';
+
+type SanctionItem = {
+  id: string;
+  type: DashboardSanctionType;
+  status: DashboardSanctionStatus;
+  targetUserId: string;
+  targetTag: string;
+  moderatorUserId: string;
+  moderatorTag: string;
+  reason: string;
+  durationSeconds: number | null;
+  expiresAt: string | null;
+  createdAt: string;
+  resolvedAt: string | null;
+  resolutionNote: string | null;
+};
+
+type SanctionReportItem = {
+  id: string;
+  sanctionId: string | null;
+  staffPseudo: string;
+  incidentAt: string;
+  memberPseudo: string;
+  memberReference: string;
+  sanctionType: DashboardSanctionType;
+  sanctionDurationLabel: string | null;
+  brokenRules: string;
+  detailedReason: string;
+  evidenceLinks: string[];
+  additionalNotes: string | null;
+  createdByUserId: string;
+  createdByTag: string | null;
+  createdAt: string;
+};
+
 type AnalyticsData = {
   activityTrend: number[];
   totalAutomations: number;
@@ -105,6 +148,15 @@ type DashboardRole = {
   mention: string;
 };
 
+type CommandRestrictionState = CommandRestrictionRule;
+
+type CommandCatalogEntry = {
+  name: string;
+  label: string;
+  description: string;
+  defaultAccess: 'tout_le_monde' | 'modération' | 'administration';
+};
+
 type DashboardAccessLevel = 'none' | 'moderator' | 'admin';
 
 type DashboardAccess = {
@@ -122,6 +174,8 @@ type DashboardState = {
   discordChannels: DashboardChannel[];
   discordRoles: DashboardRole[];
   moderatorRoleId: string;
+  commandRestrictions: CommandRestrictionState[];
+  commandCatalog: CommandCatalogEntry[];
   access: {
     level: Exclude<DashboardAccessLevel, 'none'>;
     canModerateContent: boolean;
@@ -130,6 +184,8 @@ type DashboardState = {
   youtubeReferenceChannelId: string;
   notifications: NotificationSettings;
   auditTrail: AuditEntry[];
+  sanctions: SanctionItem[];
+  sanctionReports: SanctionReportItem[];
   messageTemplate: string;
   analytics: AnalyticsData;
 };
@@ -141,6 +197,7 @@ type RuntimeState = {
   debugLog: boolean;
   killSwitchEnabled: boolean;
   severityByModule: Array<{ module: string; level: SeverityLevel }>;
+  commandRestrictions: CommandRestrictionState[];
   messageTemplate: string;
 };
 
@@ -173,6 +230,37 @@ function normalizeLangCode(value: string | null | undefined): string | null {
   return /^[A-Z]{2}$/.test(normalized) ? normalized : null;
 }
 
+function isDashboardSanctionType(value: string): value is DashboardSanctionType {
+  return value === 'WARN' || value === 'KICK' || value === 'TIMEOUT' || value === 'TEMP_BAN' || value === 'BAN';
+}
+
+function toSanctionType(value: DashboardSanctionType): SanctionType {
+  return value as SanctionType;
+}
+
+function parseEvidenceLinks(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+    .filter((entry) => /^https?:\/\//i.test(entry));
+}
+
+function formatSanctionDurationLabel(seconds: number | null): string | null {
+  if (!seconds) return null;
+
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const parts: string[] = [];
+
+  if (days) parts.push(`${days}j`);
+  if (hours) parts.push(`${hours}h`);
+  if (minutes) parts.push(`${minutes}m`);
+
+  return parts.length > 0 ? parts.join(' ') : `${seconds}s`;
+}
+
 const toRuntimeState = (settings: {
   email: string;
   emailEnabled: boolean;
@@ -180,6 +268,7 @@ const toRuntimeState = (settings: {
   debugLog: boolean;
   killSwitchEnabled: boolean;
   severityByModule: unknown;
+  commandRestrictions: unknown;
   messageTemplate: string;
 }): RuntimeState => {
   const rawSeverity = Array.isArray(settings.severityByModule)
@@ -209,6 +298,7 @@ const toRuntimeState = (settings: {
     debugLog: settings.debugLog,
     killSwitchEnabled: settings.killSwitchEnabled,
     severityByModule: severityByModule.length > 0 ? severityByModule : DEFAULT_SEVERITY_BY_MODULE,
+    commandRestrictions: normalizeCommandRestrictions(settings.commandRestrictions),
     messageTemplate: settings.messageTemplate || DEFAULT_MESSAGE_TEMPLATE
   };
 };
@@ -439,6 +529,7 @@ const getOrCreateRuntime = async (guildId: string): Promise<RuntimeState> => {
       debugLog: false,
       killSwitchEnabled: false,
       severityByModule: DEFAULT_SEVERITY_BY_MODULE,
+      commandRestrictions: [],
       messageTemplate: DEFAULT_MESSAGE_TEMPLATE
     }
   });
@@ -481,7 +572,9 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
     lastWeekYt,
     lastWeekAlgos,
     runtime,
-    persistedAudit
+    persistedAudit,
+    sanctions,
+    sanctionReports,
   ] = await Promise.all([
     prisma.feed.findMany({ where: { guildId }, orderBy: { createdAt: 'desc' } }),
     prisma.feedItem.findMany({
@@ -514,7 +607,17 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
       where: { guildId },
       orderBy: { dateIso: 'desc' },
       take: 160
-    })
+    }),
+    prisma.sanction.findMany({
+      where: { guildId },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    }),
+    prisma.sanctionReport.findMany({
+      where: { guildId },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    }),
   ]);
 
   const auditTrailFromDb: AuditEntry[] = persistedAudit.map((entry) => ({
@@ -526,6 +629,40 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
     eventType: entry.eventType,
     details: entry.details,
     dateIso: entry.dateIso.toISOString()
+  }));
+
+  const mappedSanctions: SanctionItem[] = sanctions.map((entry) => ({
+    id: entry.id,
+    type: entry.type as DashboardSanctionType,
+    status: entry.status as DashboardSanctionStatus,
+    targetUserId: entry.targetUserId,
+    targetTag: entry.targetTag ?? `Utilisateur ${entry.targetUserId}`,
+    moderatorUserId: entry.moderatorUserId,
+    moderatorTag: entry.moderatorTag ?? `Modérateur ${entry.moderatorUserId}`,
+    reason: entry.reason,
+    durationSeconds: entry.durationSeconds,
+    expiresAt: entry.expiresAt?.toISOString() ?? null,
+    createdAt: entry.createdAt.toISOString(),
+    resolvedAt: entry.resolvedAt?.toISOString() ?? null,
+    resolutionNote: entry.resolutionNote ?? null,
+  }));
+
+  const mappedSanctionReports: SanctionReportItem[] = sanctionReports.map((entry) => ({
+    id: entry.id,
+    sanctionId: entry.sanctionId ?? null,
+    staffPseudo: entry.staffPseudo,
+    incidentAt: entry.incidentAt.toISOString(),
+    memberPseudo: entry.memberPseudo,
+    memberReference: entry.memberReference,
+    sanctionType: entry.sanctionType as DashboardSanctionType,
+    sanctionDurationLabel: entry.sanctionDurationLabel ?? null,
+    brokenRules: entry.brokenRules,
+    detailedReason: entry.detailedReason,
+    evidenceLinks: entry.evidenceLinks,
+    additionalNotes: entry.additionalNotes ?? null,
+    createdByUserId: entry.createdByUserId,
+    createdByTag: entry.createdByTag ?? null,
+    createdAt: entry.createdAt.toISOString(),
   }));
 
   const feedMapped: FeedItem[] = feeds.map((feed) => ({
@@ -680,6 +817,8 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
     discordChannels,
     discordRoles,
     moderatorRoleId: guild.moderatorRoleId ?? '',
+    commandRestrictions: runtime.commandRestrictions,
+    commandCatalog: COMMAND_CATALOG,
     access: {
       level: access.level === 'admin' ? 'admin' : 'moderator',
       canModerateContent: access.canModerateContent,
@@ -696,6 +835,8 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
       severityByModule: runtime.severityByModule
     },
     auditTrail: [...auditTrailFromDb, ...inferredAudit].slice(0, 180),
+    sanctions: mappedSanctions,
+    sanctionReports: mappedSanctionReports,
     messageTemplate: runtime.messageTemplate,
     analytics: {
       activityTrend: Array.from({ length: 7 }, (_, i) => {
@@ -724,6 +865,37 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
 };
 
 const splitPath = (pathname: string) => pathname.split('/').filter(Boolean);
+
+let dashboardStateBroadcaster: ((guildId: string, reason: string) => void) | null = null;
+
+export async function notifyDashboardSanctionReportRequired(params: {
+  guildId: string;
+  sanctionId: string;
+  sanctionType: DashboardSanctionType;
+  targetTag: string;
+  moderatorTag: string;
+}) {
+  const details = [
+    `Sanction ${params.sanctionType} appliquée à ${params.targetTag}.`,
+    `Rapport à compléter pour ${params.moderatorTag}.`,
+    `ID sanction: ${params.sanctionId}.`,
+  ].join(' ');
+
+  await prisma.dashboardAuditLog.create({
+    data: {
+      guildId: params.guildId,
+      user: params.moderatorTag,
+      action: 'Rapport de sanction requis',
+      context: `Sanction ${params.sanctionType}`,
+      module: 'Sanctions',
+      eventType: 'Action requise',
+      details,
+      dateIso: new Date(),
+    },
+  });
+
+  dashboardStateBroadcaster?.(params.guildId, 'sanction_report_required');
+}
 
 export const startDashboardApi = (client: Client) => {
   const port = Number(process.env.DASHBOARD_API_PORT ?? '8787');
@@ -763,6 +935,8 @@ export const startDashboardApi = (client: Client) => {
       }
     });
   };
+
+  dashboardStateBroadcaster = broadcastDashboardStateChange;
 
   const server = createServer(async (req, res) => {
     try {
@@ -1067,13 +1241,23 @@ export const startDashboardApi = (client: Client) => {
             && req.method === 'POST'
             && ['force-send', 'mark-error', 'translate', 'translate-title', 'translate-description'].includes(parts[6]);
 
-          if (!access.canManageSettings && req.method !== 'GET' && !isContentAction) {
+          const isSanctionAction = parts.length === 6
+            && parts[4] === 'sanctions'
+            && parts[5] === 'reports'
+            && req.method === 'POST';
+
+          if (!access.canManageSettings && req.method !== 'GET' && !isContentAction && !isSanctionAction) {
             json(res, 403, { error: 'Action réservée aux administrateurs du dashboard.' });
             return;
           }
 
           if (isContentAction && !access.canModerateContent) {
             json(res, 403, { error: 'Action de modération non autorisée.' });
+            return;
+          }
+
+          if (isSanctionAction && !access.canModerateContent) {
+            json(res, 403, { error: 'Action de rapport de sanction non autorisée.' });
             return;
           }
 
@@ -1470,6 +1654,143 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
+          if (parts.length === 6 && parts[4] === 'sanctions' && req.method === 'DELETE' && parts[5] !== 'reports') {
+            if (access.level !== 'admin') {
+              json(res, 403, { error: 'Seuls les administrateurs peuvent supprimer une infraction.' });
+              return;
+            }
+
+            const sanctionId = parts[5];
+            const sanction = await prisma.sanction.findFirst({
+              where: { id: sanctionId, guildId },
+              select: {
+                id: true,
+                type: true,
+                targetTag: true,
+                targetUserId: true,
+              }
+            });
+
+            if (!sanction) {
+              json(res, 404, { error: 'Infraction introuvable sur ce serveur.' });
+              return;
+            }
+
+            await prisma.sanction.delete({ where: { id: sanction.id } });
+
+            await pushAudit(guildId, {
+              user: auditUser,
+              action: 'Suppression infraction',
+              context: getGuildName(client, guildId),
+              module: 'Sanctions',
+              eventType: 'Manuel',
+              details: `Infraction ${sanction.id} supprimée (${sanction.type}) pour ${sanction.targetTag ?? sanction.targetUserId}.`
+            });
+
+            broadcastDashboardStateChange(guildId, 'sanction_deleted');
+            json(res, 200, { ok: true });
+            return;
+          }
+
+          if (parts.length === 6 && parts[4] === 'sanctions' && parts[5] === 'reports' && req.method === 'POST') {
+            const body = await readJsonBody<{
+              sanctionId?: string | null;
+              staffPseudo?: string;
+              incidentAt?: string;
+              memberPseudo?: string;
+              memberReference?: string;
+              sanctionType?: string;
+              sanctionDurationLabel?: string | null;
+              brokenRules?: string;
+              detailedReason?: string;
+              evidenceLinks?: unknown;
+              additionalNotes?: string | null;
+            }>(req);
+
+            const sanctionId = body?.sanctionId?.trim() ?? '';
+            const brokenRules = body?.brokenRules?.trim() ?? '';
+            const detailedReason = body?.detailedReason?.trim() ?? '';
+            const evidenceLinks = parseEvidenceLinks(body?.evidenceLinks);
+            const incidentAt = body?.incidentAt ? new Date(body.incidentAt) : null;
+
+            if (!sanctionId) {
+              json(res, 400, { error: 'La sanction liée est obligatoire pour créer un rapport.' });
+              return;
+            }
+
+            if (!incidentAt || Number.isNaN(incidentAt.getTime())) {
+              json(res, 400, { error: 'Date/heure de l\'incident invalide.' });
+              return;
+            }
+
+            if (evidenceLinks.length === 0) {
+              json(res, 400, { error: 'Au moins un lien de preuve valide est obligatoire.' });
+              return;
+            }
+
+            const sanction = await prisma.sanction.findFirst({ where: { id: sanctionId, guildId } });
+            if (!sanction) {
+              json(res, 404, { error: 'Sanction liée introuvable sur ce serveur.' });
+              return;
+            }
+
+            if (sanction.moderatorUserId !== user.userId) {
+              json(res, 403, { error: 'Seule la personne qui a appliqué la sanction peut créer ce rapport.' });
+              return;
+            }
+
+            const existingReport = await prisma.sanctionReport.findFirst({ where: { guildId, sanctionId } });
+            if (existingReport) {
+              json(res, 409, { error: 'Un rapport existe déjà pour cette sanction.' });
+              return;
+            }
+
+            const staffPseudo = sanction.moderatorTag?.trim() || body?.staffPseudo?.trim() || getAuditActor(user);
+            const memberPseudo = sanction.targetTag?.trim() || body?.memberPseudo?.trim() || `Utilisateur ${sanction.targetUserId}`;
+            const memberReference = sanction.targetUserId?.trim() || body?.memberReference?.trim() || sanction.targetUserId;
+            const sanctionTypeRaw = sanction.type as DashboardSanctionType;
+            const sanctionDurationLabel = body?.sanctionDurationLabel?.trim() || formatSanctionDurationLabel(sanction.durationSeconds);
+            const finalIncidentAt = Number.isNaN(incidentAt.getTime()) ? sanction.createdAt : incidentAt;
+            const finalBrokenRules = brokenRules || sanction.reason;
+            const finalDetailedReason = detailedReason || sanction.reason;
+
+            if (!finalBrokenRules || !finalDetailedReason) {
+              json(res, 400, { error: 'Les champs de contenu du rapport sont obligatoires.' });
+              return;
+            }
+
+            const report = await prisma.sanctionReport.create({
+              data: {
+                guildId,
+                sanctionId,
+                staffPseudo,
+                incidentAt: finalIncidentAt,
+                memberPseudo,
+                memberReference,
+                sanctionType: toSanctionType(sanctionTypeRaw),
+                sanctionDurationLabel,
+                brokenRules: finalBrokenRules,
+                detailedReason: finalDetailedReason,
+                evidenceLinks,
+                additionalNotes: body?.additionalNotes?.trim() || null,
+                createdByUserId: user.userId,
+                createdByTag: user.username ?? null,
+              }
+            });
+
+            await pushAudit(guildId, {
+              user: auditUser,
+              action: 'Création rapport sanction',
+              context: getGuildName(client, guildId),
+              module: 'Sanctions',
+              eventType: 'Manuel',
+              details: `Rapport ${report.id} créé pour ${memberPseudo} (${sanctionTypeRaw}).`
+            });
+
+            json(res, 201, { ok: true, reportId: report.id });
+            return;
+          }
+
           if (parts.length === 5 && parts[4] === 'notifications' && req.method === 'PUT') {
             const body = await readJsonBody<NotificationSettings>(req);
             if (!body) {
@@ -1554,6 +1875,33 @@ export const startDashboardApi = (client: Client) => {
               module: 'Dashboard',
               eventType: 'Manuel',
               details: 'Paramètres globaux mis à jour.'
+            });
+
+            json(res, 200, { ok: true });
+            return;
+          }
+
+          if (parts.length === 5 && parts[4] === 'command-access' && req.method === 'PUT') {
+            const body = await readJsonBody<{ commandRestrictions?: unknown }>(req);
+            if (!body) {
+              json(res, 400, { error: 'Payload de restrictions invalide' });
+              return;
+            }
+
+            const commandRestrictions = normalizeCommandRestrictions(body.commandRestrictions);
+
+            await prisma.dashboardSettings.update({
+              where: { guildId },
+              data: { commandRestrictions }
+            });
+
+            await pushAudit(guildId, {
+              user: auditUser,
+              action: 'Sauvegarde restrictions commandes',
+              context: getGuildName(client, guildId),
+              module: 'Dashboard',
+              eventType: 'Manuel',
+              details: `${commandRestrictions.length} règle(s) de commande enregistrée(s).`
             });
 
             json(res, 200, { ok: true });

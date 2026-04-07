@@ -4,6 +4,7 @@ import { pollAllFeeds } from '../services/rssService.js';
 import { pollAllYouTubeChannels } from '../services/youtubeService.js';
 import { runDigestForAllGuilds, runDailyAlgoForAllGuilds } from '../services/digestService.js';
 import { runDailyAlgoSummariesForAllGuilds } from '../services/dailyAlgoService.js';
+import { processScheduledSanctions } from '../services/sanctionService.js';
 import { logger } from '../utils/logger.js';
 
 const runningJobs = new Set<string>();
@@ -77,6 +78,13 @@ export async function registerCrons(client: Client): Promise<void> {
       logger.debug('Cron', 'Génération du bilan quotidien Daily Algo...');
       await runDailyAlgoSummariesForAllGuilds(client);
     }, 2000);
+  });
+
+  cron.schedule('* * * * *', async () => {
+    await runCronJob('sanctions', async () => {
+      logger.debug('Cron', 'Traitement des sanctions planifiées...');
+      await processScheduledSanctions(client);
+    }, 1000);
   });
 
   logger.success('Cron', 'Tous les jobs cron sont enregistrés');

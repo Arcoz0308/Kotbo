@@ -37,7 +37,15 @@ import * as adminCmd from './commands/admin.js';
 import * as helpCmd from './commands/help.js';
 import * as postCmd from './commands/post.js';
 import * as dailyAlgoCmd from './commands/dailyAlgo.js';
+import * as sanctionCmd from './commands/sanction.js';
+import prisma from './utils/db.js';
+import {
+  evaluateCommandRestriction,
+  isPrivilegedCommandExecutor,
+  normalizeCommandRestrictions,
+} from './utils/commandAccess.js';
 import { registerCodePoliceListener } from './events/codePolice.js';
+import { registerModerationAuditListener } from './events/moderation.js';
 import { registerDailyAlgoHandlers } from './handlers/dailyAlgoHandler.js';
 import { checkTranslationProviderHealth } from './services/translationService.js';
 import { startDashboardApi } from './api/dashboardApi.js';
@@ -47,6 +55,8 @@ import botPackageJson from '../package.json';
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildModeration,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages,
@@ -63,9 +73,43 @@ type SlashCommand = {
 };
 
 const commands = new Collection<string, SlashCommand>();
-[setupCmd, configCmd, feedCmd, newsCmd, newsRecoveryCmd, pingCmd, infoCmd, youtubeCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd, postCmd, dailyAlgoCmd].forEach((cmd) => {
+[setupCmd, configCmd, feedCmd, newsCmd, newsRecoveryCmd, pingCmd, infoCmd, youtubeCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd, postCmd, dailyAlgoCmd, sanctionCmd].forEach((cmd) => {
   commands.set(cmd.data.name, cmd as SlashCommand);
 });
+
+async function enforceCommandAccess(interaction: ChatInputCommandInteraction): Promise<boolean> {
+  if (!interaction.guildId) return true;
+
+  const settings = await prisma.dashboardSettings.findUnique({
+    where: { guildId: interaction.guildId },
+    select: { commandRestrictions: true },
+  });
+
+  const commandRestrictions = normalizeCommandRestrictions(settings?.commandRestrictions);
+  if (commandRestrictions.length === 0) return true;
+
+  const isPrivileged = isPrivilegedCommandExecutor(interaction);
+  const roleIds = isPrivileged
+    ? []
+    : (await interaction.guild?.members.fetch(interaction.user.id).catch(() => null))?.roles.cache.map((role) => role.id) ?? [];
+
+  const decision = evaluateCommandRestriction(
+    commandRestrictions,
+    interaction.commandName,
+    interaction.channelId,
+    roleIds,
+    isPrivileged,
+  );
+
+  if (decision.allowed) return true;
+
+  await interaction.reply({
+    content: `❌ ${decision.reason ?? 'Cette commande est bloquée par la configuration du serveur.'}`,
+    flags: [MessageFlags.Ephemeral],
+  });
+
+  return false;
+}
 
 
 client.once(Events.ClientReady, async (c) => {
@@ -75,6 +119,7 @@ client.once(Events.ClientReady, async (c) => {
   await checkTranslationProviderHealth();
 
   registerCodePoliceListener(client);
+  registerModerationAuditListener(client);
   registerDailyAlgoHandlers(client);
   await registerCrons(client);
 });
@@ -82,6 +127,10 @@ client.once(Events.ClientReady, async (c) => {
 client.on(Events.InteractionCreate, async (interaction) => {
   try {
     if (interaction.isChatInputCommand()) {
+      if (!(await enforceCommandAccess(interaction))) {
+        return;
+      }
+
       const cmd = commands.get(interaction.commandName);
       if (!cmd) {
         await interaction.reply({

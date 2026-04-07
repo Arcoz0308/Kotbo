@@ -1,6 +1,6 @@
 {
   "name": "@kotbo/bot",
-  "version": "1.4.1",
+  "version": "5.0",
   "private": true,
   "scripts": {
     "prestart": "bun run quality:gate",
