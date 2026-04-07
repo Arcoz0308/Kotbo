@@ -13,7 +13,9 @@
 
   const iconAliases = {
     "alert-triangle": "AlertTriangle",
-    "gavel": "Policy"
+    "gavel": "Grid",
+    "policy": "Grid",
+    "admin_panel_settings": "Grid"
   };
 
   function toPapiconsName(value) {

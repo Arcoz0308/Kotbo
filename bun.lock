@@ -13,7 +13,7 @@
     },
     "apps/bot": {
       "name": "@kotbo/bot",
-      "version": "5.0 ",
+      "version": "5.1 ",
       "dependencies": {
         "@kotbo/database": "workspace:*",
         "@napi-rs/canvas": "^0.1.65",
@@ -41,7 +41,7 @@
     },
     "apps/dashboard": {
       "name": "@kotbo/dashboard",
-      "version": "2.0",
+      "version": "2.1",
       "dependencies": {
         "@getpapillon/papicons": "^0.2.1",
         "lucide-svelte": "^1.0.1",

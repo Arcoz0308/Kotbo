@@ -29,6 +29,7 @@ import {
 const DURATION_HELP = 'Exemples: 30m, 2h, 3j, 1 semaine';
 const SANCTION_PAGE_SIZE = 5;
 const SANCTION_LIST_TIMEOUT_MS = 2 * 60 * 1000;
+const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://localhost:5173';
 
 export const data = new SlashCommandBuilder()
   .setName('sanction')
@@ -105,6 +106,34 @@ function validateTarget(interaction: ChatInputCommandInteraction<'cached'>, memb
 
 async function replyError(interaction: ChatInputCommandInteraction, title: string, description: string) {
   await interaction.reply({ embeds: [errorEmbed(title, description)], flags: [MessageFlags.Ephemeral] });
+}
+
+async function notifyModeratorDashboardReportReminder(
+  interaction: ChatInputCommandInteraction<'cached'>,
+  params: { sanctionId: string; targetLabel: string },
+) {
+  const dashboardSanctionsUrl = `${DASHBOARD_URL.replace(/\/+$/, '')}/sanctions`;
+  const reminderEmbed = infoEmbed(
+    'Rapport à compléter',
+    [
+      `Tu as sanctionné ${params.targetLabel}.`,
+      'Pense à compléter le rapport associé dans le dashboard.',
+      `Accès: ${dashboardSanctionsUrl}`,
+    ].join('\n'),
+  ).addFields({ name: 'ID sanction', value: params.sanctionId, inline: false });
+
+  try {
+    await interaction.user.send({ embeds: [reminderEmbed] });
+    await interaction.followUp({
+      embeds: [infoEmbed('Rappel envoyé', 'Je t\'ai envoyé un MP pour compléter le rapport de sanction.')],
+      flags: [MessageFlags.Ephemeral],
+    });
+  } catch {
+    await interaction.followUp({
+      embeds: [reminderEmbed],
+      flags: [MessageFlags.Ephemeral],
+    });
+  }
 }
 
 function sanctionTypeLabel(type: SanctionType): string {
@@ -312,7 +341,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     if (subcommand === 'warn') {
       const reason = interaction.options.getString('raison', true).trim();
 
-      await registerWarnSanction({ guildId: interaction.guildId, target, moderator, reason });
+      const sanction = await registerWarnSanction({ guildId: interaction.guildId, target, moderator, reason });
       const warnCount = await countWarns(interaction.guildId, targetUser.id);
 
       await interaction.reply({
@@ -322,6 +351,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
             { name: 'Nombre total de warns', value: `${warnCount}`, inline: true },
           ),
         ],
+      });
+
+      await notifyModeratorDashboardReportReminder(interaction, {
+        sanctionId: sanction.id,
+        targetLabel: targetUser.tag,
       });
       return;
     }
@@ -364,6 +398,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
           ),
         ],
       });
+
+      await notifyModeratorDashboardReportReminder(interaction, {
+        sanctionId: sanction.id,
+        targetLabel: targetUser.tag,
+      });
       return;
     }
 
@@ -380,10 +419,15 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       }
 
       await targetMember.kick(`${reason} | Modération: ${interaction.user.tag}`);
-      await registerKickSanction({ guildId: interaction.guildId, target, moderator, reason });
+      const sanction = await registerKickSanction({ guildId: interaction.guildId, target, moderator, reason });
 
       await interaction.reply({
         embeds: [successEmbed('Kick exécuté', `${targetUser.tag} a été exclu du serveur.`).addFields({ name: 'Raison', value: reason })],
+      });
+
+      await notifyModeratorDashboardReportReminder(interaction, {
+        sanctionId: sanction.id,
+        targetLabel: targetUser.tag,
       });
       return;
     }
@@ -397,10 +441,15 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       }
 
       await runGuildBan(interaction.guild, targetUser.id, `${reason} | Modération: ${interaction.user.tag}`);
-      await registerBanSanction({ guildId: interaction.guildId, target, moderator, reason });
+      const sanction = await registerBanSanction({ guildId: interaction.guildId, target, moderator, reason });
 
       await interaction.reply({
         embeds: [successEmbed('Ban exécuté', `${targetUser.tag} a été banni définitivement.`).addFields({ name: 'Raison', value: reason })],
+      });
+
+      await notifyModeratorDashboardReportReminder(interaction, {
+        sanctionId: sanction.id,
+        targetLabel: targetUser.tag,
       });
       return;
     }
@@ -437,6 +486,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
             { name: 'Déban auto', value: `<t:${Math.floor((sanction.expiresAt?.getTime() ?? Date.now()) / 1000)}:F>`, inline: false },
           ),
         ],
+      });
+
+      await notifyModeratorDashboardReportReminder(interaction, {
+        sanctionId: sanction.id,
+        targetLabel: targetUser.tag,
       });
       return;
     }

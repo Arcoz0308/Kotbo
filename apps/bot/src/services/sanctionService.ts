@@ -1,5 +1,5 @@
 import { Guild, GuildMember, type Client } from 'discord.js';
-import { SanctionStatus, SanctionType } from '@prisma/client';
+import { Prisma, SanctionStatus, SanctionType } from '@prisma/client';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { notifyDashboardSanctionReportRequired } from '../api/dashboardApi.js';
@@ -7,6 +7,7 @@ import { notifyDashboardSanctionReportRequired } from '../api/dashboardApi.js';
 const MAX_DISCORD_TIMEOUT_MS = 27 * 24 * 60 * 60 * 1000;
 const RENEWAL_BUFFER_MS = 60 * 1000;
 const SANCTION_DEDUPE_WINDOW_MS = 30 * 1000;
+let hasLoggedSanctionSchemaMismatch = false;
 
 type Actor = {
   id: string;
@@ -106,6 +107,19 @@ function nextRenewalAt(now: Date, chunkMs: number): Date {
     return new Date(now.getTime() + 1000);
   }
   return next;
+}
+
+function isSanctionsSchemaMismatchError(error: unknown): boolean {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) {
+    return false;
+  }
+
+  if (error.code !== 'P2021' && error.code !== 'P2022') {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+  return message.includes('sanction') || message.includes('nextactionat');
 }
 
 async function applyTimeoutChunk(member: GuildMember, durationMs: number, reason: string): Promise<void> {
@@ -377,8 +391,24 @@ export async function registerObservedTimeoutSanction(params: {
 }
 
 export async function processScheduledSanctions(client: Client): Promise<void> {
-  await processTimeoutRenewals(client);
-  await processTempBans(client);
+  try {
+    await processTimeoutRenewals(client);
+    await processTempBans(client);
+
+    hasLoggedSanctionSchemaMismatch = false;
+  } catch (error) {
+    if (!isSanctionsSchemaMismatchError(error)) {
+      throw error;
+    }
+
+    if (!hasLoggedSanctionSchemaMismatch) {
+      hasLoggedSanctionSchemaMismatch = true;
+      logger.error(
+        'Sanctions',
+        'Schéma Prisma des sanctions non synchronisé (table/colonne manquante). Lancez `bun db:push` (ou `bun db:migrate`) puis redémarrez le bot.'
+      );
+    }
+  }
 }
 
 async function processTimeoutRenewals(client: Client): Promise<void> {
