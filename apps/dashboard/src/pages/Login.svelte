@@ -5,12 +5,9 @@
   import { router } from 'tinro';
 
   let errorMessage = $state(null);
-  let discordClientId = (import.meta.env.VITE_DISCORD_CLIENT_ID ?? import.meta.env.DISCORD_CLIENT_ID ?? '').trim();
-  const discordRedirectUri = (import.meta.env.VITE_DISCORD_REDIRECT_URI ?? import.meta.env.DISCORD_REDIRECT_URI ?? '').trim();
+  const oauthLoginUrl = `${API_BASE_URL || ''}/api/auth/discord/login`;
 
   async function hydrateOAuthConfig() {
-    if (discordClientId) return;
-
     try {
       const response = await fetch(`${API_BASE_URL}/api/config`, {
         headers: { Accept: 'application/json' }
@@ -33,8 +30,6 @@
         }
         return;
       }
-
-      discordClientId = (data.discordClientId ?? '').trim();
     } catch {
       errorMessage = API_BASE_URL
         ? `Impossible de joindre l'API de configuration: ${API_BASE_URL}/api/config`
@@ -45,27 +40,11 @@
   const loginWithDiscord = async () => {
     await hydrateOAuthConfig();
 
-    if (errorMessage && !discordClientId) {
+    if (errorMessage) {
       return;
     }
 
-    if (!discordClientId) {
-      errorMessage = 'Configuration OAuth invalide: DISCORD_CLIENT_ID est manquant.';
-      return;
-    }
-
-    if (!discordRedirectUri) {
-      errorMessage = 'Configuration OAuth invalide: DISCORD_REDIRECT_URI est manquant.';
-      return;
-    }
-
-    const discordUrl = new URL('https://discord.com/api/oauth2/authorize');
-    discordUrl.searchParams.set('client_id', discordClientId);
-    discordUrl.searchParams.set('redirect_uri', discordRedirectUri);
-    discordUrl.searchParams.set('response_type', 'code');
-    discordUrl.searchParams.set('scope', 'identify guilds');
-
-    window.location.href = discordUrl.toString();
+    window.location.href = oauthLoginUrl;
   };
 
   onMount(async () => {
