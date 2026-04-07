@@ -728,6 +728,7 @@ const splitPath = (pathname: string) => pathname.split('/').filter(Boolean);
 export const startDashboardApi = (client: Client) => {
   const port = Number(process.env.DASHBOARD_API_PORT ?? '8787');
   const wsServer = new WebSocketServer({ noServer: true });
+  const strictOAuthConfig = process.env.DASHBOARD_OAUTH_STRICT === 'true';
 
   const getMissingOAuthConfig = ({ includeSecret = false }: { includeSecret?: boolean } = {}) => {
     const missing: string[] = [];
@@ -740,8 +741,12 @@ export const startDashboardApi = (client: Client) => {
   const missingOAuthAtStartup = getMissingOAuthConfig({ includeSecret: true });
   if (missingOAuthAtStartup.length > 0) {
     const message = `Configuration OAuth invalide: variables manquantes (${missingOAuthAtStartup.join(', ')})`;
-    logger.error('DashboardAPI', message);
-    throw new Error(message);
+    if (strictOAuthConfig) {
+      logger.error('DashboardAPI', message);
+      throw new Error(message);
+    }
+
+    logger.warn('DashboardAPI', `${message}. Les routes OAuth renverront une erreur tant que ces variables ne sont pas définies.`);
   }
 
   const broadcastDashboardStateChange = (guildId: string, reason: string) => {

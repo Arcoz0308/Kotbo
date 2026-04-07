@@ -12,7 +12,17 @@
     if (discordClientId) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/config`);
+      const response = await fetch(`${API_BASE_URL}/api/config`, {
+        headers: { Accept: 'application/json' }
+      });
+      const contentType = response.headers.get('content-type') ?? '';
+      if (!contentType.includes('application/json')) {
+        errorMessage = API_BASE_URL
+          ? `Configuration API invalide: ${API_BASE_URL}/api/config ne renvoie pas du JSON.`
+          : 'Configuration API invalide: /api/config renvoie du HTML. Configurez VITE_API_URL vers votre backend.';
+        return;
+      }
+
       const data = await response.json() as { discordClientId?: string; error?: string; missing?: string[] };
 
       if (!response.ok) {
@@ -26,12 +36,18 @@
 
       discordClientId = (data.discordClientId ?? '').trim();
     } catch {
-      // Le fallback est best-effort, la validation côté login affichera l'erreur si nécessaire.
+      errorMessage = API_BASE_URL
+        ? `Impossible de joindre l'API de configuration: ${API_BASE_URL}/api/config`
+        : 'Impossible de joindre /api/config. Configurez VITE_API_URL vers le backend.';
     }
   }
 
   const loginWithDiscord = async () => {
     await hydrateOAuthConfig();
+
+    if (errorMessage && !discordClientId) {
+      return;
+    }
 
     if (!discordClientId) {
       errorMessage = 'Configuration OAuth invalide: DISCORD_CLIENT_ID est manquant.';
