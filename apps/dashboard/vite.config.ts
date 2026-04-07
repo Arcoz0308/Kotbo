@@ -4,6 +4,8 @@ import tailwindcss from '@tailwindcss/vite'
 
 
 export default defineConfig({
+  envDir: '../..',
+  envPrefix: ['VITE_', 'DISCORD_'],
   plugins: [
     svelte(),
     tailwindcss(),

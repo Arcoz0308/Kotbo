@@ -2,37 +2,25 @@
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { router } from 'tinro';
-  import { API_BASE_URL } from '../lib/api';
 
   let errorMessage = $state(null);
-  let discordClientId = $state('');
-
-  const fetchDiscordClientId = async () => {
-    if (discordClientId) return discordClientId;
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/config`);
-      if (!response.ok) return '';
-      const config = await response.json() as { discordClientId?: string };
-      discordClientId = config.discordClientId ?? '';
-    } catch (error) {
-      console.error('Erreur de récupération de la configuration OAuth:', error);
-    }
-
-    return discordClientId;
-  };
+  const discordClientId = (import.meta.env.DISCORD_CLIENT_ID ?? '').trim();
+  const discordRedirectUri = (import.meta.env.DISCORD_REDIRECT_URI ?? '').trim();
 
   const loginWithDiscord = async () => {
-    const clientId = await fetchDiscordClientId();
-    if (!clientId) {
-      window.location.href = `${API_BASE_URL}/api/auth/discord/login`;
+    if (!discordClientId) {
+      errorMessage = 'Configuration OAuth invalide: DISCORD_CLIENT_ID est manquant.';
       return;
     }
 
-    const redirectUri = `${API_BASE_URL}/api/auth/discord/callback`;
+    if (!discordRedirectUri) {
+      errorMessage = 'Configuration OAuth invalide: DISCORD_REDIRECT_URI est manquant.';
+      return;
+    }
+
     const discordUrl = new URL('https://discord.com/api/oauth2/authorize');
-    discordUrl.searchParams.set('client_id', clientId);
-    discordUrl.searchParams.set('redirect_uri', redirectUri);
+    discordUrl.searchParams.set('client_id', discordClientId);
+    discordUrl.searchParams.set('redirect_uri', discordRedirectUri);
     discordUrl.searchParams.set('response_type', 'code');
     discordUrl.searchParams.set('scope', 'identify guilds');
 
@@ -43,8 +31,6 @@
     if (authStore.isAuthenticated) {
       router.goto('/');
     }
-
-    await fetchDiscordClientId();
 
     const urlParams = new URLSearchParams(window.location.search);
     const errorParam = urlParams.get('error');
