@@ -2,16 +2,17 @@ import { authStore } from './stores/auth.svelte';
 
 const envApiUrl = (import.meta.env.VITE_API_URL ?? '').trim().replace(/\/$/, '');
 
-function getFallbackApiBaseUrl() {
+function getBrowserOrigin() {
   if (typeof window !== 'undefined') {
-    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-    return `${protocol}//${window.location.hostname}:8787`;
+    return window.location.origin;
   }
   return '';
 }
 
-export const API_BASE_URL = envApiUrl || getFallbackApiBaseUrl();
-const wsBaseUrl = API_BASE_URL ? API_BASE_URL.replace(/^http/i, 'ws') : getFallbackApiBaseUrl().replace(/^http/i, 'ws');
+export const API_BASE_URL = envApiUrl;
+const wsBaseUrl = API_BASE_URL
+  ? API_BASE_URL.replace(/^http/i, 'ws')
+  : getBrowserOrigin().replace(/^http/i, 'ws');
 export const DASHBOARD_WS_URL = `${wsBaseUrl}/api/dashboard/ws`;
 const BASE_URL = `${API_BASE_URL}/api/dashboard`;
 const JSON_HEADERS = { 'Content-Type': 'application/json' };
