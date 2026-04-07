@@ -4,6 +4,13 @@ class DashboardStore {
   state = $state({
     guildName: 'Kotbo',
     discordChannels: [],
+    discordRoles: [],
+    moderatorRoleId: '',
+    access: {
+      level: 'admin',
+      canModerateContent: true,
+      canManageSettings: true
+    },
     modules: [],
     feeds: [],
     contentItems: [],
@@ -38,6 +45,13 @@ class DashboardStore {
       if (data) {
         this.state.guildName = data.guildName;
         this.state.discordChannels = data.discordChannels || [];
+        this.state.discordRoles = data.discordRoles || [];
+        this.state.moderatorRoleId = data.moderatorRoleId || '';
+        this.state.access = data.access || {
+          level: 'admin',
+          canModerateContent: true,
+          canManageSettings: true
+        };
         this.state.modules = data.modules;
         this.state.feeds = data.feeds;
         this.state.contentItems = data.contentItems;

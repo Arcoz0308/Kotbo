@@ -99,12 +99,34 @@ type DashboardChannel = {
   mention: string;
 };
 
+type DashboardRole = {
+  id: string;
+  name: string;
+  mention: string;
+};
+
+type DashboardAccessLevel = 'none' | 'moderator' | 'admin';
+
+type DashboardAccess = {
+  level: DashboardAccessLevel;
+  canViewDashboard: boolean;
+  canModerateContent: boolean;
+  canManageSettings: boolean;
+};
+
 type DashboardState = {
   guildName: string;
   modules: ModuleItem[];
   feeds: FeedItem[];
   contentItems: ContentItem[];
   discordChannels: DashboardChannel[];
+  discordRoles: DashboardRole[];
+  moderatorRoleId: string;
+  access: {
+    level: Exclude<DashboardAccessLevel, 'none'>;
+    canModerateContent: boolean;
+    canManageSettings: boolean;
+  };
   youtubeReferenceChannelId: string;
   notifications: NotificationSettings;
   auditTrail: AuditEntry[];
@@ -205,6 +227,8 @@ const json = (res: ServerResponse, statusCode: number, data: unknown) => {
 type AuthClaims = {
   userId: string;
   username?: string;
+  avatar?: string;
+  discordToken?: string;
 };
 
 const verifyAuth = (req: IncomingMessage): AuthClaims | null => {
@@ -222,6 +246,69 @@ const getAuditActor = (auth: AuthClaims) => {
   const username = auth.username?.trim();
   if (username) return username;
   return `Utilisateur ${auth.userId.slice(0, 8)}`;
+};
+
+const DISCORD_PERMISSION_ADMINISTRATOR = BigInt(0x8);
+const DISCORD_PERMISSION_MANAGE_GUILD = BigInt(0x20);
+
+const hasDashboardAdminPermission = (permissions: bigint) => {
+  return (permissions & DISCORD_PERMISSION_ADMINISTRATOR) === DISCORD_PERMISSION_ADMINISTRATOR
+    || (permissions & DISCORD_PERMISSION_MANAGE_GUILD) === DISCORD_PERMISSION_MANAGE_GUILD;
+};
+
+const DASHBOARD_ACCESS_NONE: DashboardAccess = {
+  level: 'none',
+  canViewDashboard: false,
+  canModerateContent: false,
+  canManageSettings: false,
+};
+
+const DASHBOARD_ACCESS_MODERATOR: DashboardAccess = {
+  level: 'moderator',
+  canViewDashboard: true,
+  canModerateContent: true,
+  canManageSettings: false,
+};
+
+const DASHBOARD_ACCESS_ADMIN: DashboardAccess = {
+  level: 'admin',
+  canViewDashboard: true,
+  canModerateContent: true,
+  canManageSettings: true,
+};
+
+const resolveDashboardAccess = async (
+  client: Client,
+  guildId: string,
+  userId: string,
+  knownPermissions?: bigint | null,
+): Promise<DashboardAccess> => {
+  const guildConfig = await prisma.guild.findUnique({
+    where: { id: guildId },
+    select: { moderatorRoleId: true }
+  });
+
+  if (!guildConfig) return DASHBOARD_ACCESS_NONE;
+
+  if (knownPermissions !== null && knownPermissions !== undefined && hasDashboardAdminPermission(knownPermissions)) {
+    return DASHBOARD_ACCESS_ADMIN;
+  }
+
+  const discordGuild = client.guilds.cache.get(guildId);
+  if (!discordGuild) return DASHBOARD_ACCESS_NONE;
+
+  const member = await discordGuild.members.fetch(userId).catch(() => null);
+  if (!member) return DASHBOARD_ACCESS_NONE;
+
+  if (member.permissions.has('Administrator') || member.permissions.has('ManageGuild')) {
+    return DASHBOARD_ACCESS_ADMIN;
+  }
+
+  if (guildConfig.moderatorRoleId && member.roles.cache.has(guildConfig.moderatorRoleId)) {
+    return DASHBOARD_ACCESS_MODERATOR;
+  }
+
+  return DASHBOARD_ACCESS_NONE;
 };
 
 
@@ -376,7 +463,7 @@ const pushAudit = async (guildId: string, entry: Omit<AuditEntry, 'id' | 'dateIs
 
 const getGuildName = (client: Client, guildId: string) => client.guilds.cache.get(guildId)?.name ?? `Serveur ${guildId}`;
 
-const getGuildState = async (client: Client, guildId: string): Promise<DashboardState | null> => {
+const getGuildState = async (client: Client, guildId: string, access: DashboardAccess): Promise<DashboardState | null> => {
   const guild = await prisma.guild.findUnique({ where: { id: guildId } });
   if (!guild) return null;
 
@@ -572,12 +659,32 @@ const getGuildState = async (client: Client, guildId: string): Promise<Dashboard
         .map(({ id, name, mention }) => ({ id, name, mention }))
     : [];
 
+  const discordRoles: DashboardRole[] = discordGuild
+    ? discordGuild.roles.cache
+        .filter((role) => role.name !== '@everyone' && !role.managed)
+        .map((role) => ({
+          id: role.id,
+          name: role.name,
+          mention: `<@&${role.id}>`,
+          position: role.position
+        }))
+        .sort((a, b) => b.position - a.position || a.name.localeCompare(b.name, 'fr'))
+        .map(({ id, name, mention }) => ({ id, name, mention }))
+    : [];
+
   return {
     guildName: getGuildName(client, guildId),
     modules,
     feeds: feedMapped,
     contentItems,
     discordChannels,
+    discordRoles,
+    moderatorRoleId: guild.moderatorRoleId ?? '',
+    access: {
+      level: access.level === 'admin' ? 'admin' : 'moderator',
+      canModerateContent: access.canModerateContent,
+      canManageSettings: access.canManageSettings,
+    },
     youtubeReferenceChannelId: guild.nathanYtChannelId ?? '',
     notifications: {
       discordChannel: guild.statusCheckChannelId ? `<#${guild.statusCheckChannelId}>` : '#alertes-redaction',
@@ -778,27 +885,68 @@ export const startDashboardApi = (client: Client) => {
               return;
             }
 
-            // Filter guilds where user has MANAGE_GUILD (0x20) or is ADMIN (0x8)
-            const manageableGuilds = userGuilds.filter(g => {
-              if (g.permissions === undefined || g.permissions === null) return false;
-              try {
-                const perms = BigInt(g.permissions);
-                return (perms & BigInt(0x20)) === BigInt(0x20) || (perms & BigInt(0x8)) === BigInt(0x8);
-              } catch {
-                return false;
-              }
-            });
+            const userGuildPermissions = new Map<string, bigint>();
+            const userGuildsById = new Map<string, any>();
 
-            // Cross-reference with guilds where the bot is present
-            const botGuildIds = client.guilds.cache.map(g => g.id);
-            
-            const payload = manageableGuilds.map(g => ({
-              id: g.id,
-              name: g.name,
-              icon: g.icon,
-              owner: g.owner,
-              botPresent: botGuildIds.includes(g.id)
-            }));
+            for (const guild of userGuilds) {
+              userGuildsById.set(guild.id, guild);
+              if (guild.permissions === undefined || guild.permissions === null) continue;
+              try {
+                userGuildPermissions.set(guild.id, BigInt(guild.permissions));
+              } catch {
+                // Ignore malformed permission values coming from Discord API.
+              }
+            }
+
+            const accessibleGuilds = new Map<string, {
+              id: string;
+              name: string;
+              icon: string | null;
+              owner: boolean;
+              botPresent: boolean;
+              accessLevel: Exclude<DashboardAccessLevel, 'none'>;
+            }>();
+
+            for (const guild of userGuilds) {
+              const perms = userGuildPermissions.get(guild.id);
+              if (!perms || !hasDashboardAdminPermission(perms)) continue;
+
+              accessibleGuilds.set(guild.id, {
+                id: guild.id,
+                name: guild.name,
+                icon: guild.icon ?? null,
+                owner: !!guild.owner,
+                botPresent: client.guilds.cache.has(guild.id),
+                accessLevel: 'admin'
+              });
+            }
+
+            const botGuildIds = client.guilds.cache.map((guild) => guild.id);
+            for (const guildId of botGuildIds) {
+              if (accessibleGuilds.has(guildId)) continue;
+              if (!userGuildsById.has(guildId)) continue;
+
+              const access = await resolveDashboardAccess(
+                client,
+                guildId,
+                user.userId,
+                userGuildPermissions.get(guildId) ?? null,
+              );
+
+              if (!access.canViewDashboard) continue;
+
+              const sourceGuild = userGuildsById.get(guildId);
+              accessibleGuilds.set(guildId, {
+                id: guildId,
+                name: sourceGuild.name,
+                icon: sourceGuild.icon ?? null,
+                owner: !!sourceGuild.owner,
+                botPresent: true,
+                accessLevel: access.level === 'admin' ? 'admin' : 'moderator'
+              });
+            }
+
+            const payload = Array.from(accessibleGuilds.values()).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
 
             json(res, 200, { guilds: payload });
           } catch (err) {
@@ -835,11 +983,24 @@ export const startDashboardApi = (client: Client) => {
             select: { id: true, updatedAt: true }
           });
 
-          const payload = guilds.map((guild) => ({
-            id: guild.id,
-            name: getGuildName(client, guild.id),
-            updatedAt: guild.updatedAt.toISOString()
-          }));
+          const payload: Array<{
+            id: string;
+            name: string;
+            updatedAt: string;
+            accessLevel: Exclude<DashboardAccessLevel, 'none'>;
+          }> = [];
+
+          for (const guild of guilds) {
+            const access = await resolveDashboardAccess(client, guild.id, user.userId);
+            if (!access.canViewDashboard) continue;
+
+            payload.push({
+              id: guild.id,
+              name: getGuildName(client, guild.id),
+              updatedAt: guild.updatedAt.toISOString(),
+              accessLevel: access.level === 'admin' ? 'admin' : 'moderator'
+            });
+          }
 
           json(res, 200, { guilds: payload });
           return;
@@ -847,9 +1008,30 @@ export const startDashboardApi = (client: Client) => {
 
         if (parts.length >= 4 && parts[2] === 'guilds') {
           const guildId = parts[3];
+          const access = await resolveDashboardAccess(client, guildId, user.userId);
+
+          if (!access.canViewDashboard) {
+            json(res, 403, { error: 'Accès refusé au dashboard pour ce serveur.' });
+            return;
+          }
+
+          const isContentAction = parts.length === 7
+            && parts[4] === 'content'
+            && req.method === 'POST'
+            && ['force-send', 'mark-error', 'translate', 'translate-title', 'translate-description'].includes(parts[6]);
+
+          if (!access.canManageSettings && req.method !== 'GET' && !isContentAction) {
+            json(res, 403, { error: 'Action réservée aux administrateurs du dashboard.' });
+            return;
+          }
+
+          if (isContentAction && !access.canModerateContent) {
+            json(res, 403, { error: 'Action de modération non autorisée.' });
+            return;
+          }
 
           if (parts.length === 4 && req.method === 'GET') {
-            const state = await getGuildState(client, guildId);
+            const state = await getGuildState(client, guildId, access);
             if (!state) {
               json(res, 404, { error: 'Guilde introuvable' });
               return;
@@ -1285,6 +1467,7 @@ export const startDashboardApi = (client: Client) => {
           if (parts.length === 5 && parts[4] === 'settings' && (req.method === 'PATCH' || req.method === 'PUT')) {
             const body = await readJsonBody<{
               discordChannel?: string;
+              moderatorRoleId?: string | null;
               messageTemplate?: string;
             }>(req);
 
@@ -1293,9 +1476,16 @@ export const startDashboardApi = (client: Client) => {
               return;
             }
 
-            const data: { statusCheckChannelId?: string | null } = {};
+            const data: { statusCheckChannelId?: string | null; moderatorRoleId?: string | null } = {};
             if (Object.prototype.hasOwnProperty.call(body, 'discordChannel')) {
               data.statusCheckChannelId = body.discordChannel?.replace(/[^0-9]/g, '') || null;
+            }
+
+            if (Object.prototype.hasOwnProperty.call(body, 'moderatorRoleId')) {
+              const rawModeratorRoleId = body.moderatorRoleId;
+              if (typeof rawModeratorRoleId === 'string' || rawModeratorRoleId === null) {
+                data.moderatorRoleId = rawModeratorRoleId?.replace(/[^0-9]/g, '') || null;
+              }
             }
 
             if (Object.keys(data).length > 0) {

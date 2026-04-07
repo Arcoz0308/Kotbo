@@ -7,6 +7,8 @@
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
 
   const availableChannels = $derived(dashboardStore.state.discordChannels || []);
+  const availableRoles = $derived(dashboardStore.state.discordRoles || []);
+  const canManageSettings = $derived(!!dashboardStore.state.access?.canManageSettings);
 
   refreshDashboardOnMount();
 
@@ -14,6 +16,7 @@
 
   let notificationsDraft = $state({
     discordChannel: '#alertes-redaction',
+    moderatorRoleId: '',
     email: '',
     emailEnabled: false,
     cloudBackup: true,
@@ -26,6 +29,7 @@
     if (!dashboardStore.state.loading) {
       notificationsDraft = {
         discordChannel: dashboardStore.state.notifications?.discordChannel || '#alertes-redaction',
+        moderatorRoleId: dashboardStore.state.moderatorRoleId || '',
         email: dashboardStore.state.notifications?.email || '',
         emailEnabled: !!dashboardStore.state.notifications?.emailEnabled,
         cloudBackup: !!dashboardStore.state.notifications?.cloudBackup,
@@ -37,10 +41,33 @@
   });
 
   async function saveNotifications() {
+    if (!canManageSettings) {
+      saveAction.setError('Seuls les administrateurs peuvent modifier ces paramètres.');
+      return;
+    }
+
     await saveAction.run(
       async () => {
-        const success = await updateNotificationsSettings(notificationsDraft);
-        if (!success) return false;
+        const notificationsPayload = {
+          discordChannel: notificationsDraft.discordChannel,
+          email: notificationsDraft.email,
+          emailEnabled: notificationsDraft.emailEnabled,
+          cloudBackup: notificationsDraft.cloudBackup,
+          debugLog: notificationsDraft.debugLog,
+          killSwitchEnabled: notificationsDraft.killSwitchEnabled,
+          severityByModule: notificationsDraft.severityByModule
+        };
+
+        const notificationsSaved = await updateNotificationsSettings(notificationsPayload);
+        if (!notificationsSaved) return false;
+
+        const settingsSaved = await updateGlobalSettings({
+          discordChannel: notificationsDraft.discordChannel,
+          moderatorRoleId: notificationsDraft.moderatorRoleId || null
+        });
+
+        if (!settingsSaved) return false;
+
         await dashboardStore.refresh();
         return true;
       },
@@ -52,6 +79,11 @@
   }
 
   async function persistDiscordChannel() {
+    if (!canManageSettings) {
+      saveAction.setError('Seuls les administrateurs peuvent modifier ces paramètres.');
+      return;
+    }
+
     const success = await updateGlobalSettings({
       discordChannel: notificationsDraft.discordChannel
     });
@@ -67,6 +99,7 @@
   function resetNotifications() {
     notificationsDraft = {
       discordChannel: '#alertes-redaction',
+      moderatorRoleId: '',
       email: '',
       emailEnabled: false,
       cloudBackup: true,
@@ -105,11 +138,28 @@
 
       <div class="space-y-6">
         <div class="space-y-2">
+          <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="moderator-role">Rôle modérateur dashboard</label>
+          <select
+            id="moderator-role"
+            bind:value={notificationsDraft.moderatorRoleId}
+            class="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold"
+            disabled={!canManageSettings}
+          >
+            <option value="">Admin uniquement</option>
+            {#each availableRoles as role}
+              <option value={role.id}>@{role.name}</option>
+            {/each}
+          </select>
+          <p class="text-xs text-on-surface-variant">Les membres de ce rôle peuvent accéder au dashboard avec des permissions limitées.</p>
+        </div>
+
+        <div class="space-y-2">
           <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="discord-channel">Salon d'alertes</label>
           <select
             id="discord-channel"
             bind:value={notificationsDraft.discordChannel}
             onchange={persistDiscordChannel}
+            disabled={!canManageSettings}
             class="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold"
           >
             <option value="">Sélectionner un salon</option>
@@ -207,10 +257,14 @@
           error={saveAction.state.error}
           idleText="Les changements ne sont pas enregistrés tant que vous ne validez pas."
         />
+        {#if !canManageSettings}
+          <p class="text-xs text-on-surface-variant">Accès modérateur: consultation et modération de contenu uniquement.</p>
+        {/if}
         <div class="flex items-center gap-3">
           <button
             type="button"
             onclick={resetNotifications}
+            disabled={!canManageSettings}
             class="px-4 py-2.5 rounded-xl border border-outline-variant/30 text-xs font-black uppercase tracking-wider text-on-surface-variant hover:bg-surface-container-low"
           >
             Réinitialiser
@@ -218,7 +272,7 @@
           <button
             type="button"
             onclick={saveNotifications}
-            disabled={saveAction.state.loading}
+            disabled={saveAction.state.loading || !canManageSettings}
             class="px-5 py-2.5 rounded-xl bg-primary text-white text-xs font-black uppercase tracking-wider shadow-lg shadow-primary/10 hover:opacity-90 disabled:opacity-50"
           >
             {saveAction.state.loading ? 'Enregistrement...' : 'Enregistrer'}
