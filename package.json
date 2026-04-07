@@ -4,6 +4,7 @@
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "dev:bot": "bun run --filter @kotbo/bot dev",
+    "dev:dashboard": "bun run --filter @kotbo/dashboard dev",
     "dev:bot:safe": "bun run --filter @kotbo/bot dev:safe",
     "dev": "bun run --filter @kotbo/bot dev",
     "test:bot": "bun run --filter @kotbo/bot test:unit",
@@ -15,8 +16,9 @@
     "db:migrate": "bun run --filter @kotbo/database migrate",
     "db:push": "bun run --filter @kotbo/database push",
     "db:seed": "bun run --filter @kotbo/database seed",
-    "db:studio": "bun run --filter @kotbo/database studio",
+    "dev:all": "bun run dev:bot && bun run dev:dashboard",
     "deploy-commands": "bun run --filter @kotbo/bot deploy-commands",
+
     "deploy": "bun run quality:bot && bun db:push && bun db:seed && bun deploy-commands && bun run dev:bot:safe"
   },
   "dependencies": {

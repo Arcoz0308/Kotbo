@@ -72,6 +72,12 @@ async function canModerate(member: GuildMember | null, guildId: string): Promise
   return false;
 }
 
+async function resolveGuildMemberByUserId(interaction: Interaction, userId: string): Promise<GuildMember | null> {
+  const guild = interaction.guild;
+  if (!guild) return null;
+  return guild.members.fetch(userId).catch(() => null);
+}
+
 export async function handleButton(interaction: Interaction, client: Client): Promise<void> {
   if (!interaction.isButton()) return;
 
@@ -128,6 +134,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       topics: digestTopics,
       source: direction === 'up' ? 'USER_INTERESTING' : 'USER_NOT_INTERESTING',
       isPositive: direction === 'up',
+      applyToGuildProfile: true,
     });
 
     const text = direction === 'up'
@@ -155,6 +162,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       source: direction === 'up' ? 'USER_INTERESTING' : 'USER_NOT_INTERESTING',
       isPositive: direction === 'up',
       feedItemId: item.id,
+      applyToGuildProfile: true,
     });
 
     const text = direction === 'up'
@@ -476,7 +484,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   if (validateRoute) {
     const { action, type, itemId } = validateRoute;
 
-    const member = interaction.member as GuildMember;
+    const member = await resolveGuildMemberByUserId(interaction, user.id);
     if (!(await canModerate(member, guildId))) {
       await interaction.reply({ content: '❌ Vous n\'avez pas le rôle modérateur requis pour cette action.', flags: [MessageFlags.Ephemeral] });
       return;
@@ -1052,7 +1060,7 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
   if (customId.startsWith('news:recovery:topics')) {
     if (!interaction.isStringSelectMenu()) return;
 
-    const member = interaction.member as GuildMember;
+    const member = await resolveGuildMemberByUserId(interaction, interaction.user.id);
     const canApplyGuild = await canModerate(member, guildId);
 
     for (const itemId of values) {
@@ -1327,6 +1335,10 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
 
     const guild = await prisma.guild.findUnique({ where: { id: guildId } }) || 
                   await prisma.guild.create({ data: { id: guildId } });
+
+    if (!translateTo && guild.translationEnabled) {
+      translateTo = guild.defaultTranslateTo;
+    }
 
     const autoPublish = autoPublishInput === 'oui' || autoPublishInput === 'yes' || autoPublishInput === 'true';
 

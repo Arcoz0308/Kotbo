@@ -37,6 +37,16 @@ function getErrorMessage(err: unknown): string {
   return String(err);
 }
 
+function isLikelyNetworkError(err: unknown): boolean {
+  const message = getErrorMessage(err).toLowerCase();
+  return message.includes('fetch failed') ||
+    message.includes('econnrefused') ||
+    message.includes('etimedout') ||
+    message.includes('network') ||
+    message.includes('unable to connect') ||
+    message.includes('socket');
+}
+
 function normalizeLangCode(lang: string | undefined, mode: 'source' | 'target'): string {
   if (!lang || !lang.trim()) {
     return mode === 'source' ? 'auto' : 'fr';
@@ -193,8 +203,14 @@ function createLibreTranslateProvider(): TranslationProvider {
         }
 
         if (translated === null && lastError) {
+          if (isLikelyNetworkError(lastError)) {
+            throw new Error(
+              `Unable to connect. Is the computer able to access the url? Tried: ${getOrderedBaseUrls().join(', ')}. Derniere erreur: ${getErrorMessage(lastError)}`,
+            );
+          }
+
           throw new Error(
-            `Unable to connect. Is the computer able to access the url? Tried: ${getOrderedBaseUrls().join(', ')}. Derniere erreur: ${getErrorMessage(lastError)}`,
+            `Echec de traduction LibreTranslate. Endpoints testes: ${getOrderedBaseUrls().join(', ')}. Derniere erreur: ${getErrorMessage(lastError)}`,
           );
         }
 
@@ -228,6 +244,99 @@ function createLibreTranslateProvider(): TranslationProvider {
 
       return false;
     },
+  };
+}
+
+function createMyMemoryProvider(): TranslationProvider {
+  const timeoutMsRaw = Number(process.env.TRANSLATION_TIMEOUT_MS ?? '7000');
+  const timeoutMs = Number.isFinite(timeoutMsRaw) && timeoutMsRaw > 0 ? timeoutMsRaw : 7000;
+  const baseUrl = 'https://api.mymemory.translated.net/get';
+
+  function langForPair(lang: string): string {
+    if (!lang) return 'en';
+    if (lang === 'auto') return 'en';
+    return lang.split('-')[0];
+  }
+
+  return {
+    name: 'MyMemory',
+    async translate(text: string, targetLang: string, sourceLang?: string): Promise<string | null> {
+      const source = langForPair(normalizeLangCode(sourceLang, 'source'));
+      const target = langForPair(normalizeLangCode(targetLang, 'target'));
+      const chunks = splitIntoChunks(text, 700);
+      const translatedChunks: string[] = [];
+
+      for (const chunk of chunks) {
+        const params = new URLSearchParams({
+          q: chunk,
+          langpair: `${source}|${target}`,
+        });
+
+        const response = await fetch(`${baseUrl}?${params.toString()}`, {
+          headers: { Accept: 'application/json' },
+          signal: withTimeout(timeoutMs),
+        });
+
+        if (!response.ok) {
+          const body = await response.text();
+          throw new Error(`HTTP ${response.status}: ${body.slice(0, 120)}`);
+        }
+
+        const payload = await response.json() as {
+          responseData?: { translatedText?: string };
+          responseStatus?: number;
+          responseDetails?: string;
+        };
+
+        if (payload.responseStatus && payload.responseStatus >= 400) {
+          throw new Error(payload.responseDetails || `Status ${payload.responseStatus}`);
+        }
+
+        const translated = payload.responseData?.translatedText?.trim();
+        if (!translated) return null;
+        translatedChunks.push(translated);
+      }
+
+      return translatedChunks.join(' ').trim() || null;
+    },
+    async healthcheck(): Promise<boolean> {
+      try {
+        const params = new URLSearchParams({ q: 'hello', langpair: 'en|fr' });
+        const response = await fetch(`${baseUrl}?${params.toString()}`, {
+          headers: { Accept: 'application/json' },
+          signal: withTimeout(5000),
+        });
+
+        if (!response.ok) return false;
+        const payload = await response.json() as { responseData?: { translatedText?: string } };
+        return Boolean(payload.responseData?.translatedText);
+      } catch {
+        return false;
+      }
+    },
+  };
+}
+
+function createFallbackTranslator(primary: TranslationProvider, fallback: TranslationProvider, log: typeof logger): TranslatorFn {
+  return async (text: string, targetLang: string, sourceLang?: string) => {
+    try {
+      const primaryResult = await primary.translate(text, targetLang, sourceLang);
+      if (primaryResult) return primaryResult;
+    } catch (err) {
+      log.warn('Translation', `Provider principal ${primary.name} indisponible, fallback ${fallback.name}. Raison: ${getErrorMessage(err)}`);
+    }
+
+    try {
+      const fallbackResult = await fallback.translate(text, targetLang, sourceLang);
+      if (fallbackResult) {
+        log.info('Translation', `Traduction effectuee via fallback ${fallback.name}.`);
+      }
+      return fallbackResult;
+    } catch (err) {
+      throw new Error(
+        `${primary.name} et ${fallback.name} indisponibles. Derniere erreur fallback: ${getErrorMessage(err)}`,
+      );
+    }
   };
 }
 
@@ -267,11 +376,12 @@ export function createTranslationService(deps: TranslationServiceDeps): Translat
 }
 
 const localProvider = createLibreTranslateProvider();
+const myMemoryProvider = createMyMemoryProvider();
 
 const translationService = createTranslationService({
-  translator: localProvider.translate,
+  translator: createFallbackTranslator(localProvider, myMemoryProvider, logger),
   log: logger,
-  providerName: localProvider.name,
+  providerName: `${localProvider.name} -> ${myMemoryProvider.name}`,
 });
 
 export async function checkTranslationProviderHealth(): Promise<boolean> {

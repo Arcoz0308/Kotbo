@@ -173,7 +173,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const category = interaction.options.getString('categorie') ?? 'Général';
     const autoPublish = interaction.options.getBoolean('auto_publier') ?? false;
     const language = interaction.options.getString('langue') ?? null;
-    const translateTo = interaction.options.getString('traduire_en') ?? null;
+    const translateTo = interaction.options.getString('traduire_en') ?? (guild.translationEnabled ? guild.defaultTranslateTo : null);
 
     try {
       new URL(url); // Vérifie l'URL

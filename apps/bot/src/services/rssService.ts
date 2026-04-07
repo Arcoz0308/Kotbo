@@ -84,6 +84,14 @@ type CustomItem = Parser.Item & {
   enclosure?: { url?: string; type?: string };
 };
 
+const TRANSLATION_TARGET_LANG = 'FR';
+
+function normalizeLangCode(value: string | null | undefined): string | null {
+  const normalized = value?.trim().toUpperCase();
+  if (!normalized) return null;
+  return /^[A-Z]{2}$/.test(normalized) ? normalized : null;
+}
+
 function formatRssError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error ?? 'Erreur inconnue');
   const firstLine = raw.split('\n').map((line) => line.trim()).find(Boolean) ?? 'Erreur inconnue';
@@ -386,20 +394,22 @@ export async function pollFeed(
       return null;
     }
 
-    const detectedLang = detectLanguage(`${title} ${description ?? ''}`);
+    const detectedLang = normalizeLangCode(detectLanguage(`${title} ${description ?? ''}`));
+    const sourceLang = normalizeLangCode(feed.language) ?? detectedLang;
+    const targetLang =
+      normalizeLangCode(feed.translateTo) ??
+      normalizeLangCode(feed.guild.defaultTranslateTo) ??
+      TRANSLATION_TARGET_LANG;
 
     let titleTranslated: string | null = null;
     let descTranslated: string | null = null;
-    const shouldTranslate =
-      feed.translateTo &&
-      detectedLang &&
-      detectedLang.toUpperCase() !== feed.translateTo.toUpperCase();
+    const shouldTranslate = targetLang === TRANSLATION_TARGET_LANG && sourceLang !== TRANSLATION_TARGET_LANG;
 
-    if (shouldTranslate && feed.translateTo) {
+    if (shouldTranslate) {
       // On lance les deux traductions en parallèle
       const [tTitle, tDesc] = await Promise.all([
-        translate(title, feed.translateTo!, detectedLang ?? undefined),
-        description ? translate(description.slice(0, 1000), feed.translateTo!, detectedLang ?? undefined) : Promise.resolve(null)
+        translate(title, targetLang, sourceLang ?? undefined),
+        description ? translate(description.slice(0, 1000), targetLang, sourceLang ?? undefined) : Promise.resolve(null)
       ]);
       titleTranslated = tTitle;
       descTranslated = tDesc;

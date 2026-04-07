@@ -63,8 +63,49 @@ model Guild {
   dailyAlgoRuns DailyAlgoRun[]
   interestTopics InterestTopicScore[]
   interestFeedback NewsInterestFeedback[]
+  dashboardSettings DashboardSettings?
+  dashboardAuditLogs DashboardAuditLog[]
 
   @@map("guilds")
+}
+
+model DashboardSettings {
+  guildId String @id
+
+  email String @default("")
+  emailEnabled Boolean @default(false)
+  cloudBackup Boolean @default(true)
+  debugLog Boolean @default(false)
+  killSwitchEnabled Boolean @default(false)
+  severityByModule Json?
+  messageTemplate String @default("🔔 {titre}\n\n{resume}\n\nSource: {source}\nAuteur: {auteur}\n\nPublié automatiquement par Kotbo.")
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("dashboard_settings")
+}
+
+model DashboardAuditLog {
+  id String @id @default(cuid())
+
+  guildId String
+  user String
+  action String
+  context String
+  module String
+  eventType String
+  details String
+  dateIso DateTime @default(now())
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([guildId, dateIso])
+  @@map("dashboard_audit_logs")
 }
 
 model CodePoliceRule {

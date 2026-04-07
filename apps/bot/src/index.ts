@@ -40,6 +40,7 @@ import * as dailyAlgoCmd from './commands/dailyAlgo.js';
 import { registerCodePoliceListener } from './events/codePolice.js';
 import { registerDailyAlgoHandlers } from './handlers/dailyAlgoHandler.js';
 import { checkTranslationProviderHealth } from './services/translationService.js';
+import { startDashboardApi } from './api/dashboardApi.js';
 import botPackageJson from '../package.json';
 // import * as statsCmd from './commands/stats.js';
 
@@ -51,6 +52,8 @@ const client = new Client({
     GatewayIntentBits.DirectMessages,
   ],
 });
+
+startDashboardApi(client);
 
 
 type SlashCommand = {
