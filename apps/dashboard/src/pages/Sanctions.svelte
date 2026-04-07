@@ -9,8 +9,9 @@
   import ReportRuleSelector from '../lib/components/sanctions/ReportRuleSelector.svelte';
   import SelectedRuleChips from '../lib/components/sanctions/SelectedRuleChips.svelte';
   import { createSanctionReport, deleteSanction } from '../lib/api';
-  import { buildBrokenRulesPayload, getRuleById, getRuleIdsFromBrokenRules, reportRuleOptions } from '../lib/sanctions/reportRules';
+  import { buildBrokenRulesPayload, buildReportRuleOptions, getRuleIdsFromBrokenRules, getRulesFromBrokenRules } from '../lib/sanctions/reportRules';
   import { durationLabel, statusLabel, toDateTimeLocal, typeLabel } from '../lib/sanctions/formatters';
+  import { filterAndSortSanctions, type SanctionFilters, type SortOption } from '../lib/sanctions/filterSort';
 
   refreshDashboardOnMount();
 
@@ -26,6 +27,18 @@
 
   let modalOpen = $state(false);
   let modalMode = $state<'create' | 'view'>('create');
+
+  // Filter and sort state
+  let filters = $state<SanctionFilters>({
+    statuses: [],
+    types: [],
+    moderators: [],
+    targets: [],
+  });
+
+  let sortOptions = $state<SortOption[]>([
+    { field: 'date', direction: 'desc' },
+  ]);
 
   let selectedSanctionId = $state('');
   let incidentAt = $state(new Date().toISOString().slice(0, 16));
@@ -44,17 +57,84 @@
     selectedRuleIds = selectedRuleIds.filter((entry) => entry !== ruleId);
   }
 
+  // Filter and sort helper functions
+  function toggleFilter(filterType: keyof SanctionFilters, value: string) {
+    const filterList = filters[filterType];
+    if (filterList.includes(value)) {
+      filters[filterType] = filterList.filter((v) => v !== value);
+    } else {
+      filters[filterType] = [...filterList, value];
+    }
+  }
 
+  function toggleSort(field: string) {
+    const existingIndex = sortOptions.findIndex((opt) => opt.field === field);
+
+    if (existingIndex >= 0) {
+      // Toggle direction if already sorting by this field
+      const option = sortOptions[existingIndex];
+      const newDirection = option.direction === 'asc' ? 'desc' : 'asc';
+      sortOptions[existingIndex] = { field: option.field as any, direction: newDirection };
+    } else {
+      // Add new sort if not already sorting
+      sortOptions = [...sortOptions, { field: field as any, direction: 'asc' }];
+    }
+  }
+
+  function removeSortOption(field: string) {
+    sortOptions = sortOptions.filter((opt) => opt.field !== field);
+  }
+
+  function resetFiltersAndSort() {
+    filters = {
+      statuses: [],
+      types: [],
+      moderators: [],
+      targets: [],
+    };
+    sortOptions = [{ field: 'date', direction: 'desc' }];
+  }
+
+
+  const regulationRules = $derived(dashboardStore.state.regulationRules || []);
+  const reportRuleOptions = $derived(buildReportRuleOptions(regulationRules));
   const sanctions = $derived(dashboardStore.state.sanctions || []);
   const sanctionReports = $derived(dashboardStore.state.sanctionReports || []);
   const showSanctionsSkeleton = $derived(dashboardStore.state.loading && sanctions.length === 0);
 
+  // Get unique values for filter options
+  const uniqueStatuses = $derived([...new Set(sanctions.map((s) => s.status))].sort());
+  const uniqueTypes = $derived([...new Set(sanctions.map((s) => s.type))].sort());
+  const uniqueModerators = $derived(
+    [...new Set(sanctions.map((s) => s.moderatorUserId))].sort((a, b) => {
+      const tagA = sanctions.find((s) => s.moderatorUserId === a)?.moderatorTag || a;
+      const tagB = sanctions.find((s) => s.moderatorUserId === b)?.moderatorTag || b;
+      return tagA.localeCompare(tagB);
+    })
+  );
+  const uniqueTargets = $derived(
+    [...new Set(sanctions.map((s) => s.targetUserId))].sort((a, b) => {
+      const tagA = sanctions.find((s) => s.targetUserId === a)?.targetTag || a;
+      const tagB = sanctions.find((s) => s.targetUserId === b)?.targetTag || b;
+      return tagA.localeCompare(tagB);
+    })
+  );
+
+  // Apply filters and sorting
+  const filteredAndSortedSanctions = $derived(filterAndSortSanctions(sanctions, filters, sortOptions));
+
   const selectedSanction = $derived(sanctions.find((entry) => entry.id === selectedSanctionId) || null);
   const selectedReport = $derived(sanctionReports.find((entry) => entry.sanctionId === selectedSanctionId) || null);
   const selectedReportRuleIds = $derived(selectedReport ? getRuleIdsFromBrokenRules(selectedReport.brokenRules) : []);
+  const selectedReportRules = $derived(selectedReport ? getRulesFromBrokenRules(selectedReport.brokenRules, reportRuleOptions) : []);
+  const selectedDraftRules = $derived(
+    selectedRuleIds
+      .map((ruleId) => reportRuleOptions.find((rule) => rule.id === ruleId))
+      .filter((rule): rule is (typeof reportRuleOptions)[number] => Boolean(rule))
+  );
   const canDeleteSanctions = $derived(dashboardStore.state.access?.level === 'admin');
   const canCreateSelectedReport = $derived(
-    Boolean(selectedSanction && !selectedReport && selectedSanction.moderatorUserId === authStore.user?.id)
+    Boolean(selectedSanction && !selectedReport && selectedSanction.moderatorUserId === authStore.user?.id && reportRuleOptions.length > 0)
   );
 
   type SanctionListItem = {
@@ -71,6 +151,7 @@
     icon: string;
     disabled: boolean;
     variant: 'primary' | 'success' | 'muted';
+    hint: string;
   };
 
   function getReportActionState(entry: SanctionListItem, linkedReport: SanctionReportListItem | undefined): ReportActionState {
@@ -82,6 +163,7 @@
         icon: '📄',
         disabled: false,
         variant: 'success',
+        hint: 'Le rapport de sanction existe déjà et peut être consulté.',
       };
     }
 
@@ -91,6 +173,7 @@
         icon: '📋',
         disabled: false,
         variant: 'primary',
+        hint: 'Ouvre le formulaire pour compléter le rapport lié à cette sanction.',
       };
     }
 
@@ -99,6 +182,7 @@
       icon: '🔒',
       disabled: true,
       variant: 'muted',
+      hint: 'Seule la personne qui a appliqué la sanction peut créer ce rapport.',
     };
   }
 
@@ -152,6 +236,18 @@
       return;
     }
 
+    if (reportRuleOptions.length === 0) {
+      reportMessage = 'Aucun article de règlement n’est configuré. Ajoute d’abord des règles dans le module Règlement.';
+      reportMessageIsError = true;
+      return;
+    }
+
+    if (selectedRuleIds.length === 0) {
+      reportMessage = 'Sélectionne au moins une règle enfreinte.';
+      reportMessageIsError = true;
+      return;
+    }
+
     if (selectedSanction.moderatorUserId !== authStore.user?.id) {
       reportMessage = 'Seule la personne qui a applique la sanction peut creer ce rapport.';
       reportMessageIsError = true;
@@ -171,7 +267,7 @@
       return;
     }
 
-    brokenRules = buildBrokenRulesPayload(selectedRuleIds);
+    brokenRules = buildBrokenRulesPayload(selectedRuleIds, reportRuleOptions);
 
     if (!brokenRules.trim() || !detailedReason.trim()) {
       reportMessage = 'Merci de remplir tous les champs obligatoires du rapport.';
@@ -277,11 +373,220 @@
 <section class="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden font-inter">
   <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
     <h3 class="text-lg font-black">Liste des sanctions</h3>
-    <span class="text-xs font-bold text-on-surface-variant">{sanctions.length} entree(s)</span>
+    <span class="text-xs font-bold text-on-surface-variant">{filteredAndSortedSanctions.length} / {sanctions.length} entree(s)</span>
   </div>
   {#if deletionMessage}
     <div class="px-6 pt-4 text-sm font-semibold {deletionMessageIsError ? 'text-red-600' : 'text-emerald-600'}">{deletionMessage}</div>
   {/if}
+
+  <!-- Filters Section -->
+  <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800 space-y-4">
+    <div class="flex items-center justify-between">
+      <h4 class="text-sm font-bold text-on-surface">Filtres & Tri</h4>
+      {#if filters.statuses.length > 0 || filters.types.length > 0 || filters.moderators.length > 0 || filters.targets.length > 0 || sortOptions.length > 1 || (sortOptions.length === 1 && (sortOptions[0].field !== 'date' || sortOptions[0].direction !== 'desc'))}
+        <button
+          onclick={resetFiltersAndSort}
+          class="text-xs font-bold text-primary hover:text-primary/80 transition"
+        >
+          Réinitialiser
+        </button>
+      {/if}
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- Status Filter -->
+      <div>
+        <label class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant block mb-2"
+          >Statut</label
+        >
+        <div class="space-y-2">
+          {#each uniqueStatuses as status}
+            {@const tag = statusLabel(status)}
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={filters.statuses.includes(status)}
+                onchange={(e) => toggleFilter('statuses', status)}
+                class="rounded border-slate-300"
+              />
+              <span class="text-sm">{tag}</span>
+            </label>
+          {/each}
+        </div>
+      </div>
+
+      <!-- Type Filter -->
+      <div>
+        <label class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant block mb-2"
+          >Type</label
+        >
+        <div class="space-y-2">
+          {#each uniqueTypes as type}
+            {@const tag = typeLabel(type)}
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={filters.types.includes(type)}
+                onchange={(e) => toggleFilter('types', type)}
+                class="rounded border-slate-300"
+              />
+              <span class="text-sm">{tag}</span>
+            </label>
+          {/each}
+        </div>
+      </div>
+
+      <!-- Moderator Filter -->
+      <div>
+        <label class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant block mb-2"
+          >Staff</label
+        >
+        <div class="space-y-2 max-h-40 overflow-y-auto">
+          {#each uniqueModerators as moderatorId}
+            {@const moderatorTag = sanctions.find((s) => s.moderatorUserId === moderatorId)?.moderatorTag || moderatorId}
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={filters.moderators.includes(moderatorId)}
+                onchange={(e) => toggleFilter('moderators', moderatorId)}
+                class="rounded border-slate-300"
+              />
+              <span class="text-sm">{moderatorTag}</span>
+            </label>
+          {/each}
+        </div>
+      </div>
+
+      <!-- Target Filter -->
+      <div>
+        <label class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant block mb-2"
+          >Cible</label
+        >
+        <div class="space-y-2 max-h-40 overflow-y-auto">
+          {#each uniqueTargets as targetId}
+            {@const targetTag = sanctions.find((s) => s.targetUserId === targetId)?.targetTag || targetId}
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={filters.targets.includes(targetId)}
+                onchange={(e) => toggleFilter('targets', targetId)}
+                class="rounded border-slate-300"
+              />
+              <span class="text-sm">{targetTag}</span>
+            </label>
+          {/each}
+        </div>
+      </div>
+    </div>
+
+    <!-- Sort Options -->
+    <div class="border-t border-slate-200 dark:border-slate-700 pt-3">
+      <p class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant mb-2">Tri (cumulable)</p>
+      <div class="flex flex-wrap gap-2">
+        <button
+          onclick={() => toggleSort('date')}
+          class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition
+            {sortOptions.some((s) => s.field === 'date')
+            ? 'bg-primary text-white'
+            : 'bg-slate-100 dark:bg-slate-800 text-on-surface hover:bg-slate-200 dark:hover:bg-slate-700'}"
+        >
+          📅 Date
+          {#if sortOptions.some((s) => s.field === 'date')}
+            <span class="text-[10px]"
+              >{sortOptions.find((s) => s.field === 'date')?.direction === 'asc' ? '↑' : '↓'}</span
+            >
+          {/if}
+        </button>
+
+        <button
+          onclick={() => toggleSort('type')}
+          class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition
+            {sortOptions.some((s) => s.field === 'type')
+            ? 'bg-primary text-white'
+            : 'bg-slate-100 dark:bg-slate-800 text-on-surface hover:bg-slate-200 dark:hover:bg-slate-700'}"
+        >
+          🔖 Type
+          {#if sortOptions.some((s) => s.field === 'type')}
+            <span class="text-[10px]"
+              >{sortOptions.find((s) => s.field === 'type')?.direction === 'asc' ? '↑' : '↓'}</span
+            >
+          {/if}
+        </button>
+
+        <button
+          onclick={() => toggleSort('status')}
+          class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition
+            {sortOptions.some((s) => s.field === 'status')
+            ? 'bg-primary text-white'
+            : 'bg-slate-100 dark:bg-slate-800 text-on-surface hover:bg-slate-200 dark:hover:bg-slate-700'}"
+        >
+          ⚡ Statut
+          {#if sortOptions.some((s) => s.field === 'status')}
+            <span class="text-[10px]"
+              >{sortOptions.find((s) => s.field === 'status')?.direction === 'asc' ? '↑' : '↓'}</span
+            >
+          {/if}
+        </button>
+
+        <button
+          onclick={() => toggleSort('duration')}
+          class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition
+            {sortOptions.some((s) => s.field === 'duration')
+            ? 'bg-primary text-white'
+            : 'bg-slate-100 dark:bg-slate-800 text-on-surface hover:bg-slate-200 dark:hover:bg-slate-700'}"
+        >
+          ⏱️ Duree
+          {#if sortOptions.some((s) => s.field === 'duration')}
+            <span class="text-[10px]"
+              >{sortOptions.find((s) => s.field === 'duration')?.direction === 'asc' ? '↑' : '↓'}</span
+            >
+          {/if}
+        </button>
+
+        <button
+          onclick={() => toggleSort('target')}
+          class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition
+            {sortOptions.some((s) => s.field === 'target')
+            ? 'bg-primary text-white'
+            : 'bg-slate-100 dark:bg-slate-800 text-on-surface hover:bg-slate-200 dark:hover:bg-slate-700'}"
+        >
+          🎯 Cible
+          {#if sortOptions.some((s) => s.field === 'target')}
+            <span class="text-[10px]"
+              >{sortOptions.find((s) => s.field === 'target')?.direction === 'asc' ? '↑' : '↓'}</span
+            >
+          {/if}
+        </button>
+
+        <button
+          onclick={() => toggleSort('moderator')}
+          class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition
+            {sortOptions.some((s) => s.field === 'moderator')
+            ? 'bg-primary text-white'
+            : 'bg-slate-100 dark:bg-slate-800 text-on-surface hover:bg-slate-200 dark:hover:bg-slate-700'}"
+        >
+          👤 Staff
+          {#if sortOptions.some((s) => s.field === 'moderator')}
+            <span class="text-[10px]"
+              >{sortOptions.find((s) => s.field === 'moderator')?.direction === 'asc' ? '↑' : '↓'}</span
+            >
+          {/if}
+        </button>
+
+        {#if sortOptions.length > 1}
+          <div class="ml-auto flex gap-2 items-center">
+            <p class="text-[11px] font-bold text-on-surface-variant">Ordres actifs: {sortOptions.length}</p>
+            <button
+              onclick={() => (sortOptions = [{ field: 'date', direction: 'desc' }])}
+              class="text-xs font-bold text-primary hover:text-primary/80 transition"
+            >
+              Réinitialiser tri
+            </button>
+          </div>
+        {/if}
+      </div>
+    </div>
+  </div>
   <div class="overflow-x-auto">
     <table class="w-full text-left border-collapse">
       <thead>
@@ -309,7 +614,7 @@
             </tr>
           {/each}
         {:else}
-          {#each sanctions as entry}
+          {#each filteredAndSortedSanctions as entry}
             {@const linkedReport = sanctionReports.find((report) => report.sanctionId === entry.id)}
             {@const reportAction = getReportActionState(entry, linkedReport)}
             <tr class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
@@ -354,6 +659,12 @@
         {#if !showSanctionsSkeleton && sanctions.length === 0}
           <tr>
             <td colspan="7" class="px-6 py-14 text-center text-on-surface-variant">Aucune sanction enregistree.</td>
+          </tr>
+        {:else if !showSanctionsSkeleton && filteredAndSortedSanctions.length === 0}
+          <tr>
+            <td colspan="7" class="px-6 py-14 text-center text-on-surface-variant">
+              Aucune sanction ne correspond aux filtres appliques.
+            </td>
           </tr>
         {/if}
       </tbody>
@@ -411,7 +722,7 @@
             </div>
           </div>
 
-          <SelectedRuleChips selectedIds={selectedReportRuleIds} {getRuleById} />
+            <SelectedRuleChips selectedRules={selectedReportRules} />
 
           <div>
             <label for="report-reason-view" class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Raison detaillee</label>
@@ -468,7 +779,7 @@
             </div>
           </div>
 
-          <SelectedRuleChips selectedIds={selectedRuleIds} {getRuleById} />
+          <SelectedRuleChips selectedRules={selectedDraftRules} />
 
           <div>
             <label for="report-reason" class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Raison detaillee</label>
