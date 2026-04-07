@@ -14,6 +14,19 @@
   import NotificationsSettings from './pages/NotificationsSettings.svelte';
   import ModuleSettings from './pages/ModuleSettings.svelte';
 
+  const adminOnlyPrefixes = ['/modules', '/module-settings', '/settings', '/notifications', '/automations'];
+
+  function isAdminOnlyRoute(path: string) {
+    return adminOnlyPrefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+  }
+
+  function selectedGuildAccessLevel() {
+    const selectedGuild = authStore.guilds.find((guild) => guild.id === authStore.selectedGuildId);
+    return selectedGuild?.accessLevel || 'admin';
+  }
+
+  const canManageSettings = $derived(selectedGuildAccessLevel() !== 'moderator');
+
   onMount(() => {
     
     const urlParams = new URLSearchParams(window.location.search);
@@ -36,6 +49,11 @@
   $effect(() => {
     if (!authStore.isAuthenticated && $router.path !== '/login') {
       router.goto('/login');
+      return;
+    }
+
+    if (authStore.isAuthenticated && selectedGuildAccessLevel() === 'moderator' && isAdminOnlyRoute($router.path)) {
+      router.goto('/content');
     }
   });
 </script>
@@ -51,12 +69,6 @@
       <Route path="/">
         <Overview />
       </Route>
-      <Route path="/modules">
-        <ModuleCatalog />
-      </Route>
-      <Route path="/module-settings/:moduleId" let:meta>
-        <ModuleSettings moduleId={meta.params.moduleId} />
-      </Route>
       <Route path="/content/filtered">
         <ContentDiffusion initialFilter="Filtrées" />
       </Route>
@@ -66,18 +78,26 @@
       <Route path="/analytics">
         <Analytics />
       </Route>
-      <Route path="/notifications">
-        <NotificationsSettings />
-      </Route>
-      <Route path="/settings">
-        <NotificationsSettings />
-      </Route>
       <Route path="/activity">
         <ActivityLog />
       </Route>
-      <Route path="/automations">
-        <ModuleCatalog />
-      </Route>
+      {#if canManageSettings}
+        <Route path="/modules">
+          <ModuleCatalog />
+        </Route>
+        <Route path="/module-settings/:moduleId" let:meta>
+          <ModuleSettings moduleId={meta.params.moduleId} />
+        </Route>
+        <Route path="/notifications">
+          <NotificationsSettings />
+        </Route>
+        <Route path="/settings">
+          <NotificationsSettings />
+        </Route>
+        <Route path="/automations">
+          <ModuleCatalog />
+        </Route>
+      {/if}
     </MainLayout>
   {/if}
 </Route>

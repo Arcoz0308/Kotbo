@@ -1,6 +1,7 @@
 <script lang="ts">
   import { router } from 'tinro';
   import Papicon from './Papicon.svelte';
+  import { authStore } from '../stores/auth.svelte';
 
   const navItems = [
     { name: "Vue d'ensemble", icon: "grid", href: "/" },
@@ -8,6 +9,14 @@
     { name: "Contenu", icon: "newspaper", href: "/content" },
     { name: "Analytics", icon: "pie", href: "/analytics" },
   ];
+
+  const canManageSettings = $derived(
+    authStore.guilds.find((guild) => guild.id === authStore.selectedGuildId)?.accessLevel !== 'moderator'
+  );
+
+  const visibleNavItems = $derived(
+    canManageSettings ? navItems : navItems.filter((item) => item.href !== '/modules')
+  );
 
   function isActiveNavItem(href) {
     if (href === '/') return $router.path === '/';
@@ -18,6 +27,10 @@
     { name: "Paramètres globaux", icon: "gears", href: "/settings" },
     { name: "Journal d'activité", icon: "grades", href: "/activity" },
   ];
+
+  const visibleSecondaryItems = $derived(
+    canManageSettings ? secondaryItems : secondaryItems.filter((item) => item.href !== '/settings')
+  );
 
   const LOGO_URL = "/favicon.svg";
 </script>
@@ -38,7 +51,7 @@
 
   <nav class="flex-1 mt-6 px-4 space-y-1.5 overflow-y-auto scrollbar-hide">
     <div class="px-3 mb-2 text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-[0.2em]">Menu Principal</div>
-    {#each navItems as item}
+    {#each visibleNavItems as item}
       <a 
         href={item.href}
         class="flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all duration-300 group relative overflow-hidden {isActiveNavItem(item.href) ? 'text-primary bg-primary/5 font-bold' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-hover/50'}"
@@ -53,7 +66,7 @@
 
     <div class="pt-6 mt-6 border-t border-outline-variant/30 px-3 flex flex-col gap-1.5">
       <div class="mb-2 text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-[0.2em]">Configuration</div>
-      {#each secondaryItems as item}
+      {#each visibleSecondaryItems as item}
         <a 
           href={item.href}
           class="flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all duration-300 group {$router.path === item.href ? 'text-primary bg-primary/5 font-bold' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-hover/50'}"

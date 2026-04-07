@@ -57,6 +57,8 @@
 
   refreshDashboardOnMount();
 
+  const canModerateContent = $derived(!!dashboardStore.state.access?.canModerateContent);
+
   let filter = $state(initialFilter);
   let search = $state("");
   let sortMode = $state("schedule-desc");
@@ -174,6 +176,7 @@
   );
 
   async function handleForceSend(id) {
+    if (!canModerateContent) return;
     if (pendingActionById[id]) return;
     pendingActionById[id] = "publish";
     const removedSnapshot = removeContentItemOptimistically(id);
@@ -202,6 +205,7 @@
   }
 
   async function handleMarkError(id) {
+    if (!canModerateContent) return;
     if (pendingActionById[id]) return;
     pendingActionById[id] = "reject";
     const removedSnapshot = removeContentItemOptimistically(id);
@@ -224,6 +228,7 @@
   }
 
   async function handleTranslate(id) {
+    if (!canModerateContent) return;
     if (pendingActionById[id] || bulkTranslationInProgress) return;
 
     await translateItemInChain(id);
@@ -286,6 +291,7 @@
   }
 
   async function handleTranslateAll() {
+    if (!canModerateContent) return;
     if (bulkTranslationInProgress) return;
 
     const idsToTranslate = [...filteredContent]
@@ -410,6 +416,11 @@
         </div>
       </div>
     </div>
+    {#if !canModerateContent}
+      <div class="mt-6 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700">
+        Vos permissions de modération sont en cours de chargement ou insuffisantes sur ce serveur.
+      </div>
+    {/if}
   </div>
 
   <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -464,8 +475,8 @@
             <div class="flex items-center gap-2 shrink-0 flex-wrap">
               <button
                 onclick={handleTranslateAll}
-                disabled={bulkTranslationInProgress || filteredContent.length === 0}
-                class="inline-flex items-center gap-1 rounded-full px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] transition-colors {(bulkTranslationInProgress || filteredContent.length === 0)
+                disabled={!canModerateContent || bulkTranslationInProgress || filteredContent.length === 0}
+                class="inline-flex items-center gap-1 rounded-full px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] transition-colors {(!canModerateContent || bulkTranslationInProgress || filteredContent.length === 0)
                   ? 'cursor-not-allowed border border-blue-500/10 bg-blue-500/5 text-blue-700/35'
                   : 'border border-blue-500/20 bg-blue-500/8 text-blue-700 hover:bg-blue-600 hover:text-white'}"
               >
@@ -573,8 +584,8 @@
 
                     <button
                       onclick={() => handleTranslate(item.id)}
-                      disabled={!!pendingAction || bulkTranslationInProgress}
-                      class="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-xs font-black uppercase tracking-[0.18em] transition-all {(pendingAction || bulkTranslationInProgress)
+                      disabled={!canModerateContent || !!pendingAction || bulkTranslationInProgress}
+                      class="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-xs font-black uppercase tracking-[0.18em] transition-all {(!canModerateContent || pendingAction || bulkTranslationInProgress)
                         ? 'cursor-not-allowed border border-blue-500/10 bg-blue-500/5 text-blue-700/35'
                         : 'border border-blue-500/20 bg-blue-500/8 text-blue-700 hover:bg-blue-600 hover:text-white hover:scale-[1.02] active:scale-[0.98]'}"
                     >
@@ -595,8 +606,8 @@
 
                     <button
                       onclick={() => handleForceSend(item.id)}
-                      disabled={!(item.status === 'planifie' || item.filteredOut) || !!pendingAction}
-                      class="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-xs font-black uppercase tracking-[0.18em] transition-all {((item.status === 'planifie' || item.filteredOut) && !pendingAction)
+                      disabled={!canModerateContent || !(item.status === 'planifie' || item.filteredOut) || !!pendingAction}
+                      class="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-xs font-black uppercase tracking-[0.18em] transition-all {(((item.status === 'planifie' || item.filteredOut) && !pendingAction) && canModerateContent)
                         ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-500/20 hover:scale-[1.02] active:scale-[0.98]'
                         : 'cursor-not-allowed bg-emerald-500/10 text-emerald-700/40'}"
                     >
@@ -611,8 +622,8 @@
 
                     <button
                       onclick={() => handleMarkError(item.id)}
-                      disabled={item.status !== 'planifie' || !!pendingAction}
-                      class="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-xs font-black uppercase tracking-[0.18em] transition-all {(item.status === 'planifie' && !pendingAction)
+                      disabled={!canModerateContent || item.status !== 'planifie' || !!pendingAction}
+                      class="inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-xs font-black uppercase tracking-[0.18em] transition-all {((item.status === 'planifie' && !pendingAction) && canModerateContent)
                         ? 'border border-rose-500/20 bg-rose-500/8 text-rose-700 hover:bg-rose-600 hover:text-white hover:scale-[1.02] active:scale-[0.98]'
                         : 'cursor-not-allowed border border-rose-500/10 bg-rose-500/5 text-rose-700/35'}"
                     >

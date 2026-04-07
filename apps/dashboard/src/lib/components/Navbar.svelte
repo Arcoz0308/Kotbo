@@ -47,6 +47,12 @@
     )
   );
 
+  const selectedGuildAccessLabel = $derived(
+    authStore.guilds.find((guild) => guild.id === authStore.selectedGuildId)?.accessLevel === 'moderator'
+      ? 'Modérateur'
+      : 'Administrateur'
+  );
+
   const installedGuilds = $derived(filteredGuilds.filter(g => g.botPresent));
   const availableGuilds = $derived(filteredGuilds.filter(g => !g.botPresent));
 
@@ -193,6 +199,11 @@
   </div>
 
   <div class="flex items-center gap-8">
+    <div class="hidden md:flex items-center gap-2 bg-slate-500/10 px-4 py-2 rounded-full border border-slate-500/20">
+      <span class="material-symbols-outlined text-sm text-slate-500">verified_user</span>
+      <span class="text-[10px] font-black text-slate-600 uppercase tracking-widest">{selectedGuildAccessLabel}</span>
+    </div>
+
     <div class="hidden md:flex items-center gap-2 bg-emerald-500/10 px-4 py-2 rounded-full border border-emerald-500/20">
       <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
       <span class="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Connecté</span>

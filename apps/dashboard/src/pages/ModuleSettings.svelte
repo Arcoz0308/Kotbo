@@ -16,6 +16,7 @@
     status: 'inactive' 
   });
   const moduleMeta = $derived(getModuleMeta(moduleId));
+  const canManageSettings = $derived(!!dashboardStore.state.access?.canManageSettings);
 
   let youtubeReferenceChannelId = $state('');
   let desiredModuleStatus = $state('inactive');
@@ -33,6 +34,11 @@
   });
 
   async function handleDeleteFeed(feedId) {
+    if (!canManageSettings) {
+      formAction.setError('Seuls les administrateurs peuvent modifier ce module.');
+      return;
+    }
+
     if (confirm('Voulez-vous vraiment supprimer ce flux ?')) {
       await formAction.run(
         async () => {
@@ -51,6 +57,11 @@
 
   async function handleSave() {
     formAction.clearFeedback();
+
+    if (!canManageSettings) {
+      formAction.setError('Seuls les administrateurs peuvent modifier ce module.');
+      return;
+    }
 
     if (moduleId === 'youtube') {
       await formAction.run(
@@ -119,6 +130,11 @@
   }
 
   function startEditFeed(feed) {
+    if (!canManageSettings) {
+      formAction.setError('Seuls les administrateurs peuvent modifier les flux RSS.');
+      return;
+    }
+
     editingFeedId = feed.id;
     feedDraft = {
       name: feed.name,
@@ -143,7 +159,7 @@
       .filter(Boolean);
   }
 
-  function buildFeedPayload(feed, overrides = {}) {
+  function buildFeedPayload(feed, overrides: Record<string, any> = {}) {
     return {
       name: (overrides.name ?? feed.name ?? '').trim(),
       url: (overrides.url ?? feed.url ?? '').trim(),
@@ -156,6 +172,11 @@
   }
 
   async function saveFeed(feedId) {
+    if (!canManageSettings) {
+      formAction.setError('Seuls les administrateurs peuvent modifier les flux RSS.');
+      return;
+    }
+
     const payload = buildFeedPayload(feedDraft, {
       includeKeywords: splitKeywords(feedDraft.includeKeywords),
       excludeKeywords: splitKeywords(feedDraft.excludeKeywords)
@@ -182,6 +203,11 @@
   }
 
   async function toggleFeedEnabled(feed) {
+    if (!canManageSettings) {
+      formAction.setError('Seuls les administrateurs peuvent modifier les flux RSS.');
+      return;
+    }
+
     await formAction.run(
       async () => {
         const success = await updateFeed(feed.id, buildFeedPayload(feed, { enabled: !feed.enabled }));
@@ -232,7 +258,7 @@
       />
       <button 
         onclick={handleSave}
-        disabled={formAction.state.loading}
+        disabled={formAction.state.loading || !canManageSettings}
         class="px-10 py-3.5 bg-primary text-on-primary text-xs font-black rounded-2xl shadow-2xl shadow-primary/30 hover:scale-105 active:scale-95 transition-all uppercase tracking-widest"
       >
         {formAction.state.loading ? 'Enregistrement...' : 'Enregistrer'}
@@ -241,6 +267,12 @@
   </div>
 
   <InlineFeedback message={formAction.state.message} error={formAction.state.error} />
+
+  {#if !canManageSettings}
+    <div class="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700">
+      Accès modérateur: cette page est en lecture seule.
+    </div>
+  {/if}
 
   <div class="grid grid-cols-12 gap-12">
     
@@ -308,6 +340,7 @@
                   <div class="flex items-center gap-2">
                     <button
                       onclick={() => toggleFeedEnabled(feed)}
+                      disabled={!canManageSettings}
                       class="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-[0.15em] border transition-all {feed.enabled
                         ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500 hover:text-white'
                         : 'bg-slate-500/10 text-slate-600 border-slate-500/20 hover:bg-slate-700 hover:text-white'}"
@@ -316,6 +349,7 @@
                     </button>
                     <button
                       onclick={() => startEditFeed(feed)}
+                      disabled={!canManageSettings}
                       class="p-3 text-on-surface-variant/40 hover:text-primary hover:bg-primary/10 rounded-xl transition-all"
                       title="Modifier le flux"
                     >
@@ -323,6 +357,7 @@
                     </button>
                     <button 
                       onclick={() => handleDeleteFeed(feed.id)}
+                      disabled={!canManageSettings}
                       class="p-3 text-on-surface-variant/20 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
                       title="Supprimer le flux"
                     >
@@ -382,6 +417,7 @@
                       <input
                         id="feed-name"
                         bind:value={feedDraft.name}
+                        disabled={!canManageSettings}
                         class="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-semibold outline-none focus:border-primary/40"
                         placeholder="Nom lisible"
                       />
@@ -392,6 +428,7 @@
                       <input
                         id="feed-category"
                         bind:value={feedDraft.category}
+                        disabled={!canManageSettings}
                         class="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-semibold outline-none focus:border-primary/40"
                         placeholder="Catégorie"
                       />
@@ -402,6 +439,7 @@
                       <input
                         id="feed-url"
                         bind:value={feedDraft.url}
+                        disabled={!canManageSettings}
                         class="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-semibold outline-none focus:border-primary/40"
                         placeholder="https://..."
                       />
@@ -412,6 +450,7 @@
                       <input
                         id="feed-include-keywords"
                         bind:value={feedDraft.includeKeywords}
+                        disabled={!canManageSettings}
                         class="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-semibold outline-none focus:border-primary/40"
                         placeholder="ia, open-source, release"
                       />
@@ -422,6 +461,7 @@
                       <input
                         id="feed-exclude-keywords"
                         bind:value={feedDraft.excludeKeywords}
+                        disabled={!canManageSettings}
                         class="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-semibold outline-none focus:border-primary/40"
                         placeholder="sponsorisé, promo"
                       />
@@ -436,6 +476,7 @@
                       </button>
                       <button
                         onclick={() => saveFeed(feed.id)}
+                        disabled={!canManageSettings}
                         class="px-6 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-black uppercase tracking-[0.12em] shadow-lg shadow-primary/20 hover:scale-[1.01] transition-transform"
                       >
                         Enregistrer le flux
@@ -467,6 +508,7 @@
                   id="yt-id" 
                   type="text" 
                   bind:value={youtubeReferenceChannelId}
+                  disabled={!canManageSettings}
                   class="w-full px-6 py-4 bg-surface-container-low border border-outline-variant/10 focus:border-red-500/30 focus:shadow-xl focus:shadow-red-500/5 transition-all rounded-2xl text-sm font-bold outline-none" 
                   placeholder="UCxxxxxxxxxxxxxxxxx"
                 />
@@ -490,6 +532,7 @@
                   <input
                     type="checkbox"
                     checked={desiredModuleStatus === 'active'}
+                    disabled={!canManageSettings}
                     onchange={() => (desiredModuleStatus = desiredModuleStatus === 'active' ? 'inactive' : 'active')}
                     class="sr-only peer"
                   />
@@ -500,6 +543,7 @@
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <button
                   onclick={() => router.goto('/settings')}
+                  disabled={!canManageSettings}
                   class="px-5 py-4 rounded-2xl border border-outline-variant/30 bg-surface-container-low text-sm font-black uppercase tracking-wider text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-all"
                 >
                   Ouvrir les paramètres globaux

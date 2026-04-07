@@ -7,15 +7,31 @@
   let errorMessage = $state(null);
   let discordClientId = $state('');
 
-  const loginWithDiscord = () => {
-    if (!discordClientId) {
-      errorMessage = "Configuration OAuth Discord indisponible. Réessayez dans quelques instants.";
+  const fetchDiscordClientId = async () => {
+    if (discordClientId) return discordClientId;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/config`);
+      if (!response.ok) return '';
+      const config = await response.json() as { discordClientId?: string };
+      discordClientId = config.discordClientId ?? '';
+    } catch (error) {
+      console.error('Erreur de récupération de la configuration OAuth:', error);
+    }
+
+    return discordClientId;
+  };
+
+  const loginWithDiscord = async () => {
+    const clientId = await fetchDiscordClientId();
+    if (!clientId) {
+      window.location.href = `${API_BASE_URL}/api/auth/discord/login`;
       return;
     }
 
     const redirectUri = `${API_BASE_URL}/api/auth/discord/callback`;
     const discordUrl = new URL('https://discord.com/api/oauth2/authorize');
-    discordUrl.searchParams.set('client_id', discordClientId);
+    discordUrl.searchParams.set('client_id', clientId);
     discordUrl.searchParams.set('redirect_uri', redirectUri);
     discordUrl.searchParams.set('response_type', 'code');
     discordUrl.searchParams.set('scope', 'identify guilds');
@@ -28,15 +44,7 @@
       router.goto('/');
     }
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/config`);
-      if (response.ok) {
-        const config = await response.json() as { discordClientId?: string };
-        discordClientId = config.discordClientId ?? '';
-      }
-    } catch (error) {
-      console.error('Erreur de récupération de la configuration OAuth:', error);
-    }
+    await fetchDiscordClientId();
 
     const urlParams = new URLSearchParams(window.location.search);
     const errorParam = urlParams.get('error');

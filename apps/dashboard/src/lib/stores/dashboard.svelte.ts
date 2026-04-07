@@ -7,9 +7,9 @@ class DashboardStore {
     discordRoles: [],
     moderatorRoleId: '',
     access: {
-      level: 'admin',
-      canModerateContent: true,
-      canManageSettings: true
+      level: 'moderator',
+      canModerateContent: false,
+      canManageSettings: false
     },
     modules: [],
     feeds: [],
@@ -48,9 +48,9 @@ class DashboardStore {
         this.state.discordRoles = data.discordRoles || [];
         this.state.moderatorRoleId = data.moderatorRoleId || '';
         this.state.access = data.access || {
-          level: 'admin',
-          canModerateContent: true,
-          canManageSettings: true
+          level: 'moderator',
+          canModerateContent: false,
+          canManageSettings: false
         };
         this.state.modules = data.modules;
         this.state.feeds = data.feeds;

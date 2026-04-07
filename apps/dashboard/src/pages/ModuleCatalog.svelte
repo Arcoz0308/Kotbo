@@ -9,7 +9,10 @@
 
   refreshDashboardOnMount();
 
+  const canManageSettings = $derived(!!dashboardStore.state.access?.canManageSettings);
+
   async function toggleModule(moduleId, currentStatus) {
+    if (!canManageSettings) return;
     const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
     const success = await updateModuleStatus(moduleId, newStatus);
     if (success) {
@@ -47,6 +50,11 @@
       getCount={() => 0}
     />
   </div>
+  {#if !canManageSettings}
+    <div class="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700">
+      Accès modérateur: consultation uniquement sur les modules.
+    </div>
+  {/if}
 </section>
 
 
@@ -69,6 +77,7 @@
             </div>
             <ToggleSwitch
               checked={module.status === 'active'}
+              disabled={!canManageSettings}
               onToggle={() => toggleModule(module.id, module.status)}
             />
           </div>
