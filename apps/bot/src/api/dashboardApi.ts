@@ -729,6 +729,21 @@ export const startDashboardApi = (client: Client) => {
   const port = Number(process.env.DASHBOARD_API_PORT ?? '8787');
   const wsServer = new WebSocketServer({ noServer: true });
 
+  const getMissingOAuthConfig = ({ includeSecret = false }: { includeSecret?: boolean } = {}) => {
+    const missing: string[] = [];
+    if (!DISCORD_CLIENT_ID?.trim()) missing.push('DISCORD_CLIENT_ID');
+    if (!DISCORD_REDIRECT_URI?.trim()) missing.push('DISCORD_REDIRECT_URI');
+    if (includeSecret && !DISCORD_CLIENT_SECRET?.trim()) missing.push('DISCORD_CLIENT_SECRET');
+    return missing;
+  };
+
+  const missingOAuthAtStartup = getMissingOAuthConfig({ includeSecret: true });
+  if (missingOAuthAtStartup.length > 0) {
+    const message = `Configuration OAuth invalide: variables manquantes (${missingOAuthAtStartup.join(', ')})`;
+    logger.error('DashboardAPI', message);
+    throw new Error(message);
+  }
+
   const broadcastDashboardStateChange = (guildId: string, reason: string) => {
     const payload = JSON.stringify({
       type: 'dashboard_state_changed',
@@ -765,6 +780,15 @@ export const startDashboardApi = (client: Client) => {
       }
 
       if (url.pathname === '/api/config' && req.method === 'GET') {
+        const missingOAuth = getMissingOAuthConfig();
+        if (missingOAuth.length > 0) {
+          json(res, 500, {
+            error: 'Configuration OAuth invalide côté serveur.',
+            missing: missingOAuth,
+          });
+          return;
+        }
+
         json(res, 200, { discordClientId: DISCORD_CLIENT_ID });
         return;
       }
@@ -774,6 +798,15 @@ export const startDashboardApi = (client: Client) => {
       if (parts.length >= 2 && parts[0] === 'api' && parts[1] === 'auth') {
         if (parts[2] === 'discord') {
           if (parts[3] === 'login') {
+            const missingOAuth = getMissingOAuthConfig();
+            if (missingOAuth.length > 0) {
+              json(res, 500, {
+                error: 'Configuration OAuth invalide côté serveur.',
+                missing: missingOAuth,
+              });
+              return;
+            }
+
             const discordUrl = `https://discord.com/api/oauth2/authorize?client_id=${DISCORD_CLIENT_ID}&redirect_uri=${encodeURIComponent(DISCORD_REDIRECT_URI!)}&response_type=code&scope=identify%20guilds`;
             res.writeHead(302, { Location: discordUrl });
             res.end();
@@ -781,6 +814,15 @@ export const startDashboardApi = (client: Client) => {
           }
 
           if (parts[3] === 'callback') {
+            const missingOAuth = getMissingOAuthConfig({ includeSecret: true });
+            if (missingOAuth.length > 0) {
+              json(res, 500, {
+                error: 'Configuration OAuth invalide côté serveur.',
+                missing: missingOAuth,
+              });
+              return;
+            }
+
             const code = url.searchParams.get('code');
             if (!code) {
               res.writeHead(302, { Location: `${DASHBOARD_URL}/login?error=no_code` });

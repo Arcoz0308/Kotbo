@@ -13,8 +13,17 @@
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/config`);
-      if (!response.ok) return;
-      const data = await response.json() as { discordClientId?: string };
+      const data = await response.json() as { discordClientId?: string; error?: string; missing?: string[] };
+
+      if (!response.ok) {
+        if (data?.missing?.length) {
+          errorMessage = `Configuration OAuth invalide côté serveur: ${data.missing.join(', ')}`;
+        } else if (data?.error) {
+          errorMessage = data.error;
+        }
+        return;
+      }
+
       discordClientId = (data.discordClientId ?? '').trim();
     } catch {
       // Le fallback est best-effort, la validation côté login affichera l'erreur si nécessaire.
