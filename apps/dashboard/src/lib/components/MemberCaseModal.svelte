@@ -244,7 +244,7 @@
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="member-case-title" onclick={onClose}>
+  <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="member-case-title" tabindex="-1" onclick={onClose}>
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="modal-panel modal-panel-xl space-y-0 p-0 font-body" onclick={(e) => e.stopPropagation()}>

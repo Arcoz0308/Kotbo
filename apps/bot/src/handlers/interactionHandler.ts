@@ -525,19 +525,67 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       return;
     }
 
+    // Rate action opens a modal — must NOT deferUpdate first
+    if (action === 'rate' && type === 'daily-algo') {
+      const ratingModal = new ModalBuilder()
+        .setCustomId(`modal:daily-algo-rate:${itemId}`)
+        .setTitle('📝 Noter la solution');
+
+      const correctnessInput = new TextInputBuilder()
+        .setCustomId('score_correctness')
+        .setLabel('✅ Correctness (1-5) — La solution fonctionne ?')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('1 à 5')
+        .setRequired(true)
+        .setMaxLength(1);
+
+      const commentsInput = new TextInputBuilder()
+        .setCustomId('score_comments')
+        .setLabel('💬 Commentaires (1-5) — Code commenté ?')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('1 à 5')
+        .setRequired(true)
+        .setMaxLength(1);
+
+      const compactnessInput = new TextInputBuilder()
+        .setCustomId('score_compactness')
+        .setLabel('📦 Compacité (1-5) — Code concis ?')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('1 à 5')
+        .setRequired(true)
+        .setMaxLength(1);
+
+      const optimizationInput = new TextInputBuilder()
+        .setCustomId('score_optimization')
+        .setLabel('⚡ Optimisation (1-5) — Bonne complexité ?')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('1 à 5')
+        .setRequired(true)
+        .setMaxLength(1);
+
+      const readabilityInput = new TextInputBuilder()
+        .setCustomId('score_readability')
+        .setLabel('🧹 Lisibilité (1-5) — Code propre ?')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('1 à 5')
+        .setRequired(true)
+        .setMaxLength(1);
+
+      ratingModal.addComponents(
+        new ActionRowBuilder<TextInputBuilder>().addComponents(correctnessInput),
+        new ActionRowBuilder<TextInputBuilder>().addComponents(commentsInput),
+        new ActionRowBuilder<TextInputBuilder>().addComponents(compactnessInput),
+        new ActionRowBuilder<TextInputBuilder>().addComponents(optimizationInput),
+        new ActionRowBuilder<TextInputBuilder>().addComponents(readabilityInput),
+      );
+
+      await interaction.showModal(ratingModal);
+      return;
+    }
+
     await interaction.deferUpdate();
 
     if (action === 'approve') {
-      if (type === 'daily-algo') {
-        await reviewDailyAlgoSubmission({
-          client,
-          submissionId: itemId,
-          action: 'approve',
-          moderatorId: user.id,
-        });
-        logger.success('Handler', `Approved daily algo submission ${itemId} by ${user.tag}`);
-        return;
-      }
 
       if (type === 'rss' || type === 'youtube') {
         await sendApprovedItem(client, itemId, type);
@@ -1346,6 +1394,54 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
 export async function handleModalSubmit(interaction: ModalSubmitInteraction, client: Client): Promise<void> {
   const { customId, guildId } = interaction;
   if (!guildId) return;
+
+  // ── Daily Algo Rating Modal ──────────────────────────────────────────────
+  if (customId.startsWith('modal:daily-algo-rate:')) {
+    const submissionId = customId.split(':')[2];
+    if (!submissionId) return;
+
+    function parseScore(raw: string): number | null {
+      const n = Number.parseInt(raw.trim(), 10);
+      if (Number.isNaN(n) || n < 1 || n > 5) return null;
+      return n;
+    }
+
+    const correctness = parseScore(interaction.fields.getTextInputValue('score_correctness'));
+    const comments = parseScore(interaction.fields.getTextInputValue('score_comments'));
+    const compactness = parseScore(interaction.fields.getTextInputValue('score_compactness'));
+    const optimization = parseScore(interaction.fields.getTextInputValue('score_optimization'));
+    const readability = parseScore(interaction.fields.getTextInputValue('score_readability'));
+
+    if (correctness === null || comments === null || compactness === null || optimization === null || readability === null) {
+      await interaction.reply({
+        content: '❌ Chaque note doit être un nombre entre **1** et **5**.',
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+    const success = await reviewDailyAlgoSubmission({
+      client,
+      submissionId,
+      action: 'approve',
+      moderatorId: interaction.user.id,
+      scores: { correctness, comments, compactness, optimization, readability },
+    });
+
+    if (!success) {
+      await interaction.editReply({ content: '❌ Soumission introuvable ou déjà notée.' });
+      return;
+    }
+
+    const avg = ((correctness + comments + compactness + optimization + readability) / 5).toFixed(1);
+    await interaction.editReply({
+      content: `✅ **Solution notée !** Moyenne : **${avg}/5**\n\n✅ ${correctness}/5 · 💬 ${comments}/5 · 📦 ${compactness}/5 · ⚡ ${optimization}/5 · 🧹 ${readability}/5\n\nLe classement du Daily Algo a été mis à jour.`,
+    });
+    logger.success('Handler', `Rated daily algo submission ${submissionId} (${avg}/5) by ${interaction.user.username}`);
+    return;
+  }
 
   if (customId.startsWith('cfg:')) {
     await handleConfigModal(interaction);

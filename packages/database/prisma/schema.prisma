@@ -358,6 +358,7 @@ model DailyAlgoRun {
   challengeChannelId String
   validationChannelId String?
   challengeMessageId String?
+  leaderboardMessageId String?
   summarySentAt DateTime?
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
@@ -384,6 +385,17 @@ model DailyAlgoSubmission {
   validationMessageId String?
   validatedById String?
   validatedAt DateTime?
+
+  submittedAt DateTime @default(now())
+  speedRank Int?
+  speedBonusPoints Float?
+
+  scoreCorrectness Int?
+  scoreComments Int?
+  scoreCompactness Int?
+  scoreOptimization Int?
+  scoreReadability Int?
+  scoreFinal Float?
 
   run DailyAlgoRun @relation(fields: [runId], references: [id], onDelete: Cascade)
 

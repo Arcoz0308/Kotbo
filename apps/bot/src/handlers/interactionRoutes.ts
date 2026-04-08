@@ -1,5 +1,5 @@
 export type ValidateRoute = {
-  action: 'approve' | 'reject' | 'translate' | 'pin';
+  action: 'approve' | 'reject' | 'translate' | 'pin' | 'rate';
   type: 'rss' | 'youtube' | 'daily-algo';
   itemId: string;
 };
@@ -29,7 +29,7 @@ export function parseValidateRoute(customId: string): ValidateRoute | null {
   const itemId = parts[3];
 
   if (!itemId) return null;
-  if (action !== 'approve' && action !== 'reject' && action !== 'translate' && action !== 'pin') return null;
+  if (action !== 'approve' && action !== 'reject' && action !== 'translate' && action !== 'pin' && action !== 'rate') return null;
   if (type !== 'rss' && type !== 'youtube' && type !== 'daily-algo') return null;
 
   return { action, type, itemId };

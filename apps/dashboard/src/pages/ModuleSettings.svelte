@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
-  import { deleteFeed, updateFeed, updateYouTubeSettings, updateModuleStatus } from '../lib/api';
+  import { deleteFeed, updateFeed, updateYouTubeSettings, updateModuleStatus, fetchDailyAlgoProblems, createDailyAlgoProblem } from '../lib/api';
   import { router } from 'tinro';
   import { getModuleMeta } from '../lib/moduleMeta';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
@@ -27,12 +27,64 @@
   let pendingFeedDeletion = $state<{ id: string; name: string } | null>(null);
   const formAction = createAsyncActionState();
 
+  // Daily Algo state
+  let dailyAlgoProblems = $state<any[]>([]);
+  let isFetchingAlgo = $state(false);
+  let algoDraft = $state({
+    title: '',
+    description: '',
+    solution: '',
+    difficulty: 'moyen',
+    language: 'fr'
+  });
+
   onMount(async () => {
     await dashboardStore.refresh();
     if (moduleId === 'youtube') {
       youtubeReferenceChannelId = dashboardStore.state.youtubeReferenceChannelId || '';
+    } else if (moduleId === 'dailyalgo') {
+      await loadDailyAlgoProblems();
     }
   });
+
+  async function loadDailyAlgoProblems() {
+    isFetchingAlgo = true;
+    try {
+      dailyAlgoProblems = await fetchDailyAlgoProblems();
+    } catch (err) {
+      console.error(err);
+      formAction.setError('Erreur lors du chargement des algorithmes.');
+    } finally {
+      isFetchingAlgo = false;
+    }
+  }
+
+  async function submitDailyAlgoProblem() {
+    if (!canManageSettings) {
+      formAction.setError('Seuls les administrateurs peuvent ajouter un algo.');
+      return;
+    }
+
+    if (!algoDraft.title.trim() || !algoDraft.description.trim() || !algoDraft.solution.trim()) {
+      formAction.setError('Tous les champs requis doivent être remplis.');
+      return;
+    }
+
+    await formAction.run(
+      async () => {
+        const ok = await createDailyAlgoProblem({ ...algoDraft });
+        if (!ok) return false;
+        
+        algoDraft = { title: '', description: '', solution: '', difficulty: 'moyen', language: 'fr' };
+        await loadDailyAlgoProblems();
+        return true;
+      },
+      {
+        successMessage: 'Exercice algorithmique ajouté avec succès.',
+        failureMessage: 'Erreur lors de l’ajout de l’exercice.'
+      }
+    );
+  }
 
   $effect(() => {
     desiredModuleStatus = module.status === 'active' ? 'active' : 'inactive';
@@ -694,6 +746,106 @@
              </div>
           </div>
         </section>
+      {:else if moduleId === 'dailyalgo'}
+        <section class="space-y-8">
+          <h3 class="text-xl font-black tracking-tight flex items-center gap-4">
+            <div class="w-1.5 h-8 bg-emerald-500 rounded-full"></div>
+            Exercices Algorithmiques
+          </h3>
+
+          {#if canManageSettings}
+            <div class="premium-card p-8 rounded-[2.5rem] space-y-6">
+              <h4 class="text-lg font-black text-on-surface">Ajouter un exercice</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-2">
+                  <label for="dailyalgo-title" class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Titre</label>
+                  <FormInput
+                    id="dailyalgo-title"
+                    bind:value={algoDraft.title}
+                    className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-semibold outline-none focus:border-emerald-500/40"
+                    placeholder="Titre de l'exercice"
+                  />
+                </div>
+                <div class="space-y-2">
+                  <label for="dailyalgo-difficulty" class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Difficulté</label>
+                  <select
+                    id="dailyalgo-difficulty"
+                    bind:value={algoDraft.difficulty}
+                    class="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-semibold outline-none focus:border-emerald-500/40 text-on-surface appearance-none"
+                  >
+                    <option value="facile">Facile</option>
+                    <option value="moyen">Moyen</option>
+                    <option value="difficile">Difficile</option>
+                  </select>
+                </div>
+                <div class="space-y-2 md:col-span-2">
+                  <label for="dailyalgo-description" class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Description (Markdown autorisé)</label>
+                  <textarea
+                    id="dailyalgo-description"
+                    bind:value={algoDraft.description}
+                    class="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-mono outline-none focus:border-emerald-500/40 min-h-[120px]"
+                    placeholder="Description du problème..."
+                  ></textarea>
+                </div>
+                <div class="space-y-2 md:col-span-2">
+                  <label for="dailyalgo-solution" class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Solution attendue</label>
+                  <textarea
+                    id="dailyalgo-solution"
+                    bind:value={algoDraft.solution}
+                    class="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-mono outline-none focus:border-emerald-500/40 min-h-[120px]"
+                    placeholder="Code de la solution optimale..."
+                  ></textarea>
+                </div>
+                <div class="md:col-span-2 flex justify-end">
+                  <button
+                    onclick={submitDailyAlgoProblem}
+                    disabled={formAction.state.loading}
+                    class="px-6 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-black uppercase tracking-[0.12em] shadow-lg shadow-emerald-500/20 hover:scale-[1.01] transition-transform"
+                  >
+                    Ajouter l'exercice
+                  </button>
+                </div>
+              </div>
+            </div>
+          {/if}
+
+          <div class="space-y-4">
+            {#if isFetchingAlgo}
+              <div class="p-8 text-center text-sm font-bold text-on-surface-variant/50 animate-pulse">
+                Chargement des exercices...
+              </div>
+            {:else if dailyAlgoProblems.length === 0}
+              <div class="p-14 text-center premium-card rounded-[3rem] border-dashed border-2 opacity-55 flex flex-col items-center">
+                <span class="material-symbols-outlined text-5xl mb-4">terminal</span>
+                <p class="text-[10px] font-black uppercase tracking-[0.3em]">Aucun exercice disponible dans la base</p>
+              </div>
+            {:else}
+              {#each dailyAlgoProblems as problem}
+                <div class="premium-card p-6 rounded-3xl space-y-4 transition-all {problem.usedAt ? 'opacity-50 grayscale hover:grayscale-0 focus-within:grayscale-0' : 'hover:border-emerald-500/40'}">
+                  <div class="flex items-start justify-between gap-4">
+                    <div class="flex items-center gap-4">
+                      <div class="w-10 h-10 rounded-xl flex items-center justify-center border {problem.difficulty === 'facile' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : problem.difficulty === 'moyen' ? 'bg-amber-500/10 text-amber-600 border-amber-500/20' : 'bg-red-500/10 text-red-600 border-red-500/20'}">
+                        <span class="material-symbols-outlined text-xl">code</span>
+                      </div>
+                      <div>
+                        <h4 class="font-black text-on-surface tracking-tight">{problem.title}</h4>
+                        <div class="flex items-center gap-2 mt-1">
+                          <span class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/60">{problem.difficulty}</span>
+                          {#if problem.usedAt}
+                            <span class="px-2 py-0.5 rounded border border-outline-variant/20 bg-surface-container text-[9px] font-bold text-on-surface-variant">Déjà utilisé</span>
+                          {/if}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <p class="text-xs text-on-surface-variant/80 font-mono line-clamp-3 bg-surface-container-low p-3 rounded-xl">
+                    {problem.description}
+                  </p>
+                </div>
+              {/each}
+            {/if}
+          </div>
+        </section>
       {:else}
         <section class="space-y-8">
             <h3 class="text-xl font-black tracking-tight flex items-center gap-4">
@@ -738,7 +890,7 @@
 {#if deleteFeedModalOpen && pendingFeedDeletion}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="delete-feed-title" onclick={closeDeleteFeedModal}>
+  <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="delete-feed-title" tabindex="-1" onclick={closeDeleteFeedModal}>
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="modal-panel max-w-md space-y-4" onclick={(e) => e.stopPropagation()}>

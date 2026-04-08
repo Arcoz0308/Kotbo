@@ -596,7 +596,7 @@
 {#if modalOpen && selectedSanction}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div class="modal-backdrop" role="dialog" aria-modal="true" onclick={closeModal}>
+  <div class="modal-backdrop" role="dialog" aria-modal="true" tabindex="-1" onclick={closeModal}>
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="modal-panel modal-panel-lg space-y-5 font-inter" onclick={(e) => e.stopPropagation()}>
@@ -742,7 +742,7 @@
 {#if deleteModalOpen && pendingDeletion}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="delete-sanction-title" onclick={closeDeleteModal}>
+  <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="delete-sanction-title" tabindex="-1" onclick={closeDeleteModal}>
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="modal-panel max-w-lg space-y-4 font-inter" onclick={(e) => e.stopPropagation()}>

@@ -2711,6 +2711,48 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
+          if (parts.length === 5 && parts[4] === 'daily-algo-problems' && req.method === 'GET') {
+            const problems = await prisma.dailyAlgoProblem.findMany({
+              orderBy: [
+                { usedAt: { sort: 'asc', nulls: 'first' } },
+                { createdAt: 'desc' },
+              ]
+            });
+            json(res, 200, problems);
+            return;
+          }
+
+          if (parts.length === 5 && parts[4] === 'daily-algo-problems' && req.method === 'POST') {
+            const body = await readJsonBody<{ title: string; description: string; solution: string; difficulty: string; language: string }>(req);
+            if (!body || !body.title || !body.description || !body.solution) {
+              json(res, 400, { error: 'Payload invalide : champs manquants' });
+              return;
+            }
+
+            const problem = await prisma.dailyAlgoProblem.create({
+              data: {
+                title: body.title,
+                description: body.description,
+                solution: body.solution,
+                difficulty: body.difficulty || 'moyen',
+                language: body.language || 'fr',
+              }
+            });
+
+            await pushAudit(guildId, {
+              user: auditUser,
+              action: 'Ajout Exercice',
+              context: getGuildName(client, guildId),
+              module: 'Daily Algo',
+              eventType: 'Manuel',
+              details: `Ajout d'un nouvel exercice : ${problem.title}`,
+              channelId: null
+            });
+
+            json(res, 201, problem);
+            return;
+          }
+
           if (parts.length === 5 && parts[4] === 'import' && req.method === 'POST') {
             const body = await readJsonBody<DashboardState>(req);
             if (!body) {

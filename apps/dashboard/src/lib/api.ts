@@ -324,3 +324,21 @@ export async function updateRegulationSettings(regulationChannelId, guildId = au
     errorContext: 'API Error (Regulation Settings):'
   });
 }
+
+export async function fetchDailyAlgoProblems(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/daily-algo-problems', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Daily Algo Problems):'
+  });
+}
+
+export async function createDailyAlgoProblem(problem, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/daily-algo-problems', {
+    method: 'POST',
+    payload: problem,
+    guildId,
+    errorContext: 'API Error (Create Daily Algo Problem):'
+  });
+}
+
