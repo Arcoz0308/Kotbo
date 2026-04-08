@@ -20,6 +20,38 @@ export type DailyAlgoDispatchResult = {
   dateKey: string;
 };
 
+export type DailyAlgoSkillTier = 'Débutant' | 'Apprenti' | 'Maître' | 'Légende';
+
+type DailyAlgoChallengeTypeKey =
+  | 'time-complexity'
+  | 'space-complexity'
+  | 'code-golf'
+  | 'absurd-constraints'
+  | 'debug'
+  | 'language-imposed'
+  | 'classic';
+
+const DAILY_ALGO_CHALLENGE_TYPE_LABELS: Record<DailyAlgoChallengeTypeKey, string> = {
+  'time-complexity': '⚡ Complexité temporelle',
+  'space-complexity': '🧠 Complexité spatiale',
+  'code-golf': '✂️ Code court (code golf)',
+  'absurd-constraints': '🎭 Contraintes absurdes',
+  debug: '🧪 Débogage',
+  'language-imposed': '🗣️ Langage imposé',
+  classic: '📘 Classique',
+};
+
+export const DAILY_ALGO_SCORING_RULES = {
+  criteria: [
+    { key: 'correctness', label: '✅ Exactitude', max: 5 },
+    { key: 'comments', label: '💬 Commentaires', max: 5 },
+    { key: 'compactness', label: '📦 Compacité', max: 5 },
+    { key: 'optimization', label: '⚡ Optimisation', max: 5 },
+    { key: 'readability', label: '🧹 Lisibilité', max: 5 },
+  ],
+  speedBonus: { 1: 3, 2: 2, 3: 1 },
+} as const;
+
 const dailyAlgoRunDispatchSelect = {
   id: true,
   challengeChannelId: true,
@@ -77,6 +109,61 @@ const SPEED_BONUS: Record<number, number> = {
 
 function getSpeedBonus(rank: number): number {
   return SPEED_BONUS[rank] ?? 0;
+}
+
+function resolveSkillTier(averageScore: number, approvedCount: number): DailyAlgoSkillTier {
+  if (approvedCount >= 25 && averageScore >= 9) return 'Légende';
+  if (approvedCount >= 10 && averageScore >= 8) return 'Maître';
+  if (approvedCount >= 3 && averageScore >= 6) return 'Apprenti';
+  return 'Débutant';
+}
+
+function detectChallengeTypeKey(title: string, description: string): DailyAlgoChallengeTypeKey {
+  const text = `${title} ${description}`.toLowerCase();
+
+  if (/débog|debug|corrig|fix|bug/.test(text)) {
+    return 'debug';
+  }
+
+  if (/complexité|o\(n|o\(log|temps d'exécution|runtime/.test(text)) {
+    return 'time-complexity';
+  }
+
+  if (/mémoire|espace|space complexity|in-place|sans allocation/.test(text)) {
+    return 'space-complexity';
+  }
+
+  if (/plus court|code golf|minimum de caractères|moins de caractères/.test(text)) {
+    return 'code-golf';
+  }
+
+  if (/obligatoirement|en python|en rust|en javascript|en go|en typescript|en c\+\+|en c#|en sql|en bash|langage/.test(text)) {
+    return 'language-imposed';
+  }
+
+  if (/sans la lettre|interdit|absurde|contraintes absurdes|uniquement|sans utiliser/.test(text)) {
+    return 'absurd-constraints';
+  }
+
+  return 'classic';
+}
+
+function challengeTypeLabelFromProblem(problem: { title: string; description: string }): string {
+  const key = detectChallengeTypeKey(problem.title, problem.description);
+  return DAILY_ALGO_CHALLENGE_TYPE_LABELS[key];
+}
+
+function pickProblemCandidateWithVariety(params: {
+  candidates: Array<{ id: string; title: string; description: string }>;
+  recentTypeKeys: DailyAlgoChallengeTypeKey[];
+}): { id: string; title: string; description: string } | null {
+  const { candidates, recentTypeKeys } = params;
+  if (candidates.length === 0) return null;
+
+  const recent = new Set(recentTypeKeys);
+  const firstVaried = candidates.find((candidate) => !recent.has(detectChallengeTypeKey(candidate.title, candidate.description)));
+
+  return firstVaried ?? candidates[0] ?? null;
 }
 
 // ── Difficulty Emoji ───────────────────────────────────────────────────────────
@@ -148,6 +235,7 @@ function buildDailyAlgoChallengeEmbed(params: {
   problemTitle: string;
   description: string;
   difficulty: string;
+  challengeTypeLabel: string;
   footerText?: string;
 }) {
   const embed = new EmbedBuilder()
@@ -163,8 +251,13 @@ function buildDailyAlgoChallengeEmbed(params: {
       inline: true,
     })
     .addFields({
-      name: '⏱️ Bonus rapidité',
-      value: '🥇 +3 · 🥈 +2 · 🥉 +1',
+      name: '🧩 Type de défi',
+      value: params.challengeTypeLabel,
+      inline: true,
+    })
+    .addFields({
+      name: '🧮 Barème',
+      value: '5 critères notés sur 5 (moyenne /5) + bonus rapidité 🥇 +3 · 🥈 +2 · 🥉 +1',
       inline: true,
     })
     .setTimestamp()
@@ -188,6 +281,7 @@ async function sendDailyAlgoRunMessage(client: Client, run: DailyAlgoRunMessageD
     problemTitle: run.problem.title,
     description: run.problem.description,
     difficulty: run.problem.difficulty,
+    challengeTypeLabel: challengeTypeLabelFromProblem(run.problem),
   });
 
   return channel.send({
@@ -199,9 +293,10 @@ async function sendDailyAlgoRunMessage(client: Client, run: DailyAlgoRunMessageD
 // ── Leaderboard Embed ──────────────────────────────────────────────────────────
 
 function formatScoreBar(score: number): string {
-  const filled = '█'.repeat(score);
-  const empty = '░'.repeat(5 - score);
-  return `${filled}${empty} ${score}/5`;
+  const safeScore = Number.isFinite(score) ? Math.max(0, Math.min(5, Math.trunc(score))) : 0;
+  const filled = '█'.repeat(safeScore);
+  const empty = '░'.repeat(5 - safeScore);
+  return `${filled}${empty} ${safeScore}/5`;
 }
 
 function formatRankMedal(rank: number): string {
@@ -239,6 +334,9 @@ function buildLeaderboardEmbed(submissions: LeaderboardSubmission[], runCreatedA
 
   const pending = submissions.filter((s) => s.status === 'PENDING');
   const rejected = submissions.filter((s) => s.status === 'REJECTED');
+  const maxApprovedEntries = 15;
+  const maxPendingEntries = 10;
+  const maxRejectedEntries = 10;
 
   const embed = new EmbedBuilder()
     .setColor(COLORS.info)
@@ -256,7 +354,7 @@ function buildLeaderboardEmbed(submissions: LeaderboardSubmission[], runCreatedA
   // ── Ranked participants ──
   if (approved.length > 0) {
     lines.push('**🏆 Classés**\n');
-    for (let i = 0; i < approved.length; i++) {
+    for (let i = 0; i < Math.min(approved.length, maxApprovedEntries); i++) {
       const s = approved[i]!;
       const totalScore = (s.scoreFinal ?? 0) + (s.speedBonusPoints ?? 0);
       const medal = formatRankMedal(i + 1);
@@ -270,15 +368,24 @@ function buildLeaderboardEmbed(submissions: LeaderboardSubmission[], runCreatedA
       lines.push(`┊ 🧹 ${formatScoreBar(s.scoreReadability ?? 0)}`);
       lines.push('');
     }
+
+    if (approved.length > maxApprovedEntries) {
+      lines.push(`… et ${approved.length - maxApprovedEntries} autre${approved.length - maxApprovedEntries > 1 ? 's' : ''} classement${approved.length - maxApprovedEntries > 1 ? 's' : ''}`);
+      lines.push('');
+    }
   }
 
   // ── Pending participants ──
   if (pending.length > 0) {
     lines.push('**⏳ En attente de classement**\n');
-    for (const s of pending) {
+    for (const s of pending.slice(0, maxPendingEntries)) {
       const elapsed = timeDiff(runCreatedAt, s.submittedAt);
       const speedLabel = s.speedRank ? ` · ${formatRankMedal(s.speedRank)} arrivé` : '';
       lines.push(`⏳ **${s.authorName}** — soumis après ${elapsed}${speedLabel}`);
+    }
+
+    if (pending.length > maxPendingEntries) {
+      lines.push(`… et ${pending.length - maxPendingEntries} autre${pending.length - maxPendingEntries > 1 ? 's' : ''} en attente`);
     }
     lines.push('');
   }
@@ -286,8 +393,12 @@ function buildLeaderboardEmbed(submissions: LeaderboardSubmission[], runCreatedA
   // ── Rejected participants ──
   if (rejected.length > 0) {
     lines.push('**❌ Non validés**\n');
-    for (const s of rejected) {
+    for (const s of rejected.slice(0, maxRejectedEntries)) {
       lines.push(`~~${s.authorName}~~`);
+    }
+
+    if (rejected.length > maxRejectedEntries) {
+      lines.push(`… et ${rejected.length - maxRejectedEntries} autre${rejected.length - maxRejectedEntries > 1 ? 's' : ''} rejeté${rejected.length - maxRejectedEntries > 1 ? 's' : ''}`);
     }
   }
 
@@ -459,6 +570,269 @@ export async function getPreviousDailyAlgoRun(guildId: string) {
       },
     },
   });
+}
+
+export type DailyAlgoGuildRankingEntry = {
+  rank: number;
+  authorId: string;
+  authorName: string;
+  approvedCount: number;
+  averageScore: number;
+  bestScore: number;
+  totalPoints: number;
+  currentStreak: number;
+  bestStreak: number;
+  tier: DailyAlgoSkillTier;
+};
+
+function countStreaks(dateKeys: string[]): { current: number; best: number } {
+  if (dateKeys.length === 0) {
+    return { current: 0, best: 0 };
+  }
+
+  const sorted = [...new Set(dateKeys)].sort((a, b) => b.localeCompare(a));
+  let current = 1;
+  let best = 1;
+  let run = 1;
+
+  for (let i = 1; i < sorted.length; i++) {
+    const prevDate = new Date(`${sorted[i - 1]}T00:00:00.000Z`);
+    const currentDate = new Date(`${sorted[i]}T00:00:00.000Z`);
+    const deltaDays = Math.round((prevDate.getTime() - currentDate.getTime()) / 86400000);
+
+    if (deltaDays === 1) {
+      run += 1;
+      if (i === run - 1) {
+        current = run;
+      }
+    } else {
+      run = 1;
+    }
+
+    if (run > best) {
+      best = run;
+    }
+  }
+
+  return { current, best };
+}
+
+export async function getGuildDailyAlgoRanking(guildId: string): Promise<DailyAlgoGuildRankingEntry[]> {
+  const approvedSubmissions = await prisma.dailyAlgoSubmission.findMany({
+    where: {
+      status: 'APPROVED',
+      run: {
+        guildId,
+      },
+    },
+    select: {
+      authorId: true,
+      authorName: true,
+      speedBonusPoints: true,
+      scoreFinal: true,
+      run: {
+        select: {
+          dateKey: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: 'asc',
+    },
+  });
+
+  const byUser = new Map<string, {
+    authorName: string;
+    approvedCount: number;
+    totalRawScore: number;
+    totalPoints: number;
+    bestScore: number;
+    dateKeys: string[];
+  }>();
+
+  for (const submission of approvedSubmissions) {
+    const score = submission.scoreFinal ?? 0;
+    const points = score + (submission.speedBonusPoints ?? 0);
+    const existing = byUser.get(submission.authorId);
+
+    if (!existing) {
+      byUser.set(submission.authorId, {
+        authorName: submission.authorName,
+        approvedCount: 1,
+        totalRawScore: score,
+        totalPoints: points,
+        bestScore: points,
+        dateKeys: submission.run.dateKey ? [submission.run.dateKey] : [],
+      });
+      continue;
+    }
+
+    existing.approvedCount += 1;
+    existing.totalRawScore += score;
+    existing.totalPoints += points;
+    existing.bestScore = Math.max(existing.bestScore, points);
+    if (submission.run.dateKey) {
+      existing.dateKeys.push(submission.run.dateKey);
+    }
+  }
+
+  const ranking = [...byUser.entries()].map(([authorId, data]) => {
+    const averageScore = data.approvedCount > 0
+      ? Math.round((data.totalRawScore / data.approvedCount) * 10) / 10
+      : 0;
+    const { current, best } = countStreaks(data.dateKeys);
+
+    return {
+      rank: 0,
+      authorId,
+      authorName: data.authorName,
+      approvedCount: data.approvedCount,
+      averageScore,
+      bestScore: Math.round(data.bestScore * 10) / 10,
+      totalPoints: Math.round(data.totalPoints * 10) / 10,
+      currentStreak: current,
+      bestStreak: best,
+      tier: resolveSkillTier(averageScore, data.approvedCount),
+    } satisfies DailyAlgoGuildRankingEntry;
+  });
+
+  ranking.sort((a, b) => {
+    if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
+    if (b.averageScore !== a.averageScore) return b.averageScore - a.averageScore;
+    return b.approvedCount - a.approvedCount;
+  });
+
+  return ranking.map((entry, index) => ({
+    ...entry,
+    rank: index + 1,
+  }));
+}
+
+export async function getDailyAlgoUserProfile(guildId: string, authorId: string): Promise<DailyAlgoGuildRankingEntry | null> {
+  const ranking = await getGuildDailyAlgoRanking(guildId);
+  return ranking.find((entry) => entry.authorId === authorId) ?? null;
+}
+
+export type DailyAlgoUserParticipation = {
+  submissionId: string;
+  runId: string;
+  dateKey: string | null;
+  problemTitle: string;
+  difficulty: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  submittedAt: Date;
+  speedRank: number | null;
+  scoreFinal: number | null;
+  speedBonusPoints: number | null;
+  totalPoints: number | null;
+  rankInRun: number | null;
+};
+
+export async function getDailyAlgoUserParticipations(
+  guildId: string,
+  authorId: string,
+  limit = 10,
+): Promise<DailyAlgoUserParticipation[]> {
+  const safeLimit = Math.max(1, Math.min(20, Math.trunc(limit)));
+
+  const submissions = await prisma.dailyAlgoSubmission.findMany({
+    where: {
+      authorId,
+      run: {
+        guildId,
+      },
+    },
+    orderBy: {
+      submittedAt: 'desc',
+    },
+    take: safeLimit,
+    select: {
+      id: true,
+      runId: true,
+      status: true,
+      submittedAt: true,
+      speedRank: true,
+      scoreFinal: true,
+      speedBonusPoints: true,
+      run: {
+        select: {
+          dateKey: true,
+          problem: {
+            select: {
+              title: true,
+              difficulty: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const runRankCache = new Map<string, Map<string, number>>();
+
+  const resolveRankInRun = async (runId: string, submissionId: string): Promise<number | null> => {
+    let rankMap = runRankCache.get(runId);
+
+    if (!rankMap) {
+      const approved = await prisma.dailyAlgoSubmission.findMany({
+        where: {
+          runId,
+          status: 'APPROVED',
+          scoreFinal: {
+            not: null,
+          },
+        },
+        select: {
+          id: true,
+          scoreFinal: true,
+          speedBonusPoints: true,
+          speedRank: true,
+        },
+      });
+
+      approved.sort((a, b) => {
+        const totalA = (a.scoreFinal ?? 0) + (a.speedBonusPoints ?? 0);
+        const totalB = (b.scoreFinal ?? 0) + (b.speedBonusPoints ?? 0);
+        if (totalB !== totalA) return totalB - totalA;
+        return (a.speedRank ?? 999) - (b.speedRank ?? 999);
+      });
+
+      rankMap = new Map<string, number>();
+      approved.forEach((entry, index) => {
+        rankMap?.set(entry.id, index + 1);
+      });
+
+      runRankCache.set(runId, rankMap);
+    }
+
+    return rankMap.get(submissionId) ?? null;
+  };
+
+  const participations = await Promise.all(submissions.map(async (submission) => {
+    const totalPoints = submission.scoreFinal !== null
+      ? Math.round(((submission.scoreFinal ?? 0) + (submission.speedBonusPoints ?? 0)) * 10) / 10
+      : null;
+    const rankInRun = submission.status === 'APPROVED'
+      ? await resolveRankInRun(submission.runId, submission.id)
+      : null;
+
+    return {
+      submissionId: submission.id,
+      runId: submission.runId,
+      dateKey: submission.run.dateKey ?? null,
+      problemTitle: submission.run.problem.title,
+      difficulty: submission.run.problem.difficulty,
+      status: submission.status,
+      submittedAt: submission.submittedAt,
+      speedRank: submission.speedRank,
+      scoreFinal: submission.scoreFinal,
+      speedBonusPoints: submission.speedBonusPoints,
+      totalPoints,
+      rankInRun,
+    } satisfies DailyAlgoUserParticipation;
+  }));
+
+  return participations;
 }
 
 // ── Review Submission (with scoring) ───────────────────────────────────────────
@@ -807,13 +1181,51 @@ export async function sendDailyAlgo(client: Client, guildId: string): Promise<Da
         { createdAt: 'asc' },
         { id: 'asc' },
       ],
+      select: {
+        id: true,
+        title: true,
+        description: true,
+      },
     });
 
     if (problemCandidates.length === 0) {
       throw new Error('Aucun Daily Algo disponible. Ajoute de nouveaux problèmes dans la base.');
     }
 
+    const recentRuns = await prisma.dailyAlgoRun.findMany({
+      where: { guildId },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      select: {
+        problem: {
+          select: {
+            title: true,
+            description: true,
+          },
+        },
+      },
+    });
+
+    const recentTypes = recentRuns.map((recentRun) => detectChallengeTypeKey(recentRun.problem.title, recentRun.problem.description));
+
+    const orderedCandidates: Array<{ id: string; title: string; description: string }> = [];
+    const firstCandidate = pickProblemCandidateWithVariety({
+      candidates: problemCandidates,
+      recentTypeKeys: recentTypes,
+    });
+
+    if (firstCandidate) {
+      orderedCandidates.push(firstCandidate);
+    }
+
     for (const candidate of problemCandidates) {
+      if (firstCandidate && candidate.id === firstCandidate.id) {
+        continue;
+      }
+      orderedCandidates.push(candidate);
+    }
+
+    for (const candidate of orderedCandidates) {
       try {
         const createdRunRaw = await prisma.$transaction(async (tx) => {
           const createdRun = await tx.dailyAlgoRun.create({

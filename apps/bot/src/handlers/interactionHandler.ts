@@ -533,7 +533,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
       const correctnessInput = new TextInputBuilder()
         .setCustomId('score_correctness')
-        .setLabel('✅ Correctness (1-5) — La solution fonctionne ?')
+        .setLabel('✅ Exactitude (1-5)')
         .setStyle(TextInputStyle.Short)
         .setPlaceholder('1 à 5')
         .setRequired(true)
@@ -541,7 +541,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
       const commentsInput = new TextInputBuilder()
         .setCustomId('score_comments')
-        .setLabel('💬 Commentaires (1-5) — Code commenté ?')
+        .setLabel('💬 Commentaires (1-5)')
         .setStyle(TextInputStyle.Short)
         .setPlaceholder('1 à 5')
         .setRequired(true)
@@ -549,7 +549,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
       const compactnessInput = new TextInputBuilder()
         .setCustomId('score_compactness')
-        .setLabel('📦 Compacité (1-5) — Code concis ?')
+        .setLabel('📦 Compacité (1-5)')
         .setStyle(TextInputStyle.Short)
         .setPlaceholder('1 à 5')
         .setRequired(true)
@@ -557,7 +557,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
       const optimizationInput = new TextInputBuilder()
         .setCustomId('score_optimization')
-        .setLabel('⚡ Optimisation (1-5) — Bonne complexité ?')
+        .setLabel('⚡ Optimisation (1-5)')
         .setStyle(TextInputStyle.Short)
         .setPlaceholder('1 à 5')
         .setRequired(true)
@@ -565,7 +565,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
       const readabilityInput = new TextInputBuilder()
         .setCustomId('score_readability')
-        .setLabel('🧹 Lisibilité (1-5) — Code propre ?')
+        .setLabel('🧹 Lisibilité (1-5)')
         .setStyle(TextInputStyle.Short)
         .setPlaceholder('1 à 5')
         .setRequired(true)

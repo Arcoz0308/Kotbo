@@ -22,6 +22,7 @@ import * as statusCmd from './status.js';
 import * as adminCmd from './admin.js';
 import * as postCmd from './post.js';
 import * as dailyAlgoCmd from './dailyAlgo.js';
+import * as profileCmd from './profile.js';
 import * as newsRecoveryCmd from './news-rattrapage.js';
 import * as sanctionCmd from './sanction.js';
 import * as casierCmd from './casier.js';
@@ -99,7 +100,13 @@ const COMMANDS: HelpCommand[] = [
     command: dailyAlgoCmd,
     icon: '📚',
     category: 'Flux & actualités',
-    summary: 'Affiche le Daily Algo précédent',
+    summary: 'Affiche le défi, le barème, le classement et la progression Daily Algo',
+  },
+  {
+    command: profileCmd,
+    icon: '👤',
+    category: 'Outils',
+    summary: 'Affiche le profil utilisateur avec classement/streak/historique Daily Algo',
   },
   {
     command: statusCmd,

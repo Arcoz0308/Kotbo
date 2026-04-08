@@ -32,6 +32,7 @@ export const COMMAND_CATALOG: CommandCatalogEntry[] = [
   { name: 'help', label: 'Aide', description: 'Aide générale et documentation des commandes.', defaultAccess: 'tout_le_monde' },
   { name: 'post', label: 'Publication', description: 'Publication manuelle de contenus.', defaultAccess: 'modération' },
   { name: 'dailyAlgo', label: 'Daily Algo', description: 'Gestion du défi d’algorithmique quotidien.', defaultAccess: 'administration' },
+  { name: 'profile', label: 'Profil', description: 'Affiche le profil utilisateur et la progression Daily Algo.', defaultAccess: 'tout_le_monde' },
   { name: 'sanction', label: 'Sanctions', description: 'Gestion des sanctions et des rapports.', defaultAccess: 'modération' },
 ];
 
