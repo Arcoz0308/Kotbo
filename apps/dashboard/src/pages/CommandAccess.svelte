@@ -368,7 +368,7 @@
 
 <div class="grid grid-cols-12 gap-8 font-inter">
   <div class="col-span-12 xl:col-span-4 space-y-6">
-    <div class="bg-white dark:bg-slate-900 p-6 rounded-4xl shadow-sm border border-slate-100 dark:border-slate-800">
+    <div class="section-card p-6">
       <div class="flex items-center justify-between gap-3 mb-4">
         <h3 class="text-xl font-bold font-headline flex items-center gap-3">
           <span class="material-symbols-outlined text-primary">segment</span>
@@ -434,7 +434,7 @@
   </div>
 
   <div class="col-span-12 xl:col-span-8 space-y-8">
-    <div class="bg-white dark:bg-slate-900 p-8 rounded-4xl shadow-sm border border-slate-100 dark:border-slate-800">
+    <div class="section-card p-8">
       <div class="flex items-center justify-between gap-4 flex-wrap mb-6">
         <div>
           <h3 class="text-2xl font-black font-headline">{selectedCatalogEntry ? `/${selectedCatalogEntry.name}` : 'Sélectionnez une commande'}</h3>

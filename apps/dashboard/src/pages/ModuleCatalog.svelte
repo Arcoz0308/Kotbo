@@ -62,13 +62,13 @@
   {#if dashboardStore.state.loading && dashboardStore.state.modules.length === 0}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {#each Array(6) as _}
-        <div class="bg-white dark:bg-slate-900 rounded-2xl p-6 h-64 animate-pulse border border-slate-100 dark:border-slate-800"></div>
+        <div class="section-card p-6 h-64 animate-pulse"></div>
       {/each}
     </div>
   {:else}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {#each filteredModules as module}
-        <div class="group bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all border border-slate-100 dark:border-slate-800 hover:border-primary/20">
+        <div class="group section-card p-6 hover:shadow-xl transition-all hover:border-primary/20">
           <div class="flex justify-between items-start mb-4">
             <div class="p-3 rounded-xl {module.status === 'active' ? 'bg-primary/10 text-primary' : module.status === 'error' ? 'bg-error-container/20 text-error' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}">
               <span class="material-symbols-outlined">

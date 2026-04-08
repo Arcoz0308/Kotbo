@@ -8,6 +8,14 @@ import { logger } from '../utils/logger.js';
 import { translate } from '../services/translationService.js';
 import { sendApprovedItem } from '../services/notificationService.js';
 import { applyTopicFeedback, extractInterestTopics } from '../services/interestService.js';
+import { publishOrUpdateRegulationMessage } from '../services/regulationService.js';
+import {
+  registerBanSanction,
+  registerKickSanction,
+  registerTimeoutSanction,
+  registerWarnSanction,
+  runGuildBan,
+} from '../services/sanctionService.js';
 import {
   COMMAND_CATALOG,
   normalizeCommandRestrictions,
@@ -87,8 +95,10 @@ type AuditEntry = {
   context: string;
   module: string;
   eventType: string;
+  source: 'dashboard' | 'discord';
   details: string;
   dateIso: string;
+  channelId: string | null;
 };
 
 type DashboardSanctionType = 'WARN' | 'KICK' | 'TIMEOUT' | 'TEMP_BAN' | 'BAN';
@@ -128,6 +138,17 @@ type SanctionReportItem = {
   createdAt: string;
 };
 
+type RegulationRuleItem = {
+  id: string;
+  title: string;
+  description: string;
+  emoji: string | null;
+  sortOrder: number;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type AnalyticsData = {
   activityTrend: number[];
   totalAutomations: number;
@@ -146,6 +167,89 @@ type DashboardRole = {
   id: string;
   name: string;
   mention: string;
+  permissions: string[];
+};
+
+type MemberCaseQuickAction = 'WARN' | 'KICK' | 'TIMEOUT' | 'BAN';
+
+type MemberCaseLogEntry = {
+  id: string;
+  user: string;
+  action: string;
+  context: string;
+  module: string;
+  eventType: string;
+  source: 'dashboard' | 'discord';
+  details: string;
+  dateIso: string;
+  channelId: string | null;
+};
+
+type MemberCaseChannelMessage = {
+  id: string;
+  channelId: string;
+  channelName: string;
+  content: string;
+  dateIso: string;
+};
+
+type MemberCaseChannelSummary = {
+  channelId: string;
+  channelName: string;
+  count: number;
+  lastMessageAt: string | null;
+  recentMessages: MemberCaseChannelMessage[];
+};
+
+type MemberCaseInviteInfo = {
+  code: string | null;
+  inviterId: string | null;
+  inviterTag: string | null;
+  joinedAt: string | null;
+};
+
+type MemberCaseProfile = {
+  id: string;
+  userId: string;
+  userTag: string | null;
+  username: string | null;
+  globalName: string | null;
+  displayName: string | null;
+  avatarUrl: string | null;
+  bannerUrl: string | null;
+  accentColor: number | null;
+  locale: string | null;
+  isBot: boolean;
+  accountCreatedAt: string | null;
+  guildJoinedAt: string | null;
+  guildLeftAt: string | null;
+  firstSeenAt: string | null;
+  lastSeenAt: string | null;
+  lastMessageAt: string | null;
+  lastMessageChannelId: string | null;
+  messageCount: number;
+  voiceSessionCount: number;
+  voiceTimeSeconds: number;
+  voiceLastChannelId: string | null;
+  voiceLastJoinedAt: string | null;
+  voiceLastLeftAt: string | null;
+  rolesSnapshot: string[];
+  presenceStatus: string | null;
+  pronouns: string | null;
+};
+
+type MemberCaseResponse = {
+  profile: MemberCaseProfile | null;
+  invite: MemberCaseInviteInfo | null;
+  roles: DashboardRole[];
+  effectivePermissions: string[];
+  sanctions: SanctionItem[];
+  logs: MemberCaseLogEntry[];
+  messagesByChannel: MemberCaseChannelSummary[];
+  recentMessageCount: number;
+  recentLogCount: number;
+  connections: Array<{ name: string; type: string; visible: boolean }>;
+  connectionsNote: string;
 };
 
 type CommandRestrictionState = CommandRestrictionRule;
@@ -168,6 +272,10 @@ type DashboardAccess = {
 
 type DashboardState = {
   guildName: string;
+  configChannelId: string;
+  logChannelId: string;
+  regulationChannelId: string;
+  regulationMessageId: string | null;
   modules: ModuleItem[];
   feeds: FeedItem[];
   contentItems: ContentItem[];
@@ -186,6 +294,7 @@ type DashboardState = {
   auditTrail: AuditEntry[];
   sanctions: SanctionItem[];
   sanctionReports: SanctionReportItem[];
+  regulationRules: RegulationRuleItem[];
   messageTemplate: string;
   analytics: AnalyticsData;
 };
@@ -259,6 +368,57 @@ function formatSanctionDurationLabel(seconds: number | null): string | null {
   if (minutes) parts.push(`${minutes}m`);
 
   return parts.length > 0 ? parts.join(' ') : `${seconds}s`;
+}
+
+function normalizeBrokenRulesPayload(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (!Array.isArray(parsed)) {
+      return trimmed;
+    }
+
+    const normalized = parsed
+      .map((entry) => {
+        if (!entry || typeof entry !== 'object') return null;
+
+        const snapshot = entry as Record<string, unknown>;
+        const id = typeof snapshot.id === 'string' ? snapshot.id.trim() : '';
+        if (!id) return null;
+
+        const title = typeof snapshot.title === 'string'
+          ? snapshot.title.trim()
+          : typeof snapshot.label === 'string'
+            ? snapshot.label.trim()
+            : '';
+
+        const description = typeof snapshot.description === 'string'
+          ? snapshot.description.trim()
+          : typeof snapshot.details === 'string'
+            ? snapshot.details.trim()
+            : '';
+
+        if (!title || !description) return null;
+
+        const emoji = typeof snapshot.emoji === 'string' && snapshot.emoji.trim() ? snapshot.emoji.trim() : null;
+        const sortOrder = typeof snapshot.sortOrder === 'number' && Number.isFinite(snapshot.sortOrder) ? snapshot.sortOrder : 0;
+
+        return {
+          id,
+          title,
+          description,
+          emoji,
+          sortOrder,
+        };
+      })
+      .filter((entry): entry is { id: string; title: string; description: string; emoji: string | null; sortOrder: number } => !!entry);
+
+    return normalized.length > 0 ? JSON.stringify(normalized) : trimmed;
+  } catch {
+    return trimmed;
+  }
 }
 
 const toRuntimeState = (settings: {
@@ -537,10 +697,11 @@ const getOrCreateRuntime = async (guildId: string): Promise<RuntimeState> => {
   return toRuntimeState(settings);
 };
 
-const pushAudit = async (guildId: string, entry: Omit<AuditEntry, 'id' | 'dateIso'>) => {
+const pushAudit = async (guildId: string, entry: Omit<AuditEntry, 'id' | 'dateIso' | 'source'>) => {
   await prisma.dashboardAuditLog.create({
     data: {
       guildId,
+      channelId: entry.channelId,
       user: entry.user,
       action: entry.action,
       context: entry.context,
@@ -551,6 +712,254 @@ const pushAudit = async (guildId: string, entry: Omit<AuditEntry, 'id' | 'dateIs
     }
   });
 };
+
+function formatChannelName(guild: { channels: { cache: Map<string, { id: string; name?: string }> } } | null, channelId: string | null): string {
+  if (!channelId) return 'Aucun';
+  const channel = guild?.channels.cache.get(channelId);
+  return channel?.name ? `#${channel.name}` : `Salon ${channelId}`;
+}
+
+function parseCaseField(details: string, label: string): string | null {
+  const match = details.match(new RegExp(`${label}:\\s*([^\\n|]+)`, 'i'));
+  const value = match?.[1]?.trim();
+  return value && value.length > 0 ? value : null;
+}
+
+function parseInviteFromDetails(details: string): MemberCaseInviteInfo | null {
+  const inviteCode = parseCaseField(details, 'Invite utilisée') ?? parseCaseField(details, 'Invite d\'arrivée');
+  const inviter = parseCaseField(details, 'Créateur de l\'invite');
+  const inviterId = parseCaseField(details, 'ID créateur');
+
+  if (!inviteCode && !inviter && !inviterId) return null;
+
+  const inviterMentionMatch = inviter?.match(/<@!?([0-9]+)>/);
+  const normalizedInviter = inviter?.replace(/\s*\(<@!?[0-9]+>\)\s*$/, '').trim() || null;
+
+  return {
+    code: inviteCode,
+    inviterId: inviterId ?? inviterMentionMatch?.[1] ?? null,
+    inviterTag: normalizedInviter,
+    joinedAt: null,
+  };
+}
+
+function extractMessagePreview(details: string): string | null {
+  const content = parseCaseField(details, 'Contenu');
+  if (!content) return null;
+  return content === '_vide_' ? '' : content;
+}
+
+function mapGuildRolePermissions(role: { id: string; name: string; permissions?: { toArray: () => string[] } | string[] }, mention: string): DashboardRole {
+  const permissions = Array.isArray(role.permissions)
+    ? role.permissions
+    : typeof role.permissions?.toArray === 'function'
+      ? role.permissions.toArray()
+      : [];
+
+  return {
+    id: role.id,
+    name: role.name,
+    mention,
+    permissions,
+  };
+}
+
+async function fetchMemberConnections(discordToken?: string | null): Promise<{ connections: Array<{ name: string; type: string; visible: boolean }>; note: string }> {
+  if (!discordToken) {
+    return {
+      connections: [],
+      note: 'Connexions indisponibles sans jeton OAuth.',
+    };
+  }
+
+  try {
+    const response = await fetch('https://discord.com/api/users/@me/connections', {
+      headers: { Authorization: `Bearer ${discordToken}` },
+    });
+
+    if (!response.ok) {
+      return {
+        connections: [],
+        note: 'Connexions non exposées par le jeton OAuth actuel.',
+      };
+    }
+
+    const payload = await response.json() as Array<{ name?: string; type?: string; visibility?: number }>;
+    return {
+      connections: Array.isArray(payload)
+        ? payload.map((connection) => ({
+            name: connection.name ?? 'Inconnue',
+            type: connection.type ?? 'inconnue',
+            visible: connection.visibility === 1,
+          }))
+        : [],
+      note: 'Connexions récupérées via le scope OAuth connections.',
+    };
+  } catch {
+    return {
+      connections: [],
+      note: 'Impossible de récupérer les connexions depuis Discord.',
+    };
+  }
+}
+
+async function buildMemberCaseData(client: Client, guildId: string, userId: string, auth: AuthClaims): Promise<MemberCaseResponse | null> {
+  const discordGuild = client.guilds.cache.get(guildId);
+  if (!discordGuild) return null;
+
+  const [user, member, profile, sanctions, auditLogs, inviteConnections] = await Promise.all([
+    client.users.fetch(userId).catch(() => null),
+    discordGuild.members.fetch(userId).catch(() => null),
+    prisma.memberProfile.findUnique({
+      where: {
+        guildId_userId: {
+          guildId,
+          userId,
+        },
+      },
+    }),
+    prisma.sanction.findMany({
+      where: { guildId, targetUserId: userId },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    }),
+    prisma.dashboardAuditLog.findMany({
+      where: { guildId },
+      orderBy: { dateIso: 'desc' },
+      take: 500,
+    }),
+    fetchMemberConnections(auth.userId === userId ? auth.discordToken : null),
+  ]);
+
+  const effectivePermissions = member?.permissions.toArray() ?? [];
+  const roles = member
+    ? [...member.roles.cache.values()]
+        .filter((role) => role.id !== discordGuild.id)
+        .map((role) => mapGuildRolePermissions(role, `<@&${role.id}>`))
+        .sort((left, right) => {
+          const positionLeft = discordGuild.roles.cache.get(left.id)?.position ?? 0;
+          const positionRight = discordGuild.roles.cache.get(right.id)?.position ?? 0;
+          return positionRight - positionLeft || left.name.localeCompare(right.name, 'fr');
+        })
+    : [];
+
+  const tagCandidates = new Set<string>([user?.tag, profile?.userTag, member?.user.tag].filter((entry): entry is string => !!entry));
+
+  const relevantLogs = auditLogs.filter((entry) => {
+    const haystack = `${entry.user} ${entry.details}`;
+    if (haystack.includes(`<@${userId}>`) || haystack.includes(`<@!${userId}>`)) return true;
+    if ([...tagCandidates].some((candidate) => candidate && haystack.includes(candidate))) return true;
+    if (entry.channelId && entry.module === 'Messages' && entry.user.includes(userId)) return true;
+    return false;
+  });
+
+  const mappedLogs: MemberCaseLogEntry[] = relevantLogs.slice(0, 120).map((entry) => ({
+    id: entry.id,
+    user: entry.user,
+    action: entry.action,
+    context: entry.context,
+    module: entry.module,
+    eventType: entry.eventType,
+    source: entry.eventType === 'Discord' ? 'discord' : 'dashboard',
+    details: entry.details,
+    dateIso: entry.dateIso.toISOString(),
+    channelId: entry.channelId,
+  }));
+
+  const invite = mappedLogs
+    .map((entry) => parseInviteFromDetails(entry.details))
+    .find((entry): entry is MemberCaseInviteInfo => !!entry) ?? null;
+
+  const messages = relevantLogs
+    .filter((entry) => entry.module === 'Messages' && entry.action === 'Message envoyé')
+    .slice(0, 250)
+    .map((entry) => ({
+      id: entry.id,
+      channelId: entry.channelId ?? 'unknown',
+      channelName: formatChannelName(discordGuild, entry.channelId),
+      content: extractMessagePreview(entry.details) ?? entry.details,
+      dateIso: entry.dateIso.toISOString(),
+    }));
+
+  const messagesByChannelMap = new Map<string, MemberCaseChannelSummary>();
+  for (const message of messages) {
+    const current = messagesByChannelMap.get(message.channelId) ?? {
+      channelId: message.channelId,
+      channelName: message.channelName,
+      count: 0,
+      lastMessageAt: null,
+      recentMessages: [],
+    };
+
+    current.count += 1;
+    current.lastMessageAt = message.dateIso;
+    if (current.recentMessages.length < 5) {
+      current.recentMessages.push(message);
+    }
+    messagesByChannelMap.set(message.channelId, current);
+  }
+
+  return {
+    profile: {
+      id: profile?.id ?? `${guildId}:${userId}`,
+      userId,
+      userTag: user?.tag ?? profile?.userTag ?? null,
+      username: user?.username ?? profile?.username ?? null,
+      globalName: user?.globalName ?? profile?.globalName ?? null,
+      displayName: member?.displayName ?? profile?.displayName ?? user?.globalName ?? user?.username ?? null,
+      avatarUrl: profile?.avatarUrl ?? user?.displayAvatarURL({ size: 256 }) ?? null,
+      bannerUrl: profile?.bannerUrl ?? null,
+      accentColor: profile?.accentColor ?? user?.accentColor ?? null,
+      locale: profile?.locale ?? null,
+      isBot: profile?.isBot ?? user?.bot ?? false,
+      accountCreatedAt: profile?.accountCreatedAt?.toISOString() ?? user?.createdAt?.toISOString() ?? null,
+      guildJoinedAt: profile?.guildJoinedAt?.toISOString() ?? member?.joinedAt?.toISOString() ?? null,
+      guildLeftAt: profile?.guildLeftAt?.toISOString() ?? null,
+      firstSeenAt: profile?.firstSeenAt?.toISOString() ?? null,
+      lastSeenAt: profile?.lastSeenAt?.toISOString() ?? null,
+      lastMessageAt: profile?.lastMessageAt?.toISOString() ?? null,
+      lastMessageChannelId: profile?.lastMessageChannelId ?? null,
+      messageCount: profile?.messageCount ?? 0,
+      voiceSessionCount: profile?.voiceSessionCount ?? 0,
+      voiceTimeSeconds: profile?.voiceTimeSeconds ?? 0,
+      voiceLastChannelId: profile?.voiceLastChannelId ?? null,
+      voiceLastJoinedAt: profile?.voiceLastJoinedAt?.toISOString() ?? null,
+      voiceLastLeftAt: profile?.voiceLastLeftAt?.toISOString() ?? null,
+      rolesSnapshot: profile?.rolesSnapshot ?? [],
+      presenceStatus: member?.presence?.status ?? null,
+      pronouns: null,
+    },
+    invite: invite
+      ? {
+          ...invite,
+          joinedAt: invite.joinedAt ?? member?.joinedAt?.toISOString() ?? profile?.guildJoinedAt?.toISOString() ?? null,
+        }
+      : null,
+    roles,
+    effectivePermissions,
+    sanctions: sanctions.map((entry) => ({
+      id: entry.id,
+      type: entry.type as DashboardSanctionType,
+      status: entry.status as DashboardSanctionStatus,
+      targetUserId: entry.targetUserId,
+      targetTag: entry.targetTag ?? `Utilisateur ${entry.targetUserId}`,
+      moderatorUserId: entry.moderatorUserId,
+      moderatorTag: entry.moderatorTag ?? `Modérateur ${entry.moderatorUserId}`,
+      reason: entry.reason,
+      durationSeconds: entry.durationSeconds,
+      expiresAt: entry.expiresAt?.toISOString() ?? null,
+      createdAt: entry.createdAt.toISOString(),
+      resolvedAt: entry.resolvedAt?.toISOString() ?? null,
+      resolutionNote: entry.resolutionNote ?? null,
+    })),
+    logs: mappedLogs,
+    messagesByChannel: [...messagesByChannelMap.values()].sort((left, right) => (right.lastMessageAt ?? '').localeCompare(left.lastMessageAt ?? '')),
+    recentMessageCount: messages.length,
+    recentLogCount: mappedLogs.length,
+    connections: inviteConnections.connections,
+    connectionsNote: inviteConnections.note,
+  };
+}
 
 const getGuildName = (client: Client, guildId: string) => client.guilds.cache.get(guildId)?.name ?? `Serveur ${guildId}`;
 
@@ -575,6 +984,7 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
     persistedAudit,
     sanctions,
     sanctionReports,
+    regulationRules,
   ] = await Promise.all([
     prisma.feed.findMany({ where: { guildId }, orderBy: { createdAt: 'desc' } }),
     prisma.feedItem.findMany({
@@ -618,6 +1028,10 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
       orderBy: { createdAt: 'desc' },
       take: 200,
     }),
+    prisma.guildRegulationArticle.findMany({
+      where: { guildId },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+    }),
   ]);
 
   const auditTrailFromDb: AuditEntry[] = persistedAudit.map((entry) => ({
@@ -627,8 +1041,10 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
     context: entry.context,
     module: entry.module,
     eventType: entry.eventType,
+    source: entry.eventType === 'Discord' ? 'discord' : 'dashboard',
     details: entry.details,
-    dateIso: entry.dateIso.toISOString()
+    dateIso: entry.dateIso.toISOString(),
+    channelId: entry.channelId
   }));
 
   const mappedSanctions: SanctionItem[] = sanctions.map((entry) => ({
@@ -663,6 +1079,17 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
     createdByUserId: entry.createdByUserId,
     createdByTag: entry.createdByTag ?? null,
     createdAt: entry.createdAt.toISOString(),
+  }));
+
+  const mappedRegulationRules: RegulationRuleItem[] = regulationRules.map((entry) => ({
+    id: entry.id,
+    title: entry.title,
+    description: entry.description,
+    emoji: entry.emoji ?? null,
+    sortOrder: entry.sortOrder,
+    enabled: entry.enabled,
+    createdAt: entry.createdAt.toISOString(),
+    updatedAt: entry.updatedAt.toISOString(),
   }));
 
   const feedMapped: FeedItem[] = feeds.map((feed) => ({
@@ -767,8 +1194,10 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
       context: getGuildName(client, guildId),
       module: 'Dashboard',
       eventType: 'Automatique',
+      source: 'dashboard',
       details: `${feedMapped.length} flux, ${contentItems.length} contenus suivis.`,
-      dateIso: nowIso()
+      dateIso: nowIso(),
+      channelId: null,
     },
     {
       id: makeId(),
@@ -777,8 +1206,10 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
       context: getGuildName(client, guildId),
       module: 'YouTube',
       eventType: 'Automatique',
+      source: 'dashboard',
       details: `${youtubeApprovedCount} approuvés, ${youtubePendingCount} en attente.`,
-      dateIso: guild.updatedAt.toISOString()
+      dateIso: guild.updatedAt.toISOString(),
+      channelId: null,
     }
   ];
 
@@ -803,14 +1234,19 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
           id: role.id,
           name: role.name,
           mention: `<@&${role.id}>`,
+          permissions: role.permissions.toArray(),
           position: role.position
         }))
         .sort((a, b) => b.position - a.position || a.name.localeCompare(b.name, 'fr'))
-        .map(({ id, name, mention }) => ({ id, name, mention }))
+        .map(({ id, name, mention, permissions }) => ({ id, name, mention, permissions }))
     : [];
 
   return {
     guildName: getGuildName(client, guildId),
+    configChannelId: guild.configChannelId ?? '',
+    logChannelId: guild.logChannelId ?? '',
+    regulationChannelId: guild.regulationChannelId ?? '',
+    regulationMessageId: guild.regulationMessageId ?? null,
     modules,
     feeds: feedMapped,
     contentItems,
@@ -837,6 +1273,7 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
     auditTrail: [...auditTrailFromDb, ...inferredAudit].slice(0, 180),
     sanctions: mappedSanctions,
     sanctionReports: mappedSanctionReports,
+    regulationRules: mappedRegulationRules,
     messageTemplate: runtime.messageTemplate,
     analytics: {
       activityTrend: Array.from({ length: 7 }, (_, i) => {
@@ -1271,6 +1708,162 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
+          if (parts.length === 6 && parts[4] === 'members' && req.method === 'GET') {
+            const memberCase = await buildMemberCaseData(client, guildId, parts[5], user);
+            if (!memberCase) {
+              json(res, 404, { error: 'Membre introuvable sur ce serveur.' });
+              return;
+            }
+
+            json(res, 200, memberCase);
+            return;
+          }
+
+          if (parts.length === 7 && parts[4] === 'members' && parts[6] === 'actions' && req.method === 'POST') {
+            if (!access.canModerateContent) {
+              json(res, 403, { error: 'Action de modération non autorisée.' });
+              return;
+            }
+
+            const userId = parts[5];
+            const body = await readJsonBody<{
+              type?: MemberCaseQuickAction;
+              reason?: string;
+              durationMs?: number | null;
+            }>(req);
+
+            const action = body?.type;
+            const reason = body?.reason?.trim() || 'Action lancée depuis le profil membre.';
+            const discordGuild = client.guilds.cache.get(guildId);
+            if (!discordGuild) {
+              json(res, 404, { error: 'Serveur Discord introuvable.' });
+              return;
+            }
+
+            const targetUser = await client.users.fetch(userId).catch(() => null);
+            const targetMember = await discordGuild.members.fetch(userId).catch(() => null);
+            const moderator = { id: user.userId, tag: user.username ?? `Utilisateur ${user.userId}` };
+            const target = {
+              id: userId,
+              tag: targetUser?.tag ?? targetMember?.user.tag ?? `Utilisateur ${userId}`,
+            };
+
+            if (!action || !['WARN', 'KICK', 'TIMEOUT', 'BAN'].includes(action)) {
+              json(res, 400, { error: 'Type d’action invalide.' });
+              return;
+            }
+
+            if (action === 'WARN') {
+              const sanction = await registerWarnSanction({ guildId, target, moderator, reason });
+
+              await pushAudit(guildId, {
+                user: auditUser,
+                action: 'Warn depuis le profil membre',
+                context: getGuildName(client, guildId),
+                module: 'Sanctions',
+                eventType: 'Manuel',
+                details: `Warn appliqué à ${target.tag} (${target.id}). Raison: ${reason}`,
+                channelId: null,
+              });
+
+              broadcastDashboardStateChange(guildId, 'member_warned');
+              json(res, 200, { ok: true, sanctionId: sanction.id });
+              return;
+            }
+
+            if (action === 'KICK') {
+              if (!targetMember) {
+                json(res, 404, { error: 'Le membre doit être présent sur le serveur pour être expulsé.' });
+                return;
+              }
+              if (!targetMember.kickable) {
+                json(res, 400, { error: 'Le bot ne peut pas exclure ce membre.' });
+                return;
+              }
+
+              await targetMember.kick(`${reason} | Modération: ${user.username ?? user.userId}`);
+              const sanction = await registerKickSanction({ guildId, target, moderator, reason });
+
+              await pushAudit(guildId, {
+                user: auditUser,
+                action: 'Kick depuis le profil membre',
+                context: getGuildName(client, guildId),
+                module: 'Sanctions',
+                eventType: 'Manuel',
+                details: `Kick appliqué à ${target.tag} (${target.id}). Raison: ${reason}`,
+                channelId: null,
+              });
+
+              broadcastDashboardStateChange(guildId, 'member_kicked');
+              json(res, 200, { ok: true, sanctionId: sanction.id });
+              return;
+            }
+
+            if (action === 'TIMEOUT') {
+              if (!targetMember) {
+                json(res, 404, { error: 'Le membre doit être présent sur le serveur pour un timeout.' });
+                return;
+              }
+              if (!targetMember.moderatable) {
+                json(res, 400, { error: 'Le bot ne peut pas appliquer de timeout à ce membre.' });
+                return;
+              }
+
+              const durationMs = Number(body?.durationMs ?? 0);
+              if (!Number.isFinite(durationMs) || durationMs <= 0) {
+                json(res, 400, { error: 'Une durée valide en millisecondes est requise pour le timeout.' });
+                return;
+              }
+
+              const sanction = await registerTimeoutSanction({
+                guildId,
+                target,
+                moderator,
+                reason,
+                durationMs,
+                member: targetMember,
+              });
+
+              await pushAudit(guildId, {
+                user: auditUser,
+                action: 'Timeout depuis le profil membre',
+                context: getGuildName(client, guildId),
+                module: 'Sanctions',
+                eventType: 'Manuel',
+                details: `Timeout appliqué à ${target.tag} (${target.id}) pour ${Math.floor(durationMs / 1000)}s. Raison: ${reason}`,
+                channelId: null,
+              });
+
+              broadcastDashboardStateChange(guildId, 'member_timeout');
+              json(res, 200, { ok: true, sanctionId: sanction.id });
+              return;
+            }
+
+            if (action === 'BAN') {
+              if (targetMember && !targetMember.bannable) {
+                json(res, 400, { error: 'Le bot ne peut pas bannir ce membre.' });
+                return;
+              }
+
+              await runGuildBan(discordGuild, userId, `${reason} | Modération: ${user.username ?? user.userId}`);
+              const sanction = await registerBanSanction({ guildId, target, moderator, reason });
+
+              await pushAudit(guildId, {
+                user: auditUser,
+                action: 'Ban depuis le profil membre',
+                context: getGuildName(client, guildId),
+                module: 'Sanctions',
+                eventType: 'Manuel',
+                details: `Ban appliqué à ${target.tag} (${target.id}). Raison: ${reason}`,
+                channelId: null,
+              });
+
+              broadcastDashboardStateChange(guildId, 'member_banned');
+              json(res, 200, { ok: true, sanctionId: sanction.id });
+              return;
+            }
+          }
+
           if (parts.length === 6 && parts[4] === 'modules' && req.method === 'PUT') {
             const moduleId = parts[5];
             const body = (await readJsonBody<{ status: ModuleStatus }> (req)) ?? { status: 'inactive' };
@@ -1294,7 +1887,8 @@ export const startDashboardApi = (client: Client) => {
               context: getGuildName(client, guildId),
               module: moduleId,
               eventType: 'Manuel',
-              details: `Statut changé vers ${body.status}.`
+              details: `Statut changé vers ${body.status}.`,
+              channelId: null
             });
 
             json(res, 200, { ok: true });
@@ -1336,7 +1930,8 @@ export const startDashboardApi = (client: Client) => {
               context: getGuildName(client, guildId),
               module: 'RSS',
               eventType: 'Manuel',
-              details: `Flux ${body.name} ajouté.`
+              details: `Flux ${body.name} ajouté.`,
+              channelId: body.targetChannel?.replace(/[^0-9]/g, '') || null
             });
 
             json(res, 201, { ok: true });
@@ -1378,7 +1973,8 @@ export const startDashboardApi = (client: Client) => {
               context: getGuildName(client, guildId),
               module: 'RSS',
               eventType: 'Manuel',
-              details: `Flux ${body.name} mis à jour.`
+              details: `Flux ${body.name} mis à jour.`,
+              channelId: null
             });
 
             json(res, 200, { ok: true });
@@ -1395,7 +1991,8 @@ export const startDashboardApi = (client: Client) => {
               context: getGuildName(client, guildId),
               module: 'RSS',
               eventType: 'Manuel',
-              details: `Flux ${feedId} supprimé.`
+              details: `Flux ${feedId} supprimé.`,
+              channelId: null
             });
 
             json(res, 200, { ok: true });
@@ -1421,7 +2018,8 @@ export const startDashboardApi = (client: Client) => {
               eventType: 'Manuel',
               details: youtubeReferenceChannelId
                 ? `Canal de référence défini: ${youtubeReferenceChannelId}.`
-                : 'Canal de référence YouTube vidé.'
+                : 'Canal de référence YouTube vidé.',
+              channelId: null
             });
 
             json(res, 200, { ok: true });
@@ -1498,7 +2096,8 @@ export const startDashboardApi = (client: Client) => {
                 context: getGuildName(client, guildId),
                 module: 'Contenu',
                 eventType: 'Manuel',
-                details: `Contenu ${contentId} traduit en ${targetLang} via le dashboard.`
+                details: `Contenu ${contentId} traduit en ${targetLang} via le dashboard.`,
+                channelId: null
               });
 
               json(res, 200, {
@@ -1573,7 +2172,8 @@ export const startDashboardApi = (client: Client) => {
                   context: getGuildName(client, guildId),
                   module: 'Contenu',
                   eventType: 'Manuel',
-                  details: `Contenu ${contentId} validé, publié et retiré de la file de validation.`
+                  details: `Contenu ${contentId} validé, publié et retiré de la file de validation.`,
+                  channelId: null
                 });
                 broadcastDashboardStateChange(guildId, 'content_force_send');
                 json(res, 200, { ok: true });
@@ -1585,7 +2185,8 @@ export const startDashboardApi = (client: Client) => {
                   context: getGuildName(client, guildId),
                   module: 'Contenu',
                   eventType: 'Manuel',
-                  details: `Impossible de valider le contenu ${contentId}: ${error instanceof Error ? error.message : 'erreur inconnue'}.`
+                  details: `Impossible de valider le contenu ${contentId}: ${error instanceof Error ? error.message : 'erreur inconnue'}.`,
+                  channelId: null
                 });
                 throw error;
               }
@@ -1600,7 +2201,8 @@ export const startDashboardApi = (client: Client) => {
                   context: getGuildName(client, guildId),
                   module: 'Contenu',
                   eventType: 'Manuel',
-                  details: `Contenu ${contentId} rejeté et retiré de la file de validation.`
+                  details: `Contenu ${contentId} rejeté et retiré de la file de validation.`,
+                  channelId: null
                 });
                 broadcastDashboardStateChange(guildId, 'content_mark_error');
                 json(res, 200, { ok: true });
@@ -1612,7 +2214,8 @@ export const startDashboardApi = (client: Client) => {
                   context: getGuildName(client, guildId),
                   module: 'Contenu',
                   eventType: 'Manuel',
-                  details: `Impossible de rejeter le contenu ${contentId}: ${error instanceof Error ? error.message : 'erreur inconnue'}.`
+                  details: `Impossible de rejeter le contenu ${contentId}: ${error instanceof Error ? error.message : 'erreur inconnue'}.`,
+                  channelId: null
                 });
                 throw error;
               }
@@ -1647,7 +2250,8 @@ export const startDashboardApi = (client: Client) => {
               context: getGuildName(client, guildId),
               module: 'Contenu',
               eventType: 'Manuel',
-              details: `Brouillon créé sur le flux ${firstFeed.name}.`
+              details: `Brouillon créé sur le flux ${firstFeed.name}.`,
+              channelId: null
             });
 
             json(res, 201, { ok: true });
@@ -1684,7 +2288,8 @@ export const startDashboardApi = (client: Client) => {
               context: getGuildName(client, guildId),
               module: 'Sanctions',
               eventType: 'Manuel',
-              details: `Infraction ${sanction.id} supprimée (${sanction.type}) pour ${sanction.targetTag ?? sanction.targetUserId}.`
+              details: `Infraction ${sanction.id} supprimée (${sanction.type}) pour ${sanction.targetTag ?? sanction.targetUserId}.`,
+              channelId: null
             });
 
             broadcastDashboardStateChange(guildId, 'sanction_deleted');
@@ -1708,7 +2313,7 @@ export const startDashboardApi = (client: Client) => {
             }>(req);
 
             const sanctionId = body?.sanctionId?.trim() ?? '';
-            const brokenRules = body?.brokenRules?.trim() ?? '';
+            const brokenRules = normalizeBrokenRulesPayload(body?.brokenRules?.trim() ?? '');
             const detailedReason = body?.detailedReason?.trim() ?? '';
             const evidenceLinks = parseEvidenceLinks(body?.evidenceLinks);
             const incidentAt = body?.incidentAt ? new Date(body.incidentAt) : null;
@@ -1784,7 +2389,8 @@ export const startDashboardApi = (client: Client) => {
               context: getGuildName(client, guildId),
               module: 'Sanctions',
               eventType: 'Manuel',
-              details: `Rapport ${report.id} créé pour ${memberPseudo} (${sanctionTypeRaw}).`
+              details: `Rapport ${report.id} créé pour ${memberPseudo} (${sanctionTypeRaw}).`,
+              channelId: null
             });
 
             json(res, 201, { ok: true, reportId: report.id });
@@ -1825,7 +2431,8 @@ export const startDashboardApi = (client: Client) => {
               context: getGuildName(client, guildId),
               module: 'Notifications',
               eventType: 'Manuel',
-              details: 'Paramètres globaux mis à jour.'
+              details: 'Paramètres globaux mis à jour.',
+              channelId: body.discordChannel?.replace(/[^0-9]/g, '') || null
             });
 
             json(res, 200, { ok: true });
@@ -1835,7 +2442,9 @@ export const startDashboardApi = (client: Client) => {
           if (parts.length === 5 && parts[4] === 'settings' && (req.method === 'PATCH' || req.method === 'PUT')) {
             const body = await readJsonBody<{
               discordChannel?: string;
+              logChannelId?: string | null;
               moderatorRoleId?: string | null;
+              regulationChannelId?: string | null;
               messageTemplate?: string;
             }>(req);
 
@@ -1844,15 +2453,34 @@ export const startDashboardApi = (client: Client) => {
               return;
             }
 
-            const data: { statusCheckChannelId?: string | null; moderatorRoleId?: string | null } = {};
+            const data: {
+              statusCheckChannelId?: string | null;
+              logChannelId?: string | null;
+              moderatorRoleId?: string | null;
+              regulationChannelId?: string | null;
+            } = {};
             if (Object.prototype.hasOwnProperty.call(body, 'discordChannel')) {
               data.statusCheckChannelId = body.discordChannel?.replace(/[^0-9]/g, '') || null;
+            }
+
+            if (Object.prototype.hasOwnProperty.call(body, 'logChannelId')) {
+              const rawLogChannelId = body.logChannelId;
+              if (typeof rawLogChannelId === 'string' || rawLogChannelId === null) {
+                data.logChannelId = rawLogChannelId?.replace(/[^0-9]/g, '') || null;
+              }
             }
 
             if (Object.prototype.hasOwnProperty.call(body, 'moderatorRoleId')) {
               const rawModeratorRoleId = body.moderatorRoleId;
               if (typeof rawModeratorRoleId === 'string' || rawModeratorRoleId === null) {
                 data.moderatorRoleId = rawModeratorRoleId?.replace(/[^0-9]/g, '') || null;
+              }
+            }
+
+            if (Object.prototype.hasOwnProperty.call(body, 'regulationChannelId')) {
+              const rawRegulationChannelId = body.regulationChannelId;
+              if (typeof rawRegulationChannelId === 'string' || rawRegulationChannelId === null) {
+                data.regulationChannelId = rawRegulationChannelId?.replace(/[^0-9]/g, '') || null;
               }
             }
 
@@ -1874,11 +2502,165 @@ export const startDashboardApi = (client: Client) => {
               context: getGuildName(client, guildId),
               module: 'Dashboard',
               eventType: 'Manuel',
-              details: 'Paramètres globaux mis à jour.'
+              details: 'Paramètres globaux mis à jour.',
+              channelId: null
             });
 
             json(res, 200, { ok: true });
             return;
+          }
+
+          if (parts.length === 6 && parts[4] === 'regulation' && parts[5] === 'articles' && req.method === 'POST') {
+            const body = await readJsonBody<{
+              title?: string;
+              description?: string;
+              emoji?: string | null;
+              sortOrder?: number | string | null;
+              enabled?: boolean;
+            }>(req);
+
+            const title = body?.title?.trim() ?? '';
+            const description = body?.description?.trim() ?? '';
+            const emoji = body?.emoji?.trim() ?? null;
+            const sortOrder = Number(body?.sortOrder ?? 0);
+
+            if (!title || !description) {
+              json(res, 400, { error: 'Le titre et la description sont obligatoires.' });
+              return;
+            }
+
+            const article = await prisma.guildRegulationArticle.create({
+              data: {
+                guildId,
+                title,
+                description,
+                emoji: emoji || null,
+                sortOrder: Number.isFinite(sortOrder) ? sortOrder : 0,
+                enabled: body?.enabled ?? true,
+              },
+            });
+
+            await pushAudit(guildId, {
+              user: auditUser,
+              action: 'Création article règlement',
+              context: getGuildName(client, guildId),
+              module: 'Règlement',
+              eventType: 'Manuel',
+              details: `Article "${article.title}" ajouté au règlement.`,
+              channelId: null
+            });
+
+            broadcastDashboardStateChange(guildId, 'regulation_article_created');
+            json(res, 201, { ok: true, articleId: article.id });
+            return;
+          }
+
+          if (parts.length === 7 && parts[4] === 'regulation' && parts[5] === 'articles' && req.method === 'PATCH') {
+            const articleId = parts[6];
+            const existingArticle = await prisma.guildRegulationArticle.findFirst({
+              where: { id: articleId, guildId },
+            });
+
+            if (!existingArticle) {
+              json(res, 404, { error: 'Article de règlement introuvable.' });
+              return;
+            }
+
+            const body = await readJsonBody<{
+              title?: string;
+              description?: string;
+              emoji?: string | null;
+              sortOrder?: number | string | null;
+              enabled?: boolean;
+            }>(req);
+
+            const title = typeof body?.title === 'string' ? body.title.trim() : existingArticle.title;
+            const description = typeof body?.description === 'string' ? body.description.trim() : existingArticle.description;
+            const emoji = typeof body?.emoji === 'string' ? body.emoji.trim() : existingArticle.emoji;
+            const sortOrderValue = body?.sortOrder !== undefined ? Number(body.sortOrder) : existingArticle.sortOrder;
+
+            if (!title || !description) {
+              json(res, 400, { error: 'Le titre et la description sont obligatoires.' });
+              return;
+            }
+
+            const article = await prisma.guildRegulationArticle.update({
+              where: { id: existingArticle.id },
+              data: {
+                title,
+                description,
+                emoji: emoji || null,
+                sortOrder: Number.isFinite(sortOrderValue) ? sortOrderValue : existingArticle.sortOrder,
+                enabled: typeof body?.enabled === 'boolean' ? body.enabled : existingArticle.enabled,
+              },
+            });
+
+            await pushAudit(guildId, {
+              user: auditUser,
+              action: 'Modification article règlement',
+              context: getGuildName(client, guildId),
+              module: 'Règlement',
+              eventType: 'Manuel',
+              details: `Article "${article.title}" mis à jour.`,
+              channelId: null
+            });
+
+            broadcastDashboardStateChange(guildId, 'regulation_article_updated');
+            json(res, 200, { ok: true });
+            return;
+          }
+
+          if (parts.length === 7 && parts[4] === 'regulation' && parts[5] === 'articles' && req.method === 'DELETE') {
+            const articleId = parts[6];
+            const article = await prisma.guildRegulationArticle.findFirst({ where: { id: articleId, guildId } });
+
+            if (!article) {
+              json(res, 404, { error: 'Article de règlement introuvable.' });
+              return;
+            }
+
+            await prisma.guildRegulationArticle.delete({ where: { id: article.id } });
+
+            await pushAudit(guildId, {
+              user: auditUser,
+              action: 'Suppression article règlement',
+              context: getGuildName(client, guildId),
+              module: 'Règlement',
+              eventType: 'Manuel',
+              details: `Article "${article.title}" supprimé du règlement.`,
+              channelId: null
+            });
+
+            broadcastDashboardStateChange(guildId, 'regulation_article_deleted');
+            json(res, 200, { ok: true });
+            return;
+          }
+
+          if (parts.length === 6 && parts[4] === 'regulation' && parts[5] === 'publish' && req.method === 'POST') {
+            try {
+              const result = await publishOrUpdateRegulationMessage(client, guildId);
+
+              await pushAudit(guildId, {
+                user: auditUser,
+                action: result.mode === 'updated' ? 'Actualisation règlement' : 'Publication règlement',
+                context: getGuildName(client, guildId),
+                module: 'Règlement',
+                eventType: 'Manuel',
+                details: result.mode === 'updated'
+                    ? 'Message de règlement mis à jour dans le salon de publication du règlement.'
+                    : 'Message de règlement publié dans le salon de publication du règlement.',
+                channelId: null
+              });
+
+              broadcastDashboardStateChange(guildId, 'regulation_published');
+              json(res, 200, { ok: true, mode: result.mode, messageId: result.messageId });
+              return;
+            } catch (error) {
+              json(res, 400, {
+                error: error instanceof Error ? error.message : 'Impossible de publier le règlement.',
+              });
+              return;
+            }
           }
 
           if (parts.length === 5 && parts[4] === 'command-access' && req.method === 'PUT') {
@@ -1901,7 +2683,8 @@ export const startDashboardApi = (client: Client) => {
               context: getGuildName(client, guildId),
               module: 'Dashboard',
               eventType: 'Manuel',
-              details: `${commandRestrictions.length} règle(s) de commande enregistrée(s).`
+              details: `${commandRestrictions.length} règle(s) de commande enregistrée(s).`,
+              channelId: null
             });
 
             json(res, 200, { ok: true });
@@ -1921,7 +2704,8 @@ export const startDashboardApi = (client: Client) => {
               context: getGuildName(client, guildId),
               module: 'Contenu',
               eventType: 'Manuel',
-              details: 'Template de message éditorial mis à jour.'
+              details: 'Template de message éditorial mis à jour.',
+              channelId: null
             });
             json(res, 200, { ok: true });
             return;
@@ -1954,7 +2738,8 @@ export const startDashboardApi = (client: Client) => {
               context: getGuildName(client, guildId),
               module: 'Dashboard',
               eventType: 'Manuel',
-              details: 'Configuration importée depuis un fichier JSON.'
+              details: 'Configuration importée depuis un fichier JSON.',
+              channelId: null
             });
 
             json(res, 200, { ok: true });

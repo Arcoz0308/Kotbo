@@ -39,7 +39,7 @@
 
 <div class="grid grid-cols-12 gap-6 mb-8 font-inter">
   
-  <div class="col-span-12 lg:col-span-8 bg-white dark:bg-slate-900 p-8 rounded-3xl shadow-[0_10px_30px_rgba(25,28,29,0.05)] border border-slate-100 dark:border-slate-800">
+  <div class="col-span-12 lg:col-span-8 section-card p-8">
     <div class="flex justify-between items-start mb-8">
       <div>
         <h3 class="text-xl font-bold text-slate-800 dark:text-white mb-1 font-headline">Intelligence Opérationnelle</h3>
@@ -71,7 +71,7 @@
   </div>
 
   
-  <div class="col-span-12 lg:col-span-4 bg-white dark:bg-slate-900 p-8 rounded-3xl shadow-[0_10px_30px_rgba(25,28,29,0.05)] border border-slate-100 dark:border-slate-800">
+  <div class="col-span-12 lg:col-span-4 section-card p-8">
     <h3 class="text-xl font-bold text-slate-800 dark:text-white mb-1 font-headline">Sources de Données</h3>
     <p class="text-sm text-on-surface-variant mb-8">Répartition des flux par statut</p>
     
@@ -98,7 +98,7 @@
   </div>
 
   
-  <div class="col-span-12 bg-white dark:bg-slate-900 p-8 rounded-3xl shadow-[0_10px_30px_rgba(25,28,29,0.05)] border border-slate-100 dark:border-slate-800">
+  <div class="col-span-12 section-card p-8">
     <div class="flex justify-between items-center mb-6">
       <h3 class="text-xl font-bold text-slate-800 dark:text-white font-headline">État des Modules en Temps Réel</h3>
     </div>

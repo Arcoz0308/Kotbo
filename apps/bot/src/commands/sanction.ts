@@ -25,6 +25,7 @@ import {
   registerWarnSanction,
   runGuildBan,
 } from '../services/sanctionService.js';
+import { buildMemberCaseActionRow } from '../services/memberCaseService.js';
 
 const DURATION_HELP = 'Exemples: 30m, 2h, 3j, 1 semaine';
 const SANCTION_PAGE_SIZE = 5;
@@ -254,7 +255,9 @@ async function buildSanctionListView(guildId: string, targetUserId: string, targ
       .setDisabled(safePageIndex >= totalPages - 1 || finalList.total === 0),
   );
 
-  return { embed, row, pageIndex: safePageIndex, totalPages };
+  const caseRow = buildMemberCaseActionRow(targetUserId);
+
+  return { embed, row, caseRow, pageIndex: safePageIndex, totalPages };
 }
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -284,7 +287,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
       const reply = await interaction.reply({
         embeds: [view.embed],
-        components: [view.row],
+        components: [view.row, view.caseRow],
         fetchReply: true,
       });
 
@@ -311,7 +314,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         const nextView = await buildSanctionListView(interaction.guildId, targetUser.id, targetUser.tag, currentPage);
         currentPage = nextView.pageIndex;
 
-        await buttonInteraction.update({ embeds: [nextView.embed], components: [nextView.row] });
+        await buttonInteraction.update({ embeds: [nextView.embed], components: [nextView.row, nextView.caseRow] });
       });
 
       collector.on('end', async () => {
@@ -329,7 +332,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
               .setStyle(ButtonStyle.Secondary)
               .setDisabled(true),
           );
-          await interaction.editReply({ embeds: [expiredView.embed], components: [disabledRow] });
+          await interaction.editReply({ embeds: [expiredView.embed], components: [disabledRow, expiredView.caseRow] });
         } catch {
           // Message possiblement supprimé ou interaction expirée.
         }
@@ -351,6 +354,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
             { name: 'Nombre total de warns', value: `${warnCount}`, inline: true },
           ),
         ],
+        components: [buildMemberCaseActionRow(targetUser.id)],
       });
 
       await notifyModeratorDashboardReportReminder(interaction, {
@@ -397,6 +401,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
             { name: 'ID sanction', value: sanction.id, inline: false },
           ),
         ],
+        components: [buildMemberCaseActionRow(targetUser.id)],
       });
 
       await notifyModeratorDashboardReportReminder(interaction, {
@@ -423,6 +428,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
       await interaction.reply({
         embeds: [successEmbed('Kick exécuté', `${targetUser.tag} a été exclu du serveur.`).addFields({ name: 'Raison', value: reason })],
+        components: [buildMemberCaseActionRow(targetUser.id)],
       });
 
       await notifyModeratorDashboardReportReminder(interaction, {
@@ -445,6 +451,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
       await interaction.reply({
         embeds: [successEmbed('Ban exécuté', `${targetUser.tag} a été banni définitivement.`).addFields({ name: 'Raison', value: reason })],
+        components: [buildMemberCaseActionRow(targetUser.id)],
       });
 
       await notifyModeratorDashboardReportReminder(interaction, {
@@ -486,6 +493,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
             { name: 'Déban auto', value: `<t:${Math.floor((sanction.expiresAt?.getTime() ?? Date.now()) / 1000)}:F>`, inline: false },
           ),
         ],
+        components: [buildMemberCaseActionRow(targetUser.id)],
       });
 
       await notifyModeratorDashboardReportReminder(interaction, {

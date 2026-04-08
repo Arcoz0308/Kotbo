@@ -19,6 +19,27 @@ type Target = {
   tag: string;
 };
 
+async function touchSanctionTargetIdentity(params: { guildId: string; userId: string; userTag: string }): Promise<void> {
+  await prisma.memberProfile.upsert({
+    where: {
+      guildId_userId: {
+        guildId: params.guildId,
+        userId: params.userId,
+      },
+    },
+    create: {
+      guildId: params.guildId,
+      userId: params.userId,
+      userTag: params.userTag,
+      lastSeenAt: new Date(),
+    },
+    update: {
+      userTag: params.userTag,
+      lastSeenAt: new Date(),
+    },
+  });
+}
+
 const DURATION_UNITS_MS: Record<string, number> = {
   s: 1000,
   sec: 1000,
@@ -176,7 +197,7 @@ export async function registerWarnSanction(params: {
   moderator: Actor;
   reason: string;
 }) {
-  return prisma.sanction.create({
+  const sanction = await prisma.sanction.create({
     data: {
       guildId: params.guildId,
       type: SanctionType.WARN,
@@ -190,6 +211,14 @@ export async function registerWarnSanction(params: {
       resolutionNote: 'Avertissement enregistré.'
     }
   });
+
+  void touchSanctionTargetIdentity({
+    guildId: params.guildId,
+    userId: params.target.id,
+    userTag: params.target.tag,
+  }).catch(() => null);
+
+  return sanction;
 }
 
 export async function registerKickSanction(params: {
@@ -221,6 +250,12 @@ export async function registerKickSanction(params: {
       resolutionNote: 'Exclusion exécutée.'
     }
   });
+
+  void touchSanctionTargetIdentity({
+    guildId: params.guildId,
+    userId: params.target.id,
+    userTag: params.target.tag,
+  }).catch(() => null);
 
   await emitSanctionReportReminder({
     guildId: sanction.guildId,
@@ -273,6 +308,12 @@ export async function registerBanSanction(params: {
       resolutionNote: isTemporary ? 'Bannissement temporaire actif.' : 'Bannissement définitif exécuté.'
     }
   });
+
+  void touchSanctionTargetIdentity({
+    guildId: params.guildId,
+    userId: params.target.id,
+    userTag: params.target.tag,
+  }).catch(() => null);
 
   await emitSanctionReportReminder({
     guildId: sanction.guildId,
@@ -327,6 +368,12 @@ export async function registerTimeoutSanction(params: {
     }
   });
 
+  void touchSanctionTargetIdentity({
+    guildId: params.guildId,
+    userId: params.target.id,
+    userTag: params.target.tag,
+  }).catch(() => null);
+
   await emitSanctionReportReminder({
     guildId: sanction.guildId,
     sanctionId: sanction.id,
@@ -376,6 +423,12 @@ export async function registerObservedTimeoutSanction(params: {
       resolutionNote: 'Timeout détecté via le journal d\'audit Discord.'
     }
   });
+
+  void touchSanctionTargetIdentity({
+    guildId: params.guildId,
+    userId: params.target.id,
+    userTag: params.target.tag,
+  }).catch(() => null);
 
   await emitSanctionReportReminder({
     guildId: sanction.guildId,

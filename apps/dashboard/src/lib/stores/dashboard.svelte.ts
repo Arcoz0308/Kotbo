@@ -3,6 +3,10 @@ import { fetchGuildState } from '../api';
 class DashboardStore {
   state = $state({
     guildName: 'Kotbo',
+    configChannelId: '',
+    logChannelId: '',
+    regulationChannelId: '',
+    regulationMessageId: null,
     discordChannels: [],
     discordRoles: [],
     moderatorRoleId: '',
@@ -29,6 +33,7 @@ class DashboardStore {
     auditTrail: [],
     sanctions: [],
     sanctionReports: [],
+    regulationRules: [],
     messageTemplate: '',
     analytics: {
       activityTrend: [0, 0, 0, 0, 0, 0, 0],
@@ -48,6 +53,10 @@ class DashboardStore {
       
       if (data) {
         this.state.guildName = data.guildName;
+        this.state.configChannelId = data.configChannelId || '';
+        this.state.logChannelId = data.logChannelId || '';
+        this.state.regulationChannelId = data.regulationChannelId || '';
+        this.state.regulationMessageId = data.regulationMessageId || null;
         this.state.discordChannels = data.discordChannels || [];
         this.state.discordRoles = data.discordRoles || [];
         this.state.moderatorRoleId = data.moderatorRoleId || '';
@@ -66,6 +75,7 @@ class DashboardStore {
         this.state.auditTrail = data.auditTrail;
         this.state.sanctions = data.sanctions || [];
         this.state.sanctionReports = data.sanctionReports || [];
+        this.state.regulationRules = data.regulationRules || [];
         this.state.messageTemplate = data.messageTemplate;
         this.state.analytics = data.analytics;
         this.state.error = null;

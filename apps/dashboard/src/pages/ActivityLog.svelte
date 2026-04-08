@@ -3,37 +3,126 @@
   import { refreshDashboardOnMount } from '../lib/dashboardLifecycle';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
-  import FormSelect from '../lib/components/FormSelect.svelte';
+  import ColumnSortFilter, { type ColumnFilterOption } from '../lib/components/sanctions/ColumnSortFilter.svelte';
 
   refreshDashboardOnMount();
 
+  type ActivitySortField = 'date' | 'user' | 'module' | 'action' | 'type';
+
   let searchQuery = $state('');
-  let categoryFilter = $state('Toutes les catégories');
-  let severityFilter = $state('Tous les types');
+  let filters = $state({
+    users: [] as string[],
+    modules: [] as string[],
+    actions: [] as string[],
+    types: [] as string[],
+  });
+  let sortField = $state<ActivitySortField>('date');
+  let sortDirection = $state<'asc' | 'desc'>('desc');
+
+  // Filter to only Dashboard logs
+  const dashboardLogs = $derived(dashboardStore.state.auditTrail.filter(entry => entry.source !== 'discord'));
+
+  const uniqueUsers = $derived([...new Set(dashboardLogs.map((entry) => entry.user))].sort((a, b) => a.localeCompare(b, 'fr')));
+  const uniqueModules = $derived([...new Set(dashboardLogs.map((entry) => entry.module))].sort((a, b) => a.localeCompare(b, 'fr')));
+  const uniqueActions = $derived([...new Set(dashboardLogs.map((entry) => entry.action))].sort((a, b) => a.localeCompare(b, 'fr')));
+  const uniqueTypes = $derived([...new Set(dashboardLogs.map((entry) => entry.eventType))].sort((a, b) => a.localeCompare(b, 'fr')));
+
+  const userFilterOptions = $derived<ColumnFilterOption[]>(
+    uniqueUsers.map((user) => ({ value: user, label: user }))
+  );
+  const moduleFilterOptions = $derived<ColumnFilterOption[]>(
+    uniqueModules.map((moduleName) => ({ value: moduleName, label: moduleName }))
+  );
+  const actionFilterOptions = $derived<ColumnFilterOption[]>(
+    uniqueActions.map((actionName) => ({ value: actionName, label: actionName }))
+  );
+  const typeFilterOptions = $derived<ColumnFilterOption[]>(
+    uniqueTypes.map((eventType) => ({ value: eventType, label: eventType }))
+  );
+
+  const hasActiveFiltersOrSort = $derived(
+    filters.users.length > 0
+      || filters.modules.length > 0
+      || filters.actions.length > 0
+      || filters.types.length > 0
+      || sortField !== 'date'
+      || sortDirection !== 'desc'
+  );
+
+  function toggleFilter(filterType: 'users' | 'modules' | 'actions' | 'types', value: string) {
+    const list = filters[filterType];
+    if (list.includes(value)) {
+      filters[filterType] = list.filter((entry) => entry !== value);
+      return;
+    }
+    filters[filterType] = [...list, value];
+  }
+
+  function toggleSort(field: ActivitySortField) {
+    if (sortField === field) {
+      sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+      return;
+    }
+    sortField = field;
+    sortDirection = 'asc';
+  }
+
+  function sortDirectionFor(field: ActivitySortField) {
+    return sortField === field ? sortDirection : null;
+  }
+
+  function resetFiltersAndSort() {
+    filters = {
+      users: [],
+      modules: [],
+      actions: [],
+      types: [],
+    };
+    sortField = 'date';
+    sortDirection = 'desc';
+  }
 
   const filteredLogs = $derived(
-    dashboardStore.state.auditTrail.filter(log => {
+    [...dashboardLogs]
+    .filter(log => {
       const matchesSearch = searchQuery === '' || 
         log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
         log.details.toLowerCase().includes(searchQuery.toLowerCase()) ||
         log.module.toLowerCase().includes(searchQuery.toLowerCase()) ||
         log.user.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      const matchesCategory = categoryFilter === 'Toutes les catégories' || 
-        log.module === categoryFilter;
-
-      const matchesType = severityFilter === 'Tous les types' ||
-        log.eventType === severityFilter;
-
-      return matchesSearch && matchesCategory && matchesType;
+      const matchesModule = filters.modules.length === 0 || filters.modules.includes(log.module);
+      const matchesAction = filters.actions.length === 0 || filters.actions.includes(log.action);
+      const matchesType = filters.types.length === 0 || filters.types.includes(log.eventType);
+      const matchesUser = filters.users.length === 0 || filters.users.includes(log.user);
+      return matchesSearch && matchesModule && matchesAction && matchesType && matchesUser;
+    })
+    .sort((left, right) => {
+      let result = 0;
+      switch (sortField) {
+        case 'date':
+          result = new Date(left.dateIso).getTime() - new Date(right.dateIso).getTime();
+          break;
+        case 'user':
+          result = left.user.localeCompare(right.user, 'fr');
+          break;
+        case 'module':
+          result = left.module.localeCompare(right.module, 'fr');
+          break;
+        case 'action':
+          result = left.action.localeCompare(right.action, 'fr');
+          break;
+        case 'type':
+          result = left.eventType.localeCompare(right.eventType, 'fr');
+          break;
+      }
+      return sortDirection === 'asc' ? result : -result;
     })
   );
 
   const stats = $derived([
-    { label: 'Actions (Total)', val: dashboardStore.state.auditTrail.length, sub: 'Log complet', subClass: 'text-primary' },
-    { label: 'Automatique', val: dashboardStore.state.auditTrail.filter(l => l.eventType === 'Automatique').length, sub: 'Système', subClass: 'text-blue-500' },
-    { label: 'Manuel', val: dashboardStore.state.auditTrail.filter(l => l.eventType === 'Manuel').length, sub: 'Utilisateur', subClass: 'text-amber-600' },
-    { label: 'Modules', val: new Set(dashboardStore.state.auditTrail.map(l => l.module)).size, sub: 'Sources', subClass: 'text-green-600' }
+    { label: 'Actions (Total)', val: dashboardLogs.length, sub: 'Configuration', subClass: 'text-primary' },
+    { label: 'Modules', val: new Set(dashboardLogs.map(l => l.module)).size, sub: 'Sources', subClass: 'text-green-600' },
+    { label: 'Utilisateurs', val: new Set(dashboardLogs.map(l => l.user)).size, sub: 'Unique', subClass: 'text-purple-600' }
   ]);
 </script>
 
@@ -41,7 +130,7 @@
 <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10 font-inter">
   <div>
     <h2 class="text-3xl font-extrabold text-primary tracking-tight font-headline">Journal d'Activité</h2>
-    <p class="text-on-surface-variant mt-1 leading-relaxed">Historique complet des actions système et de modération pour {dashboardStore.state.guildName}.</p>
+    <p class="text-on-surface-variant mt-1 leading-relaxed">Historique des actions de configuration pour {dashboardStore.state.guildName}.</p>
   </div>
   <div class="flex items-center gap-3">
     <RefreshButton
@@ -55,9 +144,9 @@
 </div>
 
 
-<div class="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 mb-8 font-inter">
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-    <div class="space-y-2">
+<div class="section-card p-6 mb-8 font-inter">
+  <div class="flex flex-col md:flex-row md:items-center gap-4 justify-between">
+    <div class="space-y-2 w-full md:max-w-2xl">
       <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="search">Recherche</label>
       <div class="relative">
         <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
@@ -65,47 +154,85 @@
           id="search"
           type="text"
           bind:value={searchQuery}
-          placeholder="Action, Détails, Module, Utilisateur..."
+          placeholder="Action, détails, module, utilisateur..."
           className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all"
         />
       </div>
     </div>
-    <div class="space-y-2">
-      <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="category">Module</label>
-      <FormSelect
-        id="category"
-        bind:value={categoryFilter}
-        className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all"
-      >
-        <option>Toutes les catégories</option>
-        {#each [...new Set(dashboardStore.state.auditTrail.map(l => l.module))] as mod}
-          <option value={mod}>{mod}</option>
-        {/each}
-      </FormSelect>
-    </div>
-    <div class="space-y-2">
-      <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="severity">Type</label>
-      <FormSelect id="severity" bind:value={severityFilter} className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all">
-        <option>Tous les types</option>
-        <option>Automatique</option>
-        <option>Manuel</option>
-      </FormSelect>
+
+    <div class="flex items-center gap-3">
+      <span class="text-xs font-bold text-on-surface-variant">{filteredLogs.length} / {dashboardLogs.length} événement(s)</span>
+      {#if hasActiveFiltersOrSort}
+        <button
+          type="button"
+          onclick={resetFiltersAndSort}
+          class="text-xs font-bold text-primary hover:text-primary/80 transition"
+        >
+          Réinitialiser filtres et tri
+        </button>
+      {/if}
     </div>
   </div>
 </div>
 
 
-<div class="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden font-inter">
+<div class="section-card-flush font-inter">
   <div class="overflow-x-auto">
     <table class="w-full text-left border-collapse">
       <thead>
         <tr class="bg-slate-50 dark:bg-white/5">
-          <th class="px-6 py-5 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Horodatage</th>
-          <th class="px-6 py-5 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Utilisateur</th>
-          <th class="px-6 py-5 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Module / Source</th>
-          <th class="px-6 py-5 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Action</th>
+          <th class="px-6 py-5">
+            <ColumnSortFilter
+              label="Horodatage"
+              sortDirection={sortDirectionFor('date')}
+              onToggleSort={() => toggleSort('date')}
+            />
+          </th>
+          <th class="px-6 py-5">
+            <ColumnSortFilter
+              label="Utilisateur"
+              sortDirection={sortDirectionFor('user')}
+              onToggleSort={() => toggleSort('user')}
+              options={userFilterOptions}
+              selectedValues={filters.users}
+              onToggleValue={(value) => toggleFilter('users', value)}
+              searchable={true}
+            />
+          </th>
+          <th class="px-6 py-5">
+            <ColumnSortFilter
+              label="Module / Source"
+              sortDirection={sortDirectionFor('module')}
+              onToggleSort={() => toggleSort('module')}
+              options={moduleFilterOptions}
+              selectedValues={filters.modules}
+              onToggleValue={(value) => toggleFilter('modules', value)}
+            />
+          </th>
+          <th class="px-6 py-5">
+            <ColumnSortFilter
+              label="Action"
+              sortDirection={sortDirectionFor('action')}
+              onToggleSort={() => toggleSort('action')}
+              options={actionFilterOptions}
+              selectedValues={filters.actions}
+              onToggleValue={(value) => toggleFilter('actions', value)}
+              searchable={true}
+            />
+          </th>
           <th class="px-6 py-5 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Détails</th>
-          <th class="px-6 py-5 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest text-center">Type</th>
+          <th class="px-6 py-5">
+            <div class="flex justify-center">
+              <ColumnSortFilter
+                label="Type"
+                sortDirection={sortDirectionFor('type')}
+                onToggleSort={() => toggleSort('type')}
+                options={typeFilterOptions}
+                selectedValues={filters.types}
+                onToggleValue={(value) => toggleFilter('types', value)}
+              />
+            </div>
+          </th>
         </tr>
       </thead>
       <tbody class="divide-y divide-slate-50 dark:divide-slate-800">
@@ -156,7 +283,7 @@
 </div>
 
 
-<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mt-12 font-inter">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12 font-inter">
   {#each stats as kpi}
     <div class="bg-surface-container-low p-6 rounded-2xl border border-outline-variant/10">
       <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{kpi.label}</p>

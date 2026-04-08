@@ -8,7 +8,9 @@
     { name: "Modules", icon: "sparkles", href: "/modules" },
     { name: "Contenu", icon: "newspaper", href: "/content" },
     { name: "Sanctions", icon: "gavel", href: "/sanctions" },
+    { name: "Règlement", icon: "text-bubble", href: "/regulation" },
     { name: "Analytics", icon: "pie", href: "/analytics" },
+    { name: "Logs", icon: "menu", href: "/logs" },
   ];
 
   const canManageSettings = $derived(
@@ -16,7 +18,7 @@
   );
 
   const visibleNavItems = $derived(
-    canManageSettings ? navItems : navItems.filter((item) => item.href !== '/modules')
+    canManageSettings ? navItems : navItems.filter((item) => item.href !== '/modules' && item.href !== '/regulation')
   );
 
   function isActiveNavItem(href) {

@@ -8,10 +8,16 @@
   import FormTextarea from '../lib/components/FormTextarea.svelte';
   import ReportRuleSelector from '../lib/components/sanctions/ReportRuleSelector.svelte';
   import SelectedRuleChips from '../lib/components/sanctions/SelectedRuleChips.svelte';
+  import ColumnSortFilter, { type ColumnFilterOption } from '../lib/components/sanctions/ColumnSortFilter.svelte';
   import { createSanctionReport, deleteSanction } from '../lib/api';
-  import { buildBrokenRulesPayload, buildReportRuleOptions, getRuleIdsFromBrokenRules, getRulesFromBrokenRules } from '../lib/sanctions/reportRules';
+  import {
+    buildBrokenRulesPayload,
+    buildReportRuleOptions,
+    getRuleIdsFromBrokenRules,
+    getRulesFromBrokenRules,
+  } from '../lib/sanctions/reportRules';
   import { durationLabel, statusLabel, toDateTimeLocal, typeLabel } from '../lib/sanctions/formatters';
-  import { filterAndSortSanctions, type SanctionFilters, type SortOption } from '../lib/sanctions/filterSort';
+  import { filterAndSortSanctions, type SanctionFilters, type SortField, type SortOption } from '../lib/sanctions/filterSort';
 
   refreshDashboardOnMount();
 
@@ -27,6 +33,7 @@
 
   let modalOpen = $state(false);
   let modalMode = $state<'create' | 'view'>('create');
+  let searchQuery = $state('');
 
   // Filter and sort state
   let filters = $state<SanctionFilters>({
@@ -67,22 +74,22 @@
     }
   }
 
-  function toggleSort(field: string) {
+  function toggleSort(field: SortField) {
     const existingIndex = sortOptions.findIndex((opt) => opt.field === field);
 
     if (existingIndex >= 0) {
       // Toggle direction if already sorting by this field
       const option = sortOptions[existingIndex];
       const newDirection = option.direction === 'asc' ? 'desc' : 'asc';
-      sortOptions[existingIndex] = { field: option.field as any, direction: newDirection };
+      sortOptions[existingIndex] = { field: option.field, direction: newDirection };
     } else {
       // Add new sort if not already sorting
-      sortOptions = [...sortOptions, { field: field as any, direction: 'asc' }];
+      sortOptions = [...sortOptions, { field, direction: 'asc' }];
     }
   }
 
-  function removeSortOption(field: string) {
-    sortOptions = sortOptions.filter((opt) => opt.field !== field);
+  function sortDirectionFor(field: SortField) {
+    return sortOptions.find((entry) => entry.field === field)?.direction ?? null;
   }
 
   function resetFiltersAndSort() {
@@ -120,8 +127,54 @@
     })
   );
 
+  const hasActiveFiltersOrSort = $derived(
+    searchQuery.trim().length > 0 ||
+    filters.statuses.length > 0 ||
+      filters.types.length > 0 ||
+      filters.moderators.length > 0 ||
+      filters.targets.length > 0 ||
+      sortOptions.length > 1 ||
+      (sortOptions.length === 1 && (sortOptions[0].field !== 'date' || sortOptions[0].direction !== 'desc'))
+  );
+
+  const statusFilterOptions = $derived<ColumnFilterOption[]>(
+    uniqueStatuses.map((status) => ({ value: status, label: statusLabel(status) }))
+  );
+  const typeFilterOptions = $derived<ColumnFilterOption[]>(
+    uniqueTypes.map((type) => ({ value: type, label: typeLabel(type) }))
+  );
+  const moderatorFilterOptions = $derived<ColumnFilterOption[]>(
+    uniqueModerators.map((moderatorId) => ({
+      value: moderatorId,
+      label: sanctions.find((entry) => entry.moderatorUserId === moderatorId)?.moderatorTag || moderatorId,
+    }))
+  );
+  const targetFilterOptions = $derived<ColumnFilterOption[]>(
+    uniqueTargets.map((targetId) => ({
+      value: targetId,
+      label: sanctions.find((entry) => entry.targetUserId === targetId)?.targetTag || targetId,
+    }))
+  );
+
+  const searchedSanctions = $derived.by(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return sanctions;
+
+    return sanctions.filter((entry) => {
+      return [
+        entry.type,
+        entry.targetTag,
+        entry.moderatorTag,
+        entry.reason,
+        statusLabel(entry.status),
+      ]
+        .map((value) => (value || '').toLowerCase())
+        .some((value) => value.includes(query));
+    });
+  });
+
   // Apply filters and sorting
-  const filteredAndSortedSanctions = $derived(filterAndSortSanctions(sanctions, filters, sortOptions));
+  const filteredAndSortedSanctions = $derived(filterAndSortSanctions(searchedSanctions, filters, sortOptions));
 
   const selectedSanction = $derived(sanctions.find((entry) => entry.id === selectedSanctionId) || null);
   const selectedReport = $derived(sanctionReports.find((entry) => entry.sanctionId === selectedSanctionId) || null);
@@ -370,233 +423,101 @@
   />
 </div>
 
-<section class="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden font-inter">
+<section class="section-card-flush font-inter">
   <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
     <h3 class="text-lg font-black">Liste des sanctions</h3>
-    <span class="text-xs font-bold text-on-surface-variant">{filteredAndSortedSanctions.length} / {sanctions.length} entree(s)</span>
-  </div>
-  {#if deletionMessage}
-    <div class="px-6 pt-4 text-sm font-semibold {deletionMessageIsError ? 'text-red-600' : 'text-emerald-600'}">{deletionMessage}</div>
-  {/if}
-
-  <!-- Filters Section -->
-  <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800 space-y-4">
-    <div class="flex items-center justify-between">
-      <h4 class="text-sm font-bold text-on-surface">Filtres & Tri</h4>
-      {#if filters.statuses.length > 0 || filters.types.length > 0 || filters.moderators.length > 0 || filters.targets.length > 0 || sortOptions.length > 1 || (sortOptions.length === 1 && (sortOptions[0].field !== 'date' || sortOptions[0].direction !== 'desc'))}
+    <div class="flex items-center gap-3">
+      <span class="text-xs font-bold text-on-surface-variant">{filteredAndSortedSanctions.length} / {sanctions.length} entree(s)</span>
+      {#if hasActiveFiltersOrSort}
         <button
           onclick={resetFiltersAndSort}
           class="text-xs font-bold text-primary hover:text-primary/80 transition"
         >
-          Réinitialiser
+          Réinitialiser filtres et tri
         </button>
       {/if}
     </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      <!-- Status Filter -->
-      <div>
-        <label class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant block mb-2"
-          >Statut</label
-        >
-        <div class="space-y-2">
-          {#each uniqueStatuses as status}
-            {@const tag = statusLabel(status)}
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={filters.statuses.includes(status)}
-                onchange={(e) => toggleFilter('statuses', status)}
-                class="rounded border-slate-300"
-              />
-              <span class="text-sm">{tag}</span>
-            </label>
-          {/each}
-        </div>
-      </div>
-
-      <!-- Type Filter -->
-      <div>
-        <label class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant block mb-2"
-          >Type</label
-        >
-        <div class="space-y-2">
-          {#each uniqueTypes as type}
-            {@const tag = typeLabel(type)}
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={filters.types.includes(type)}
-                onchange={(e) => toggleFilter('types', type)}
-                class="rounded border-slate-300"
-              />
-              <span class="text-sm">{tag}</span>
-            </label>
-          {/each}
-        </div>
-      </div>
-
-      <!-- Moderator Filter -->
-      <div>
-        <label class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant block mb-2"
-          >Staff</label
-        >
-        <div class="space-y-2 max-h-40 overflow-y-auto">
-          {#each uniqueModerators as moderatorId}
-            {@const moderatorTag = sanctions.find((s) => s.moderatorUserId === moderatorId)?.moderatorTag || moderatorId}
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={filters.moderators.includes(moderatorId)}
-                onchange={(e) => toggleFilter('moderators', moderatorId)}
-                class="rounded border-slate-300"
-              />
-              <span class="text-sm">{moderatorTag}</span>
-            </label>
-          {/each}
-        </div>
-      </div>
-
-      <!-- Target Filter -->
-      <div>
-        <label class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant block mb-2"
-          >Cible</label
-        >
-        <div class="space-y-2 max-h-40 overflow-y-auto">
-          {#each uniqueTargets as targetId}
-            {@const targetTag = sanctions.find((s) => s.targetUserId === targetId)?.targetTag || targetId}
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={filters.targets.includes(targetId)}
-                onchange={(e) => toggleFilter('targets', targetId)}
-                class="rounded border-slate-300"
-              />
-              <span class="text-sm">{targetTag}</span>
-            </label>
-          {/each}
-        </div>
-      </div>
-    </div>
-
-    <!-- Sort Options -->
-    <div class="border-t border-slate-200 dark:border-slate-700 pt-3">
-      <p class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant mb-2">Tri (cumulable)</p>
-      <div class="flex flex-wrap gap-2">
-        <button
-          onclick={() => toggleSort('date')}
-          class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition
-            {sortOptions.some((s) => s.field === 'date')
-            ? 'bg-primary text-white'
-            : 'bg-slate-100 dark:bg-slate-800 text-on-surface hover:bg-slate-200 dark:hover:bg-slate-700'}"
-        >
-          📅 Date
-          {#if sortOptions.some((s) => s.field === 'date')}
-            <span class="text-[10px]"
-              >{sortOptions.find((s) => s.field === 'date')?.direction === 'asc' ? '↑' : '↓'}</span
-            >
-          {/if}
-        </button>
-
-        <button
-          onclick={() => toggleSort('type')}
-          class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition
-            {sortOptions.some((s) => s.field === 'type')
-            ? 'bg-primary text-white'
-            : 'bg-slate-100 dark:bg-slate-800 text-on-surface hover:bg-slate-200 dark:hover:bg-slate-700'}"
-        >
-          🔖 Type
-          {#if sortOptions.some((s) => s.field === 'type')}
-            <span class="text-[10px]"
-              >{sortOptions.find((s) => s.field === 'type')?.direction === 'asc' ? '↑' : '↓'}</span
-            >
-          {/if}
-        </button>
-
-        <button
-          onclick={() => toggleSort('status')}
-          class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition
-            {sortOptions.some((s) => s.field === 'status')
-            ? 'bg-primary text-white'
-            : 'bg-slate-100 dark:bg-slate-800 text-on-surface hover:bg-slate-200 dark:hover:bg-slate-700'}"
-        >
-          ⚡ Statut
-          {#if sortOptions.some((s) => s.field === 'status')}
-            <span class="text-[10px]"
-              >{sortOptions.find((s) => s.field === 'status')?.direction === 'asc' ? '↑' : '↓'}</span
-            >
-          {/if}
-        </button>
-
-        <button
-          onclick={() => toggleSort('duration')}
-          class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition
-            {sortOptions.some((s) => s.field === 'duration')
-            ? 'bg-primary text-white'
-            : 'bg-slate-100 dark:bg-slate-800 text-on-surface hover:bg-slate-200 dark:hover:bg-slate-700'}"
-        >
-          ⏱️ Duree
-          {#if sortOptions.some((s) => s.field === 'duration')}
-            <span class="text-[10px]"
-              >{sortOptions.find((s) => s.field === 'duration')?.direction === 'asc' ? '↑' : '↓'}</span
-            >
-          {/if}
-        </button>
-
-        <button
-          onclick={() => toggleSort('target')}
-          class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition
-            {sortOptions.some((s) => s.field === 'target')
-            ? 'bg-primary text-white'
-            : 'bg-slate-100 dark:bg-slate-800 text-on-surface hover:bg-slate-200 dark:hover:bg-slate-700'}"
-        >
-          🎯 Cible
-          {#if sortOptions.some((s) => s.field === 'target')}
-            <span class="text-[10px]"
-              >{sortOptions.find((s) => s.field === 'target')?.direction === 'asc' ? '↑' : '↓'}</span
-            >
-          {/if}
-        </button>
-
-        <button
-          onclick={() => toggleSort('moderator')}
-          class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition
-            {sortOptions.some((s) => s.field === 'moderator')
-            ? 'bg-primary text-white'
-            : 'bg-slate-100 dark:bg-slate-800 text-on-surface hover:bg-slate-200 dark:hover:bg-slate-700'}"
-        >
-          👤 Staff
-          {#if sortOptions.some((s) => s.field === 'moderator')}
-            <span class="text-[10px]"
-              >{sortOptions.find((s) => s.field === 'moderator')?.direction === 'asc' ? '↑' : '↓'}</span
-            >
-          {/if}
-        </button>
-
-        {#if sortOptions.length > 1}
-          <div class="ml-auto flex gap-2 items-center">
-            <p class="text-[11px] font-bold text-on-surface-variant">Ordres actifs: {sortOptions.length}</p>
-            <button
-              onclick={() => (sortOptions = [{ field: 'date', direction: 'desc' }])}
-              class="text-xs font-bold text-primary hover:text-primary/80 transition"
-            >
-              Réinitialiser tri
-            </button>
-          </div>
-        {/if}
-      </div>
-    </div>
   </div>
+  <div class="px-6 pt-4">
+    <label class="relative block w-full md:max-w-xl">
+      <span class="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+      <FormInput
+        type="search"
+        bind:value={searchQuery}
+        placeholder="Rechercher par type, cible, staff, raison..."
+        className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 py-2.5 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:border-slate-700 dark:bg-slate-800"
+      />
+    </label>
+  </div>
+  {#if deletionMessage}
+    <div class="px-6 pt-4 text-sm font-semibold {deletionMessageIsError ? 'text-red-600' : 'text-emerald-600'}">{deletionMessage}</div>
+  {/if}
   <div class="overflow-x-auto">
     <table class="w-full text-left border-collapse">
       <thead>
         <tr class="bg-slate-50 dark:bg-white/5">
-          <th class="px-4 py-4 text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">Date</th>
-          <th class="px-4 py-4 text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">Type</th>
-          <th class="px-4 py-4 text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">Cible</th>
-          <th class="px-4 py-4 text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">Staff</th>
-          <th class="px-4 py-4 text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">Duree</th>
-          <th class="px-4 py-4 text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">Statut</th>
+          <th class="px-4 py-4">
+            <ColumnSortFilter
+              label="Date"
+              sortField="date"
+              sortDirection={sortDirectionFor('date')}
+              onToggleSort={() => toggleSort('date')}
+            />
+          </th>
+          <th class="px-4 py-4">
+            <ColumnSortFilter
+              label="Type"
+              sortField="type"
+              sortDirection={sortDirectionFor('type')}
+              onToggleSort={() => toggleSort('type')}
+              options={typeFilterOptions}
+              selectedValues={filters.types}
+              onToggleValue={(value) => toggleFilter('types', value)}
+            />
+          </th>
+          <th class="px-4 py-4">
+            <ColumnSortFilter
+              label="Cible"
+              sortField="target"
+              sortDirection={sortDirectionFor('target')}
+              onToggleSort={() => toggleSort('target')}
+              options={targetFilterOptions}
+              selectedValues={filters.targets}
+              onToggleValue={(value) => toggleFilter('targets', value)}
+              searchable={true}
+            />
+          </th>
+          <th class="px-4 py-4">
+            <ColumnSortFilter
+              label="Staff"
+              sortField="moderator"
+              sortDirection={sortDirectionFor('moderator')}
+              onToggleSort={() => toggleSort('moderator')}
+              options={moderatorFilterOptions}
+              selectedValues={filters.moderators}
+              onToggleValue={(value) => toggleFilter('moderators', value)}
+              searchable={true}
+            />
+          </th>
+          <th class="px-4 py-4">
+            <ColumnSortFilter
+              label="Duree"
+              sortField="duration"
+              sortDirection={sortDirectionFor('duration')}
+              onToggleSort={() => toggleSort('duration')}
+            />
+          </th>
+          <th class="px-4 py-4">
+            <ColumnSortFilter
+              label="Statut"
+              sortField="status"
+              sortDirection={sortDirectionFor('status')}
+              onToggleSort={() => toggleSort('status')}
+              options={statusFilterOptions}
+              selectedValues={filters.statuses}
+              onToggleValue={(value) => toggleFilter('statuses', value)}
+            />
+          </th>
           <th class="px-4 py-4 text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">Rapport</th>
         </tr>
       </thead>
@@ -673,8 +594,12 @@
 </section>
 
 {#if modalOpen && selectedSanction}
-  <div class="fixed inset-0 z-70 bg-black/55 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true">
-    <div class="w-full max-w-3xl max-h-[92vh] overflow-y-auto rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-6 space-y-5 font-inter">
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div class="modal-backdrop" role="dialog" aria-modal="true" onclick={closeModal}>
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="modal-panel modal-panel-lg space-y-5 font-inter" onclick={(e) => e.stopPropagation()}>
       <div class="flex items-start justify-between gap-4">
         <div>
           <p class="text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant">Sanction selectionnee</p>
@@ -815,8 +740,12 @@
 {/if}
 
 {#if deleteModalOpen && pendingDeletion}
-  <div class="fixed inset-0 z-80 bg-black/55 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="delete-sanction-title">
-    <div class="w-full max-w-lg rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-6 space-y-4 font-inter">
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="delete-sanction-title" onclick={closeDeleteModal}>
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="modal-panel max-w-lg space-y-4 font-inter" onclick={(e) => e.stopPropagation()}>
       <div>
         <p class="text-[10px] font-black uppercase tracking-[0.25em] text-red-500">Action sensible</p>
         <h3 id="delete-sanction-title" class="mt-1 text-xl font-black text-on-surface">Confirmer la suppression</h3>

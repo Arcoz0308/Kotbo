@@ -13,6 +13,7 @@ import {
   sendDailyAlgoConfig,
   sendGitHubReleasesConfig,
   sendStatusConfig,
+  sendAdvancedLogsConfig,
   buildSetTimeModal,
   buildSetReposModal,
 } from '../panels/generalConfigPanel.js';
@@ -46,6 +47,9 @@ export async function handleConfigSelectMenu(interaction: StringSelectMenuIntera
     case 'cfg:section:status':
       await sendStatusConfig(interaction, guildId);
       break;
+    case 'cfg:section:advanced-logs':
+      await sendAdvancedLogsConfig(interaction, guildId);
+      break;
     case 'cfg:section:news':
       await sendNewsConfigSectionPanel(interaction, guildId);
       break;
@@ -72,6 +76,8 @@ export async function handleConfigButton(interaction: ButtonInteraction): Promis
       await sendGitHubReleasesConfig(interaction, guildId);
     } else if (customId === 'cfg:section:status') {
       await sendStatusConfig(interaction, guildId);
+    } else if (customId === 'cfg:section:advanced-logs') {
+      await sendAdvancedLogsConfig(interaction, guildId);
     } else if (customId === 'cfg:refresh') {
       await sendMainConfigPanel(interaction, guildId);
     } else if (customId === 'cfg:toggle:code-police') {
@@ -150,6 +156,11 @@ export async function handleConfigButton(interaction: ButtonInteraction): Promis
       await prisma.guild.update({ where: { id: guildId }, data: { statusCheckChannelId: null } });
       await interaction.followUp({ embeds: [successEmbed('Vérificateur de statut', 'Restriction supprimée.')], flags: [MessageFlags.Ephemeral] });
       await sendStatusConfig(interaction, guildId);
+    } else if (customId === 'cfg:clear:advanced-logs:channel') {
+      await interaction.deferUpdate();
+      await prisma.guild.update({ where: { id: guildId }, data: { logChannelId: null } });
+      await interaction.followUp({ embeds: [successEmbed('Logs avancés', 'Salon de logs supprimé.')], flags: [MessageFlags.Ephemeral] });
+      await sendAdvancedLogsConfig(interaction, guildId);
     }
   } catch (error) {
     logger.error('ConfigHandler', 'Erreur lors du traitement du bouton de configuration :', error);
@@ -168,7 +179,7 @@ export async function handleConfigModal(interaction: ModalSubmitInteraction): Pr
 
       // Validate time format HH:MM
       if (!/^([0-1]\d|2[0-3]):([0-5]\d)$/.test(time)) {
-        await interaction.editReply({
+        await interaction.followUp({
           embeds: [errorEmbed('Format invalide', 'Utilise le format HH:MM (ex: 09:00)')],
           flags: [MessageFlags.Ephemeral],
         });
@@ -180,7 +191,7 @@ export async function handleConfigModal(interaction: ModalSubmitInteraction): Pr
         data: { dailyAlgoTime: time },
       });
 
-      await interaction.editReply({
+      await interaction.followUp({
         embeds: [successEmbed('Daily Algo', `Heure configurée : ${time} UTC`)],
         flags: [MessageFlags.Ephemeral],
       });
@@ -195,7 +206,7 @@ export async function handleConfigModal(interaction: ModalSubmitInteraction): Pr
         .filter(r => r.length > 0 && r.includes('/'));
 
       if (repos.length === 0) {
-        await interaction.editReply({
+        await interaction.followUp({
           embeds: [errorEmbed('Erreur', 'Au moins un dépôt est requis (format : owner/repo)')],
           flags: [MessageFlags.Ephemeral],
         });
@@ -207,7 +218,7 @@ export async function handleConfigModal(interaction: ModalSubmitInteraction): Pr
         data: { githubRepositories: repos },
       });
 
-      await interaction.editReply({
+      await interaction.followUp({
         embeds: [successEmbed('Releases GitHub', `${repos.length} dépôts configurés`)],
         flags: [MessageFlags.Ephemeral],
       });
@@ -253,6 +264,13 @@ export async function handleConfigChannelSelect(interaction: ChannelSelectMenuIn
       await prisma.guild.update({ where: { id: guildId }, data: { statusCheckChannelId: channelId } });
       await interaction.followUp({ embeds: [successEmbed('Vérificateur de statut', `Salon autorisé : <#${channelId}>`)], flags: [MessageFlags.Ephemeral] });
       await sendStatusConfig(interaction, guildId);
+      return;
+    }
+
+    if (customId === 'cfg:select:advanced-logs:channel') {
+      await prisma.guild.update({ where: { id: guildId }, data: { logChannelId: channelId } });
+      await interaction.followUp({ embeds: [successEmbed('Logs avancés', `Salon configuré : <#${channelId}>`)], flags: [MessageFlags.Ephemeral] });
+      await sendAdvancedLogsConfig(interaction, guildId);
       return;
     }
   } catch (error) {

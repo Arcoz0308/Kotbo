@@ -24,6 +24,7 @@ import * as postCmd from './post.js';
 import * as dailyAlgoCmd from './dailyAlgo.js';
 import * as newsRecoveryCmd from './news-rattrapage.js';
 import * as sanctionCmd from './sanction.js';
+import * as casierCmd from './casier.js';
 
 type CommandJson = {
   name: string;
@@ -135,6 +136,12 @@ const COMMANDS: HelpCommand[] = [
     icon: '🛡️',
     category: 'Administration',
     summary: 'Gère les sanctions: warn, timeout, kick, ban et tempban',
+  },
+  {
+    command: casierCmd,
+    icon: '📁',
+    category: 'Administration',
+    summary: 'Ouvre le casier utilisateur complet avec profil, activité et sanctions',
   },
 ].map(({ command, ...meta }) => ({
   ...meta,

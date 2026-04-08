@@ -7,10 +7,9 @@
     translateContentTitle,
   } from "../lib/api";
   import { refreshDashboardOnMount } from "../lib/dashboardLifecycle";
-  import FilterChips from "../lib/components/FilterChips.svelte";
   import MetricCard from "../lib/components/MetricCard.svelte";
   import FormInput from "../lib/components/FormInput.svelte";
-  import FormSelect from "../lib/components/FormSelect.svelte";
+  import ColumnSortFilter, { type ColumnFilterOption } from "../lib/components/sanctions/ColumnSortFilter.svelte";
 
   let { initialFilter = "À valider" } = $props();
 
@@ -61,9 +60,28 @@
 
   const canModerateContent = $derived(!!dashboardStore.state.access?.canModerateContent);
 
-  let filter = $state(initialFilter);
+  type ContentSortField = "schedule" | "source" | "status";
+  type ContentFilters = {
+    statuses: string[];
+    sources: string[];
+    filteredOnly: boolean;
+  };
+
+  function buildInitialFilters(filterLabel: string): ContentFilters {
+    if (filterLabel === "À valider") return { statuses: ["planifie"], sources: [], filteredOnly: false };
+    if (filterLabel === "Publiés") return { statuses: ["envoye"], sources: [], filteredOnly: false };
+    if (filterLabel === "Rejetés") return { statuses: ["erreur"], sources: [], filteredOnly: false };
+    if (filterLabel === "Filtrées") return { statuses: [], sources: [], filteredOnly: true };
+    return { statuses: [], sources: [], filteredOnly: false };
+  }
+
+  let contentFilters = $state<ContentFilters>({ statuses: [], sources: [], filteredOnly: false });
+  $effect(() => {
+    contentFilters = buildInitialFilters(initialFilter);
+  });
   let search = $state("");
-  let sortMode = $state("schedule-desc");
+  let sortField = $state<ContentSortField>("schedule");
+  let sortDirection = $state<"asc" | "desc">("desc");
   let pendingActionById = $state({});
   let bulkTranslationInProgress = $state(false);
   let contentViewModeById = $state({});
@@ -135,7 +153,54 @@
     return !item.excerptOriginal || item.excerptOriginal === item.excerpt;
   }
 
-  const filterOptions = ["Tous", "À valider", "Publiés", "Rejetés", "Filtrées"];
+  const statusFilterOptions = $derived<ColumnFilterOption[]>([
+    { value: "planifie", label: "À valider" },
+    { value: "envoye", label: "Publiés" },
+    { value: "erreur", label: "Rejetés" },
+  ]);
+  const sourceFilterOptions = $derived<ColumnFilterOption[]>(
+    [...new Set(dashboardStore.state.contentItems.map((item) => item.source || "Inconnue"))]
+      .sort((a, b) => a.localeCompare(b, "fr"))
+      .map((source) => ({ value: source, label: source }))
+  );
+
+  const hasActiveFiltersOrSort = $derived(
+    contentFilters.statuses.length > 0
+      || contentFilters.filteredOnly
+      || contentFilters.sources.length > 0
+      || sortField !== "schedule"
+      || sortDirection !== "desc"
+      || search.trim().length > 0
+  );
+
+  function toggleContentFilter(filterType: "statuses" | "sources", value: string) {
+    const list = contentFilters[filterType];
+    if (list.includes(value)) {
+      contentFilters[filterType] = list.filter((entry) => entry !== value);
+      return;
+    }
+    contentFilters[filterType] = [...list, value];
+  }
+
+  function toggleSort(field: ContentSortField) {
+    if (sortField === field) {
+      sortDirection = sortDirection === "asc" ? "desc" : "asc";
+      return;
+    }
+    sortField = field;
+    sortDirection = "asc";
+  }
+
+  function sortDirectionFor(field: ContentSortField) {
+    return sortField === field ? sortDirection : null;
+  }
+
+  function resetFiltersAndSort() {
+    contentFilters = { statuses: [], filteredOnly: false, sources: [] };
+    sortField = "schedule";
+    sortDirection = "desc";
+    search = "";
+  }
 
   const contentStats = $derived({
     total: dashboardStore.state.contentItems.length,
@@ -156,10 +221,9 @@
   const filteredContent = $derived(
     [...dashboardStore.state.contentItems]
       .filter((item) => {
-        if (filter === "À valider" && item.status !== "planifie") return false;
-        if (filter === "Publiés" && item.status !== "envoye") return false;
-        if (filter === "Rejetés" && item.status !== "erreur") return false;
-        if (filter === "Filtrées" && !item.filteredOut) return false;
+        if (contentFilters.statuses.length > 0 && !contentFilters.statuses.includes(item.status)) return false;
+        if (contentFilters.filteredOnly && !item.filteredOut) return false;
+        if (contentFilters.sources.length > 0 && !contentFilters.sources.includes(item.source || "Inconnue")) return false;
 
         const query = normalizeText(search).trim();
         if (!query) return true;
@@ -169,11 +233,18 @@
           .some((field) => field.includes(query));
       })
       .sort((left, right) => {
-        const leftDate = new Date(left.scheduleAt).getTime();
-        const rightDate = new Date(right.scheduleAt).getTime();
+        let result = 0;
+        if (sortField === "schedule") {
+          const leftDate = new Date(left.scheduleAt).getTime();
+          const rightDate = new Date(right.scheduleAt).getTime();
+          result = leftDate - rightDate;
+        } else if (sortField === "source") {
+          result = (left.source || "").localeCompare((right.source || ""), "fr");
+        } else {
+          result = (left.status || "").localeCompare((right.status || ""), "fr");
+        }
 
-        if (sortMode === "schedule-asc") return leftDate - rightDate;
-        return rightDate - leftDate;
+        return sortDirection === "asc" ? result : -result;
       }),
   );
 
@@ -364,14 +435,6 @@
     },
   ]);
 
-  function getFilterCount(label) {
-    if (label === "Tous") return contentStats.total;
-    if (label === "À valider") return contentStats.pending;
-    if (label === "Publiés") return contentStats.published;
-    if (label === "Rejetés") return contentStats.rejected;
-    if (label === "Filtrées") return contentStats.filtered;
-    return 0;
-  }
 </script>
 
 <div class="space-y-16 animate-in fade-in slide-in-from-bottom-6 duration-1000">
@@ -442,18 +505,30 @@
       <div class="rounded-[2.5rem] border border-outline-variant/20 bg-surface-container/70 p-5 md:p-6 shadow-sm backdrop-blur-xl">
         <div class="grid gap-4 lg:grid-cols-[210px_minmax(0,1fr)] lg:items-start">
           <div class="min-w-0">
-            <FilterChips
-              options={filterOptions}
-              selected={filter}
-              onSelect={(value) => (filter = value)}
-              getCount={getFilterCount}
-              showCount={true}
-              containerClass="flex flex-row flex-wrap items-center gap-3 lg:flex-col lg:items-stretch"
-              buttonClass="inline-flex w-full items-center justify-between gap-2 px-5 py-2.5 rounded-full text-xs font-black transition-all uppercase tracking-widest border"
-              countClass="ml-3 text-[10px] font-black opacity-70"
-              activeClass="bg-primary text-on-primary border-primary shadow-lg shadow-primary/20"
-              inactiveClass="bg-surface-container-low text-on-surface-variant/65 border-outline-variant/20 hover:bg-surface-container-hover hover:text-on-surface"
-            />
+            <div class="flex flex-wrap items-center gap-3 lg:flex-col lg:items-stretch">
+              <ColumnSortFilter
+                label="Statut"
+                sortDirection={sortDirectionFor('status')}
+                onToggleSort={() => toggleSort('status')}
+                options={statusFilterOptions}
+                selectedValues={contentFilters.statuses}
+                onToggleValue={(value) => toggleContentFilter('statuses', value)}
+              />
+              <ColumnSortFilter
+                label="Source"
+                sortDirection={sortDirectionFor('source')}
+                onToggleSort={() => toggleSort('source')}
+                options={sourceFilterOptions}
+                selectedValues={contentFilters.sources || []}
+                onToggleValue={(value) => toggleContentFilter('sources', value)}
+                searchable={true}
+              />
+              <ColumnSortFilter
+                label="Planification"
+                sortDirection={sortDirectionFor('schedule')}
+                onToggleSort={() => toggleSort('schedule')}
+              />
+            </div>
           </div>
 
           <div class="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center lg:flex-nowrap lg:justify-end">
@@ -466,14 +541,25 @@
                 className="w-full rounded-full border border-outline-variant/20 bg-surface-container-low px-12 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/40 outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
               />
             </label>
-
-            <FormSelect
-              bind:value={sortMode}
-              className="w-full shrink-0 rounded-full border border-outline-variant/20 bg-surface-container-low px-5 py-3 text-sm font-semibold text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 sm:w-auto lg:w-44"
+            <button
+              type="button"
+              onclick={() => (contentFilters.filteredOnly = !contentFilters.filteredOnly)}
+              class="w-full shrink-0 rounded-full border px-5 py-3 text-sm font-semibold transition sm:w-auto lg:w-auto {contentFilters.filteredOnly
+                ? 'border-slate-500/30 bg-slate-500/12 text-slate-700'
+                : 'border-outline-variant/20 bg-surface-container-low text-on-surface'}"
             >
-              <option value="schedule-desc">Plus récents</option>
-              <option value="schedule-asc">Plus proches</option>
-            </FormSelect>
+              {contentFilters.filteredOnly ? 'Filtrées seulement' : 'Inclure non filtrées'}
+            </button>
+
+            {#if hasActiveFiltersOrSort}
+              <button
+                type="button"
+                onclick={resetFiltersAndSort}
+                class="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-primary/20 bg-primary/8 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-primary transition-colors hover:bg-primary hover:text-white"
+              >
+                Réinitialiser
+              </button>
+            {/if}
 
             <div class="flex w-full items-center gap-2 shrink-0 flex-wrap sm:w-auto sm:justify-end lg:flex-nowrap">
               <button

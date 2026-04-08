@@ -42,9 +42,10 @@ import { ModalBuilder } from 'discord.js';
 import { fetchArticleMetadata } from '../utils/metadataParser.js';
 import { applyTopicFeedback, extractInterestTopics } from '../services/interestService.js';
 import { renderPanelTarget } from '../utils/interactionResponses.js';
-import { parseModalSessionId, parseNewsSessionId, parseSetupStep, parseValidateRoute } from './interactionRoutes.js';
+import { parseModalSessionId, parseNewsSessionId, parseSetupStep, parseUserCaseRoute, parseValidateRoute } from './interactionRoutes.js';
 import { toggleFeedBoolean, toggleGuildBoolean } from '../utils/prismaToggles.js';
 import { normalizeCommaKeywords, requireSingleSelectedValue, validateTimeField } from '../utils/interactionValidation.js';
+import { buildMemberCasePanel, type MemberCaseSection } from '../services/memberCaseService.js';
 
 function canUpdateInteraction(value: unknown): value is { update: (options: unknown) => Promise<unknown> } {
   if (!value || typeof value !== 'object') return false;
@@ -82,6 +83,40 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   if (!interaction.isButton()) return;
 
   const { customId, guildId, user } = interaction;
+
+  const caseRoute = parseUserCaseRoute(customId);
+  if (caseRoute) {
+    if (!guildId) {
+      await interaction.reply({ content: '❌ Le casier utilisateur est disponible uniquement sur un serveur.', flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    const member = await resolveGuildMemberByUserId(interaction, user.id);
+    if (!(await canModerate(member, guildId))) {
+      await interaction.reply({ content: '❌ Tu n’as pas les permissions nécessaires pour ouvrir un casier utilisateur.', flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    if (caseRoute.action === 'close') {
+      await interaction.update({ content: '📁 Casier fermé.', embeds: [], components: [] });
+      return;
+    }
+
+    const section: MemberCaseSection = caseRoute.section ?? 'resume';
+    const pageIndex = caseRoute.action === 'prev'
+      ? Math.max(0, (caseRoute.pageIndex ?? 0) - 1)
+      : caseRoute.action === 'next'
+        ? (caseRoute.pageIndex ?? 0) + 1
+        : caseRoute.pageIndex ?? 0;
+
+    const panel = await buildMemberCasePanel(interaction.guild!, caseRoute.userId, section, pageIndex);
+    await renderPanelTarget(interaction, {
+      embeds: [panel.embed],
+      components: panel.components,
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
 
   if (customId.startsWith('digest:feedback:')) {
     if (!guildId) {
@@ -1057,6 +1092,24 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
   const { customId, guildId, values } = interaction;
   if (!guildId) return;
 
+  const caseRoute = parseUserCaseRoute(customId);
+  if (caseRoute?.action === 'section') {
+    if (!interaction.isStringSelectMenu()) return;
+
+    const member = await resolveGuildMemberByUserId(interaction, interaction.user.id);
+    if (!(await canModerate(member, guildId))) {
+      await interaction.reply({ content: '❌ Tu n’as pas les permissions nécessaires pour ouvrir un casier utilisateur.', flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    const section = values[0] as MemberCaseSection | undefined;
+    if (!section) return;
+
+    const panel = await buildMemberCasePanel(interaction.guild!, caseRoute.userId, section, caseRoute.pageIndex ?? 0);
+    await interaction.update({ embeds: [panel.embed], components: panel.components });
+    return;
+  }
+
   if (customId.startsWith('news:recovery:topics')) {
     if (!interaction.isStringSelectMenu()) return;
 
@@ -1211,7 +1264,7 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
       where: { id: guildId },
       data: { moderatorRoleId: roleId },
     });
-    await sendMainConfigPanel(interaction, guildId);
+    await sendMainConfigPanel(interaction as unknown as import('discord.js').SelectMenuInteraction, guildId);
     return;
   }
 

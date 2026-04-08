@@ -13,6 +13,8 @@ model Guild {
   id String @id
 
   configChannelId String?
+  regulationChannelId String?
+  regulationMessageId String?
   publicChannelId String?
   digestChannelId String?
 
@@ -53,6 +55,7 @@ model Guild {
   githubRepositories       String[] @default(["facebook/react", "docker/compose", "microsoft/typescript", "vercel/next.js", "sveltejs/svelte"])
   
   statusCheckChannelId     String?
+  logChannelId             String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -67,8 +70,29 @@ model Guild {
   dashboardAuditLogs DashboardAuditLog[]
   sanctions Sanction[]
   sanctionReports SanctionReport[]
+  regulationArticles GuildRegulationArticle[]
+  memberProfiles MemberProfile[]
 
   @@map("guilds")
+}
+
+model GuildRegulationArticle {
+  id String @id @default(cuid())
+
+  guildId String
+  title String
+  description String
+  emoji String?
+  sortOrder Int @default(0)
+  enabled Boolean @default(true)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("guild_regulation_articles")
+  @@index([guildId, enabled, sortOrder])
 }
 
 model DashboardSettings {
@@ -95,6 +119,7 @@ model DashboardAuditLog {
   id String @id @default(cuid())
 
   guildId String
+  channelId String?
   user String
   action String
   context String
@@ -433,6 +458,51 @@ model SanctionReport {
   @@index([guildId, sanctionType])
   @@index([sanctionId])
   @@map("sanction_reports")
+}
+
+model MemberProfile {
+  id String @id @default(cuid())
+
+  guildId String
+  userId String
+
+  userTag String?
+  username String?
+  globalName String?
+  displayName String?
+  avatarUrl String?
+  bannerUrl String?
+  accentColor Int?
+  locale String?
+  isBot Boolean @default(false)
+
+  accountCreatedAt DateTime?
+  guildJoinedAt DateTime?
+  guildLeftAt DateTime?
+  firstSeenAt DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  lastMessageAt DateTime?
+  lastMessageChannelId String?
+  messageCount Int @default(0)
+
+  voiceSessionCount Int @default(0)
+  voiceTimeSeconds Int @default(0)
+  voiceLastChannelId String?
+  voiceLastJoinedAt DateTime?
+  voiceLastLeftAt DateTime?
+
+  rolesSnapshot String[] @default([])
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, userId])
+  @@index([guildId, lastSeenAt])
+  @@index([guildId, guildJoinedAt])
+  @@map("member_profiles")
 }
 
 enum ItemStatus {

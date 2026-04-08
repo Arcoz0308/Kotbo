@@ -18,6 +18,7 @@
 
   let notificationsDraft = $state({
     discordChannel: '#alertes-redaction',
+    logChannelId: '',
     moderatorRoleId: '',
     email: '',
     emailEnabled: false,
@@ -31,6 +32,7 @@
     if (!dashboardStore.state.loading) {
       notificationsDraft = {
         discordChannel: dashboardStore.state.notifications?.discordChannel || '#alertes-redaction',
+        logChannelId: dashboardStore.state.logChannelId || '',
         moderatorRoleId: dashboardStore.state.moderatorRoleId || '',
         email: dashboardStore.state.notifications?.email || '',
         emailEnabled: !!dashboardStore.state.notifications?.emailEnabled,
@@ -65,6 +67,7 @@
 
         const settingsSaved = await updateGlobalSettings({
           discordChannel: notificationsDraft.discordChannel,
+          logChannelId: notificationsDraft.logChannelId || null,
           moderatorRoleId: notificationsDraft.moderatorRoleId || null
         });
 
@@ -101,6 +104,7 @@
   function resetNotifications() {
     notificationsDraft = {
       discordChannel: '#alertes-redaction',
+      logChannelId: '',
       moderatorRoleId: '',
       email: '',
       emailEnabled: false,
@@ -128,7 +132,7 @@
 <div class="grid grid-cols-12 gap-8 font-inter">
   
   <div class="col-span-12 lg:col-span-8 space-y-8">
-    <div class="bg-white dark:bg-slate-900 p-8 rounded-4xl shadow-sm border border-slate-100 dark:border-slate-800">
+    <div class="section-card p-8">
       <div class="flex items-center justify-between mb-8">
         <div class="flex items-center gap-4">
           <div class="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shrink-0 transition-transform group-hover:scale-110">
@@ -170,6 +174,22 @@
             {/each}
           </FormSelect>
         </div>
+
+        <div class="space-y-2">
+          <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="log-channel">Salon des embeds de logs (optionnel)</label>
+          <FormSelect
+            id="log-channel"
+            bind:value={notificationsDraft.logChannelId}
+            disabled={!canManageSettings}
+            className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold"
+          >
+            <option value="">Ne pas envoyer d'embed</option>
+            {#each availableChannels as channel}
+              <option value={channel.id}>#{channel.name}</option>
+            {/each}
+          </FormSelect>
+          <p class="text-xs text-on-surface-variant">Les logs restent consultables dans le dashboard même si aucun salon n'est défini.</p>
+        </div>
         
         <div class="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
           <div>
@@ -186,7 +206,7 @@
     </div>
 
     
-    <div class="bg-white dark:bg-slate-900 p-8 rounded-4xl shadow-sm border border-slate-100 dark:border-slate-800">
+    <div class="section-card p-8">
       <h3 class="text-xl font-bold font-headline mb-8 flex items-center gap-4">
         <span class="material-symbols-outlined text-primary">notifications_active</span>
         Préférences de Notifications
@@ -308,7 +328,7 @@
     </div>
 
     
-    <div class="bg-white dark:bg-slate-900 p-8 rounded-4xl shadow-sm border border-slate-100 dark:border-slate-800">
+    <div class="section-card p-8">
       <h4 class="text-[10px] font-black text-on-surface-variant uppercase tracking-[0.2em] mb-6">Résumé Technique</h4>
       <div class="space-y-6">
         <div class="flex gap-4">

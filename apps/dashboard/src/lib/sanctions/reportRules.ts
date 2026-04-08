@@ -1,132 +1,138 @@
 export type ReportRuleOption = {
   id: string;
-  scope: 'Discord ToS' | 'Constitution francaise' | 'Règles';
+  scope: 'Règlement';
   label: string;
   details: string;
+  emoji: string | null;
+  sortOrder: number;
 };
 
-export const reportRuleOptions: ReportRuleOption[] = [
-  {
-    id: 'tos-terms',
-    scope: 'Discord ToS',
-    label: "Conditions d'utilisation Discord",
-    details: "Violation des conditions d'utilisation officielles de Discord.",
-  },
-  {
-    id: 'tos-guidelines',
-    scope: 'Discord ToS',
-    label: 'Community Guidelines Discord',
-    details: 'Violation des regles communautaires officielles de Discord.',
-  },
-  {
-    id: 'constitution',
-    scope: 'Constitution francaise',
-    label: 'Non-respect de la Constitution et/ou de la loi francaise',
-    details: 'Violation de la Constitution francaise, des lois sur la haine en ligne, le harcelement, les discours dangereux, etc.',
-  },
-  {
-    id: 'rule-1',
-    scope: 'Règles',
-    label: '1. Respect et courtoisie',
-    details: 'Insultes, harcelement, menaces ou discrimination interdits.',
-  },
-  {
-    id: 'rule-2',
-    scope: 'Règles',
-    label: '2. Contenu approprie',
-    details: 'Aucun contenu NSFW, gore, violent ou obscen tolere.',
-  },
-  {
-    id: 'rule-3',
-    scope: 'Règles',
-    label: '3. Utilisation des salons',
-    details: 'Chaque salon doit etre utilise selon son theme.',
-  },
-  {
-    id: 'rule-4',
-    scope: 'Règles',
-    label: '4. Spam et mentions',
-    details: 'Flood, abus de majuscules et abus des mentions interdits.',
-  },
-  {
-    id: 'rule-5',
-    scope: 'Règles',
-    label: '5. Publicite et autopromotion',
-    details: 'Publicite non autorisee hors salon dedie et sans abus.',
-  },
-  {
-    id: 'rule-6',
-    scope: 'Règles',
-    label: '6. Salons vocaux',
-    details: 'Respect vocal, pas de soundboards, pas de sons non sollicites.',
-  },
-  {
-    id: 'rule-7',
-    scope: 'Règles',
-    label: '7. Protection de la vie privee',
-    details: "Ne pas partager d'informations personnelles sensibles.",
-  },
-  {
-    id: 'rule-8',
-    scope: 'Règles',
-    label: '8. Messages prives (DM)',
-    details: 'Harcelement ou demarchage non sollicite en DM interdit.',
-  },
-  {
-    id: 'rule-9',
-    scope: 'Règles',
-    label: '9. Moderation',
-    details: 'Les decisions de moderation doivent etre respectees.',
-  },
-  {
-    id: 'rule-10',
-    scope: 'Règles',
-    label: '10. Evolution du reglement',
-    details: 'Les regles peuvent evoluer, les membres doivent se tenir informes.',
-  },
-  {
-    id: 'rule-11',
-    scope: 'Règles',
-    label: '11. Securite et integrite',
-    details: 'Scripts malveillants, raids, injection, doxxing et scraping interdits.',
-  },
-  {
-    id: 'rule-12',
-    scope: 'Règles',
-    label: '12. Exploitation des systemes du serveur',
-    details: 'Contournement/farm XP par scripts ou methodes artificielles interdit.',
-  },
-  {
-    id: 'rule-13',
-    scope: 'Règles',
-    label: '13. Emojis, GIFs et reactions',
-    details: 'Emojis/GIFs inappropries ou obscenes interdits.',
-  },
-];
+export type RegulationRuleItem = {
+  id: string;
+  title: string;
+  description: string;
+  emoji: string | null;
+  sortOrder: number;
+  enabled: boolean;
+};
 
-function formatRuleLine(rule: ReportRuleOption): string {
-  return `[${rule.scope}] ${rule.label} - ${rule.details}`;
+function normalizeEmoji(value: string | null | undefined): string | null {
+  const emoji = value?.trim();
+  return emoji ? emoji : null;
 }
 
-export function buildBrokenRulesPayload(ruleIds: string[]): string {
-  return ruleIds
-    .map((ruleId) => reportRuleOptions.find((entry) => entry.id === ruleId))
-    .filter((entry): entry is ReportRuleOption => Boolean(entry))
-    .map(formatRuleLine)
-    .join('\n');
+function toRuleOption(rule: RegulationRuleItem): ReportRuleOption {
+  return {
+    id: rule.id,
+    scope: 'Règlement',
+    label: rule.title.trim(),
+    details: rule.description.trim(),
+    emoji: normalizeEmoji(rule.emoji),
+    sortOrder: rule.sortOrder ?? 0,
+  };
+}
+
+export function buildReportRuleOptions(rules: RegulationRuleItem[]): ReportRuleOption[] {
+  return rules
+    .filter((rule) => rule.enabled)
+    .slice()
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.title.localeCompare(right.title, 'fr'))
+    .map(toRuleOption);
+}
+
+function parseBrokenRulesPayload(rawBrokenRules: string): Array<Record<string, unknown>> {
+  const trimmed = rawBrokenRules.trim();
+  if (!trimmed) return [];
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object');
+  } catch {
+    return [];
+  }
+}
+
+export function buildBrokenRulesPayload(ruleIds: string[], options: ReportRuleOption[]): string {
+  const selectedRules = [...new Set(ruleIds)]
+    .map((ruleId) => options.find((entry) => entry.id === ruleId))
+    .filter((entry): entry is ReportRuleOption => Boolean(entry));
+
+  return JSON.stringify(selectedRules.map((rule) => ({
+    id: rule.id,
+    title: rule.label,
+    description: rule.details,
+    emoji: rule.emoji,
+    sortOrder: rule.sortOrder,
+  })));
 }
 
 export function getRuleIdsFromBrokenRules(rawBrokenRules: string): string[] {
+  const parsed = parseBrokenRulesPayload(rawBrokenRules);
+
+  if (parsed.length > 0) {
+    return parsed
+      .map((entry) => (typeof entry.id === 'string' ? entry.id.trim() : ''))
+      .filter((ruleId): ruleId is string => Boolean(ruleId));
+  }
+
   return rawBrokenRules
     .split('\n')
     .map((line) => line.trim())
-    .map((line) => {
-      const matchedRule = reportRuleOptions.find((entry) => formatRuleLine(entry) === line);
-      return matchedRule?.id ?? null;
-    })
+    .filter(Boolean)
+    .map((line) => line)
     .filter((ruleId): ruleId is string => Boolean(ruleId));
 }
 
-export function getRuleById(ruleId: string): ReportRuleOption | undefined {
-  return reportRuleOptions.find((entry) => entry.id === ruleId);
+export function getRulesFromBrokenRules(rawBrokenRules: string, options: ReportRuleOption[]): ReportRuleOption[] {
+  const parsed = parseBrokenRulesPayload(rawBrokenRules);
+
+  if (parsed.length > 0) {
+    return parsed
+      .map((entry) => {
+        const id = typeof entry.id === 'string' ? entry.id.trim() : '';
+        if (!id) return null;
+
+        const fallback = options.find((rule) => rule.id === id);
+        const title = typeof entry.title === 'string' && entry.title.trim()
+          ? entry.title.trim()
+          : fallback?.label ?? id;
+        const details = typeof entry.description === 'string' && entry.description.trim()
+          ? entry.description.trim()
+          : fallback?.details ?? '';
+        const emoji = normalizeEmoji(typeof entry.emoji === 'string' ? entry.emoji : fallback?.emoji);
+        const sortOrder = typeof entry.sortOrder === 'number' && Number.isFinite(entry.sortOrder)
+          ? entry.sortOrder
+          : fallback?.sortOrder ?? 0;
+
+        return {
+          id,
+          scope: 'Règlement',
+          label: title,
+          details,
+          emoji,
+          sortOrder,
+        } satisfies ReportRuleOption;
+      })
+      .filter((entry): entry is ReportRuleOption => Boolean(entry));
+  }
+
+  return getRuleIdsFromBrokenRules(rawBrokenRules)
+    .map((ruleId, index) => {
+      const matched = options.find((entry) => entry.id === ruleId);
+      if (matched) return matched;
+
+      return {
+        id: `legacy-${index}`,
+        scope: 'Règlement',
+        label: ruleId,
+        details: '',
+        emoji: null,
+        sortOrder: index,
+      } satisfies ReportRuleOption;
+    });
+}
+
+export function getRuleById(ruleId: string, options: ReportRuleOption[]): ReportRuleOption | undefined {
+  return options.find((entry) => entry.id === ruleId);
 }

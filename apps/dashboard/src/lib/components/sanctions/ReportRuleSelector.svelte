@@ -42,7 +42,7 @@
           class="mt-0.5 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary disabled:opacity-100"
         />
         <span>
-          <span class="block font-bold text-slate-800 dark:text-slate-100">[{rule.scope}] {rule.label}</span>
+          <span class="block font-bold text-slate-800 dark:text-slate-100">{rule.emoji ? `${rule.emoji} ` : ''}[{rule.scope}] {rule.label}</span>
           <span class="block text-[11px] text-on-surface-variant">{rule.details}</span>
         </span>
       </label>

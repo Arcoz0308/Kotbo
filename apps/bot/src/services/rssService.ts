@@ -372,8 +372,15 @@ export async function pollFeed(
     });
 
     if (interest.decision === 'FILTERED_OUT') {
-      await prisma.feedItem.create({
-        data: {
+      await prisma.feedItem.upsert({
+        where: { feedId_guid: { feedId: feed.id, guid } },
+        update: {
+          interestDecision: 'FILTERED_OUT',
+          interestScore: interest.score,
+          interestReason: interest.reason,
+          status: 'REJECTED',
+        },
+        create: {
           feedId: feed.id,
           guid,
           title,
@@ -415,8 +422,23 @@ export async function pollFeed(
       descTranslated = tDesc;
     }
 
-    const dbItem = await prisma.feedItem.create({
-      data: {
+    const dbItem = await prisma.feedItem.upsert({
+      where: { feedId_guid: { feedId: feed.id, guid } },
+      update: {
+        title,
+        url,
+        description,
+        imageUrl,
+        author,
+        publishedAt,
+        titleTranslated,
+        descriptionTranslated: descTranslated,
+        topics,
+        interestScore: interest.score,
+        interestReason: interest.reason,
+        pinned: breaking,
+      },
+      create: {
         feedId: feed.id,
         guid,
         title,

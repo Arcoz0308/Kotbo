@@ -15,7 +15,7 @@
 
   <Sidebar />
   
-  <div class="flex-1 ml-64 flex flex-col relative z-10">
+  <div class="flex-1 ml-64 flex flex-col">
     <Navbar />
     
     <main class="p-12 pb-24 max-w-[1600px] w-full mx-auto">

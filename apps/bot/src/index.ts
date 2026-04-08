@@ -38,6 +38,7 @@ import * as helpCmd from './commands/help.js';
 import * as postCmd from './commands/post.js';
 import * as dailyAlgoCmd from './commands/dailyAlgo.js';
 import * as sanctionCmd from './commands/sanction.js';
+import * as casierCmd from './commands/casier.js';
 import prisma from './utils/db.js';
 import {
   evaluateCommandRestriction,
@@ -46,6 +47,7 @@ import {
 } from './utils/commandAccess.js';
 import { registerCodePoliceListener } from './events/codePolice.js';
 import { registerModerationAuditListener } from './events/moderation.js';
+import { registerAdvancedLogsListener } from './events/advancedLogs.js';
 import { registerDailyAlgoHandlers } from './handlers/dailyAlgoHandler.js';
 import { checkTranslationProviderHealth } from './services/translationService.js';
 import { startDashboardApi } from './api/dashboardApi.js';
@@ -58,6 +60,7 @@ const client = new Client({
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildModeration,
     GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages,
   ],
@@ -73,7 +76,7 @@ type SlashCommand = {
 };
 
 const commands = new Collection<string, SlashCommand>();
-[setupCmd, configCmd, feedCmd, newsCmd, newsRecoveryCmd, pingCmd, infoCmd, youtubeCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd, postCmd, dailyAlgoCmd, sanctionCmd].forEach((cmd) => {
+[setupCmd, configCmd, feedCmd, newsCmd, newsRecoveryCmd, pingCmd, infoCmd, youtubeCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd, postCmd, dailyAlgoCmd, sanctionCmd, casierCmd].forEach((cmd) => {
   commands.set(cmd.data.name, cmd as SlashCommand);
 });
 
@@ -120,6 +123,7 @@ client.once(Events.ClientReady, async (c) => {
 
   registerCodePoliceListener(client);
   registerModerationAuditListener(client);
+  registerAdvancedLogsListener(client);
   registerDailyAlgoHandlers(client);
   await registerCrons(client);
 });

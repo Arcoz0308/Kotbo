@@ -1,0 +1,166 @@
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import type { SortDirection, SortField } from '../../sanctions/filterSort';
+
+  export type ColumnFilterOption = {
+    value: string;
+    label: string;
+  };
+
+  let {
+    label,
+    sortField = null,
+    sortDirection = null,
+    onToggleSort,
+    options = [],
+    selectedValues = [],
+    onToggleValue,
+    searchable = false,
+    disabled = false,
+  }: {
+    label: string;
+    sortField?: SortField | null;
+    sortDirection?: SortDirection | null;
+    onToggleSort?: (() => void) | undefined;
+    options?: ColumnFilterOption[];
+    selectedValues?: string[];
+    onToggleValue?: ((value: string) => void) | undefined;
+    searchable?: boolean;
+    disabled?: boolean;
+  } = $props();
+
+  let filterOpen = $state(false);
+  let searchTerm = $state('');
+  let rootElement = $state<HTMLElement | null>(null);
+
+  const canSort = $derived(Boolean(sortField && onToggleSort));
+  const canFilter = $derived(Boolean(onToggleValue && options.length > 0));
+  const selectedCount = $derived(selectedValues.length);
+  const displaySearch = $derived(searchable || options.length >= 8);
+  const filteredOptions = $derived.by(() => {
+    if (!displaySearch) {
+      return options;
+    }
+
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    if (!normalizedSearch) {
+      return options;
+    }
+
+    return options.filter((entry) => entry.label.toLowerCase().includes(normalizedSearch));
+  });
+
+  function closeFilterPanel() {
+    filterOpen = false;
+    searchTerm = '';
+  }
+
+  function toggleFilterPanel() {
+    filterOpen = !filterOpen;
+    if (!filterOpen) {
+      searchTerm = '';
+    }
+  }
+
+  function clearFilter() {
+    for (const selected of selectedValues) {
+      onToggleValue?.(selected);
+    }
+  }
+
+  onMount(() => {
+    const handleWindowPointerDown = (event: PointerEvent) => {
+      if (!filterOpen || !rootElement) {
+        return;
+      }
+
+      const target = event.target;
+      if (target instanceof Node && !rootElement.contains(target)) {
+        closeFilterPanel();
+      }
+    };
+
+    window.addEventListener('pointerdown', handleWindowPointerDown);
+    return () => window.removeEventListener('pointerdown', handleWindowPointerDown);
+  });
+</script>
+
+<div class="relative" bind:this={rootElement}>
+  <div class="flex items-center gap-1.5">
+    <span class="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">{label}</span>
+
+    {#if canSort}
+      <button
+        type="button"
+        onclick={() => onToggleSort?.()}
+        class="inline-flex h-6 min-w-6 items-center justify-center rounded-md border border-transparent text-[11px] font-black transition hover:border-slate-300 hover:bg-slate-100 dark:hover:border-slate-600 dark:hover:bg-slate-800 {sortDirection ? 'text-primary' : 'text-on-surface-variant'}"
+        title={sortDirection ? `Tri ${sortDirection === 'asc' ? 'croissant' : 'decroissant'}` : 'Activer le tri'}
+        disabled={disabled}
+      >
+        {#if sortDirection === 'asc'}
+          ↑
+        {:else if sortDirection === 'desc'}
+          ↓
+        {:else}
+          ↕
+        {/if}
+      </button>
+    {/if}
+
+    {#if canFilter}
+      <button
+        type="button"
+        onclick={toggleFilterPanel}
+        class="inline-flex h-6 min-w-6 items-center justify-center rounded-md border text-[11px] font-black transition {selectedCount > 0 ? 'border-primary/35 bg-primary/10 text-primary' : 'border-slate-200 text-on-surface-variant hover:border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:hover:border-slate-600 dark:hover:bg-slate-800'}"
+        title={selectedCount > 0 ? `${selectedCount} filtre(s) actif(s)` : 'Filtrer cette colonne'}
+        disabled={disabled}
+      >
+        ⛃
+      </button>
+    {/if}
+  </div>
+
+  {#if canFilter && filterOpen}
+    <div class="absolute left-0 top-8 z-20 w-64 rounded-xl border border-slate-200 bg-white p-3 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+      <div class="mb-2 flex items-center justify-between gap-2">
+        <p class="text-[11px] font-black uppercase tracking-wider text-on-surface-variant">Filtrer {label.toLowerCase()}</p>
+        {#if selectedCount > 0}
+          <button
+            type="button"
+            onclick={clearFilter}
+            class="text-[10px] font-bold text-primary transition hover:opacity-80"
+          >
+            Effacer
+          </button>
+        {/if}
+      </div>
+
+      {#if displaySearch}
+        <input
+          type="text"
+          bind:value={searchTerm}
+          placeholder="Rechercher..."
+          class="mb-2 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-on-surface outline-none transition focus:border-primary dark:border-slate-700 dark:bg-slate-800"
+        />
+      {/if}
+
+      <div class="max-h-56 space-y-1 overflow-y-auto pr-1">
+        {#if filteredOptions.length === 0}
+          <p class="py-2 text-xs text-on-surface-variant">Aucun resultat</p>
+        {:else}
+          {#each filteredOptions as entry (entry.value)}
+            <label class="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-xs hover:bg-slate-50 dark:hover:bg-slate-800/70">
+              <input
+                type="checkbox"
+                checked={selectedValues.includes(entry.value)}
+                onchange={() => onToggleValue?.(entry.value)}
+                class="rounded border-slate-300"
+              />
+              <span class="truncate">{entry.label}</span>
+            </label>
+          {/each}
+        {/if}
+      </div>
+    </div>
+  {/if}
+</div>

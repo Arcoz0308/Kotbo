@@ -74,12 +74,12 @@ export async function sendMainConfigPanel(
       },
       {
         name: '🚨 Automatisations',
-        value: `Police du code : ${formatToggleState(guild.codePoliceEnabled)}\nDaily Algo : ${formatToggleState(guild.dailyAlgoEnabled)}\nReleases GitHub : ${formatToggleState(guild.githubReleasesEnabled)}`,
+        value: `Police du code : ${formatToggleState(guild.codePoliceEnabled)}\nDaily Algo : ${formatToggleState(guild.dailyAlgoEnabled)}\nReleases GitHub : ${formatToggleState(guild.githubReleasesEnabled)}\nLogs avancés : ${formatChannel(guild.logChannelId, 'Non configuré')}`,
         inline: true,
       },
       {
         name: '📌 Salons & accès',
-        value: `Public : ${formatChannel(guild.publicChannelId)}\nDigest : ${formatChannel(guild.digestChannelId ?? guild.publicChannelId)}\nYouTube : ${formatChannel(guild.youtubeChannelId ?? guild.nathanChannelId)}\n\n/status : ${guild.statusCheckChannelId ? `<#${guild.statusCheckChannelId}>` : 'Aucune restriction'}`,
+        value: `Public : ${formatChannel(guild.publicChannelId)}\nDigest : ${formatChannel(guild.digestChannelId ?? guild.publicChannelId)}\nYouTube : ${formatChannel(guild.youtubeChannelId ?? guild.nathanChannelId)}\nLogs : ${formatChannel(guild.logChannelId, 'Non configuré')}\n\n/status : ${guild.statusCheckChannelId ? `<#${guild.statusCheckChannelId}>` : 'Aucune restriction'}`,
         inline: true,
       },
       {
@@ -115,6 +115,7 @@ export async function sendMainConfigPanel(
 
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId('config:channels').setLabel('📌 Salons').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('cfg:section:advanced-logs').setLabel('🧾 Logs').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('config:set_mod_role').setLabel('🛡️ Rôle mod').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('config:set_yt_channel').setLabel('📺 Salon YT').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('cfg:refresh').setLabel('🔄 Actualiser').setStyle(ButtonStyle.Secondary),
@@ -443,6 +444,60 @@ export async function sendStatusConfig(interaction: PanelInteraction, guildId: s
     new ChannelSelectMenuBuilder()
       .setCustomId('cfg:select:status:channel')
       .setPlaceholder('Choisir le salon autorisé pour /status')
+      .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+      .setMinValues(1)
+      .setMaxValues(1),
+  );
+
+  await renderPanelTarget(interaction, {
+    embeds: [embed],
+    components: [row1, row2],
+  });
+}
+
+export async function sendAdvancedLogsConfig(interaction: PanelInteraction, guildId: string): Promise<void> {
+  await acknowledgeInteraction(interaction);
+  const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+  if (!guild) return;
+
+  const isEnabled = !!guild.logChannelId;
+
+  const embed = new EmbedBuilder()
+    .setColor(0x1d3557)
+    .setTitle('🧾 Configuration - Logs avancés')
+    .setDescription('Journalisation détaillée des événements Discord : suppression/édition de messages, vocal, arrivées et départs.')
+    .addFields(
+      {
+        name: 'Salon de logs',
+        value: guild.logChannelId ? `<#${guild.logChannelId}>` : '❌ Non configuré',
+        inline: false,
+      },
+      {
+        name: 'Événements couverts',
+        value: '• Message supprimé (auteur, salon, contenu, pièces jointes, acteur probable)\n• Message modifié (avant/après)\n• Connexion/déconnexion/changement de salon vocal avec durée\n• Arrivée/départ des membres',
+        inline: false,
+      },
+      {
+        name: 'Statut',
+        value: isEnabled
+          ? '🟢 Actif (les logs sont envoyés dans le salon sélectionné)'
+          : '⚪ Inactif (sélectionne un salon pour activer)',
+        inline: false,
+      },
+    );
+
+  const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId('cfg:clear:advanced-logs:channel')
+      .setLabel('🧹 Retirer le salon de logs')
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('cfg:back:main').setLabel('← Retour').setStyle(ButtonStyle.Secondary),
+  );
+
+  const row2 = new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(
+    new ChannelSelectMenuBuilder()
+      .setCustomId('cfg:select:advanced-logs:channel')
+      .setPlaceholder('Choisir le salon des logs avancés')
       .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
       .setMinValues(1)
       .setMaxValues(1),

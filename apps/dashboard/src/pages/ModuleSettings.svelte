@@ -9,6 +9,7 @@
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
+  import ColumnSortFilter, { type ColumnFilterOption } from '../lib/components/sanctions/ColumnSortFilter.svelte';
 
   let { moduleId } = $props();
 
@@ -116,6 +117,102 @@
   }
 
   const activeFeeds = $derived(dashboardStore.state.feeds);
+
+  type FeedSortField = 'name' | 'category' | 'lastCheck' | 'status';
+  let feedSearchQuery = $state('');
+  let feedFilters = $state({
+    statuses: [] as string[],
+    categories: [] as string[],
+  });
+  let feedSortField = $state<FeedSortField>('lastCheck');
+  let feedSortDirection = $state<'asc' | 'desc'>('desc');
+
+  const feedStatusOptions = $derived<ColumnFilterOption[]>([
+    { value: 'ok', label: 'Synchronisé' },
+    { value: 'warning', label: 'Avertissement' },
+    { value: 'error', label: 'Échec' },
+  ]);
+  const feedCategoryOptions = $derived<ColumnFilterOption[]>(
+    [...new Set(activeFeeds.map((feed) => feed.category || 'Général'))]
+      .sort((a, b) => a.localeCompare(b, 'fr'))
+      .map((category) => ({ value: category, label: category }))
+  );
+
+  const hasActiveFeedFiltersOrSort = $derived(
+    feedSearchQuery.trim().length > 0
+      || feedFilters.statuses.length > 0
+      || feedFilters.categories.length > 0
+      || feedSortField !== 'lastCheck'
+      || feedSortDirection !== 'desc'
+  );
+
+  const filteredFeeds = $derived.by(() => {
+    const query = feedSearchQuery.trim().toLowerCase();
+    return [...activeFeeds]
+      .filter((feed) => {
+        const category = feed.category || 'Général';
+        const matchesQuery = !query
+          || (feed.name || '').toLowerCase().includes(query)
+          || (feed.url || '').toLowerCase().includes(query)
+          || category.toLowerCase().includes(query);
+        const matchesStatus = feedFilters.statuses.length === 0 || feedFilters.statuses.includes(feed.lastStatus);
+        const matchesCategory = feedFilters.categories.length === 0 || feedFilters.categories.includes(category);
+        return matchesQuery && matchesStatus && matchesCategory;
+      })
+      .sort((left, right) => {
+        let result = 0;
+        switch (feedSortField) {
+          case 'name':
+            result = (left.name || '').localeCompare((right.name || ''), 'fr');
+            break;
+          case 'category':
+            result = (left.category || 'Général').localeCompare((right.category || 'Général'), 'fr');
+            break;
+          case 'lastCheck': {
+            const leftDate = left.lastCheck ? new Date(left.lastCheck).getTime() : 0;
+            const rightDate = right.lastCheck ? new Date(right.lastCheck).getTime() : 0;
+            result = leftDate - rightDate;
+            break;
+          }
+          case 'status':
+            result = (left.lastStatus || '').localeCompare((right.lastStatus || ''), 'fr');
+            break;
+        }
+        return feedSortDirection === 'asc' ? result : -result;
+      });
+  });
+
+  function toggleFeedFilter(filterType: keyof typeof feedFilters, value: string) {
+    const list = feedFilters[filterType];
+    if (list.includes(value)) {
+      feedFilters[filterType] = list.filter((entry) => entry !== value);
+      return;
+    }
+    feedFilters[filterType] = [...list, value];
+  }
+
+  function toggleFeedSort(field: FeedSortField) {
+    if (feedSortField === field) {
+      feedSortDirection = feedSortDirection === 'asc' ? 'desc' : 'asc';
+      return;
+    }
+    feedSortField = field;
+    feedSortDirection = 'asc';
+  }
+
+  function feedSortDirectionFor(field: FeedSortField) {
+    return feedSortField === field ? feedSortDirection : null;
+  }
+
+  function resetFeedFiltersAndSort() {
+    feedSearchQuery = '';
+    feedFilters = {
+      statuses: [],
+      categories: [],
+    };
+    feedSortField = 'lastCheck';
+    feedSortDirection = 'desc';
+  }
 
   let editingFeedId = $state(null);
   let feedDraft = $state({
@@ -340,8 +437,67 @@
               Flux RSS Connectés
             </h3>
           </div>
+
+          <div class="rounded-3xl border border-outline-variant/15 bg-surface-container/60 p-4 md:p-5">
+            <div class="flex flex-col gap-4">
+              <div class="flex flex-col md:flex-row md:items-center gap-3 justify-between">
+                <label class="relative w-full md:max-w-xl">
+                  <span class="material-symbols-outlined pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/40 text-lg">search</span>
+                  <FormInput
+                    bind:value={feedSearchQuery}
+                    type="search"
+                    placeholder="Rechercher un flux, une URL, une catégorie..."
+                    className="w-full rounded-full border border-outline-variant/20 bg-surface-container-low px-11 py-2.5 text-sm text-on-surface placeholder:text-on-surface-variant/40 outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+                  />
+                </label>
+
+                <div class="flex items-center gap-3">
+                  <span class="text-xs font-bold text-on-surface-variant">{filteredFeeds.length} / {activeFeeds.length} flux</span>
+                  {#if hasActiveFeedFiltersOrSort}
+                    <button
+                      type="button"
+                      onclick={resetFeedFiltersAndSort}
+                      class="text-xs font-bold text-primary hover:text-primary/80 transition"
+                    >
+                      Réinitialiser
+                    </button>
+                  {/if}
+                </div>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-3">
+                <ColumnSortFilter
+                  label="Nom"
+                  sortDirection={feedSortDirectionFor('name')}
+                  onToggleSort={() => toggleFeedSort('name')}
+                />
+                <ColumnSortFilter
+                  label="Catégorie"
+                  sortDirection={feedSortDirectionFor('category')}
+                  onToggleSort={() => toggleFeedSort('category')}
+                  options={feedCategoryOptions}
+                  selectedValues={feedFilters.categories}
+                  onToggleValue={(value) => toggleFeedFilter('categories', value)}
+                />
+                <ColumnSortFilter
+                  label="Dernier check"
+                  sortDirection={feedSortDirectionFor('lastCheck')}
+                  onToggleSort={() => toggleFeedSort('lastCheck')}
+                />
+                <ColumnSortFilter
+                  label="État"
+                  sortDirection={feedSortDirectionFor('status')}
+                  onToggleSort={() => toggleFeedSort('status')}
+                  options={feedStatusOptions}
+                  selectedValues={feedFilters.statuses}
+                  onToggleValue={(value) => toggleFeedFilter('statuses', value)}
+                />
+              </div>
+            </div>
+          </div>
+
           <div class="space-y-4">
-            {#each activeFeeds as feed}
+            {#each filteredFeeds as feed}
               <div class="premium-card p-6 rounded-3xl space-y-6 hover:border-primary/40 transition-all">
                 <div class="flex flex-wrap items-start justify-between gap-4">
                   <div class="flex items-center gap-5 min-w-0">
@@ -509,6 +665,11 @@
                 <span class="material-symbols-outlined text-6xl mb-6">rss_feed</span>
                 <p class="text-[10px] font-black uppercase tracking-[0.3em]">Aucun flux n'est encore lié à cette instance</p>
               </div>
+            {:else if filteredFeeds.length === 0}
+              <div class="p-14 text-center premium-card rounded-[3rem] border-dashed border-2 opacity-55 flex flex-col items-center">
+                <span class="material-symbols-outlined text-5xl mb-4">filter_alt_off</span>
+                <p class="text-[10px] font-black uppercase tracking-[0.3em]">Aucun flux ne correspond aux filtres</p>
+              </div>
             {/if}
           </div>
         </section>
@@ -575,8 +736,12 @@
 </div>
 
 {#if deleteFeedModalOpen && pendingFeedDeletion}
-  <div class="fixed inset-0 z-80 bg-black/45 backdrop-blur-sm flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="delete-feed-title">
-    <div class="w-full max-w-md rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-6 space-y-4">
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="delete-feed-title" onclick={closeDeleteFeedModal}>
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="modal-panel max-w-md space-y-4" onclick={(e) => e.stopPropagation()}>
       <div>
         <p class="text-[10px] font-black uppercase tracking-[0.2em] text-red-500">Confirmation</p>
         <h3 id="delete-feed-title" class="mt-1 text-lg font-black text-on-surface">Supprimer ce flux RSS ?</h3>
