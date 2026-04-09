@@ -50,6 +50,7 @@ import {
 import { registerCodePoliceListener } from './events/codePolice.js';
 import { registerModerationAuditListener } from './events/moderation.js';
 import { registerAdvancedLogsListener } from './events/advancedLogs.js';
+import { registerCloseSourceWarningListener } from './events/closeSourceWarning.js';
 import { registerDailyAlgoHandlers } from './handlers/dailyAlgoHandler.js';
 import { checkTranslationProviderHealth } from './services/translationService.js';
 import { startDashboardApi } from './api/dashboardApi.js';
@@ -126,6 +127,7 @@ client.once(Events.ClientReady, async (c) => {
   registerCodePoliceListener(client);
   registerModerationAuditListener(client);
   registerAdvancedLogsListener(client);
+  registerCloseSourceWarningListener(client);
   registerDailyAlgoHandlers(client);
   await registerCrons(client);
 });
