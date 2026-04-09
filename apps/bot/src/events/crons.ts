@@ -1,5 +1,6 @@
 import { type Client, Events } from 'discord.js';
 import cron from 'node-cron';
+import prisma from '../utils/db.js';
 import { pollAllFeeds } from '../services/rssService.js';
 import { pollAllYouTubeChannels } from '../services/youtubeService.js';
 import { runDigestForAllGuilds, runDailyAlgoForAllGuilds } from '../services/digestService.js';
@@ -84,6 +85,58 @@ export async function registerCrons(client: Client): Promise<void> {
     await runCronJob('sanctions', async () => {
       logger.debug('Cron', 'Traitement des sanctions planifiées...');
       await processScheduledSanctions(client);
+    }, 1000);
+  });
+
+  // 📊 Staff Management: Expiration des avertissements à minuit
+  cron.schedule('0 0 * * *', async () => {
+    await runCronJob('staff-warnings-expiration', async () => {
+      logger.debug('Cron', 'Vérification de l\'expiration des avertissements staff...');
+      const now = new Date();
+
+      const expiredWarnings = await prisma.staffWarning.findMany({
+        where: {
+          isActive: true,
+          expiresAt: { lte: now },
+        },
+        select: { id: true, staffUserId: true },
+      });
+
+      if (expiredWarnings.length > 0) {
+        await prisma.staffWarning.updateMany({
+          where: {
+            id: { in: expiredWarnings.map((w) => w.id) },
+          },
+          data: { isActive: false },
+        });
+        logger.info('Cron', `✅ ${expiredWarnings.length} avertissement(s) staff expiré(s)`);
+      }
+    }, 1000);
+  });
+
+  // 📊 Staff Management: Expiration de la blacklist à 01:00 UTC
+  cron.schedule('0 1 * * *', async () => {
+    await runCronJob('staff-blacklist-expiration', async () => {
+      logger.debug('Cron', 'Vérification de l\'expiration de la blacklist staff...');
+      const now = new Date();
+
+      const expiredBlacklists = await prisma.staffBlacklist.findMany({
+        where: {
+          isActive: true,
+          endDate: { lte: now },
+        },
+        select: { id: true, staffUserId: true },
+      });
+
+      if (expiredBlacklists.length > 0) {
+        await prisma.staffBlacklist.updateMany({
+          where: {
+            id: { in: expiredBlacklists.map((b) => b.id) },
+          },
+          data: { isActive: false },
+        });
+        logger.info('Cron', `✅ ${expiredBlacklists.length} blacklist(s) staff expiré(e)s`);
+      }
     }, 1000);
   });
 

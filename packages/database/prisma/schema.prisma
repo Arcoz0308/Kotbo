@@ -26,6 +26,8 @@ model Guild {
   youtubeVideoRoleId String?
 
   moderatorRoleId   String?
+  baseStaffRoleId   String?
+  testStaffRoleId   String?
 
   digestEnabled    Boolean         @default(false)
   digestFrequency  DigestFrequency @default(DAILY)
@@ -72,6 +74,8 @@ model Guild {
   sanctionReports SanctionReport[]
   regulationArticles GuildRegulationArticle[]
   memberProfiles MemberProfile[]
+  staffMembers StaffMember[] @relation("GuildStaffMembers")
+  staffRoles StaffRole[] @relation("GuildStaffRoles")
 
   @@map("guilds")
 }
@@ -576,4 +580,206 @@ enum SanctionStatus {
   ACTIVE
   RESOLVED
   FAILED
+}
+
+// ============================================================================
+// SYSTÈME DE GESTION DU PERSONNEL
+// ============================================================================
+
+model StaffMember {
+  id String @id @default(cuid())
+
+  guildId String
+  userId String
+
+  grade String @default("Staff")
+  joinedStaffAt DateTime @default(now())
+  currentRoleStartedAt DateTime @default(now())
+
+  userTag String?
+  username String?
+  displayName String?
+  avatarUrl String?
+
+  guild Guild @relation("GuildStaffMembers", fields: [guildId], references: [id], onDelete: Cascade)
+  warnings StaffWarning[]
+  blacklistEntries StaffBlacklist[]
+  testingPeriods TestingPeriod[] @relation("StaffMemberTestingPeriods")
+  mentoredMembers TestingPeriod[] @relation("StaffMemberMentor")
+  mentorReports MentorReport[]
+  apiKeys APIKey[]
+  activities StaffActivity[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, userId])
+  @@index([guildId, grade])
+  @@index([guildId, joinedStaffAt])
+  @@map("staff_members")
+}
+
+model StaffRole {
+  id String @id @default(cuid())
+
+  guildId String
+  name String
+  level Int @default(0) // 0 = Helper, 1 = Mod, etc.
+  discordRoleId String?
+  color String? // Couleur optionnelle
+  sortOrder Int @default(0)
+  enabled Boolean @default(true)
+
+  guild Guild @relation("GuildStaffRoles", fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, name])
+  @@index([guildId, level])
+  @@map("staff_roles")
+}
+
+model StaffWarning {
+  id String @id @default(cuid())
+
+  guildId String
+  staffUserId String
+  issuedByUserId String
+
+  reason String
+  type String @default("staff_warning") // Type de warn staff
+  expiresAt DateTime? // null = permanent
+  isActive Boolean @default(true)
+
+  notes String?
+
+  staffMember StaffMember @relation(fields: [staffUserId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, staffUserId, isActive])
+  @@index([guildId, expiresAt])
+  @@map("staff_warnings")
+}
+
+model StaffBlacklist {
+  id String @id @default(cuid())
+
+  guildId String
+  staffUserId String
+  issuedByUserId String
+
+  reason String
+  startDate DateTime @default(now())
+  endDate DateTime? // null = indéterminé/permanent
+  isActive Boolean @default(true)
+
+  notes String?
+
+  staffMember StaffMember @relation(fields: [staffUserId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, staffUserId, isActive])
+  @@index([guildId, isActive, endDate])
+  @@map("staff_blacklist")
+}
+
+model TestingPeriod {
+  id String @id @default(cuid())
+
+  guildId String
+  staffUserId String
+  mentorId String?
+
+  startDate DateTime @default(now())
+  endDate DateTime?
+  status TestingPeriodStatus @default(ONGOING) // ONGOING, PASSED, FAILED
+  
+  notes String?
+
+  staffMember StaffMember @relation("StaffMemberTestingPeriods", fields: [staffUserId], references: [id], onDelete: Cascade)
+  mentor StaffMember? @relation("StaffMemberMentor", fields: [mentorId], references: [id], onDelete: SetNull)
+  reports MentorReport[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, staffUserId, status])
+  @@index([mentorId, status])
+  @@map("testing_periods")
+}
+
+enum TestingPeriodStatus {
+  ONGOING
+  PASSED
+  FAILED
+}
+
+model MentorReport {
+  id String @id @default(cuid())
+
+  testingPeriodId String
+  authorId String
+
+  type MentorReportType // POSITIVE, NEGATIVE, NEUTRAL
+  content String
+  createdAt DateTime @default(now())
+
+  testingPeriod TestingPeriod @relation(fields: [testingPeriodId], references: [id], onDelete: Cascade)
+  author StaffMember @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([testingPeriodId])
+  @@map("mentor_reports")
+}
+
+enum MentorReportType {
+  POSITIVE
+  NEGATIVE
+  NEUTRAL
+}
+
+model APIKey {
+  id String @id @default(cuid())
+
+  guildId String
+  createdByUserId String
+  keyHash String @unique // SHA256 du vrai clé
+  displayKey String @unique // Les premiers/derniers 8 chars pour affichage (format: aab...xyz)
+
+  name String @default("Mon clé API")
+  permissions String[] @default(["daily_algo:create_exercise"]) // permissions supportées
+  isActive Boolean @default(true)
+  lastUsedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdBy StaffMember @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, createdByUserId])
+  @@map("api_keys")
+}
+
+model StaffActivity {
+  id String @id @default(cuid())
+
+  guildId String
+  staffUserId String
+  
+  activityDate DateTime // Date de l'activité (format: YYYY-MM-DD)
+  messageCount Int @default(0)
+  voiceMinutes Int @default(0)
+  
+  staffMember StaffMember @relation(fields: [staffUserId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, staffUserId, activityDate])
+  @@index([guildId, activityDate])
+  @@map("staff_activities")
 }

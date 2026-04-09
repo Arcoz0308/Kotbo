@@ -16,6 +16,7 @@ import {
 } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
+import { recordStaffActivity } from '../services/staffManagementService.js';
 import {
   buildMemberCaseActionRow,
   touchMemberJoin,
@@ -593,6 +594,12 @@ export function registerAdvancedLogsListener(client: Client): void {
     }).catch((error) => {
       logger.warn('Casier', `Impossible de mettre à jour l'activité message de ${message.author.id}: ${String(error)}`);
     });
+
+    // 📊 Tracking d'activité staff
+    void recordStaffActivity(snapshot.guildId, message.author.id, new Date(), 1, 0).catch((error) => {
+      logger.debug('StaffManagement', `Staff activity tracking: ${String(error)}`);
+    });
+
     cleanupMessageSnapshots();
   });
 
@@ -738,6 +745,12 @@ export function registerAdvancedLogsListener(client: Client): void {
           durationSeconds: Math.max(0, Math.floor((Date.now() - joinedAt) / 1000)),
         }).catch((error) => {
           logger.warn('Casier', `Impossible de fermer l'activité vocale de ${member.id}: ${String(error)}`);
+        });
+
+        // 📊 Tracking d'activité staff (vocal)
+        const durationMinutes = Math.floor((Date.now() - joinedAt) / 60000);
+        void recordStaffActivity(guild.id, member.id, new Date(), 0, durationMinutes).catch((error) => {
+          logger.debug('StaffManagement', `Staff activity tracking: ${String(error)}`);
         });
       }
 

@@ -21,6 +21,30 @@ import {
   normalizeCommandRestrictions,
   type CommandRestrictionRule,
 } from '../utils/commandAccess.js';
+import { getLocalDateKey, reviewDailyAlgoSubmission } from '../services/dailyAlgoService.js';
+import {
+  hashAPIKey,
+  generateAPIKey,
+  getStaffMember,
+  addStaffMember,
+  updateStaffGrade,
+  removeStaffMember,
+  getStaffMemberStats,
+  issueStaffWarning,
+  blacklistStaff,
+  getActiveBlacklist,
+  createTestingPeriod,
+  addMentorReport,
+  endTestingPeriod,
+  getStaffRoles,
+  createStaffRole,
+  reorderStaffRoles,
+  createAPIKey,
+  getAPIKeys,
+  deleteAPIKey,
+  verifyAPIKey,
+  recordStaffActivity,
+} from '../services/staffManagementService.js';
 
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
@@ -269,6 +293,34 @@ type DashboardAccess = {
   canModerateContent: boolean;
   canManageSettings: boolean;
 };
+
+function resolveDailyAlgoFinalScore(submission: {
+  scoreFinal: number | null;
+  scoreCorrectness: number | null;
+  scoreComments: number | null;
+  scoreCompactness: number | null;
+  scoreOptimization: number | null;
+  scoreReadability: number | null;
+}): number | null {
+  if (submission.scoreFinal !== null) {
+    return submission.scoreFinal;
+  }
+
+  const components = [
+    submission.scoreCorrectness,
+    submission.scoreComments,
+    submission.scoreCompactness,
+    submission.scoreOptimization,
+    submission.scoreReadability,
+  ];
+
+  if (components.some((value) => value === null)) {
+    return null;
+  }
+
+  const sum = (components as number[]).reduce((acc, value) => acc + value, 0);
+  return Math.round((sum / 5) * 10) / 10;
+}
 
 type DashboardState = {
   guildName: string;
@@ -552,6 +604,15 @@ const resolveDashboardAccess = async (
 
   if (member.permissions.has('Administrator') || member.permissions.has('ManageGuild')) {
     return DASHBOARD_ACCESS_ADMIN;
+  }
+
+  const staffProfile = await prisma.staffMember.findUnique({
+    where: { guildId_userId: { guildId, userId } },
+    select: { id: true },
+  });
+
+  if (!staffProfile) {
+    return DASHBOARD_ACCESS_NONE;
   }
 
   if (guildConfig.moderatorRoleId && member.roles.cache.has(guildConfig.moderatorRoleId)) {
@@ -1683,7 +1744,11 @@ export const startDashboardApi = (client: Client) => {
             && parts[5] === 'reports'
             && req.method === 'POST';
 
-          if (!access.canManageSettings && req.method !== 'GET' && !isContentAction && !isSanctionAction) {
+          const isDailyAlgoReviewAction = parts.length === 6
+            && parts[4] === 'daily-algo-submissions'
+            && req.method === 'PATCH';
+
+          if (!access.canManageSettings && req.method !== 'GET' && !isContentAction && !isSanctionAction && !isDailyAlgoReviewAction) {
             json(res, 403, { error: 'Action réservée aux administrateurs du dashboard.' });
             return;
           }
@@ -1695,6 +1760,11 @@ export const startDashboardApi = (client: Client) => {
 
           if (isSanctionAction && !access.canModerateContent) {
             json(res, 403, { error: 'Action de rapport de sanction non autorisée.' });
+            return;
+          }
+
+          if (isDailyAlgoReviewAction && !access.canModerateContent) {
+            json(res, 403, { error: 'Action de modération Daily Algo non autorisée.' });
             return;
           }
 
@@ -2522,7 +2592,15 @@ export const startDashboardApi = (client: Client) => {
             const title = body?.title?.trim() ?? '';
             const description = body?.description?.trim() ?? '';
             const emoji = body?.emoji?.trim() ?? null;
-            const sortOrder = Number(body?.sortOrder ?? 0);
+            const providedSortOrder = body?.sortOrder !== undefined ? Number(body.sortOrder) : null;
+            const highestSortOrder = await prisma.guildRegulationArticle.findFirst({
+              where: { guildId },
+              orderBy: { sortOrder: 'desc' },
+              select: { sortOrder: true },
+            });
+            const sortOrder = Number.isFinite(providedSortOrder)
+              ? (providedSortOrder as number)
+              : (highestSortOrder?.sortOrder ?? -1) + 1;
 
             if (!title || !description) {
               json(res, 400, { error: 'Le titre et la description sont obligatoires.' });
@@ -2535,10 +2613,25 @@ export const startDashboardApi = (client: Client) => {
                 title,
                 description,
                 emoji: emoji || null,
-                sortOrder: Number.isFinite(sortOrder) ? sortOrder : 0,
+                sortOrder,
                 enabled: body?.enabled ?? true,
               },
             });
+
+            const orderedArticles = await prisma.guildRegulationArticle.findMany({
+              where: { guildId },
+              select: { id: true },
+              orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+            });
+
+            await prisma.$transaction(
+              orderedArticles.map((entry, index) =>
+                prisma.guildRegulationArticle.update({
+                  where: { id: entry.id },
+                  data: { sortOrder: index },
+                })
+              )
+            );
 
             await pushAudit(guildId, {
               user: auditUser,
@@ -2552,6 +2645,68 @@ export const startDashboardApi = (client: Client) => {
 
             broadcastDashboardStateChange(guildId, 'regulation_article_created');
             json(res, 201, { ok: true, articleId: article.id });
+            return;
+          }
+
+          if (parts.length === 7 && parts[4] === 'regulation' && parts[5] === 'articles' && parts[6] === 'reorder' && req.method === 'PATCH') {
+            const body = await readJsonBody<{ articleIds?: unknown }>(req);
+            const requestedIds = Array.isArray(body?.articleIds)
+              ? body.articleIds.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0)
+              : [];
+
+            if (requestedIds.length === 0) {
+              json(res, 400, { error: 'La liste des articles à réordonner est invalide.' });
+              return;
+            }
+
+            const existingArticles = await prisma.guildRegulationArticle.findMany({
+              where: { guildId },
+              select: { id: true },
+              orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+            });
+            const existingById = new Set(existingArticles.map((article) => article.id));
+            const orderedIds: string[] = [];
+            const seenIds = new Set<string>();
+
+            for (const articleId of requestedIds) {
+              if (!existingById.has(articleId) || seenIds.has(articleId)) {
+                continue;
+              }
+
+              orderedIds.push(articleId);
+              seenIds.add(articleId);
+            }
+
+            for (const article of existingArticles) {
+              if (seenIds.has(article.id)) {
+                continue;
+              }
+
+              orderedIds.push(article.id);
+              seenIds.add(article.id);
+            }
+
+            await prisma.$transaction(
+              orderedIds.map((articleId, index) =>
+                prisma.guildRegulationArticle.update({
+                  where: { id: articleId },
+                  data: { sortOrder: index },
+                })
+              )
+            );
+
+            await pushAudit(guildId, {
+              user: auditUser,
+              action: 'Réordonnancement articles règlement',
+              context: getGuildName(client, guildId),
+              module: 'Règlement',
+              eventType: 'Manuel',
+              details: `${orderedIds.length} article(s) réorganisé(s).`,
+              channelId: null
+            });
+
+            broadcastDashboardStateChange(guildId, 'regulation_articles_reordered');
+            json(res, 200, { ok: true });
             return;
           }
 
@@ -2620,6 +2775,23 @@ export const startDashboardApi = (client: Client) => {
             }
 
             await prisma.guildRegulationArticle.delete({ where: { id: article.id } });
+
+            const remainingArticles = await prisma.guildRegulationArticle.findMany({
+              where: { guildId },
+              select: { id: true },
+              orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+            });
+
+            if (remainingArticles.length > 0) {
+              await prisma.$transaction(
+                remainingArticles.map((entry, index) =>
+                  prisma.guildRegulationArticle.update({
+                    where: { id: entry.id },
+                    data: { sortOrder: index },
+                  })
+                )
+              );
+            }
 
             await pushAudit(guildId, {
               user: auditUser,
@@ -2722,6 +2894,266 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
+          if (parts.length === 6 && parts[4] === 'daily-algo-submissions' && parts[5] === 'today' && req.method === 'GET') {
+            const dateKey = getLocalDateKey();
+            const run = await prisma.dailyAlgoRun.findUnique({
+              where: {
+                guildId_dateKey: {
+                  guildId,
+                  dateKey,
+                },
+              },
+              include: {
+                problem: {
+                  select: {
+                    id: true,
+                    title: true,
+                    description: true,
+                    difficulty: true,
+                  },
+                },
+                submissions: {
+                  orderBy: {
+                    submittedAt: 'asc',
+                  },
+                },
+              },
+            });
+
+            if (!run) {
+              json(res, 200, {
+                dateKey,
+                run: null,
+                submissions: [],
+              });
+              return;
+            }
+
+            const validatedByIds = [...new Set(run.submissions.map((submission) => submission.validatedById).filter((value): value is string => Boolean(value)))];
+            const validatedByLabelEntries = await Promise.all(
+              validatedByIds.map(async (moderatorId) => {
+                const discordUser = await client.users.fetch(moderatorId).catch(() => null);
+                return [moderatorId, discordUser?.globalName ?? discordUser?.username ?? `Utilisateur ${moderatorId}`] as const;
+              }),
+            );
+            const validatedByMap = new Map<string, string>(validatedByLabelEntries);
+
+            const submissions = run.submissions.map((submission) => {
+              const finalScore = resolveDailyAlgoFinalScore(submission);
+              const totalPoints = finalScore !== null
+                ? Math.round((finalScore + (submission.speedBonusPoints ?? 0)) * 10) / 10
+                : null;
+
+              return {
+                id: submission.id,
+                authorId: submission.authorId,
+                authorName: submission.authorName,
+                solution: submission.solution,
+                status: submission.status,
+                submittedAt: submission.submittedAt.toISOString(),
+                speedRank: submission.speedRank,
+                speedBonusPoints: submission.speedBonusPoints,
+                scoreCorrectness: submission.scoreCorrectness,
+                scoreComments: submission.scoreComments,
+                scoreCompactness: submission.scoreCompactness,
+                scoreOptimization: submission.scoreOptimization,
+                scoreReadability: submission.scoreReadability,
+                scoreFinal: finalScore,
+                totalPoints,
+                validatedById: submission.validatedById,
+                validatedByName: submission.validatedById ? validatedByMap.get(submission.validatedById) ?? `Utilisateur ${submission.validatedById}` : null,
+                validatedAt: submission.validatedAt?.toISOString() ?? null,
+              };
+            });
+
+            json(res, 200, {
+              dateKey,
+              run: {
+                id: run.id,
+                challengeChannelId: run.challengeChannelId,
+                validationChannelId: run.validationChannelId,
+                problem: {
+                  id: run.problem.id,
+                  title: run.problem.title,
+                  description: run.problem.description,
+                  difficulty: run.problem.difficulty,
+                },
+                createdAt: run.createdAt.toISOString(),
+              },
+              submissions,
+            });
+            return;
+          }
+
+          if (parts.length === 6 && parts[4] === 'daily-algo-submissions' && parts[5] === 'history' && req.method === 'GET') {
+            const todayKey = getLocalDateKey();
+            const limitParam = Number(url.searchParams.get('limit') ?? 7);
+            const limit = Number.isFinite(limitParam) ? Math.max(1, Math.min(30, Math.trunc(limitParam))) : 7;
+
+            const runs = await prisma.dailyAlgoRun.findMany({
+              where: {
+                guildId,
+                dateKey: {
+                  lt: todayKey,
+                },
+              },
+              orderBy: {
+                dateKey: 'desc',
+              },
+              take: limit,
+              include: {
+                problem: {
+                  select: {
+                    id: true,
+                    title: true,
+                    difficulty: true,
+                  },
+                },
+                submissions: {
+                  orderBy: {
+                    submittedAt: 'asc',
+                  },
+                },
+              },
+            });
+
+            const history = runs.map((run) => {
+              const approved = run.submissions.filter((submission) => submission.status === 'APPROVED');
+              const rejected = run.submissions.filter((submission) => submission.status === 'REJECTED');
+              const pending = run.submissions.filter((submission) => submission.status === 'PENDING');
+
+              const topEntries = approved
+                .map((submission) => ({
+                  finalScore: resolveDailyAlgoFinalScore(submission),
+                  id: submission.id,
+                  authorName: submission.authorName,
+                  totalPoints: 0,
+                  scoreFinal: null,
+                  speedBonusPoints: submission.speedBonusPoints,
+                  speedRank: submission.speedRank,
+                }))
+                .map((entry) => ({
+                  ...entry,
+                  totalPoints: entry.finalScore !== null
+                    ? Math.round(((entry.finalScore + (entry.speedBonusPoints ?? 0)) * 10)) / 10
+                    : null,
+                  scoreFinal: entry.finalScore,
+                }))
+                .filter((entry) => entry.totalPoints !== null)
+                .sort((left, right) => {
+                  if ((right.totalPoints ?? 0) !== (left.totalPoints ?? 0)) return (right.totalPoints ?? 0) - (left.totalPoints ?? 0);
+                  return (left.speedRank ?? 999) - (right.speedRank ?? 999);
+                })
+                .slice(0, 3);
+
+              return {
+                id: run.id,
+                dateKey: run.dateKey,
+                createdAt: run.createdAt.toISOString(),
+                problem: {
+                  id: run.problem.id,
+                  title: run.problem.title,
+                  difficulty: run.problem.difficulty,
+                },
+                stats: {
+                  total: run.submissions.length,
+                  approved: approved.length,
+                  rejected: rejected.length,
+                  pending: pending.length,
+                },
+                topEntries,
+              };
+            });
+
+            json(res, 200, {
+              todayKey,
+              history,
+            });
+            return;
+          }
+
+          if (parts.length === 6 && parts[4] === 'daily-algo-submissions' && req.method === 'PATCH') {
+            const submissionId = parts[5];
+            const body = await readJsonBody<{
+              action?: 'approve' | 'reject';
+              scores?: {
+                correctness?: number;
+                comments?: number;
+                compactness?: number;
+                optimization?: number;
+                readability?: number;
+              };
+            }>(req);
+
+            if (!body?.action || !['approve', 'reject'].includes(body.action)) {
+              json(res, 400, { error: 'Action Daily Algo invalide.' });
+              return;
+            }
+
+            let scores:
+              | {
+                  correctness: number;
+                  comments: number;
+                  compactness: number;
+                  optimization: number;
+                  readability: number;
+                }
+              | undefined;
+
+            if (body.action === 'approve') {
+              const rawScores = body.scores;
+              if (!rawScores) {
+                json(res, 400, { error: 'Les notes sont requises pour valider une soumission.' });
+                return;
+              }
+
+              const parsed = {
+                correctness: Number(rawScores.correctness),
+                comments: Number(rawScores.comments),
+                compactness: Number(rawScores.compactness),
+                optimization: Number(rawScores.optimization),
+                readability: Number(rawScores.readability),
+              };
+
+              const hasInvalidScore = Object.values(parsed).some((value) => !Number.isFinite(value) || value < 1 || value > 5);
+              if (hasInvalidScore) {
+                json(res, 400, { error: 'Chaque note doit être comprise entre 1 et 5.' });
+                return;
+              }
+
+              scores = parsed;
+            }
+
+            const success = await reviewDailyAlgoSubmission({
+              client,
+              submissionId,
+              action: body.action,
+              moderatorId: user.userId,
+              scores,
+            });
+
+            if (!success) {
+              json(res, 404, { error: 'Soumission Daily Algo introuvable ou déjà traitée.' });
+              return;
+            }
+
+            await pushAudit(guildId, {
+              user: auditUser,
+              action: body.action === 'approve' ? 'Validation soumission Daily Algo' : 'Rejet soumission Daily Algo',
+              context: getGuildName(client, guildId),
+              module: 'Daily Algo',
+              eventType: 'Manuel',
+              details: body.action === 'approve'
+                ? `Soumission ${submissionId} validée avec notation.`
+                : `Soumission ${submissionId} rejetée.`,
+              channelId: null,
+            });
+
+            broadcastDashboardStateChange(guildId, 'daily_algo_submission_reviewed');
+            json(res, 200, { ok: true });
+            return;
+          }
+
           if (parts.length === 5 && parts[4] === 'daily-algo-problems' && req.method === 'POST') {
             const body = await readJsonBody<{ title: string; description: string; solution: string; difficulty: string; language: string }>(req);
             if (!body || !body.title || !body.description || !body.solution) {
@@ -2785,6 +3217,921 @@ export const startDashboardApi = (client: Client) => {
             });
 
             json(res, 200, { ok: true });
+            return;
+          }
+        }
+      }
+
+      // --- STAFF MANAGEMENT ROUTES ---
+      if (parts.length >= 3 && parts[0] === 'api' && parts[1] === 'dashboard') {
+        const user = verifyAuth(req);
+        if (!user) {
+          json(res, 401, { error: 'Non authentifié' });
+          return;
+        }
+
+        // GET /api/dashboard/users/:userId/profile - User profile
+        if (parts[2] === 'users' && parts[4] === 'profile' && req.method === 'GET') {
+          const userId = parts[3];
+          if (!userId) {
+            json(res, 400, { error: 'userId manquant' });
+            return;
+          }
+
+          try {
+            const staffMember = await getStaffMember('any', userId); // Get profile without guildId restriction
+            const apiKeys = staffMember ? await getAPIKeys(staffMember.guildId) : [];
+            const blacklist = staffMember ? await getActiveBlacklist(staffMember.guildId, userId) : null;
+            
+            let accessibleTools = ['Profil Basique'];
+            if (staffMember) {
+              const access = await resolveDashboardAccess(client, staffMember.guildId, userId);
+              if (access.canViewDashboard) accessibleTools.push('Dashboard', 'Modération');
+              if (access.canManageSettings) accessibleTools.push('Configuration Globale', 'Clés API');
+              if (access.level === 'admin') accessibleTools.push('Gestion du Personnel', 'Logs Audit');
+              // Remove duplicates just in case
+              accessibleTools = [...new Set(accessibleTools)];
+            }
+
+            json(res, 200, {
+              staffMember,
+              apiKeys: apiKeys.map(k => ({
+                id: k.id,
+                displayKey: k.displayKey,
+                name: k.name,
+                permissions: k.permissions,
+                lastUsedAt: k.lastUsedAt,
+              })),
+              isBlacklisted: !!blacklist,
+              blacklistReason: blacklist?.reason,
+              blacklistEndDate: blacklist?.endDate,
+              accessibleTools,
+            });
+          } catch (err) {
+            logger.error('StaffAPI', 'Error getting user profile:', err);
+            json(res, 500, { error: 'Erreur lors de la récupération du profil' });
+          }
+          return;
+        }
+
+        // GET /api/dashboard/users/:userId/staff-stats - Staff statistics
+        if (parts[2] === 'users' && parts[4] === 'staff-stats' && req.method === 'GET') {
+          const userId = parts[3];
+          if (!userId) {
+            json(res, 400, { error: 'userId manquant' });
+            return;
+          }
+
+          try {
+            const staffMember = await prisma.staffMember.findFirst({
+              where: { userId },
+              include: {
+                warnings: { where: { isActive: true } },
+                activities: { orderBy: { activityDate: 'desc' }, take: 30 },
+              },
+            });
+
+            if (!staffMember) {
+              json(res, 404, { error: 'Membre du staff introuvable' });
+              return;
+            }
+
+            const sanctionsIssuedCount = await prisma.sanction.count({
+              where: {
+                guildId: staffMember.guildId,
+                moderatorUserId: userId,
+              }
+            });
+
+            const pendingReportsCount = await prisma.sanctionReport.count({
+              where: {
+                guildId: staffMember.guildId,
+                sanctionId: null,
+              }
+            });
+
+            const stats = {
+              totalMessages: staffMember.activities.reduce((sum, a) => sum + a.messageCount, 0),
+              totalVoiceMinutes: staffMember.activities.reduce((sum, a) => sum + a.voiceMinutes, 0),
+              activeWarnings: staffMember.warnings.length,
+              joinedStaffAt: staffMember.joinedStaffAt,
+              currentRoleStartedAt: staffMember.currentRoleStartedAt,
+              activities: staffMember.activities,
+              sanctionsIssued: sanctionsIssuedCount,
+              pendingReports: pendingReportsCount,
+            };
+
+            json(res, 200, { stats });
+          } catch (err) {
+            logger.error('StaffAPI', 'Error getting staff stats:', err);
+            json(res, 500, { error: 'Erreur lors de la récupération des statistiques' });
+          }
+          return;
+        }
+
+        // POST/GET API Keys routes
+        if (parts[4] === 'api-keys') {
+          const guildId = parts[3] ?? null;
+          if (!guildId) {
+            json(res, 400, { error: 'guildId manquant' });
+            return;
+          }
+
+          const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+          if (accessLevel.level === 'none') {
+            json(res, 403, { error: 'Accès refusé' });
+            return;
+          }
+
+          // POST /api/dashboard/guilds/:guildId/api-keys - Create API key
+          if (req.method === 'POST') {
+            const body = await readJsonBody<{
+              name?: string;
+              permissions?: string[];
+            }>(req);
+
+            try {
+              const { fullKey, displayKey } = generateAPIKey();
+              const keyHash = hashAPIKey(fullKey);
+
+              const apiKey = await createAPIKey(
+                guildId,
+                user.userId,
+                keyHash,
+                displayKey,
+                body?.name || 'Mon clé API',
+                body?.permissions || ['daily_algo:create_exercise']
+              );
+
+              await pushAudit(guildId, {
+                user: user.username ?? `User${user.userId}`,
+                action: 'Création clé API',
+                context: getGuildName(client, guildId),
+                module: 'Staff Management',
+                eventType: 'Manuel',
+                details: `Clé API créée: ${displayKey}`,
+                channelId: null
+              });
+
+              json(res, 201, {
+                id: apiKey.id,
+                fullKey, // Important: retourner la clé complète une seule fois
+                displayKey: apiKey.displayKey,
+                name: apiKey.name,
+                permissions: apiKey.permissions,
+              });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error creating API key:', err);
+              json(res, 500, { error: 'Erreur lors de la création de la clé API' });
+            }
+            return;
+          }
+
+          // GET /api/dashboard/guilds/:guildId/api-keys - List API keys
+          if (req.method === 'GET') {
+            try {
+              const keys = await getAPIKeys(guildId);
+              json(res, 200, { keys });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error getting API keys:', err);
+              json(res, 500, { error: 'Erreur lors de la récupération des clés API' });
+            }
+            return;
+          }
+
+          // DELETE /api/dashboard/guilds/:guildId/api-keys/:keyId - Delete API key
+          if (parts[5] && req.method === 'DELETE') {
+            const keyId = parts[5];
+            try {
+              await deleteAPIKey(keyId);
+
+              await pushAudit(guildId, {
+                user: user.username ?? `User${user.userId}`,
+                action: 'Suppression clé API',
+                context: getGuildName(client, guildId),
+                module: 'Staff Management',
+                eventType: 'Manuel',
+                details: `Clé API supprimée: ${keyId}`,
+                channelId: null
+              });
+
+              json(res, 200, { ok: true });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error deleting API key:', err);
+              json(res, 500, { error: 'Erreur lors de la suppression de la clé API' });
+            }
+            return;
+          }
+        }
+
+        // ADMIN+ STAFF MANAGEMENT ROUTES
+        if (parts[4] === 'staff') {
+          const guildId = parts[3] ?? null;
+          if (!guildId) {
+            json(res, 400, { error: 'guildId manquant' });
+            return;
+          }
+
+          const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+          if (accessLevel.level !== 'admin') {
+            json(res, 403, { error: 'Accès admin requis' });
+            return;
+          }
+
+          // GET /api/dashboard/guilds/:guildId/staff/discord-members - Search Discord members
+          if (parts[5] === 'discord-members' && req.method === 'GET' && !parts[6]) {
+            try {
+              const rawQuery = (url.searchParams.get('q') ?? url.searchParams.get('query') ?? '').trim();
+              const parsedLimit = Number(url.searchParams.get('limit') ?? '12');
+              const limit = Number.isFinite(parsedLimit)
+                ? Math.min(25, Math.max(1, Math.trunc(parsedLimit)))
+                : 12;
+
+              const discordGuild = client.guilds.cache.get(guildId)
+                ?? await client.guilds.fetch(guildId).catch(() => null);
+
+              if (!discordGuild) {
+                json(res, 404, { error: 'Serveur Discord introuvable' });
+                return;
+              }
+
+              const mentionMatch = rawQuery.match(/<@!?(\d{15,25})>/);
+              const directId = mentionMatch?.[1] ?? (/^\d{15,25}$/.test(rawQuery) ? rawQuery : null);
+
+              let candidates = [] as Array<{
+                id: string;
+                username: string;
+                displayName: string | null;
+                userTag: string | null;
+                avatarUrl: string | null;
+              }>;
+
+              if (directId) {
+                const member = await discordGuild.members.fetch(directId).catch(() => null);
+                if (member && !member.user.bot) {
+                  candidates = [{
+                    id: member.user.id,
+                    username: member.user.username,
+                    displayName: member.displayName ?? null,
+                    userTag: member.user.tag ?? null,
+                    avatarUrl: member.displayAvatarURL() || null,
+                  }];
+                }
+              } else if (rawQuery) {
+                const query = rawQuery.replace(/^@+/, '').trim();
+                const members = await discordGuild.members.search({ query, limit }).catch(() => null);
+
+                candidates = members
+                  ? members
+                    .filter((member) => !member.user.bot)
+                    .map((member) => ({
+                      id: member.user.id,
+                      username: member.user.username,
+                      displayName: member.displayName ?? null,
+                      userTag: member.user.tag ?? null,
+                      avatarUrl: member.displayAvatarURL() || null,
+                    }))
+                  : [];
+              }
+
+              const members = candidates
+                .sort((a, b) => (a.displayName || a.username).localeCompare((b.displayName || b.username), 'fr'))
+                .slice(0, limit);
+
+              json(res, 200, { members });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error searching Discord members:', err);
+              json(res, 500, { error: 'Erreur lors de la recherche des membres Discord' });
+            }
+            return;
+          }
+
+          // GET /api/dashboard/guilds/:guildId/staff/members - List staff members
+          if (parts[5] === 'members' && req.method === 'GET' && !parts[6]) {
+            try {
+              const members = await prisma.staffMember.findMany({
+                where: { guildId },
+                include: {
+                  warnings: { where: { isActive: true } },
+                  blacklistEntries: { where: { isActive: true } },
+                  testingPeriods: { where: { status: 'ONGOING' } },
+                  activities: { orderBy: { activityDate: 'desc' }, take: 30 },
+                },
+                orderBy: { grade: 'asc' },
+              });
+
+              // Enrich with sanctions issued count
+              const membersWithStats = await Promise.all(members.map(async (m) => {
+                const sanctionsIssuedCount = await prisma.sanction.count({
+                  where: { guildId, moderatorUserId: m.userId }
+                });
+                
+                return {
+                  ...m,
+                  stats: {
+                    totalMessages: m.activities.reduce((sum, a) => sum + a.messageCount, 0),
+                    totalVoiceMinutes: m.activities.reduce((sum, a) => sum + a.voiceMinutes, 0),
+                    sanctionsIssued: sanctionsIssuedCount,
+                  }
+                };
+              }));
+
+              json(res, 200, { members: membersWithStats });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error listing staff members:', err);
+              json(res, 500, { error: 'Erreur lors de la récupération des membres staff' });
+            }
+            return;
+          }
+
+          // POST /api/dashboard/guilds/:guildId/staff/members - Add staff member
+          if (parts[5] === 'members' && req.method === 'POST' && !parts[6]) {
+            const body = await readJsonBody<{
+              userId: string;
+              grade: string;
+              userTag?: string;
+              username?: string;
+              displayName?: string;
+              avatarUrl?: string;
+            }>(req);
+
+            if (!body?.userId || !body?.grade) {
+              json(res, 400, { error: 'userId et grade sont obligatoires' });
+              return;
+            }
+
+            try {
+              const member = await addStaffMember(
+                guildId,
+                body.userId,
+                body.grade,
+                body.userTag,
+                body.username,
+                body.displayName,
+                body.avatarUrl
+              );
+
+              // Créer une période de test initiale
+              await createTestingPeriod(guildId, body.userId);
+
+              // Attribuer les rôles sur Discord
+              try {
+                const discordGuild = client.guilds.cache.get(guildId);
+                if (discordGuild) {
+                  const targetMember = await discordGuild.members.fetch(body.userId).catch(() => null);
+                  if (targetMember) {
+                    const guildInfo = await prisma.guild.findUnique({ where: { id: guildId }, select: { baseStaffRoleId: true, testStaffRoleId: true } });
+                    const roleToGive = await prisma.staffRole.findFirst({ where: { guildId, name: body.grade } });
+                    
+                    const roleIdsToAdd: string[] = [];
+                    if (roleToGive?.discordRoleId) roleIdsToAdd.push(roleToGive.discordRoleId);
+                    if (guildInfo?.baseStaffRoleId) roleIdsToAdd.push(guildInfo.baseStaffRoleId);
+                    if (guildInfo?.testStaffRoleId) roleIdsToAdd.push(guildInfo.testStaffRoleId);
+                    
+                    if (roleIdsToAdd.length > 0) {
+                      await targetMember.roles.add(roleIdsToAdd).catch(err => {
+                        logger.error('StaffAPI', 'Failed to add roles to new staff', err);
+                      });
+                    }
+                  }
+                }
+              } catch (roleErr) {
+                logger.error('StaffAPI', 'Erreur lors de l\'attribution des rôles Discord', roleErr);
+              }
+
+              await pushAudit(guildId, {
+                user: user.username ?? `User${user.userId}`,
+                action: 'Ajout membre staff',
+                context: getGuildName(client, guildId),
+                module: 'Staff Management',
+                eventType: 'Manuel',
+                details: `Nouveau membre staff: ${body.username || body.userId} (${body.grade})`,
+                channelId: null
+              });
+
+              json(res, 201, { member });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error adding staff member:', err);
+              json(res, 500, { error: 'Erreur lors de l\'ajout du membre staff' });
+            }
+            return;
+          }
+
+          // GET /api/dashboard/guilds/:guildId/staff/members/:userId - Get staff member details
+          if (parts[5] === 'members' && parts[6] && req.method === 'GET') {
+            const staffUserId = parts[6];
+            try {
+              const stats = await getStaffMemberStats(guildId, staffUserId);
+              json(res, 200, stats);
+            } catch (err) {
+              logger.error('StaffAPI', 'Error getting staff member details:', err);
+              json(res, 500, { error: 'Erreur lors de la récupération des détails' });
+            }
+            return;
+          }
+
+          // PATCH /api/dashboard/guilds/:guildId/staff/members/:userId - Update staff member
+          if (parts[5] === 'members' && parts[6] && req.method === 'PATCH') {
+            const staffUserId = parts[6];
+            const body = await readJsonBody<{
+              grade?: string;
+              action?: string; // promote, demote, remove
+            }>(req);
+
+            try {
+              if (body?.grade) {
+                await updateStaffGrade(guildId, staffUserId, body.grade);
+
+                await pushAudit(guildId, {
+                  user: user.username ?? `User${user.userId}`,
+                  action: 'Changement de grade staff',
+                  context: getGuildName(client, guildId),
+                  module: 'Staff Management',
+                  eventType: 'Manuel',
+                  details: `Grade changé pour ${staffUserId}: ${body.grade}`,
+                  channelId: null
+                });
+              }
+
+              if (body?.action === 'remove') {
+                await removeStaffMember(guildId, staffUserId);
+
+                await pushAudit(guildId, {
+                  user: user.username ?? `User${user.userId}`,
+                  action: 'Retrait member staff',
+                  context: getGuildName(client, guildId),
+                  module: 'Staff Management',
+                  eventType: 'Manuel',
+                  details: `Membre staff retiré: ${staffUserId}`,
+                  channelId: null
+                });
+              }
+
+              json(res, 200, { ok: true });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error updating staff member:', err);
+              json(res, 500, { error: 'Erreur lors de la mise à jour du membre staff' });
+            }
+            return;
+          }
+
+          // POST /api/dashboard/guilds/:guildId/staff/warnings - Issue warning
+          if (parts[5] === 'warnings' && req.method === 'POST') {
+            const body = await readJsonBody<{
+              staffUserId: string;
+              reason: string;
+              expiresAt?: string;
+            }>(req);
+
+            if (!body?.staffUserId || !body?.reason) {
+              json(res, 400, { error: 'staffUserId et reason sont obligatoires' });
+              return;
+            }
+
+            try {
+              const warning = await issueStaffWarning(
+                guildId,
+                body.staffUserId,
+                user.userId,
+                body.reason,
+                body.expiresAt ? new Date(body.expiresAt) : undefined
+              );
+
+              // 2nd active warning check
+              const activeWarnings = await prisma.staffWarning.count({
+                where: { guildId, staffUserId: warning.staffUserId, isActive: true }
+              });
+
+              let blacklisted = false;
+              let demotionOccurred = false;
+
+              if (activeWarnings >= 2) {
+                // Demote to lowest rank
+                const roles = await getStaffRoles(guildId);
+                if (roles.length > 0) {
+                  const lowestRole = roles[0];
+                  await updateStaffGrade(guildId, body.staffUserId, lowestRole.name);
+                  demotionOccurred = true;
+                }
+
+                // Blacklist for 30 days
+                const blacklistEnd = new Date();
+                blacklistEnd.setDate(blacklistEnd.getDate() + 30);
+                await blacklistStaff(
+                  guildId,
+                  body.staffUserId,
+                  user.userId,
+                  "Sanction automatique suite à 2 avertissements actifs.",
+                  blacklistEnd
+                );
+                blacklisted = true;
+                
+                await pushAudit(guildId, {
+                  user: 'Système',
+                  action: 'Sanction Automatique',
+                  context: getGuildName(client, guildId),
+                  module: 'Staff Management',
+                  eventType: 'Automatique',
+                  details: `Blacklist de 30 jours et rétrogradation après 2 avertissements.`,
+                  channelId: null
+                });
+              }
+
+              await pushAudit(guildId, {
+                user: user.username ?? `User${user.userId}`,
+                action: 'Avertissement staff',
+                context: getGuildName(client, guildId),
+                module: 'Staff Management',
+                eventType: 'Manuel',
+                details: `Avertissement généré: ${body.reason}`,
+                channelId: null
+              });
+
+              json(res, 201, { warning, blacklisted, demotionOccurred });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error issuing warning:', err);
+              json(res, 500, { error: 'Erreur lors de la génération de l\'avertissement' });
+            }
+            return;
+          }
+
+          // POST /api/dashboard/guilds/:guildId/staff/blacklist - Blacklist staff member
+          if (parts[5] === 'blacklist' && req.method === 'POST') {
+            const body = await readJsonBody<{
+              staffUserId: string;
+              reason: string;
+              endDate?: string;
+            }>(req);
+
+            if (!body?.staffUserId || !body?.reason) {
+              json(res, 400, { error: 'staffUserId et reason sont obligatoires' });
+              return;
+            }
+
+            try {
+              const blacklist = await blacklistStaff(
+                guildId,
+                body.staffUserId,
+                user.userId,
+                body.reason,
+                body.endDate ? new Date(body.endDate) : undefined
+              );
+
+              await pushAudit(guildId, {
+                user: user.username ?? `User${user.userId}`,
+                action: 'Blacklist staff',
+                context: getGuildName(client, guildId),
+                module: 'Staff Management',
+                eventType: 'Manuel',
+                details: `Blacklist appliquée: ${body.reason}`,
+                channelId: null
+              });
+
+              json(res, 201, { blacklist });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error blacklisting staff:', err);
+              json(res, 500, { error: 'Erreur lors de la blacklist' });
+            }
+            return;
+          }
+
+          // GET /api/dashboard/guilds/:guildId/staff/config
+          if (parts[5] === 'config' && req.method === 'GET' && !parts[6]) {
+            try {
+              const guildInfo = await prisma.guild.findUnique({
+                where: { id: guildId },
+                select: { baseStaffRoleId: true, testStaffRoleId: true }
+              });
+              json(res, 200, { config: guildInfo });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error getting staff config:', err);
+              json(res, 500, { error: 'Erreur config staff' });
+            }
+            return;
+          }
+
+          // PATCH /api/dashboard/guilds/:guildId/staff/config
+          if (parts[5] === 'config' && req.method === 'PATCH' && !parts[6]) {
+            const body = await readJsonBody<{
+              baseStaffRoleId?: string | null;
+              testStaffRoleId?: string | null;
+            }>(req);
+            
+            try {
+              const updated = await prisma.guild.update({
+                where: { id: guildId },
+                data: {
+                  baseStaffRoleId: body?.baseStaffRoleId ?? null,
+                  testStaffRoleId: body?.testStaffRoleId ?? null,
+                },
+                select: { baseStaffRoleId: true, testStaffRoleId: true }
+              });
+              json(res, 200, { config: updated });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error updating staff config:', err);
+              json(res, 500, { error: 'Erreur config staff' });
+            }
+            return;
+          }
+
+          // GET /api/dashboard/guilds/:guildId/staff/roles - List staff roles
+          if (parts[5] === 'roles' && req.method === 'GET' && !parts[6]) {
+            try {
+              const roles = await getStaffRoles(guildId);
+              json(res, 200, { roles });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error getting staff roles:', err);
+              json(res, 500, { error: 'Erreur lors de la récupération des rôles staff' });
+            }
+            return;
+          }
+
+          // POST /api/dashboard/guilds/:guildId/staff/roles - Create staff role
+          if (parts[5] === 'roles' && req.method === 'POST' && !parts[6]) {
+            const body = await readJsonBody<{
+              name: string;
+              level: number;
+              discordRoleId?: string;
+              color?: string;
+            }>(req);
+
+            if (!body?.name || typeof body?.level !== 'number') {
+              json(res, 400, { error: 'name et level sont obligatoires' });
+              return;
+            }
+
+            try {
+              const role = await createStaffRole(
+                guildId,
+                body.name,
+                body.level,
+                body.discordRoleId,
+                body.color
+              );
+
+              await pushAudit(guildId, {
+                user: user.username ?? `User${user.userId}`,
+                action: 'Création rôle staff',
+                context: getGuildName(client, guildId),
+                module: 'Staff Management',
+                eventType: 'Manuel',
+                details: `Nouveau rôle staff: ${body.name}`,
+                channelId: null
+              });
+
+              json(res, 201, { role });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error creating staff role:', err);
+              json(res, 500, { error: 'Erreur lors de la création du rôle staff' });
+            }
+            return;
+          }
+
+          // PATCH /api/dashboard/guilds/:guildId/staff/roles/order - Reorder staff roles
+          if (parts[5] === 'roles' && parts[6] === 'order' && req.method === 'PATCH') {
+            const body = await readJsonBody<{
+              orderedRoleIds: string[];
+            }>(req);
+
+            if (!Array.isArray(body?.orderedRoleIds)) {
+              json(res, 400, { error: 'orderedRoleIds doit être un tableau' });
+              return;
+            }
+
+            try {
+              await reorderStaffRoles(guildId, body.orderedRoleIds);
+
+              await pushAudit(guildId, {
+                user: user.username ?? `User${user.userId}`,
+                action: 'Réorganisation rôles staff',
+                context: getGuildName(client, guildId),
+                module: 'Staff Management',
+                eventType: 'Manuel',
+                details: `Ordre mis à jour pour ${body.orderedRoleIds.length} rôle(s)`,
+                channelId: null
+              });
+
+              json(res, 200, { success: true });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error reordering staff roles:', err);
+              json(res, 500, { error: 'Erreur lors du réordonnancement des rôles staff' });
+            }
+            return;
+          }
+
+          // GET /api/dashboard/guilds/:guildId/testing-periods - List testing periods
+          if (parts[5] === 'testing-periods' && req.method === 'GET' && !parts[6]) {
+            try {
+              const periods = await prisma.testingPeriod.findMany({
+                where: { guildId },
+                include: {
+                  staffMember: true,
+                  mentor: true,
+                  reports: {
+                    include: { author: true },
+                    orderBy: { createdAt: 'asc' }
+                  }
+                },
+                orderBy: { startDate: 'desc' },
+              });
+              json(res, 200, { periods });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error listing testing periods:', err);
+              json(res, 500, { error: 'Erreur lors de la récupération des périodes de test' });
+            }
+            return;
+          }
+
+          // POST /api/dashboard/guilds/:guildId/testing-periods - Create testing period
+          if (parts[5] === 'testing-periods' && req.method === 'POST' && !parts[6]) {
+            const body = await readJsonBody<{
+              staffUserId: string;
+              mentorId?: string;
+            }>(req);
+
+            if (!body?.staffUserId) {
+              json(res, 400, { error: 'staffUserId est obligatoire' });
+              return;
+            }
+
+            try {
+              // Restriction to HELPER grade
+              const member = await prisma.staffMember.findUnique({
+                where: { id: body.staffUserId }
+              });
+
+              if (!member || (member.grade.toUpperCase() !== 'HELPER' && member.grade.toUpperCase() !== 'STAFF EN TEST')) {
+                json(res, 400, { error: 'Seuls les membres avec le grade HELPER ou STAFF EN TEST peuvent être mis sous tutelle.' });
+                return;
+              }
+
+              const period = await createTestingPeriod(guildId, body.staffUserId, body.mentorId);
+              json(res, 201, { period });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error creating testing period:', err);
+              json(res, 500, { error: 'Erreur lors de la création de la période de test' });
+            }
+            return;
+          }
+
+          // PATCH /api/dashboard/guilds/:guildId/testing-periods/:periodId - End testing period
+          if (parts[5] === 'testing-periods' && parts[6] && req.method === 'PATCH') {
+            const periodId = parts[6];
+            const body = await readJsonBody<{
+              status: 'PASSED' | 'FAILED';
+              notes?: string;
+            }>(req);
+
+            if (!body?.status) {
+              json(res, 400, { error: 'status est obligatoire' });
+              return;
+            }
+
+            try {
+              const period = await endTestingPeriod(periodId, body.status, body.notes);
+
+              await pushAudit(guildId, {
+                user: user.username ?? `User${user.userId}`,
+                action: `Fin période de test (${body.status})`,
+                context: getGuildName(client, guildId),
+                module: 'Staff Management',
+                eventType: 'Manuel',
+                details: `Période de test: ${periodId} - ${body.status}`,
+                channelId: null
+              });
+
+              json(res, 200, { period });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error ending testing period:', err);
+              json(res, 500, { error: 'Erreur lors de la fin de la période de test' });
+            }
+            return;
+          }
+
+          // POST /api/dashboard/guilds/:guildId/mentor-reports - Add mentor report
+          if (parts[5] === 'mentor-reports' && req.method === 'POST') {
+            const body = await readJsonBody<{
+              testingPeriodId: string;
+              type: 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL';
+              content: string;
+            }>(req);
+
+            if (!body?.testingPeriodId || !body?.type || !body?.content) {
+              json(res, 400, { error: 'testingPeriodId, type et content sont obligatoires' });
+              return;
+            }
+
+            try {
+              const report = await addMentorReport(
+                body.testingPeriodId,
+                user.userId,
+                body.type,
+                body.content
+              );
+
+              await pushAudit(guildId, {
+                user: user.username ?? `User${user.userId}`,
+                action: 'Rapport tuteur',
+                context: getGuildName(client, guildId),
+                module: 'Staff Management',
+                eventType: 'Manuel',
+                details: `Rapport ${body.type}: ${body.testingPeriodId}`,
+                channelId: null
+              });
+
+              json(res, 201, { report });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error adding mentor report:', err);
+              json(res, 500, { error: 'Erreur lors de l\'ajout du rapport tuteur' });
+            }
+            return;
+          }
+        }
+
+        // ADMIN+ TESTING PERIOD ROUTES
+        if (parts[4] === 'testing-periods') {
+          const guildId = parts[3] ?? null;
+          if (!guildId) {
+            json(res, 400, { error: 'guildId manquant' });
+            return;
+          }
+
+          const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+          if (accessLevel.level !== 'admin') {
+            json(res, 403, { error: 'Accès admin requis' });
+            return;
+          }
+
+          // GET /api/dashboard/guilds/:guildId/testing-periods - List testing periods
+          if (req.method === 'GET' && !parts[5]) {
+            try {
+              const periods = await prisma.testingPeriod.findMany({
+                where: { guildId },
+                orderBy: { createdAt: 'desc' },
+                include: { reports: true },
+              });
+
+              json(res, 200, { periods });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error getting testing periods:', err);
+              json(res, 500, { error: 'Erreur lors de la récupération des périodes de test' });
+            }
+            return;
+          }
+
+          // POST /api/dashboard/guilds/:guildId/testing-periods - Create testing period
+          if (req.method === 'POST' && !parts[5]) {
+            const body = await readJsonBody<{
+              staffUserId: string;
+              mentorId?: string;
+            }>(req);
+
+            if (!body?.staffUserId) {
+              json(res, 400, { error: 'staffUserId est obligatoire' });
+              return;
+            }
+
+            try {
+              const period = await createTestingPeriod(guildId, body.staffUserId, body.mentorId);
+              json(res, 201, { period });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error creating testing period:', err);
+              json(res, 500, { error: 'Erreur lors de la création de la période de test' });
+            }
+            return;
+          }
+
+          // PATCH /api/dashboard/guilds/:guildId/testing-periods/:periodId - End testing period
+          if (req.method === 'PATCH' && parts[5]) {
+            const periodId = parts[5];
+            const body = await readJsonBody<{
+              status: 'PASSED' | 'FAILED';
+              notes?: string;
+            }>(req);
+
+            if (!body?.status) {
+              json(res, 400, { error: 'status est obligatoire' });
+              return;
+            }
+
+            try {
+              const period = await endTestingPeriod(periodId, body.status, body.notes);
+
+              await pushAudit(guildId, {
+                user: user.username ?? `User${user.userId}`,
+                action: `Fin période de test (${body.status})`,
+                context: getGuildName(client, guildId),
+                module: 'Staff Management',
+                eventType: 'Manuel',
+                details: `Période de test: ${periodId} - ${body.status}`,
+                channelId: null
+              });
+
+              json(res, 200, { period });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error ending testing period:', err);
+              json(res, 500, { error: 'Erreur lors de la fin de la période de test' });
+            }
             return;
           }
         }

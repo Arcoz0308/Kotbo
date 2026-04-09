@@ -17,8 +17,10 @@
   import ModuleSettings from './pages/ModuleSettings.svelte';
   import Sanctions from './pages/Sanctions.svelte';
   import Regulation from './pages/Regulation.svelte';
+  import Profile from './pages/Profile.svelte';
+  import StaffManagement from './pages/StaffManagement.svelte';
 
-    const adminOnlyPrefixes = ['/modules', '/module-settings', '/settings', '/notifications', '/automations', '/command-access', '/regulation'];
+    const adminOnlyPrefixes = ['/modules', '/module-settings', '/settings', '/notifications', '/automations', '/command-access', '/regulation', '/staff-management'];
 
   function isAdminOnlyRoute(path: string) {
     return adminOnlyPrefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
@@ -94,6 +96,9 @@
       <Route path="/regulation">
         <Regulation />
       </Route>
+      <Route path="/profile">
+        <Profile />
+      </Route>
       {#if canManageSettings}
         <Route path="/modules">
           <ModuleCatalog />
@@ -112,6 +117,9 @@
         </Route>
         <Route path="/automations">
           <ModuleCatalog />
+        </Route>
+        <Route path="/staff-management">
+          <StaffManagement />
         </Route>
       {/if}
     </MainLayout>

@@ -1,0 +1,197 @@
+<script lang="ts">
+  import { API_BASE_URL } from '../api';
+  import { authStore } from '../stores/auth.svelte';
+
+  type DiscordMemberSuggestion = {
+    id: string;
+    username: string;
+    displayName: string | null;
+    userTag: string | null;
+    avatarUrl: string | null;
+  };
+
+  let {
+    guildId,
+    query = $bindable(''),
+    selectedId = $bindable(''),
+    selectedUsername = $bindable(''),
+    placeholder = '@mention, pseudo ou ID Discord',
+    selectedIdPlaceholder = 'ID Discord (auto-rempli)',
+    autoSelectOnExactMatch = true,
+    disabled = false,
+    className = '',
+  }: {
+    guildId: string | null;
+    query?: string;
+    selectedId?: string;
+    selectedUsername?: string;
+    placeholder?: string;
+    selectedIdPlaceholder?: string;
+    autoSelectOnExactMatch?: boolean;
+    disabled?: boolean;
+    className?: string;
+  } = $props();
+
+  let suggestions = $state<DiscordMemberSuggestion[]>([]);
+  let isLoading = $state(false);
+  let error = $state('');
+  let debounceTimer = $state<ReturnType<typeof setTimeout> | null>(null);
+  let abortController = $state<AbortController | null>(null);
+
+  function extractDiscordUserId(value: string | null | undefined): string | null {
+    const text = (value ?? '').trim();
+    if (!text) return null;
+
+    const mentionMatch = text.match(/<@!?(\d{15,25})>/);
+    if (mentionMatch?.[1]) return mentionMatch[1];
+
+    if (/^\d{15,25}$/.test(text)) {
+      return text;
+    }
+
+    return null;
+  }
+
+  function resetSuggestions(): void {
+    suggestions = [];
+    error = '';
+    isLoading = false;
+  }
+
+  function syncExactMatch(value: string): void {
+    if (!autoSelectOnExactMatch) return;
+
+    const extractedUserId = extractDiscordUserId(value);
+    if (extractedUserId) {
+      selectedId = extractedUserId;
+      return;
+    }
+
+    if (!value.trim()) return;
+
+    const match = suggestions.find((member) => {
+      const normalizedValue = value.trim().toLowerCase();
+      return member.id === normalizedValue
+        || member.username.toLowerCase() === normalizedValue
+        || (member.displayName ?? '').toLowerCase() === normalizedValue
+        || (member.userTag ?? '').toLowerCase() === normalizedValue;
+    });
+
+    if (match) {
+      selectedId = match.id;
+      selectedUsername = match.username;
+    }
+  }
+
+  async function fetchSuggestions(value: string): Promise<void> {
+    if (!guildId || !authStore.token || disabled) return;
+
+    const trimmed = value.trim();
+    if (!trimmed) {
+      resetSuggestions();
+      selectedId = '';
+      selectedUsername = '';
+      return;
+    }
+
+    abortController?.abort();
+    abortController = new AbortController();
+    isLoading = true;
+    error = '';
+
+    try {
+      const searchParams = new URLSearchParams({ q: trimmed, limit: '10' });
+      const response = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/discord-members?${searchParams.toString()}`, {
+        headers: { Authorization: `Bearer ${authStore.token}` },
+        signal: abortController.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error('Impossible de récupérer les membres Discord');
+      }
+
+      const data = await response.json();
+      suggestions = data.members || [];
+      syncExactMatch(trimmed);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return;
+      }
+      console.error('Erreur chargement suggestions membres:', err);
+      suggestions = [];
+      error = 'Impossible de charger les suggestions';
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  function queueSearch(value: string): void {
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+    }
+
+    debounceTimer = setTimeout(() => {
+      void fetchSuggestions(value);
+    }, 220);
+  }
+
+  function handleInput(value: string): void {
+    query = value;
+
+    const extractedUserId = extractDiscordUserId(value);
+    if (extractedUserId) {
+      selectedId = extractedUserId;
+    }
+
+    queueSearch(value);
+  }
+
+  function selectSuggestion(member: DiscordMemberSuggestion): void {
+    query = `<@${member.id}>`;
+    selectedId = member.id;
+    selectedUsername = member.username;
+    suggestions = [];
+    error = '';
+  }
+</script>
+
+<div class={`relative ${className}`.trim()}>
+  <input
+    type="text"
+    value={query}
+    placeholder={placeholder}
+    oninput={(event) => handleInput((event.currentTarget as HTMLInputElement).value)}
+    class="w-full bg-[#1e1e2e]/60 border border-white/5 rounded-xl px-4 py-3 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#8a2be2]/50 focus:border-transparent transition-all duration-300"
+    {disabled}
+  />
+
+  {#if isLoading}
+    <p class="text-xs text-gray-500 mt-2 px-1">Recherche des membres...</p>
+  {/if}
+
+  {#if error}
+    <p class="text-xs text-red-400 mt-2 px-1">{error}</p>
+  {/if}
+
+  {#if suggestions.length > 0}
+    <div class="absolute z-50 w-full mt-2 bg-[#1e1e2e] border border-white/10 rounded-xl shadow-xl overflow-hidden backdrop-blur-xl">
+      <div class="max-h-60 overflow-y-auto p-2 space-y-1">
+        {#each suggestions as suggestion (suggestion.id)}
+          <button
+            type="button"
+            class="w-full text-left px-3 py-2 rounded-lg hover:bg-white/5 transition-colors flex items-center justify-between group"
+            onclick={() => selectSuggestion(suggestion)}
+            {disabled}
+          >
+            <span class="text-sm font-medium text-gray-200 group-hover:text-white transition-colors">
+              {suggestion.displayName || suggestion.username}
+            </span>
+            <span class="text-xs text-gray-500 group-hover:text-gray-400 transition-colors">
+              @{suggestion.username}
+            </span>
+          </button>
+        {/each}
+      </div>
+    </div>
+  {/if}
+</div>

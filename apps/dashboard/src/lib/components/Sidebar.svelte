@@ -7,8 +7,9 @@
     { name: "Vue d'ensemble", icon: "grid", href: "/" },
     { name: "Modules", icon: "sparkles", href: "/modules" },
     { name: "Contenu", icon: "newspaper", href: "/content" },
-    { name: "Sanctions", icon: "gavel", href: "/sanctions" },
+    { name: "Sanctions", icon: "alert-triangle", href: "/sanctions" },
     { name: "Règlement", icon: "text-bubble", href: "/regulation" },
+    { name: "Mon Profil", icon: "user", href: "/profile" },
     { name: "Analytics", icon: "pie", href: "/analytics" },
     { name: "Logs", icon: "menu", href: "/logs" },
   ];
@@ -29,6 +30,7 @@
   const secondaryItems = [
     { name: "Paramètres globaux", icon: "gears", href: "/settings" },
     { name: "Commandes", icon: "admin_panel_settings", href: "/command-access" },
+    { name: "Gestion du Personnel", icon: "sunrise", href: "/staff-management" },
     { name: "Journal d'activité", icon: "grades", href: "/activity" },
   ];
 

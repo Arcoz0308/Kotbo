@@ -9,6 +9,7 @@
     createRegulationArticle,
     deleteRegulationArticle,
     publishRegulation,
+    reorderRegulationArticles,
     updateRegulationSettings,
     updateRegulationArticle,
   } from '../lib/api';
@@ -38,9 +39,11 @@
   let draftTitle = $state('');
   let draftDescription = $state('');
   let draftEmoji = $state('');
-  let draftSortOrder = $state('0');
   let draftEnabled = $state(true);
   let selectedRegulationChannelId = $state('');
+  let draggingRuleId = $state<string | null>(null);
+  let dragOverRuleId = $state<string | null>(null);
+  let reordering = $state(false);
 
   const canManageSettings = $derived(!!dashboardStore.state.access?.canManageSettings);
   const regulationRules = $derived(
@@ -64,8 +67,126 @@
     draftTitle = '';
     draftDescription = '';
     draftEmoji = '';
-    draftSortOrder = `${regulationRules.length}`;
     draftEnabled = true;
+  }
+
+  function normalizeRuleOrder(rules: RegulationRule[]) {
+    return rules.map((rule, index) => ({
+      ...rule,
+      sortOrder: index,
+    }));
+  }
+
+  function moveRule(rules: RegulationRule[], sourceId: string, targetId: string, placeAfter: boolean) {
+    const nextRules = [...rules];
+    const sourceIndex = nextRules.findIndex((rule) => rule.id === sourceId);
+    if (sourceIndex === -1) return null;
+
+    const [movedRule] = nextRules.splice(sourceIndex, 1);
+    const targetIndex = nextRules.findIndex((rule) => rule.id === targetId);
+    if (targetIndex === -1) return null;
+
+    const insertAt = placeAfter ? targetIndex + 1 : targetIndex;
+    nextRules.splice(insertAt, 0, movedRule);
+    return normalizeRuleOrder(nextRules);
+  }
+
+  function handleRuleDragStart(event: DragEvent, ruleId: string) {
+    if (!canManageSettings) {
+      event.preventDefault();
+      return;
+    }
+
+    draggingRuleId = ruleId;
+    dragOverRuleId = ruleId;
+    event.dataTransfer?.setData('text/plain', ruleId);
+    event.dataTransfer?.setDragImage?.(event.currentTarget as Element, 24, 24);
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+    }
+  }
+
+  function handleRuleDragEnd() {
+    draggingRuleId = null;
+    dragOverRuleId = null;
+  }
+
+  function handleRuleDragOver(event: DragEvent, ruleId: string) {
+    if (!canManageSettings || !draggingRuleId) {
+      return;
+    }
+
+    event.preventDefault();
+    dragOverRuleId = ruleId;
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'move';
+    }
+  }
+
+  async function persistRuleOrder(nextRules: RegulationRule[]) {
+    const previousRules = dashboardStore.state.regulationRules || [];
+    dashboardStore.state.regulationRules = nextRules;
+    reordering = true;
+
+    try {
+      const ok = await reorderRegulationArticles(nextRules.map((rule) => rule.id));
+      if (!ok) {
+        dashboardStore.state.regulationRules = previousRules;
+        feedbackMessage = 'Impossible de réordonner les articles du règlement.';
+        feedbackIsError = true;
+        await dashboardStore.refresh();
+        return;
+      }
+
+      await refreshState('Ordre du règlement mis à jour.');
+    } finally {
+      reordering = false;
+    }
+  }
+
+  async function moveRuleByOffset(ruleId: string, offset: number) {
+    if (!canManageSettings || reordering) {
+      return;
+    }
+
+    const sortedRules = [...regulationRules];
+    const sourceIndex = sortedRules.findIndex((rule) => rule.id === ruleId);
+    if (sourceIndex === -1) {
+      return;
+    }
+
+    const targetIndex = sourceIndex + offset;
+    if (targetIndex < 0 || targetIndex >= sortedRules.length) {
+      return;
+    }
+
+    const [movedRule] = sortedRules.splice(sourceIndex, 1);
+    sortedRules.splice(targetIndex, 0, movedRule);
+
+    await persistRuleOrder(normalizeRuleOrder(sortedRules));
+  }
+
+  async function handleRuleDrop(event: DragEvent, targetRuleId: string) {
+    if (!canManageSettings || !draggingRuleId) {
+      handleRuleDragEnd();
+      return;
+    }
+
+    event.preventDefault();
+    const sourceRuleId = draggingRuleId;
+    const targetElement = event.currentTarget as HTMLElement | null;
+    const placeAfter = targetElement
+      ? event.clientY > targetElement.getBoundingClientRect().top + targetElement.getBoundingClientRect().height / 2
+      : false;
+    const nextRules = moveRule(regulationRules, sourceRuleId, targetRuleId, placeAfter);
+
+    handleRuleDragEnd();
+
+    if (!nextRules) {
+      return;
+    }
+
+    await persistRuleOrder(nextRules);
   }
 
   function openCreateModal() {
@@ -84,7 +205,6 @@
     draftTitle = rule.title;
     draftDescription = rule.description;
     draftEmoji = rule.emoji ?? '';
-    draftSortOrder = `${rule.sortOrder}`;
     draftEnabled = rule.enabled;
     modalOpen = true;
   }
@@ -122,7 +242,6 @@
     const title = normalizeText(draftTitle);
     const description = normalizeText(draftDescription);
     const emoji = normalizeText(draftEmoji);
-    const sortOrder = Number.parseInt(draftSortOrder, 10);
 
     if (!title || !description) {
       feedbackMessage = 'Le titre et la description sont obligatoires.';
@@ -136,7 +255,6 @@
         title,
         description,
         emoji: emoji || null,
-        sortOrder: Number.isFinite(sortOrder) ? sortOrder : regulationRules.length,
         enabled: draftEnabled,
       };
 
@@ -267,14 +385,14 @@
         <div class="flex flex-wrap items-center gap-2">
           <ActionButton
             onClick={openCreateModal}
-            disabled={!canManageSettings}
+            disabled={!canManageSettings || reordering}
             variant="primary"
             icon="➕"
             label="Ajouter un article"
           />
           <ActionButton
             onClick={handlePublishRegulation}
-            disabled={!canManageSettings || publishing || regulationRules.length === 0}
+            disabled={!canManageSettings || publishing || reordering || regulationRules.length === 0}
             variant="success"
             icon={dashboardStore.state.regulationMessageId ? '♻️' : '📣'}
             label={publishing ? 'Publication...' : dashboardStore.state.regulationMessageId ? 'Actualiser le message' : 'Publier le règlement'}
@@ -311,6 +429,7 @@
         <div class="rounded-2xl bg-slate-50 dark:bg-slate-800/40 p-4">
           <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Message publié</p>
           <p class="mt-2 text-sm font-semibold text-on-surface">{publicationStatusLabel}</p>
+          <p class="mt-2 text-xs text-on-surface-variant">L’ordre se gère automatiquement. Glisse les cartes pour réorganiser le règlement.</p>
         </div>
       </div>
 
@@ -337,7 +456,14 @@
       {:else}
         <div class="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
           {#each regulationRules as rule}
-            <article class="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-linear-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-950 p-4 shadow-sm">
+            <article
+              class="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-linear-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-950 p-4 shadow-sm transition-all {draggingRuleId === rule.id ? 'scale-[0.99] opacity-70' : ''} {dragOverRuleId === rule.id ? 'ring-2 ring-primary/35 border-primary/30' : ''} {canManageSettings ? 'cursor-grab active:cursor-grabbing' : ''}"
+              draggable={canManageSettings}
+              ondragstart={(event) => handleRuleDragStart(event, rule.id)}
+              ondragend={handleRuleDragEnd}
+              ondragover={(event) => handleRuleDragOver(event, rule.id)}
+              ondrop={(event) => handleRuleDrop(event, rule.id)}
+            >
               <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div class="space-y-2">
                   <div class="flex flex-wrap items-center gap-2">
@@ -345,8 +471,13 @@
                       {rule.enabled ? 'Activé' : 'Désactivé'}
                     </span>
                     <span class="inline-flex items-center rounded-full bg-primary/10 text-primary px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em]">
-                      Ordre {rule.sortOrder}
+                      Ordre #{rule.sortOrder + 1}
                     </span>
+                    {#if canManageSettings}
+                      <span class="inline-flex items-center rounded-full border border-outline-variant/20 bg-surface-container-low px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/70">
+                        Faire glisser
+                      </span>
+                    {/if}
                   </div>
                   <h4 class="text-lg font-black text-on-surface">{rule.emoji ? `${rule.emoji} ` : ''}{rule.title}</h4>
                   <p class="text-sm leading-relaxed text-on-surface-variant whitespace-pre-wrap">{rule.description}</p>
@@ -354,6 +485,22 @@
 
                 {#if canManageSettings}
                   <div class="flex flex-wrap items-center gap-2 lg:justify-end">
+                    <ActionButton
+                      onClick={() => moveRuleByOffset(rule.id, -1)}
+                      variant="muted"
+                      icon="↑"
+                      label="Monter"
+                      disabled={reordering || rule.sortOrder === 0}
+                      className="md:hidden"
+                    />
+                    <ActionButton
+                      onClick={() => moveRuleByOffset(rule.id, 1)}
+                      variant="muted"
+                      icon="↓"
+                      label="Descendre"
+                      disabled={reordering || rule.sortOrder === regulationRules.length - 1}
+                      className="md:hidden"
+                    />
                     <ActionButton onClick={() => openEditModal(rule)} variant="neutral" icon="✏️" label="Modifier" />
                     <ActionButton onClick={() => openDeleteModal(rule)} variant="danger" icon="🗑️" label="Supprimer" />
                   </div>
@@ -390,10 +537,6 @@
         <div>
           <label for="regulation-emoji" class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Emoji</label>
           <FormInput id="regulation-emoji" type="text" bind:value={draftEmoji} className="mt-1 w-full rounded-xl px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none text-sm" placeholder="Ex: 📌 ou <:emoji:123>" />
-        </div>
-        <div>
-          <label for="regulation-order" class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Ordre d’affichage</label>
-          <input id="regulation-order" type="number" bind:value={draftSortOrder} min="0" step="1" class="mt-1 w-full rounded-xl px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none text-sm" />
         </div>
         <div class="flex items-end">
           <label class="inline-flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-3 w-full cursor-pointer select-none">

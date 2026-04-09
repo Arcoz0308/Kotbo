@@ -40,7 +40,11 @@ async function authorizedFetch(url, options = {}) {
 }
 
 function getGuildId(guildId) {
-  const requestedGuildId = guildId || authStore.selectedGuildId;
+  if (guildId) {
+    return guildId;
+  }
+
+  const requestedGuildId = authStore.selectedGuildId;
   if (!requestedGuildId) return null;
 
   if (authStore.guilds.length === 0) {
@@ -52,7 +56,7 @@ function getGuildId(guildId) {
     return requestedGuildId;
   }
 
-  return authStore.guilds[0]?.id ?? requestedGuildId;
+  return authStore.guilds[0]?.id ?? null;
 }
 
 async function dashboardMutation(path, {
@@ -300,6 +304,15 @@ export async function updateRegulationArticle(articleId, article, guildId = auth
   });
 }
 
+export async function reorderRegulationArticles(articleIds, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/regulation/articles/reorder', {
+    method: 'PATCH',
+    payload: { articleIds },
+    guildId,
+    errorContext: 'API Error (Reorder Regulation Articles):'
+  });
+}
+
 export async function deleteRegulationArticle(articleId, guildId = authStore.selectedGuildId) {
   return dashboardMutation(`/regulation/articles/${articleId}`, {
     method: 'DELETE',
@@ -339,6 +352,31 @@ export async function createDailyAlgoProblem(problem, guildId = authStore.select
     payload: problem,
     guildId,
     errorContext: 'API Error (Create Daily Algo Problem):'
+  });
+}
+
+export async function fetchTodayDailyAlgoSubmissions(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/daily-algo-submissions/today', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Daily Algo Submissions):'
+  });
+}
+
+export async function fetchDailyAlgoSubmissionHistory(limit = 7, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/daily-algo-submissions/history?limit=${Math.max(1, Math.trunc(limit || 1))}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Daily Algo Submission History):'
+  });
+}
+
+export async function reviewDailyAlgoSubmission(submissionId, review, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/daily-algo-submissions/${submissionId}`, {
+    method: 'PATCH',
+    payload: review,
+    guildId,
+    errorContext: 'API Error (Review Daily Algo Submission):'
   });
 }
 
