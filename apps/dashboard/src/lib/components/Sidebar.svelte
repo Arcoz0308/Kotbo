@@ -11,6 +11,7 @@
     { name: "Règlement", icon: "text-bubble", href: "/regulation" },
     { name: "Mon Profil", icon: "user", href: "/profile" },
     { name: "Analytics", icon: "pie", href: "/analytics" },
+    { name: "Procédures", icon: "book", href: "/procedures" },
     { name: "Logs", icon: "menu", href: "/logs" },
   ];
 

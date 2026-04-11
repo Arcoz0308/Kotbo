@@ -15,7 +15,8 @@
     "alert-triangle": "AlertTriangle",
     "gavel": "Grid",
     "policy": "Grid",
-    "admin_panel_settings": "Grid"
+    "admin_panel_settings": "Grid",
+    "book": "Grid"
   };
 
   function toPapiconsName(value) {

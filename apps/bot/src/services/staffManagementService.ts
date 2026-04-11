@@ -50,8 +50,16 @@ export const addStaffMember = async (
   displayName?: string,
   avatarUrl?: string
 ) => {
-  return prisma.staffMember.create({
-    data: {
+  return prisma.staffMember.upsert({
+    where: { guildId_userId: { guildId, userId } },
+    update: {
+      grade,
+      userTag,
+      username,
+      displayName,
+      avatarUrl,
+    },
+    create: {
       guildId,
       userId,
       grade,
@@ -62,6 +70,7 @@ export const addStaffMember = async (
     },
   });
 };
+
 
 export const updateStaffGrade = async (
   guildId: string,
@@ -112,7 +121,11 @@ export const getStaffMemberStats = async (guildId: string, userId: string) => {
     }),
     prisma.testingPeriod.findMany({
       where: { guildId, staffUserId: resolvedStaffMemberId },
-      include: { reports: true },
+      include: { 
+        reports: { include: { author: true } },
+        mentor: true,
+        staffMember: true
+      },
     }),
   ]);
 
@@ -201,7 +214,9 @@ export const getActiveBlacklist = async (guildId: string, staffUserId: string) =
 export const createTestingPeriod = async (
   guildId: string,
   staffUserId: string,
-  mentorId?: string
+  mentorId?: string,
+  plannedDurationDays: number = 14,
+  targetGrade?: string
 ) => {
   const resolvedStaffMemberId = await resolveStaffMemberId(guildId, staffUserId);
   if (!resolvedStaffMemberId) {
@@ -215,6 +230,8 @@ export const createTestingPeriod = async (
       guildId,
       staffUserId: resolvedStaffMemberId,
       mentorId: resolvedMentorId,
+      plannedDurationDays,
+      targetGrade,
     },
   });
 };

@@ -41,6 +41,8 @@ import * as profileCmd from './commands/profile.js';
 import * as profilCmd from './commands/profil.js';
 import * as sanctionCmd from './commands/sanction.js';
 import * as casierCmd from './commands/casier.js';
+import * as absentCmd from './commands/absent.js';
+import * as meetingCmd from './commands/meeting.js';
 import prisma from './utils/db.js';
 import {
   evaluateCommandRestriction,
@@ -79,7 +81,7 @@ type SlashCommand = {
 };
 
 const commands = new Collection<string, SlashCommand>();
-[setupCmd, configCmd, feedCmd, newsCmd, newsRecoveryCmd, pingCmd, infoCmd, youtubeCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd, postCmd, dailyAlgoCmd, profileCmd, profilCmd, sanctionCmd, casierCmd].forEach((cmd) => {
+[setupCmd, configCmd, feedCmd, newsCmd, newsRecoveryCmd, pingCmd, infoCmd, youtubeCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd, postCmd, dailyAlgoCmd, profileCmd, profilCmd, sanctionCmd, casierCmd, absentCmd, meetingCmd].forEach((cmd) => {
   commands.set(cmd.data.name, cmd as SlashCommand);
 });
 

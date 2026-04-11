@@ -50,7 +50,7 @@ class AuthStore {
             });
             if (res.ok) {
                 const data = await res.json();
-                this.guilds = data.guilds;
+                this.guilds = data.guilds.filter(g => g.botPresent);
                 if (!this.selectedGuildId && this.guilds.length > 0) {
                     this.setGuild(this.guilds[0].id);
                 } else if (this.selectedGuildId && !this.guilds.some((guild) => guild.id === this.selectedGuildId) && this.guilds.length > 0) {

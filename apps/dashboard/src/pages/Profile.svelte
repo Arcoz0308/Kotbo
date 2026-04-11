@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { API_BASE_URL } from '../lib/api';
-  import type { APIKey, StaffMember } from '@prisma/client';
+  import type { APIKey, StaffMember } from '../lib/types';
 
   let user: any = null;
   let staffMember: StaffMember | null = null;
@@ -197,7 +197,7 @@
     <div class="api-keys-section">
       <div class="section-header">
         <h3>Mes Clés API</h3>
-        <button on:click={() => showNewKeyForm = !showNewKeyForm} class="btn-primary">
+        <button onclick={() => showNewKeyForm = !showNewKeyForm} class="btn-primary">
           {showNewKeyForm ? 'Annuler' : '+ Nouvelle clé'}
         </button>
       </div>
@@ -210,7 +210,7 @@
             bind:value={newKeyName}
             class="form-input"
           />
-          <button on:click={createNewAPIKey} class="btn-success">Créer la clé</button>
+          <button onclick={createNewAPIKey} class="btn-success">Créer la clé</button>
         </div>
       {/if}
 
@@ -230,7 +230,7 @@
                   <small>Dernière utilisation: {new Date(key.lastUsedAt).toLocaleDateString('fr')}</small>
                 {/if}
               </div>
-              <button on:click={() => deleteAPIKey(key.id)} class="btn-danger">Supprimer</button>
+              <button onclick={() => deleteAPIKey(key.id)} class="btn-danger">Supprimer</button>
             </div>
           {/each}
         </div>

@@ -15,6 +15,7 @@
     query = $bindable(''),
     selectedId = $bindable(''),
     selectedUsername = $bindable(''),
+    selectedAvatarUrl = $bindable(''),
     placeholder = '@mention, pseudo ou ID Discord',
     selectedIdPlaceholder = 'ID Discord (auto-rempli)',
     autoSelectOnExactMatch = true,
@@ -25,6 +26,7 @@
     query?: string;
     selectedId?: string;
     selectedUsername?: string;
+    selectedAvatarUrl?: string;
     placeholder?: string;
     selectedIdPlaceholder?: string;
     autoSelectOnExactMatch?: boolean;
@@ -80,6 +82,7 @@
     if (match) {
       selectedId = match.id;
       selectedUsername = match.username;
+      selectedAvatarUrl = match.avatarUrl ?? '';
     }
   }
 
@@ -150,6 +153,7 @@
     query = `<@${member.id}>`;
     selectedId = member.id;
     selectedUsername = member.username;
+    selectedAvatarUrl = member.avatarUrl ?? '';
     suggestions = [];
     error = '';
   }
@@ -179,16 +183,29 @@
         {#each suggestions as suggestion (suggestion.id)}
           <button
             type="button"
-            class="w-full text-left px-3 py-2 rounded-lg hover:bg-white/5 transition-colors flex items-center justify-between group"
+            class="w-full text-left px-3 py-2 rounded-lg hover:bg-white/5 transition-colors flex items-center gap-3 group"
             onclick={() => selectSuggestion(suggestion)}
             {disabled}
           >
-            <span class="text-sm font-medium text-gray-200 group-hover:text-white transition-colors">
-              {suggestion.displayName || suggestion.username}
-            </span>
-            <span class="text-xs text-gray-500 group-hover:text-gray-400 transition-colors">
-              @{suggestion.username}
-            </span>
+            <div class="h-8 w-8 rounded-full overflow-hidden bg-white/5 shrink-0 border border-white/10 group-hover:border-white/20 transition-colors">
+              {#if suggestion.avatarUrl}
+                <img src={suggestion.avatarUrl} alt="" class="h-full w-full object-cover" />
+              {:else}
+                <div class="h-full w-full flex items-center justify-center text-gray-500">
+                  <span class="material-symbols-outlined text-sm">person</span>
+                </div>
+              {/if}
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-medium text-gray-200 group-hover:text-white transition-colors truncate">
+                  {suggestion.displayName || suggestion.username}
+                </span>
+                <span class="text-[10px] text-gray-500 group-hover:text-gray-400 transition-colors shrink-0 ml-2">
+                  @{suggestion.username}
+                </span>
+              </div>
+            </div>
           </button>
         {/each}
       </div>

@@ -1,7 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { API_BASE_URL } from '../lib/api';
+  import { API_BASE_URL, fetchManagerNotes, addManagerNote } from '../lib/api';
+  import { authStore } from '../lib/stores/auth.svelte';
   import { router } from 'tinro';
+  import Papicon from '../lib/components/Papicon.svelte';
+  import type { StaffManagerNote } from '../lib/types';
 
   interface Props {
     userId: string;
@@ -9,8 +12,15 @@
   let { userId }: Props = $props();
 
   let profile: any = $state(null);
+  let notes = $state<StaffManagerNote[]>([]);
   let loading = $state(true);
   let error = $state('');
+  let newNote = $state('');
+  let isSavingNote = $state(false);
+
+  const isAdmin = $derived(
+    authStore.guilds.find((g) => g.id === authStore.selectedGuildId)?.accessLevel === 'admin'
+  );
 
   onMount(async () => {
     try {
@@ -20,12 +30,30 @@
         throw new Error('Erreur lors de la récupération du profil');
       }
       profile = await res.json();
+      
+      if (isAdmin) {
+        notes = await fetchManagerNotes(userId);
+      }
     } catch (err: any) {
       error = err.message;
     } finally {
       loading = false;
     }
   });
+
+  async function handleAddNote() {
+    if (!newNote.trim()) return;
+    isSavingNote = true;
+    try {
+      await addManagerNote(userId, newNote);
+      newNote = '';
+      notes = await fetchManagerNotes(userId);
+    } catch (err) {
+      alert('Erreur lors de l\'ajout de la note');
+    } finally {
+      isSavingNote = false;
+    }
+  }
 
   function getTierColor(tier: string) {
     switch (tier) {
@@ -103,8 +131,8 @@
                     {#each profile.recentAlgos as algo}
                         <div class="algo-card">
                             <div class="algo-header">
-                                <span class="difficulty {algo.run.problem.difficulty.toLowerCase()}"></span>
-                                <span class="title">{algo.run.problem.title}</span>
+                                <span class="difficulty {algo.difficulty.toLowerCase()}"></span>
+                                <span class="title">{algo.problemTitle}</span>
                             </div>
                             <div class="algo-footer">
                                 <span>Note: {algo.scoreFinal}/5</span>
@@ -112,6 +140,40 @@
                             </div>
                         </div>
                     {/each}
+                </div>
+            </div>
+        {/if}
+
+        {#if isAdmin}
+            <div class="manager-notes-section">
+                <div class="section-header">
+                    <Papicon icon="lock" size={16} />
+                    <h3>Notes de Management (Privé Admin)</h3>
+                </div>
+                
+                <div class="notes-list">
+                    {#each notes as note}
+                        <div class="note-card">
+                            <div class="note-meta">
+                                <span class="author">Par {note.author?.displayName || 'Admin'}</span>
+                                <span class="date">{new Date(note.createdAt).toLocaleDateString('fr')}</span>
+                            </div>
+                            <p class="note-content">{note.content}</p>
+                        </div>
+                    {:else}
+                        <p class="no-notes">Aucune note pour le moment.</p>
+                    {/each}
+                </div>
+
+                <div class="add-note-box">
+                    <textarea 
+                        bind:value={newNote} 
+                        placeholder="Ajouter une note de suivi sur ce staff..."
+                        rows="3"
+                    ></textarea>
+                    <button onclick={handleAddNote} disabled={isSavingNote}>
+                        {isSavingNote ? 'Enregistrement...' : 'Ajouter la note'}
+                    </button>
                 </div>
             </div>
         {/if}
@@ -127,12 +189,13 @@
   .public-profile {
     display: flex;
     justify-content: center;
-    align-items: center;
+    align-items: flex-start;
     min-height: 100vh;
-    background: radial-gradient(circle at top right, #161b25 0%, #0f1219 100%);
-    padding: 1rem;
+    background: radial-gradient(circle at top right, #1a222e 0%, #0f1219 100%);
+    padding: 6rem 1rem; /* Even more top padding to avoid any browser UI overlap */
     font-family: 'Inter', sans-serif;
     color: #ffffff;
+    overflow-y: auto;
   }
 
   .status-box {
@@ -146,34 +209,39 @@
   .profile-card {
     width: 100%;
     max-width: 600px;
-    background: #11141d;
+    background: rgba(17, 20, 29, 0.8);
+    backdrop-filter: blur(20px);
     border-radius: 24px;
     overflow: hidden;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
   }
 
   .banner {
-    height: 120px;
+    height: 180px; /* Taller banner for more "breath" at the top */
     position: relative;
   }
 
   .badge-overlay {
     position: absolute;
-    top: 20px;
-    right: 20px;
-    background: rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(10px);
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 0.7rem;
-    font-weight: 900;
-    letter-spacing: 1px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    top: 32px; /* Moved further from top edge */
+    right: 32px; /* Moved further from right edge */
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(12px);
+    padding: 6px 14px;
+    border-radius: 12px;
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.9);
+    text-transform: uppercase;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    z-index: 10;
   }
 
   .header {
-    margin-top: -50px;
+    margin-top: -60px; /* Slightly more overlap for larger banner */
     padding: 0 2rem;
     display: flex;
     flex-direction: column;
@@ -242,18 +310,21 @@
 
   .stat-item {
     background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(8px);
     padding: 1.5rem;
-    border-radius: 16px;
+    border-radius: 20px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    transition: transform 0.2s;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .stat-item:hover {
-    transform: translateY(-5px);
-    background: rgba(255, 255, 255, 0.05);
+    transform: translateY(-8px);
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
   }
 
   .stat-item .value {
@@ -345,5 +416,127 @@
   @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+  }
+
+  .manager-notes-section {
+    padding: 2rem;
+    background: rgba(255, 69, 58, 0.03);
+    border-top: 1px solid rgba(255, 69, 58, 0.1);
+    border-bottom: 1px solid rgba(255, 69, 58, 0.1);
+  }
+
+  .section-header {
+    display: flex;
+    items-center: center;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    color: #ff453a;
+  }
+
+  .section-header h3 {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #ff453a;
+  }
+
+  .notes-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .note-card {
+    background: rgba(255, 255, 255, 0.02);
+    backdrop-filter: blur(4px);
+    padding: 1.25rem;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    transition: background 0.2s;
+  }
+
+  .note-card:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .note-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .note-meta .author {
+    font-weight: 700;
+    color: #ff453a;
+  }
+
+  .note-meta .date {
+    color: #8b949e;
+  }
+
+  .note-content {
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: #e6edf3;
+    margin: 0;
+    white-space: pre-wrap;
+  }
+
+  .no-notes {
+    text-align: center;
+    padding: 1rem;
+    font-size: 0.8rem;
+    color: #8b949e;
+    font-style: italic;
+  }
+
+  .add-note-box {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+  }
+
+  .add-note-box textarea {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 1rem;
+    color: white;
+    font-family: inherit;
+    font-size: 0.85rem;
+    outline: none;
+    resize: none;
+    transition: border-color 0.2s;
+  }
+
+  .add-note-box textarea:focus {
+    border-color: #ff453a;
+  }
+
+  .add-note-box button {
+    align-self: flex-end;
+    background: #ff453a;
+    color: white;
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+
+  .add-note-box button:hover {
+    opacity: 0.9;
+  }
+
+  .add-note-box button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 </style>

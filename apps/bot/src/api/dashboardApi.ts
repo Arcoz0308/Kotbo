@@ -53,6 +53,25 @@ import {
   verifyAPIKey,
   recordStaffActivity,
 } from '../services/staffManagementService.js';
+import {
+  getAbsences,
+  createAbsence,
+  updateAbsenceStatus,
+  getMeetings,
+  createMeeting,
+  checkInMeeting,
+  getManagerNotes,
+  createManagerNote,
+  deleteManagerNote,
+  getPolls,
+  createPoll,
+  castPollVote,
+  getProcedures,
+  upsertProcedure,
+  deleteProcedure,
+  markProcedureAsRead,
+  getStaffAlertsAndProgression
+} from '../services/staffLeadershipService.js';
 
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
@@ -1535,7 +1554,7 @@ export const startDashboardApi = (client: Client) => {
           // For now, we fetch from the first common guild or a global aggregation
           const guilds = await prisma.guild.findMany({
             where: { dailyAlgoEnabled: true },
-            select: { id: true, name: true }
+            select: { id: true }
           });
 
           let algoStats = null;
@@ -3638,6 +3657,41 @@ export const startDashboardApi = (client: Client) => {
               // Créer une période de test initiale
               await createTestingPeriod(guildId, body.userId);
 
+              // Synchronisation des rôles Discord
+              try {
+                const discordGuild = client.guilds.cache.get(guildId);
+                if (discordGuild) {
+                  const discordMember = await discordGuild.members.fetch(body.userId).catch(() => null);
+                  if (discordMember) {
+                    const rolesToAssign: string[] = [];
+                    
+                    // Rôle du grade choisi
+                    const staffRoles = await getStaffRoles(guildId);
+                    const gradeRole = staffRoles.find(r => r.name === body.grade);
+                    if (gradeRole?.discordRoleId) {
+                      rolesToAssign.push(gradeRole.discordRoleId);
+                    }
+
+                    // Rôles de base et de test configurés sur la guilde
+                    const guildConfig = await prisma.guild.findUnique({
+                      where: { id: guildId },
+                      select: { baseStaffRoleId: true, testStaffRoleId: true }
+                    });
+
+                    if (guildConfig?.baseStaffRoleId) rolesToAssign.push(guildConfig.baseStaffRoleId);
+                    if (guildConfig?.testStaffRoleId) rolesToAssign.push(guildConfig.testStaffRoleId);
+
+                    if (rolesToAssign.length > 0) {
+                      await discordMember.roles.add(rolesToAssign).catch(err => 
+                        logger.error('StaffAPI', `Failed to assign initial roles to ${body.userId}:`, err)
+                      );
+                    }
+                  }
+                }
+              } catch (roleErr) {
+                logger.error('StaffAPI', 'Error syncing Discord roles during onboarding:', roleErr);
+              }
+
               await pushAudit(guildId, {
                 user: user.username ?? `User${user.userId}`,
                 action: 'Ajout membre staff',
@@ -3679,7 +3733,37 @@ export const startDashboardApi = (client: Client) => {
 
             try {
               if (body?.grade) {
+                const existingStaff = await getStaffMember(guildId, staffUserId);
+                const oldGrade = existingStaff?.grade;
+
                 await updateStaffGrade(guildId, staffUserId, body.grade as string);
+
+                // Synchronisation des rôles Discord
+                try {
+                  const discordGuild = client.guilds.cache.get(guildId);
+                  if (discordGuild) {
+                    const discordMember = await discordGuild.members.fetch(staffUserId).catch(() => null);
+                    if (discordMember) {
+                      const staffRoles = await getStaffRoles(guildId);
+                      const oldRole = staffRoles.find(r => r.name === oldGrade);
+                      const newRole = staffRoles.find(r => r.name === body.grade);
+
+                      if (oldRole?.discordRoleId && discordMember.roles.cache.has(oldRole.discordRoleId)) {
+                        if (oldRole.discordRoleId !== newRole?.discordRoleId) {
+                          await discordMember.roles.remove(oldRole.discordRoleId).catch(() => null);
+                        }
+                      }
+
+                      if (newRole?.discordRoleId) {
+                        await discordMember.roles.add(newRole.discordRoleId).catch(err => 
+                          logger.error('StaffAPI', `Failed to add new role ${newRole.discordRoleId} to ${staffUserId}:`, err)
+                        );
+                      }
+                    }
+                  }
+                } catch (roleErr) {
+                  logger.error('StaffAPI', 'Error syncing Discord roles during grade change:', roleErr);
+                }
 
                 await pushAudit(guildId, {
                   user: user.username ?? `User${user.userId}`,
@@ -3687,13 +3771,44 @@ export const startDashboardApi = (client: Client) => {
                   context: getGuildName(client, guildId),
                   module: 'Staff Management',
                   eventType: 'Manuel',
-                  details: `Grade changé pour ${staffUserId}: ${body.grade}`,
+                  details: `Grade changé pour ${staffUserId}: ${oldGrade} -> ${body.grade}`,
                   channelId: null
                 });
               }
 
               if (body?.action === 'remove') {
+                const existingStaff = await getStaffMember(guildId, staffUserId);
+                const currentGrade = existingStaff?.grade;
+
                 await removeStaffMember(guildId, staffUserId);
+
+                // Nettoyage des rôles Discord
+                try {
+                  const discordGuild = client.guilds.cache.get(guildId);
+                  if (discordGuild) {
+                    const discordMember = await discordGuild.members.fetch(staffUserId).catch(() => null);
+                    if (discordMember) {
+                      const staffRoles = await getStaffRoles(guildId);
+                      const currentRole = staffRoles.find(r => r.name === currentGrade);
+                      
+                      const rolesToRemove: string[] = [];
+                      if (currentRole?.discordRoleId) rolesToRemove.push(currentRole.discordRoleId);
+
+                      const guildConfig = await prisma.guild.findUnique({
+                        where: { id: guildId },
+                        select: { baseStaffRoleId: true, testStaffRoleId: true }
+                      });
+                      if (guildConfig?.baseStaffRoleId) rolesToRemove.push(guildConfig.baseStaffRoleId);
+                      if (guildConfig?.testStaffRoleId) rolesToRemove.push(guildConfig.testStaffRoleId);
+
+                      if (rolesToRemove.length > 0) {
+                        await discordMember.roles.remove(rolesToRemove).catch(() => null);
+                      }
+                    }
+                  }
+                } catch (roleErr) {
+                  logger.error('StaffAPI', 'Error removing Discord roles after staff removal:', roleErr);
+                }
 
                 await pushAudit(guildId, {
                   user: user.username ?? `User${user.userId}`,
@@ -3995,12 +4110,25 @@ export const startDashboardApi = (client: Client) => {
               const periods = await prisma.testingPeriod.findMany({
                 where: { guildId },
                 orderBy: { createdAt: 'desc' },
-                include: { reports: true },
+                include: { 
+                  reports: { 
+                    include: { author: true },
+                    orderBy: { createdAt: 'desc' }
+                  },
+                  mentor: true,
+                  staffMember: {
+                    include: {
+                      activities: {
+                        orderBy: { activityDate: 'desc' },
+                        take: 14 
+                      }
+                    }
+                  }
+                },
               });
-
               json(res, 200, { periods });
             } catch (err) {
-              logger.error('StaffAPI', 'Error getting testing periods:', err);
+              logger.error('StaffAPI', 'Error listing testing periods:', err);
               json(res, 500, { error: 'Erreur lors de la récupération des périodes de test' });
             }
             return;
@@ -4011,6 +4139,8 @@ export const startDashboardApi = (client: Client) => {
             const body = await readJsonBody<{
               staffUserId: string;
               mentorId?: string;
+              plannedDurationDays?: number;
+              targetGrade?: string;
             }>(req);
 
             if (!body?.staffUserId) {
@@ -4019,7 +4149,13 @@ export const startDashboardApi = (client: Client) => {
             }
 
             try {
-              const period = await createTestingPeriod(guildId, body.staffUserId, body.mentorId);
+              const period = await createTestingPeriod(
+                guildId, 
+                body.staffUserId, 
+                body.mentorId,
+                body.plannedDurationDays,
+                body.targetGrade
+              );
               json(res, 201, { period });
             } catch (err) {
               logger.error('StaffAPI', 'Error creating testing period:', err);
@@ -4058,6 +4194,319 @@ export const startDashboardApi = (client: Client) => {
             } catch (err) {
               logger.error('StaffAPI', 'Error ending testing period:', err);
               json(res, 500, { error: 'Erreur lors de la fin de la période de test' });
+            }
+            return;
+          }
+        }
+
+        // HR / LEADERSHIP METRICS
+        if (parts[4] === 'leadership' && req.method === 'GET') {
+          const guildId = parts[3] ?? null;
+          if (!guildId) {
+            json(res, 400, { error: 'guildId manquant' });
+            return;
+          }
+          const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+          if (accessLevel.level !== 'admin') {
+            json(res, 403, { error: 'Accès admin requis' });
+            return;
+          }
+          try {
+            const metrics = await getStaffAlertsAndProgression(guildId);
+            json(res, 200, { metrics });
+          } catch (err) {
+            logger.error('API', 'Error metrics:', err);
+            json(res, 500, { error: 'Erreur interne' });
+          }
+          return;
+        }
+
+        // ABSENCES
+        if (parts[4] === 'absences') {
+          const guildId = parts[3] ?? null;
+          if (!guildId) {
+            json(res, 400, { error: 'guildId manquant' });
+            return;
+          }
+          if (req.method === 'GET' && !parts[5]) {
+            try {
+              const absences = await getAbsences(guildId);
+              json(res, 200, { absences });
+            } catch (err) {
+              json(res, 500, { error: 'Erreur' });
+            }
+            return;
+          }
+          if (req.method === 'PATCH' && parts[5]) {
+            const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+            if (accessLevel.level !== 'admin') {
+              json(res, 403, { error: 'Admin requis' });
+              return;
+            }
+            const body = await readJsonBody<{ status: 'APPROVED' | 'REJECTED'; note?: string }>(req);
+            if (body && body.status) {
+              try {
+                const absence = await updateAbsenceStatus(parts[5], body.status, user.userId, body.note);
+                json(res, 200, { absence });
+              } catch (err) {
+                json(res, 500, { error: 'Erreur' });
+              }
+            } else {
+              json(res, 400, { error: 'missing status' });
+            }
+            return;
+          }
+        }
+
+        // MEETINGS
+        if (parts[4] === 'meetings') {
+          const guildId = parts[3] ?? null;
+          if (!guildId) {
+            json(res, 400, { error: 'guildId manquant' });
+            return;
+          }
+          if (req.method === 'GET') {
+            try {
+              const meetings = await getMeetings(guildId);
+              json(res, 200, { meetings });
+            } catch (err) {
+              json(res, 500, { error: 'Erreur' });
+            }
+            return;
+          }
+          if (req.method === 'POST' && !parts[5]) {
+            const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+            if (accessLevel.level !== 'admin') {
+              json(res, 403, { error: 'Admin requis' });
+              return;
+            }
+            const body = await readJsonBody<{ title: string; description: string; scheduledAt: string }>(req);
+            if (body && body.title && body.scheduledAt) {
+              try {
+                const meeting = await createMeeting(guildId, user.userId, body.title, body.description || '', new Date(body.scheduledAt));
+                json(res, 201, { meeting });
+              } catch (err) {
+                json(res, 500, { error: 'Erreur' });
+              }
+            }
+            return;
+          }
+        }
+
+        // POLLS
+        if (parts[4] === 'polls') {
+          const guildId = parts[3] ?? null;
+          if (!guildId) {
+            json(res, 400, { error: 'guildId manquant' });
+            return;
+          }
+          if (req.method === 'GET') {
+            try {
+              const polls = await getPolls(guildId);
+              json(res, 200, { polls });
+            } catch (err) {
+              json(res, 500, { error: 'Erreur' });
+            }
+            return;
+          }
+          if (req.method === 'POST' && !parts[5]) {
+            const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+            if (accessLevel.level !== 'admin') {
+              json(res, 403, { error: 'Admin requis' });
+              return;
+            }
+            const body = await readJsonBody<{ title: string; description: string; options: string[]; closesAt: string }>(req);
+            if (body && body.title) {
+              try {
+                const poll = await createPoll(guildId, user.userId, body.title, body.description || '', body.options || [], true, body.closesAt ? new Date(body.closesAt) : undefined);
+                json(res, 201, { poll });
+              } catch (err) {
+                json(res, 500, { error: 'Erreur' });
+              }
+            }
+            return;
+          }
+
+          // POST /api/dashboard/guilds/:guildId/polls/vote - Cast vote
+          if (parts[5] === 'vote' && req.method === 'POST') {
+            try {
+              const body = await readJsonBody<{ pollId: string; optionId: string }>(req);
+              if (!body?.pollId || !body?.optionId) {
+                json(res, 400, { error: 'pollId et optionId requis' });
+                return;
+              }
+
+              // Récupérer le grade du membre pour le poids du vote
+              const staff = await getStaffMember(guildId, user.userId);
+              if (!staff) {
+                json(res, 403, { error: 'Seulement le staff peut participer aux votes' });
+                return;
+              }
+
+              const roles = await getStaffRoles(guildId);
+              const userRole = roles.find(r => r.name === staff.grade);
+              const weight = userRole?.level ?? 1.0;
+
+              await castPollVote(body.pollId, user.userId, body.optionId, weight);
+              json(res, 200, { ok: true });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error casting vote:', err);
+              json(res, 500, { error: 'Erreur lors du vote' });
+            }
+            return;
+          }
+
+          // PATCH /api/dashboard/guilds/:guildId/polls/:pollId/close - Close poll
+          if (parts[5] && req.method === 'PATCH') {
+            const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+            if (accessLevel.level !== 'admin') {
+              json(res, 403, { error: 'Admin requis' });
+              return;
+            }
+
+            try {
+              await prisma.staffPoll.update({
+                where: { id: parts[5] },
+                data: { closesAt: new Date() }
+              });
+              json(res, 200, { ok: true });
+            } catch (err) {
+              json(res, 500, { error: 'Erreur clôture' });
+            }
+            return;
+          }
+        }
+
+        // PROCEDURES
+        if (parts[4] === 'procedures') {
+          const guildId = parts[3] ?? null;
+          if (!guildId) {
+            json(res, 400, { error: 'guildId manquant' });
+            return;
+          }
+          if (req.method === 'GET') {
+            try {
+              const procedures = await getProcedures(guildId);
+              json(res, 200, { procedures });
+            } catch (err) {
+              json(res, 500, { error: 'Erreur' });
+            }
+            return;
+          }
+          if (req.method === 'POST' && !parts[5]) {
+             const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+             if (accessLevel.level !== 'admin') {
+               json(res, 403, { error: 'Admin requis' });
+               return;
+             }
+             const body = await readJsonBody<{ title: string; content: string; sortOrder: number }>(req);
+             if (body && body.title) {
+                try {
+                  const procedure = await upsertProcedure(guildId, null, body.title, body.content || '', body.sortOrder || 0);
+                  json(res, 201, { procedure });
+                } catch (err) {
+                  json(res, 500, { error: 'Erreur' });
+                }
+             }
+             return;
+          }
+          if (req.method === 'PATCH' && parts[5]) {
+            const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+            if (accessLevel.level !== 'admin') {
+              json(res, 403, { error: 'Admin requis' });
+              return;
+            }
+            const body = await readJsonBody<{ title: string; content: string; sortOrder: number }>(req);
+            if (body) {
+                try {
+                  const procedure = await upsertProcedure(guildId, parts[5], body.title, body.content, body.sortOrder);
+                  json(res, 200, { procedure });
+                } catch (err) {
+                  json(res, 500, { error: 'Erreur' });
+                }
+            }
+            return;
+          }
+          if (req.method === 'DELETE' && parts[5]) {
+            const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+            if (accessLevel.level !== 'admin') {
+              json(res, 403, { error: 'Admin requis' });
+              return;
+            }
+            try {
+              await deleteProcedure(parts[5]);
+              json(res, 200, { success: true });
+            } catch (err) {
+              json(res, 500, { error: 'Erreur' });
+            }
+            return;
+          }
+          if (req.method === 'POST' && parts[5] === 'read') {
+             try {
+                const body = await readJsonBody<{ procedureId: string }>(req);
+                if (body?.procedureId) {
+                  await markProcedureAsRead(body.procedureId, user.userId);
+                  json(res, 200, { success: true });
+                } else {
+                  json(res, 400, { error: 'missing id' });
+                }
+             } catch (err) {
+                json(res, 500, { error: 'Erreur' });
+             }
+             return;
+          }
+        }
+
+        // STAFF NOTES
+        if (parts[4] === 'staff' && parts[6] === 'notes') {
+          const guildId = parts[3] ?? null;
+          if (!guildId) {
+            json(res, 400, { error: 'guildId manquant' });
+            return;
+          }
+          const staffUserId = parts[5];
+          if (req.method === 'GET') {
+            const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+            if (accessLevel.level !== 'admin') {
+              json(res, 403, { error: 'Admin requis' });
+              return;
+            }
+            try {
+              const notes = await getManagerNotes(guildId, staffUserId);
+              json(res, 200, { notes });
+            } catch (err) {
+              json(res, 500, { error: 'Erreur' });
+            }
+            return;
+          }
+          if (req.method === 'POST' && !parts[7]) {
+            const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+            if (accessLevel.level !== 'admin') {
+              json(res, 403, { error: 'Admin requis' });
+              return;
+            }
+            const body = await readJsonBody<{ content: string }>(req);
+            if (body && body.content) {
+              try {
+                const note = await createManagerNote(guildId, staffUserId, user.userId, body.content);
+                json(res, 201, { note });
+              } catch (err) {
+                json(res, 500, { error: 'Erreur' });
+              }
+            }
+            return;
+          }
+          if (req.method === 'DELETE' && parts[7]) {
+            const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+            if (accessLevel.level !== 'admin') {
+              json(res, 403, { error: 'Admin requis' });
+              return;
+            }
+            try {
+              await deleteManagerNote(parts[7]);
+              json(res, 200, { success: true });
+            } catch (err) {
+              json(res, 500, { error: 'Erreur' });
             }
             return;
           }

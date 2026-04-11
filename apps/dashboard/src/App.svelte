@@ -20,6 +20,7 @@
   import Profile from './pages/Profile.svelte';
   import PublicProfile from './pages/PublicProfile.svelte';
   import StaffManagement from './pages/StaffManagement.svelte';
+  import Procedures from './pages/Procedures.svelte';
 
     const adminOnlyPrefixes = ['/modules', '/module-settings', '/settings', '/notifications', '/automations', '/command-access', '/regulation', '/staff-management'];
 
@@ -103,6 +104,9 @@
       </Route>
       <Route path="/profile">
         <Profile />
+      </Route>
+      <Route path="/procedures">
+        <Procedures />
       </Route>
       {#if canManageSettings}
         <Route path="/modules">

@@ -380,3 +380,66 @@ export async function reviewDailyAlgoSubmission(submissionId, review, guildId = 
   });
 }
 
+// ==========================================
+// STAFF LEADERSHIP / HR APIs
+// ==========================================
+
+export async function fetchStaffMetrics(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/leadership', { method: 'GET', guildId });
+}
+
+export async function fetchAbsences(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/absences', { method: 'GET', guildId });
+}
+
+export async function updateAbsenceStatus(absenceId, status, note, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/absences/${absenceId}`, { method: 'PATCH', payload: { status, note }, guildId });
+}
+
+export async function fetchMeetings(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/meetings', { method: 'GET', guildId });
+}
+
+export async function createMeeting(title, description, scheduledAt, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/meetings', { method: 'POST', payload: { title, description, scheduledAt }, guildId });
+}
+
+export async function fetchPolls(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/polls', { method: 'GET', guildId });
+}
+
+export async function createPoll(title, description, options, closesAt, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/polls', { method: 'POST', payload: { title, description, options, closesAt }, guildId });
+}
+
+export async function fetchProcedures(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/procedures', { method: 'GET', guildId });
+}
+
+export async function upsertProcedure(procedureId, title, content, sortOrder, guildId = authStore.selectedGuildId) {
+  if (procedureId) {
+    return dashboardMutation(`/procedures/${procedureId}`, { method: 'PATCH', payload: { title, content, sortOrder }, guildId });
+  }
+  return dashboardMutation('/procedures', { method: 'POST', payload: { title, content, sortOrder }, guildId });
+}
+
+export async function deleteProcedure(procedureId, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/procedures/${procedureId}`, { method: 'DELETE', guildId });
+}
+
+export async function markProcedureRead(procedureId, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/procedures/read`, { method: 'POST', payload: { procedureId }, guildId });
+}
+
+
+export async function fetchManagerNotes(staffUserId, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/staff/${staffUserId}/notes`, { method: 'GET', guildId });
+}
+
+export async function addManagerNote(staffUserId, content, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/staff/${staffUserId}/notes`, { method: 'POST', payload: { content }, guildId });
+}
+
+export async function deleteManagerNote(staffUserId, noteId, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/staff/${staffUserId}/notes/${noteId}`, { method: 'DELETE', guildId });
+}
