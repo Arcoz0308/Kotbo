@@ -718,7 +718,7 @@
         { id: 'blacklist', label: 'Blacklist', icon: 'block' }
       ] as tab}
         <button
-          onclick={() => (activeTab = tab.id as any)}
+          onclick={() => (activeTab = tab.id as typeof activeTab)}
           class="inline-flex items-center gap-2 rounded-full px-5 py-3 text-xs font-black uppercase tracking-[0.18em] transition-all {activeTab === tab.id
             ? 'bg-primary text-white shadow-xl shadow-primary/20 scale-[1.02]'
             : 'border border-outline-variant/20 bg-surface-container-low/50 text-on-surface-variant/70 hover:bg-surface-container-low hover:text-on-surface'}"
@@ -1175,7 +1175,7 @@
                          <div class="flex gap-2 mb-3">
                             {#each ['POSITIVE', 'NEUTRAL', 'NEGATIVE'] as type}
                                <button 
-                                 onclick={() => reportType = type as any}
+                                 onclick={() => reportType = type as typeof reportType}
                                  class="flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all {reportType === type ? (type === 'POSITIVE' ? 'bg-emerald-500 text-white' : type === 'NEGATIVE' ? 'bg-rose-500 text-white' : 'bg-amber-500 text-white') : 'bg-surface-container-low text-on-surface-variant/60 hover:bg-surface-container-lowest'}"
                                >
                                   {type === 'POSITIVE' ? 'Bon (+)' : type === 'NEGATIVE' ? 'Mauvais (-)' : 'Neutre'}

@@ -5,6 +5,7 @@ import { pollAllFeeds } from '../services/rssService.js';
 import { pollAllYouTubeChannels } from '../services/youtubeService.js';
 import { runDigestForAllGuilds, runDailyAlgoForAllGuilds } from '../services/digestService.js';
 import { runDailyAlgoSummariesForAllGuilds } from '../services/dailyAlgoService.js';
+import { runWeeklyRecapForAllGuilds } from '../services/recapService.js';
 import { processScheduledSanctions } from '../services/sanctionService.js';
 import { logger } from '../utils/logger.js';
 
@@ -79,6 +80,14 @@ export async function registerCrons(client: Client): Promise<void> {
       logger.debug('Cron', 'Génération du bilan quotidien Daily Algo...');
       await runDailyAlgoSummariesForAllGuilds(client);
     }, 2000);
+  });
+
+  // 🌟 Recap Hebdomadaire: Chaque dimanche à 19:00 UTC
+  cron.schedule('0 19 * * 0', async () => {
+    await runCronJob('weekly-recap', async () => {
+      logger.info('Cron', 'Démarrage du recap hebdomadaire pour toutes les guildes...');
+      await runWeeklyRecapForAllGuilds(client);
+    }, 5000);
   });
 
   cron.schedule('* * * * *', async () => {

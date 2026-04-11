@@ -43,11 +43,11 @@ const DAILY_ALGO_CHALLENGE_TYPE_LABELS: Record<DailyAlgoChallengeTypeKey, string
 
 export const DAILY_ALGO_SCORING_RULES = {
   criteria: [
-    { key: 'correctness', label: '✅ Exactitude', max: 5 },
-    { key: 'comments', label: '💬 Commentaires', max: 5 },
-    { key: 'compactness', label: '📦 Compacité', max: 5 },
-    { key: 'optimization', label: '⚡ Optimisation', max: 5 },
-    { key: 'readability', label: '🧹 Lisibilité', max: 5 },
+    { key: 'correctness', label: '✅ Exactitude (fonctionnement/cas limites)', max: 5 },
+    { key: 'comments', label: '💬 Commentaires (clarté/explications)', max: 5 },
+    { key: 'compactness', label: '📦 Compacité (efficacité/superflu)', max: 5 },
+    { key: 'optimization', label: '⚡ Optimisation (performance/runtime)', max: 5 },
+    { key: 'readability', label: '🧹 Lisibilité (propreté/formatage)', max: 5 },
   ],
   speedBonus: { 1: 3, 2: 2, 3: 1 },
 } as const;
@@ -256,9 +256,15 @@ function buildDailyAlgoChallengeEmbed(params: {
       inline: true,
     })
     .addFields({
-      name: '🧮 Barème',
-      value: '5 critères notés sur 5 (moyenne /5) + bonus rapidité 🥇 +3 · 🥈 +2 · 🥉 +1',
-      inline: true,
+      name: '🧮 Barème de notation (Moyenne /5)',
+      value: [
+        '✅ **Exactitude** : Fonctionnement correct et cas limites',
+        '💬 **Commentaires** : Documentation et explications',
+        '📦 **Compacité** : Code efficace sans superflu',
+        '⚡ **Optimisation** : Performance et complexité',
+        '🧹 **Lisibilité** : Propreté et formatage du code',
+        '\n*La qualité prime sur la vitesse. Le bonus rapidité (🥇+3, 🥈+2, 🥉+1) ne sert qu\'à départager en cas d\'égalité sur la note.*',
+      ].join('\n'),
     })
     .setTimestamp()
     .setFooter({ text: params.footerText ?? 'Kotbo · Daily Algo' });
@@ -326,9 +332,14 @@ function buildLeaderboardEmbed(submissions: LeaderboardSubmission[], runCreatedA
   const approved = submissions
     .filter((s) => s.status === 'APPROVED' && s.scoreFinal !== null)
     .sort((a, b) => {
-      const scoreA = (a.scoreFinal ?? 0) + (a.speedBonusPoints ?? 0);
-      const scoreB = (b.scoreFinal ?? 0) + (b.speedBonusPoints ?? 0);
+      const scoreA = a.scoreFinal ?? 0;
+      const scoreB = b.scoreFinal ?? 0;
       if (scoreB !== scoreA) return scoreB - scoreA;
+
+      const bonusA = a.speedBonusPoints ?? 0;
+      const bonusB = b.speedBonusPoints ?? 0;
+      if (bonusB !== bonusA) return bonusB - bonusA;
+
       return (a.speedRank ?? 999) - (b.speedRank ?? 999);
     });
 
@@ -791,9 +802,14 @@ export async function getDailyAlgoUserParticipations(
       });
 
       approved.sort((a, b) => {
-        const totalA = (a.scoreFinal ?? 0) + (a.speedBonusPoints ?? 0);
-        const totalB = (b.scoreFinal ?? 0) + (b.speedBonusPoints ?? 0);
-        if (totalB !== totalA) return totalB - totalA;
+        const scoreA = a.scoreFinal ?? 0;
+        const scoreB = b.scoreFinal ?? 0;
+        if (scoreB !== scoreA) return scoreB - scoreA;
+
+        const bonusA = a.speedBonusPoints ?? 0;
+        const bonusB = b.speedBonusPoints ?? 0;
+        if (bonusB !== bonusA) return bonusB - bonusA;
+
         return (a.speedRank ?? 999) - (b.speedRank ?? 999);
       });
 

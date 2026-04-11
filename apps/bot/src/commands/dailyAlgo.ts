@@ -92,28 +92,48 @@ async function replyPreviousRun(interaction: ChatInputCommandInteraction, guildI
 }
 
 async function replyScoring(interaction: ChatInputCommandInteraction): Promise<void> {
-  const criteriaLines = DAILY_ALGO_SCORING_RULES.criteria
-    .map((criterion) => `${criterion.label}: ${criterion.max}/5`)
-    .join('\n');
-
   const embed = new EmbedBuilder()
     .setColor(COLORS.info)
-    .setTitle('🧮 Barème exact du Daily Algo')
-    .setDescription('Score final = moyenne des 5 critères, puis ajout du bonus rapidité.')
+    .setTitle('🧮 Barème de notation Daily Algo')
+    .setDescription(
+      'Le score final est la moyenne des 5 critères ci-dessous. La qualité du code prime sur la vitesse de soumission.',
+    )
     .addFields(
       {
-        name: 'Critères (poids identique)',
-        value: criteriaLines,
+        name: '✅ Exactitude',
+        value: 'Le code fonctionne-t-il correctement ? Gère-t-il les cas complexes et les limites (edge cases) ?',
         inline: false,
       },
       {
-        name: 'Bonus rapidité',
-        value: '🥇 +3 points\n🥈 +2 points\n🥉 +1 point',
+        name: '💬 Commentaires',
+        value: 'Le code est-il documenté ? L\'approche est-elle expliquée clairement ?',
         inline: false,
       },
       {
-        name: 'Statuts progression',
-        value: '🌱 Débutant · 🛠️ Apprenti · 🔥 Maître · 👑 Légende',
+        name: '📦 Compacité',
+        value: 'Le code est-il efficace et concis ? Y a-t-il du superflu ou des redondances ?',
+        inline: false,
+      },
+      {
+        name: '⚡ Optimisation',
+        value: 'La complexité temporelle et spatiale est-elle optimale pour le problème ?',
+        inline: false,
+      },
+      {
+        name: '🧹 Lisibilité',
+        value: 'Le code est-il propre, bien formaté et facile à lire ?',
+        inline: false,
+      },
+      {
+        name: '🥇 Bonus rapidité',
+        value:
+          'Utilisé uniquement en cas d\'égalité parfaite sur la note de qualité :\n🥇 +3 points · 🥈 +2 points · 🥉 +1 point',
+        inline: false,
+      },
+      {
+        name: '🌱 Progression',
+        value:
+          'Ton rang global dépend de tes points cumulés et de ta régularité :\n🌱 Débutant · 🛠️ Apprenti · 🔥 Maître · 👑 Légende',
         inline: false,
       },
     )

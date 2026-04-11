@@ -70,12 +70,6 @@ export function registerDailyAlgoHandlers(client: Client): void {
         content: `✅ **Solution enregistrée !**\n\nTu es le **${rankLabel}** à avoir soumis ta solution${bonusPoints}.\n\n⏳ Un membre du staff va noter ta réponse. Le classement sera mis à jour automatiquement !`,
         flags: [MessageFlags.Ephemeral],
       });
-
-      await interaction.user.send({
-        content: `✅ Ta réponse pour le Daily Algo a été enregistrée ! Tu es arrivé ${rankLabel}. Le classement sera affiché une fois ta solution notée.`,
-      }).catch(() => {
-        logger.debug('DailyAlgo', `Impossible d'envoyer un MP à ${interaction.user.username}`);
-      });
     } catch (error) {
       logger.error('DailyAlgo', 'Erreur lors du traitement de la soumission de solution :', error);
       const message = error instanceof Error ? error.message : 'Erreur lors de la soumission';

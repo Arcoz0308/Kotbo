@@ -104,7 +104,24 @@ function looksLikeXmlFeed(raw: string): boolean {
 }
 
 function resolveKnownFeedAlias(url: string): string {
-  return KNOWN_FEED_ALIASES[url] ?? url;
+  // 1. Static Aliases
+  const alias = KNOWN_FEED_ALIASES[url];
+  if (alias) return alias;
+
+  // 2. Mastodon pattern: https://instance/@user -> https://instance/users/user.rss
+  const mastodonMatch = url.match(/^(https:\/\/[^\/]+)\/@([^\/]+)$/);
+  if (mastodonMatch) {
+    return `${mastodonMatch[1]}/users/${mastodonMatch[2]}.rss`;
+  }
+
+  // 3. Bluesky pattern: https://bsky.app/profile/handle -> https://bsky.app/profile/handle/rss
+  const bskyMatch = url.match(/^(https:\/\/bsky\.app\/profile\/[^\/]+)$/);
+  if (bskyMatch) {
+    // Note: This often works directly or via gateways, Kotbo handles the response
+    return `${bskyMatch[1]}/rss`;
+  }
+
+  return url;
 }
 
 async function parseFeedFromUrl(url: string): Promise<Parser.Output<CustomItem>> {

@@ -229,6 +229,119 @@ export async function generateStatsImage(guildId: string): Promise<Buffer> {
   return canvas.toBuffer('image/png');
 }
 
+export async function generateWeeklyRecapImage(guildId: string, items: any[]): Promise<Buffer> {
+  const W = 1000, H = 700;
+  const canvas = createCanvas(W, H);
+  const ctx = canvas.getContext('2d');
+
+  // 1. Background (Premium Dark Gradient)
+  const bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, '#0f1219');
+  bg.addColorStop(0.5, '#161b25');
+  bg.addColorStop(1, '#0f1219');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // 2. Decorative Glows
+  const glow1 = ctx.createRadialGradient(200, 100, 0, 200, 100, 500);
+  glow1.addColorStop(0, 'rgba(88, 101, 242, 0.15)');
+  glow1.addColorStop(1, 'rgba(88, 101, 242, 0)');
+  ctx.fillStyle = glow1;
+  ctx.fillRect(0, 0, W, H);
+
+  const glow2 = ctx.createRadialGradient(W - 200, H - 100, 0, W - 200, H - 100, 450);
+  glow2.addColorStop(0, 'rgba(87, 242, 135, 0.1)');
+  glow2.addColorStop(1, 'rgba(87, 242, 135, 0)');
+  ctx.fillStyle = glow2;
+  ctx.fillRect(0, 0, W, H);
+
+  // 3. Header
+  const topBar = ctx.createLinearGradient(0, 0, W, 0);
+  topBar.addColorStop(0, '#5865f2');
+  topBar.addColorStop(0.5, '#57f287');
+  topBar.addColorStop(1, '#5865f2');
+  ctx.fillStyle = topBar;
+  ctx.fillRect(0, 0, W, 6);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 36px sans-serif';
+  ctx.fillText('🌟  LE RECAP HEBDO KOTBO', 50, 70);
+
+  ctx.fillStyle = '#8b949e';
+  ctx.font = '18px sans-serif';
+  ctx.fillText('Les actualités tech qui ont marqué la communauté cette semaine', 50, 105);
+
+  const divider = ctx.createLinearGradient(50, 0, W - 50, 0);
+  divider.addColorStop(0, 'rgba(255,255,255,0.1)');
+  divider.addColorStop(0.5, 'rgba(255,255,255,0.05)');
+  divider.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = divider;
+  ctx.fillRect(50, 125, W - 100, 1);
+
+  // 4. Render News Items (Top 5)
+  const itemX = 50;
+  let itemY = 160;
+  const itemW = W - 100;
+  const itemH = 95;
+  const itemGap = 15;
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const y = itemY + i * (itemH + itemGap);
+
+    // Card Background (Glassmorphism effect)
+    roundRect(ctx, itemX, y, itemW, itemH, 12, 'rgba(255, 255, 255, 0.03)');
+    
+    // Left accent bar
+    const accentColor = i === 0 ? '#fee75c' : i === 1 ? '#c9d1d9' : i === 2 ? '#cd7f32' : '#5865f2';
+    roundRect(ctx, itemX, y, 6, itemH, 3, accentColor);
+
+    // Rank Circle
+    ctx.beginPath();
+    ctx.arc(itemX + 40, y + itemH / 2, 20, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    ctx.fill();
+    
+    ctx.fillStyle = accentColor;
+    ctx.font = 'bold 20px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(String(i + 1), itemX + 40, y + itemH / 2 + 7);
+    ctx.textAlign = 'left';
+
+    // Title
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 20px sans-serif';
+    const title = item.titleTranslated ?? item.title;
+    ctx.fillText(truncate(title, 75), itemX + 90, y + 42);
+
+    // Metadata (Source & Category)
+    ctx.fillStyle = '#8b949e';
+    ctx.font = '14px sans-serif';
+    const sourceLabel = `📡 ${item.feed?.name ?? 'Inconnue'}  •  📁 ${item.feed?.category ?? 'Général'}`;
+    ctx.fillText(sourceLabel, itemX + 90, y + 70);
+
+    // Interest Score Badge
+    if (item.interestScore) {
+        const scoreW = 80;
+        const scoreX = itemX + itemW - scoreW - 20;
+        roundRect(ctx, scoreX, y + 35, scoreW, 30, 15, 'rgba(87, 242, 135, 0.1)');
+        ctx.fillStyle = '#57f287';
+        ctx.font = 'bold 14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${Math.round(item.interestScore * 100)}%`, scoreX + scoreW / 2, y + 54);
+        ctx.textAlign = 'left';
+    }
+  }
+
+  // 5. Footer
+  const footerY = H - 30;
+  ctx.fillStyle = '#4e5563';
+  ctx.font = '12px sans-serif';
+  ctx.fillText('Kotbo News Generator • Intelligence Artificielle & Veille Tech • ' + new Date().toLocaleDateString('fr'), 50, footerY);
+
+  return canvas.toBuffer('image/png');
+}
+
 function roundRect(
   ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>,
   x: number,

@@ -18,6 +18,7 @@
   import Sanctions from './pages/Sanctions.svelte';
   import Regulation from './pages/Regulation.svelte';
   import Profile from './pages/Profile.svelte';
+  import PublicProfile from './pages/PublicProfile.svelte';
   import StaffManagement from './pages/StaffManagement.svelte';
 
     const adminOnlyPrefixes = ['/modules', '/module-settings', '/settings', '/notifications', '/automations', '/command-access', '/regulation', '/staff-management'];
@@ -67,6 +68,10 @@
 
 <Route path="/login">
   <Login />
+</Route>
+
+<Route path="/profile/:userId" let:meta>
+  <PublicProfile userId={meta.params.userId} />
 </Route>
 
 <Route path="/*">

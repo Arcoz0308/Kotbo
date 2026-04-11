@@ -15,13 +15,21 @@ import {
   registerTimeoutSanction,
   registerWarnSanction,
   runGuildBan,
+  processScheduledSanctions,
 } from '../services/sanctionService.js';
 import {
   COMMAND_CATALOG,
   normalizeCommandRestrictions,
   type CommandRestrictionRule,
 } from '../utils/commandAccess.js';
-import { getLocalDateKey, reviewDailyAlgoSubmission } from '../services/dailyAlgoService.js';
+import { runDigestForAllGuilds, runDailyAlgoForAllGuilds } from '../services/digestService.js';
+import { 
+  runDailyAlgoSummariesForAllGuilds, 
+  getDailyAlgoUserProfile, 
+  getDailyAlgoUserParticipations,
+  getLocalDateKey, 
+  reviewDailyAlgoSubmission 
+} from '../services/dailyAlgoService.js';
 import {
   hashAPIKey,
   generateAPIKey,
@@ -286,6 +294,47 @@ type CommandCatalogEntry = {
 };
 
 type DashboardAccessLevel = 'none' | 'moderator' | 'admin';
+
+type DiscordTokenResponse = {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+  refresh_token: string;
+  scope: string;
+  error?: string;
+  error_description?: string;
+};
+
+type DiscordUser = {
+  id: string;
+  username: string;
+  avatar: string | null;
+  discriminator: string;
+  public_flags?: number;
+  flags?: number;
+  banner?: string | null;
+  accent_color?: number | null;
+  global_name?: string | null;
+  mfa_enabled?: boolean;
+  locale?: string;
+  premium_type?: number;
+};
+
+type DiscordPartialGuild = {
+  id: string;
+  name: string;
+  icon: string | null;
+  owner: boolean;
+  permissions: string;
+  features: string[];
+};
+
+interface DashboardJwtPayload extends jwt.JwtPayload {
+  userId: string;
+  username: string;
+  avatar: string | null;
+  discordToken: string;
+}
 
 type DashboardAccess = {
   level: DashboardAccessLevel;
@@ -1470,6 +1519,65 @@ export const startDashboardApi = (client: Client) => {
         return;
       }
 
+      // --- PUBLIC PROFILE ROUTE ---
+      if (parts.length === 4 && parts[0] === 'api' && parts[1] === 'public' && parts[2] === 'profile') {
+        const profileUserId = parts[3];
+
+        try {
+          // 1. Fetch Discord User
+          const discordUser = await client.users.fetch(profileUserId).catch(() => null);
+          if (!discordUser) {
+            json(res, 404, { error: 'Utilisateur introuvable' });
+            return;
+          }
+
+          // 2. Fetch Daily Algo Stats (across all guilds if possible, but currently guild-scoped)
+          // For now, we fetch from the first common guild or a global aggregation
+          const guilds = await prisma.guild.findMany({
+            where: { dailyAlgoEnabled: true },
+            select: { id: true, name: true }
+          });
+
+          let algoStats = null;
+          let recentAlgos: any[] = [];
+          
+          for (const guild of guilds) {
+            const stats = await getDailyAlgoUserProfile(guild.id, profileUserId);
+            if (stats && (!algoStats || stats.totalPoints > algoStats.totalPoints)) {
+                algoStats = stats;
+                recentAlgos = await getDailyAlgoUserParticipations(guild.id, profileUserId, 5);
+            }
+          }
+
+          // 3. Fetch Scouting Stats (Articles validés via audit logs)
+          const scoutingCount = await prisma.dashboardAuditLog.count({
+            where: {
+              user: { contains: discordUser.username },
+              action: 'Validation contenu'
+            }
+          });
+
+          json(res, 200, {
+            user: {
+              id: discordUser.id,
+              username: discordUser.username,
+              globalName: discordUser.globalName,
+              avatarUrl: discordUser.displayAvatarURL({ size: 512 }),
+            },
+            algo: algoStats,
+            recentAlgos,
+            stats: {
+                scoutedArticles: scoutingCount
+            }
+          });
+          return;
+        } catch (error) {
+          logger.error('API', `Erreur profile public ${profileUserId}:`, error);
+          json(res, 500, { error: 'Erreur lors de la récupération du profil' });
+          return;
+        }
+      }
+
 
       // --- AUTH ROUTES ---
       if (parts.length >= 2 && parts[0] === 'api' && parts[1] === 'auth') {
@@ -1521,14 +1629,14 @@ export const startDashboardApi = (client: Client) => {
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
               });
 
-              const tokenData = await tokenResponse.json() as any;
+              const tokenData = await tokenResponse.json() as DiscordTokenResponse;
               if (tokenData.error) throw new Error(tokenData.error_description);
 
               // Get user info
               const userResponse = await fetch('https://discord.com/api/users/@me', {
                 headers: { Authorization: `Bearer ${tokenData.access_token}` },
               });
-              const userData = await userResponse.json() as any;
+              const userData = await userResponse.json() as DiscordUser;
 
               // Create JWT
               const token = jwt.sign({
@@ -1564,7 +1672,7 @@ export const startDashboardApi = (client: Client) => {
         if (parts[2] === 'me') {
           const authHeader = req.headers.authorization;
           const token = authHeader!.split(' ')[1];
-          const decoded = jwt.decode(token) as any;
+          const decoded = jwt.decode(token) as DashboardJwtPayload;
           json(res, 200, { id: decoded.userId, username: decoded.username, avatar: decoded.avatar });
           return;
         }
@@ -1578,7 +1686,7 @@ export const startDashboardApi = (client: Client) => {
               return;
             }
 
-            const decoded = jwt.decode(token) as any;
+            const decoded = jwt.decode(token) as DashboardJwtPayload;
             if (!decoded?.discordToken) {
               json(res, 400, { error: 'Token Discord manquant dans le JWT' });
               return;
@@ -1597,7 +1705,7 @@ export const startDashboardApi = (client: Client) => {
               return;
             }
 
-            const userGuilds = await guildsResponse.json() as any[];
+            const userGuilds = await guildsResponse.json() as DiscordPartialGuild[];
             if (!Array.isArray(userGuilds)) {
               logger.error('API', 'Discord did not return an array of guilds', userGuilds);
               json(res, 500, { error: 'Réponse Discord invalide' });
@@ -1605,7 +1713,7 @@ export const startDashboardApi = (client: Client) => {
             }
 
             const userGuildPermissions = new Map<string, bigint>();
-            const userGuildsById = new Map<string, any>();
+            const userGuildsById = new Map<string, DiscordPartialGuild>();
 
             for (const guild of userGuilds) {
               userGuildsById.set(guild.id, guild);
@@ -3242,16 +3350,6 @@ export const startDashboardApi = (client: Client) => {
             const staffMember = await getStaffMember('any', userId); // Get profile without guildId restriction
             const apiKeys = staffMember ? await getAPIKeys(staffMember.guildId) : [];
             const blacklist = staffMember ? await getActiveBlacklist(staffMember.guildId, userId) : null;
-            
-            let accessibleTools = ['Profil Basique'];
-            if (staffMember) {
-              const access = await resolveDashboardAccess(client, staffMember.guildId, userId);
-              if (access.canViewDashboard) accessibleTools.push('Dashboard', 'Modération');
-              if (access.canManageSettings) accessibleTools.push('Configuration Globale', 'Clés API');
-              if (access.level === 'admin') accessibleTools.push('Gestion du Personnel', 'Logs Audit');
-              // Remove duplicates just in case
-              accessibleTools = [...new Set(accessibleTools)];
-            }
 
             json(res, 200, {
               staffMember,
@@ -3265,7 +3363,6 @@ export const startDashboardApi = (client: Client) => {
               isBlacklisted: !!blacklist,
               blacklistReason: blacklist?.reason,
               blacklistEndDate: blacklist?.endDate,
-              accessibleTools,
             });
           } catch (err) {
             logger.error('StaffAPI', 'Error getting user profile:', err);
@@ -3296,20 +3393,6 @@ export const startDashboardApi = (client: Client) => {
               return;
             }
 
-            const sanctionsIssuedCount = await prisma.sanction.count({
-              where: {
-                guildId: staffMember.guildId,
-                moderatorUserId: userId,
-              }
-            });
-
-            const pendingReportsCount = await prisma.sanctionReport.count({
-              where: {
-                guildId: staffMember.guildId,
-                sanctionId: null,
-              }
-            });
-
             const stats = {
               totalMessages: staffMember.activities.reduce((sum, a) => sum + a.messageCount, 0),
               totalVoiceMinutes: staffMember.activities.reduce((sum, a) => sum + a.voiceMinutes, 0),
@@ -3317,8 +3400,6 @@ export const startDashboardApi = (client: Client) => {
               joinedStaffAt: staffMember.joinedStaffAt,
               currentRoleStartedAt: staffMember.currentRoleStartedAt,
               activities: staffMember.activities,
-              sanctionsIssued: sanctionsIssuedCount,
-              pendingReports: pendingReportsCount,
             };
 
             json(res, 200, { stats });
@@ -3515,28 +3596,11 @@ export const startDashboardApi = (client: Client) => {
                   warnings: { where: { isActive: true } },
                   blacklistEntries: { where: { isActive: true } },
                   testingPeriods: { where: { status: 'ONGOING' } },
-                  activities: { orderBy: { activityDate: 'desc' }, take: 30 },
                 },
                 orderBy: { grade: 'asc' },
               });
 
-              // Enrich with sanctions issued count
-              const membersWithStats = await Promise.all(members.map(async (m) => {
-                const sanctionsIssuedCount = await prisma.sanction.count({
-                  where: { guildId, moderatorUserId: m.userId }
-                });
-                
-                return {
-                  ...m,
-                  stats: {
-                    totalMessages: m.activities.reduce((sum, a) => sum + a.messageCount, 0),
-                    totalVoiceMinutes: m.activities.reduce((sum, a) => sum + a.voiceMinutes, 0),
-                    sanctionsIssued: sanctionsIssuedCount,
-                  }
-                };
-              }));
-
-              json(res, 200, { members: membersWithStats });
+              json(res, 200, { members });
             } catch (err) {
               logger.error('StaffAPI', 'Error listing staff members:', err);
               json(res, 500, { error: 'Erreur lors de la récupération des membres staff' });
@@ -3564,7 +3628,7 @@ export const startDashboardApi = (client: Client) => {
               const member = await addStaffMember(
                 guildId,
                 body.userId,
-                body.grade,
+                body.grade as string,
                 body.userTag,
                 body.username,
                 body.displayName,
@@ -3573,31 +3637,6 @@ export const startDashboardApi = (client: Client) => {
 
               // Créer une période de test initiale
               await createTestingPeriod(guildId, body.userId);
-
-              // Attribuer les rôles sur Discord
-              try {
-                const discordGuild = client.guilds.cache.get(guildId);
-                if (discordGuild) {
-                  const targetMember = await discordGuild.members.fetch(body.userId).catch(() => null);
-                  if (targetMember) {
-                    const guildInfo = await prisma.guild.findUnique({ where: { id: guildId }, select: { baseStaffRoleId: true, testStaffRoleId: true } });
-                    const roleToGive = await prisma.staffRole.findFirst({ where: { guildId, name: body.grade } });
-                    
-                    const roleIdsToAdd: string[] = [];
-                    if (roleToGive?.discordRoleId) roleIdsToAdd.push(roleToGive.discordRoleId);
-                    if (guildInfo?.baseStaffRoleId) roleIdsToAdd.push(guildInfo.baseStaffRoleId);
-                    if (guildInfo?.testStaffRoleId) roleIdsToAdd.push(guildInfo.testStaffRoleId);
-                    
-                    if (roleIdsToAdd.length > 0) {
-                      await targetMember.roles.add(roleIdsToAdd).catch(err => {
-                        logger.error('StaffAPI', 'Failed to add roles to new staff', err);
-                      });
-                    }
-                  }
-                }
-              } catch (roleErr) {
-                logger.error('StaffAPI', 'Erreur lors de l\'attribution des rôles Discord', roleErr);
-              }
 
               await pushAudit(guildId, {
                 user: user.username ?? `User${user.userId}`,
@@ -3640,7 +3679,7 @@ export const startDashboardApi = (client: Client) => {
 
             try {
               if (body?.grade) {
-                await updateStaffGrade(guildId, staffUserId, body.grade);
+                await updateStaffGrade(guildId, staffUserId, body.grade as string);
 
                 await pushAudit(guildId, {
                   user: user.username ?? `User${user.userId}`,
@@ -3697,46 +3736,6 @@ export const startDashboardApi = (client: Client) => {
                 body.expiresAt ? new Date(body.expiresAt) : undefined
               );
 
-              // 2nd active warning check
-              const activeWarnings = await prisma.staffWarning.count({
-                where: { guildId, staffUserId: warning.staffUserId, isActive: true }
-              });
-
-              let blacklisted = false;
-              let demotionOccurred = false;
-
-              if (activeWarnings >= 2) {
-                // Demote to lowest rank
-                const roles = await getStaffRoles(guildId);
-                if (roles.length > 0) {
-                  const lowestRole = roles[0];
-                  await updateStaffGrade(guildId, body.staffUserId, lowestRole.name);
-                  demotionOccurred = true;
-                }
-
-                // Blacklist for 30 days
-                const blacklistEnd = new Date();
-                blacklistEnd.setDate(blacklistEnd.getDate() + 30);
-                await blacklistStaff(
-                  guildId,
-                  body.staffUserId,
-                  user.userId,
-                  "Sanction automatique suite à 2 avertissements actifs.",
-                  blacklistEnd
-                );
-                blacklisted = true;
-                
-                await pushAudit(guildId, {
-                  user: 'Système',
-                  action: 'Sanction Automatique',
-                  context: getGuildName(client, guildId),
-                  module: 'Staff Management',
-                  eventType: 'Automatique',
-                  details: `Blacklist de 30 jours et rétrogradation après 2 avertissements.`,
-                  channelId: null
-                });
-              }
-
               await pushAudit(guildId, {
                 user: user.username ?? `User${user.userId}`,
                 action: 'Avertissement staff',
@@ -3747,7 +3746,7 @@ export const startDashboardApi = (client: Client) => {
                 channelId: null
               });
 
-              json(res, 201, { warning, blacklisted, demotionOccurred });
+              json(res, 201, { warning });
             } catch (err) {
               logger.error('StaffAPI', 'Error issuing warning:', err);
               json(res, 500, { error: 'Erreur lors de la génération de l\'avertissement' });
@@ -3791,45 +3790,6 @@ export const startDashboardApi = (client: Client) => {
             } catch (err) {
               logger.error('StaffAPI', 'Error blacklisting staff:', err);
               json(res, 500, { error: 'Erreur lors de la blacklist' });
-            }
-            return;
-          }
-
-          // GET /api/dashboard/guilds/:guildId/staff/config
-          if (parts[5] === 'config' && req.method === 'GET' && !parts[6]) {
-            try {
-              const guildInfo = await prisma.guild.findUnique({
-                where: { id: guildId },
-                select: { baseStaffRoleId: true, testStaffRoleId: true }
-              });
-              json(res, 200, { config: guildInfo });
-            } catch (err) {
-              logger.error('StaffAPI', 'Error getting staff config:', err);
-              json(res, 500, { error: 'Erreur config staff' });
-            }
-            return;
-          }
-
-          // PATCH /api/dashboard/guilds/:guildId/staff/config
-          if (parts[5] === 'config' && req.method === 'PATCH' && !parts[6]) {
-            const body = await readJsonBody<{
-              baseStaffRoleId?: string | null;
-              testStaffRoleId?: string | null;
-            }>(req);
-            
-            try {
-              const updated = await prisma.guild.update({
-                where: { id: guildId },
-                data: {
-                  baseStaffRoleId: body?.baseStaffRoleId ?? null,
-                  testStaffRoleId: body?.testStaffRoleId ?? null,
-                },
-                select: { baseStaffRoleId: true, testStaffRoleId: true }
-              });
-              json(res, 200, { config: updated });
-            } catch (err) {
-              logger.error('StaffAPI', 'Error updating staff config:', err);
-              json(res, 500, { error: 'Erreur config staff' });
             }
             return;
           }
@@ -3919,29 +3879,6 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
-          // GET /api/dashboard/guilds/:guildId/testing-periods - List testing periods
-          if (parts[5] === 'testing-periods' && req.method === 'GET' && !parts[6]) {
-            try {
-              const periods = await prisma.testingPeriod.findMany({
-                where: { guildId },
-                include: {
-                  staffMember: true,
-                  mentor: true,
-                  reports: {
-                    include: { author: true },
-                    orderBy: { createdAt: 'asc' }
-                  }
-                },
-                orderBy: { startDate: 'desc' },
-              });
-              json(res, 200, { periods });
-            } catch (err) {
-              logger.error('StaffAPI', 'Error listing testing periods:', err);
-              json(res, 500, { error: 'Erreur lors de la récupération des périodes de test' });
-            }
-            return;
-          }
-
           // POST /api/dashboard/guilds/:guildId/testing-periods - Create testing period
           if (parts[5] === 'testing-periods' && req.method === 'POST' && !parts[6]) {
             const body = await readJsonBody<{
@@ -3955,16 +3892,6 @@ export const startDashboardApi = (client: Client) => {
             }
 
             try {
-              // Restriction to HELPER grade
-              const member = await prisma.staffMember.findUnique({
-                where: { id: body.staffUserId }
-              });
-
-              if (!member || (member.grade.toUpperCase() !== 'HELPER' && member.grade.toUpperCase() !== 'STAFF EN TEST')) {
-                json(res, 400, { error: 'Seuls les membres avec le grade HELPER ou STAFF EN TEST peuvent être mis sous tutelle.' });
-                return;
-              }
-
               const period = await createTestingPeriod(guildId, body.staffUserId, body.mentorId);
               json(res, 201, { period });
             } catch (err) {
