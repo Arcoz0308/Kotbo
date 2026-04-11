@@ -168,7 +168,7 @@
                 <div class="add-note-box">
                     <textarea 
                         bind:value={newNote} 
-                        placeholder="Ajouter une note de suivi sur ce staff..."
+                        placeholder="Ajouter une note de suivi sur ce membre..."
                         rows="3"
                     ></textarea>
                     <button onclick={handleAddNote} disabled={isSavingNote}>
