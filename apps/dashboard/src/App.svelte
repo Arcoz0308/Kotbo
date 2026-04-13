@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Route, router } from 'tinro';
+  import { Route as RouteLegacy, router } from 'tinro';
+  const Route = RouteLegacy as any;
   import MainLayout from './lib/components/MainLayout.svelte';
   import { authStore } from './lib/stores/auth.svelte';
   
@@ -21,8 +22,11 @@
   import PublicProfile from './pages/PublicProfile.svelte';
   import StaffManagement from './pages/StaffManagement.svelte';
   import Procedures from './pages/Procedures.svelte';
+import News from './pages/News.svelte';
 
-    const adminOnlyPrefixes = ['/modules', '/module-settings', '/settings', '/notifications', '/automations', '/command-access', '/regulation', '/staff-management'];
+  const adminOnlyPrefixes = ['/modules', '/module-settings', '/settings', '/notifications', '/automations', '/command-access', '/regulation', '/staff-management'];
+
+  const isPublicPage = $derived($router.path.startsWith('/news') || $router.path.startsWith('/profile/'));
 
   function isAdminOnlyRoute(path: string) {
     return adminOnlyPrefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
@@ -48,14 +52,14 @@
     }
 
     
-    if (!authStore.isAuthenticated && $router.path !== '/login') {
+    if (!authStore.isAuthenticated && $router.path !== '/login' && !isPublicPage) {
       router.goto('/login');
     }
   });
 
   
   $effect(() => {
-    if (!authStore.isAuthenticated && $router.path !== '/login') {
+    if (!authStore.isAuthenticated && $router.path !== '/login' && !isPublicPage) {
       router.goto('/login');
       return;
     }
@@ -67,71 +71,79 @@
 </script>
 
 
-<Route path="/login">
-  <Login />
-</Route>
+{#if isPublicPage}
+  <Route path="/profile/:userId" let:meta>
+    <PublicProfile userId={meta.params.userId} />
+  </Route>
 
-<Route path="/profile/:userId" let:meta>
-  <PublicProfile userId={meta.params.userId} />
-</Route>
+  <Route path="/news">
+    <News />
+  </Route>
+{:else}
+  <Route path="/login">
+    <Login />
+  </Route>
 
-<Route path="/*">
-  {#if authStore.isAuthenticated}
-    <MainLayout>
-      <Route path="/">
-        <Overview />
-      </Route>
-      <Route path="/content/filtered">
-        <ContentDiffusion initialFilter="Filtrées" />
-      </Route>
-      <Route path="/content">
-        <ContentDiffusion />
-      </Route>
-      <Route path="/analytics">
-        <Analytics />
-      </Route>
-      <Route path="/activity">
-        <ActivityLog />
-      </Route>
-      <Route path="/logs">
-        <Logs />
-      </Route>
-      <Route path="/sanctions">
-        <Sanctions />
-      </Route>
-      <Route path="/regulation">
-        <Regulation />
-      </Route>
-      <Route path="/profile">
-        <Profile />
-      </Route>
-      <Route path="/procedures">
-        <Procedures />
-      </Route>
-      {#if canManageSettings}
-        <Route path="/modules">
-          <ModuleCatalog />
+  <Route path="/*">
+    {#if authStore.isAuthenticated}
+      <MainLayout>
+        <Route path="/">
+          <Overview />
         </Route>
-        <Route path="/module-settings/:moduleId" let:meta>
-          <ModuleSettings moduleId={meta.params.moduleId} />
+        <Route path="/content/filtered">
+          <ContentDiffusion initialFilter="Filtrées" />
         </Route>
-        <Route path="/notifications">
-          <NotificationsSettings />
+        <Route path="/content">
+          <ContentDiffusion />
         </Route>
-        <Route path="/command-access">
-          <CommandAccess />
+        <Route path="/analytics">
+          <Analytics />
         </Route>
-        <Route path="/settings">
-          <NotificationsSettings />
+        <Route path="/activity">
+          <ActivityLog />
         </Route>
-        <Route path="/automations">
-          <ModuleCatalog />
+        <Route path="/logs">
+          <Logs />
         </Route>
-        <Route path="/staff-management">
-          <StaffManagement />
+        <Route path="/sanctions">
+          <Sanctions />
         </Route>
-      {/if}
-    </MainLayout>
-  {/if}
-</Route>
+        <Route path="/regulation">
+          <Regulation />
+        </Route>
+        <Route path="/profile">
+          <Profile />
+        </Route>
+        <Route path="/procedures">
+          <Procedures />
+        </Route>
+        {#if canManageSettings}
+          <Route path="/modules">
+            <ModuleCatalog />
+          </Route>
+          <Route path="/module-settings/:moduleId" let:meta>
+            <ModuleSettings moduleId={meta.params.moduleId} />
+          </Route>
+          <Route path="/notifications">
+            <NotificationsSettings />
+          </Route>
+          <Route path="/command-access">
+            <CommandAccess />
+          </Route>
+          <Route path="/settings">
+            <NotificationsSettings />
+          </Route>
+          <Route path="/automations">
+            <ModuleCatalog />
+          </Route>
+          <Route path="/staff-management">
+            <StaffManagement />
+          </Route>
+        {/if}
+      </MainLayout>
+    {:else if $router.path !== '/login'}
+       <!-- Optional: Loader or nothing while redirecting -->
+    {/if}
+  </Route>
+{/if}
 

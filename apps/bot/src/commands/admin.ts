@@ -8,6 +8,7 @@ import {
   setGuildRecommendationWeights,
 } from '../services/personalFeedService.js';
 import { extractInterestTopics } from '../services/interestService.js';
+import { sendWeeklyRecap } from '../services/recapService.js';
 
 function clampScore(value: number): number {
   return Math.max(0, Math.min(100, value));
@@ -213,6 +214,11 @@ export const data = new SlashCommandBuilder()
           .setMinValue(5)
           .setMaxValue(25)
       )
+  )
+  .addSubcommand(sub =>
+    sub
+      .setName('publish-weekly-recap')
+      .setDescription('Génère et publie le recap hebdomadaire (Weekly Feed Actu)')
   );
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -546,5 +552,17 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       color: COLORS.info,
       footerPrefix: `News analysées: ${items.length}`,
     });
+  } else if (subcommand === 'publish-weekly-recap') {
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+    try {
+      await sendWeeklyRecap(interaction.client, guildId);
+      await interaction.editReply({
+        embeds: [successEmbed('Recap Hebdomadaire lancé', 'Le recap hebdomadaire a été généré et envoyé dans le salon public.')],
+      });
+    } catch (error: any) {
+      await interaction.editReply({
+        embeds: [errorEmbed('Erreur de publication', error.message || 'Une erreur inconnue est survenue.')],
+      });
+    }
   }
 }

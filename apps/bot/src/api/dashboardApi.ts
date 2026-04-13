@@ -1118,7 +1118,7 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
     prisma.feed.findMany({ where: { guildId }, orderBy: { createdAt: 'desc' } }),
     prisma.feedItem.findMany({
       where: { feed: { guildId } },
-      include: { feed: { select: { name: true } } },
+      include: { feed: { select: { name: true, category: true } } },
       orderBy: { createdAt: 'desc' },
       take: 80
     }),
@@ -1597,6 +1597,50 @@ export const startDashboardApi = (client: Client) => {
         }
       }
 
+      // --- PUBLIC NEWS ROUTE ---
+      if (parts.length === 3 && parts[0] === 'api' && parts[1] === 'public' && parts[2] === 'news') {
+        try {
+          const firstGuildConfig = await prisma.guild.findFirst({
+            select: { id: true, publicChannelId: true }
+          });
+
+          if (!firstGuildConfig) {
+            json(res, 404, { error: 'Aucune guilde configurée.' });
+            return;
+          }
+
+          // Fetch real guild info from Discord client
+          const discordGuild = client.guilds.cache.get(firstGuildConfig.id);
+          const firstGuild = {
+            id: firstGuildConfig.id,
+            name: discordGuild?.name || 'Kotbo Gazette',
+            icon: discordGuild?.iconURL() || null
+          };
+
+          const rawNews = await prisma.feedItem.findMany({
+            where: {
+              feed: { guildId: firstGuildConfig.id },
+              status: 'APPROVED'
+            },
+            orderBy: { publishedAt: 'desc' },
+            take: 30,
+            include: { feed: true }
+          });
+
+          // Map to match frontend expectations (description -> excerpt)
+          const news = rawNews.map(item => ({
+            ...item,
+            excerpt: item.descriptionTranslated || item.description
+          }));
+
+          json(res, 200, { news, guild: firstGuild });
+          return;
+        } catch (error) {
+          logger.error('API', `Erreur public news:`, error);
+          json(res, 500, { error: 'Erreur lors de la récupération des news' });
+          return;
+        }
+      }
 
       // --- AUTH ROUTES ---
       if (parts.length >= 2 && parts[0] === 'api' && parts[1] === 'auth') {

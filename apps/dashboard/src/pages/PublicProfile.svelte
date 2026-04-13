@@ -30,6 +30,7 @@
         throw new Error('Erreur lors de la récupération du profil');
       }
       profile = await res.json();
+      console.log('[PublicProfile] Received profile data:', profile);
       
       if (isAdmin) {
         notes = await fetchManagerNotes(userId);
@@ -98,7 +99,7 @@
                     {#if profile.algo}
                         <span class="badge tier" style="background: {getTierColor(profile.algo.tier)}">{profile.algo.tier}</span>
                     {/if}
-                    {#if profile.stats.scoutedArticles > 50}
+                    {#if profile.stats?.scoutedArticles > 50}
                         <span class="badge contributor">Scout Élite</span>
                     {/if}
                 </div>
@@ -115,7 +116,7 @@
                 <span class="label">Série actuelle</span>
             </div>
             <div class="stat-item">
-                <span class="value">{profile.stats.scoutedArticles}</span>
+                <span class="value">{profile.stats?.scoutedArticles ?? 0}</span>
                 <span class="label">News validées</span>
             </div>
             <div class="stat-item">
@@ -131,12 +132,12 @@
                     {#each profile.recentAlgos as algo}
                         <div class="algo-card">
                             <div class="algo-header">
-                                <span class="difficulty {algo.difficulty.toLowerCase()}"></span>
-                                <span class="title">{algo.problemTitle}</span>
+                                <span class="difficulty {(algo.difficulty || 'moyen').toLowerCase()}"></span>
+                                <span class="title">{algo.problemTitle ?? 'Défi sans titre'}</span>
                             </div>
                             <div class="algo-footer">
-                                <span>Note: {algo.scoreFinal}/5</span>
-                                <span>{new Date(algo.submittedAt).toLocaleDateString('fr')}</span>
+                                <span>Note: {algo.scoreFinal ?? '—'}/5</span>
+                                <span>{algo.submittedAt ? new Date(algo.submittedAt).toLocaleDateString('fr') : '—'}</span>
                             </div>
                         </div>
                     {/each}

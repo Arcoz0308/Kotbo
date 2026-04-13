@@ -230,114 +230,135 @@ export async function generateStatsImage(guildId: string): Promise<Buffer> {
 }
 
 export async function generateWeeklyRecapImage(guildId: string, items: any[]): Promise<Buffer> {
-  const W = 1000, H = 700;
+  const W = 1000, H = 850; // Increased height to avoid overlap
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
 
-  // 1. Background (Premium Dark Gradient)
-  const bg = ctx.createLinearGradient(0, 0, W, H);
-  bg.addColorStop(0, '#0f1219');
-  bg.addColorStop(0.5, '#161b25');
-  bg.addColorStop(1, '#0f1219');
-  ctx.fillStyle = bg;
+  // 1. Background (Solid Dark Console)
+  ctx.fillStyle = '#0d0f14';
   ctx.fillRect(0, 0, W, H);
 
-  // 2. Decorative Glows
-  const glow1 = ctx.createRadialGradient(200, 100, 0, 200, 100, 500);
-  glow1.addColorStop(0, 'rgba(88, 101, 242, 0.15)');
-  glow1.addColorStop(1, 'rgba(88, 101, 242, 0)');
-  ctx.fillStyle = glow1;
-  ctx.fillRect(0, 0, W, H);
+  // Subtle Scanlines
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.015)';
+  for (let i = 0; i < H; i += 4) {
+    ctx.fillRect(0, i, W, 1);
+  }
 
-  const glow2 = ctx.createRadialGradient(W - 200, H - 100, 0, W - 200, H - 100, 450);
-  glow2.addColorStop(0, 'rgba(87, 242, 135, 0.1)');
-  glow2.addColorStop(1, 'rgba(87, 242, 135, 0)');
-  ctx.fillStyle = glow2;
-  ctx.fillRect(0, 0, W, H);
-
-  // 3. Header
+  // 2. Terminal Header
   const topBar = ctx.createLinearGradient(0, 0, W, 0);
-  topBar.addColorStop(0, '#5865f2');
-  topBar.addColorStop(0.5, '#57f287');
-  topBar.addColorStop(1, '#5865f2');
+  topBar.addColorStop(0, '#1c1f26');
+  topBar.addColorStop(1, '#11141a');
   ctx.fillStyle = topBar;
-  ctx.fillRect(0, 0, W, 6);
+  ctx.fillRect(0, 0, W, 40);
 
+  // Window Controls (Modern)
+  const colors = ['#ff5f56', '#ffbd2e', '#27c93f'];
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.arc(25 + i * 20, 20, 6, 0, Math.PI * 2);
+    ctx.fillStyle = colors[i];
+    ctx.fill();
+  }
+
+  // Prompt Line
+  ctx.font = 'bold 18px monospace';
+  ctx.fillStyle = '#57f287';
+  ctx.fillText('user@kotbo', 50, 80);
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 36px sans-serif';
-  ctx.fillText('🌟  LE RECAP HEBDO KOTBO', 50, 70);
+  ctx.fillText(':', 155, 80);
+  ctx.fillStyle = '#5865f2';
+  ctx.fillText('~/weekly-news', 170, 80);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText('$ recap --format=clean --top=5', 300, 80);
 
+  // 3. Main Title
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 32px monospace';
+  ctx.fillText('> EXECUTING WEEKLY RECAP', 50, 140);
+  
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
   ctx.fillStyle = '#8b949e';
-  ctx.font = '18px sans-serif';
-  ctx.fillText('Les actualités tech qui ont marqué la communauté cette semaine', 50, 105);
+  ctx.font = '16px monospace';
+  ctx.fillText(`[TIMESTAMP: ${dateStr.toUpperCase()}]`, 50, 170);
 
-  const divider = ctx.createLinearGradient(50, 0, W - 50, 0);
-  divider.addColorStop(0, 'rgba(255,255,255,0.1)');
-  divider.addColorStop(0.5, 'rgba(255,255,255,0.05)');
-  divider.addColorStop(1, 'rgba(255,255,255,0)');
-  ctx.fillStyle = divider;
-  ctx.fillRect(50, 125, W - 100, 1);
-
-  // 4. Render News Items (Top 5)
+  // 4. Render News Items (Modern CLI Cards)
   const itemX = 50;
-  let itemY = 160;
+  let itemY = 210;
   const itemW = W - 100;
-  const itemH = 95;
-  const itemGap = 15;
+  const itemH = 105; // Slightly taller for better legibility
+  const itemGap = 20;
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     const y = itemY + i * (itemH + itemGap);
 
-    // Card Background (Glassmorphism effect)
-    roundRect(ctx, itemX, y, itemW, itemH, 12, 'rgba(255, 255, 255, 0.03)');
+    // Subtle container border
+    ctx.strokeStyle = 'rgba(88, 101, 242, 0.2)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(itemX, y, itemW, itemH);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
+    ctx.fillRect(itemX, y, itemW, itemH);
     
-    // Left accent bar
+    // Status Badge [01..05]
     const accentColor = i === 0 ? '#fee75c' : i === 1 ? '#c9d1d9' : i === 2 ? '#cd7f32' : '#5865f2';
-    roundRect(ctx, itemX, y, 6, itemH, 3, accentColor);
-
-    // Rank Circle
-    ctx.beginPath();
-    ctx.arc(itemX + 40, y + itemH / 2, 20, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.05)';
-    ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(itemX + 20, y + 32, 45, 40);
+    ctx.strokeStyle = accentColor;
+    ctx.strokeRect(itemX + 20, y + 32, 45, 40);
     
     ctx.fillStyle = accentColor;
-    ctx.font = 'bold 20px sans-serif';
+    ctx.font = 'bold 22px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(String(i + 1), itemX + 40, y + itemH / 2 + 7);
+    ctx.fillText(`${i + 1}`, itemX + 42, y + 58); // Adjusted Y for better vertical centering
     ctx.textAlign = 'left';
 
-    // Title
+    // Title (Monospace and clean)
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 20px sans-serif';
+    ctx.font = 'bold 20px monospace';
     const title = item.titleTranslated ?? item.title;
-    ctx.fillText(truncate(title, 75), itemX + 90, y + 42);
+    ctx.fillText(truncate(title, 65), itemX + 85, y + 42);
 
-    // Metadata (Source & Category)
+    // Metadata (Source with labels)
     ctx.fillStyle = '#8b949e';
-    ctx.font = '14px sans-serif';
-    const sourceLabel = `📡 ${item.feed?.name ?? 'Inconnue'}  •  📁 ${item.feed?.category ?? 'Général'}`;
-    ctx.fillText(sourceLabel, itemX + 90, y + 70);
+    ctx.font = '14px monospace';
+    const sourceLabel = `SOURCE: ${item.feed?.name ?? 'UNKNOWN'} | TAGS: ${item.feed?.category ?? 'GENERAL'}`;
+    ctx.fillText(sourceLabel, itemX + 85, y + 75);
 
-    // Interest Score Badge
+    // Interest Score (Modern Console progress bar)
     if (item.interestScore) {
-        const scoreW = 80;
-        const scoreX = itemX + itemW - scoreW - 20;
-        roundRect(ctx, scoreX, y + 35, scoreW, 30, 15, 'rgba(87, 242, 135, 0.1)');
-        ctx.fillStyle = '#57f287';
-        ctx.font = 'bold 14px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(`${Math.round(item.interestScore * 100)}%`, scoreX + scoreW / 2, y + 54);
-        ctx.textAlign = 'left';
+        const score = Math.round(item.interestScore * 100);
+        const scoreColor = score > 80 ? '#57f287' : score > 50 ? '#fee75c' : '#ed4245';
+        
+        ctx.fillStyle = '#3b4048';
+        ctx.fillRect(itemX + 85, y + 90, 200, 4);
+        ctx.fillStyle = scoreColor;
+        ctx.fillRect(itemX + 85, y + 90, (score / 100) * 200, 4);
+        
+        ctx.fillStyle = scoreColor;
+        ctx.font = 'bold 12px monospace';
+        ctx.fillText(`${score}% RELEVANCE`, itemX + 300, y + 95);
     }
   }
 
-  // 5. Footer
-  const footerY = H - 30;
+  // 5. Console Footer (Stuck to bottom)
+  const footerH = 40;
+  ctx.fillStyle = '#11141a';
+  ctx.fillRect(0, H - footerH, W, footerH);
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.beginPath();
+  ctx.moveTo(0, H - footerH);
+  ctx.lineTo(W, H - footerH);
+  ctx.stroke();
+
+  const footerTextY = H - 15;
   ctx.fillStyle = '#4e5563';
-  ctx.font = '12px sans-serif';
-  ctx.fillText('Kotbo News Generator • Intelligence Artificielle & Veille Tech • ' + new Date().toLocaleDateString('fr'), 50, footerY);
+  ctx.font = '14px monospace';
+  ctx.fillText(`KOTBO_OS_v1.0.4 [SUCCESS] - ${items.length} items parsed.`, 50, footerTextY);
+  
+  ctx.textAlign = 'right';
+  ctx.fillText('RECAP_GENERATOR_READY', W - 50, footerTextY);
+  ctx.textAlign = 'left';
 
   return canvas.toBuffer('image/png');
 }

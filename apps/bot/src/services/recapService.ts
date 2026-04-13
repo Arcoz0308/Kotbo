@@ -1,4 +1,4 @@
-import { type Client, type TextChannel, AttachmentBuilder } from 'discord.js';
+import { type Client, type TextChannel, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { generateWeeklyRecapImage } from './imageService.js';
@@ -62,9 +62,17 @@ export async function sendWeeklyRecap(client: Client, guildId: string) {
     const channel = await client.channels.fetch(guild.publicChannelId).catch(() => null) as TextChannel | null;
     if (!channel) return;
 
+    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setLabel('🚀 Consulter toutes les news')
+        .setURL('https://kotbo.nathaan.me/news')
+        .setStyle(ButtonStyle.Link)
+    );
+
     await channel.send({
-      content: '🌟 **Le Recap Hebdomadaire Kotbo est là !** 🌟\nVoici les actus tech qui ont marqué la communauté cette semaine.',
-      files: [attachment]
+      content: '🚀 **KOTBO RECAP: WEEKLY_REPORT_LOADED**\nVoici une sélection des actualités qui ont marqué la semaine.',
+      files: [attachment],
+      components: [row]
     });
 
     logger.success('Recap', `Recap hebdomadaire envoyé pour la guilde ${guildId}`);
