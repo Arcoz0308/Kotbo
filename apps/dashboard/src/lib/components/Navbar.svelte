@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { authStore } from '../stores/auth.svelte';
   import { dashboardStore } from '../stores/dashboard.svelte';
+  import { themeStore } from '../stores/theme.svelte';
   import { API_BASE_URL } from '../api';
 
   let config = $state({ discordClientId: '' });
@@ -57,6 +58,20 @@
       <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
       <span class="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Connecté</span>
     </div>
+
+        <button
+      onclick={() => themeStore.toggle()}
+      class="relative w-10 h-10 rounded-2xl border border-outline-variant/30 bg-surface-container-low flex items-center justify-center transition-all duration-500 hover:scale-110 hover:shadow-lg hover:shadow-primary/10 group/theme overflow-hidden"
+      aria-label="Changer de th\u00e8me"
+      id="theme-toggle"
+    >
+      <div class="absolute inset-0 bg-linear-to-tr from-amber-400/0 to-indigo-500/0 group-hover/theme:from-amber-400/10 group-hover/theme:to-indigo-500/10 transition-all duration-500"></div>
+      {#if themeStore.dark}
+        <span class="material-symbols-outlined text-lg text-amber-400 transition-all duration-500 group-hover/theme:rotate-[360deg] group-hover/theme:scale-110" style="font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24">light_mode</span>
+      {:else}
+        <span class="material-symbols-outlined text-lg text-indigo-400 transition-all duration-500 group-hover/theme:-rotate-[20deg] group-hover/theme:scale-110" style="font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24">dark_mode</span>
+      {/if}
+    </button>
 
     <div class="flex items-center gap-4 group">
       <div class="flex flex-col items-end">

@@ -4,6 +4,7 @@
   const Route = RouteLegacy as any;
   import MainLayout from './lib/components/MainLayout.svelte';
   import { authStore } from './lib/stores/auth.svelte';
+  import { themeStore } from './lib/stores/theme.svelte';
   
   
   import Login from './pages/Login.svelte';
