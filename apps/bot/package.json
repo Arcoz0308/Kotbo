@@ -3,7 +3,8 @@
   "version": "6.3",
   "private": true,
   "scripts": {
-    "prestart": "bun run quality:gate",
+    "migrate:deploy": "cd ../.. && bun run db:migrate:deploy",
+    "prestart": "bun run migrate:deploy && bun run quality:gate",
     "dev": "bun run --watch src/index.ts",
     "dev:safe": "bun run quality:gate && bun run --watch src/index.ts",
     "start": "bun run src/index.ts",

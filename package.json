@@ -20,7 +20,7 @@
     "dev:all": "bun run dev:bot && bun run dev:dashboard",
     "deploy-commands": "bun run --filter @kotbo/bot deploy-commands",
 
-    "deploy": "bun run quality:bot && bun db:migrate:deploy && bun db:seed && bun deploy-commands && bun run dev:bot:safe"
+    "deploy": "bun db:migrate:deploy && bun run quality:bot && bun db:seed && bun deploy-commands && bun run dev:bot:safe"
   },
   "dependencies": {
     "@prisma/client-runtime-utils": "^7.6.0"
