@@ -54,6 +54,7 @@
     compactness: number;
     optimization: number;
     readability: number;
+    feedback: string;
   }>>({});
   let algoDraft = $state({
     title: '',
@@ -157,6 +158,7 @@
       compactness: 5,
       optimization: 5,
       readability: 5,
+      feedback: '',
     };
   }
 
@@ -181,6 +183,16 @@
       [submissionId]: {
         ...(scoreDraftBySubmissionId[submissionId] ?? getDefaultScoreDraft()),
         [field]: score,
+      },
+    };
+  }
+
+  function updateSubmissionFeedback(submissionId: string, value: string) {
+    scoreDraftBySubmissionId = {
+      ...scoreDraftBySubmissionId,
+      [submissionId]: {
+        ...(scoreDraftBySubmissionId[submissionId] ?? getDefaultScoreDraft()),
+        feedback: value,
       },
     };
   }
@@ -219,6 +231,13 @@
     }
 
     const draft = scoreDraftBySubmissionId[submissionId] ?? getDefaultScoreDraft();
+    const feedback = draft.feedback?.trim() ?? '';
+    const hasLowScore = [draft.correctness, draft.comments, draft.compactness, draft.optimization, draft.readability].some((score) => score < 5);
+
+    if (hasLowScore && !feedback) {
+      formAction.setError('Une explication est obligatoire si une note est inférieure à 5/5.');
+      return;
+    }
 
     await formAction.run(
       async () => {
@@ -231,6 +250,7 @@
             optimization: draft.optimization,
             readability: draft.readability,
           },
+          feedback: feedback || undefined,
         });
         if (!ok) return false;
 
@@ -1126,6 +1146,9 @@
                               {:else}
                                 <p class="text-xs font-black text-amber-700">En attente de note</p>
                               {/if}
+                              {#if submission.reviewFeedback}
+                                <p class="mt-1 text-[10px] text-on-surface-variant line-clamp-2">{submission.reviewFeedback}</p>
+                              {/if}
                             </td>
                             <td>
                               {#if submission.validatedByName}
@@ -1234,6 +1257,23 @@
                                           />
                                         </label>
                                       </div>
+                                      <div class="space-y-2">
+                                        <label class="text-[11px] font-bold text-on-surface-variant space-y-1" for={`score-feedback-${submission.id}`}>
+                                          Explication / axes d'amélioration
+                                          <textarea
+                                            id={`score-feedback-${submission.id}`}
+                                            rows="3"
+                                            maxlength="1000"
+                                            value={scoreDraftBySubmissionId[submission.id]?.feedback ?? ''}
+                                            oninput={(event) => updateSubmissionFeedback(submission.id, (event.currentTarget as HTMLTextAreaElement).value)}
+                                            class="w-full px-3 py-2 rounded-lg border border-outline-variant/25 bg-surface text-sm text-on-surface"
+                                            placeholder="Obligatoire si une note est inférieure à 5/5."
+                                          ></textarea>
+                                        </label>
+                                        {#if [scoreDraftBySubmissionId[submission.id]?.correctness ?? 5, scoreDraftBySubmissionId[submission.id]?.comments ?? 5, scoreDraftBySubmissionId[submission.id]?.compactness ?? 5, scoreDraftBySubmissionId[submission.id]?.optimization ?? 5, scoreDraftBySubmissionId[submission.id]?.readability ?? 5].some((score) => score < 5)}
+                                          <p class="text-[10px] font-bold text-amber-700">Une explication est requise car au moins un critère est en dessous de 5/5.</p>
+                                        {/if}
+                                      </div>
                                       <div class="flex items-center justify-between gap-3">
                                         <p class="text-xs font-bold text-emerald-800">Moyenne: {reviewAverage(submission.id)}/5</p>
                                         <button
@@ -1244,6 +1284,13 @@
                                           Confirmer la validation
                                         </button>
                                       </div>
+                                    </div>
+                                  {/if}
+
+                                  {#if submission.status !== 'PENDING' && submission.reviewFeedback}
+                                    <div class="rounded-xl border border-outline-variant/25 bg-surface-container-low p-3 space-y-1">
+                                      <p class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Feedback staff</p>
+                                      <p class="text-xs text-on-surface whitespace-pre-wrap">{submission.reviewFeedback}</p>
                                     </div>
                                   {/if}
                                 </div>

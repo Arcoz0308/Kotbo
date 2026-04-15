@@ -7,7 +7,12 @@ import {
   ActionRowBuilder,
 } from 'discord.js';
 import { logger } from '../utils/logger.js';
-import { queueDailyAlgoSubmission } from '../services/dailyAlgoService.js';
+import {
+  getDailyAlgoButtonRow,
+  getDailyAlgoSubmissionAvailability,
+  getDailyAlgoSubmissionFeedbackForUser,
+  queueDailyAlgoSubmission,
+} from '../services/dailyAlgoService.js';
 import { replyOrFollowUp } from '../utils/interactionResponses.js';
 
 function formatRankLabel(rank: number): string {
@@ -20,10 +25,60 @@ function formatRankLabel(rank: number): string {
 export function registerDailyAlgoHandlers(client: Client): void {
   client.on('interactionCreate', async interaction => {
     if (!interaction.isButton()) return;
-    if (!interaction.customId.startsWith('daily-algo-submit:')) return;
+    if (!interaction.customId.startsWith('daily-algo-submit:') && !interaction.customId.startsWith('daily-algo-why:')) return;
+
+    if (interaction.customId.startsWith('daily-algo-why:')) {
+      const runId = interaction.customId.split(':')[1];
+      if (!runId) return;
+
+      const feedback = await getDailyAlgoSubmissionFeedbackForUser(runId, interaction.user.id);
+      if (!feedback) {
+        await interaction.reply({
+          content: 'ℹ️ Tu n’as pas participé à ce Daily Algo.',
+          flags: [MessageFlags.Ephemeral],
+        });
+        return;
+      }
+
+      if (feedback.status === 'PENDING') {
+        await interaction.reply({
+          content: '⏳ Ta soumission est encore en attente de notation.',
+          flags: [MessageFlags.Ephemeral],
+        });
+        return;
+      }
+
+      if (feedback.status === 'REJECTED') {
+        await interaction.reply({
+          content: `❌ Ta soumission a été rejetée.${feedback.reviewFeedback ? `\n\n🗒️ **Retour du staff**\n${feedback.reviewFeedback}` : ''}`,
+          flags: [MessageFlags.Ephemeral],
+        });
+        return;
+      }
+
+      const details = `✅ ${feedback.scoreCorrectness ?? '-'}/5 · 💬 ${feedback.scoreComments ?? '-'}/5 · 📦 ${feedback.scoreCompactness ?? '-'}/5 · ⚡ ${feedback.scoreOptimization ?? '-'}/5 · 🧹 ${feedback.scoreReadability ?? '-'}/5`;
+      await interaction.reply({
+        content: `📊 **Pourquoi cette note ?**\n\n**Défi:** ${feedback.problemTitle}\n**Moyenne:** ${feedback.scoreFinal?.toFixed(1) ?? '-'} / 5\n**Total:** ${feedback.totalPoints?.toFixed(1) ?? '-'} pts\n\n${details}${feedback.reviewFeedback ? `\n\n🗒️ **Retour du staff**\n${feedback.reviewFeedback}` : ''}`,
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
 
     const runId = interaction.customId.split(':')[1];
     if (!runId) return;
+
+    const availability = await getDailyAlgoSubmissionAvailability(runId);
+    if (!availability.isOpen) {
+      await interaction.message.edit({
+        components: [getDailyAlgoButtonRow(runId, true)],
+      }).catch(() => null);
+
+      await interaction.reply({
+        content: `⛔ ${availability.reason ?? 'Ce Daily Algo est clôturé.'}`,
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
 
     const modal = new ModalBuilder()
       .setCustomId(`daily-algo-solution:${runId}`)

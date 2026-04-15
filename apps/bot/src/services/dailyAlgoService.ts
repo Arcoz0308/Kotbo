@@ -54,6 +54,9 @@ export const DAILY_ALGO_SCORING_RULES = {
 
 const dailyAlgoRunDispatchSelect = {
   id: true,
+  dateKey: true,
+  createdAt: true,
+  summarySentAt: true,
   challengeChannelId: true,
   validationChannelId: true,
   challengeMessageId: true,
@@ -69,6 +72,9 @@ const dailyAlgoRunDispatchSelect = {
 
 type DailyAlgoRunMessageData = {
   id: string;
+  dateKey: string | null;
+  createdAt: Date;
+  summarySentAt: Date | null;
   challengeChannelId: string;
   validationChannelId: string | null;
   challengeMessageId: string | null;
@@ -87,6 +93,9 @@ type DailyAlgoRunDispatchPayload = Prisma.DailyAlgoRunGetPayload<{
 function toDailyAlgoRunMessageData(run: DailyAlgoRunDispatchPayload): DailyAlgoRunMessageData {
   return {
     id: run.id,
+    dateKey: run.dateKey,
+    createdAt: run.createdAt,
+    summarySentAt: run.summarySentAt,
     challengeChannelId: run.challengeChannelId,
     validationChannelId: run.validationChannelId,
     challengeMessageId: run.challengeMessageId,
@@ -186,6 +195,23 @@ export function getLocalDateKey(date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
+function isDailyAlgoRunOpenForSubmissions(params: {
+  dateKey: string | null;
+  createdAt: Date;
+  summarySentAt: Date | null;
+}): boolean {
+  if (params.summarySentAt) {
+    return false;
+  }
+
+  const todayKey = getLocalDateKey();
+  if (params.dateKey) {
+    return params.dateKey === todayKey;
+  }
+
+  return getLocalDateKey(params.createdAt) === todayKey;
+}
+
 export function formatDailyAlgoDate(dateKey: string): string {
   const [year, month, day] = dateKey.split('-').map((value) => Number(value));
 
@@ -202,12 +228,22 @@ export function formatDailyAlgoDate(dateKey: string): string {
 
 // ── Button Rows ────────────────────────────────────────────────────────────────
 
-export function getDailyAlgoButtonRow(runId: string) {
+export function getDailyAlgoButtonRow(runId: string, disabled = false) {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`daily-algo-submit:${runId}`)
       .setLabel('📝 Soumettre ma solution')
-      .setStyle(ButtonStyle.Primary),
+      .setStyle(ButtonStyle.Primary)
+      .setDisabled(disabled),
+  );
+}
+
+export function getDailyAlgoLeaderboardButtonRow(runId: string) {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`daily-algo-why:${runId}`)
+      .setLabel('❓ Pourquoi ma note ?')
+      .setStyle(ButtonStyle.Secondary),
   );
 }
 
@@ -450,13 +486,19 @@ export async function updateDailyAlgoLeaderboard(client: Client, runId: string):
   if (run.leaderboardMessageId) {
     const message = await channel.messages.fetch(run.leaderboardMessageId).catch(() => null);
     if (message) {
-      await message.edit({ embeds: [embed] });
+      await message.edit({
+        embeds: [embed],
+        components: [getDailyAlgoLeaderboardButtonRow(run.id)],
+      });
       return;
     }
   }
 
   // No existing leaderboard message or it was deleted → send new one
-  const newMessage = await channel.send({ embeds: [embed] });
+  const newMessage = await channel.send({
+    embeds: [embed],
+    components: [getDailyAlgoLeaderboardButtonRow(run.id)],
+  });
   await prisma.dailyAlgoRun.update({
     where: { id: runId },
     data: { leaderboardMessageId: newMessage.id },
@@ -464,6 +506,46 @@ export async function updateDailyAlgoLeaderboard(client: Client, runId: string):
 }
 
 // ── Queue Submission ───────────────────────────────────────────────────────────
+
+export async function getDailyAlgoSubmissionAvailability(runId: string): Promise<{
+  isOpen: boolean;
+  reason: string | null;
+}> {
+  const run = await prisma.dailyAlgoRun.findUnique({
+    where: { id: runId },
+    select: {
+      id: true,
+      dateKey: true,
+      createdAt: true,
+      summarySentAt: true,
+    },
+  });
+
+  if (!run) {
+    return {
+      isOpen: false,
+      reason: 'Le Daily Algo demandé est introuvable.',
+    };
+  }
+
+  const isOpen = isDailyAlgoRunOpenForSubmissions({
+    dateKey: run.dateKey,
+    createdAt: run.createdAt,
+    summarySentAt: run.summarySentAt,
+  });
+
+  if (!isOpen) {
+    return {
+      isOpen: false,
+      reason: 'Ce Daily Algo est clôturé. Les soumissions ne sont ouvertes que le jour même.',
+    };
+  }
+
+  return {
+    isOpen: true,
+    reason: null,
+  };
+}
 
 export async function queueDailyAlgoSubmission(params: {
   client: Client;
@@ -487,8 +569,14 @@ export async function queueDailyAlgoSubmission(params: {
     throw new Error('Le Daily Algo demandé est introuvable.');
   }
 
-  if (run.summarySentAt) {
-    throw new Error('Ce Daily Algo est déjà clôturé.');
+  const canSubmit = isDailyAlgoRunOpenForSubmissions({
+    dateKey: run.dateKey,
+    createdAt: run.createdAt,
+    summarySentAt: run.summarySentAt,
+  });
+
+  if (!canSubmit) {
+    throw new Error('Ce Daily Algo est clôturé. Les soumissions ne sont ouvertes que le jour même.');
   }
 
   // Check double submission
@@ -851,6 +939,80 @@ export async function getDailyAlgoUserParticipations(
   return participations;
 }
 
+export type DailyAlgoSubmissionFeedback = {
+  submissionId: string;
+  runId: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  problemTitle: string;
+  scoreCorrectness: number | null;
+  scoreComments: number | null;
+  scoreCompactness: number | null;
+  scoreOptimization: number | null;
+  scoreReadability: number | null;
+  scoreFinal: number | null;
+  speedBonusPoints: number | null;
+  totalPoints: number | null;
+  reviewFeedback: string | null;
+  validatedAt: Date | null;
+};
+
+export async function getDailyAlgoSubmissionFeedbackForUser(runId: string, authorId: string): Promise<DailyAlgoSubmissionFeedback | null> {
+  const submission = await prisma.dailyAlgoSubmission.findFirst({
+    where: {
+      runId,
+      authorId,
+    },
+    select: {
+      id: true,
+      runId: true,
+      status: true,
+      scoreCorrectness: true,
+      scoreComments: true,
+      scoreCompactness: true,
+      scoreOptimization: true,
+      scoreReadability: true,
+      scoreFinal: true,
+      speedBonusPoints: true,
+      reviewFeedback: true,
+      validatedAt: true,
+      run: {
+        select: {
+          problem: {
+            select: {
+              title: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!submission) {
+    return null;
+  }
+
+  const totalPoints = submission.scoreFinal !== null
+    ? Math.round(((submission.scoreFinal ?? 0) + (submission.speedBonusPoints ?? 0)) * 10) / 10
+    : null;
+
+  return {
+    submissionId: submission.id,
+    runId: submission.runId,
+    status: submission.status,
+    problemTitle: submission.run.problem.title,
+    scoreCorrectness: submission.scoreCorrectness,
+    scoreComments: submission.scoreComments,
+    scoreCompactness: submission.scoreCompactness,
+    scoreOptimization: submission.scoreOptimization,
+    scoreReadability: submission.scoreReadability,
+    scoreFinal: submission.scoreFinal,
+    speedBonusPoints: submission.speedBonusPoints,
+    totalPoints,
+    reviewFeedback: submission.reviewFeedback,
+    validatedAt: submission.validatedAt,
+  };
+}
+
 // ── Review Submission (with scoring) ───────────────────────────────────────────
 
 export async function reviewDailyAlgoSubmission(params: {
@@ -865,6 +1027,7 @@ export async function reviewDailyAlgoSubmission(params: {
     optimization: number;
     readability: number;
   };
+  feedback?: string;
 }): Promise<boolean> {
   const submission = await prisma.dailyAlgoSubmission.findUnique({
     where: { id: params.submissionId },
@@ -887,6 +1050,9 @@ export async function reviewDailyAlgoSubmission(params: {
   }
 
   const status = params.action === 'approve' ? 'APPROVED' : 'REJECTED';
+  const normalizedFeedback = typeof params.feedback === 'string'
+    ? params.feedback.trim()
+    : '';
 
   const updateData: Record<string, unknown> = {
     status,
@@ -896,6 +1062,12 @@ export async function reviewDailyAlgoSubmission(params: {
 
   if (params.action === 'approve' && params.scores) {
     const { correctness, comments, compactness, optimization, readability } = params.scores;
+    const hasLowScore = [correctness, comments, compactness, optimization, readability].some((score) => score < 5);
+
+    if (hasLowScore && !normalizedFeedback) {
+      throw new Error('Une explication est obligatoire quand une note est inférieure à 5/5.');
+    }
+
     const scoreFinal = (correctness + comments + compactness + optimization + readability) / 5;
 
     updateData.scoreCorrectness = correctness;
@@ -904,6 +1076,9 @@ export async function reviewDailyAlgoSubmission(params: {
     updateData.scoreOptimization = optimization;
     updateData.scoreReadability = readability;
     updateData.scoreFinal = Math.round(scoreFinal * 10) / 10;
+    updateData.reviewFeedback = normalizedFeedback || 'Rien à redire.';
+  } else if (normalizedFeedback) {
+    updateData.reviewFeedback = normalizedFeedback;
   }
 
   await prisma.dailyAlgoSubmission.update({
@@ -937,6 +1112,13 @@ export async function reviewDailyAlgoSubmission(params: {
           .setColor(params.action === 'approve' ? COLORS.success : COLORS.danger)
           .setFooter({ text: `Kotbo · ${footerLabel}` });
 
+        if (normalizedFeedback) {
+          embed.addFields({
+            name: '🗒️ Feedback staff',
+            value: truncate(normalizedFeedback, 1024),
+          });
+        }
+
         await message.edit({
           embeds: [embed],
           components: buildDailyAlgoValidationButtons(submission.id, true),
@@ -947,6 +1129,61 @@ export async function reviewDailyAlgoSubmission(params: {
 
   // Update leaderboard in challenge channel
   await updateDailyAlgoLeaderboard(params.client, submission.runId);
+
+  const moderator = await params.client.users.fetch(params.moderatorId).catch(() => null);
+  const author = await params.client.users.fetch(submission.authorId).catch(() => null);
+
+  if (author) {
+    const dmEmbed = new EmbedBuilder()
+      .setColor(params.action === 'approve' ? COLORS.success : COLORS.danger)
+      .setTitle(`📬 Retour Daily Algo · ${submission.run.problem.title}`)
+      .setDescription(params.action === 'approve'
+        ? 'Ta soumission a été notée par le staff.'
+        : 'Ta soumission a été rejetée par le staff.')
+      .addFields(
+        {
+          name: 'Statut',
+          value: params.action === 'approve' ? '✅ Validée' : '❌ Rejetée',
+          inline: true,
+        },
+        {
+          name: 'Modérateur',
+          value: moderator?.globalName ?? moderator?.username ?? `ID ${params.moderatorId}`,
+          inline: true,
+        },
+      )
+      .setTimestamp()
+      .setFooter({ text: 'Kotbo · Daily Algo' });
+
+    if (params.action === 'approve' && params.scores) {
+      const rawAvg = (params.scores.correctness + params.scores.comments + params.scores.compactness + params.scores.optimization + params.scores.readability) / 5;
+      const average = Math.round(rawAvg * 10) / 10;
+      const totalPoints = Math.round((average + (submission.speedBonusPoints ?? 0)) * 10) / 10;
+
+      dmEmbed.addFields(
+        {
+          name: 'Détail des notes',
+          value: `✅ ${params.scores.correctness}/5 · 💬 ${params.scores.comments}/5 · 📦 ${params.scores.compactness}/5 · ⚡ ${params.scores.optimization}/5 · 🧹 ${params.scores.readability}/5`,
+          inline: false,
+        },
+        {
+          name: 'Résultat',
+          value: `Moyenne: **${average.toFixed(1)}/5** · Total: **${totalPoints.toFixed(1)} pts**`,
+          inline: false,
+        },
+      );
+    }
+
+    if (normalizedFeedback) {
+      dmEmbed.addFields({
+        name: 'Feedback',
+        value: truncate(normalizedFeedback, 1024),
+        inline: false,
+      });
+    }
+
+    await author.send({ embeds: [dmEmbed] }).catch(() => null);
+  }
 
   return true;
 }
@@ -967,7 +1204,9 @@ export async function sendDailyAlgoSummaryForGuild(client: Client, guildId: stri
     select: {
       id: true,
       challengeChannelId: true,
+      challengeMessageId: true,
       validationChannelId: true,
+      dateKey: true,
       createdAt: true,
       problem: {
         select: { title: true },
@@ -1088,6 +1327,26 @@ export async function sendDailyAlgoSummaryForGuild(client: Client, guildId: stri
     data: { summarySentAt: new Date() },
   });
 
+  for (const run of runs) {
+    if (!run.challengeMessageId) {
+      continue;
+    }
+
+    const challengeChannel = await client.channels.fetch(run.challengeChannelId).catch(() => null) as TextChannel | null;
+    if (!challengeChannel) {
+      continue;
+    }
+
+    const challengeMessage = await challengeChannel.messages.fetch(run.challengeMessageId).catch(() => null);
+    if (!challengeMessage) {
+      continue;
+    }
+
+    await challengeMessage.edit({
+      components: [getDailyAlgoButtonRow(run.id, true)],
+    }).catch(() => null);
+  }
+
   logger.success('DailyAlgo', `Bilan Daily Algo envoyé pour la guilde ${guildId}`);
 }
 
@@ -1142,6 +1401,63 @@ function splitLines(lines: string[], maxLength: number): string[] {
   return chunks;
 }
 
+async function ensureDailyAlgoRunButtons(client: Client, run: DailyAlgoRunMessageData): Promise<void> {
+  const challengeChannel = await client.channels.fetch(run.challengeChannelId).catch(() => null) as TextChannel | null;
+  if (!challengeChannel) {
+    return;
+  }
+
+  const canSubmit = isDailyAlgoRunOpenForSubmissions({
+    dateKey: run.dateKey,
+    createdAt: run.createdAt,
+    summarySentAt: run.summarySentAt,
+  });
+
+  if (run.challengeMessageId) {
+    const challengeMessage = await challengeChannel.messages.fetch(run.challengeMessageId).catch(() => null);
+    if (challengeMessage) {
+      await challengeMessage.edit({
+        components: [getDailyAlgoButtonRow(run.id, !canSubmit)],
+      }).catch(() => null);
+    }
+  }
+
+  if (run.leaderboardMessageId) {
+    const leaderboardMessage = await challengeChannel.messages.fetch(run.leaderboardMessageId).catch(() => null);
+    if (leaderboardMessage) {
+      await leaderboardMessage.edit({
+        components: [getDailyAlgoLeaderboardButtonRow(run.id)],
+      }).catch(() => null);
+    }
+  }
+}
+
+export async function syncOngoingDailyAlgoButtons(client: Client): Promise<void> {
+  const since = new Date();
+  since.setDate(since.getDate() - 30);
+
+  const activeRunsRaw = await prisma.dailyAlgoRun.findMany({
+    where: {
+      challengeMessageId: {
+        not: null,
+      },
+      createdAt: {
+        gte: since,
+      },
+    },
+    select: dailyAlgoRunDispatchSelect,
+  });
+
+  for (const runRaw of activeRunsRaw) {
+    const run = toDailyAlgoRunMessageData(runRaw);
+    await ensureDailyAlgoRunButtons(client, run);
+  }
+
+  if (activeRunsRaw.length > 0) {
+    logger.info('DailyAlgo', `${activeRunsRaw.length} run(s) synchronisés (soumission active uniquement pour le run du jour).`);
+  }
+}
+
 // ── Send Daily Algo (dispatch) ─────────────────────────────────────────────────
 
 export async function sendDailyAlgo(client: Client, guildId: string): Promise<DailyAlgoDispatchResult> {
@@ -1176,6 +1492,7 @@ export async function sendDailyAlgo(client: Client, guildId: string): Promise<Da
     : null;
 
   if (existingRun?.challengeMessageId) {
+    await ensureDailyAlgoRunButtons(client, existingRun);
     logger.info('DailyAlgo', `Daily Algo déjà publié pour ${guildId} le ${dateKey}`);
     return {
       status: 'exists',

@@ -405,6 +405,7 @@ model DailyAlgoSubmission {
   scoreOptimization Int?
   scoreReadability Int?
   scoreFinal Float?
+  reviewFeedback String?
 
   run DailyAlgoRun @relation(fields: [runId], references: [id], onDelete: Cascade)
 
@@ -996,4 +997,3 @@ model StaffProcedureRead {
   @@unique([procedureId, staffUserId])
   @@map("staff_procedure_reads")
 }
-

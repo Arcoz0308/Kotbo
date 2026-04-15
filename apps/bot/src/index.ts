@@ -54,6 +54,7 @@ import { registerModerationAuditListener } from './events/moderation.js';
 import { registerAdvancedLogsListener } from './events/advancedLogs.js';
 import { registerCloseSourceWarningListener } from './events/closeSourceWarning.js';
 import { registerDailyAlgoHandlers } from './handlers/dailyAlgoHandler.js';
+import { syncOngoingDailyAlgoButtons } from './services/dailyAlgoService.js';
 import { checkTranslationProviderHealth } from './services/translationService.js';
 import { startDashboardApi } from './api/dashboardApi.js';
 import botPackageJson from '../package.json';
@@ -131,6 +132,9 @@ client.once(Events.ClientReady, async (c) => {
   registerAdvancedLogsListener(client);
   registerCloseSourceWarningListener(client);
   registerDailyAlgoHandlers(client);
+  await syncOngoingDailyAlgoButtons(client).catch((error) =>
+    logger.error('DailyAlgo', 'Impossible de synchroniser les boutons des runs en cours:', error),
+  );
   await registerCrons(client);
 });
 

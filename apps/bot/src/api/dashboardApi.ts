@@ -3131,6 +3131,7 @@ export const startDashboardApi = (client: Client) => {
                 scoreReadability: submission.scoreReadability,
                 scoreFinal: finalScore,
                 totalPoints,
+                reviewFeedback: submission.reviewFeedback,
                 validatedById: submission.validatedById,
                 validatedByName: submission.validatedById ? validatedByMap.get(submission.validatedById) ?? `Utilisateur ${submission.validatedById}` : null,
                 validatedAt: submission.validatedAt?.toISOString() ?? null,
@@ -3254,6 +3255,7 @@ export const startDashboardApi = (client: Client) => {
                 optimization?: number;
                 readability?: number;
               };
+              feedback?: string;
             }>(req);
 
             if (!body?.action || !['approve', 'reject'].includes(body.action)) {
@@ -3295,13 +3297,22 @@ export const startDashboardApi = (client: Client) => {
               scores = parsed;
             }
 
-            const success = await reviewDailyAlgoSubmission({
-              client,
-              submissionId,
-              action: body.action,
-              moderatorId: user.userId,
-              scores,
-            });
+            let success = false;
+            try {
+              success = await reviewDailyAlgoSubmission({
+                client,
+                submissionId,
+                action: body.action,
+                moderatorId: user.userId,
+                scores,
+                feedback: typeof body.feedback === 'string' ? body.feedback : undefined,
+              });
+            } catch (error) {
+              json(res, 400, {
+                error: error instanceof Error ? error.message : 'Validation Daily Algo impossible.',
+              });
+              return;
+            }
 
             if (!success) {
               json(res, 404, { error: 'Soumission Daily Algo introuvable ou déjà traitée.' });

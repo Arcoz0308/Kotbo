@@ -61,6 +61,36 @@ function normalizeTargetLanguage(value: string | null | undefined): 'FR' | 'EN' 
   return 'FR';
 }
 
+type PendingDailyAlgoScoreDraft = {
+  submissionId: string;
+  moderatorId: string;
+  createdAt: number;
+  scores: {
+    correctness: number;
+    comments: number;
+    compactness: number;
+    optimization: number;
+    readability: number;
+  };
+};
+
+const pendingDailyAlgoScoreDrafts = new Map<string, PendingDailyAlgoScoreDraft>();
+
+function pendingDailyAlgoDraftKey(submissionId: string, moderatorId: string): string {
+  return `${submissionId}:${moderatorId}`;
+}
+
+function prunePendingDailyAlgoDrafts(): void {
+  const now = Date.now();
+  const maxAgeMs = 30 * 60 * 1000;
+
+  for (const [key, draft] of pendingDailyAlgoScoreDrafts.entries()) {
+    if (now - draft.createdAt > maxAgeMs) {
+      pendingDailyAlgoScoreDrafts.delete(key);
+    }
+  }
+}
+
 async function canModerate(member: GuildMember | null, guildId: string): Promise<boolean> {
   if (!member) return false;
   if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
@@ -223,6 +253,56 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     if (feed) {
       await sendDMSubscribePanel(user, feed.guildId);
     }
+    return;
+  }
+
+  if (customId.startsWith('daily-algo-feedback:')) {
+    if (!guildId) {
+      await interaction.reply({
+        content: '❌ Cette action doit être faite depuis le serveur.',
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
+    const submissionId = customId.split(':')[1];
+    if (!submissionId) {
+      await interaction.reply({
+        content: '❌ Soumission introuvable.',
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
+    prunePendingDailyAlgoDrafts();
+    const key = pendingDailyAlgoDraftKey(submissionId, interaction.user.id);
+    const draft = pendingDailyAlgoScoreDrafts.get(key);
+
+    if (!draft) {
+      await interaction.reply({
+        content: '⚠️ Le brouillon de notation a expiré. Clique de nouveau sur **Noter**.',
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
+    const feedbackModal = new ModalBuilder()
+      .setCustomId(`modal:daily-algo-feedback:${submissionId}`)
+      .setTitle('🗒️ Explication de la note');
+
+    const feedbackInput = new TextInputBuilder()
+      .setCustomId('score_feedback')
+      .setLabel('Pourquoi la note est < 5 ?')
+      .setStyle(TextInputStyle.Paragraph)
+      .setPlaceholder('Explique ce qui va, ce qui manque, et comment améliorer la solution.')
+      .setRequired(true)
+      .setMaxLength(1000);
+
+    feedbackModal.addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(feedbackInput),
+    );
+
+    await interaction.showModal(feedbackModal);
     return;
   }
 
@@ -1420,15 +1500,49 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
       return;
     }
 
+    const hasLowScore = [correctness, comments, compactness, optimization, readability].some((score) => score < 5);
+
+    if (hasLowScore) {
+      prunePendingDailyAlgoDrafts();
+      const key = pendingDailyAlgoDraftKey(submissionId, interaction.user.id);
+      pendingDailyAlgoScoreDrafts.set(key, {
+        submissionId,
+        moderatorId: interaction.user.id,
+        createdAt: Date.now(),
+        scores: { correctness, comments, compactness, optimization, readability },
+      });
+
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`daily-algo-feedback:${submissionId}`)
+          .setLabel('🗒️ Ajouter l’explication')
+          .setStyle(ButtonStyle.Primary),
+      );
+
+      await interaction.reply({
+        content: `⚠️ Tu as mis au moins une note inférieure à **5/5**.\nAjoute maintenant une explication pour que le participant comprenne comment s'améliorer.`,
+        components: [row],
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
-    const success = await reviewDailyAlgoSubmission({
-      client,
-      submissionId,
-      action: 'approve',
-      moderatorId: interaction.user.id,
-      scores: { correctness, comments, compactness, optimization, readability },
-    });
+    let success = false;
+    try {
+      success = await reviewDailyAlgoSubmission({
+        client,
+        submissionId,
+        action: 'approve',
+        moderatorId: interaction.user.id,
+        scores: { correctness, comments, compactness, optimization, readability },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Impossible de valider cette soumission.';
+      await interaction.editReply({ content: `❌ ${message}` });
+      return;
+    }
 
     if (!success) {
       await interaction.editReply({ content: '❌ Soumission introuvable ou déjà notée.' });
@@ -1440,6 +1554,65 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
       content: `✅ **Solution notée !** Moyenne : **${avg}/5**\n\n✅ ${correctness}/5 · 💬 ${comments}/5 · 📦 ${compactness}/5 · ⚡ ${optimization}/5 · 🧹 ${readability}/5\n\nLe classement du Daily Algo a été mis à jour.`,
     });
     logger.success('Handler', `Rated daily algo submission ${submissionId} (${avg}/5) by ${interaction.user.username}`);
+    return;
+  }
+
+  // ── Daily Algo Feedback Modal ────────────────────────────────────────────
+  if (customId.startsWith('modal:daily-algo-feedback:')) {
+    const submissionId = customId.split(':')[2];
+    if (!submissionId) return;
+
+    prunePendingDailyAlgoDrafts();
+    const key = pendingDailyAlgoDraftKey(submissionId, interaction.user.id);
+    const draft = pendingDailyAlgoScoreDrafts.get(key);
+
+    if (!draft) {
+      await interaction.reply({
+        content: '⚠️ Le brouillon de notation a expiré. Clique de nouveau sur **Noter**.',
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
+    const feedback = interaction.fields.getTextInputValue('score_feedback').trim();
+    if (!feedback) {
+      await interaction.reply({
+        content: '❌ Une explication est obligatoire quand une note est inférieure à 5/5.',
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+    let success = false;
+    try {
+      success = await reviewDailyAlgoSubmission({
+        client,
+        submissionId,
+        action: 'approve',
+        moderatorId: interaction.user.id,
+        scores: draft.scores,
+        feedback,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Impossible de valider cette soumission.';
+      await interaction.editReply({ content: `❌ ${message}` });
+      return;
+    } finally {
+      pendingDailyAlgoScoreDrafts.delete(key);
+    }
+
+    if (!success) {
+      await interaction.editReply({ content: '❌ Soumission introuvable ou déjà notée.' });
+      return;
+    }
+
+    const avg = ((draft.scores.correctness + draft.scores.comments + draft.scores.compactness + draft.scores.optimization + draft.scores.readability) / 5).toFixed(1);
+    await interaction.editReply({
+      content: `✅ **Solution notée avec explication !** Moyenne : **${avg}/5**\n\n✅ ${draft.scores.correctness}/5 · 💬 ${draft.scores.comments}/5 · 📦 ${draft.scores.compactness}/5 · ⚡ ${draft.scores.optimization}/5 · 🧹 ${draft.scores.readability}/5`,
+    });
+    logger.success('Handler', `Rated daily algo submission ${submissionId} with feedback (${avg}/5) by ${interaction.user.username}`);
     return;
   }
 
