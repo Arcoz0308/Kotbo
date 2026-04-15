@@ -213,6 +213,12 @@ Ou via migration dev (package database) :
 bun db:migrate
 ```
 
+En production/deploiement (migrations versionnees) :
+
+```bash
+bun db:migrate:deploy
+```
+
 Le seed initialise notamment :
 
 - Un ensemble de flux RSS FR/EN.
@@ -378,7 +384,8 @@ Verifier:
 
 - Verifier `DATABASE_URL`.
 - Regenerer Prisma client: `bun db:generate`.
-- Synchroniser schema: `bun db:push` ou `bun db:migrate`.
+- Synchroniser schema (local): `bun db:push` ou `bun db:migrate`.
+- Synchroniser schema (prod): `bun db:migrate:deploy`.
 
 ### Les news n'arrivent pas
 

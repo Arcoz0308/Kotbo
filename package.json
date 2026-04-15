@@ -14,12 +14,13 @@
     "db:generate": "bun run --filter @kotbo/database generate",
     "db:generate:force": "powershell -ExecutionPolicy RemoteSigned -File ./scripts/fix-prisma.ps1",
     "db:migrate": "bun run --filter @kotbo/database migrate",
+    "db:migrate:deploy": "bun run --filter @kotbo/database migrate:deploy",
     "db:push": "bun run --filter @kotbo/database push",
     "db:seed": "bun run --filter @kotbo/database seed",
     "dev:all": "bun run dev:bot && bun run dev:dashboard",
     "deploy-commands": "bun run --filter @kotbo/bot deploy-commands",
 
-    "deploy": "bun run quality:bot && bun db:push && bun db:seed && bun deploy-commands && bun run dev:bot:safe"
+    "deploy": "bun run quality:bot && bun db:migrate:deploy && bun db:seed && bun deploy-commands && bun run dev:bot:safe"
   },
   "dependencies": {
     "@prisma/client-runtime-utils": "^7.6.0"
