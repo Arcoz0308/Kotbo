@@ -3304,6 +3304,7 @@ export const startDashboardApi = (client: Client) => {
                 submissionId,
                 action: body.action,
                 moderatorId: user.userId,
+                allowReviewedUpdate: true,
                 scores,
                 feedback: typeof body.feedback === 'string' ? body.feedback : undefined,
               });
@@ -3315,7 +3316,7 @@ export const startDashboardApi = (client: Client) => {
             }
 
             if (!success) {
-              json(res, 404, { error: 'Soumission Daily Algo introuvable ou déjà traitée.' });
+              json(res, 404, { error: 'Soumission Daily Algo introuvable ou non modifiable (édition autorisée uniquement sur le Daily Algo du jour).' });
               return;
             }
 

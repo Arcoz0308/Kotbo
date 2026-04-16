@@ -162,12 +162,34 @@
     };
   }
 
-  function openSubmissionReview(submissionId: string) {
-    expandedSubmissionId = expandedSubmissionId === submissionId ? null : submissionId;
-    if (!scoreDraftBySubmissionId[submissionId]) {
+  function buildDraftFromSubmission(submission: any) {
+    const hasPersistedScores = [
+      submission?.scoreCorrectness,
+      submission?.scoreComments,
+      submission?.scoreCompactness,
+      submission?.scoreOptimization,
+      submission?.scoreReadability,
+    ].every((value) => Number.isFinite(Number(value)));
+
+    const fallback = getDefaultScoreDraft();
+    return {
+      correctness: hasPersistedScores ? Number(submission.scoreCorrectness) : fallback.correctness,
+      comments: hasPersistedScores ? Number(submission.scoreComments) : fallback.comments,
+      compactness: hasPersistedScores ? Number(submission.scoreCompactness) : fallback.compactness,
+      optimization: hasPersistedScores ? Number(submission.scoreOptimization) : fallback.optimization,
+      readability: hasPersistedScores ? Number(submission.scoreReadability) : fallback.readability,
+      feedback: submission?.reviewFeedback && submission.reviewFeedback !== 'Rien à redire.'
+        ? submission.reviewFeedback
+        : '',
+    };
+  }
+
+  function openSubmissionReview(submission: any) {
+    expandedSubmissionId = expandedSubmissionId === submission.id ? null : submission.id;
+    if (!scoreDraftBySubmissionId[submission.id]) {
       scoreDraftBySubmissionId = {
         ...scoreDraftBySubmissionId,
-        [submissionId]: getDefaultScoreDraft(),
+        [submission.id]: buildDraftFromSubmission(submission),
       };
     }
   }
@@ -239,6 +261,9 @@
       return;
     }
 
+    const currentSubmission = (dailyAlgoToday?.submissions ?? []).find((submission) => submission.id === submissionId);
+    const isEdition = currentSubmission?.status !== 'PENDING';
+
     await formAction.run(
       async () => {
         const ok = await reviewDailyAlgoSubmission(submissionId, {
@@ -259,7 +284,7 @@
         return true;
       },
       {
-        successMessage: 'Soumission validée et notée.',
+        successMessage: isEdition ? 'Notes et commentaire mis à jour.' : 'Soumission validée et notée.',
         failureMessage: 'Impossible de valider cette soumission.'
       }
     );
@@ -1131,7 +1156,7 @@
                               <p class="text-xs font-bold text-on-surface">{formatDate(submission.submittedAt)}</p>
                               <button
                                 type="button"
-                                onclick={() => openSubmissionReview(submission.id)}
+                                onclick={() => openSubmissionReview(submission)}
                                 class="mt-1 text-[10px] font-black uppercase tracking-widest text-primary hover:text-primary/80"
                               >
                                 {expandedSubmissionId === submission.id ? 'Masquer le code' : 'Voir le code'}
@@ -1159,22 +1184,24 @@
                               {/if}
                             </td>
                             <td>
-                              {#if submission.status === 'PENDING' && canModerateContent}
+                              {#if canModerateContent && (submission.status === 'PENDING' || submission.status === 'APPROVED' || submission.status === 'REJECTED')}
                                 <div class="flex flex-col gap-2">
                                   <button
                                     type="button"
-                                    onclick={() => openSubmissionReview(submission.id)}
+                                    onclick={() => openSubmissionReview(submission)}
                                     class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest"
                                   >
-                                    Noter
+                                    {submission.status === 'PENDING' ? 'Noter' : submission.status === 'APPROVED' ? 'Modifier' : 'Réévaluer'}
                                   </button>
-                                  <button
-                                    type="button"
-                                    onclick={() => rejectSubmission(submission.id)}
-                                    class="px-3 py-1.5 rounded-lg border border-red-500/30 bg-red-500/10 text-red-700 text-[10px] font-black uppercase tracking-widest"
-                                  >
-                                    Rejeter
-                                  </button>
+                                  {#if submission.status === 'PENDING'}
+                                    <button
+                                      type="button"
+                                      onclick={() => rejectSubmission(submission.id)}
+                                      class="px-3 py-1.5 rounded-lg border border-red-500/30 bg-red-500/10 text-red-700 text-[10px] font-black uppercase tracking-widest"
+                                    >
+                                      Rejeter
+                                    </button>
+                                  {/if}
                                 </div>
                               {:else}
                                 <span class="text-[10px] text-on-surface-variant">Aucune action</span>
@@ -1187,9 +1214,11 @@
                                 <div class="space-y-4 py-2">
                                   <pre class="w-full overflow-x-auto rounded-xl bg-slate-950 text-slate-100 p-3 text-[11px] leading-relaxed font-mono border border-slate-800"><code>{submission.solution}</code></pre>
 
-                                  {#if submission.status === 'PENDING' && canModerateContent}
+                                  {#if canModerateContent && (submission.status === 'PENDING' || submission.status === 'APPROVED' || submission.status === 'REJECTED')}
                                     <div class="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3">
-                                      <p class="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700">Notation sur 5</p>
+                                      <p class="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700">
+                                        {submission.status === 'PENDING' ? 'Notation sur 5' : submission.status === 'APPROVED' ? 'Modifier la notation' : 'Réévaluer la notation'}
+                                      </p>
                                       <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
                                         <label class="text-[11px] font-bold text-on-surface-variant space-y-1" for={`score-correctness-${submission.id}`}>
                                           Correctitude
@@ -1281,7 +1310,7 @@
                                           onclick={() => approveSubmission(submission.id)}
                                           class="px-4 py-2 rounded-xl bg-emerald-700 text-white text-[10px] font-black uppercase tracking-[0.12em] hover:bg-emerald-800"
                                         >
-                                          Confirmer la validation
+                                          {submission.status === 'PENDING' ? 'Confirmer la validation' : submission.status === 'APPROVED' ? 'Enregistrer les modifications' : 'Valider la réévaluation'}
                                         </button>
                                       </div>
                                     </div>

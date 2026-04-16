@@ -1020,6 +1020,7 @@ export async function reviewDailyAlgoSubmission(params: {
   submissionId: string;
   action: 'approve' | 'reject';
   moderatorId: string;
+  allowReviewedUpdate?: boolean;
   scores?: {
     correctness: number;
     comments: number;
@@ -1045,7 +1046,13 @@ export async function reviewDailyAlgoSubmission(params: {
     return false;
   }
 
-  if (submission.status !== 'PENDING') {
+  const todayKey = getLocalDateKey();
+  const runDateKey = submission.run.dateKey ?? getLocalDateKey(submission.run.createdAt);
+  const isTodayRun = runDateKey === todayKey;
+  const isAlreadyReviewed = submission.status === 'APPROVED' || submission.status === 'REJECTED';
+  const canEditReviewedSubmission = params.allowReviewedUpdate === true && isAlreadyReviewed && isTodayRun;
+
+  if (submission.status !== 'PENDING' && !canEditReviewedSubmission) {
     return false;
   }
 
@@ -1111,6 +1118,15 @@ export async function reviewDailyAlgoSubmission(params: {
         const embed = EmbedBuilder.from(message.embeds[0] ?? new EmbedBuilder().setTitle('Réponse Daily Algo'))
           .setColor(params.action === 'approve' ? COLORS.success : COLORS.danger)
           .setFooter({ text: `Kotbo · ${footerLabel}` });
+
+        const existingNonFeedbackFields = (message.embeds[0]?.fields ?? [])
+          .filter((field) => field.name !== '🗒️ Feedback staff')
+          .map((field) => ({
+            name: field.name,
+            value: field.value,
+            inline: field.inline,
+          }));
+        embed.setFields(existingNonFeedbackFields);
 
         if (normalizedFeedback) {
           embed.addFields({
