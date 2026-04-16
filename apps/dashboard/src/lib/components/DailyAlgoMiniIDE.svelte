@@ -197,6 +197,45 @@
     }
   }
 
+  function hasCMainFunction(source: string): boolean {
+    return /\bmain\s*\(/.test(source);
+  }
+
+  function stripCommonIndentation(source: string): string {
+    const lines = source.replace(/\r\n/g, '\n').split('\n');
+    const nonEmpty = lines.filter((line) => line.trim().length > 0);
+    if (nonEmpty.length === 0) return source;
+
+    const minIndent = nonEmpty.reduce((min, line) => {
+      const indent = line.match(/^\s*/)?.[0].length ?? 0;
+      return Math.min(min, indent);
+    }, Number.POSITIVE_INFINITY);
+
+    return lines.map((line) => line.slice(Math.min(minIndent, line.length))).join('\n');
+  }
+
+  function wrapCSnippetWithMain(source: string): string {
+    const snippet = stripCommonIndentation(source.trim());
+    const body = snippet
+      .split('\n')
+      .map((line) => (line.trim().length > 0 ? `  ${line}` : ''))
+      .join('\n');
+
+    return [
+      '#include <iostream>',
+      '#include <stdio.h>',
+      '#include <stdlib.h>',
+      '#include <string.h>',
+      'using namespace std;',
+      '',
+      'int main() {',
+      body,
+      '  return 0;',
+      '}',
+      '',
+    ].join('\n');
+  }
+
   function normalizedLanguage(languageInput: string | undefined, sourceCode: string): IdeLanguage {
     const normalized = normalizeIdeLanguage(languageInput);
     if (languageInput && languageInput.trim()) return normalized;
@@ -374,20 +413,43 @@
     const jscpp = await ensureJSCPP();
     let outputBuffer = '';
 
-    const result = jscpp.run(source, input, {
-      stdio: {
-        write: (chunk: string) => {
-          outputBuffer += chunk;
+    const execute = (program: string) => {
+      outputBuffer = '';
+      const result = jscpp.run(program, input, {
+        stdio: {
+          write: (chunk: string) => {
+            outputBuffer += chunk;
+          },
         },
-      },
-    });
+      });
 
-    if (outputBuffer.trim().length > 0) {
-      await appendConsole('stdout', outputBuffer.trimEnd());
-    }
+      if (outputBuffer.trim().length > 0) {
+        appendConsole('stdout', outputBuffer.trimEnd());
+      }
 
-    if (typeof result !== 'undefined' && String(result).trim().length > 0) {
-      await appendConsole('result', stringifyChunk(result));
+      if (typeof result !== 'undefined' && String(result).trim().length > 0) {
+        appendConsole('result', stringifyChunk(result));
+      }
+    };
+
+    try {
+      execute(source);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const mainMissing = /method main is not defined in \$global/i.test(message);
+
+      if (!mainMissing || hasCMainFunction(source)) {
+        throw error;
+      }
+
+      await appendConsole('info', 'Aucune fonction main detectee: tentative automatique avec un wrapper int main().');
+
+      try {
+        const wrapped = wrapCSnippetWithMain(source);
+        execute(wrapped);
+      } catch {
+        throw error;
+      }
     }
   }
 

@@ -53,7 +53,6 @@
   let isFetchingAlgoHistory = $state(false);
   let dailyAlgoHistory = $state<any[]>([]);
   let dailyAlgoSubmissionStatusFilter = $state<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
-  let expandedSubmissionId = $state<string | null>(null);
   let ideFocusedSubmissionId = $state<string | null>(null);
   let ideModalOpen = $state(false);
   let scoreDraftBySubmissionId = $state<Record<string, {
@@ -192,16 +191,6 @@
     };
   }
 
-  function openSubmissionReview(submission: any) {
-    expandedSubmissionId = expandedSubmissionId === submission.id ? null : submission.id;
-    if (!scoreDraftBySubmissionId[submission.id]) {
-      scoreDraftBySubmissionId = {
-        ...scoreDraftBySubmissionId,
-        [submission.id]: buildDraftFromSubmission(submission),
-      };
-    }
-  }
-
   function ensureSubmissionDraft(submission: any) {
     if (scoreDraftBySubmissionId[submission.id]) return;
     scoreDraftBySubmissionId = {
@@ -269,7 +258,6 @@
       async () => {
         const ok = await reviewDailyAlgoSubmission(submissionId, { action: 'reject' });
         if (!ok) return false;
-        expandedSubmissionId = null;
         closeIntegratedIde();
         await Promise.all([loadTodayDailyAlgoSubmissions(), loadDailyAlgoHistory(), dashboardStore.refresh()]);
         return true;
@@ -314,7 +302,6 @@
         });
         if (!ok) return false;
 
-        expandedSubmissionId = null;
         closeIntegratedIde();
         await Promise.all([loadTodayDailyAlgoSubmissions(), loadDailyAlgoHistory(), dashboardStore.refresh()]);
         return true;
@@ -1198,13 +1185,6 @@
                               <div class="mt-1 flex flex-wrap items-center gap-3">
                                 <button
                                   type="button"
-                                  onclick={() => openSubmissionReview(submission)}
-                                  class="text-[10px] font-black uppercase tracking-widest text-primary hover:text-primary/80"
-                                >
-                                  {expandedSubmissionId === submission.id ? 'Masquer le code' : 'Voir le code'}
-                                </button>
-                                <button
-                                  type="button"
                                   onclick={() => openSubmissionInIntegratedIde(submission)}
                                   class="text-[10px] font-black uppercase tracking-widest text-emerald-700 hover:text-emerald-600"
                                 >
@@ -1238,10 +1218,10 @@
                                 <div class="flex flex-col gap-2">
                                   <button
                                     type="button"
-                                    onclick={() => openSubmissionReview(submission)}
+                                    onclick={() => openSubmissionInIntegratedIde(submission)}
                                     class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest"
                                   >
-                                    {submission.status === 'PENDING' ? 'Noter' : submission.status === 'APPROVED' ? 'Modifier' : 'Réévaluer'}
+                                    {submission.status === 'PENDING' ? 'Noter dans IDE' : submission.status === 'APPROVED' ? 'Modifier dans IDE' : 'Réévaluer dans IDE'}
                                   </button>
                                   {#if submission.status === 'PENDING'}
                                     <button
@@ -1258,129 +1238,6 @@
                               {/if}
                             </td>
                           </tr>
-                          {#if expandedSubmissionId === submission.id}
-                            <tr>
-                              <td colspan="6" class="bg-surface">
-                                <div class="space-y-4 py-2">
-                                  <DailyAlgoMiniIDE
-                                    initialCode={submission.solution}
-                                    initialLanguage={ideLanguageForSubmission(submission)}
-                                    height={520}
-                                    showPopoutButton={false}
-                                  />
-
-                                  {#if canModerateContent && (submission.status === 'PENDING' || submission.status === 'APPROVED' || submission.status === 'REJECTED')}
-                                    <div class="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3">
-                                      <p class="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700">
-                                        {submission.status === 'PENDING' ? 'Notation sur 5' : submission.status === 'APPROVED' ? 'Modifier la notation' : 'Réévaluer la notation'}
-                                      </p>
-                                      <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
-                                        <label class="text-[11px] font-bold text-on-surface-variant space-y-1" for={`score-correctness-${submission.id}`}>
-                                          Correctitude
-                                          <input
-                                            id={`score-correctness-${submission.id}`}
-                                            type="number"
-                                            min="1"
-                                            max="5"
-                                            step="1"
-                                            value={scoreDraftBySubmissionId[submission.id]?.correctness ?? 5}
-                                            onchange={(event) => updateSubmissionScore(submission.id, 'correctness', Number((event.currentTarget as HTMLInputElement).value))}
-                                            class="w-full px-3 py-2 rounded-lg border border-outline-variant/25 bg-surface text-sm text-on-surface"
-                                          />
-                                        </label>
-                                        <label class="text-[11px] font-bold text-on-surface-variant space-y-1" for={`score-comments-${submission.id}`}>
-                                          Commentaires
-                                          <input
-                                            id={`score-comments-${submission.id}`}
-                                            type="number"
-                                            min="1"
-                                            max="5"
-                                            step="1"
-                                            value={scoreDraftBySubmissionId[submission.id]?.comments ?? 5}
-                                            onchange={(event) => updateSubmissionScore(submission.id, 'comments', Number((event.currentTarget as HTMLInputElement).value))}
-                                            class="w-full px-3 py-2 rounded-lg border border-outline-variant/25 bg-surface text-sm text-on-surface"
-                                          />
-                                        </label>
-                                        <label class="text-[11px] font-bold text-on-surface-variant space-y-1" for={`score-compactness-${submission.id}`}>
-                                          Compacité
-                                          <input
-                                            id={`score-compactness-${submission.id}`}
-                                            type="number"
-                                            min="1"
-                                            max="5"
-                                            step="1"
-                                            value={scoreDraftBySubmissionId[submission.id]?.compactness ?? 5}
-                                            onchange={(event) => updateSubmissionScore(submission.id, 'compactness', Number((event.currentTarget as HTMLInputElement).value))}
-                                            class="w-full px-3 py-2 rounded-lg border border-outline-variant/25 bg-surface text-sm text-on-surface"
-                                          />
-                                        </label>
-                                        <label class="text-[11px] font-bold text-on-surface-variant space-y-1" for={`score-optimization-${submission.id}`}>
-                                          Optimisation
-                                          <input
-                                            id={`score-optimization-${submission.id}`}
-                                            type="number"
-                                            min="1"
-                                            max="5"
-                                            step="1"
-                                            value={scoreDraftBySubmissionId[submission.id]?.optimization ?? 5}
-                                            onchange={(event) => updateSubmissionScore(submission.id, 'optimization', Number((event.currentTarget as HTMLInputElement).value))}
-                                            class="w-full px-3 py-2 rounded-lg border border-outline-variant/25 bg-surface text-sm text-on-surface"
-                                          />
-                                        </label>
-                                        <label class="text-[11px] font-bold text-on-surface-variant space-y-1" for={`score-readability-${submission.id}`}>
-                                          Lisibilité
-                                          <input
-                                            id={`score-readability-${submission.id}`}
-                                            type="number"
-                                            min="1"
-                                            max="5"
-                                            step="1"
-                                            value={scoreDraftBySubmissionId[submission.id]?.readability ?? 5}
-                                            onchange={(event) => updateSubmissionScore(submission.id, 'readability', Number((event.currentTarget as HTMLInputElement).value))}
-                                            class="w-full px-3 py-2 rounded-lg border border-outline-variant/25 bg-surface text-sm text-on-surface"
-                                          />
-                                        </label>
-                                      </div>
-                                      <div class="space-y-2">
-                                        <label class="text-[11px] font-bold text-on-surface-variant space-y-1" for={`score-feedback-${submission.id}`}>
-                                          Explication / axes d'amélioration
-                                          <textarea
-                                            id={`score-feedback-${submission.id}`}
-                                            rows="3"
-                                            maxlength="1000"
-                                            value={scoreDraftBySubmissionId[submission.id]?.feedback ?? ''}
-                                            oninput={(event) => updateSubmissionFeedback(submission.id, (event.currentTarget as HTMLTextAreaElement).value)}
-                                            class="w-full px-3 py-2 rounded-lg border border-outline-variant/25 bg-surface text-sm text-on-surface"
-                                            placeholder="Obligatoire si une note est inférieure à 5/5."
-                                          ></textarea>
-                                        </label>
-                                        {#if [scoreDraftBySubmissionId[submission.id]?.correctness ?? 5, scoreDraftBySubmissionId[submission.id]?.comments ?? 5, scoreDraftBySubmissionId[submission.id]?.compactness ?? 5, scoreDraftBySubmissionId[submission.id]?.optimization ?? 5, scoreDraftBySubmissionId[submission.id]?.readability ?? 5].some((score) => score < 5)}
-                                          <p class="text-[10px] font-bold text-amber-700">Une explication est requise car au moins un critère est en dessous de 5/5.</p>
-                                        {/if}
-                                      </div>
-                                      <div class="flex items-center justify-between gap-3">
-                                        <p class="text-xs font-bold text-emerald-800">Moyenne: {reviewAverage(submission.id)}/5</p>
-                                        <button
-                                          type="button"
-                                          onclick={() => approveSubmission(submission.id)}
-                                          class="px-4 py-2 rounded-xl bg-emerald-700 text-white text-[10px] font-black uppercase tracking-[0.12em] hover:bg-emerald-800"
-                                        >
-                                          {submission.status === 'PENDING' ? 'Confirmer la validation' : submission.status === 'APPROVED' ? 'Enregistrer les modifications' : 'Valider la réévaluation'}
-                                        </button>
-                                      </div>
-                                    </div>
-                                  {/if}
-
-                                  {#if submission.status !== 'PENDING' && submission.reviewFeedback}
-                                    <div class="rounded-xl border border-outline-variant/25 bg-surface-container-low p-3 space-y-1">
-                                      <p class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Feedback staff</p>
-                                      <p class="text-xs text-on-surface whitespace-pre-wrap">{submission.reviewFeedback}</p>
-                                    </div>
-                                  {/if}
-                                </div>
-                              </td>
-                            </tr>
-                          {/if}
                         {/each}
                       </tbody>
                     </table>
