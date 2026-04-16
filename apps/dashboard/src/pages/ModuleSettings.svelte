@@ -55,6 +55,7 @@
   let dailyAlgoSubmissionStatusFilter = $state<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
   let ideFocusedSubmissionId = $state<string | null>(null);
   let ideModalOpen = $state(false);
+  let integratedIdeEditorHeight = $state('62vh');
   let scoreDraftBySubmissionId = $state<Record<string, {
     correctness: number;
     comments: number;
@@ -210,11 +211,19 @@
     ensureSubmissionDraft(submission);
     ideFocusedSubmissionId = submission.id;
     ideModalOpen = true;
+    computeIntegratedIdeEditorHeight();
   }
 
   function closeIntegratedIde() {
     ideModalOpen = false;
     ideFocusedSubmissionId = null;
+  }
+
+  function computeIntegratedIdeEditorHeight() {
+    if (typeof window === 'undefined') return;
+    const reserved = window.innerWidth >= 1360 ? 250 : window.innerWidth >= 960 ? 340 : 430;
+    const available = Math.max(320, window.innerHeight - reserved);
+    integratedIdeEditorHeight = `${available}px`;
   }
 
   function updateSubmissionScore(
@@ -368,6 +377,38 @@
   const focusedSubmission = $derived.by(() => {
     if (!ideModalOpen || !ideFocusedSubmissionId) return null;
     return (dailyAlgoToday?.submissions ?? []).find((submission) => submission.id === ideFocusedSubmissionId) ?? null;
+  });
+
+  $effect(() => {
+    if (!ideModalOpen || typeof window === 'undefined') return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeIntegratedIde();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  });
+
+  $effect(() => {
+    if (typeof document === 'undefined') return;
+    if (!ideModalOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  });
+
+  $effect(() => {
+    if (!ideModalOpen || typeof window === 'undefined') return;
+    const onResize = () => computeIntegratedIdeEditorHeight();
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   });
 
   function historyDateLabel(dateKey?: string | null) {
@@ -1415,16 +1456,29 @@
 </div>
 
 {#if ideModalOpen && focusedSubmission}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="dailyalgo-ide-title" tabindex="-1" onclick={closeIntegratedIde}>
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="modal-backdrop dailyalgo-ide-overlay" role="dialog" aria-modal="true" aria-labelledby="dailyalgo-ide-title" tabindex="-1">
     <div class="modal-panel modal-panel-dailyalgo-ide" onclick={(event) => event.stopPropagation()}>
+      <div class="dailyalgo-ide-menubar">
+        <div class="dailyalgo-ide-window-controls">
+          <span class="dot red"></span>
+          <span class="dot amber"></span>
+          <span class="dot green"></span>
+        </div>
+        <p class="dailyalgo-ide-menubar-title">Kotbo IDE Workspace</p>
+        <button
+          type="button"
+          onclick={closeIntegratedIde}
+          class="dailyalgo-ide-close"
+          aria-label="Fermer l'IDE intégré"
+        >
+          <span class="material-symbols-outlined text-base">close</span>
+        </button>
+      </div>
+
       <div class="dailyalgo-ide-modal-header">
         <div>
           <p class="dailyalgo-ide-modal-eyebrow">Daily Algo</p>
-          <h3 id="dailyalgo-ide-title">IDE intégré: {focusedSubmission.authorName}</h3>
+          <h3 id="dailyalgo-ide-title">Session de review: {focusedSubmission.authorName}</h3>
           <div class="dailyalgo-ide-modal-meta">
             <span class="dailyalgo-ide-chip">ID: {focusedSubmission.id}</span>
             <span class="dailyalgo-ide-chip {submissionStatusMeta(focusedSubmission.status).classes}">
@@ -1433,23 +1487,39 @@
             <span class="dailyalgo-ide-chip">Soumis: {formatDate(focusedSubmission.submittedAt)}</span>
           </div>
         </div>
-        <button
-          type="button"
-          onclick={closeIntegratedIde}
-          class="p-2 rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-on-surface"
-          aria-label="Fermer l'IDE intégré"
-        >
-          <span class="material-symbols-outlined text-base">close</span>
-        </button>
       </div>
 
       <div class="dailyalgo-ide-modal-grid">
-        <div class="space-y-3">
+        <aside class="dailyalgo-ide-explorer">
+          <p class="dailyalgo-ide-pane-title">Explorer</p>
+          <div class="dailyalgo-ide-tree">
+            <p class="folder">submission-{focusedSubmission.id}</p>
+            <p class="file active">
+              {focusedSubmission.authorName}.{ideLanguageForSubmission(focusedSubmission) === 'python' ? 'py' : ideLanguageForSubmission(focusedSubmission) === 'c' ? 'c' : 'js'}
+            </p>
+            <p class="file">stdin.txt</p>
+            <p class="file">review-notes.md</p>
+          </div>
+          <div class="dailyalgo-ide-kpis">
+            <div>
+              <p class="kpi-label">Score actuel</p>
+              <p class="kpi-value">{focusedSubmission.scoreFinal ?? '—'}/5</p>
+            </div>
+            <div>
+              <p class="kpi-label">Points</p>
+              <p class="kpi-value">{focusedSubmission.totalPoints ?? '—'}</p>
+            </div>
+          </div>
+        </aside>
+
+        <section class="dailyalgo-ide-editor-pane">
           <DailyAlgoMiniIDE
             initialCode={focusedSubmission.solution}
             initialLanguage={ideLanguageForSubmission(focusedSubmission)}
-            height="62vh"
+            languagePersistenceKey={`submission:${focusedSubmission.id}`}
+            height={integratedIdeEditorHeight}
             showPopoutButton={false}
+            fileLabel={focusedSubmission.authorName?.replace(/\s+/g, '-').toLowerCase() || 'solution'}
           />
           {#if focusedSubmission.status !== 'PENDING' && focusedSubmission.reviewFeedback}
             <div class="rounded-xl border border-outline-variant/25 bg-surface-container-low p-3 space-y-1">
@@ -1457,10 +1527,10 @@
               <p class="text-xs text-on-surface whitespace-pre-wrap">{focusedSubmission.reviewFeedback}</p>
             </div>
           {/if}
-        </div>
+        </section>
 
         <aside class="dailyalgo-ide-score-panel">
-          <h4 class="text-[11px] font-black uppercase tracking-[0.14em] text-on-surface-variant">Notation rapide</h4>
+          <h4 class="text-[11px] font-black uppercase tracking-[0.14em] text-on-surface-variant">Review Panel</h4>
 
           {#if canModerateContent && (focusedSubmission.status === 'PENDING' || focusedSubmission.status === 'APPROVED' || focusedSubmission.status === 'REJECTED')}
             <div class="grid grid-cols-2 gap-3">
@@ -1536,7 +1606,7 @@
                 Explication / axes d'amélioration
                 <textarea
                   id={`modal-score-feedback-${focusedSubmission.id}`}
-                  rows="4"
+                  rows="5"
                   maxlength="1000"
                   value={scoreDraftBySubmissionId[focusedSubmission.id]?.feedback ?? ''}
                   oninput={(event) => updateSubmissionFeedback(focusedSubmission.id, (event.currentTarget as HTMLTextAreaElement).value)}
@@ -1703,11 +1773,86 @@
   .scrollbar-hide::-webkit-scrollbar { display: none; }
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
+  .dailyalgo-ide-overlay {
+    inset: 0;
+    padding: 0;
+    align-items: stretch;
+    justify-content: stretch;
+    background: rgba(2, 6, 23, 0.72);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
   .modal-panel-dailyalgo-ide {
-    max-width: min(1700px, 96vw);
-    padding: 1rem;
-    max-height: 95vh;
-    overflow: auto;
+    width: 100vw;
+    height: 100vh;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    border-radius: 0;
+    border: none;
+    padding: 0;
+    background: #0b1020;
+    color: #e2e8f0;
+    overflow: hidden;
+    box-shadow: none;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .dailyalgo-ide-menubar {
+    height: 44px;
+    padding: 0 0.9rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+    background: linear-gradient(180deg, #151c31, #0f172a);
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+  }
+
+  .dailyalgo-ide-window-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .dailyalgo-ide-window-controls .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(15, 23, 42, 0.38);
+  }
+
+  .dailyalgo-ide-window-controls .dot.red { background: #f87171; }
+  .dailyalgo-ide-window-controls .dot.amber { background: #fbbf24; }
+  .dailyalgo-ide-window-controls .dot.green { background: #34d399; }
+
+  .dailyalgo-ide-menubar-title {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #93c5fd;
+    flex: 1;
+  }
+
+  .dailyalgo-ide-close {
+    width: 30px;
+    height: 30px;
+    border-radius: 0.5rem;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    color: #cbd5e1;
+    background: rgba(15, 23, 42, 0.7);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .dailyalgo-ide-close:hover {
+    color: #fff;
+    border-color: rgba(248, 113, 113, 0.45);
+    background: rgba(127, 29, 29, 0.5);
   }
 
   .dailyalgo-ide-modal-header {
@@ -1715,7 +1860,9 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 0.75rem;
-    margin-bottom: 0.85rem;
+    padding: 0.85rem 1rem 0.75rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+    background: rgba(15, 23, 42, 0.84);
   }
 
   .dailyalgo-ide-modal-eyebrow {
@@ -1724,51 +1871,150 @@
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 0.18em;
-    color: var(--on-surface-variant);
+    color: #93c5fd;
   }
 
   .dailyalgo-ide-modal-header h3 {
     margin: 0.25rem 0 0;
-    font-size: clamp(1rem, 1.6vw, 1.35rem);
+    font-size: clamp(1rem, 1.45vw, 1.25rem);
     font-weight: 900;
     letter-spacing: -0.02em;
-    color: var(--on-surface);
+    color: #f8fafc;
   }
 
   .dailyalgo-ide-modal-meta {
-    margin-top: 0.55rem;
+    margin-top: 0.5rem;
     display: flex;
     gap: 0.45rem;
     flex-wrap: wrap;
   }
 
   .dailyalgo-ide-chip {
-    border-radius: 0.6rem;
-    border: 1px solid var(--outline-variant);
-    background: var(--surface-container-low);
-    color: var(--on-surface-variant);
-    padding: 0.25rem 0.55rem;
+    border-radius: 0.55rem;
+    border: 1px solid rgba(100, 116, 139, 0.6);
+    background: rgba(15, 23, 42, 0.75);
+    color: #cbd5e1;
+    padding: 0.25rem 0.5rem;
     font-size: 10px;
     font-weight: 900;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.07em;
     text-transform: uppercase;
   }
 
   .dailyalgo-ide-modal-grid {
+    flex: 1;
+    min-height: 0;
     display: grid;
-    gap: 0.85rem;
-    grid-template-columns: minmax(0, 1fr);
-    align-items: start;
+    grid-template-columns: 220px minmax(0, 1fr) 340px;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background:
+      radial-gradient(circle at 15% 0%, rgba(14, 165, 233, 0.12), transparent 35%),
+      radial-gradient(circle at 85% 10%, rgba(16, 185, 129, 0.09), transparent 35%),
+      #0b1020;
+  }
+
+  .dailyalgo-ide-explorer {
+    border: 1px solid rgba(100, 116, 139, 0.34);
+    background: rgba(15, 23, 42, 0.7);
+    border-radius: 0.9rem;
+    padding: 0.7rem;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+  }
+
+  .dailyalgo-ide-pane-title {
+    margin: 0;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #94a3b8;
+  }
+
+  .dailyalgo-ide-tree {
+    border: 1px solid rgba(100, 116, 139, 0.28);
+    border-radius: 0.7rem;
+    background: rgba(2, 6, 23, 0.62);
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .dailyalgo-ide-tree p {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 700;
+    color: #cbd5e1;
+    line-height: 1.4;
+    word-break: break-word;
+  }
+
+  .dailyalgo-ide-tree .folder {
+    color: #93c5fd;
+  }
+
+  .dailyalgo-ide-tree .file {
+    color: #94a3b8;
+    padding-left: 0.6rem;
+  }
+
+  .dailyalgo-ide-tree .file.active {
+    color: #e2e8f0;
+    border-radius: 0.45rem;
+    background: rgba(30, 41, 59, 0.82);
+    padding: 0.2rem 0.45rem 0.2rem 0.6rem;
+  }
+
+  .dailyalgo-ide-kpis {
+    margin-top: auto;
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .dailyalgo-ide-kpis > div {
+    border: 1px solid rgba(100, 116, 139, 0.28);
+    background: rgba(2, 6, 23, 0.62);
+    border-radius: 0.65rem;
+    padding: 0.5rem 0.55rem;
+  }
+
+  .kpi-label {
+    margin: 0;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 900;
+    color: #94a3b8;
+  }
+
+  .kpi-value {
+    margin: 0.25rem 0 0;
+    font-size: 16px;
+    font-weight: 900;
+    color: #f8fafc;
+  }
+
+  .dailyalgo-ide-editor-pane {
+    min-height: 0;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
   }
 
   .dailyalgo-ide-score-panel {
-    border: 1px solid var(--outline-variant);
-    background: var(--surface-container-lowest);
+    border: 1px solid rgba(100, 116, 139, 0.35);
+    background: rgba(15, 23, 42, 0.76);
     border-radius: 0.9rem;
     padding: 0.8rem;
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+    overflow: auto;
   }
 
   .dailyalgo-ide-score-actions {
@@ -1779,27 +2025,40 @@
     gap: 0.5rem;
   }
 
-  @media (min-width: 1360px) {
+  @media (max-width: 1500px) {
     .dailyalgo-ide-modal-grid {
-      grid-template-columns: minmax(0, 1fr) 360px;
+      grid-template-columns: 180px minmax(0, 1fr) 320px;
     }
   }
 
-  @media (max-width: 860px) {
-    .modal-panel-dailyalgo-ide {
-      max-width: 100vw;
-      max-height: 100vh;
-      border-radius: 1rem;
-      padding: 0.65rem;
+  @media (max-width: 1220px) {
+    .dailyalgo-ide-modal-grid {
+      grid-template-columns: minmax(0, 1fr) 320px;
     }
 
-    .dailyalgo-ide-modal-meta {
-      gap: 0.35rem;
+    .dailyalgo-ide-explorer {
+      display: none;
+    }
+  }
+
+  @media (max-width: 920px) {
+    .dailyalgo-ide-modal-header {
+      padding: 0.7rem 0.7rem 0.65rem;
+    }
+
+    .dailyalgo-ide-modal-grid {
+      grid-template-columns: minmax(0, 1fr);
+      padding: 0.55rem;
+      gap: 0.55rem;
+    }
+
+    .dailyalgo-ide-score-panel {
+      max-height: 42vh;
     }
 
     .dailyalgo-ide-chip {
       font-size: 9px;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.04em;
     }
   }
 </style>

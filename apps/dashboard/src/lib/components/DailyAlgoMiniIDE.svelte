@@ -256,6 +256,7 @@
     showPopoutButton = false,
     popoutLabel = 'Ouvrir dans une fenetre',
     fileLabel = 'solution',
+    languagePersistenceKey = '',
   } = $props<{
     initialCode?: string;
     initialLanguage?: string;
@@ -263,6 +264,7 @@
     showPopoutButton?: boolean;
     popoutLabel?: string;
     fileLabel?: string;
+    languagePersistenceKey?: string;
   }>();
 
   const dispatch = createEventDispatcher<{ popout: { code: string; language: IdeLanguage } }>();
@@ -280,6 +282,27 @@
   let consoleRef: HTMLDivElement | null = null;
   let editor: CodeMirrorEditor | null = null;
   let destroyed = false;
+
+  function storageLanguageKey(): string | null {
+    if (!languagePersistenceKey || !languagePersistenceKey.trim()) return null;
+    return `kotbo:daily-ide:language:${languagePersistenceKey.trim()}`;
+  }
+
+  function readPersistedLanguage(fallback: IdeLanguage): IdeLanguage {
+    if (typeof window === 'undefined') return fallback;
+    const key = storageLanguageKey();
+    if (!key) return fallback;
+    const saved = window.localStorage.getItem(key);
+    if (!saved) return fallback;
+    return normalizeIdeLanguage(saved);
+  }
+
+  function persistLanguage(nextLanguage: IdeLanguage) {
+    if (typeof window === 'undefined') return;
+    const key = storageLanguageKey();
+    if (!key) return;
+    window.localStorage.setItem(key, nextLanguage);
+  }
 
   async function appendConsole(kind: ConsoleKind, text: string) {
     const normalizedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
@@ -454,6 +477,7 @@
   }
 
   async function runCode() {
+    const executionLanguage = language;
     const source = editor?.getValue() ?? code;
     code = source;
 
@@ -463,12 +487,12 @@
     }
 
     isRunning = true;
-    await appendConsole('info', `Execution ${language.toUpperCase()}...`);
+    await appendConsole('info', `Execution ${executionLanguage.toUpperCase()}...`);
 
     try {
-      if (language === 'javascript') {
+      if (executionLanguage === 'javascript') {
         await runJavaScript(source);
-      } else if (language === 'python') {
+      } else if (executionLanguage === 'python') {
         await runPython(source);
       } else {
         await runC(source, stdin);
@@ -483,10 +507,14 @@
     }
   }
 
-  function onLanguageChange(nextLanguage: IdeLanguage) {
+  function onLanguageChange(nextLanguage: IdeLanguage, persist = true) {
     language = nextLanguage;
     if (editor) {
       editor.setOption('mode', modeForLanguage(nextLanguage));
+    }
+
+    if (persist) {
+      persistLanguage(nextLanguage);
     }
 
     if (nextLanguage === 'c') {
@@ -512,8 +540,8 @@
 
   onMount(async () => {
     code = initialCode;
-    language = normalizedLanguage(initialLanguage, initialCode);
-    onLanguageChange(language);
+    language = readPersistedLanguage(normalizedLanguage(initialLanguage, initialCode));
+    onLanguageChange(language, false);
 
     try {
       await ensureCodeMirror();
