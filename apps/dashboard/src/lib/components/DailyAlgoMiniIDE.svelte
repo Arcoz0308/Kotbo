@@ -61,10 +61,8 @@
   const PYODIDE_SCRIPT = 'https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.js';
   const PYODIDE_INDEX_URL = 'https://cdn.jsdelivr.net/pyodide/v0.27.7/full/';
   const JSCPP_SCRIPT_CANDIDATES = [
-    'https://cdn.jsdelivr.net/npm/jscpp@2.5.3/dist/JSCPP.es5.min.js',
-    'https://cdn.jsdelivr.net/npm/jscpp@latest/dist/JSCPP.es5.min.js',
-    'https://unpkg.com/jscpp@2.5.3/dist/JSCPP.es5.min.js',
-    'https://unpkg.com/jscpp@latest/dist/JSCPP.es5.min.js',
+    `${import.meta.env.BASE_URL}vendor/JSCPP.es5.min.js`,
+    'https://raw.githubusercontent.com/felixhao28/JSCPP/gh-pages/dist/JSCPP.es5.min.js',
   ];
 
   const assetPromises = new Map<string, Promise<void>>();
@@ -157,7 +155,7 @@
     }
 
     const details = loadErrors.length > 0 ? ` Sources testees: ${loadErrors.join(' | ')}` : '';
-    throw new Error(`Impossible de charger le runtime C.${details}`);
+    throw new Error(`Impossible de charger le runtime C (JSCPP).${details}`);
   }
 
   async function ensurePyodide(): Promise<PyodideInstance> {
@@ -430,7 +428,7 @@
     }
 
     if (nextLanguage === 'c') {
-      runtimeHint = 'C/C++ execute dans le navigateur via JSCPP (subset).';
+      runtimeHint = 'C/C++ execute dans le navigateur via JSCPP local (aucun serveur de compilation).';
     } else if (nextLanguage === 'python') {
       runtimeHint = 'Python execute dans le navigateur via Pyodide (WASM).';
     } else {
