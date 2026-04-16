@@ -212,6 +212,36 @@ function isDailyAlgoRunOpenForSubmissions(params: {
   return getLocalDateKey(params.createdAt) === todayKey;
 }
 
+function resolveRunDateKey(runDateKey: string | null | undefined, runCreatedAt?: Date): string {
+  if (runDateKey) return runDateKey;
+  if (runCreatedAt) return getLocalDateKey(runCreatedAt);
+  return getLocalDateKey();
+}
+
+function isSpeedBonusEnabledForRun(params: {
+  runDateKey?: string | null;
+  runCreatedAt?: Date;
+}): boolean {
+  const todayKey = getLocalDateKey();
+  const runKey = resolveRunDateKey(params.runDateKey, params.runCreatedAt);
+
+  // Bonus rapidité actif uniquement pour les runs passés.
+  return runKey < todayKey;
+}
+
+function resolveEffectiveSpeedBonus(
+  rawBonus: number | null | undefined,
+  params: {
+    runDateKey?: string | null;
+    runCreatedAt?: Date;
+  },
+): number {
+  if (!isSpeedBonusEnabledForRun(params)) {
+    return 0;
+  }
+  return rawBonus ?? 0;
+}
+
 export function formatDailyAlgoDate(dateKey: string): string {
   const [year, month, day] = dateKey.split('-').map((value) => Number(value));
 
@@ -299,7 +329,7 @@ function buildDailyAlgoChallengeEmbed(params: {
         '📦 **Compacité** : Code efficace sans superflu',
         '⚡ **Optimisation** : Performance et complexité',
         '🧹 **Lisibilité** : Propreté et formatage du code',
-        '\n*La qualité prime sur la vitesse. Le bonus rapidité (🥇+3, 🥈+2, 🥉+1) ne sert qu\'à départager en cas d\'égalité sur la note.*',
+        '\n*La qualité prime sur la vitesse. Le classement est basé sur la note /5.*',
       ].join('\n'),
     })
     .setTimestamp()
@@ -364,7 +394,13 @@ type LeaderboardSubmission = {
   scoreFinal: number | null;
 };
 
-function buildLeaderboardEmbed(submissions: LeaderboardSubmission[], runCreatedAt: Date): EmbedBuilder {
+function buildLeaderboardEmbed(
+  submissions: LeaderboardSubmission[],
+  runDateKey: string | null,
+  runCreatedAt: Date,
+): EmbedBuilder {
+  const speedBonusEnabled = isSpeedBonusEnabledForRun({ runDateKey, runCreatedAt });
+
   const approved = submissions
     .filter((s) => s.status === 'APPROVED' && s.scoreFinal !== null)
     .sort((a, b) => {
@@ -372,8 +408,8 @@ function buildLeaderboardEmbed(submissions: LeaderboardSubmission[], runCreatedA
       const scoreB = b.scoreFinal ?? 0;
       if (scoreB !== scoreA) return scoreB - scoreA;
 
-      const bonusA = a.speedBonusPoints ?? 0;
-      const bonusB = b.speedBonusPoints ?? 0;
+      const bonusA = speedBonusEnabled ? (a.speedBonusPoints ?? 0) : 0;
+      const bonusB = speedBonusEnabled ? (b.speedBonusPoints ?? 0) : 0;
       if (bonusB !== bonusA) return bonusB - bonusA;
 
       return (a.speedRank ?? 999) - (b.speedRank ?? 999);
@@ -403,10 +439,11 @@ function buildLeaderboardEmbed(submissions: LeaderboardSubmission[], runCreatedA
     lines.push('**🏆 Classés**\n');
     for (let i = 0; i < Math.min(approved.length, maxApprovedEntries); i++) {
       const s = approved[i]!;
-      const totalScore = (s.scoreFinal ?? 0) + (s.speedBonusPoints ?? 0);
+      const bonus = speedBonusEnabled ? (s.speedBonusPoints ?? 0) : 0;
+      const totalScore = (s.scoreFinal ?? 0) + bonus;
       const medal = formatRankMedal(i + 1);
-      const speedTag = s.speedBonusPoints && s.speedBonusPoints > 0
-        ? ` ⚡+${s.speedBonusPoints}`
+      const speedTag = bonus > 0
+        ? ` ⚡+${bonus}`
         : '';
 
       lines.push(`${medal} **${s.authorName}** — **${totalScore.toFixed(1)}** pts${speedTag}`);
@@ -481,7 +518,7 @@ export async function updateDailyAlgoLeaderboard(client: Client, runId: string):
   const channel = await client.channels.fetch(run.challengeChannelId).catch(() => null) as TextChannel | null;
   if (!channel) return;
 
-  const embed = buildLeaderboardEmbed(run.submissions, run.createdAt);
+  const embed = buildLeaderboardEmbed(run.submissions, run.dateKey, run.createdAt);
 
   if (run.leaderboardMessageId) {
     const message = await channel.messages.fetch(run.leaderboardMessageId).catch(() => null);
@@ -588,7 +625,10 @@ export async function queueDailyAlgoSubmission(params: {
   // Calculate speed rank
   const currentCount = run.submissions.length;
   const speedRank = currentCount + 1;
-  const speedBonusPoints = getSpeedBonus(speedRank);
+  const speedBonusPoints = resolveEffectiveSpeedBonus(getSpeedBonus(speedRank), {
+    runDateKey: run.dateKey,
+    runCreatedAt: run.createdAt,
+  });
 
   const channelId = run.validationChannelId ?? run.guild.dailyAlgoValidationChannelId ?? run.challengeChannelId;
   const channel = await params.client.channels.fetch(channelId).catch(() => null) as TextChannel | null;
@@ -617,7 +657,13 @@ export async function queueDailyAlgoSubmission(params: {
     .addFields(
       { name: 'Auteur', value: submission.authorName, inline: true },
       { name: 'Défi', value: truncate(run.problem.title, 256), inline: true },
-      { name: 'Rapidité', value: `${formatRankMedal(speedRank)} (${elapsed}) +${speedBonusPoints}pts`, inline: true },
+      {
+        name: 'Rapidité',
+        value: speedBonusPoints > 0
+          ? `${formatRankMedal(speedRank)} (${elapsed}) +${speedBonusPoints}pts`
+          : `${formatRankMedal(speedRank)} (${elapsed})`,
+        inline: true,
+      },
     )
     .setDescription(`\`\`\`\n${truncate(params.solution, 1800)}\n\`\`\``)
     .setTimestamp()
@@ -636,7 +682,7 @@ export async function queueDailyAlgoSubmission(params: {
   // Update leaderboard in challenge channel
   await updateDailyAlgoLeaderboard(params.client, run.id);
 
-  logger.success('DailyAlgo', `Réponse de ${submission.authorName} (${formatRankMedal(speedRank)}, +${speedBonusPoints}pts) envoyée en validation pour la guilde ${run.guildId}`);
+  logger.success('DailyAlgo', `Réponse de ${submission.authorName} (${formatRankMedal(speedRank)}) envoyée en validation pour la guilde ${run.guildId}`);
 
   return { speedRank };
 }
@@ -732,6 +778,7 @@ export async function getGuildDailyAlgoRanking(guildId: string): Promise<DailyAl
       run: {
         select: {
           dateKey: true,
+          createdAt: true,
         },
       },
     },
@@ -751,7 +798,10 @@ export async function getGuildDailyAlgoRanking(guildId: string): Promise<DailyAl
 
   for (const submission of approvedSubmissions) {
     const score = submission.scoreFinal ?? 0;
-    const points = score + (submission.speedBonusPoints ?? 0);
+    const points = score + resolveEffectiveSpeedBonus(submission.speedBonusPoints, {
+      runDateKey: submission.run.dateKey,
+      runCreatedAt: submission.run.createdAt,
+    });
     const existing = byUser.get(submission.authorId);
 
     if (!existing) {
@@ -856,6 +906,7 @@ export async function getDailyAlgoUserParticipations(
       run: {
         select: {
           dateKey: true,
+          createdAt: true,
           problem: {
             select: {
               title: true,
@@ -886,6 +937,12 @@ export async function getDailyAlgoUserParticipations(
           scoreFinal: true,
           speedBonusPoints: true,
           speedRank: true,
+          run: {
+            select: {
+              dateKey: true,
+              createdAt: true,
+            },
+          },
         },
       });
 
@@ -894,8 +951,14 @@ export async function getDailyAlgoUserParticipations(
         const scoreB = b.scoreFinal ?? 0;
         if (scoreB !== scoreA) return scoreB - scoreA;
 
-        const bonusA = a.speedBonusPoints ?? 0;
-        const bonusB = b.speedBonusPoints ?? 0;
+        const bonusA = resolveEffectiveSpeedBonus(a.speedBonusPoints, {
+          runDateKey: a.run.dateKey,
+          runCreatedAt: a.run.createdAt,
+        });
+        const bonusB = resolveEffectiveSpeedBonus(b.speedBonusPoints, {
+          runDateKey: b.run.dateKey,
+          runCreatedAt: b.run.createdAt,
+        });
         if (bonusB !== bonusA) return bonusB - bonusA;
 
         return (a.speedRank ?? 999) - (b.speedRank ?? 999);
@@ -913,8 +976,12 @@ export async function getDailyAlgoUserParticipations(
   };
 
   const participations = await Promise.all(submissions.map(async (submission) => {
+    const effectiveBonus = resolveEffectiveSpeedBonus(submission.speedBonusPoints, {
+      runDateKey: submission.run.dateKey,
+      runCreatedAt: submission.run.createdAt,
+    });
     const totalPoints = submission.scoreFinal !== null
-      ? Math.round(((submission.scoreFinal ?? 0) + (submission.speedBonusPoints ?? 0)) * 10) / 10
+      ? Math.round(((submission.scoreFinal ?? 0) + effectiveBonus) * 10) / 10
       : null;
     const rankInRun = submission.status === 'APPROVED'
       ? await resolveRankInRun(submission.runId, submission.id)
@@ -930,7 +997,7 @@ export async function getDailyAlgoUserParticipations(
       submittedAt: submission.submittedAt,
       speedRank: submission.speedRank,
       scoreFinal: submission.scoreFinal,
-      speedBonusPoints: submission.speedBonusPoints,
+      speedBonusPoints: effectiveBonus,
       totalPoints,
       rankInRun,
     } satisfies DailyAlgoUserParticipation;
@@ -977,6 +1044,8 @@ export async function getDailyAlgoSubmissionFeedbackForUser(runId: string, autho
       validatedAt: true,
       run: {
         select: {
+          dateKey: true,
+          createdAt: true,
           problem: {
             select: {
               title: true,
@@ -991,8 +1060,12 @@ export async function getDailyAlgoSubmissionFeedbackForUser(runId: string, autho
     return null;
   }
 
+  const effectiveBonus = resolveEffectiveSpeedBonus(submission.speedBonusPoints, {
+    runDateKey: submission.run.dateKey,
+    runCreatedAt: submission.run.createdAt,
+  });
   const totalPoints = submission.scoreFinal !== null
-    ? Math.round(((submission.scoreFinal ?? 0) + (submission.speedBonusPoints ?? 0)) * 10) / 10
+    ? Math.round(((submission.scoreFinal ?? 0) + effectiveBonus) * 10) / 10
     : null;
 
   return {
@@ -1006,7 +1079,7 @@ export async function getDailyAlgoSubmissionFeedbackForUser(runId: string, autho
     scoreOptimization: submission.scoreOptimization,
     scoreReadability: submission.scoreReadability,
     scoreFinal: submission.scoreFinal,
-    speedBonusPoints: submission.speedBonusPoints,
+    speedBonusPoints: effectiveBonus,
     totalPoints,
     reviewFeedback: submission.reviewFeedback,
     validatedAt: submission.validatedAt,
@@ -1049,6 +1122,10 @@ export async function reviewDailyAlgoSubmission(params: {
   const todayKey = getLocalDateKey();
   const runDateKey = submission.run.dateKey ?? getLocalDateKey(submission.run.createdAt);
   const isTodayRun = runDateKey === todayKey;
+  const effectiveBonus = resolveEffectiveSpeedBonus(submission.speedBonusPoints, {
+    runDateKey,
+    runCreatedAt: submission.run.createdAt,
+  });
   const isAlreadyReviewed = submission.status === 'APPROVED' || submission.status === 'REJECTED';
   const canEditReviewedSubmission = params.allowReviewedUpdate === true && isAlreadyReviewed && isTodayRun;
 
@@ -1105,7 +1182,7 @@ export async function reviewDailyAlgoSubmission(params: {
         let footerLabel: string;
         if (params.action === 'approve' && params.scores) {
           const scoreFinal = (params.scores.correctness + params.scores.comments + params.scores.compactness + params.scores.optimization + params.scores.readability) / 5;
-          const totalScore = Math.round(scoreFinal * 10) / 10 + (submission.speedBonusPoints ?? 0);
+          const totalScore = Math.round(scoreFinal * 10) / 10 + effectiveBonus;
           footerLabel = moderator
             ? `✅ Noté ${totalScore.toFixed(1)}pts par ${moderator.globalName ?? moderator.username}`
             : `✅ Noté ${totalScore.toFixed(1)}pts`;
@@ -1174,7 +1251,7 @@ export async function reviewDailyAlgoSubmission(params: {
     if (params.action === 'approve' && params.scores) {
       const rawAvg = (params.scores.correctness + params.scores.comments + params.scores.compactness + params.scores.optimization + params.scores.readability) / 5;
       const average = Math.round(rawAvg * 10) / 10;
-      const totalPoints = Math.round((average + (submission.speedBonusPoints ?? 0)) * 10) / 10;
+      const totalPoints = Math.round((average + effectiveBonus) * 10) / 10;
 
       dmEmbed.addFields(
         {
@@ -1265,6 +1342,8 @@ export async function sendDailyAlgoSummaryForGuild(client: Client, guildId: stri
       .map((s) => ({
         ...s,
         problemTitle: run.problem.title,
+        runDateKey: run.dateKey,
+        runCreatedAt: run.createdAt,
       })),
   );
 
@@ -1274,8 +1353,14 @@ export async function sendDailyAlgoSummaryForGuild(client: Client, guildId: stri
 
   // Sort by total score desc
   const ranked = allApproved.sort((a, b) => {
-    const scoreA = (a.scoreFinal ?? 0) + (a.speedBonusPoints ?? 0);
-    const scoreB = (b.scoreFinal ?? 0) + (b.speedBonusPoints ?? 0);
+    const scoreA = (a.scoreFinal ?? 0) + resolveEffectiveSpeedBonus(a.speedBonusPoints, {
+      runDateKey: a.runDateKey,
+      runCreatedAt: a.runCreatedAt,
+    });
+    const scoreB = (b.scoreFinal ?? 0) + resolveEffectiveSpeedBonus(b.speedBonusPoints, {
+      runDateKey: b.runDateKey,
+      runCreatedAt: b.runCreatedAt,
+    });
     if (scoreB !== scoreA) return scoreB - scoreA;
     return (a.speedRank ?? 999) - (b.speedRank ?? 999);
   });
@@ -1307,9 +1392,13 @@ export async function sendDailyAlgoSummaryForGuild(client: Client, guildId: stri
 
     for (let i = 0; i < uniqueRanked.length; i++) {
       const s = uniqueRanked[i]!;
-      const totalScore = (s.scoreFinal ?? 0) + (s.speedBonusPoints ?? 0);
+      const effectiveBonus = resolveEffectiveSpeedBonus(s.speedBonusPoints, {
+        runDateKey: s.runDateKey,
+        runCreatedAt: s.runCreatedAt,
+      });
+      const totalScore = (s.scoreFinal ?? 0) + effectiveBonus;
       const medal = formatRankMedal(i + 1);
-      const speedTag = s.speedBonusPoints && s.speedBonusPoints > 0 ? ` ⚡+${s.speedBonusPoints}` : '';
+      const speedTag = effectiveBonus > 0 ? ` ⚡+${effectiveBonus}` : '';
 
       // Resolve display name
       const member = await guild.members.fetch(s.authorId).catch(() => null);
@@ -1467,6 +1556,11 @@ export async function syncOngoingDailyAlgoButtons(client: Client): Promise<void>
   for (const runRaw of activeRunsRaw) {
     const run = toDailyAlgoRunMessageData(runRaw);
     await ensureDailyAlgoRunButtons(client, run);
+    if (run.leaderboardMessageId) {
+      await updateDailyAlgoLeaderboard(client, run.id).catch((error) =>
+        logger.warn('DailyAlgo', `Impossible de resynchroniser le leaderboard du run ${run.id}:`, error),
+      );
+    }
   }
 
   if (activeRunsRaw.length > 0) {

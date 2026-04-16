@@ -390,6 +390,19 @@ function resolveDailyAlgoFinalScore(submission: {
   return Math.round((sum / 5) * 10) / 10;
 }
 
+function resolveDailyAlgoEffectiveSpeedBonus(params: {
+  speedBonusPoints: number | null;
+  runDateKey?: string | null;
+  runCreatedAt?: Date;
+}): number {
+  const todayKey = getLocalDateKey();
+  const runKey = params.runDateKey ?? (params.runCreatedAt ? getLocalDateKey(params.runCreatedAt) : todayKey);
+  if (runKey >= todayKey) {
+    return 0;
+  }
+  return params.speedBonusPoints ?? 0;
+}
+
 type DashboardState = {
   guildName: string;
   configChannelId: string;
@@ -3112,8 +3125,13 @@ export const startDashboardApi = (client: Client) => {
 
             const submissions = run.submissions.map((submission) => {
               const finalScore = resolveDailyAlgoFinalScore(submission);
+              const effectiveSpeedBonus = resolveDailyAlgoEffectiveSpeedBonus({
+                speedBonusPoints: submission.speedBonusPoints,
+                runDateKey: run.dateKey,
+                runCreatedAt: run.createdAt,
+              });
               const totalPoints = finalScore !== null
-                ? Math.round((finalScore + (submission.speedBonusPoints ?? 0)) * 10) / 10
+                ? Math.round((finalScore + effectiveSpeedBonus) * 10) / 10
                 : null;
 
               return {
@@ -3125,7 +3143,7 @@ export const startDashboardApi = (client: Client) => {
                 status: submission.status,
                 submittedAt: submission.submittedAt.toISOString(),
                 speedRank: submission.speedRank,
-                speedBonusPoints: submission.speedBonusPoints,
+                speedBonusPoints: effectiveSpeedBonus,
                 scoreCorrectness: submission.scoreCorrectness,
                 scoreComments: submission.scoreComments,
                 scoreCompactness: submission.scoreCompactness,
@@ -3204,7 +3222,11 @@ export const startDashboardApi = (client: Client) => {
                   authorName: submission.authorName,
                   totalPoints: 0,
                   scoreFinal: null,
-                  speedBonusPoints: submission.speedBonusPoints,
+                  speedBonusPoints: resolveDailyAlgoEffectiveSpeedBonus({
+                    speedBonusPoints: submission.speedBonusPoints,
+                    runDateKey: run.dateKey,
+                    runCreatedAt: run.createdAt,
+                  }),
                   speedRank: submission.speedRank,
                 }))
                 .map((entry) => ({

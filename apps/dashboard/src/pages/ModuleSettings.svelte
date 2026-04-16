@@ -1201,7 +1201,12 @@
                                 {submissionStatusMeta(submission.status).label}
                               </span>
                               {#if submission.speedRank}
-                                <p class="mt-1 text-[10px] text-on-surface-variant">Rang #{submission.speedRank} (+{submission.speedBonusPoints ?? 0})</p>
+                                <p class="mt-1 text-[10px] text-on-surface-variant">
+                                  Rang #{submission.speedRank}
+                                  {#if (submission.speedBonusPoints ?? 0) > 0}
+                                    (+{submission.speedBonusPoints})
+                                  {/if}
+                                </p>
                               {/if}
                             </td>
                             <td>

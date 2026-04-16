@@ -1,6 +1,5 @@
 import { EmbedBuilder, MessageFlags, SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import {
-  DAILY_ALGO_SCORING_RULES,
   getDailyAlgoUserProfile,
   getGuildDailyAlgoRanking,
   getPreviousDailyAlgoRun,
@@ -96,7 +95,7 @@ async function replyScoring(interaction: ChatInputCommandInteraction): Promise<v
     .setColor(COLORS.info)
     .setTitle('🧮 Barème de notation Daily Algo')
     .setDescription(
-      'Le score final est la moyenne des 5 critères ci-dessous. La qualité du code prime sur la vitesse de soumission.',
+      'Le score final est la moyenne des 5 critères ci-dessous. La qualité du code prime sur la vitesse de soumission (pas de bonus rapidité).',
     )
     .addFields(
       {
@@ -122,12 +121,6 @@ async function replyScoring(interaction: ChatInputCommandInteraction): Promise<v
       {
         name: '🧹 Lisibilité',
         value: 'Le code est-il propre, bien formaté et facile à lire ?',
-        inline: false,
-      },
-      {
-        name: '🥇 Bonus rapidité',
-        value:
-          'Utilisé uniquement en cas d\'égalité parfaite sur la note de qualité :\n🥇 +3 points · 🥈 +2 points · 🥉 +1 point',
         inline: false,
       },
       {

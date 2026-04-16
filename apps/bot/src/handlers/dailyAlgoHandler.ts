@@ -119,10 +119,9 @@ export function registerDailyAlgoHandlers(client: Client): void {
       });
 
       const rankLabel = formatRankLabel(result.speedRank);
-      const bonusPoints = result.speedRank <= 3 ? ` (+${4 - result.speedRank}pts bonus rapidité ⚡)` : '';
 
       await replyOrFollowUp(interaction, {
-        content: `✅ **Solution enregistrée !**\n\nTu es le **${rankLabel}** à avoir soumis ta solution${bonusPoints}.\n\n⏳ Un membre du staff va noter ta réponse. Le classement sera mis à jour automatiquement !`,
+        content: `✅ **Solution enregistrée !**\n\nTu es le **${rankLabel}** à avoir soumis ta solution.\n\n⏳ Un membre du staff va noter ta réponse. Le classement sera mis à jour automatiquement !`,
         flags: [MessageFlags.Ephemeral],
       });
     } catch (error) {
