@@ -95,7 +95,7 @@
   </Route>
 
   <Route path="/*">
-    {#if authStore.isAuthenticated}
+    {#if authStore.isAuthenticated && $router.path !== '/daily-algo-ide'}
       <MainLayout>
         <Route path="/">
           <Overview />
