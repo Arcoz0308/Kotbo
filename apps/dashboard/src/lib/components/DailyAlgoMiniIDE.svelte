@@ -247,6 +247,42 @@
     }
   }
 
+  function toTransportSafeValue(value: unknown, seen: WeakSet<object> = new WeakSet<object>()): unknown {
+    if (value === null || value === undefined) return value;
+
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      return value;
+    }
+
+    if (typeof value === 'bigint') return value.toString();
+    if (typeof value === 'function') return '__FUNCTION__';
+    if (typeof value === 'symbol') return String(value);
+
+    if (Array.isArray(value)) {
+      return value.map((entry) => toTransportSafeValue(entry, seen));
+    }
+
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+
+    if (typeof value === 'object') {
+      if (seen.has(value as object)) {
+        return '__CIRCULAR__';
+      }
+
+      seen.add(value as object);
+      const output: Record<string, unknown> = {};
+      for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+        output[key] = toTransportSafeValue(entry, seen);
+      }
+      seen.delete(value as object);
+      return output;
+    }
+
+    return String(value);
+  }
+
   function formatSqlResultTable(columns: string[], values: unknown[][]): string {
     if (!columns.length) return '(aucune colonne)';
 
@@ -484,6 +520,9 @@
   let stdin = $state('');
   let isRunning = $state(false);
   let isRunningTests = $state(false);
+  let unitTestResults = $state<UnitTestResult[]>([]);
+  let unitTestError = $state('');
+  let hasAutoRunUnitTests = $state(false);
   let bootError = $state('');
   let runtimeHint = $state('');
   let terminalLineCount = $state(0);
@@ -856,6 +895,27 @@
     testCases: ExerciseUnitTest[],
   ): Promise<UnitTestResult[]> {
     const workerSource = `
+      const toCloneable = (value, seen = new WeakSet()) => {
+        if (value === null || value === undefined) return value;
+        if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
+        if (typeof value === 'bigint') return value.toString();
+        if (typeof value === 'function') return '__FUNCTION__';
+        if (typeof value === 'symbol') return String(value);
+        if (Array.isArray(value)) return value.map((entry) => toCloneable(entry, seen));
+        if (value instanceof Date) return value.toISOString();
+        if (value && typeof value === 'object') {
+          if (seen.has(value)) return '__CIRCULAR__';
+          seen.add(value);
+          const out = {};
+          for (const [key, entry] of Object.entries(value)) {
+            out[key] = toCloneable(entry, seen);
+          }
+          seen.delete(value);
+          return out;
+        }
+        return String(value);
+      };
+
       const normalize = (value) => {
         if (Array.isArray(value)) {
           return value.map((entry) => normalize(entry));
@@ -908,8 +968,8 @@
               results.push({
                 name,
                 passed,
-                expected,
-                actual,
+                expected: toCloneable(expected),
+                actual: toCloneable(actual),
                 durationMs: Math.max(0, performance.now() - startedAt),
               });
             } catch (error) {
@@ -917,7 +977,7 @@
               results.push({
                 name,
                 passed: false,
-                expected,
+                expected: toCloneable(expected),
                 actual: null,
                 error: message,
                 durationMs: Math.max(0, performance.now() - startedAt),
@@ -969,10 +1029,16 @@
           reject(new Error(event.message || 'Erreur worker pendant les tests.'));
         };
 
+        const transportTests = testCases.map((test, index) => ({
+          name: typeof test?.name === 'string' && test.name.trim() ? test.name.trim() : `Test ${index + 1}`,
+          args: Array.isArray(test?.args) ? test.args.map((entry) => toTransportSafeValue(entry)) : [],
+          expected: toTransportSafeValue(test?.expected),
+        }));
+
         worker.postMessage({
           code: source,
           functionName: functionNameInput,
-          tests: testCases,
+          tests: transportTests,
         });
       });
 
@@ -1110,30 +1176,43 @@ json.dumps(results, ensure_ascii=False, default=str)
     }
   }
 
-  async function runUnitTests() {
+  async function runUnitTests(options?: { auto?: boolean }) {
     if (isRunning) {
-      writeTerminal('info', 'Attends la fin de l execution en cours avant de lancer les tests.');
+      if (!options?.auto) {
+        writeTerminal('info', 'Attends la fin de l execution en cours avant de lancer les tests.');
+      }
       return;
     }
 
     const source = editor?.getValue() ?? code;
     code = source;
+    unitTestError = '';
 
     const functionNameInput = normalizedFunctionName();
     if (!functionNameInput) {
-      writeTerminal('error', 'Impossible de lancer les tests: nom de fonction attendu manquant.');
+      unitTestResults = [];
+      unitTestError = 'Nom de fonction attendu manquant.';
+      if (!options?.auto) {
+        writeTerminal('error', 'Impossible de lancer les tests: nom de fonction attendu manquant.');
+      }
       return;
     }
 
     const expectedArgCount = normalizedFunctionArgs().length;
     const testCases = normalizedUnitTests();
     if (testCases.length === 0) {
-      writeTerminal('info', 'Aucun test unitaire configure pour cet exercice.');
+      unitTestResults = [];
+      unitTestError = 'Aucun test unitaire configure pour cet exercice.';
+      if (!options?.auto) {
+        writeTerminal('info', 'Aucun test unitaire configure pour cet exercice.');
+      }
       return;
     }
 
     const invalidArgsCountTest = testCases.find((test) => !Array.isArray(test.args) || test.args.length !== expectedArgCount);
     if (invalidArgsCountTest) {
+      unitTestResults = [];
+      unitTestError = `Tests invalides: chaque test doit fournir exactement ${expectedArgCount} argument(s).`;
       writeTerminal(
         'error',
         `Tests invalides: chaque test doit fournir exactement ${expectedArgCount} argument(s).`,
@@ -1142,6 +1221,8 @@ json.dumps(results, ensure_ascii=False, default=str)
     }
 
     if (!canRunAutomatedTests(language)) {
+      unitTestResults = [];
+      unitTestError = `Tests automatiques indisponibles pour ${language.toUpperCase()}.`;
       writeTerminal(
         'info',
         `Tests non pris en charge pour ${language.toUpperCase()}. Utilise JavaScript, TypeScript ou Python pour le run automatique.`,
@@ -1150,6 +1231,7 @@ json.dumps(results, ensure_ascii=False, default=str)
     }
 
     isRunningTests = true;
+    unitTestError = '';
     writeTerminal('info', `Lancement des tests unitaires (${testCases.length}) sur ${language.toUpperCase()}...`);
     const startedAt = performance.now();
 
@@ -1164,21 +1246,10 @@ json.dumps(results, ensure_ascii=False, default=str)
         results = await runPythonUnitTests(source, functionNameInput, testCases);
       }
 
+      unitTestResults = results;
       let passed = 0;
       for (const result of results) {
-        const duration = formatExecutionDuration(result.durationMs);
-        if (result.passed) {
-          passed += 1;
-          writeTerminal('stdout', `PASS ${result.name} (${duration})`);
-        } else {
-          writeTerminal('stderr', `FAIL ${result.name} (${duration})`);
-          if (result.error && result.error.trim()) {
-            writeTerminal('error', `  ${result.error}`);
-          } else {
-            writeTerminal('stderr', `  expected: ${stringifyChunk(result.expected)}`);
-            writeTerminal('stderr', `  actual:   ${stringifyChunk(result.actual)}`);
-          }
-        }
+        if (result.passed) passed += 1;
       }
 
       const total = results.length;
@@ -1206,7 +1277,9 @@ json.dumps(results, ensure_ascii=False, default=str)
       );
     } catch (error) {
       lastUnitTestSummary = null;
+      unitTestResults = [];
       const message = error instanceof Error ? error.message : String(error);
+      unitTestError = message;
       writeTerminal('error', message);
     } finally {
       const elapsedMs = performance.now() - startedAt;
@@ -1399,6 +1472,18 @@ json.dumps(results, ensure_ascii=False, default=str)
     }
   });
 
+  $effect(() => {
+    if (hasAutoRunUnitTests) return;
+    if (!editor) return;
+    if (isRunning || isRunningTests) return;
+    if (!hasConfiguredUnitTests()) return;
+    if (!normalizedFunctionName()) return;
+    if (!canRunAutomatedTests(language)) return;
+
+    hasAutoRunUnitTests = true;
+    void runUnitTests({ auto: true });
+  });
+
   onDestroy(() => {
     for (const disposable of editorDisposables) {
       disposable.dispose();
@@ -1476,6 +1561,66 @@ json.dumps(results, ensure_ascii=False, default=str)
         {#if lastUnitTestSummary}
           <p class="tree-meta">Dernier run: {lastUnitTestSummary.passed}/{lastUnitTestSummary.total}</p>
           <p class="tree-meta">Note suggeree: {lastUnitTestSummary.suggestedCorrectness.toFixed(1)}/5</p>
+        {/if}
+      </div>
+
+      <div class="tests-zone">
+        <div class="tests-zone-head">
+          <p class="tests-zone-title">Tests unitaires</p>
+          <button
+            type="button"
+            class="tests-zone-run"
+            onclick={() => runUnitTests()}
+            disabled={isRunning || isRunningTests || !hasConfiguredUnitTests() || !normalizedFunctionName() || !canRunAutomatedTests(language)}
+          >
+            {isRunningTests ? 'Running...' : 'Run'}
+          </button>
+        </div>
+
+        {#if !hasConfiguredUnitTests()}
+          <p class="tests-zone-empty">Aucun test configure.</p>
+        {:else if !normalizedFunctionName()}
+          <p class="tests-zone-empty">Nom de fonction manquant.</p>
+        {:else if !canRunAutomatedTests(language)}
+          <p class="tests-zone-empty">Tests auto non disponibles sur {language.toUpperCase()}.</p>
+        {:else if isRunningTests}
+          <p class="tests-zone-empty">Execution des tests...</p>
+        {:else if unitTestError}
+          <div class="tests-zone-error">{unitTestError}</div>
+        {:else if lastUnitTestSummary && unitTestResults.length > 0}
+          <div class="tests-zone-score {lastUnitTestSummary.failed === 0 ? 'ok' : 'ko'}">
+            <p class="tests-zone-score-main">
+              {lastUnitTestSummary.passed}/{lastUnitTestSummary.total} reussis
+            </p>
+            <p class="tests-zone-score-sub">
+              Score suggere: {lastUnitTestSummary.suggestedCorrectness.toFixed(1)}/5
+            </p>
+          </div>
+
+          <div class="tests-zone-list">
+            {#each unitTestResults as result}
+              <article class="test-result-card {result.passed ? 'pass' : 'fail'}">
+                <div class="test-result-head">
+                  <span class="test-result-badge">{result.passed ? 'PASS' : 'FAIL'}</span>
+                  <span class="test-result-name">{result.name}</span>
+                  <span class="test-result-time">{formatExecutionDuration(result.durationMs)}</span>
+                </div>
+
+                {#if result.error}
+                  <p class="test-result-error">{result.error}</p>
+                {:else}
+                  <div class="test-result-values">
+                    <p class="test-result-label">Attendu</p>
+                    <pre class="test-result-code">{stringifyChunk(result.expected)}</pre>
+                    <p class="test-result-label">Obtenu</p>
+                    <pre class="test-result-code">{stringifyChunk(result.actual)}</pre>
+                  </div>
+                {/if}
+              </article>
+            {/each}
+          </div>
+        {:else}
+          <p class="tests-zone-empty">Lance les tests pour voir attendu/obtenu.</p>
         {/if}
       </div>
 
@@ -1699,6 +1844,207 @@ json.dumps(results, ensure_ascii=False, default=str)
     text-transform: uppercase;
     letter-spacing: 0.08em;
     font-weight: 700;
+  }
+
+  .tests-zone {
+    margin: 0.1rem 0.65rem 0.65rem;
+    border: 1px solid #35363b;
+    border-radius: 0.65rem;
+    background: #1f2024;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .tests-zone-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.52rem 0.58rem;
+    border-bottom: 1px solid #2e3036;
+    background: #27292f;
+  }
+
+  .tests-zone-title {
+    margin: 0;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #aeb5c2;
+  }
+
+  .tests-zone-run {
+    border: 1px solid #3f6aa0;
+    background: #0e639c;
+    color: #ffffff;
+    border-radius: 0.35rem;
+    padding: 0.2rem 0.46rem;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 900;
+    cursor: pointer;
+  }
+
+  .tests-zone-run:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .tests-zone-empty {
+    margin: 0;
+    padding: 0.62rem 0.58rem;
+    font-size: 11px;
+    color: #9aa0ac;
+    font-weight: 700;
+  }
+
+  .tests-zone-error {
+    margin: 0.55rem;
+    border: 1px solid #7f1d1d;
+    background: rgba(127, 29, 29, 0.32);
+    color: #fecdd3;
+    border-radius: 0.5rem;
+    padding: 0.52rem;
+    font-size: 11px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .tests-zone-score {
+    margin: 0.55rem 0.55rem 0.45rem;
+    border: 1px solid #3a3f49;
+    border-radius: 0.5rem;
+    padding: 0.48rem 0.52rem;
+  }
+
+  .tests-zone-score.ok {
+    border-color: rgba(16, 185, 129, 0.45);
+    background: rgba(16, 185, 129, 0.12);
+  }
+
+  .tests-zone-score.ko {
+    border-color: rgba(239, 68, 68, 0.45);
+    background: rgba(239, 68, 68, 0.1);
+  }
+
+  .tests-zone-score-main {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 900;
+    color: #dbe2ef;
+  }
+
+  .tests-zone-score-sub {
+    margin: 0.2rem 0 0;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #aeb5c2;
+    font-weight: 800;
+  }
+
+  .tests-zone-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    padding: 0 0.55rem 0.55rem;
+    overflow: auto;
+    max-height: 34vh;
+  }
+
+  .test-result-card {
+    border: 1px solid #3a3e47;
+    border-radius: 0.5rem;
+    background: #24262d;
+    padding: 0.45rem 0.5rem;
+  }
+
+  .test-result-card.pass {
+    border-color: rgba(16, 185, 129, 0.4);
+    background: rgba(16, 185, 129, 0.08);
+  }
+
+  .test-result-card.fail {
+    border-color: rgba(239, 68, 68, 0.4);
+    background: rgba(239, 68, 68, 0.08);
+  }
+
+  .test-result-head {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+
+  .test-result-badge {
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    font-weight: 900;
+    text-transform: uppercase;
+    border: 1px solid #3d4350;
+    border-radius: 999px;
+    padding: 0.08rem 0.33rem;
+    background: #1f2025;
+    color: #dce2ee;
+  }
+
+  .test-result-name {
+    font-size: 11px;
+    font-weight: 800;
+    color: #dce2ee;
+  }
+
+  .test-result-time {
+    margin-left: auto;
+    font-size: 10px;
+    color: #9aa0ac;
+    font-weight: 700;
+  }
+
+  .test-result-error {
+    margin: 0.35rem 0 0;
+    color: #fecdd3;
+    font-size: 10px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .test-result-values {
+    margin-top: 0.36rem;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.18rem;
+  }
+
+  .test-result-label {
+    margin: 0;
+    font-size: 9px;
+    color: #9aa0ac;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 900;
+  }
+
+  .test-result-code {
+    margin: 0;
+    border: 1px solid #3c4049;
+    border-radius: 0.42rem;
+    background: #1b1d23;
+    color: #e5e7eb;
+    font-size: 10px;
+    line-height: 1.4;
+    padding: 0.28rem 0.34rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 7.5rem;
+    overflow: auto;
+    font-family: 'JetBrains Mono', 'Fira Code', 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
   }
 
   .stdin-zone {
