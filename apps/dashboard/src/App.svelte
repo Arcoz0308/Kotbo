@@ -24,7 +24,6 @@
   import StaffManagement from './pages/StaffManagement.svelte';
   import Procedures from './pages/Procedures.svelte';
   import News from './pages/News.svelte';
-  import DailyAlgoIDE from './pages/DailyAlgoIDE.svelte';
 
   const adminOnlyPrefixes = ['/modules', '/module-settings', '/settings', '/notifications', '/automations', '/command-access', '/regulation', '/staff-management'];
 
@@ -86,16 +85,8 @@
     <Login />
   </Route>
 
-  <Route path="/daily-algo-ide">
-    {#if authStore.isAuthenticated}
-      <DailyAlgoIDE />
-    {:else}
-      <Login />
-    {/if}
-  </Route>
-
   <Route path="/*">
-    {#if authStore.isAuthenticated && $router.path !== '/daily-algo-ide'}
+    {#if authStore.isAuthenticated}
       <MainLayout>
         <Route path="/">
           <Overview />

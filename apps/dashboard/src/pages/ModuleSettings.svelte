@@ -22,7 +22,6 @@
   import ColumnSortFilter, { type ColumnFilterOption } from '../lib/components/sanctions/ColumnSortFilter.svelte';
   import DailyAlgoMiniIDE from '../lib/components/DailyAlgoMiniIDE.svelte';
   import {
-    createIdePayloadKey,
     detectIdeLanguageFromCode,
     normalizeIdeLanguage,
     type IdeLanguage,
@@ -55,6 +54,8 @@
   let dailyAlgoHistory = $state<any[]>([]);
   let dailyAlgoSubmissionStatusFilter = $state<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
   let expandedSubmissionId = $state<string | null>(null);
+  let ideFocusedSubmissionId = $state<string | null>(null);
+  let ideModalOpen = $state(false);
   let scoreDraftBySubmissionId = $state<Record<string, {
     correctness: number;
     comments: number;
@@ -201,6 +202,14 @@
     }
   }
 
+  function ensureSubmissionDraft(submission: any) {
+    if (scoreDraftBySubmissionId[submission.id]) return;
+    scoreDraftBySubmissionId = {
+      ...scoreDraftBySubmissionId,
+      [submission.id]: buildDraftFromSubmission(submission),
+    };
+  }
+
   function ideLanguageForSubmission(submission: any): IdeLanguage {
     if (typeof submission?.language === 'string' && submission.language.trim()) {
       return normalizeIdeLanguage(submission.language);
@@ -208,39 +217,15 @@
     return detectIdeLanguageFromCode(submission?.solution ?? '');
   }
 
-  function openSubmissionInIdeWindow(
-    submission: any,
-    override?: { code: string; language: IdeLanguage },
-  ) {
-    try {
-      const payloadKey = createIdePayloadKey(submission?.id ?? 'submission');
-      const payload = {
-        code: override?.code ?? submission?.solution ?? '',
-        language: override?.language ?? ideLanguageForSubmission(submission),
-        authorName: submission?.authorName ?? 'Soumission Daily Algo',
-        submissionId: submission?.id ?? '',
-        status: submission?.status ?? 'PENDING',
-        scoreCorrectness: Number.isFinite(Number(submission?.scoreCorrectness)) ? Number(submission.scoreCorrectness) : 5,
-        scoreComments: Number.isFinite(Number(submission?.scoreComments)) ? Number(submission.scoreComments) : 5,
-        scoreCompactness: Number.isFinite(Number(submission?.scoreCompactness)) ? Number(submission.scoreCompactness) : 5,
-        scoreOptimization: Number.isFinite(Number(submission?.scoreOptimization)) ? Number(submission.scoreOptimization) : 5,
-        scoreReadability: Number.isFinite(Number(submission?.scoreReadability)) ? Number(submission.scoreReadability) : 5,
-        reviewFeedback: typeof submission?.reviewFeedback === 'string' ? submission.reviewFeedback : '',
-      };
-
-      window.localStorage.setItem(payloadKey, JSON.stringify(payload));
-      window.open(`/daily-algo-ide?payloadKey=${encodeURIComponent(payloadKey)}`, '_blank', 'noopener,noreferrer');
-    } catch (error) {
-      console.error(error);
-      formAction.setError("Impossible d'ouvrir la soumission dans l'IDE.");
-    }
+  function openSubmissionInIntegratedIde(submission: any) {
+    ensureSubmissionDraft(submission);
+    ideFocusedSubmissionId = submission.id;
+    ideModalOpen = true;
   }
 
-  function handleSubmissionIdePopout(
-    submission: any,
-    event: CustomEvent<{ code: string; language: IdeLanguage }>,
-  ) {
-    openSubmissionInIdeWindow(submission, event.detail);
+  function closeIntegratedIde() {
+    ideModalOpen = false;
+    ideFocusedSubmissionId = null;
   }
 
   function updateSubmissionScore(
@@ -285,6 +270,7 @@
         const ok = await reviewDailyAlgoSubmission(submissionId, { action: 'reject' });
         if (!ok) return false;
         expandedSubmissionId = null;
+        closeIntegratedIde();
         await Promise.all([loadTodayDailyAlgoSubmissions(), loadDailyAlgoHistory(), dashboardStore.refresh()]);
         return true;
       },
@@ -329,6 +315,7 @@
         if (!ok) return false;
 
         expandedSubmissionId = null;
+        closeIntegratedIde();
         await Promise.all([loadTodayDailyAlgoSubmissions(), loadDailyAlgoHistory(), dashboardStore.refresh()]);
         return true;
       },
@@ -389,6 +376,11 @@
       if (statusDelta !== 0) return statusDelta;
       return new Date(left.submittedAt).getTime() - new Date(right.submittedAt).getTime();
     });
+  });
+
+  const focusedSubmission = $derived.by(() => {
+    if (!ideModalOpen || !ideFocusedSubmissionId) return null;
+    return (dailyAlgoToday?.submissions ?? []).find((submission) => submission.id === ideFocusedSubmissionId) ?? null;
   });
 
   function historyDateLabel(dateKey?: string | null) {
@@ -1213,10 +1205,10 @@
                                 </button>
                                 <button
                                   type="button"
-                                  onclick={() => openSubmissionInIdeWindow(submission)}
+                                  onclick={() => openSubmissionInIntegratedIde(submission)}
                                   class="text-[10px] font-black uppercase tracking-widest text-emerald-700 hover:text-emerald-600"
                                 >
-                                  Ouvrir IDE
+                                  IDE intégré
                                 </button>
                               </div>
                             </td>
@@ -1274,9 +1266,7 @@
                                     initialCode={submission.solution}
                                     initialLanguage={ideLanguageForSubmission(submission)}
                                     height={520}
-                                    showPopoutButton={true}
-                                    popoutLabel="Nouvelle fenêtre"
-                                    on:popout={(event) => handleSubmissionIdePopout(submission, event)}
+                                    showPopoutButton={false}
                                   />
 
                                   {#if canModerateContent && (submission.status === 'PENDING' || submission.status === 'APPROVED' || submission.status === 'REJECTED')}
@@ -1567,6 +1557,173 @@
   </div>
 </div>
 
+{#if ideModalOpen && focusedSubmission}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="dailyalgo-ide-title" tabindex="-1" onclick={closeIntegratedIde}>
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="modal-panel modal-panel-dailyalgo-ide" onclick={(event) => event.stopPropagation()}>
+      <div class="dailyalgo-ide-modal-header">
+        <div>
+          <p class="dailyalgo-ide-modal-eyebrow">Daily Algo</p>
+          <h3 id="dailyalgo-ide-title">IDE intégré: {focusedSubmission.authorName}</h3>
+          <div class="dailyalgo-ide-modal-meta">
+            <span class="dailyalgo-ide-chip">ID: {focusedSubmission.id}</span>
+            <span class="dailyalgo-ide-chip {submissionStatusMeta(focusedSubmission.status).classes}">
+              {submissionStatusMeta(focusedSubmission.status).label}
+            </span>
+            <span class="dailyalgo-ide-chip">Soumis: {formatDate(focusedSubmission.submittedAt)}</span>
+          </div>
+        </div>
+        <button
+          type="button"
+          onclick={closeIntegratedIde}
+          class="p-2 rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-on-surface"
+          aria-label="Fermer l'IDE intégré"
+        >
+          <span class="material-symbols-outlined text-base">close</span>
+        </button>
+      </div>
+
+      <div class="dailyalgo-ide-modal-grid">
+        <div class="space-y-3">
+          <DailyAlgoMiniIDE
+            initialCode={focusedSubmission.solution}
+            initialLanguage={ideLanguageForSubmission(focusedSubmission)}
+            height="62vh"
+            showPopoutButton={false}
+          />
+          {#if focusedSubmission.status !== 'PENDING' && focusedSubmission.reviewFeedback}
+            <div class="rounded-xl border border-outline-variant/25 bg-surface-container-low p-3 space-y-1">
+              <p class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Feedback staff</p>
+              <p class="text-xs text-on-surface whitespace-pre-wrap">{focusedSubmission.reviewFeedback}</p>
+            </div>
+          {/if}
+        </div>
+
+        <aside class="dailyalgo-ide-score-panel">
+          <h4 class="text-[11px] font-black uppercase tracking-[0.14em] text-on-surface-variant">Notation rapide</h4>
+
+          {#if canModerateContent && (focusedSubmission.status === 'PENDING' || focusedSubmission.status === 'APPROVED' || focusedSubmission.status === 'REJECTED')}
+            <div class="grid grid-cols-2 gap-3">
+              <label class="text-[11px] font-bold text-on-surface-variant space-y-1" for={`modal-score-correctness-${focusedSubmission.id}`}>
+                Correctitude
+                <input
+                  id={`modal-score-correctness-${focusedSubmission.id}`}
+                  type="number"
+                  min="1"
+                  max="5"
+                  step="1"
+                  value={scoreDraftBySubmissionId[focusedSubmission.id]?.correctness ?? 5}
+                  onchange={(event) => updateSubmissionScore(focusedSubmission.id, 'correctness', Number((event.currentTarget as HTMLInputElement).value))}
+                  class="w-full px-3 py-2 rounded-lg border border-outline-variant/25 bg-surface text-sm text-on-surface"
+                />
+              </label>
+              <label class="text-[11px] font-bold text-on-surface-variant space-y-1" for={`modal-score-comments-${focusedSubmission.id}`}>
+                Commentaires
+                <input
+                  id={`modal-score-comments-${focusedSubmission.id}`}
+                  type="number"
+                  min="1"
+                  max="5"
+                  step="1"
+                  value={scoreDraftBySubmissionId[focusedSubmission.id]?.comments ?? 5}
+                  onchange={(event) => updateSubmissionScore(focusedSubmission.id, 'comments', Number((event.currentTarget as HTMLInputElement).value))}
+                  class="w-full px-3 py-2 rounded-lg border border-outline-variant/25 bg-surface text-sm text-on-surface"
+                />
+              </label>
+              <label class="text-[11px] font-bold text-on-surface-variant space-y-1" for={`modal-score-compactness-${focusedSubmission.id}`}>
+                Compacité
+                <input
+                  id={`modal-score-compactness-${focusedSubmission.id}`}
+                  type="number"
+                  min="1"
+                  max="5"
+                  step="1"
+                  value={scoreDraftBySubmissionId[focusedSubmission.id]?.compactness ?? 5}
+                  onchange={(event) => updateSubmissionScore(focusedSubmission.id, 'compactness', Number((event.currentTarget as HTMLInputElement).value))}
+                  class="w-full px-3 py-2 rounded-lg border border-outline-variant/25 bg-surface text-sm text-on-surface"
+                />
+              </label>
+              <label class="text-[11px] font-bold text-on-surface-variant space-y-1" for={`modal-score-optimization-${focusedSubmission.id}`}>
+                Optimisation
+                <input
+                  id={`modal-score-optimization-${focusedSubmission.id}`}
+                  type="number"
+                  min="1"
+                  max="5"
+                  step="1"
+                  value={scoreDraftBySubmissionId[focusedSubmission.id]?.optimization ?? 5}
+                  onchange={(event) => updateSubmissionScore(focusedSubmission.id, 'optimization', Number((event.currentTarget as HTMLInputElement).value))}
+                  class="w-full px-3 py-2 rounded-lg border border-outline-variant/25 bg-surface text-sm text-on-surface"
+                />
+              </label>
+              <label class="text-[11px] font-bold text-on-surface-variant space-y-1 col-span-2" for={`modal-score-readability-${focusedSubmission.id}`}>
+                Lisibilité
+                <input
+                  id={`modal-score-readability-${focusedSubmission.id}`}
+                  type="number"
+                  min="1"
+                  max="5"
+                  step="1"
+                  value={scoreDraftBySubmissionId[focusedSubmission.id]?.readability ?? 5}
+                  onchange={(event) => updateSubmissionScore(focusedSubmission.id, 'readability', Number((event.currentTarget as HTMLInputElement).value))}
+                  class="w-full px-3 py-2 rounded-lg border border-outline-variant/25 bg-surface text-sm text-on-surface"
+                />
+              </label>
+            </div>
+
+            <div class="space-y-2">
+              <label class="text-[11px] font-bold text-on-surface-variant space-y-1" for={`modal-score-feedback-${focusedSubmission.id}`}>
+                Explication / axes d'amélioration
+                <textarea
+                  id={`modal-score-feedback-${focusedSubmission.id}`}
+                  rows="4"
+                  maxlength="1000"
+                  value={scoreDraftBySubmissionId[focusedSubmission.id]?.feedback ?? ''}
+                  oninput={(event) => updateSubmissionFeedback(focusedSubmission.id, (event.currentTarget as HTMLTextAreaElement).value)}
+                  class="w-full px-3 py-2 rounded-lg border border-outline-variant/25 bg-surface text-sm text-on-surface"
+                  placeholder="Obligatoire si une note est inférieure à 5/5."
+                ></textarea>
+              </label>
+              {#if [scoreDraftBySubmissionId[focusedSubmission.id]?.correctness ?? 5, scoreDraftBySubmissionId[focusedSubmission.id]?.comments ?? 5, scoreDraftBySubmissionId[focusedSubmission.id]?.compactness ?? 5, scoreDraftBySubmissionId[focusedSubmission.id]?.optimization ?? 5, scoreDraftBySubmissionId[focusedSubmission.id]?.readability ?? 5].some((score) => score < 5)}
+                <p class="text-[10px] font-bold text-amber-700">Une explication est requise car au moins un critère est en dessous de 5/5.</p>
+              {/if}
+            </div>
+
+            <div class="dailyalgo-ide-score-actions">
+              <p class="text-xs font-black text-emerald-700">Moyenne: {reviewAverage(focusedSubmission.id)}/5</p>
+              <div class="flex items-center gap-2">
+                {#if focusedSubmission.status === 'PENDING'}
+                  <button
+                    type="button"
+                    onclick={() => rejectSubmission(focusedSubmission.id)}
+                    class="px-3 py-2 rounded-lg border border-red-500/30 bg-red-500/10 text-red-700 text-[10px] font-black uppercase tracking-[0.12em]"
+                  >
+                    Rejeter
+                  </button>
+                {/if}
+                <button
+                  type="button"
+                  onclick={() => approveSubmission(focusedSubmission.id)}
+                  class="px-4 py-2 rounded-lg bg-emerald-700 text-white text-[10px] font-black uppercase tracking-[0.12em] hover:bg-emerald-800"
+                >
+                  {focusedSubmission.status === 'PENDING' ? 'Confirmer la validation' : focusedSubmission.status === 'APPROVED' ? 'Enregistrer les modifications' : 'Valider la réévaluation'}
+                </button>
+              </div>
+            </div>
+          {:else}
+            <div class="rounded-xl border border-outline-variant/25 bg-surface-container-low p-3 text-xs text-on-surface-variant">
+              Cette soumission est en lecture seule pour ton rôle.
+            </div>
+          {/if}
+        </aside>
+      </div>
+    </div>
+  </div>
+{/if}
+
 {#if deleteFeedModalOpen && pendingFeedDeletion}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -1688,4 +1845,104 @@
 <style>
   .scrollbar-hide::-webkit-scrollbar { display: none; }
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+  .modal-panel-dailyalgo-ide {
+    max-width: min(1700px, 96vw);
+    padding: 1rem;
+    max-height: 95vh;
+    overflow: auto;
+  }
+
+  .dailyalgo-ide-modal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.85rem;
+  }
+
+  .dailyalgo-ide-modal-eyebrow {
+    margin: 0;
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--on-surface-variant);
+  }
+
+  .dailyalgo-ide-modal-header h3 {
+    margin: 0.25rem 0 0;
+    font-size: clamp(1rem, 1.6vw, 1.35rem);
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    color: var(--on-surface);
+  }
+
+  .dailyalgo-ide-modal-meta {
+    margin-top: 0.55rem;
+    display: flex;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+  }
+
+  .dailyalgo-ide-chip {
+    border-radius: 0.6rem;
+    border: 1px solid var(--outline-variant);
+    background: var(--surface-container-low);
+    color: var(--on-surface-variant);
+    padding: 0.25rem 0.55rem;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .dailyalgo-ide-modal-grid {
+    display: grid;
+    gap: 0.85rem;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .dailyalgo-ide-score-panel {
+    border: 1px solid var(--outline-variant);
+    background: var(--surface-container-lowest);
+    border-radius: 0.9rem;
+    padding: 0.8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .dailyalgo-ide-score-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  @media (min-width: 1360px) {
+    .dailyalgo-ide-modal-grid {
+      grid-template-columns: minmax(0, 1fr) 360px;
+    }
+  }
+
+  @media (max-width: 860px) {
+    .modal-panel-dailyalgo-ide {
+      max-width: 100vw;
+      max-height: 100vh;
+      border-radius: 1rem;
+      padding: 0.65rem;
+    }
+
+    .dailyalgo-ide-modal-meta {
+      gap: 0.35rem;
+    }
+
+    .dailyalgo-ide-chip {
+      font-size: 9px;
+      letter-spacing: 0.05em;
+    }
+  }
 </style>
