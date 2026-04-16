@@ -221,9 +221,10 @@
 
   function computeIntegratedIdeEditorHeight() {
     if (typeof window === 'undefined') return;
-    const reserved = window.innerWidth >= 1360 ? 250 : window.innerWidth >= 960 ? 340 : 430;
-    const available = Math.max(320, window.innerHeight - reserved);
-    integratedIdeEditorHeight = `${available}px`;
+    const ratio = window.innerWidth >= 1360 ? 0.4 : window.innerWidth >= 960 ? 0.38 : 0.34;
+    const available = Math.floor(window.innerHeight * ratio);
+    const bounded = Math.max(260, Math.min(430, available));
+    integratedIdeEditorHeight = `${bounded}px`;
   }
 
   function updateSubmissionScore(
@@ -1490,29 +1491,14 @@
       </div>
 
       <div class="dailyalgo-ide-modal-grid">
-        <aside class="dailyalgo-ide-explorer">
-          <p class="dailyalgo-ide-pane-title">Explorer</p>
-          <div class="dailyalgo-ide-tree">
-            <p class="folder">submission-{focusedSubmission.id}</p>
-            <p class="file active">
-              {focusedSubmission.authorName}.{ideLanguageForSubmission(focusedSubmission) === 'python' ? 'py' : ideLanguageForSubmission(focusedSubmission) === 'c' ? 'c' : 'js'}
-            </p>
-            <p class="file">stdin.txt</p>
-            <p class="file">review-notes.md</p>
-          </div>
-          <div class="dailyalgo-ide-kpis">
-            <div>
-              <p class="kpi-label">Score actuel</p>
-              <p class="kpi-value">{focusedSubmission.scoreFinal ?? '—'}/5</p>
-            </div>
-            <div>
-              <p class="kpi-label">Points</p>
-              <p class="kpi-value">{focusedSubmission.totalPoints ?? '—'}</p>
-            </div>
-          </div>
-        </aside>
-
         <section class="dailyalgo-ide-editor-pane">
+          <div class="dailyalgo-ide-context-strip">
+            <span>Challenge: {dailyAlgoToday?.run?.problem?.title ?? 'Daily Algo'}</span>
+            <span class="dot">•</span>
+            <span>Score: {focusedSubmission.scoreFinal ?? '—'}/5</span>
+            <span class="dot">•</span>
+            <span>Total: {focusedSubmission.totalPoints ?? '—'} pts</span>
+          </div>
           <DailyAlgoMiniIDE
             initialCode={focusedSubmission.solution}
             initialLanguage={ideLanguageForSubmission(focusedSubmission)}
@@ -1792,8 +1778,8 @@
     border-radius: 0;
     border: none;
     padding: 0;
-    background: #0b1020;
-    color: #e2e8f0;
+    background: var(--background);
+    color: var(--on-surface);
     overflow: hidden;
     box-shadow: none;
     display: flex;
@@ -1803,8 +1789,12 @@
   .dailyalgo-ide-menubar {
     height: 44px;
     padding: 0 0.9rem;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.22);
-    background: linear-gradient(180deg, #151c31, #0f172a);
+    border-bottom: 1px solid var(--outline-variant);
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--surface-container-high) 84%, transparent),
+      color-mix(in srgb, var(--surface-container-low) 92%, transparent)
+    );
     display: flex;
     align-items: center;
     gap: 0.8rem;
@@ -1820,7 +1810,7 @@
     width: 10px;
     height: 10px;
     border-radius: 999px;
-    border: 1px solid rgba(15, 23, 42, 0.38);
+    border: 1px solid color-mix(in srgb, var(--outline) 70%, black 30%);
   }
 
   .dailyalgo-ide-window-controls .dot.red { background: #f87171; }
@@ -1833,7 +1823,7 @@
     font-weight: 900;
     letter-spacing: 0.12em;
     text-transform: uppercase;
-    color: #93c5fd;
+    color: var(--color-primary);
     flex: 1;
   }
 
@@ -1841,18 +1831,18 @@
     width: 30px;
     height: 30px;
     border-radius: 0.5rem;
-    border: 1px solid rgba(148, 163, 184, 0.28);
-    color: #cbd5e1;
-    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid var(--outline-variant);
+    color: var(--on-surface-variant);
+    background: var(--surface-container-low);
     display: inline-flex;
     align-items: center;
     justify-content: center;
   }
 
   .dailyalgo-ide-close:hover {
-    color: #fff;
-    border-color: rgba(248, 113, 113, 0.45);
-    background: rgba(127, 29, 29, 0.5);
+    color: var(--on-surface);
+    border-color: color-mix(in srgb, var(--color-error) 45%, transparent);
+    background: color-mix(in srgb, var(--color-error) 12%, transparent);
   }
 
   .dailyalgo-ide-modal-header {
@@ -1861,8 +1851,8 @@
     justify-content: space-between;
     gap: 0.75rem;
     padding: 0.85rem 1rem 0.75rem;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
-    background: rgba(15, 23, 42, 0.84);
+    border-bottom: 1px solid var(--outline-variant);
+    background: color-mix(in srgb, var(--surface-container-low) 78%, transparent);
   }
 
   .dailyalgo-ide-modal-eyebrow {
@@ -1871,7 +1861,7 @@
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 0.18em;
-    color: #93c5fd;
+    color: var(--color-primary);
   }
 
   .dailyalgo-ide-modal-header h3 {
@@ -1879,7 +1869,7 @@
     font-size: clamp(1rem, 1.45vw, 1.25rem);
     font-weight: 900;
     letter-spacing: -0.02em;
-    color: #f8fafc;
+    color: var(--on-surface);
   }
 
   .dailyalgo-ide-modal-meta {
@@ -1891,9 +1881,9 @@
 
   .dailyalgo-ide-chip {
     border-radius: 0.55rem;
-    border: 1px solid rgba(100, 116, 139, 0.6);
-    background: rgba(15, 23, 42, 0.75);
-    color: #cbd5e1;
+    border: 1px solid var(--outline-variant);
+    background: var(--surface-container-low);
+    color: var(--on-surface-variant);
     padding: 0.25rem 0.5rem;
     font-size: 10px;
     font-weight: 900;
@@ -1905,97 +1895,13 @@
     flex: 1;
     min-height: 0;
     display: grid;
-    grid-template-columns: 220px minmax(0, 1fr) 340px;
+    grid-template-columns: minmax(0, 1fr) 350px;
     gap: 0.75rem;
     padding: 0.75rem;
     background:
-      radial-gradient(circle at 15% 0%, rgba(14, 165, 233, 0.12), transparent 35%),
-      radial-gradient(circle at 85% 10%, rgba(16, 185, 129, 0.09), transparent 35%),
-      #0b1020;
-  }
-
-  .dailyalgo-ide-explorer {
-    border: 1px solid rgba(100, 116, 139, 0.34);
-    background: rgba(15, 23, 42, 0.7);
-    border-radius: 0.9rem;
-    padding: 0.7rem;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.7rem;
-  }
-
-  .dailyalgo-ide-pane-title {
-    margin: 0;
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: #94a3b8;
-  }
-
-  .dailyalgo-ide-tree {
-    border: 1px solid rgba(100, 116, 139, 0.28);
-    border-radius: 0.7rem;
-    background: rgba(2, 6, 23, 0.62);
-    padding: 0.5rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-  }
-
-  .dailyalgo-ide-tree p {
-    margin: 0;
-    font-size: 11px;
-    font-weight: 700;
-    color: #cbd5e1;
-    line-height: 1.4;
-    word-break: break-word;
-  }
-
-  .dailyalgo-ide-tree .folder {
-    color: #93c5fd;
-  }
-
-  .dailyalgo-ide-tree .file {
-    color: #94a3b8;
-    padding-left: 0.6rem;
-  }
-
-  .dailyalgo-ide-tree .file.active {
-    color: #e2e8f0;
-    border-radius: 0.45rem;
-    background: rgba(30, 41, 59, 0.82);
-    padding: 0.2rem 0.45rem 0.2rem 0.6rem;
-  }
-
-  .dailyalgo-ide-kpis {
-    margin-top: auto;
-    display: grid;
-    gap: 0.5rem;
-  }
-
-  .dailyalgo-ide-kpis > div {
-    border: 1px solid rgba(100, 116, 139, 0.28);
-    background: rgba(2, 6, 23, 0.62);
-    border-radius: 0.65rem;
-    padding: 0.5rem 0.55rem;
-  }
-
-  .kpi-label {
-    margin: 0;
-    font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    font-weight: 900;
-    color: #94a3b8;
-  }
-
-  .kpi-value {
-    margin: 0.25rem 0 0;
-    font-size: 16px;
-    font-weight: 900;
-    color: #f8fafc;
+      radial-gradient(circle at 15% 0%, color-mix(in srgb, var(--color-primary) 18%, transparent), transparent 35%),
+      radial-gradient(circle at 85% 10%, color-mix(in srgb, var(--color-secondary) 12%, transparent), transparent 35%),
+      var(--background);
   }
 
   .dailyalgo-ide-editor-pane {
@@ -2006,9 +1912,29 @@
     gap: 0.65rem;
   }
 
+  .dailyalgo-ide-context-strip {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    border: 1px solid var(--outline-variant);
+    background: var(--surface-container-low);
+    color: var(--on-surface-variant);
+    border-radius: 0.75rem;
+    padding: 0.45rem 0.6rem;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .dailyalgo-ide-context-strip .dot {
+    opacity: 0.55;
+  }
+
   .dailyalgo-ide-score-panel {
-    border: 1px solid rgba(100, 116, 139, 0.35);
-    background: rgba(15, 23, 42, 0.76);
+    border: 1px solid var(--outline-variant);
+    background: color-mix(in srgb, var(--surface-container-lowest) 88%, transparent);
     border-radius: 0.9rem;
     padding: 0.8rem;
     display: flex;
@@ -2027,17 +1953,13 @@
 
   @media (max-width: 1500px) {
     .dailyalgo-ide-modal-grid {
-      grid-template-columns: 180px minmax(0, 1fr) 320px;
+      grid-template-columns: minmax(0, 1fr) 320px;
     }
   }
 
   @media (max-width: 1220px) {
     .dailyalgo-ide-modal-grid {
       grid-template-columns: minmax(0, 1fr) 320px;
-    }
-
-    .dailyalgo-ide-explorer {
-      display: none;
     }
   }
 

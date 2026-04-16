@@ -574,7 +574,7 @@
   });
 </script>
 
-<div class="daily-ide-shell rounded-xl border border-slate-700/70 bg-slate-900 text-slate-100 overflow-hidden">
+<div class="daily-ide-shell rounded-xl overflow-hidden">
   <div class="ide-toolbar">
     <div class="ide-file">{fileLabel}.{language === 'python' ? 'py' : language === 'c' ? 'c' : 'js'}</div>
 
@@ -652,6 +652,12 @@
 </div>
 
 <style>
+  .daily-ide-shell {
+    border: 1px solid var(--outline-variant);
+    background: var(--surface-container-lowest);
+    color: var(--on-surface);
+  }
+
   .daily-ide-shell :global(.CodeMirror) {
     height: 100%;
     font-size: 13px;
@@ -670,8 +676,12 @@
     justify-content: space-between;
     gap: 0.8rem;
     padding: 0.7rem 0.8rem;
-    border-bottom: 1px solid rgba(100, 116, 139, 0.45);
-    background: linear-gradient(180deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95));
+    border-bottom: 1px solid var(--outline-variant);
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--surface-container-high) 88%, transparent),
+      color-mix(in srgb, var(--surface-container-low) 94%, transparent)
+    );
   }
 
   .ide-file {
@@ -679,11 +689,11 @@
     font-weight: 800;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: #cbd5e1;
-    border: 1px solid rgba(100, 116, 139, 0.6);
+    color: var(--on-surface-variant);
+    border: 1px solid var(--outline);
     border-radius: 0.55rem;
     padding: 0.28rem 0.55rem;
-    background: rgba(15, 23, 42, 0.7);
+    background: var(--surface-container-low);
   }
 
   .ide-controls {
@@ -699,14 +709,14 @@
     font-weight: 800;
     letter-spacing: 0.13em;
     text-transform: uppercase;
-    color: #94a3b8;
+    color: var(--on-surface-variant);
   }
 
   .ide-select {
-    border: 1px solid rgba(100, 116, 139, 0.75);
+    border: 1px solid var(--outline);
     border-radius: 0.55rem;
-    background: rgba(15, 23, 42, 0.85);
-    color: #f8fafc;
+    background: var(--surface-container-low);
+    color: var(--on-surface);
     padding: 0.3rem 0.5rem;
     font-size: 11px;
     font-weight: 700;
@@ -729,37 +739,37 @@
   }
 
   .ide-btn.run {
-    background: #059669;
-    color: #ecfdf5;
-    border-color: rgba(16, 185, 129, 0.7);
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+    border-color: color-mix(in srgb, var(--color-primary) 75%, black 25%);
   }
 
   .ide-btn.ghost {
-    background: rgba(15, 23, 42, 0.8);
-    color: #cbd5e1;
-    border-color: rgba(100, 116, 139, 0.75);
+    background: var(--surface-container-low);
+    color: var(--on-surface-variant);
+    border-color: var(--outline);
   }
 
   .ide-hint {
-    border-bottom: 1px solid rgba(100, 116, 139, 0.3);
-    color: #93c5fd;
-    background: rgba(15, 23, 42, 0.78);
+    border-bottom: 1px solid var(--outline-variant);
+    color: var(--color-primary);
+    background: color-mix(in srgb, var(--surface-container) 70%, transparent);
     font-size: 11px;
     font-weight: 700;
     padding: 0.45rem 0.8rem;
   }
 
   .ide-error {
-    border-bottom: 1px solid rgba(220, 38, 38, 0.4);
-    color: #fecaca;
-    background: rgba(127, 29, 29, 0.45);
+    border-bottom: 1px solid color-mix(in srgb, var(--color-error) 45%, transparent);
+    color: var(--color-error);
+    background: color-mix(in srgb, var(--color-error) 12%, transparent);
     font-size: 11px;
     font-weight: 700;
     padding: 0.45rem 0.8rem;
   }
 
   .daily-ide-editor {
-    border-bottom: 1px solid rgba(100, 116, 139, 0.35);
+    border-bottom: 1px solid var(--outline-variant);
   }
 
   .fallback-editor {
@@ -780,8 +790,8 @@
   }
 
   .stdin-zone {
-    border-bottom: 1px solid rgba(100, 116, 139, 0.35);
-    background: rgba(2, 6, 23, 0.8);
+    border-bottom: 1px solid var(--outline-variant);
+    background: color-mix(in srgb, var(--surface-container-low) 75%, transparent);
     padding: 0.7rem 0.8rem;
     display: flex;
     flex-direction: column;
@@ -789,10 +799,10 @@
   }
 
   .stdin-input {
-    border: 1px solid rgba(100, 116, 139, 0.75);
+    border: 1px solid var(--outline);
     border-radius: 0.7rem;
-    background: rgba(15, 23, 42, 0.9);
-    color: #e2e8f0;
+    background: var(--surface-container-low);
+    color: var(--on-surface);
     padding: 0.5rem 0.7rem;
     font-size: 12px;
     line-height: 1.5;
@@ -801,7 +811,8 @@
 
   .daily-ide-console {
     min-height: 210px;
-    background: #020617;
+    border-top: 1px solid var(--outline-variant);
+    background: color-mix(in srgb, var(--surface-container-low) 85%, transparent);
     padding: 0.65rem 0.8rem 0.8rem;
   }
 
@@ -819,13 +830,13 @@
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 0.16em;
-    color: #94a3b8;
+    color: var(--on-surface-variant);
   }
 
   .console-count {
     margin: 0;
     font-size: 10px;
-    color: #64748b;
+    color: var(--on-surface-variant);
     font-weight: 700;
   }
 
@@ -840,7 +851,7 @@
   .console-empty {
     margin: 0;
     font-size: 11px;
-    color: #64748b;
+    color: var(--on-surface-variant);
     font-family: 'Fira Code', 'JetBrains Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
   }
 
@@ -854,27 +865,35 @@
   }
 
   .console-line .time {
-    color: #64748b;
+    color: var(--on-surface-variant);
     margin-right: 0.35rem;
   }
 
   .console-line.info {
-    color: #cbd5e1;
+    color: var(--on-surface-variant);
   }
 
   .console-line.stdout {
-    color: #f8fafc;
+    color: var(--on-surface);
   }
 
   .console-line.stderr {
-    color: #fcd34d;
+    color: #d97706;
   }
 
   .console-line.error {
-    color: #fca5a5;
+    color: var(--color-error);
   }
 
   .console-line.result {
+    color: #047857;
+  }
+
+  :global(.dark) .console-line.stderr {
+    color: #fcd34d;
+  }
+
+  :global(.dark) .console-line.result {
     color: #6ee7b7;
   }
 </style>
