@@ -1620,106 +1620,6 @@
           </h3>
 
           <div class="premium-card p-8 rounded-[2.5rem] space-y-6">
-            <div class="flex flex-wrap items-start justify-between gap-4">
-              <div class="space-y-1">
-                <h4 class="text-lg font-black text-on-surface">Clé API externe (1 clé par compte)</h4>
-                <p class="text-xs text-on-surface-variant">
-                  Créez ou réinitialisez votre clé personnelle pour piloter les exercices via API.
-                </p>
-              </div>
-              <RefreshButton
-                onClick={loadMyApiKeys}
-                loading={isFetchingApiKeys}
-                label="Rafraîchir"
-                className="px-4 py-2 text-[10px] font-black uppercase tracking-wider rounded-xl bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/20 text-on-surface-variant"
-                iconClass="text-sm"
-              />
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div class="rounded-2xl border border-outline-variant/20 bg-surface-container-low p-4 space-y-4">
-                <label for="dailyalgo-api-key-name" class="text-[10px] font-black uppercase tracking-[0.16em] text-on-surface-variant/70">
-                  Nom de la clé
-                </label>
-                <input
-                  id="dailyalgo-api-key-name"
-                  type="text"
-                  bind:value={dailyAlgoApiKeyName}
-                  placeholder="Kotbo Daily Algo"
-                  class="w-full rounded-xl border border-outline-variant/30 bg-surface px-4 py-2 text-sm text-on-surface outline-none focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
-                />
-
-                <div class="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-[0.12em] hover:bg-emerald-700 disabled:opacity-60"
-                    onclick={createOrResetMyApiKey}
-                    disabled={!canManageSettings || apiKeyAction.state.loading}
-                  >
-                    {currentApiKey ? 'Reset clé API' : 'Créer clé API'}
-                  </button>
-
-                  {#if currentApiKey}
-                    <button
-                      type="button"
-                      class="px-4 py-2 rounded-xl border border-red-500/30 bg-red-500/10 text-red-700 text-[10px] font-black uppercase tracking-[0.12em] hover:bg-red-500/20 disabled:opacity-60"
-                      onclick={() => deleteCurrentApiKey(currentApiKey.id)}
-                      disabled={!canManageSettings || apiKeyAction.state.loading}
-                    >
-                      Désactiver
-                    </button>
-                  {/if}
-                </div>
-
-                <InlineFeedback message={apiKeyAction.state.message} error={apiKeyAction.state.error} />
-
-                <div class="space-y-2 rounded-xl border border-outline-variant/20 bg-surface px-4 py-3">
-                  <p class="text-[10px] uppercase tracking-[0.16em] font-black text-on-surface-variant/70">Clé active</p>
-                  <p class="text-sm font-mono text-on-surface">{currentApiKey?.displayKey ?? 'Aucune clé active'}</p>
-                  {#if currentApiKey?.lastUsedAt}
-                    <p class="text-[11px] text-on-surface-variant">Dernière utilisation: {formatDate(currentApiKey.lastUsedAt)}</p>
-                  {/if}
-                </div>
-
-                {#if latestIssuedApiKey}
-                  <div class="space-y-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
-                    <p class="text-[10px] uppercase tracking-[0.16em] font-black text-emerald-700">Nouvelle clé (visible une seule fois)</p>
-                    <p class="text-sm font-mono text-emerald-800 break-all">{latestIssuedApiKey}</p>
-                    <button
-                      type="button"
-                      class="px-3 py-1.5 rounded-lg border border-emerald-600/30 bg-white text-emerald-700 text-[10px] font-black uppercase tracking-[0.12em] hover:bg-emerald-50"
-                      onclick={() => copyToClipboard(latestIssuedApiKey, 'Clé API copiée.')}
-                    >
-                      Copier la clé
-                    </button>
-                  </div>
-                {/if}
-              </div>
-
-              <div class="rounded-2xl border border-outline-variant/20 bg-surface-container-low p-4 space-y-4">
-                <div>
-                  <p class="text-[10px] uppercase tracking-[0.16em] font-black text-on-surface-variant/70">Mini doc API (guilde actuelle)</p>
-                  <p class="mt-1 text-xs text-on-surface-variant break-all">Guild ID: {selectedGuildId || 'Aucune guilde sélectionnée'}</p>
-                </div>
-
-                <div class="space-y-2">
-                  <p class="text-[10px] uppercase tracking-[0.16em] font-black text-on-surface-variant/70">Base URL</p>
-                  <div class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-xs font-mono break-all">
-                    {dailyAlgoPublicApiProblemsUrl || 'Sélectionnez une guilde pour voir l’URL.'}
-                  </div>
-                </div>
-
-                <div class="space-y-2">
-                  <p class="text-[10px] uppercase tracking-[0.16em] font-black text-on-surface-variant/70">Exemples cURL</p>
-                  <pre class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-[11px] font-mono overflow-auto">{apiDocGetCurl}</pre>
-                  <pre class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-[11px] font-mono overflow-auto">{apiDocPostCurl}</pre>
-                  <pre class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-[11px] font-mono overflow-auto">{apiDocPatchCurl}</pre>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="premium-card p-8 rounded-[2.5rem] space-y-6">
             <div class="flex items-center justify-between gap-4">
               <h4 class="text-lg font-black text-on-surface">Soumissions du Daily Algo du jour</h4>
               <RefreshButton
@@ -2061,6 +1961,106 @@
                 </table>
               </div>
             {/if}
+          </div>
+
+          <div class="premium-card p-8 rounded-[2.5rem] space-y-6">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+              <div class="space-y-1">
+                <h4 class="text-lg font-black text-on-surface">Clé API externe (1 clé par compte)</h4>
+                <p class="text-xs text-on-surface-variant">
+                  Créez ou réinitialisez votre clé personnelle pour piloter les exercices via API.
+                </p>
+              </div>
+              <RefreshButton
+                onClick={loadMyApiKeys}
+                loading={isFetchingApiKeys}
+                label="Rafraîchir"
+                className="px-4 py-2 text-[10px] font-black uppercase tracking-wider rounded-xl bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/20 text-on-surface-variant"
+                iconClass="text-sm"
+              />
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div class="rounded-2xl border border-outline-variant/20 bg-surface-container-low p-4 space-y-4">
+                <label for="dailyalgo-api-key-name" class="text-[10px] font-black uppercase tracking-[0.16em] text-on-surface-variant/70">
+                  Nom de la clé
+                </label>
+                <input
+                  id="dailyalgo-api-key-name"
+                  type="text"
+                  bind:value={dailyAlgoApiKeyName}
+                  placeholder="Kotbo Daily Algo"
+                  class="w-full rounded-xl border border-outline-variant/30 bg-surface px-4 py-2 text-sm text-on-surface outline-none focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+                />
+
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-[0.12em] hover:bg-emerald-700 disabled:opacity-60"
+                    onclick={createOrResetMyApiKey}
+                    disabled={!canManageSettings || apiKeyAction.state.loading}
+                  >
+                    {currentApiKey ? 'Reset clé API' : 'Créer clé API'}
+                  </button>
+
+                  {#if currentApiKey}
+                    <button
+                      type="button"
+                      class="px-4 py-2 rounded-xl border border-red-500/30 bg-red-500/10 text-red-700 text-[10px] font-black uppercase tracking-[0.12em] hover:bg-red-500/20 disabled:opacity-60"
+                      onclick={() => deleteCurrentApiKey(currentApiKey.id)}
+                      disabled={!canManageSettings || apiKeyAction.state.loading}
+                    >
+                      Désactiver
+                    </button>
+                  {/if}
+                </div>
+
+                <InlineFeedback message={apiKeyAction.state.message} error={apiKeyAction.state.error} />
+
+                <div class="space-y-2 rounded-xl border border-outline-variant/20 bg-surface px-4 py-3">
+                  <p class="text-[10px] uppercase tracking-[0.16em] font-black text-on-surface-variant/70">Clé active</p>
+                  <p class="text-sm font-mono text-on-surface">{currentApiKey?.displayKey ?? 'Aucune clé active'}</p>
+                  {#if currentApiKey?.lastUsedAt}
+                    <p class="text-[11px] text-on-surface-variant">Dernière utilisation: {formatDate(currentApiKey.lastUsedAt)}</p>
+                  {/if}
+                </div>
+
+                {#if latestIssuedApiKey}
+                  <div class="space-y-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
+                    <p class="text-[10px] uppercase tracking-[0.16em] font-black text-emerald-700">Nouvelle clé (visible une seule fois)</p>
+                    <p class="text-sm font-mono text-emerald-800 break-all">{latestIssuedApiKey}</p>
+                    <button
+                      type="button"
+                      class="px-3 py-1.5 rounded-lg border border-emerald-600/30 bg-white text-emerald-700 text-[10px] font-black uppercase tracking-[0.12em] hover:bg-emerald-50"
+                      onclick={() => copyToClipboard(latestIssuedApiKey, 'Clé API copiée.')}
+                    >
+                      Copier la clé
+                    </button>
+                  </div>
+                {/if}
+              </div>
+
+              <div class="rounded-2xl border border-outline-variant/20 bg-surface-container-low p-4 space-y-4">
+                <div>
+                  <p class="text-[10px] uppercase tracking-[0.16em] font-black text-on-surface-variant/70">Mini doc API (guilde actuelle)</p>
+                  <p class="mt-1 text-xs text-on-surface-variant break-all">Guild ID: {selectedGuildId || 'Aucune guilde sélectionnée'}</p>
+                </div>
+
+                <div class="space-y-2">
+                  <p class="text-[10px] uppercase tracking-[0.16em] font-black text-on-surface-variant/70">Base URL</p>
+                  <div class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-xs font-mono break-all">
+                    {dailyAlgoPublicApiProblemsUrl || 'Sélectionnez une guilde pour voir l’URL.'}
+                  </div>
+                </div>
+
+                <div class="space-y-2">
+                  <p class="text-[10px] uppercase tracking-[0.16em] font-black text-on-surface-variant/70">Exemples cURL</p>
+                  <pre class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-[11px] font-mono overflow-auto">{apiDocGetCurl}</pre>
+                  <pre class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-[11px] font-mono overflow-auto">{apiDocPostCurl}</pre>
+                  <pre class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-[11px] font-mono overflow-auto">{apiDocPatchCurl}</pre>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
       {:else}
