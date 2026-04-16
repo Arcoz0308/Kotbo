@@ -950,11 +950,26 @@
           const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
           const loadFn = new AsyncFunction('fnName', 'globalThis', code + "\\n; return (" + accessor + ");");
           const fn = await loadFn(fnName, globalThis);
+          const results = [];
           if (typeof fn !== 'function') {
-            throw new Error("Fonction '" + fnName + "' introuvable dans le code.");
+            const missingMessage = "Fonction '" + fnName + "' introuvable dans le code.";
+            for (let index = 0; index < tests.length; index += 1) {
+              const test = tests[index] || {};
+              const expected = Object.prototype.hasOwnProperty.call(test, 'expected') ? test.expected : null;
+              const name = typeof test.name === 'string' && test.name.trim() ? test.name.trim() : "Test " + (index + 1);
+              results.push({
+                name,
+                passed: false,
+                expected: toCloneable(expected),
+                actual: null,
+                error: missingMessage,
+                durationMs: 0,
+              });
+            }
+            postMessage({ kind: 'done', payload: results });
+            return;
           }
 
-          const results = [];
           for (let index = 0; index < tests.length; index += 1) {
             const test = tests[index] || {};
             const args = Array.isArray(test.args) ? test.args : [];
@@ -973,7 +988,9 @@
                 durationMs: Math.max(0, performance.now() - startedAt),
               });
             } catch (error) {
-              const message = error && error.stack ? String(error.stack) : String(error);
+              const message = error && typeof error.message === 'string' && error.message.trim()
+                ? String(error.message)
+                : (error && error.stack ? String(error.stack) : String(error));
               results.push({
                 name,
                 passed: false,
@@ -987,7 +1004,9 @@
 
           postMessage({ kind: 'done', payload: results });
         } catch (error) {
-          const message = error && error.stack ? String(error.stack) : String(error);
+          const message = error && typeof error.message === 'string' && error.message.trim()
+            ? String(error.message)
+            : (error && error.stack ? String(error.stack) : String(error));
           postMessage({ kind: 'fatal', payload: message });
         }
       };
