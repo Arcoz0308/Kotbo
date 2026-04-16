@@ -227,9 +227,6 @@
   let runtimeHint = $state('');
   let terminalLineCount = $state(0);
 
-  let activeSideView = $state<'explorer' | 'execution'>('explorer');
-  let sidePanelOpen = $state(true);
-
   let cursorLine = $state(1);
   let cursorColumn = $state(1);
   let lineCount = $state(1);
@@ -265,23 +262,20 @@
     window.localStorage.setItem(key, nextLanguage);
   }
 
-  function terminalColor(kind: 'info' | 'stdout' | 'stderr' | 'error' | 'result'): string {
-    if (kind === 'info') return '\\x1b[38;5;110m';
-    if (kind === 'stderr') return '\\x1b[33m';
-    if (kind === 'error') return '\\x1b[31m';
-    if (kind === 'result') return '\\x1b[32m';
-    return '\\x1b[0m';
-  }
-
   function writeTerminal(kind: 'info' | 'stdout' | 'stderr' | 'error' | 'result', text: string) {
     if (!terminal) return;
     const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const lines = normalized.split('\n');
-    const color = terminalColor(kind);
+    const tag =
+      kind === 'stderr' ? 'WARN' :
+      kind === 'error' ? 'ERROR' :
+      kind === 'result' ? 'RESULT' :
+      kind === 'stdout' ? 'OUT' :
+      'INFO';
 
     for (const line of lines) {
       const printed = line.length > 0 ? line : ' ';
-      terminal.writeln(`${color}[${nowLabel()}] ${printed}\\x1b[0m`);
+      terminal.writeln(`[${nowLabel()}] ${tag}: ${printed}`);
       terminalLineCount += 1;
     }
   }
@@ -330,16 +324,6 @@
     updateModelLanguage(nextLanguage);
 
     if (persist) persistLanguage(nextLanguage);
-  }
-
-  function activateSideView(view: 'explorer' | 'execution') {
-    if (activeSideView === view && sidePanelOpen) {
-      sidePanelOpen = false;
-      return;
-    }
-
-    activeSideView = view;
-    sidePanelOpen = true;
   }
 
   async function runJavaScript(source: string): Promise<void> {
@@ -679,9 +663,6 @@
 <div class="ide-root" style={`height: ${heightValueToCss(height)};`}>
   <div class="ide-titlebar">
     <div class="titlebar-left">
-      <button type="button" class="titlebar-compact-btn" onclick={() => (sidePanelOpen = !sidePanelOpen)}>
-        {sidePanelOpen ? 'Hide Panel' : 'Show Panel'}
-      </button>
       <p class="titlebar-path">daily-algo / {fileLabel}.{extensionForLanguage(language)}</p>
     </div>
 
@@ -716,61 +697,30 @@
   {/if}
 
   <div class="ide-shell">
-    <nav class="activitybar" aria-label="IDE activity bar">
-      <button
-        type="button"
-        class={`activity-item ${activeSideView === 'explorer' && sidePanelOpen ? 'active' : ''}`}
-        onclick={() => activateSideView('explorer')}
-      >
-        Explorer
-      </button>
-      <button
-        type="button"
-        class={`activity-item ${activeSideView === 'execution' && sidePanelOpen ? 'active' : ''}`}
-        onclick={() => activateSideView('execution')}
-      >
-        Execution
-      </button>
-    </nav>
+    <aside class="sidebar">
+      <div class="sidebar-head">Explorer</div>
+      <div class="tree-root">
+        <p class="tree-folder">DAILY-ALGO</p>
+        <p class="tree-file active">{fileLabel}.{extensionForLanguage(language)}</p>
+        <p class="tree-meta">Langage: {language.toUpperCase()}</p>
+        <p class="tree-meta">Lignes: {lineCount}</p>
+        <p class="tree-meta">Runtime: {language === 'javascript' ? 'JS Worker' : language === 'python' ? 'Pyodide' : 'JSCPP'}</p>
+        <p class="tree-meta">Terminal: {terminalLineCount} lignes</p>
+      </div>
 
-    {#if sidePanelOpen}
-      <aside class="sidebar">
-        {#if activeSideView === 'explorer'}
-          <div class="sidebar-head">Explorer</div>
-          <div class="tree-root">
-            <p class="tree-folder">DAILY-ALGO</p>
-            <p class="tree-file active">{fileLabel}.{extensionForLanguage(language)}</p>
-            <p class="tree-meta">Langage: {language.toUpperCase()}</p>
-            <p class="tree-meta">Lignes: {lineCount}</p>
-          </div>
-        {:else}
-          <div class="sidebar-head">Execution</div>
-          <div class="exec-meta-grid">
-            <div>
-              <p class="meta-label">Runtime</p>
-              <p class="meta-value">{language === 'javascript' ? 'JS Worker' : language === 'python' ? 'Pyodide' : 'JSCPP'}</p>
-            </div>
-            <div>
-              <p class="meta-label">Terminal</p>
-              <p class="meta-value">{terminalLineCount} lignes</p>
-            </div>
-          </div>
-
-          {#if language === 'c'}
-            <div class="stdin-zone">
-              <label for="daily-ide-stdin" class="ide-label">STDIN (optionnel)</label>
-              <textarea
-                id="daily-ide-stdin"
-                rows="4"
-                bind:value={stdin}
-                placeholder="Entree standard pour scanf / cin"
-                class="stdin-input"
-              ></textarea>
-            </div>
-          {/if}
-        {/if}
-      </aside>
-    {/if}
+      {#if language === 'c'}
+        <div class="stdin-zone">
+          <label for="daily-ide-stdin" class="ide-label">STDIN (optionnel)</label>
+          <textarea
+            id="daily-ide-stdin"
+            rows="4"
+            bind:value={stdin}
+            placeholder="Entree standard pour scanf / cin"
+            class="stdin-input"
+          ></textarea>
+        </div>
+      {/if}
+    </aside>
 
     <section class="workbench">
       <div class="editor-tabs">
@@ -827,18 +777,6 @@
     display: flex;
     align-items: center;
     gap: 0.55rem;
-  }
-
-  .titlebar-compact-btn {
-    border: 1px solid #4d4d50;
-    background: #2a2a2c;
-    color: #d4d4d4;
-    border-radius: 0.4rem;
-    padding: 0.25rem 0.5rem;
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
   }
 
   .titlebar-path {
@@ -927,39 +865,8 @@
     min-height: 0;
     flex: 1;
     display: grid;
-    grid-template-columns: 46px minmax(180px, 240px) minmax(0, 1fr);
+    grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
     background: #1e1e1e;
-  }
-
-  .activitybar {
-    border-right: 1px solid #2d2d30;
-    background: #333333;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.2rem;
-    padding: 0.25rem;
-  }
-
-  .activity-item {
-    border: 1px solid transparent;
-    background: transparent;
-    color: #9ca3af;
-    border-radius: 0.45rem;
-    padding: 0.38rem 0.15rem;
-    font-size: 9px;
-    font-weight: 900;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    writing-mode: vertical-rl;
-    transform: rotate(180deg);
-    cursor: pointer;
-  }
-
-  .activity-item.active {
-    color: #ffffff;
-    background: #0e639c;
-    border-color: #1177bb;
   }
 
   .sidebar {
@@ -1020,29 +927,6 @@
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    font-weight: 700;
-  }
-
-  .exec-meta-grid {
-    padding: 0.7rem;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.45rem;
-  }
-
-  .meta-label {
-    margin: 0;
-    color: #9ca3af;
-    font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    font-weight: 800;
-  }
-
-  .meta-value {
-    margin: 0.25rem 0 0;
-    color: #d4d4d4;
-    font-size: 11px;
     font-weight: 700;
   }
 
@@ -1186,7 +1070,7 @@
 
   @media (max-width: 1100px) {
     .ide-shell {
-      grid-template-columns: 42px minmax(160px, 210px) minmax(0, 1fr);
+      grid-template-columns: minmax(160px, 210px) minmax(0, 1fr);
     }
   }
 
@@ -1208,21 +1092,6 @@
       grid-template-columns: 1fr;
       grid-template-rows: auto;
       position: relative;
-    }
-
-    .activitybar {
-      border-right: none;
-      border-bottom: 1px solid #2d2d30;
-      flex-direction: row;
-      padding: 0.3rem;
-      overflow-x: auto;
-    }
-
-    .activity-item {
-      writing-mode: initial;
-      transform: none;
-      padding: 0.4rem 0.55rem;
-      font-size: 10px;
     }
 
     .sidebar {
