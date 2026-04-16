@@ -21,11 +21,50 @@
     setStderr?: (cfg: { batched: (text: string) => void }) => void;
   };
 
+  type TypeScriptCompiler = {
+    ModuleKind: { ES2020: number };
+    ScriptTarget: { ES2020: number };
+    transpileModule: (
+      sourceText: string,
+      transpileOptions?: {
+        compilerOptions?: {
+          module?: number;
+          target?: number;
+          strict?: boolean;
+          sourceMap?: boolean;
+        };
+        reportDiagnostics?: boolean;
+      },
+    ) => {
+      outputText: string;
+      diagnostics?: Array<{ messageText: string | { messageText: string } }>;
+    };
+    flattenDiagnosticMessageText: (messageText: unknown, newLine: string) => string;
+  };
+
+  type FengariGlobal = {
+    load: (source: string, chunkName?: string) => () => unknown;
+  };
+
+  type SqlJsDatabase = {
+    exec: (sql: string) => Array<{ columns: string[]; values: unknown[][] }>;
+    close: () => void;
+  };
+
+  type SqlJsModule = {
+    Database: new () => SqlJsDatabase;
+  };
+
   declare global {
     interface Window {
       JSCPP?: JSCPPGlobal;
+      ts?: TypeScriptCompiler;
+      fengari?: FengariGlobal;
+      initSqlJs?: (options: { locateFile: (file: string) => string }) => Promise<SqlJsModule>;
       loadPyodide?: (opts: { indexURL: string }) => Promise<PyodideInstance>;
       __kotboPyodidePromise?: Promise<PyodideInstance>;
+      __kotboSqlJsPromise?: Promise<SqlJsModule>;
+      __kotboLuaPrint?: (message: string) => void;
       MonacoEnvironment?: {
         getWorker?: (_moduleId: string, label: string) => Worker;
       };
@@ -46,6 +85,10 @@
 
   const PYODIDE_SCRIPT = 'https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.js';
   const PYODIDE_INDEX_URL = 'https://cdn.jsdelivr.net/pyodide/v0.27.7/full/';
+  const TYPESCRIPT_SCRIPT = 'https://cdn.jsdelivr.net/npm/typescript@5.6.3/lib/typescript.js';
+  const FENGARI_SCRIPT = 'https://cdn.jsdelivr.net/npm/fengari-web@0.1.4/dist/fengari-web.js';
+  const SQLJS_SCRIPT = 'https://cdn.jsdelivr.net/npm/sql.js@1.13.0/dist/sql-wasm.js';
+  const SQLJS_WASM_BASE = 'https://cdn.jsdelivr.net/npm/sql.js@1.13.0/dist/';
   const JSCPP_SCRIPT_CANDIDATES = [
     `${import.meta.env.BASE_URL}vendor/JSCPP.es5.min.js`,
     'https://raw.githubusercontent.com/felixhao28/JSCPP/gh-pages/dist/JSCPP.es5.min.js',
@@ -118,6 +161,44 @@
     return window.__kotboPyodidePromise;
   }
 
+  async function ensureTypeScript(): Promise<TypeScriptCompiler> {
+    if (!window.ts?.transpileModule) {
+      await ensureScript(TYPESCRIPT_SCRIPT);
+    }
+    if (!window.ts?.transpileModule) {
+      throw new Error('Runtime TypeScript indisponible.');
+    }
+    return window.ts;
+  }
+
+  async function ensureFengari(): Promise<FengariGlobal> {
+    if (!window.fengari?.load) {
+      await ensureScript(FENGARI_SCRIPT);
+    }
+    if (!window.fengari?.load) {
+      throw new Error('Runtime Lua indisponible.');
+    }
+    return window.fengari;
+  }
+
+  async function ensureSqlJs(): Promise<SqlJsModule> {
+    if (!window.__kotboSqlJsPromise) {
+      window.__kotboSqlJsPromise = (async () => {
+        if (!window.initSqlJs) {
+          await ensureScript(SQLJS_SCRIPT);
+        }
+        if (!window.initSqlJs) {
+          throw new Error('Runtime SQLite indisponible.');
+        }
+        return window.initSqlJs({
+          locateFile: (file: string) => `${SQLJS_WASM_BASE}${file}`,
+        });
+      })();
+    }
+
+    return window.__kotboSqlJsPromise;
+  }
+
   function nowLabel(): string {
     return new Date().toLocaleTimeString('fr-FR', { hour12: false });
   }
@@ -135,6 +216,33 @@
     }
   }
 
+  function formatSqlResultTable(columns: string[], values: unknown[][]): string {
+    if (!columns.length) return '(aucune colonne)';
+
+    const asCell = (value: unknown): string => {
+      if (value === null || value === undefined) return 'NULL';
+      if (typeof value === 'string') return value;
+      if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+      return stringifyChunk(value);
+    };
+
+    const rows = [columns, ...values.map((row) => columns.map((_, index) => asCell(row[index])))];
+    const widths = columns.map((_, index) =>
+      rows.reduce((max, row) => Math.max(max, (row[index] ?? '').length), 0),
+    );
+
+    const renderRow = (row: string[]) =>
+      `| ${row.map((cell, index) => (cell ?? '').padEnd(widths[index], ' ')).join(' | ')} |`;
+    const separator = `|-${widths.map((width) => ''.padEnd(width, '-')).join('-|-')}-|`;
+
+    const lines = [renderRow(columns), separator];
+    for (const row of values) {
+      const paddedRow = columns.map((_, index) => asCell(row[index]));
+      lines.push(renderRow(paddedRow));
+    }
+    return lines.join('\n');
+  }
+
   function normalizedLanguage(languageInput: string | undefined, sourceCode: string): IdeLanguage {
     const normalized = normalizeIdeLanguage(languageInput);
     if (languageInput && languageInput.trim()) return normalized;
@@ -142,15 +250,30 @@
   }
 
   function monacoLanguage(languageInput: IdeLanguage): string {
+    if (languageInput === 'typescript') return 'typescript';
     if (languageInput === 'python') return 'python';
     if (languageInput === 'c') return 'cpp';
+    if (languageInput === 'lua') return 'lua';
+    if (languageInput === 'sqlite') return 'sql';
     return 'javascript';
   }
 
   function extensionForLanguage(languageInput: IdeLanguage): string {
+    if (languageInput === 'typescript') return 'ts';
     if (languageInput === 'python') return 'py';
     if (languageInput === 'c') return 'c';
+    if (languageInput === 'lua') return 'lua';
+    if (languageInput === 'sqlite') return 'sql';
     return 'js';
+  }
+
+  function runtimeLabel(languageInput: IdeLanguage): string {
+    if (languageInput === 'javascript') return 'JS Worker';
+    if (languageInput === 'typescript') return 'TypeScript + JS Worker';
+    if (languageInput === 'python') return 'Pyodide';
+    if (languageInput === 'c') return 'JSCPP';
+    if (languageInput === 'lua') return 'Fengari';
+    return 'sql.js';
   }
 
   function hasCMainFunction(source: string): boolean {
@@ -285,7 +408,7 @@
     terminal.clear();
     terminalLineCount = 0;
     writeTerminal('info', 'Kotbo IDE ready.');
-    writeTerminal('info', 'Execution client-side: JS Worker, Python Pyodide, C JSCPP.');
+    writeTerminal('info', 'Execution client-side: JS/TS Worker, Python Pyodide, C JSCPP, Lua Fengari, SQLite sql.js.');
   }
 
   function clearTerminal() {
@@ -309,12 +432,24 @@
   }
 
   function updateRuntimeHint(nextLanguage: IdeLanguage) {
+    if (nextLanguage === 'typescript') {
+      runtimeHint = 'TypeScript transpile en JavaScript dans le navigateur, puis execute dans un Web Worker.';
+      return;
+    }
     if (nextLanguage === 'c') {
       runtimeHint = 'C/C++ execute dans le navigateur via JSCPP local (aucun serveur de compilation).';
       return;
     }
     if (nextLanguage === 'python') {
       runtimeHint = 'Python execute dans le navigateur via Pyodide (WASM).';
+      return;
+    }
+    if (nextLanguage === 'lua') {
+      runtimeHint = 'Lua execute dans le navigateur via Fengari (VM Lua en JavaScript).';
+      return;
+    }
+    if (nextLanguage === 'sqlite') {
+      runtimeHint = 'SQLite execute dans le navigateur via sql.js (base en memoire, non persistante).';
       return;
     }
     runtimeHint = 'JavaScript execute dans un Web Worker isole.';
@@ -429,6 +564,34 @@
     URL.revokeObjectURL(objectUrl);
   }
 
+  async function runTypeScript(source: string): Promise<void> {
+    const tsCompiler = await ensureTypeScript();
+    const transpiled = tsCompiler.transpileModule(source, {
+      compilerOptions: {
+        module: tsCompiler.ModuleKind.ES2020,
+        target: tsCompiler.ScriptTarget.ES2020,
+        strict: false,
+        sourceMap: false,
+      },
+      reportDiagnostics: true,
+    });
+
+    for (const diagnostic of transpiled.diagnostics ?? []) {
+      const message = tsCompiler.flattenDiagnosticMessageText(diagnostic.messageText, '\n');
+      if (message.trim().length > 0) {
+        writeTerminal('stderr', `TypeScript: ${message}`);
+      }
+    }
+
+    const output = transpiled.outputText ?? '';
+    if (!output.trim()) {
+      writeTerminal('info', 'TypeScript transpile, mais aucun JavaScript n\'a ete genere.');
+      return;
+    }
+
+    await runJavaScript(output);
+  }
+
   async function runPython(source: string): Promise<void> {
     const pyodide = await ensurePyodide();
 
@@ -447,6 +610,38 @@
     const result = await pyodide.runPythonAsync(source);
     if (typeof result !== 'undefined') {
       writeTerminal('result', stringifyChunk(result));
+    }
+  }
+
+  async function runLua(source: string): Promise<void> {
+    const fengari = await ensureFengari();
+    window.__kotboLuaPrint = (message: string) => {
+      writeTerminal('stdout', message);
+    };
+
+    const instrumentedSource = [
+      'local __kotbo_ok, __kotbo_js = pcall(require, "js")',
+      'if __kotbo_ok and __kotbo_js and __kotbo_js.global and __kotbo_js.global.__kotboLuaPrint then',
+      '  function print(...)',
+      '    local __kotbo_parts = {}',
+      '    for i = 1, select("#", ...) do',
+      '      __kotbo_parts[i] = tostring(select(i, ...))',
+      '    end',
+      '    __kotbo_js.global.__kotboLuaPrint(table.concat(__kotbo_parts, "\\t"))',
+      '  end',
+      'end',
+      '',
+      source,
+    ].join('\n');
+
+    try {
+      const runChunk = fengari.load(instrumentedSource, 'kotbo.lua');
+      const result = runChunk();
+      if (typeof result !== 'undefined') {
+        writeTerminal('result', stringifyChunk(result));
+      }
+    } finally {
+      delete window.__kotboLuaPrint;
     }
   }
 
@@ -493,6 +688,27 @@
     }
   }
 
+  async function runSQLite(source: string): Promise<void> {
+    const sqlJs = await ensureSqlJs();
+    const db = new sqlJs.Database();
+
+    try {
+      const results = db.exec(source);
+
+      if (results.length === 0) {
+        writeTerminal('info', 'Execution SQLite terminee (aucun resultat tabulaire).');
+        return;
+      }
+
+      results.forEach((result, index) => {
+        writeTerminal('result', `Resultat ${index + 1}:`);
+        writeTerminal('stdout', formatSqlResultTable(result.columns, result.values));
+      });
+    } finally {
+      db.close();
+    }
+  }
+
   async function runCode() {
     const executionLanguage = language;
     const source = editor?.getValue() ?? code;
@@ -510,10 +726,16 @@
     try {
       if (executionLanguage === 'javascript') {
         await runJavaScript(source);
+      } else if (executionLanguage === 'typescript') {
+        await runTypeScript(source);
       } else if (executionLanguage === 'python') {
         await runPython(source);
-      } else {
+      } else if (executionLanguage === 'c') {
         await runC(source, stdin);
+      } else if (executionLanguage === 'lua') {
+        await runLua(source);
+      } else {
+        await runSQLite(source);
       }
 
       writeTerminal('info', 'Execution terminee.');
@@ -694,8 +916,11 @@
         onchange={(event) => onLanguageChange((event.currentTarget as HTMLSelectElement).value as IdeLanguage)}
       >
         <option value="javascript">JavaScript</option>
+        <option value="typescript">TypeScript</option>
         <option value="python">Python</option>
         <option value="c">C / C++</option>
+        <option value="lua">Lua</option>
+        <option value="sqlite">SQLite</option>
       </select>
 
       <button type="button" class="ide-btn ghost" onclick={clearTerminal}>Clear</button>
@@ -723,7 +948,7 @@
         <p class="tree-file active">{fileLabel}.{extensionForLanguage(language)}</p>
         <p class="tree-meta">Langage: {language.toUpperCase()}</p>
         <p class="tree-meta">Lignes: {lineCount}</p>
-        <p class="tree-meta">Runtime: {language === 'javascript' ? 'JS Worker' : language === 'python' ? 'Pyodide' : 'JSCPP'}</p>
+        <p class="tree-meta">Runtime: {runtimeLabel(language)}</p>
         <p class="tree-meta">Terminal: {terminalLineCount} lignes</p>
       </div>
 
