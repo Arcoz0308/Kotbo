@@ -219,6 +219,13 @@
         language: override?.language ?? ideLanguageForSubmission(submission),
         authorName: submission?.authorName ?? 'Soumission Daily Algo',
         submissionId: submission?.id ?? '',
+        status: submission?.status ?? 'PENDING',
+        scoreCorrectness: Number.isFinite(Number(submission?.scoreCorrectness)) ? Number(submission.scoreCorrectness) : 5,
+        scoreComments: Number.isFinite(Number(submission?.scoreComments)) ? Number(submission.scoreComments) : 5,
+        scoreCompactness: Number.isFinite(Number(submission?.scoreCompactness)) ? Number(submission.scoreCompactness) : 5,
+        scoreOptimization: Number.isFinite(Number(submission?.scoreOptimization)) ? Number(submission.scoreOptimization) : 5,
+        scoreReadability: Number.isFinite(Number(submission?.scoreReadability)) ? Number(submission.scoreReadability) : 5,
+        reviewFeedback: typeof submission?.reviewFeedback === 'string' ? submission.reviewFeedback : '',
       };
 
       window.localStorage.setItem(payloadKey, JSON.stringify(payload));
@@ -1266,7 +1273,7 @@
                                   <DailyAlgoMiniIDE
                                     initialCode={submission.solution}
                                     initialLanguage={ideLanguageForSubmission(submission)}
-                                    height={320}
+                                    height={520}
                                     showPopoutButton={true}
                                     popoutLabel="Nouvelle fenêtre"
                                     on:popout={(event) => handleSubmissionIdePopout(submission, event)}

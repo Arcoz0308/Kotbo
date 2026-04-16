@@ -33,7 +33,7 @@
         indentUnit?: number;
         tabSize?: number;
         lineWrapping?: boolean;
-      }
+      },
     ) => CodeMirrorEditor;
   };
 
@@ -61,8 +61,10 @@
   const PYODIDE_SCRIPT = 'https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.js';
   const PYODIDE_INDEX_URL = 'https://cdn.jsdelivr.net/pyodide/v0.27.7/full/';
   const JSCPP_SCRIPT_CANDIDATES = [
-    'https://cdn.jsdelivr.net/gh/felixhao28/JSCPP/dist/JSCPP.es5.min.js',
+    'https://cdn.jsdelivr.net/npm/jscpp@2.5.3/dist/JSCPP.es5.min.js',
+    'https://cdn.jsdelivr.net/npm/jscpp@latest/dist/JSCPP.es5.min.js',
     'https://unpkg.com/jscpp@2.5.3/dist/JSCPP.es5.min.js',
+    'https://unpkg.com/jscpp@latest/dist/JSCPP.es5.min.js',
   ];
 
   const assetPromises = new Map<string, Promise<void>>();
@@ -74,13 +76,10 @@
     if (cached) return cached;
 
     const existing = document.querySelector(`link[data-kotbo-asset="${url}"]`) as HTMLLinkElement | null;
-    if (existing) {
-      const alreadyLoaded = existing.dataset.loaded === 'true';
-      if (alreadyLoaded) {
-        const ready = Promise.resolve();
-        assetPromises.set(cacheKey, ready);
-        return ready;
-      }
+    if (existing?.dataset.loaded === 'true') {
+      const ready = Promise.resolve();
+      assetPromises.set(cacheKey, ready);
+      return ready;
     }
 
     const promise = new Promise<void>((resolve, reject) => {
@@ -107,13 +106,10 @@
     if (cached) return cached;
 
     const existing = document.querySelector(`script[data-kotbo-asset="${url}"]`) as HTMLScriptElement | null;
-    if (existing) {
-      const alreadyLoaded = existing.dataset.loaded === 'true';
-      if (alreadyLoaded) {
-        const ready = Promise.resolve();
-        assetPromises.set(cacheKey, ready);
-        return ready;
-      }
+    if (existing?.dataset.loaded === 'true') {
+      const ready = Promise.resolve();
+      assetPromises.set(cacheKey, ready);
+      return ready;
     }
 
     const promise = new Promise<void>((resolve, reject) => {
@@ -148,17 +144,20 @@
   async function ensureJSCPP(): Promise<JSCPPGlobal> {
     if (window.JSCPP?.run) return window.JSCPP;
 
-    let lastError: Error | null = null;
+    const loadErrors: string[] = [];
+
     for (const url of JSCPP_SCRIPT_CANDIDATES) {
       try {
         await ensureScript(url);
         if (window.JSCPP?.run) return window.JSCPP;
       } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+        const message = error instanceof Error ? error.message : String(error);
+        loadErrors.push(`${url} (${message})`);
       }
     }
 
-    throw lastError ?? new Error('Impossible de charger le runtime C.');
+    const details = loadErrors.length > 0 ? ` Sources testees: ${loadErrors.join(' | ')}` : '';
+    throw new Error(`Impossible de charger le runtime C.${details}`);
   }
 
   async function ensurePyodide(): Promise<PyodideInstance> {
@@ -177,9 +176,9 @@
     return window.__kotboPyodidePromise;
   }
 
-  function modeForLanguage(language: IdeLanguage): string {
-    if (language === 'python') return 'python';
-    if (language === 'c') return 'text/x-csrc';
+  function modeForLanguage(nextLanguage: IdeLanguage): string {
+    if (nextLanguage === 'python') return 'python';
+    if (nextLanguage === 'c') return 'text/x-csrc';
     return 'javascript';
   }
 
@@ -200,30 +199,39 @@
     }
   }
 
-  function normalizeInitialLanguage(candidate: string | undefined, sourceCode: string): IdeLanguage {
-    const normalized = normalizeIdeLanguage(candidate);
-    if (candidate && candidate.trim()) return normalized;
+  function normalizedLanguage(languageInput: string | undefined, sourceCode: string): IdeLanguage {
+    const normalized = normalizeIdeLanguage(languageInput);
+    if (languageInput && languageInput.trim()) return normalized;
     return detectIdeLanguageFromCode(sourceCode);
+  }
+
+  function heightValueToCss(heightInput: number | string): string {
+    if (typeof heightInput === 'number') return `${heightInput}px`;
+    const trimmed = heightInput.trim();
+    if (/^\d+$/.test(trimmed)) return `${trimmed}px`;
+    return trimmed;
   }
 
   let {
     initialCode = '',
     initialLanguage = 'javascript',
-    height = 320,
+    height = 520,
     showPopoutButton = false,
-    popoutLabel = 'Ouvrir dans une fenêtre',
+    popoutLabel = 'Ouvrir dans une fenetre',
+    fileLabel = 'solution',
   } = $props<{
     initialCode?: string;
     initialLanguage?: string;
-    height?: number;
+    height?: number | string;
     showPopoutButton?: boolean;
     popoutLabel?: string;
+    fileLabel?: string;
   }>();
 
   const dispatch = createEventDispatcher<{ popout: { code: string; language: IdeLanguage } }>();
 
-  let code = $state(initialCode);
-  let language = $state<IdeLanguage>(normalizeInitialLanguage(initialLanguage, initialCode));
+  let code = $state('');
+  let language = $state<IdeLanguage>('javascript');
   let stdin = $state('');
   let isRunning = $state(false);
   let bootError = $state('');
@@ -243,7 +251,7 @@
 
     for (const chunk of chunks) {
       const line = chunk.length > 0 ? chunk : ' ';
-      consoleLines = [...consoleLines, { id: nextConsoleId++, kind, text: line, time: timestamp }].slice(-300);
+      consoleLines = [...consoleLines, { id: nextConsoleId++, kind, text: line, time: timestamp }].slice(-500);
     }
 
     await tick();
@@ -306,6 +314,7 @@
 
       worker.onmessage = (event: MessageEvent<{ kind: string; payload: string }>) => {
         const { kind, payload } = event.data;
+
         if (kind === 'done') {
           clearTimeout(timeout);
           worker.terminate();
@@ -365,18 +374,18 @@
 
   async function runC(source: string, input: string): Promise<void> {
     const jscpp = await ensureJSCPP();
-    let aggregated = '';
+    let outputBuffer = '';
 
     const result = jscpp.run(source, input, {
       stdio: {
         write: (chunk: string) => {
-          aggregated += chunk;
+          outputBuffer += chunk;
         },
       },
     });
 
-    if (aggregated.trim().length > 0) {
-      await appendConsole('stdout', aggregated.trimEnd());
+    if (outputBuffer.trim().length > 0) {
+      await appendConsole('stdout', outputBuffer.trimEnd());
     }
 
     if (typeof result !== 'undefined' && String(result).trim().length > 0) {
@@ -421,11 +430,11 @@
     }
 
     if (nextLanguage === 'c') {
-      runtimeHint = 'Runtime C base sur JSCPP (subset C/C++ orienté algorithmique).';
+      runtimeHint = 'C/C++ execute dans le navigateur via JSCPP (subset).';
     } else if (nextLanguage === 'python') {
-      runtimeHint = 'Python execute via Pyodide (WebAssembly, navigateur).';
+      runtimeHint = 'Python execute dans le navigateur via Pyodide (WASM).';
     } else {
-      runtimeHint = 'JavaScript execute en Web Worker isole.';
+      runtimeHint = 'JavaScript execute dans un Web Worker isole.';
     }
   }
 
@@ -442,6 +451,10 @@
   }
 
   onMount(async () => {
+    code = initialCode;
+    language = normalizedLanguage(initialLanguage, initialCode);
+    onLanguageChange(language);
+
     try {
       await ensureCodeMirror();
 
@@ -464,8 +477,6 @@
       const message = error instanceof Error ? error.message : String(error);
       bootError = `Mode degrade (textarea): ${message}`;
     }
-
-    onLanguageChange(language);
   });
 
   onDestroy(() => {
@@ -475,13 +486,15 @@
   });
 </script>
 
-<div class="daily-ide-wrapper rounded-xl border border-outline-variant/25 bg-surface-container-low p-3 space-y-3">
-  <div class="flex flex-wrap items-center justify-between gap-2">
-    <div class="flex items-center gap-2">
-      <label for="daily-ide-language" class="text-[10px] font-black uppercase tracking-[0.16em] text-on-surface-variant/70">Langage</label>
+<div class="daily-ide-shell rounded-xl border border-slate-700/70 bg-slate-900 text-slate-100 overflow-hidden">
+  <div class="ide-toolbar">
+    <div class="ide-file">{fileLabel}.{language === 'python' ? 'py' : language === 'c' ? 'c' : 'js'}</div>
+
+    <div class="ide-controls">
+      <label for="daily-ide-language" class="ide-label">Langage</label>
       <select
         id="daily-ide-language"
-        class="rounded-lg border border-outline-variant/30 bg-surface px-2 py-1 text-xs font-bold text-on-surface"
+        class="ide-select"
         bind:value={language}
         onchange={(event) => onLanguageChange((event.currentTarget as HTMLSelectElement).value as IdeLanguage)}
       >
@@ -489,45 +502,27 @@
         <option value="python">Python</option>
         <option value="c">C / C++</option>
       </select>
-    </div>
 
-    <div class="flex items-center gap-2">
-      <button
-        type="button"
-        class="px-3 py-1.5 rounded-lg border border-outline-variant/30 bg-surface text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant"
-        onclick={clearConsole}
-      >
-        Console clear
-      </button>
-      <button
-        type="button"
-        class="px-3 py-1.5 rounded-lg bg-primary text-on-primary text-[10px] font-black uppercase tracking-[0.12em] disabled:opacity-60"
-        onclick={runCode}
-        disabled={isRunning}
-      >
+      <button type="button" class="ide-btn ghost" onclick={clearConsole}>Clear</button>
+      <button type="button" class="ide-btn run" onclick={runCode} disabled={isRunning}>
         {isRunning ? 'Execution...' : 'Run'}
       </button>
+
       {#if showPopoutButton}
-        <button
-          type="button"
-          class="px-3 py-1.5 rounded-lg border border-primary/40 bg-primary/10 text-primary text-[10px] font-black uppercase tracking-[0.12em]"
-          onclick={handlePopout}
-        >
-          {popoutLabel}
-        </button>
+        <button type="button" class="ide-btn ghost" onclick={handlePopout}>{popoutLabel}</button>
       {/if}
     </div>
   </div>
 
   {#if runtimeHint}
-    <p class="text-[10px] font-bold text-on-surface-variant">{runtimeHint}</p>
+    <div class="ide-hint">{runtimeHint}</div>
   {/if}
 
   {#if bootError}
-    <div class="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[10px] font-bold text-amber-700">{bootError}</div>
+    <div class="ide-error">{bootError}</div>
   {/if}
 
-  <div class="daily-ide-editor rounded-lg border border-outline-variant/30 overflow-hidden" style={`height: ${height}px;`}>
+  <div class="daily-ide-editor" style={`height: ${heightValueToCss(height)};`}>
     <textarea
       bind:this={textareaRef}
       class="fallback-editor"
@@ -538,26 +533,27 @@
   </div>
 
   {#if language === 'c'}
-    <div class="space-y-1">
-      <label for="daily-ide-stdin" class="text-[10px] font-black uppercase tracking-[0.16em] text-on-surface-variant/70">STDIN (optionnel)</label>
+    <div class="stdin-zone">
+      <label for="daily-ide-stdin" class="ide-label">STDIN (optionnel)</label>
       <textarea
         id="daily-ide-stdin"
         rows="2"
         bind:value={stdin}
         placeholder="Entree standard pour scanf / cin"
-        class="w-full rounded-lg border border-outline-variant/30 bg-surface px-3 py-2 text-xs font-mono text-on-surface"
+        class="stdin-input"
       ></textarea>
     </div>
   {/if}
 
-  <div class="daily-ide-console rounded-lg border border-slate-800 bg-slate-950 p-3">
-    <div class="mb-2 flex items-center justify-between">
-      <p class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-300">Console</p>
-      <p class="text-[10px] font-bold text-slate-400">{consoleLines.length} ligne(s)</p>
+  <div class="daily-ide-console">
+    <div class="console-head">
+      <p class="console-title">Console</p>
+      <p class="console-count">{consoleLines.length} ligne(s)</p>
     </div>
+
     <div class="console-scroll" bind:this={consoleRef}>
       {#if consoleLines.length === 0}
-        <p class="text-[11px] text-slate-400 font-mono">Aucune sortie pour le moment.</p>
+        <p class="console-empty">Aucune sortie pour le moment.</p>
       {:else}
         {#each consoleLines as line}
           <p class={`console-line ${line.kind}`}><span class="time">[{line.time}]</span> {line.text}</p>
@@ -568,15 +564,114 @@
 </div>
 
 <style>
-  .daily-ide-wrapper :global(.CodeMirror) {
+  .daily-ide-shell :global(.CodeMirror) {
     height: 100%;
-    font-size: 12px;
-    line-height: 1.55;
+    font-size: 13px;
+    line-height: 1.6;
     font-family: 'Fira Code', 'JetBrains Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
   }
 
-  .daily-ide-wrapper :global(.CodeMirror-gutters) {
-    border-right: 1px solid rgba(148, 163, 184, 0.2);
+  .daily-ide-shell :global(.CodeMirror-gutters) {
+    border-right: 1px solid rgba(100, 116, 139, 0.35);
+    background: #0b1220;
+  }
+
+  .ide-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+    padding: 0.7rem 0.8rem;
+    border-bottom: 1px solid rgba(100, 116, 139, 0.45);
+    background: linear-gradient(180deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95));
+  }
+
+  .ide-file {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #cbd5e1;
+    border: 1px solid rgba(100, 116, 139, 0.6);
+    border-radius: 0.55rem;
+    padding: 0.28rem 0.55rem;
+    background: rgba(15, 23, 42, 0.7);
+  }
+
+  .ide-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .ide-label {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: #94a3b8;
+  }
+
+  .ide-select {
+    border: 1px solid rgba(100, 116, 139, 0.75);
+    border-radius: 0.55rem;
+    background: rgba(15, 23, 42, 0.85);
+    color: #f8fafc;
+    padding: 0.3rem 0.5rem;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .ide-btn {
+    border-radius: 0.55rem;
+    padding: 0.38rem 0.65rem;
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    border: 1px solid transparent;
+    cursor: pointer;
+  }
+
+  .ide-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .ide-btn.run {
+    background: #059669;
+    color: #ecfdf5;
+    border-color: rgba(16, 185, 129, 0.7);
+  }
+
+  .ide-btn.ghost {
+    background: rgba(15, 23, 42, 0.8);
+    color: #cbd5e1;
+    border-color: rgba(100, 116, 139, 0.75);
+  }
+
+  .ide-hint {
+    border-bottom: 1px solid rgba(100, 116, 139, 0.3);
+    color: #93c5fd;
+    background: rgba(15, 23, 42, 0.78);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 0.45rem 0.8rem;
+  }
+
+  .ide-error {
+    border-bottom: 1px solid rgba(220, 38, 38, 0.4);
+    color: #fecaca;
+    background: rgba(127, 29, 29, 0.45);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 0.45rem 0.8rem;
+  }
+
+  .daily-ide-editor {
+    border-bottom: 1px solid rgba(100, 116, 139, 0.35);
   }
 
   .fallback-editor {
@@ -584,11 +679,11 @@
     height: 100%;
     border: none;
     resize: none;
-    padding: 0.75rem;
+    padding: 0.85rem;
     background: #0f172a;
     color: #e2e8f0;
-    font-size: 12px;
-    line-height: 1.55;
+    font-size: 13px;
+    line-height: 1.6;
     font-family: 'Fira Code', 'JetBrains Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
   }
 
@@ -596,16 +691,69 @@
     outline: none;
   }
 
+  .stdin-zone {
+    border-bottom: 1px solid rgba(100, 116, 139, 0.35);
+    background: rgba(2, 6, 23, 0.8);
+    padding: 0.7rem 0.8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .stdin-input {
+    border: 1px solid rgba(100, 116, 139, 0.75);
+    border-radius: 0.7rem;
+    background: rgba(15, 23, 42, 0.9);
+    color: #e2e8f0;
+    padding: 0.5rem 0.7rem;
+    font-size: 12px;
+    line-height: 1.5;
+    font-family: 'Fira Code', 'JetBrains Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  }
+
   .daily-ide-console {
-    min-height: 130px;
+    min-height: 210px;
+    background: #020617;
+    padding: 0.65rem 0.8rem 0.8rem;
+  }
+
+  .console-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .console-title {
+    margin: 0;
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: #94a3b8;
+  }
+
+  .console-count {
+    margin: 0;
+    font-size: 10px;
+    color: #64748b;
+    font-weight: 700;
   }
 
   .console-scroll {
-    max-height: 180px;
+    max-height: 260px;
     overflow: auto;
     display: flex;
     flex-direction: column;
-    gap: 0.2rem;
+    gap: 0.22rem;
+  }
+
+  .console-empty {
+    margin: 0;
+    font-size: 11px;
+    color: #64748b;
+    font-family: 'Fira Code', 'JetBrains Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
   }
 
   .console-line {
@@ -618,7 +766,7 @@
   }
 
   .console-line .time {
-    color: #94a3b8;
+    color: #64748b;
     margin-right: 0.35rem;
   }
 
@@ -627,11 +775,11 @@
   }
 
   .console-line.stdout {
-    color: #e2e8f0;
+    color: #f8fafc;
   }
 
   .console-line.stderr {
-    color: #fbbf24;
+    color: #fcd34d;
   }
 
   .console-line.error {
