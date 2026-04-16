@@ -22,6 +22,11 @@ export type DailyAlgoDispatchResult = {
 
 export type DailyAlgoSkillTier = 'Débutant' | 'Apprenti' | 'Maître' | 'Légende';
 
+type DailyAlgoFunctionArg = {
+  name: string;
+  type?: string;
+};
+
 type DailyAlgoChallengeTypeKey =
   | 'time-complexity'
   | 'space-complexity'
@@ -66,6 +71,10 @@ const dailyAlgoRunDispatchSelect = {
       title: true,
       description: true,
       difficulty: true,
+      functionName: true,
+      functionArgs: true,
+      unitTests: true,
+      allowedLanguages: true,
     },
   },
 } as const;
@@ -83,6 +92,10 @@ type DailyAlgoRunMessageData = {
     title: string;
     description: string;
     difficulty: string;
+    functionName: string | null;
+    functionArgs: DailyAlgoFunctionArg[];
+    unitTests: unknown[];
+    allowedLanguages: string[];
   };
 };
 
@@ -91,6 +104,17 @@ type DailyAlgoRunDispatchPayload = Prisma.DailyAlgoRunGetPayload<{
 }>;
 
 function toDailyAlgoRunMessageData(run: DailyAlgoRunDispatchPayload): DailyAlgoRunMessageData {
+  const functionArgs = Array.isArray(run.problem.functionArgs)
+    ? run.problem.functionArgs.filter((value): value is DailyAlgoFunctionArg => (
+        !!value && typeof value === 'object' && typeof (value as { name?: unknown }).name === 'string'
+      ))
+    : [];
+
+  const unitTests = Array.isArray(run.problem.unitTests) ? run.problem.unitTests : [];
+  const allowedLanguages = Array.isArray(run.problem.allowedLanguages) && run.problem.allowedLanguages.length > 0
+    ? run.problem.allowedLanguages
+    : ['javascript'];
+
   return {
     id: run.id,
     dateKey: run.dateKey,
@@ -104,6 +128,10 @@ function toDailyAlgoRunMessageData(run: DailyAlgoRunDispatchPayload): DailyAlgoR
       title: run.problem.title,
       description: run.problem.description,
       difficulty: run.problem.difficulty,
+      functionName: run.problem.functionName,
+      functionArgs,
+      unitTests,
+      allowedLanguages,
     },
   };
 }
@@ -296,14 +324,45 @@ export function buildDailyAlgoValidationButtons(submissionId: string, disabled =
 
 // ── Embed Builders ─────────────────────────────────────────────────────────────
 
+function normalizeAllowedLanguageLabel(language: string): string {
+  const value = language.trim().toLowerCase();
+  if (value === 'javascript' || value === 'js') return 'JavaScript';
+  if (value === 'typescript' || value === 'ts') return 'TypeScript';
+  if (value === 'python' || value === 'py') return 'Python';
+  if (value === 'c' || value === 'cpp' || value === 'c++') return 'C / C++';
+  if (value === 'lua') return 'Lua';
+  if (value === 'sqlite' || value === 'sql') return 'SQLite';
+  return language;
+}
+
+function formatFunctionSignature(functionName: string | null, functionArgs: DailyAlgoFunctionArg[]): string {
+  const safeName = functionName?.trim() || 'solve';
+  if (functionArgs.length === 0) return `${safeName}()`;
+  const args = functionArgs
+    .map((arg) => `${arg.name}${arg.type ? `: ${arg.type}` : ''}`)
+    .join(', ');
+  return `${safeName}(${args})`;
+}
+
 function buildDailyAlgoChallengeEmbed(params: {
   title: string;
   problemTitle: string;
   description: string;
   difficulty: string;
   challengeTypeLabel: string;
+  functionName: string | null;
+  functionArgs: DailyAlgoFunctionArg[];
+  allowedLanguages: string[];
+  testsCount?: number;
   footerText?: string;
 }) {
+  const allowedLanguages = (params.allowedLanguages.length > 0 ? params.allowedLanguages : ['javascript'])
+    .map((entry) => normalizeAllowedLanguageLabel(entry))
+    .join(' · ');
+
+  const signature = formatFunctionSignature(params.functionName, params.functionArgs);
+  const testsLabel = Number.isFinite(params.testsCount) ? Math.max(0, Number(params.testsCount ?? 0)) : 0;
+
   const embed = new EmbedBuilder()
     .setColor(COLORS.info)
     .setTitle(params.title)
@@ -319,6 +378,20 @@ function buildDailyAlgoChallengeEmbed(params: {
     .addFields({
       name: '🧩 Type de défi',
       value: params.challengeTypeLabel,
+      inline: true,
+    })
+    .addFields({
+      name: '🧠 Fonction attendue',
+      value: `\`${truncate(signature, 200)}\``,
+    })
+    .addFields({
+      name: '🌐 Langages acceptés',
+      value: allowedLanguages,
+      inline: true,
+    })
+    .addFields({
+      name: '🧪 Tests publics',
+      value: testsLabel > 0 ? `${testsLabel} test(s) disponible(s) pour la review` : 'Aucun test configuré',
       inline: true,
     })
     .addFields({
@@ -354,12 +427,58 @@ async function sendDailyAlgoRunMessage(client: Client, run: DailyAlgoRunMessageD
     description: run.problem.description,
     difficulty: run.problem.difficulty,
     challengeTypeLabel: challengeTypeLabelFromProblem(run.problem),
+    functionName: run.problem.functionName,
+    functionArgs: run.problem.functionArgs,
+    allowedLanguages: run.problem.allowedLanguages,
+    testsCount: run.problem.unitTests.length,
   });
 
   return channel.send({
     embeds: [embed],
     components: [getDailyAlgoButtonRow(run.id)],
   });
+}
+
+export async function refreshDailyAlgoChallengeMessageForRun(client: Client, runId: string): Promise<boolean> {
+  const runRaw = await prisma.dailyAlgoRun.findUnique({
+    where: { id: runId },
+    select: dailyAlgoRunDispatchSelect,
+  });
+
+  const challengeMessageId = runRaw?.challengeMessageId;
+  if (!challengeMessageId) {
+    return false;
+  }
+
+  const run = toDailyAlgoRunMessageData(runRaw);
+  const channel = await client.channels.fetch(run.challengeChannelId).catch(() => null) as TextChannel | null;
+  if (!channel) {
+    return false;
+  }
+
+  const message = await channel.messages.fetch(challengeMessageId).catch(() => null);
+  if (!message) {
+    return false;
+  }
+
+  const runDate = resolveRunDateKey(run.dateKey, run.createdAt);
+  const embed = buildDailyAlgoChallengeEmbed({
+    title: `💻 Daily Algo du ${formatDailyAlgoDate(runDate)}`,
+    problemTitle: run.problem.title,
+    description: run.problem.description,
+    difficulty: run.problem.difficulty,
+    challengeTypeLabel: challengeTypeLabelFromProblem(run.problem),
+    functionName: run.problem.functionName,
+    functionArgs: run.problem.functionArgs,
+    allowedLanguages: run.problem.allowedLanguages,
+    testsCount: run.problem.unitTests.length,
+  });
+
+  await message.edit({
+    embeds: [embed],
+  });
+
+  return true;
 }
 
 // ── Leaderboard Embed ──────────────────────────────────────────────────────────

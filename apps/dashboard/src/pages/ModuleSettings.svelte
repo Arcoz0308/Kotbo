@@ -8,6 +8,7 @@
     updateModuleStatus,
     fetchDailyAlgoProblems,
     createDailyAlgoProblem,
+    updateDailyAlgoProblem,
     fetchTodayDailyAlgoSubmissions,
     fetchDailyAlgoSubmissionHistory,
     reviewDailyAlgoSubmission,
@@ -37,11 +38,24 @@
   const moduleMeta = $derived(getModuleMeta(moduleId));
   const canManageSettings = $derived(!!dashboardStore.state.access?.canManageSettings);
   const canModerateContent = $derived(!!dashboardStore.state.access?.canModerateContent);
+  const supportedDailyAlgoLanguages: IdeLanguage[] = ['javascript', 'typescript', 'python', 'c', 'lua', 'sqlite'];
+
+  type DailyAlgoFunctionArg = {
+    name: string;
+    type: string;
+  };
+
+  type DailyAlgoUnitTest = {
+    name: string;
+    args: unknown[];
+    expected: unknown;
+  };
 
   let youtubeReferenceChannelId = $state('');
   let desiredModuleStatus = $state('inactive');
   let deleteFeedModalOpen = $state(false);
   let createDailyAlgoProblemModalOpen = $state(false);
+  let editingDailyAlgoProblemId = $state<string | null>(null);
   let pendingFeedDeletion = $state<{ id: string; name: string } | null>(null);
   const formAction = createAsyncActionState();
 
@@ -66,9 +80,12 @@
   let algoDraft = $state({
     title: '',
     description: '',
-    solution: '',
     difficulty: 'moyen',
-    language: 'fr'
+    language: 'fr',
+    functionName: '',
+    functionArgsText: '[\n  {\n    \"name\": \"input\",\n    \"type\": \"string\"\n  }\n]',
+    unitTestsText: '[\n  {\n    \"name\": \"Cas 1\",\n    \"args\": [\"hello\"],\n    \"expected\": \"olleh\"\n  }\n]',
+    allowedLanguages: ['javascript', 'typescript', 'python'],
   });
 
   onMount(async () => {
@@ -117,17 +134,121 @@
     }
   }
 
+  function resetDailyAlgoDraft() {
+    algoDraft = {
+      title: '',
+      description: '',
+      difficulty: 'moyen',
+      language: 'fr',
+      functionName: '',
+      functionArgsText: '[\n  {\n    \"name\": \"input\",\n    \"type\": \"string\"\n  }\n]',
+      unitTestsText: '[\n  {\n    \"name\": \"Cas 1\",\n    \"args\": [\"hello\"],\n    \"expected\": \"olleh\"\n  }\n]',
+      allowedLanguages: ['javascript', 'typescript', 'python'],
+    };
+  }
+
   function openDailyAlgoProblemModal() {
     if (!canManageSettings) {
       formAction.setError('Seuls les administrateurs peuvent ajouter un exercice.');
       return;
     }
 
+    editingDailyAlgoProblemId = null;
+    resetDailyAlgoDraft();
+    createDailyAlgoProblemModalOpen = true;
+  }
+
+  function openDailyAlgoProblemEditModal(problem: any) {
+    if (!canManageSettings) {
+      formAction.setError('Seuls les administrateurs peuvent modifier un exercice.');
+      return;
+    }
+
+    const functionArgs = Array.isArray(problem?.functionArgs) ? problem.functionArgs : [];
+    const unitTests = Array.isArray(problem?.unitTests) ? problem.unitTests : [];
+    const allowedLanguages = Array.isArray(problem?.allowedLanguages) && problem.allowedLanguages.length > 0
+      ? problem.allowedLanguages
+      : ['javascript', 'typescript', 'python'];
+
+    editingDailyAlgoProblemId = problem.id;
+    algoDraft = {
+      title: typeof problem?.title === 'string' ? problem.title : '',
+      description: typeof problem?.description === 'string' ? problem.description : '',
+      difficulty: typeof problem?.difficulty === 'string' ? problem.difficulty : 'moyen',
+      language: typeof problem?.language === 'string' ? problem.language : 'fr',
+      functionName: typeof problem?.functionName === 'string' ? problem.functionName : '',
+      functionArgsText: JSON.stringify(functionArgs, null, 2),
+      unitTestsText: JSON.stringify(unitTests, null, 2),
+      allowedLanguages,
+    };
     createDailyAlgoProblemModalOpen = true;
   }
 
   function closeDailyAlgoProblemModal() {
     createDailyAlgoProblemModalOpen = false;
+    editingDailyAlgoProblemId = null;
+    resetDailyAlgoDraft();
+  }
+
+  function parseDailyAlgoFunctionArgs(rawText: string): DailyAlgoFunctionArg[] | null {
+    try {
+      const parsed = JSON.parse(rawText);
+      if (!Array.isArray(parsed)) return null;
+
+      const normalized = parsed
+        .map((entry) => {
+          if (!entry || typeof entry !== 'object') return null;
+          const candidate = entry as { name?: unknown; type?: unknown };
+          const name = typeof candidate.name === 'string' ? candidate.name.trim() : '';
+          const type = typeof candidate.type === 'string' ? candidate.type.trim() : '';
+          if (!name) return null;
+          return { name, type: type || 'unknown' };
+        })
+        .filter((entry): entry is DailyAlgoFunctionArg => Boolean(entry));
+
+      return normalized;
+    } catch {
+      return null;
+    }
+  }
+
+  function parseDailyAlgoUnitTests(rawText: string, expectedArgCount: number): DailyAlgoUnitTest[] | null {
+    try {
+      const parsed = JSON.parse(rawText);
+      if (!Array.isArray(parsed)) return null;
+
+      const normalized = parsed
+        .map((entry, index) => {
+          if (!entry || typeof entry !== 'object') return null;
+          const candidate = entry as { name?: unknown; args?: unknown; expected?: unknown };
+          if (!Array.isArray(candidate.args) || candidate.args.length !== expectedArgCount) return null;
+
+          const name = typeof candidate.name === 'string' && candidate.name.trim()
+            ? candidate.name.trim()
+            : `Test ${index + 1}`;
+
+          return {
+            name,
+            args: candidate.args,
+            expected: candidate.expected,
+          };
+        })
+        .filter((entry): entry is DailyAlgoUnitTest => Boolean(entry));
+
+      return normalized;
+    } catch {
+      return null;
+    }
+  }
+
+  function toggleDraftAllowedLanguage(language: IdeLanguage) {
+    const normalized = normalizeIdeLanguage(language);
+    if (algoDraft.allowedLanguages.includes(normalized)) {
+      if (algoDraft.allowedLanguages.length === 1) return;
+      algoDraft.allowedLanguages = algoDraft.allowedLanguages.filter((entry) => entry !== normalized);
+      return;
+    }
+    algoDraft.allowedLanguages = [...algoDraft.allowedLanguages, normalized];
   }
 
   async function submitDailyAlgoProblem() {
@@ -136,24 +257,68 @@
       return;
     }
 
-    if (!algoDraft.title.trim() || !algoDraft.description.trim() || !algoDraft.solution.trim()) {
-      formAction.setError('Tous les champs requis doivent être remplis.');
+    if (!algoDraft.title.trim() || !algoDraft.description.trim()) {
+      formAction.setError('Titre et description sont obligatoires.');
       return;
     }
 
+    if (!algoDraft.functionName.trim()) {
+      formAction.setError('Le nom de la fonction est obligatoire.');
+      return;
+    }
+
+    const functionArgs = parseDailyAlgoFunctionArgs(algoDraft.functionArgsText);
+    if (!functionArgs) {
+      formAction.setError('Arguments invalides: utilise un JSON tableau valide.');
+      return;
+    }
+
+    const unitTests = parseDailyAlgoUnitTests(algoDraft.unitTestsText, functionArgs.length);
+    if (!unitTests || unitTests.length === 0) {
+      formAction.setError('Tests invalides: chaque test doit fournir le bon nombre d’arguments et un expected.');
+      return;
+    }
+
+    if (!algoDraft.allowedLanguages.length) {
+      formAction.setError('Sélectionne au moins un langage autorisé.');
+      return;
+    }
+
+    const payload = {
+      title: algoDraft.title.trim(),
+      description: algoDraft.description.trim(),
+      difficulty: algoDraft.difficulty,
+      language: algoDraft.language || 'fr',
+      functionName: algoDraft.functionName.trim(),
+      functionArgs,
+      unitTests,
+      allowedLanguages: algoDraft.allowedLanguages,
+      solution: '',
+    };
+
+    const isEdition = Boolean(editingDailyAlgoProblemId);
+
     await formAction.run(
       async () => {
-        const ok = await createDailyAlgoProblem({ ...algoDraft });
+        const ok = isEdition
+          ? await updateDailyAlgoProblem(editingDailyAlgoProblemId, payload)
+          : await createDailyAlgoProblem(payload);
         if (!ok) return false;
 
-        algoDraft = { title: '', description: '', solution: '', difficulty: 'moyen', language: 'fr' };
+        resetDailyAlgoDraft();
+        editingDailyAlgoProblemId = null;
         createDailyAlgoProblemModalOpen = false;
         await loadDailyAlgoProblems();
+        await loadTodayDailyAlgoSubmissions();
         return true;
       },
       {
-        successMessage: 'Exercice algorithmique ajouté avec succès.',
-        failureMessage: 'Erreur lors de l’ajout de l’exercice.'
+        successMessage: isEdition
+          ? 'Exercice mis à jour (message Discord du jour rafraîchi si concerné).'
+          : 'Exercice algorithmique ajouté avec succès.',
+        failureMessage: isEdition
+          ? 'Erreur lors de la mise à jour de l’exercice.'
+          : 'Erreur lors de l’ajout de l’exercice.'
       }
     );
   }
@@ -415,6 +580,32 @@
 
   function dailyAlgoProblemStatus(problem: any) {
     return problem.usedAt ? 'Utilisé' : 'Disponible';
+  }
+
+  function dailyAlgoProblemFunctionSignature(problem: any) {
+    const functionName = typeof problem?.functionName === 'string' && problem.functionName.trim()
+      ? problem.functionName.trim()
+      : 'solve';
+
+    const args = Array.isArray(problem?.functionArgs)
+      ? problem.functionArgs
+        .filter((entry) => entry && typeof entry === 'object' && typeof (entry as { name?: unknown }).name === 'string')
+        .map((entry) => {
+          const candidate = entry as { name?: string; type?: string };
+          return `${candidate.name}${candidate.type ? `: ${candidate.type}` : ''}`;
+        })
+      : [];
+
+    return `${functionName}(${args.join(', ')})`;
+  }
+
+  function dailyAlgoProblemAllowedLanguages(problem: any): IdeLanguage[] {
+    const raw = Array.isArray(problem?.allowedLanguages) ? problem.allowedLanguages : [];
+    const normalized = raw
+      .map((entry) => normalizeIdeLanguage(typeof entry === 'string' ? entry : ''))
+      .filter((value, index, array) => supportedDailyAlgoLanguages.includes(value) && array.indexOf(value) === index);
+    if (normalized.length > 0) return normalized;
+    return ['javascript'];
   }
 
   const sortedDailyAlgoProblems = $derived.by(() => {
@@ -1368,8 +1559,12 @@
                       <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Titre</th>
                       <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Difficulté</th>
                       <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Statut</th>
+                      <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Fonction</th>
+                      <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Langages</th>
+                      <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Tests</th>
                       <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Description</th>
                       <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Créé le</th>
+                      <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1389,10 +1584,38 @@
                           </span>
                         </td>
                         <td>
+                          <p class="text-xs font-mono text-on-surface">{dailyAlgoProblemFunctionSignature(problem)}</p>
+                        </td>
+                        <td>
+                          <div class="flex flex-wrap gap-1">
+                            {#each dailyAlgoProblemAllowedLanguages(problem) as lang}
+                              <span class="px-2 py-0.5 rounded-md border border-outline-variant/25 bg-surface text-[10px] font-black uppercase tracking-[0.08em] text-on-surface-variant">
+                                {lang}
+                              </span>
+                            {/each}
+                          </div>
+                        </td>
+                        <td>
+                          <p class="text-xs font-black text-emerald-700">{Array.isArray(problem.unitTests) ? problem.unitTests.length : 0}</p>
+                        </td>
+                        <td>
                           <p class="text-xs text-on-surface-variant max-w-xl line-clamp-2">{problem.description}</p>
                         </td>
                         <td>
                           <p class="text-xs font-bold text-on-surface-variant">{formatDate(problem.createdAt)}</p>
+                        </td>
+                        <td>
+                          {#if canManageSettings}
+                            <button
+                              type="button"
+                              onclick={() => openDailyAlgoProblemEditModal(problem)}
+                              class="px-3 py-1.5 rounded-lg border border-outline-variant/30 bg-surface text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant hover:text-on-surface"
+                            >
+                              Éditer
+                            </button>
+                          {:else}
+                            <span class="text-[10px] text-on-surface-variant">-</span>
+                          {/if}
                         </td>
                       </tr>
                     {/each}
@@ -1482,6 +1705,10 @@
             <DailyAlgoMiniIDE
               initialCode={focusedSubmission.solution}
               initialLanguage={ideLanguageForSubmission(focusedSubmission)}
+              allowedLanguages={dailyAlgoProblemAllowedLanguages(dailyAlgoToday?.run?.problem)}
+              functionName={typeof dailyAlgoToday?.run?.problem?.functionName === 'string' ? dailyAlgoToday.run.problem.functionName : ''}
+              functionArgs={Array.isArray(dailyAlgoToday?.run?.problem?.functionArgs) ? dailyAlgoToday.run.problem.functionArgs : []}
+              unitTests={Array.isArray(dailyAlgoToday?.run?.problem?.unitTests) ? dailyAlgoToday.run.problem.unitTests : []}
               languagePersistenceKey={`submission:${focusedSubmission.id}`}
               height="100%"
               showPopoutButton={false}
@@ -1654,8 +1881,14 @@
       <div class="flex items-start justify-between gap-4">
         <div>
           <p class="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">Daily Algo</p>
-          <h3 id="dailyalgo-create-title" class="mt-1 text-xl font-black text-on-surface">Ajouter un nouvel exercice</h3>
-          <p class="mt-1 text-sm text-on-surface-variant">Complète les champs puis valide pour ajouter l'exercice dans la banque.</p>
+          <h3 id="dailyalgo-create-title" class="mt-1 text-xl font-black text-on-surface">
+            {editingDailyAlgoProblemId ? 'Modifier l\'exercice' : 'Ajouter un nouvel exercice'}
+          </h3>
+          <p class="mt-1 text-sm text-on-surface-variant">
+            {editingDailyAlgoProblemId
+              ? 'Mets à jour la signature de fonction, les langages autorisés et les tests unitaires.'
+              : 'Complète les champs puis valide pour ajouter l\'exercice dans la banque.'}
+          </p>
         </div>
         <button
           type="button"
@@ -1690,6 +1923,31 @@
           </select>
         </div>
         <div class="space-y-2 md:col-span-2">
+          <label for="modal-dailyalgo-function-name" class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Nom de fonction attendu</label>
+          <FormInput
+            id="modal-dailyalgo-function-name"
+            bind:value={algoDraft.functionName}
+            className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-mono outline-none focus:border-emerald-500/40"
+            placeholder="ex: reverseString"
+          />
+        </div>
+        <div class="space-y-2 md:col-span-2">
+          <p class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Langages autorisés</p>
+          <div class="flex flex-wrap gap-2">
+            {#each supportedDailyAlgoLanguages as languageOption}
+              <button
+                type="button"
+                onclick={() => toggleDraftAllowedLanguage(languageOption)}
+                class="px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-[0.12em] transition-colors {algoDraft.allowedLanguages.includes(languageOption) ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-surface border-outline-variant/30 text-on-surface-variant hover:text-on-surface'}"
+                aria-pressed={algoDraft.allowedLanguages.includes(languageOption)}
+              >
+                {languageOption}
+              </button>
+            {/each}
+          </div>
+          <p class="text-[11px] text-on-surface-variant">Un participant doit soumettre sa solution dans un de ces langages.</p>
+        </div>
+        <div class="space-y-2 md:col-span-2">
           <label for="modal-dailyalgo-description" class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Description (Markdown autorisé)</label>
           <textarea
             id="modal-dailyalgo-description"
@@ -1699,13 +1957,24 @@
           ></textarea>
         </div>
         <div class="space-y-2 md:col-span-2">
-          <label for="modal-dailyalgo-solution" class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Solution attendue</label>
+          <label for="modal-dailyalgo-function-args" class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Arguments de la fonction (JSON)</label>
           <textarea
-            id="modal-dailyalgo-solution"
-            bind:value={algoDraft.solution}
+            id="modal-dailyalgo-function-args"
+            bind:value={algoDraft.functionArgsText}
             class="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-mono outline-none focus:border-emerald-500/40 min-h-30"
-            placeholder="Code de la solution optimale..."
+            placeholder={"[\n  { \"name\": \"input\", \"type\": \"string\" }\n]"}
           ></textarea>
+          <p class="text-[11px] text-on-surface-variant">Chaque argument doit contenir au moins <span class="font-mono">name</span> et éventuellement <span class="font-mono">type</span>.</p>
+        </div>
+        <div class="space-y-2 md:col-span-2">
+          <label for="modal-dailyalgo-unit-tests" class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Tests unitaires (JSON)</label>
+          <textarea
+            id="modal-dailyalgo-unit-tests"
+            bind:value={algoDraft.unitTestsText}
+            class="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-mono outline-none focus:border-emerald-500/40 min-h-36"
+            placeholder={"[\n  { \"name\": \"Cas 1\", \"args\": [\"hello\"], \"expected\": \"olleh\" }\n]"}
+          ></textarea>
+          <p class="text-[11px] text-on-surface-variant">Chaque test doit définir <span class="font-mono">args</span> (tableau) et <span class="font-mono">expected</span>.</p>
         </div>
       </div>
 
@@ -1723,7 +1992,9 @@
           disabled={formAction.state.loading}
           class="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-black uppercase tracking-[0.12em] shadow-lg shadow-emerald-500/20 hover:bg-emerald-700"
         >
-          {formAction.state.loading ? 'Ajout...' : 'Ajouter l\'exercice'}
+          {formAction.state.loading
+            ? (editingDailyAlgoProblemId ? 'Enregistrement...' : 'Ajout...')
+            : (editingDailyAlgoProblemId ? 'Enregistrer les modifications' : 'Ajouter l\'exercice')}
         </button>
       </div>
     </div>

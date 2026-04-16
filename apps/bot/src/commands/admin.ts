@@ -320,6 +320,10 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         solution,
         difficulty: difficulte,
         language: 'fr',
+        functionName: 'solve',
+        functionArgs: [{ name: 'input', type: 'unknown' }],
+        unitTests: [{ name: 'placeholder', args: [null], expected: null }],
+        allowedLanguages: ['javascript', 'typescript', 'python'],
       },
     });
 

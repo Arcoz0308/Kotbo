@@ -355,6 +355,15 @@ export async function createDailyAlgoProblem(problem, guildId = authStore.select
   });
 }
 
+export async function updateDailyAlgoProblem(problemId, problem, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/daily-algo-problems/${problemId}`, {
+    method: 'PATCH',
+    payload: problem,
+    guildId,
+    errorContext: 'API Error (Update Daily Algo Problem):'
+  });
+}
+
 export async function fetchTodayDailyAlgoSubmissions(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/daily-algo-submissions/today', {
     method: 'GET',

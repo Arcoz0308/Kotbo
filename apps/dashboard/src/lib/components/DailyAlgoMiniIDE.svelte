@@ -55,6 +55,37 @@
     Database: new () => SqlJsDatabase;
   };
 
+  type ExerciseFunctionArg = {
+    name: string;
+    type?: string;
+  };
+
+  type ExerciseUnitTest = {
+    name?: string;
+    args: unknown[];
+    expected: unknown;
+  };
+
+  type UnitTestResult = {
+    name: string;
+    passed: boolean;
+    expected: unknown;
+    actual: unknown;
+    error?: string;
+    durationMs: number;
+  };
+
+  type UnitTestSummary = {
+    total: number;
+    passed: number;
+    failed: number;
+    suggestedCorrectness: number;
+    language: IdeLanguage;
+    durationMs: number;
+  };
+
+  const ALL_SUPPORTED_LANGUAGES: IdeLanguage[] = ['javascript', 'typescript', 'python', 'c', 'lua', 'sqlite'];
+
   declare global {
     interface Window {
       JSCPP?: JSCPPGlobal;
@@ -276,6 +307,93 @@
     return 'sql.js';
   }
 
+  function languageDisplayName(languageInput: IdeLanguage): string {
+    if (languageInput === 'javascript') return 'JavaScript';
+    if (languageInput === 'typescript') return 'TypeScript';
+    if (languageInput === 'python') return 'Python';
+    if (languageInput === 'c') return 'C / C++';
+    if (languageInput === 'lua') return 'Lua';
+    return 'SQLite';
+  }
+
+  function normalizedAllowedLanguages(): IdeLanguage[] {
+    const normalized = (Array.isArray(allowedLanguages) ? allowedLanguages : [])
+      .map((entry) => normalizeIdeLanguage(entry))
+      .filter((entry, index, array) => ALL_SUPPORTED_LANGUAGES.includes(entry) && array.indexOf(entry) === index);
+
+    if (normalized.length > 0) return normalized;
+    return [...ALL_SUPPORTED_LANGUAGES];
+  }
+
+  function normalizedFunctionName(): string {
+    if (typeof functionName !== 'string') return '';
+    const trimmed = functionName.trim();
+    return /^[A-Za-z_][A-Za-z0-9_]*$/.test(trimmed) ? trimmed : '';
+  }
+
+  function normalizedFunctionArgs(): ExerciseFunctionArg[] {
+    if (!Array.isArray(functionArgs)) return [];
+
+    return functionArgs
+      .map((entry) => {
+        if (!entry || typeof entry !== 'object') return null;
+        const candidate = entry as { name?: unknown; type?: unknown };
+        const name = typeof candidate.name === 'string' ? candidate.name.trim() : '';
+        const type = typeof candidate.type === 'string' ? candidate.type.trim() : '';
+        if (!name) return null;
+        return { name, type };
+      })
+      .filter((entry): entry is ExerciseFunctionArg => Boolean(entry));
+  }
+
+  function normalizedUnitTests(): ExerciseUnitTest[] {
+    if (!Array.isArray(unitTests)) return [];
+
+    return unitTests
+      .map((entry, index) => {
+        if (!entry || typeof entry !== 'object') return null;
+        const candidate = entry as { name?: unknown; args?: unknown; expected?: unknown };
+        const args = Array.isArray(candidate.args) ? candidate.args : null;
+        if (!args) return null;
+        const name = typeof candidate.name === 'string' && candidate.name.trim()
+          ? candidate.name.trim()
+          : `Test ${index + 1}`;
+
+        return {
+          name,
+          args,
+          expected: candidate.expected,
+        };
+      })
+      .filter((entry): entry is ExerciseUnitTest => Boolean(entry));
+  }
+
+  function testFunctionSignature(): string {
+    const fnName = normalizedFunctionName();
+    if (!fnName) return 'Aucune fonction attendue';
+
+    const args = normalizedFunctionArgs().map((entry) => {
+      if (!entry.type) return entry.name;
+      return `${entry.name}: ${entry.type}`;
+    });
+    return `${fnName}(${args.join(', ')})`;
+  }
+
+  function testSupportLabel(languageInput: IdeLanguage): string {
+    if (languageInput === 'javascript' || languageInput === 'typescript' || languageInput === 'python') {
+      return 'Tests automatiques disponibles';
+    }
+    return 'Tests automatiques indisponibles pour ce runtime';
+  }
+
+  function hasConfiguredUnitTests(): boolean {
+    return normalizedUnitTests().length > 0;
+  }
+
+  function canRunAutomatedTests(languageInput: IdeLanguage): boolean {
+    return languageInput === 'javascript' || languageInput === 'typescript' || languageInput === 'python';
+  }
+
   function hasCMainFunction(source: string): boolean {
     return /\bmain\s*\(/.test(source);
   }
@@ -330,6 +448,10 @@
     popoutLabel = 'Ouvrir dans une fenetre',
     fileLabel = 'solution',
     languagePersistenceKey = '',
+    allowedLanguages = [],
+    functionName = '',
+    functionArgs = [],
+    unitTests = [],
   } = $props<{
     initialCode?: string;
     initialLanguage?: string;
@@ -338,6 +460,10 @@
     popoutLabel?: string;
     fileLabel?: string;
     languagePersistenceKey?: string;
+    allowedLanguages?: string[];
+    functionName?: string;
+    functionArgs?: ExerciseFunctionArg[];
+    unitTests?: ExerciseUnitTest[];
   }>();
 
   const dispatch = createEventDispatcher<{ popout: { code: string; language: IdeLanguage } }>();
@@ -346,9 +472,11 @@
   let language = $state<IdeLanguage>('javascript');
   let stdin = $state('');
   let isRunning = $state(false);
+  let isRunningTests = $state(false);
   let bootError = $state('');
   let runtimeHint = $state('');
   let terminalLineCount = $state(0);
+  let lastUnitTestSummary = $state<UnitTestSummary | null>(null);
 
   let cursorLine = $state(1);
   let cursorColumn = $state(1);
@@ -470,11 +598,13 @@
   }
 
   function onLanguageChange(nextLanguage: IdeLanguage, persist = true) {
-    language = nextLanguage;
-    updateRuntimeHint(nextLanguage);
-    updateModelLanguage(nextLanguage);
+    const available = normalizedAllowedLanguages();
+    const resolved = available.includes(nextLanguage) ? nextLanguage : available[0];
+    language = resolved;
+    updateRuntimeHint(resolved);
+    updateModelLanguage(resolved);
 
-    if (persist) persistLanguage(nextLanguage);
+    if (persist) persistLanguage(resolved);
   }
 
   async function runJavaScript(source: string): Promise<void> {
@@ -709,7 +839,377 @@
     }
   }
 
+  async function runJavaScriptUnitTests(
+    source: string,
+    functionNameInput: string,
+    testCases: ExerciseUnitTest[],
+  ): Promise<UnitTestResult[]> {
+    const workerSource = `
+      const normalize = (value) => {
+        if (Array.isArray(value)) {
+          return value.map((entry) => normalize(entry));
+        }
+        if (value && typeof value === 'object') {
+          const entries = Object.entries(value)
+            .sort(([left], [right]) => left.localeCompare(right))
+            .map(([key, entry]) => [key, normalize(entry)]);
+          return Object.fromEntries(entries);
+        }
+        if (typeof value === 'number' && Number.isNaN(value)) return '__NaN__';
+        if (typeof value === 'undefined') return '__UNDEFINED__';
+        if (typeof value === 'function') return '__FUNCTION__';
+        if (typeof value === 'bigint') return value.toString();
+        return value;
+      };
+
+      const deepEqual = (left, right) => {
+        try {
+          return JSON.stringify(normalize(left)) === JSON.stringify(normalize(right));
+        } catch {
+          return String(left) === String(right);
+        }
+      };
+
+      self.onmessage = async (event) => {
+        const code = String(event?.data?.code ?? '');
+        const fnName = String(event?.data?.functionName ?? '');
+        const tests = Array.isArray(event?.data?.tests) ? event.data.tests : [];
+        try {
+          const accessor = "typeof " + fnName + " === 'function' ? " + fnName + " : (typeof globalThis !== 'undefined' && typeof globalThis[fnName] === 'function' ? globalThis[fnName] : null)";
+          const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+          const loadFn = new AsyncFunction('fnName', 'globalThis', code + "\\n; return (" + accessor + ");");
+          const fn = await loadFn(fnName, globalThis);
+          if (typeof fn !== 'function') {
+            throw new Error("Fonction '" + fnName + "' introuvable dans le code.");
+          }
+
+          const results = [];
+          for (let index = 0; index < tests.length; index += 1) {
+            const test = tests[index] || {};
+            const args = Array.isArray(test.args) ? test.args : [];
+            const expected = Object.prototype.hasOwnProperty.call(test, 'expected') ? test.expected : null;
+            const name = typeof test.name === 'string' && test.name.trim() ? test.name.trim() : "Test " + (index + 1);
+            const startedAt = performance.now();
+
+            try {
+              const actual = await fn(...args);
+              const passed = deepEqual(actual, expected);
+              results.push({
+                name,
+                passed,
+                expected,
+                actual,
+                durationMs: Math.max(0, performance.now() - startedAt),
+              });
+            } catch (error) {
+              const message = error && error.stack ? String(error.stack) : String(error);
+              results.push({
+                name,
+                passed: false,
+                expected,
+                actual: null,
+                error: message,
+                durationMs: Math.max(0, performance.now() - startedAt),
+              });
+            }
+          }
+
+          postMessage({ kind: 'done', payload: results });
+        } catch (error) {
+          const message = error && error.stack ? String(error.stack) : String(error);
+          postMessage({ kind: 'fatal', payload: message });
+        }
+      };
+    `;
+
+    const blob = new Blob([workerSource], { type: 'application/javascript' });
+    const objectUrl = URL.createObjectURL(blob);
+    const worker = new Worker(objectUrl);
+
+    try {
+      const results = await new Promise<UnitTestResult[]>((resolve, reject) => {
+        const timeout = window.setTimeout(() => {
+          worker.terminate();
+          reject(new Error('Timeout pendant l execution des tests JavaScript (12s).'));
+        }, 12000);
+
+        worker.onmessage = (event: MessageEvent<{ kind?: string; payload?: unknown }>) => {
+          const kind = event.data?.kind;
+          const payload = event.data?.payload;
+
+          if (kind === 'done' && Array.isArray(payload)) {
+            clearTimeout(timeout);
+            worker.terminate();
+            resolve(payload as UnitTestResult[]);
+            return;
+          }
+
+          if (kind === 'fatal') {
+            clearTimeout(timeout);
+            worker.terminate();
+            reject(new Error(typeof payload === 'string' ? payload : 'Erreur inconnue pendant les tests.'));
+            return;
+          }
+        };
+
+        worker.onerror = (event) => {
+          clearTimeout(timeout);
+          worker.terminate();
+          reject(new Error(event.message || 'Erreur worker pendant les tests.'));
+        };
+
+        worker.postMessage({
+          code: source,
+          functionName: functionNameInput,
+          tests: testCases,
+        });
+      });
+
+      return results;
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
+
+  async function runTypeScriptUnitTests(
+    source: string,
+    functionNameInput: string,
+    testCases: ExerciseUnitTest[],
+  ): Promise<UnitTestResult[]> {
+    const tsCompiler = await ensureTypeScript();
+    const transpiled = tsCompiler.transpileModule(source, {
+      compilerOptions: {
+        module: tsCompiler.ModuleKind.ES2020,
+        target: tsCompiler.ScriptTarget.ES2020,
+        strict: false,
+        sourceMap: false,
+      },
+      reportDiagnostics: true,
+    });
+
+    for (const diagnostic of transpiled.diagnostics ?? []) {
+      const message = tsCompiler.flattenDiagnosticMessageText(diagnostic.messageText, '\n');
+      if (message.trim().length > 0) {
+        writeTerminal('stderr', `TypeScript: ${message}`);
+      }
+    }
+
+    const output = transpiled.outputText ?? '';
+    if (!output.trim()) {
+      throw new Error('TypeScript transpile, mais aucun JavaScript n a ete genere.');
+    }
+
+    return runJavaScriptUnitTests(output, functionNameInput, testCases);
+  }
+
+  async function runPythonUnitTests(
+    source: string,
+    functionNameInput: string,
+    testCases: ExerciseUnitTest[],
+  ): Promise<UnitTestResult[]> {
+    const pyodide = await ensurePyodide();
+    const globals = (pyodide as unknown as {
+      globals?: {
+        set?: (key: string, value: unknown) => void;
+        delete?: (key: string) => void;
+      };
+    }).globals;
+
+    if (!globals?.set || !globals?.delete) {
+      throw new Error('Pyodide globals indisponible pour les tests unitaires.');
+    }
+
+    globals.set('__kotbo_source', source);
+    globals.set('__kotbo_function_name', functionNameInput);
+    globals.set('__kotbo_tests_json', JSON.stringify(testCases));
+
+    try {
+      const raw = await pyodide.runPythonAsync(`
+import json
+import time
+
+source = __kotbo_source
+function_name = __kotbo_function_name
+tests = json.loads(__kotbo_tests_json)
+
+namespace = {}
+exec(source, namespace)
+fn = namespace.get(function_name)
+if not callable(fn):
+    raise Exception(f"Fonction '{function_name}' introuvable dans le code.")
+
+results = []
+for index, test in enumerate(tests):
+    name = test.get("name") or f"Test {index + 1}"
+    args = test.get("args")
+    expected = test.get("expected")
+    if not isinstance(args, list):
+        results.append({
+            "name": name,
+            "passed": False,
+            "expected": expected,
+            "actual": None,
+            "error": "args doit etre un tableau",
+            "durationMs": 0.0,
+        })
+        continue
+
+    started_at = time.perf_counter()
+    try:
+        actual = fn(*args)
+        passed = actual == expected
+        results.append({
+            "name": name,
+            "passed": bool(passed),
+            "expected": expected,
+            "actual": actual,
+            "durationMs": (time.perf_counter() - started_at) * 1000,
+        })
+    except Exception as error:
+        results.append({
+            "name": name,
+            "passed": False,
+            "expected": expected,
+            "actual": None,
+            "error": str(error),
+            "durationMs": (time.perf_counter() - started_at) * 1000,
+        })
+
+json.dumps(results, ensure_ascii=False, default=str)
+      `);
+
+      const payload = typeof raw === 'string' ? raw : String(raw);
+      const parsed = JSON.parse(payload);
+      if (!Array.isArray(parsed)) {
+        throw new Error('Resultat inattendu des tests Python.');
+      }
+
+      return parsed.map((entry, index) => ({
+        name: typeof entry?.name === 'string' && entry.name.trim() ? entry.name.trim() : `Test ${index + 1}`,
+        passed: Boolean(entry?.passed),
+        expected: entry?.expected,
+        actual: entry?.actual,
+        error: typeof entry?.error === 'string' ? entry.error : undefined,
+        durationMs: Number.isFinite(Number(entry?.durationMs)) ? Number(entry.durationMs) : 0,
+      })) as UnitTestResult[];
+    } finally {
+      globals.delete('__kotbo_source');
+      globals.delete('__kotbo_function_name');
+      globals.delete('__kotbo_tests_json');
+    }
+  }
+
+  async function runUnitTests() {
+    if (isRunning) {
+      writeTerminal('info', 'Attends la fin de l execution en cours avant de lancer les tests.');
+      return;
+    }
+
+    const source = editor?.getValue() ?? code;
+    code = source;
+
+    const functionNameInput = normalizedFunctionName();
+    if (!functionNameInput) {
+      writeTerminal('error', 'Impossible de lancer les tests: nom de fonction attendu manquant.');
+      return;
+    }
+
+    const expectedArgCount = normalizedFunctionArgs().length;
+    const testCases = normalizedUnitTests();
+    if (testCases.length === 0) {
+      writeTerminal('info', 'Aucun test unitaire configure pour cet exercice.');
+      return;
+    }
+
+    const invalidArgsCountTest = testCases.find((test) => !Array.isArray(test.args) || test.args.length !== expectedArgCount);
+    if (invalidArgsCountTest) {
+      writeTerminal(
+        'error',
+        `Tests invalides: chaque test doit fournir exactement ${expectedArgCount} argument(s).`,
+      );
+      return;
+    }
+
+    if (!canRunAutomatedTests(language)) {
+      writeTerminal(
+        'info',
+        `Tests non pris en charge pour ${language.toUpperCase()}. Utilise JavaScript, TypeScript ou Python pour le run automatique.`,
+      );
+      return;
+    }
+
+    isRunningTests = true;
+    writeTerminal('info', `Lancement des tests unitaires (${testCases.length}) sur ${language.toUpperCase()}...`);
+    const startedAt = performance.now();
+
+    try {
+      let results: UnitTestResult[] = [];
+
+      if (language === 'javascript') {
+        results = await runJavaScriptUnitTests(source, functionNameInput, testCases);
+      } else if (language === 'typescript') {
+        results = await runTypeScriptUnitTests(source, functionNameInput, testCases);
+      } else {
+        results = await runPythonUnitTests(source, functionNameInput, testCases);
+      }
+
+      let passed = 0;
+      for (const result of results) {
+        const duration = formatExecutionDuration(result.durationMs);
+        if (result.passed) {
+          passed += 1;
+          writeTerminal('stdout', `PASS ${result.name} (${duration})`);
+        } else {
+          writeTerminal('stderr', `FAIL ${result.name} (${duration})`);
+          if (result.error && result.error.trim()) {
+            writeTerminal('error', `  ${result.error}`);
+          } else {
+            writeTerminal('stderr', `  expected: ${stringifyChunk(result.expected)}`);
+            writeTerminal('stderr', `  actual:   ${stringifyChunk(result.actual)}`);
+          }
+        }
+      }
+
+      const total = results.length;
+      const failed = Math.max(0, total - passed);
+      const ratio = total > 0 ? passed / total : 0;
+      const suggestedCorrectness = Math.round(ratio * 50) / 10;
+      const elapsedMs = performance.now() - startedAt;
+
+      lastUnitTestSummary = {
+        total,
+        passed,
+        failed,
+        suggestedCorrectness,
+        language,
+        durationMs: elapsedMs,
+      };
+
+      writeTerminal(
+        failed === 0 ? 'result' : 'stderr',
+        `Resultats tests: ${passed}/${total} passes (${failed} en echec).`,
+      );
+      writeTerminal(
+        'info',
+        `Suggestion note correctitude: ${suggestedCorrectness.toFixed(1)}/5.`,
+      );
+    } catch (error) {
+      lastUnitTestSummary = null;
+      const message = error instanceof Error ? error.message : String(error);
+      writeTerminal('error', message);
+    } finally {
+      const elapsedMs = performance.now() - startedAt;
+      writeTerminal('info', `Temps total tests: ${formatExecutionDuration(elapsedMs)}`);
+      isRunningTests = false;
+    }
+  }
+
   async function runCode() {
+    if (isRunningTests) {
+      writeTerminal('info', 'Attends la fin des tests unitaires avant de lancer une execution.');
+      return;
+    }
+
     const executionLanguage = language;
     const source = editor?.getValue() ?? code;
     code = source;
@@ -785,7 +1285,9 @@
       });
 
       code = initialCode;
-      language = readPersistedLanguage(normalizedLanguage(initialLanguage, initialCode));
+      const bootLanguage = readPersistedLanguage(normalizedLanguage(initialLanguage, initialCode));
+      const allowedAtBoot = normalizedAllowedLanguages();
+      language = allowedAtBoot.includes(bootLanguage) ? bootLanguage : allowedAtBoot[0];
       updateRuntimeHint(language);
 
       if (editorContainer) {
@@ -879,6 +1381,13 @@
     }
   });
 
+  $effect(() => {
+    const available = normalizedAllowedLanguages();
+    if (!available.includes(language)) {
+      onLanguageChange(available[0], false);
+    }
+  });
+
   onDestroy(() => {
     for (const disposable of editorDisposables) {
       disposable.dispose();
@@ -915,16 +1424,16 @@
         bind:value={language}
         onchange={(event) => onLanguageChange((event.currentTarget as HTMLSelectElement).value as IdeLanguage)}
       >
-        <option value="javascript">JavaScript</option>
-        <option value="typescript">TypeScript</option>
-        <option value="python">Python</option>
-        <option value="c">C / C++</option>
-        <option value="lua">Lua</option>
-        <option value="sqlite">SQLite</option>
+        {#each normalizedAllowedLanguages() as languageOption}
+          <option value={languageOption}>{languageDisplayName(languageOption)}</option>
+        {/each}
       </select>
 
       <button type="button" class="ide-btn ghost" onclick={clearTerminal}>Clear</button>
-      <button type="button" class="ide-btn run" onclick={runCode} disabled={isRunning}>
+      <button type="button" class="ide-btn ghost" onclick={runUnitTests} disabled={isRunning || isRunningTests || !hasConfiguredUnitTests() || !normalizedFunctionName() || !canRunAutomatedTests(language)}>
+        {isRunningTests ? 'Tests...' : 'Run tests'}
+      </button>
+      <button type="button" class="ide-btn run" onclick={runCode} disabled={isRunning || isRunningTests}>
         {isRunning ? 'Execution...' : 'Run'}
       </button>
 
@@ -949,7 +1458,14 @@
         <p class="tree-meta">Langage: {language.toUpperCase()}</p>
         <p class="tree-meta">Lignes: {lineCount}</p>
         <p class="tree-meta">Runtime: {runtimeLabel(language)}</p>
+        <p class="tree-meta">Signature: {testFunctionSignature()}</p>
+        <p class="tree-meta">Tests: {normalizedUnitTests().length}</p>
+        <p class="tree-meta">{testSupportLabel(language)}</p>
         <p class="tree-meta">Terminal: {terminalLineCount} lignes</p>
+        {#if lastUnitTestSummary}
+          <p class="tree-meta">Dernier run: {lastUnitTestSummary.passed}/{lastUnitTestSummary.total}</p>
+          <p class="tree-meta">Note suggeree: {lastUnitTestSummary.suggestedCorrectness.toFixed(1)}/5</p>
+        {/if}
       </div>
 
       {#if language === 'c'}

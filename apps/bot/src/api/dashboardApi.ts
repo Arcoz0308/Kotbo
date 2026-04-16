@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { ChannelType, type Client, type TextChannel } from 'discord.js';
-import { SanctionType } from '@prisma/client';
+import { SanctionType, type Prisma } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 import WebSocket, { WebSocketServer } from 'ws';
 import prisma from '../utils/db.js';
@@ -28,7 +28,8 @@ import {
   getDailyAlgoUserProfile, 
   getDailyAlgoUserParticipations,
   getLocalDateKey, 
-  reviewDailyAlgoSubmission 
+  reviewDailyAlgoSubmission,
+  refreshDailyAlgoChallengeMessageForRun,
 } from '../services/dailyAlgoService.js';
 import {
   hashAPIKey,
@@ -401,6 +402,152 @@ function resolveDailyAlgoEffectiveSpeedBonus(params: {
     return 0;
   }
   return params.speedBonusPoints ?? 0;
+}
+
+type DailyAlgoFunctionArg = {
+  name: string;
+  type: string;
+};
+
+type DailyAlgoUnitTest = {
+  name: string;
+  args: unknown[];
+  expected: unknown;
+};
+
+type DailyAlgoProblemPayload = {
+  title?: string;
+  description?: string;
+  solution?: string;
+  difficulty?: string;
+  language?: string;
+  functionName?: string;
+  functionArgs?: unknown;
+  unitTests?: unknown;
+  allowedLanguages?: unknown;
+};
+
+const SUPPORTED_DAILY_ALGO_LANGUAGES = new Set(['javascript', 'typescript', 'python', 'c', 'lua', 'sqlite']);
+
+function normalizeDailyAlgoFunctionArgs(raw: unknown): DailyAlgoFunctionArg[] {
+  if (!Array.isArray(raw)) return [];
+
+  const parsed = raw
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') return null;
+      const candidate = entry as { name?: unknown; type?: unknown };
+      const name = typeof candidate.name === 'string' ? candidate.name.trim() : '';
+      const type = typeof candidate.type === 'string' ? candidate.type.trim() : '';
+      if (!name) return null;
+      return {
+        name,
+        type: type || 'unknown',
+      };
+    })
+    .filter((entry): entry is DailyAlgoFunctionArg => Boolean(entry));
+
+  return parsed;
+}
+
+function normalizeDailyAlgoUnitTests(raw: unknown, expectedArgCount: number): DailyAlgoUnitTest[] {
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .map((entry, index) => {
+      if (!entry || typeof entry !== 'object') return null;
+      const candidate = entry as { name?: unknown; args?: unknown; expected?: unknown };
+      const args = Array.isArray(candidate.args) ? candidate.args : null;
+      if (!args || args.length !== expectedArgCount) return null;
+      const name = typeof candidate.name === 'string' && candidate.name.trim()
+        ? candidate.name.trim()
+        : `Test ${index + 1}`;
+
+      return {
+        name,
+        args,
+        expected: candidate.expected,
+      };
+    })
+    .filter((entry): entry is DailyAlgoUnitTest => Boolean(entry));
+}
+
+function normalizeDailyAlgoAllowedLanguages(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+
+  const normalized = raw
+    .map((entry) => (typeof entry === 'string' ? entry.trim().toLowerCase() : ''))
+    .filter((entry) => SUPPORTED_DAILY_ALGO_LANGUAGES.has(entry));
+
+  return [...new Set(normalized)];
+}
+
+function validateDailyAlgoProblemPayload(payload: DailyAlgoProblemPayload): {
+  ok: boolean;
+  error?: string;
+  normalized?: {
+    title: string;
+    description: string;
+    solution: string;
+    difficulty: string;
+    language: string;
+    functionName: string;
+    functionArgs: DailyAlgoFunctionArg[];
+    unitTests: DailyAlgoUnitTest[];
+    allowedLanguages: string[];
+  };
+} {
+  const title = typeof payload.title === 'string' ? payload.title.trim() : '';
+  const description = typeof payload.description === 'string' ? payload.description.trim() : '';
+  const difficulty = typeof payload.difficulty === 'string' ? payload.difficulty.trim().toLowerCase() : 'moyen';
+  const language = typeof payload.language === 'string' && payload.language.trim() ? payload.language.trim().toLowerCase() : 'fr';
+  const functionName = typeof payload.functionName === 'string' ? payload.functionName.trim() : '';
+  const solution = typeof payload.solution === 'string' ? payload.solution.trim() : '';
+
+  if (!title || !description) {
+    return { ok: false, error: 'Titre et description obligatoires.' };
+  }
+
+  if (!['facile', 'moyen', 'difficile'].includes(difficulty)) {
+    return { ok: false, error: 'Difficulté invalide.' };
+  }
+
+  if (!functionName || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(functionName)) {
+    return { ok: false, error: 'Nom de fonction invalide (lettres/chiffres/underscore, sans espace).' };
+  }
+
+  const functionArgs = normalizeDailyAlgoFunctionArgs(payload.functionArgs);
+
+  const duplicatedArgName = functionArgs.find(
+    (arg, index) => functionArgs.findIndex((candidate) => candidate.name.toLowerCase() === arg.name.toLowerCase()) !== index,
+  );
+  if (duplicatedArgName) {
+    return { ok: false, error: `Argument dupliqué: ${duplicatedArgName.name}` };
+  }
+
+  const allowedLanguages = normalizeDailyAlgoAllowedLanguages(payload.allowedLanguages);
+  if (allowedLanguages.length === 0) {
+    return { ok: false, error: 'Sélectionne au moins un langage autorisé.' };
+  }
+
+  const unitTests = normalizeDailyAlgoUnitTests(payload.unitTests, functionArgs.length);
+  if (unitTests.length === 0) {
+    return { ok: false, error: 'Ajoute au moins un test unitaire valide avec le bon nombre d’arguments.' };
+  }
+
+  return {
+    ok: true,
+    normalized: {
+      title,
+      description,
+      solution,
+      difficulty,
+      language,
+      functionName,
+      functionArgs,
+      unitTests,
+      allowedLanguages,
+    },
+  };
 }
 
 type DashboardState = {
@@ -3095,6 +3242,10 @@ export const startDashboardApi = (client: Client) => {
                     description: true,
                     difficulty: true,
                     language: true,
+                    functionName: true,
+                    functionArgs: true,
+                    unitTests: true,
+                    allowedLanguages: true,
                   },
                 },
                 submissions: {
@@ -3139,7 +3290,7 @@ export const startDashboardApi = (client: Client) => {
                 authorId: submission.authorId,
                 authorName: submission.authorName,
                 solution: submission.solution,
-                language: run.problem.language,
+                language: null,
                 status: submission.status,
                 submittedAt: submission.submittedAt.toISOString(),
                 speedRank: submission.speedRank,
@@ -3170,6 +3321,10 @@ export const startDashboardApi = (client: Client) => {
                   description: run.problem.description,
                   difficulty: run.problem.difficulty,
                   language: run.problem.language,
+                  functionName: run.problem.functionName,
+                  functionArgs: Array.isArray(run.problem.functionArgs) ? run.problem.functionArgs : [],
+                  unitTests: Array.isArray(run.problem.unitTests) ? run.problem.unitTests : [],
+                  allowedLanguages: Array.isArray(run.problem.allowedLanguages) ? run.problem.allowedLanguages : ['javascript'],
                 },
                 createdAt: run.createdAt.toISOString(),
               },
@@ -3363,19 +3518,25 @@ export const startDashboardApi = (client: Client) => {
           }
 
           if (parts.length === 5 && parts[4] === 'daily-algo-problems' && req.method === 'POST') {
-            const body = await readJsonBody<{ title: string; description: string; solution: string; difficulty: string; language: string }>(req);
-            if (!body || !body.title || !body.description || !body.solution) {
-              json(res, 400, { error: 'Payload invalide : champs manquants' });
+            const body = await readJsonBody<DailyAlgoProblemPayload>(req);
+            const validation = validateDailyAlgoProblemPayload(body ?? {});
+            if (!validation.ok || !validation.normalized) {
+              json(res, 400, { error: validation.error ?? 'Payload invalide.' });
               return;
             }
 
+            const normalized = validation.normalized;
             const problem = await prisma.dailyAlgoProblem.create({
               data: {
-                title: body.title,
-                description: body.description,
-                solution: body.solution,
-                difficulty: body.difficulty || 'moyen',
-                language: body.language || 'fr',
+                title: normalized.title,
+                description: normalized.description,
+                solution: normalized.solution || '',
+                difficulty: normalized.difficulty,
+                language: normalized.language,
+                functionName: normalized.functionName,
+                functionArgs: normalized.functionArgs as Prisma.InputJsonValue,
+                unitTests: normalized.unitTests as Prisma.InputJsonValue,
+                allowedLanguages: normalized.allowedLanguages,
               }
             });
 
@@ -3389,7 +3550,75 @@ export const startDashboardApi = (client: Client) => {
               channelId: null
             });
 
+            broadcastDashboardStateChange(guildId, 'daily_algo_problem_created');
             json(res, 201, problem);
+            return;
+          }
+
+          if (parts.length === 6 && parts[4] === 'daily-algo-problems' && req.method === 'PATCH') {
+            const problemId = parts[5];
+            const body = await readJsonBody<DailyAlgoProblemPayload>(req);
+            const validation = validateDailyAlgoProblemPayload(body ?? {});
+            if (!validation.ok || !validation.normalized) {
+              json(res, 400, { error: validation.error ?? 'Payload invalide.' });
+              return;
+            }
+
+            const normalized = validation.normalized;
+            const existing = await prisma.dailyAlgoProblem.findUnique({
+              where: { id: problemId },
+              select: { id: true, title: true },
+            });
+
+            if (!existing) {
+              json(res, 404, { error: 'Exercice introuvable.' });
+              return;
+            }
+
+            const updated = await prisma.dailyAlgoProblem.update({
+              where: { id: problemId },
+              data: {
+                title: normalized.title,
+                description: normalized.description,
+                solution: normalized.solution || '',
+                difficulty: normalized.difficulty,
+                language: normalized.language,
+                functionName: normalized.functionName,
+                functionArgs: normalized.functionArgs as Prisma.InputJsonValue,
+                unitTests: normalized.unitTests as Prisma.InputJsonValue,
+                allowedLanguages: normalized.allowedLanguages,
+              },
+            });
+
+            const todayRun = await prisma.dailyAlgoRun.findFirst({
+              where: {
+                guildId,
+                problemId: problemId,
+                dateKey: getLocalDateKey(),
+                challengeMessageId: { not: null },
+              },
+              select: { id: true },
+            });
+
+            let discordMessageUpdated = false;
+            if (todayRun?.id) {
+              discordMessageUpdated = await refreshDailyAlgoChallengeMessageForRun(client, todayRun.id).catch(() => false);
+            }
+
+            await pushAudit(guildId, {
+              user: auditUser,
+              action: 'Modification Exercice',
+              context: getGuildName(client, guildId),
+              module: 'Daily Algo',
+              eventType: 'Manuel',
+              details: discordMessageUpdated
+                ? `Exercice modifié : ${updated.title} (message Discord du Daily Algo du jour mis à jour).`
+                : `Exercice modifié : ${updated.title}.`,
+              channelId: null
+            });
+
+            broadcastDashboardStateChange(guildId, 'daily_algo_problem_updated');
+            json(res, 200, { ...updated, discordMessageUpdated });
             return;
           }
 

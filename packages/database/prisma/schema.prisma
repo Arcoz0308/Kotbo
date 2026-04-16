@@ -347,8 +347,13 @@ model DailyAlgoProblem {
   solution    String
   difficulty  String   @default("moyen") // facile, moyen, difficile
   language    String   @default("fr")
+  functionName String?
+  functionArgs Json?
+  unitTests Json?
+  allowedLanguages String[] @default(["javascript"])
   usedAt      DateTime?
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   runs DailyAlgoRun[]
 
