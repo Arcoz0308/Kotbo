@@ -292,6 +292,22 @@
     resetTerminal();
   }
 
+  function formatExecutionDuration(durationMs: number): string {
+    if (!Number.isFinite(durationMs) || durationMs < 0) return 'n/a';
+    if (durationMs < 1000) {
+      return `${durationMs.toFixed(durationMs < 10 ? 2 : 1)} ms`;
+    }
+
+    const seconds = durationMs / 1000;
+    if (seconds < 60) {
+      return `${seconds.toFixed(seconds < 10 ? 2 : 1)} s`;
+    }
+
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds - minutes * 60;
+    return `${minutes} min ${remainingSeconds.toFixed(1)} s`;
+  }
+
   function updateRuntimeHint(nextLanguage: IdeLanguage) {
     if (nextLanguage === 'c') {
       runtimeHint = 'C/C++ execute dans le navigateur via JSCPP local (aucun serveur de compilation).';
@@ -489,6 +505,7 @@
 
     isRunning = true;
     writeTerminal('info', `Execution ${executionLanguage.toUpperCase()}...`);
+    const startedAt = performance.now();
 
     try {
       if (executionLanguage === 'javascript') {
@@ -504,6 +521,8 @@
       const message = error instanceof Error ? error.message : String(error);
       writeTerminal('error', message);
     } finally {
+      const elapsedMs = performance.now() - startedAt;
+      writeTerminal('info', `Temps d'execution: ${formatExecutionDuration(elapsedMs)}`);
       isRunning = false;
     }
   }
