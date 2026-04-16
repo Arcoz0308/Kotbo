@@ -55,7 +55,6 @@
   let dailyAlgoSubmissionStatusFilter = $state<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
   let ideFocusedSubmissionId = $state<string | null>(null);
   let ideModalOpen = $state(false);
-  let integratedIdeEditorHeight = $state('62vh');
   let scoreDraftBySubmissionId = $state<Record<string, {
     correctness: number;
     comments: number;
@@ -211,20 +210,11 @@
     ensureSubmissionDraft(submission);
     ideFocusedSubmissionId = submission.id;
     ideModalOpen = true;
-    computeIntegratedIdeEditorHeight();
   }
 
   function closeIntegratedIde() {
     ideModalOpen = false;
     ideFocusedSubmissionId = null;
-  }
-
-  function computeIntegratedIdeEditorHeight() {
-    if (typeof window === 'undefined') return;
-    const ratio = window.innerWidth >= 1360 ? 0.4 : window.innerWidth >= 960 ? 0.38 : 0.34;
-    const available = Math.floor(window.innerHeight * ratio);
-    const bounded = Math.max(260, Math.min(430, available));
-    integratedIdeEditorHeight = `${bounded}px`;
   }
 
   function updateSubmissionScore(
@@ -402,14 +392,6 @@
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  });
-
-  $effect(() => {
-    if (!ideModalOpen || typeof window === 'undefined') return;
-    const onResize = () => computeIntegratedIdeEditorHeight();
-    onResize();
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
   });
 
   function historyDateLabel(dateKey?: string | null) {
@@ -1499,14 +1481,16 @@
             <span class="dot">•</span>
             <span>Total: {focusedSubmission.totalPoints ?? '—'} pts</span>
           </div>
-          <DailyAlgoMiniIDE
-            initialCode={focusedSubmission.solution}
-            initialLanguage={ideLanguageForSubmission(focusedSubmission)}
-            languagePersistenceKey={`submission:${focusedSubmission.id}`}
-            height={integratedIdeEditorHeight}
-            showPopoutButton={false}
-            fileLabel={focusedSubmission.authorName?.replace(/\s+/g, '-').toLowerCase() || 'solution'}
-          />
+          <div class="dailyalgo-ide-host">
+            <DailyAlgoMiniIDE
+              initialCode={focusedSubmission.solution}
+              initialLanguage={ideLanguageForSubmission(focusedSubmission)}
+              languagePersistenceKey={`submission:${focusedSubmission.id}`}
+              height="100%"
+              showPopoutButton={false}
+              fileLabel={focusedSubmission.authorName?.replace(/\s+/g, '-').toLowerCase() || 'solution'}
+            />
+          </div>
           {#if focusedSubmission.status !== 'PENDING' && focusedSubmission.reviewFeedback}
             <div class="rounded-xl border border-outline-variant/25 bg-surface-container-low p-3 space-y-1">
               <p class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Feedback staff</p>
@@ -1906,10 +1890,21 @@
 
   .dailyalgo-ide-editor-pane {
     min-height: 0;
-    overflow: auto;
     display: flex;
     flex-direction: column;
     gap: 0.65rem;
+  }
+
+  .dailyalgo-ide-host {
+    min-height: 0;
+    flex: 1;
+    display: flex;
+  }
+
+  .dailyalgo-ide-host :global(.ide-root) {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
   }
 
   .dailyalgo-ide-context-strip {

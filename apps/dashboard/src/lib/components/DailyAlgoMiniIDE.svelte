@@ -1,17 +1,15 @@
 <script lang="ts">
-  import { createEventDispatcher, onDestroy, onMount, tick } from 'svelte';
+  import { createEventDispatcher, onDestroy, onMount } from 'svelte';
+  import * as monaco from 'monaco-editor';
+  import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
+  import jsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker';
+  import cssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker';
+  import htmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker';
+  import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker';
+  import { Terminal } from '@xterm/xterm';
+  import { FitAddon } from '@xterm/addon-fit';
+  import '@xterm/xterm/css/xterm.css';
   import { detectIdeLanguageFromCode, normalizeIdeLanguage, type IdeLanguage } from '../dailyAlgoIde';
-
-  type ConsoleKind = 'info' | 'stdout' | 'stderr' | 'error' | 'result';
-  type ConsoleEntry = { id: number; kind: ConsoleKind; text: string; time: string };
-
-  type CodeMirrorEditor = {
-    getValue: () => string;
-    setValue: (value: string) => void;
-    setOption: (name: string, value: unknown) => void;
-    on: (event: string, listener: () => void) => void;
-    toTextArea: () => void;
-  };
 
   type JSCPPGlobal = {
     run: (code: string, input?: string, config?: { stdio?: { write?: (chunk: string) => void } }) => unknown;
@@ -23,40 +21,28 @@
     setStderr?: (cfg: { batched: (text: string) => void }) => void;
   };
 
-  type CodeMirrorGlobal = {
-    fromTextArea: (
-      textarea: HTMLTextAreaElement,
-      options: {
-        lineNumbers?: boolean;
-        mode?: string;
-        theme?: string;
-        indentUnit?: number;
-        tabSize?: number;
-        lineWrapping?: boolean;
-      },
-    ) => CodeMirrorEditor;
-  };
-
   declare global {
     interface Window {
-      CodeMirror?: CodeMirrorGlobal;
       JSCPP?: JSCPPGlobal;
       loadPyodide?: (opts: { indexURL: string }) => Promise<PyodideInstance>;
       __kotboPyodidePromise?: Promise<PyodideInstance>;
+      MonacoEnvironment?: {
+        getWorker?: (_moduleId: string, label: string) => Worker;
+      };
     }
   }
 
-  const CODEMIRROR_CSS = [
-    'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css',
-    'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css',
-  ];
-
-  const CODEMIRROR_JS = [
-    'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js',
-  ];
+  if (typeof window !== 'undefined' && !window.MonacoEnvironment?.getWorker) {
+    window.MonacoEnvironment = {
+      getWorker(_moduleId: string, label: string) {
+        if (label === 'json') return new jsonWorker();
+        if (label === 'css' || label === 'scss' || label === 'less') return new cssWorker();
+        if (label === 'html' || label === 'handlebars' || label === 'razor') return new htmlWorker();
+        if (label === 'typescript' || label === 'javascript') return new tsWorker();
+        return new editorWorker();
+      },
+    };
+  }
 
   const PYODIDE_SCRIPT = 'https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.js';
   const PYODIDE_INDEX_URL = 'https://cdn.jsdelivr.net/pyodide/v0.27.7/full/';
@@ -66,36 +52,6 @@
   ];
 
   const assetPromises = new Map<string, Promise<void>>();
-
-  function ensureStylesheet(url: string): Promise<void> {
-    if (typeof document === 'undefined') return Promise.resolve();
-    const cacheKey = `css:${url}`;
-    const cached = assetPromises.get(cacheKey);
-    if (cached) return cached;
-
-    const existing = document.querySelector(`link[data-kotbo-asset="${url}"]`) as HTMLLinkElement | null;
-    if (existing?.dataset.loaded === 'true') {
-      const ready = Promise.resolve();
-      assetPromises.set(cacheKey, ready);
-      return ready;
-    }
-
-    const promise = new Promise<void>((resolve, reject) => {
-      const link = existing ?? document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = url;
-      link.dataset.kotboAsset = url;
-      link.onload = () => {
-        link.dataset.loaded = 'true';
-        resolve();
-      };
-      link.onerror = () => reject(new Error(`Impossible de charger ${url}`));
-      if (!existing) document.head.appendChild(link);
-    });
-
-    assetPromises.set(cacheKey, promise);
-    return promise;
-  }
 
   function ensureScript(url: string): Promise<void> {
     if (typeof document === 'undefined') return Promise.resolve();
@@ -125,18 +81,6 @@
 
     assetPromises.set(cacheKey, promise);
     return promise;
-  }
-
-  async function ensureCodeMirror(): Promise<void> {
-    for (const cssUrl of CODEMIRROR_CSS) {
-      await ensureStylesheet(cssUrl);
-    }
-    for (const scriptUrl of CODEMIRROR_JS) {
-      await ensureScript(scriptUrl);
-    }
-    if (!window.CodeMirror) {
-      throw new Error('CodeMirror est indisponible.');
-    }
   }
 
   async function ensureJSCPP(): Promise<JSCPPGlobal> {
@@ -174,12 +118,6 @@
     return window.__kotboPyodidePromise;
   }
 
-  function modeForLanguage(nextLanguage: IdeLanguage): string {
-    if (nextLanguage === 'python') return 'python';
-    if (nextLanguage === 'c') return 'text/x-csrc';
-    return 'javascript';
-  }
-
   function nowLabel(): string {
     return new Date().toLocaleTimeString('fr-FR', { hour12: false });
   }
@@ -195,6 +133,24 @@
     } catch {
       return String(value);
     }
+  }
+
+  function normalizedLanguage(languageInput: string | undefined, sourceCode: string): IdeLanguage {
+    const normalized = normalizeIdeLanguage(languageInput);
+    if (languageInput && languageInput.trim()) return normalized;
+    return detectIdeLanguageFromCode(sourceCode);
+  }
+
+  function monacoLanguage(languageInput: IdeLanguage): string {
+    if (languageInput === 'python') return 'python';
+    if (languageInput === 'c') return 'cpp';
+    return 'javascript';
+  }
+
+  function extensionForLanguage(languageInput: IdeLanguage): string {
+    if (languageInput === 'python') return 'py';
+    if (languageInput === 'c') return 'c';
+    return 'js';
   }
 
   function hasCMainFunction(source: string): boolean {
@@ -236,12 +192,6 @@
     ].join('\n');
   }
 
-  function normalizedLanguage(languageInput: string | undefined, sourceCode: string): IdeLanguage {
-    const normalized = normalizeIdeLanguage(languageInput);
-    if (languageInput && languageInput.trim()) return normalized;
-    return detectIdeLanguageFromCode(sourceCode);
-  }
-
   function heightValueToCss(heightInput: number | string): string {
     if (typeof heightInput === 'number') return `${heightInput}px`;
     const trimmed = heightInput.trim();
@@ -252,7 +202,7 @@
   let {
     initialCode = '',
     initialLanguage = 'javascript',
-    height = 520,
+    height = 560,
     showPopoutButton = false,
     popoutLabel = 'Ouvrir dans une fenetre',
     fileLabel = 'solution',
@@ -275,13 +225,24 @@
   let isRunning = $state(false);
   let bootError = $state('');
   let runtimeHint = $state('');
-  let consoleLines = $state<ConsoleEntry[]>([]);
+  let terminalLineCount = $state(0);
 
-  let nextConsoleId = 0;
-  let textareaRef: HTMLTextAreaElement | null = null;
-  let consoleRef: HTMLDivElement | null = null;
-  let editor: CodeMirrorEditor | null = null;
-  let destroyed = false;
+  let activeSideView = $state<'explorer' | 'execution'>('explorer');
+  let sidePanelOpen = $state(true);
+
+  let cursorLine = $state(1);
+  let cursorColumn = $state(1);
+  let lineCount = $state(1);
+
+  let editorContainer: HTMLDivElement | null = null;
+  let terminalContainer: HTMLDivElement | null = null;
+
+  let editor: monaco.editor.IStandaloneCodeEditor | null = null;
+  let terminal: Terminal | null = null;
+  let fitAddon: FitAddon | null = null;
+  let editorDisposables: monaco.IDisposable[] = [];
+  let terminalResizeObserver: ResizeObserver | null = null;
+  let removeWindowResizeListener: (() => void) | null = null;
 
   function storageLanguageKey(): string | null {
     if (!languagePersistenceKey || !languagePersistenceKey.trim()) return null;
@@ -304,24 +265,81 @@
     window.localStorage.setItem(key, nextLanguage);
   }
 
-  async function appendConsole(kind: ConsoleKind, text: string) {
-    const normalizedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    const chunks = normalizedText.split('\n');
-    const timestamp = nowLabel();
+  function terminalColor(kind: 'info' | 'stdout' | 'stderr' | 'error' | 'result'): string {
+    if (kind === 'info') return '\\x1b[38;5;110m';
+    if (kind === 'stderr') return '\\x1b[33m';
+    if (kind === 'error') return '\\x1b[31m';
+    if (kind === 'result') return '\\x1b[32m';
+    return '\\x1b[0m';
+  }
 
-    for (const chunk of chunks) {
-      const line = chunk.length > 0 ? chunk : ' ';
-      consoleLines = [...consoleLines, { id: nextConsoleId++, kind, text: line, time: timestamp }].slice(-500);
-    }
+  function writeTerminal(kind: 'info' | 'stdout' | 'stderr' | 'error' | 'result', text: string) {
+    if (!terminal) return;
+    const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const lines = normalized.split('\n');
+    const color = terminalColor(kind);
 
-    await tick();
-    if (consoleRef) {
-      consoleRef.scrollTop = consoleRef.scrollHeight;
+    for (const line of lines) {
+      const printed = line.length > 0 ? line : ' ';
+      terminal.writeln(`${color}[${nowLabel()}] ${printed}\\x1b[0m`);
+      terminalLineCount += 1;
     }
   }
 
-  function clearConsole() {
-    consoleLines = [];
+  function resetTerminal() {
+    if (!terminal) return;
+    terminal.clear();
+    terminalLineCount = 0;
+    writeTerminal('info', 'Kotbo IDE ready.');
+    writeTerminal('info', 'Execution client-side: JS Worker, Python Pyodide, C JSCPP.');
+  }
+
+  function clearTerminal() {
+    resetTerminal();
+  }
+
+  function updateRuntimeHint(nextLanguage: IdeLanguage) {
+    if (nextLanguage === 'c') {
+      runtimeHint = 'C/C++ execute dans le navigateur via JSCPP local (aucun serveur de compilation).';
+      return;
+    }
+    if (nextLanguage === 'python') {
+      runtimeHint = 'Python execute dans le navigateur via Pyodide (WASM).';
+      return;
+    }
+    runtimeHint = 'JavaScript execute dans un Web Worker isole.';
+  }
+
+  function updateModelLanguage(nextLanguage: IdeLanguage) {
+    const model = editor?.getModel();
+    if (!model) return;
+    monaco.editor.setModelLanguage(model, monacoLanguage(nextLanguage));
+  }
+
+  function updateEditorStats() {
+    const model = editor?.getModel();
+    lineCount = model?.getLineCount() ?? 1;
+    const pos = editor?.getPosition();
+    cursorLine = pos?.lineNumber ?? 1;
+    cursorColumn = pos?.column ?? 1;
+  }
+
+  function onLanguageChange(nextLanguage: IdeLanguage, persist = true) {
+    language = nextLanguage;
+    updateRuntimeHint(nextLanguage);
+    updateModelLanguage(nextLanguage);
+
+    if (persist) persistLanguage(nextLanguage);
+  }
+
+  function activateSideView(view: 'explorer' | 'execution') {
+    if (activeSideView === view && sidePanelOpen) {
+      sidePanelOpen = false;
+      return;
+    }
+
+    activeSideView = view;
+    sidePanelOpen = true;
   }
 
   async function runJavaScript(source: string): Promise<void> {
@@ -367,7 +385,7 @@
 
     await new Promise<void>((resolve) => {
       const timeout = window.setTimeout(() => {
-        appendConsole('error', 'Execution JavaScript interrompue (timeout 8s).');
+        writeTerminal('error', 'Execution JavaScript interrompue (timeout 8s).');
         worker.terminate();
         resolve();
       }, 8000);
@@ -383,24 +401,24 @@
         }
 
         if (kind === 'stdout') {
-          appendConsole('stdout', payload);
+          writeTerminal('stdout', payload);
           return;
         }
         if (kind === 'stderr') {
-          appendConsole('stderr', payload);
+          writeTerminal('stderr', payload);
           return;
         }
         if (kind === 'result') {
-          appendConsole('result', payload);
+          writeTerminal('result', payload);
           return;
         }
 
-        appendConsole('error', payload);
+        writeTerminal('error', payload);
       };
 
       worker.onerror = (error) => {
         clearTimeout(timeout);
-        appendConsole('error', error.message || 'Erreur JavaScript inconnue.');
+        writeTerminal('error', error.message || 'Erreur JavaScript inconnue.');
         worker.terminate();
         resolve();
       };
@@ -416,19 +434,19 @@
 
     pyodide.setStdout?.({
       batched: (text: string) => {
-        appendConsole('stdout', text);
+        writeTerminal('stdout', text);
       },
     });
 
     pyodide.setStderr?.({
       batched: (text: string) => {
-        appendConsole('stderr', text);
+        writeTerminal('stderr', text);
       },
     });
 
     const result = await pyodide.runPythonAsync(source);
     if (typeof result !== 'undefined') {
-      await appendConsole('result', stringifyChunk(result));
+      writeTerminal('result', stringifyChunk(result));
     }
   }
 
@@ -447,11 +465,11 @@
       });
 
       if (outputBuffer.trim().length > 0) {
-        appendConsole('stdout', outputBuffer.trimEnd());
+        writeTerminal('stdout', outputBuffer.trimEnd());
       }
 
       if (typeof result !== 'undefined' && String(result).trim().length > 0) {
-        appendConsole('result', stringifyChunk(result));
+        writeTerminal('result', stringifyChunk(result));
       }
     };
 
@@ -465,11 +483,10 @@
         throw error;
       }
 
-      await appendConsole('info', 'Aucune fonction main detectee: tentative automatique avec un wrapper int main().');
+      writeTerminal('info', 'Aucune fonction main detectee: tentative automatique avec un wrapper int main().');
 
       try {
-        const wrapped = wrapCSnippetWithMain(source);
-        execute(wrapped);
+        execute(wrapCSnippetWithMain(source));
       } catch {
         throw error;
       }
@@ -482,12 +499,12 @@
     code = source;
 
     if (!source.trim()) {
-      await appendConsole('info', 'Aucun code a executer.');
+      writeTerminal('info', 'Aucun code a executer.');
       return;
     }
 
     isRunning = true;
-    await appendConsole('info', `Execution ${executionLanguage.toUpperCase()}...`);
+    writeTerminal('info', `Execution ${executionLanguage.toUpperCase()}...`);
 
     try {
       if (executionLanguage === 'javascript') {
@@ -498,31 +515,12 @@
         await runC(source, stdin);
       }
 
-      await appendConsole('info', 'Execution terminee.');
+      writeTerminal('info', 'Execution terminee.');
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      await appendConsole('error', message);
+      writeTerminal('error', message);
     } finally {
       isRunning = false;
-    }
-  }
-
-  function onLanguageChange(nextLanguage: IdeLanguage, persist = true) {
-    language = nextLanguage;
-    if (editor) {
-      editor.setOption('mode', modeForLanguage(nextLanguage));
-    }
-
-    if (persist) {
-      persistLanguage(nextLanguage);
-    }
-
-    if (nextLanguage === 'c') {
-      runtimeHint = 'C/C++ execute dans le navigateur via JSCPP local (aucun serveur de compilation).';
-    } else if (nextLanguage === 'python') {
-      runtimeHint = 'Python execute dans le navigateur via Pyodide (WASM).';
-    } else {
-      runtimeHint = 'JavaScript execute dans un Web Worker isole.';
     }
   }
 
@@ -533,52 +531,161 @@
     });
   }
 
-  function onFallbackInput(event: Event) {
-    if (editor) return;
-    code = (event.currentTarget as HTMLTextAreaElement).value;
+  function fitTerminal() {
+    fitAddon?.fit();
   }
 
-  onMount(async () => {
-    code = initialCode;
-    language = readPersistedLanguage(normalizedLanguage(initialLanguage, initialCode));
-    onLanguageChange(language, false);
-
+  onMount(() => {
     try {
-      await ensureCodeMirror();
-
-      if (destroyed || !textareaRef || !window.CodeMirror) return;
-
-      editor = window.CodeMirror.fromTextArea(textareaRef, {
-        lineNumbers: true,
-        mode: modeForLanguage(language),
-        theme: 'material-darker',
-        indentUnit: 2,
-        tabSize: 2,
-        lineWrapping: true,
+      monaco.editor.defineTheme('kotbo-vscode', {
+        base: 'vs-dark',
+        inherit: true,
+        rules: [
+          { token: 'comment', foreground: '6A9955' },
+          { token: 'keyword', foreground: 'C586C0' },
+          { token: 'string', foreground: 'CE9178' },
+          { token: 'number', foreground: 'B5CEA8' },
+          { token: 'type.identifier', foreground: '4EC9B0' },
+        ],
+        colors: {
+          'editor.background': '#1e1e1e',
+          'editorGutter.background': '#1e1e1e',
+          'editorLineNumber.foreground': '#858585',
+          'editorLineNumber.activeForeground': '#c6c6c6',
+          'editorCursor.foreground': '#d4d4d4',
+          'editor.selectionBackground': '#264f78',
+          'editor.inactiveSelectionBackground': '#3a3d41',
+          'editor.lineHighlightBackground': '#2a2d2e',
+        },
       });
 
-      editor.setValue(code);
-      editor.on('change', () => {
-        code = editor?.getValue() ?? '';
-      });
+      code = initialCode;
+      language = readPersistedLanguage(normalizedLanguage(initialLanguage, initialCode));
+      updateRuntimeHint(language);
+
+      if (editorContainer) {
+        editor = monaco.editor.create(editorContainer, {
+          value: code,
+          language: monacoLanguage(language),
+          theme: 'kotbo-vscode',
+          automaticLayout: true,
+          minimap: { enabled: true, renderCharacters: false, maxColumn: 100 },
+          fontFamily: "'JetBrains Mono', 'Fira Code', 'SFMono-Regular', Menlo, Monaco, Consolas, monospace",
+          fontLigatures: true,
+          fontSize: 13,
+          lineHeight: 20,
+          scrollBeyondLastLine: false,
+          renderLineHighlight: 'line',
+          roundedSelection: false,
+          tabSize: 2,
+          insertSpaces: true,
+          guides: {
+            indentation: true,
+            bracketPairs: true,
+          },
+        });
+
+        editorDisposables.push(
+          editor.onDidChangeModelContent(() => {
+            code = editor?.getValue() ?? '';
+            updateEditorStats();
+          }),
+          editor.onDidChangeCursorPosition(() => {
+            updateEditorStats();
+          }),
+        );
+
+        updateEditorStats();
+      }
+
+      if (terminalContainer) {
+        terminal = new Terminal({
+          convertEol: true,
+          cursorBlink: true,
+          fontSize: 12,
+          fontFamily: "'JetBrains Mono', 'Fira Code', 'SFMono-Regular', Menlo, Monaco, Consolas, monospace",
+          theme: {
+            background: '#181818',
+            foreground: '#d4d4d4',
+            cursor: '#d4d4d4',
+            selectionBackground: '#264f78',
+            black: '#000000',
+            red: '#cd3131',
+            green: '#0dbc79',
+            yellow: '#e5e510',
+            blue: '#2472c8',
+            magenta: '#bc3fbc',
+            cyan: '#11a8cd',
+            white: '#e5e5e5',
+            brightBlack: '#666666',
+            brightRed: '#f14c4c',
+            brightGreen: '#23d18b',
+            brightYellow: '#f5f543',
+            brightBlue: '#3b8eea',
+            brightMagenta: '#d670d6',
+            brightCyan: '#29b8db',
+            brightWhite: '#ffffff',
+          },
+          scrollback: 3000,
+        });
+
+        fitAddon = new FitAddon();
+        terminal.loadAddon(fitAddon);
+        terminal.open(terminalContainer);
+
+        fitTerminal();
+
+        const onWindowResize = () => fitTerminal();
+        window.addEventListener('resize', onWindowResize);
+        removeWindowResizeListener = () => window.removeEventListener('resize', onWindowResize);
+
+        if (typeof ResizeObserver !== 'undefined') {
+          terminalResizeObserver = new ResizeObserver(() => fitTerminal());
+          terminalResizeObserver.observe(terminalContainer);
+        }
+
+        resetTerminal();
+      }
+
+      onLanguageChange(language, false);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      bootError = `Mode degrade (textarea): ${message}`;
+      bootError = `Impossible d'initialiser Monaco/xterm: ${message}`;
     }
   });
 
   onDestroy(() => {
-    destroyed = true;
-    editor?.toTextArea();
+    for (const disposable of editorDisposables) {
+      disposable.dispose();
+    }
+    editorDisposables = [];
+
+    removeWindowResizeListener?.();
+    removeWindowResizeListener = null;
+
+    terminalResizeObserver?.disconnect();
+    terminalResizeObserver = null;
+
+    editor?.dispose();
+    terminal?.dispose();
+    fitAddon?.dispose();
+
     editor = null;
+    terminal = null;
+    fitAddon = null;
   });
 </script>
 
-<div class="daily-ide-shell rounded-xl overflow-hidden">
-  <div class="ide-toolbar">
-    <div class="ide-file">{fileLabel}.{language === 'python' ? 'py' : language === 'c' ? 'c' : 'js'}</div>
+<div class="ide-root" style={`height: ${heightValueToCss(height)};`}>
+  <div class="ide-titlebar">
+    <div class="titlebar-left">
+      <button type="button" class="titlebar-compact-btn" onclick={() => (sidePanelOpen = !sidePanelOpen)}>
+        {sidePanelOpen ? 'Hide Panel' : 'Show Panel'}
+      </button>
+      <p class="titlebar-path">daily-algo / {fileLabel}.{extensionForLanguage(language)}</p>
+    </div>
 
-    <div class="ide-controls">
+    <div class="titlebar-actions">
       <label for="daily-ide-language" class="ide-label">Langage</label>
       <select
         id="daily-ide-language"
@@ -591,7 +698,7 @@
         <option value="c">C / C++</option>
       </select>
 
-      <button type="button" class="ide-btn ghost" onclick={clearConsole}>Clear</button>
+      <button type="button" class="ide-btn ghost" onclick={clearTerminal}>Clear</button>
       <button type="button" class="ide-btn run" onclick={runCode} disabled={isRunning}>
         {isRunning ? 'Execution...' : 'Run'}
       </button>
@@ -602,104 +709,153 @@
     </div>
   </div>
 
-  {#if runtimeHint}
-    <div class="ide-hint">{runtimeHint}</div>
-  {/if}
-
   {#if bootError}
-    <div class="ide-error">{bootError}</div>
+    <div class="ide-banner error">{bootError}</div>
+  {:else if runtimeHint}
+    <div class="ide-banner hint">{runtimeHint}</div>
   {/if}
 
-  <div class="daily-ide-editor" style={`height: ${heightValueToCss(height)};`}>
-    <textarea
-      bind:this={textareaRef}
-      class="fallback-editor"
-      value={code}
-      oninput={onFallbackInput}
-      spellcheck="false"
-    ></textarea>
-  </div>
+  <div class="ide-shell">
+    <nav class="activitybar" aria-label="IDE activity bar">
+      <button
+        type="button"
+        class={`activity-item ${activeSideView === 'explorer' && sidePanelOpen ? 'active' : ''}`}
+        onclick={() => activateSideView('explorer')}
+      >
+        Explorer
+      </button>
+      <button
+        type="button"
+        class={`activity-item ${activeSideView === 'execution' && sidePanelOpen ? 'active' : ''}`}
+        onclick={() => activateSideView('execution')}
+      >
+        Execution
+      </button>
+    </nav>
 
-  {#if language === 'c'}
-    <div class="stdin-zone">
-      <label for="daily-ide-stdin" class="ide-label">STDIN (optionnel)</label>
-      <textarea
-        id="daily-ide-stdin"
-        rows="2"
-        bind:value={stdin}
-        placeholder="Entree standard pour scanf / cin"
-        class="stdin-input"
-      ></textarea>
-    </div>
-  {/if}
+    {#if sidePanelOpen}
+      <aside class="sidebar">
+        {#if activeSideView === 'explorer'}
+          <div class="sidebar-head">Explorer</div>
+          <div class="tree-root">
+            <p class="tree-folder">DAILY-ALGO</p>
+            <p class="tree-file active">{fileLabel}.{extensionForLanguage(language)}</p>
+            <p class="tree-meta">Langage: {language.toUpperCase()}</p>
+            <p class="tree-meta">Lignes: {lineCount}</p>
+          </div>
+        {:else}
+          <div class="sidebar-head">Execution</div>
+          <div class="exec-meta-grid">
+            <div>
+              <p class="meta-label">Runtime</p>
+              <p class="meta-value">{language === 'javascript' ? 'JS Worker' : language === 'python' ? 'Pyodide' : 'JSCPP'}</p>
+            </div>
+            <div>
+              <p class="meta-label">Terminal</p>
+              <p class="meta-value">{terminalLineCount} lignes</p>
+            </div>
+          </div>
 
-  <div class="daily-ide-console">
-    <div class="console-head">
-      <p class="console-title">Console</p>
-      <p class="console-count">{consoleLines.length} ligne(s)</p>
-    </div>
+          {#if language === 'c'}
+            <div class="stdin-zone">
+              <label for="daily-ide-stdin" class="ide-label">STDIN (optionnel)</label>
+              <textarea
+                id="daily-ide-stdin"
+                rows="4"
+                bind:value={stdin}
+                placeholder="Entree standard pour scanf / cin"
+                class="stdin-input"
+              ></textarea>
+            </div>
+          {/if}
+        {/if}
+      </aside>
+    {/if}
 
-    <div class="console-scroll" bind:this={consoleRef}>
-      {#if consoleLines.length === 0}
-        <p class="console-empty">Aucune sortie pour le moment.</p>
-      {:else}
-        {#each consoleLines as line}
-          <p class={`console-line ${line.kind}`}><span class="time">[{line.time}]</span> {line.text}</p>
-        {/each}
-      {/if}
-    </div>
+    <section class="workbench">
+      <div class="editor-tabs">
+        <div class="editor-tab active">{fileLabel}.{extensionForLanguage(language)}</div>
+      </div>
+
+      <div class="editor-stage">
+        <div bind:this={editorContainer} class="monaco-host"></div>
+      </div>
+
+      <div class="panel-stage">
+        <div class="panel-head">
+          <div class="panel-tabs">
+            <span class="panel-tab active">Terminal</span>
+          </div>
+          <button type="button" class="panel-clear" onclick={clearTerminal}>Clear</button>
+        </div>
+        <div bind:this={terminalContainer} class="terminal-host"></div>
+      </div>
+
+      <footer class="statusbar">
+        <span>{language.toUpperCase()}</span>
+        <span>Ln {cursorLine}, Col {cursorColumn}</span>
+        <span>{lineCount} lignes</span>
+      </footer>
+    </section>
   </div>
 </div>
 
 <style>
-  .daily-ide-shell {
-    border: 1px solid var(--outline-variant);
-    background: var(--surface-container-lowest);
-    color: var(--on-surface);
+  .ide-root {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid color-mix(in srgb, var(--outline-variant, #343434) 80%, #000 20%);
+    border-radius: 0.9rem;
+    overflow: hidden;
+    background: #1e1e1e;
+    color: #d4d4d4;
+    min-height: 420px;
   }
 
-  .daily-ide-shell :global(.CodeMirror) {
-    height: 100%;
-    font-size: 13px;
-    line-height: 1.6;
-    font-family: 'Fira Code', 'JetBrains Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
-  }
-
-  .daily-ide-shell :global(.CodeMirror-gutters) {
-    border-right: 1px solid rgba(100, 116, 139, 0.35);
-    background: #0b1220;
-  }
-
-  .ide-toolbar {
+  .ide-titlebar {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.8rem;
-    padding: 0.7rem 0.8rem;
-    border-bottom: 1px solid var(--outline-variant);
-    background: linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--surface-container-high) 88%, transparent),
-      color-mix(in srgb, var(--surface-container-low) 94%, transparent)
-    );
+    padding: 0.5rem 0.65rem;
+    border-bottom: 1px solid #2d2d30;
+    background: #3c3c3c;
   }
 
-  .ide-file {
-    font-size: 11px;
+  .titlebar-left {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+  }
+
+  .titlebar-compact-btn {
+    border: 1px solid #4d4d50;
+    background: #2a2a2c;
+    color: #d4d4d4;
+    border-radius: 0.4rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 10px;
     font-weight: 800;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--on-surface-variant);
-    border: 1px solid var(--outline);
-    border-radius: 0.55rem;
-    padding: 0.28rem 0.55rem;
-    background: var(--surface-container-low);
   }
 
-  .ide-controls {
+  .titlebar-path {
+    margin: 0;
+    font-size: 11px;
+    color: #d4d4d4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: min(40vw, 360px);
+    font-weight: 700;
+  }
+
+  .titlebar-actions {
     display: flex;
     align-items: center;
-    gap: 0.45rem;
+    gap: 0.4rem;
     flex-wrap: wrap;
     justify-content: flex-end;
   }
@@ -707,28 +863,28 @@
   .ide-label {
     font-size: 10px;
     font-weight: 800;
-    letter-spacing: 0.13em;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
-    color: var(--on-surface-variant);
+    color: #9ca3af;
   }
 
   .ide-select {
-    border: 1px solid var(--outline);
-    border-radius: 0.55rem;
-    background: var(--surface-container-low);
-    color: var(--on-surface);
-    padding: 0.3rem 0.5rem;
+    border: 1px solid #4f4f52;
+    border-radius: 0.4rem;
+    background: #1f1f1f;
+    color: #d4d4d4;
+    padding: 0.32rem 0.46rem;
     font-size: 11px;
     font-weight: 700;
   }
 
   .ide-btn {
-    border-radius: 0.55rem;
-    padding: 0.38rem 0.65rem;
+    border-radius: 0.4rem;
+    padding: 0.35rem 0.6rem;
     font-size: 10px;
     font-weight: 900;
     text-transform: uppercase;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.11em;
     border: 1px solid transparent;
     cursor: pointer;
   }
@@ -739,161 +895,351 @@
   }
 
   .ide-btn.run {
-    background: var(--color-primary);
-    color: var(--color-on-primary);
-    border-color: color-mix(in srgb, var(--color-primary) 75%, black 25%);
+    background: #0e639c;
+    color: #ffffff;
+    border-color: #1177bb;
   }
 
   .ide-btn.ghost {
-    background: var(--surface-container-low);
-    color: var(--on-surface-variant);
-    border-color: var(--outline);
+    background: #2d2d2d;
+    color: #d4d4d4;
+    border-color: #454545;
   }
 
-  .ide-hint {
-    border-bottom: 1px solid var(--outline-variant);
-    color: var(--color-primary);
-    background: color-mix(in srgb, var(--surface-container) 70%, transparent);
+  .ide-banner {
+    padding: 0.35rem 0.65rem;
+    border-bottom: 1px solid #2d2d30;
     font-size: 11px;
     font-weight: 700;
-    padding: 0.45rem 0.8rem;
   }
 
-  .ide-error {
-    border-bottom: 1px solid color-mix(in srgb, var(--color-error) 45%, transparent);
-    color: var(--color-error);
-    background: color-mix(in srgb, var(--color-error) 12%, transparent);
+  .ide-banner.hint {
+    background: #202737;
+    color: #9cdcfe;
+  }
+
+  .ide-banner.error {
+    background: rgba(127, 29, 29, 0.45);
+    color: #fecdd3;
+  }
+
+  .ide-shell {
+    min-height: 0;
+    flex: 1;
+    display: grid;
+    grid-template-columns: 46px minmax(180px, 240px) minmax(0, 1fr);
+    background: #1e1e1e;
+  }
+
+  .activitybar {
+    border-right: 1px solid #2d2d30;
+    background: #333333;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.2rem;
+    padding: 0.25rem;
+  }
+
+  .activity-item {
+    border: 1px solid transparent;
+    background: transparent;
+    color: #9ca3af;
+    border-radius: 0.45rem;
+    padding: 0.38rem 0.15rem;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    cursor: pointer;
+  }
+
+  .activity-item.active {
+    color: #ffffff;
+    background: #0e639c;
+    border-color: #1177bb;
+  }
+
+  .sidebar {
+    border-right: 1px solid #2d2d30;
+    background: #252526;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .sidebar-head {
+    border-bottom: 1px solid #2d2d30;
+    padding: 0.55rem 0.65rem;
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: #9ca3af;
+  }
+
+  .tree-root {
+    padding: 0.65rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.38rem;
+  }
+
+  .tree-folder,
+  .tree-file,
+  .tree-meta {
+    margin: 0;
+    font-size: 11px;
+  }
+
+  .tree-folder {
+    color: #c8c8c8;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+  }
+
+  .tree-file {
+    color: #d4d4d4;
+    font-weight: 700;
+    padding: 0.3rem 0.45rem;
+    border-radius: 0.45rem;
+    border: 1px solid #3a3a3f;
+    background: #1e1e1e;
+  }
+
+  .tree-file.active {
+    border-color: #0e639c;
+    background: color-mix(in srgb, #0e639c 18%, transparent);
+  }
+
+  .tree-meta {
+    color: #9ca3af;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+  }
+
+  .exec-meta-grid {
+    padding: 0.7rem;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+  }
+
+  .meta-label {
+    margin: 0;
+    color: #9ca3af;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 800;
+  }
+
+  .meta-value {
+    margin: 0.25rem 0 0;
+    color: #d4d4d4;
     font-size: 11px;
     font-weight: 700;
-    padding: 0.45rem 0.8rem;
-  }
-
-  .daily-ide-editor {
-    border-bottom: 1px solid var(--outline-variant);
-  }
-
-  .fallback-editor {
-    width: 100%;
-    height: 100%;
-    border: none;
-    resize: none;
-    padding: 0.85rem;
-    background: #0f172a;
-    color: #e2e8f0;
-    font-size: 13px;
-    line-height: 1.6;
-    font-family: 'Fira Code', 'JetBrains Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
-  }
-
-  .fallback-editor:focus {
-    outline: none;
   }
 
   .stdin-zone {
-    border-bottom: 1px solid var(--outline-variant);
-    background: color-mix(in srgb, var(--surface-container-low) 75%, transparent);
-    padding: 0.7rem 0.8rem;
+    padding: 0.7rem;
+    border-top: 1px solid #2d2d30;
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
   }
 
   .stdin-input {
-    border: 1px solid var(--outline);
-    border-radius: 0.7rem;
-    background: var(--surface-container-low);
-    color: var(--on-surface);
-    padding: 0.5rem 0.7rem;
+    border: 1px solid #454545;
+    border-radius: 0.55rem;
+    background: #1f1f1f;
+    color: #d4d4d4;
+    padding: 0.5rem 0.65rem;
     font-size: 12px;
     line-height: 1.5;
-    font-family: 'Fira Code', 'JetBrains Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+    font-family: 'JetBrains Mono', 'Fira Code', 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+    resize: vertical;
   }
 
-  .daily-ide-console {
-    min-height: 210px;
-    border-top: 1px solid var(--outline-variant);
-    background: color-mix(in srgb, var(--surface-container-low) 85%, transparent);
-    padding: 0.65rem 0.8rem 0.8rem;
+  .workbench {
+    min-width: 0;
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) minmax(170px, 30%) auto;
+    background: #1e1e1e;
   }
 
-  .console-head {
+  .editor-tabs {
+    border-bottom: 1px solid #2d2d30;
+    background: #2d2d2d;
+    padding: 0.28rem 0.35rem 0;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-    margin-bottom: 0.35rem;
+    align-items: flex-end;
+    gap: 0.3rem;
   }
 
-  .console-title {
-    margin: 0;
-    font-size: 10px;
-    font-weight: 900;
-    text-transform: uppercase;
-    letter-spacing: 0.16em;
-    color: var(--on-surface-variant);
-  }
-
-  .console-count {
-    margin: 0;
-    font-size: 10px;
-    color: var(--on-surface-variant);
+  .editor-tab {
+    border: 1px solid #3d3d40;
+    border-bottom-color: #2d2d30;
+    border-radius: 0.5rem 0.5rem 0 0;
+    background: #252526;
+    color: #b4b4b4;
+    padding: 0.32rem 0.6rem;
+    font-size: 11px;
     font-weight: 700;
   }
 
-  .console-scroll {
-    max-height: 260px;
-    overflow: auto;
+  .editor-tab.active {
+    background: #1e1e1e;
+    color: #ffffff;
+    border-bottom-color: #1e1e1e;
+  }
+
+  .editor-stage {
+    min-height: 0;
+    border-bottom: 1px solid #2d2d30;
+  }
+
+  .monaco-host {
+    width: 100%;
+    height: 100%;
+  }
+
+  .panel-stage {
+    min-height: 0;
+    background: #181818;
     display: flex;
     flex-direction: column;
-    gap: 0.22rem;
   }
 
-  .console-empty {
-    margin: 0;
-    font-size: 11px;
-    color: var(--on-surface-variant);
-    font-family: 'Fira Code', 'JetBrains Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  .panel-head {
+    border-bottom: 1px solid #2d2d30;
+    background: #252526;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.45rem;
+    padding: 0.33rem 0.48rem;
   }
 
-  .console-line {
-    margin: 0;
-    white-space: pre-wrap;
-    word-break: break-word;
-    font-size: 11px;
-    line-height: 1.45;
-    font-family: 'Fira Code', 'JetBrains Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  .panel-tabs {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
   }
 
-  .console-line .time {
-    color: var(--on-surface-variant);
-    margin-right: 0.35rem;
+  .panel-tab {
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: #9ca3af;
+    padding: 0.24rem 0.42rem;
+    border-radius: 0.35rem;
   }
 
-  .console-line.info {
-    color: var(--on-surface-variant);
+  .panel-tab.active {
+    background: #1e1e1e;
+    color: #ffffff;
   }
 
-  .console-line.stdout {
-    color: var(--on-surface);
+  .panel-clear {
+    border: 1px solid #454545;
+    background: #2d2d2d;
+    color: #d4d4d4;
+    border-radius: 0.35rem;
+    padding: 0.2rem 0.4rem;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    font-weight: 800;
   }
 
-  .console-line.stderr {
-    color: #d97706;
+  .terminal-host {
+    flex: 1;
+    min-height: 0;
+    padding: 0.28rem;
   }
 
-  .console-line.error {
-    color: var(--color-error);
+  .terminal-host :global(.xterm-viewport) {
+    scrollbar-width: thin;
   }
 
-  .console-line.result {
-    color: #047857;
+  .statusbar {
+    border-top: 1px solid #1177bb;
+    background: #0e639c;
+    color: #ffffff;
+    padding: 0.22rem 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.6rem;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
   }
 
-  :global(.dark) .console-line.stderr {
-    color: #fcd34d;
+  @media (max-width: 1100px) {
+    .ide-shell {
+      grid-template-columns: 42px minmax(160px, 210px) minmax(0, 1fr);
+    }
   }
 
-  :global(.dark) .console-line.result {
-    color: #6ee7b7;
+  @media (max-width: 920px) {
+    .ide-root {
+      min-height: 380px;
+    }
+
+    .ide-titlebar {
+      padding: 0.45rem 0.5rem;
+    }
+
+    .titlebar-path {
+      max-width: 38vw;
+      font-size: 10px;
+    }
+
+    .ide-shell {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto;
+      position: relative;
+    }
+
+    .activitybar {
+      border-right: none;
+      border-bottom: 1px solid #2d2d30;
+      flex-direction: row;
+      padding: 0.3rem;
+      overflow-x: auto;
+    }
+
+    .activity-item {
+      writing-mode: initial;
+      transform: none;
+      padding: 0.4rem 0.55rem;
+      font-size: 10px;
+    }
+
+    .sidebar {
+      border-right: none;
+      border-bottom: 1px solid #2d2d30;
+      max-height: 34vh;
+    }
+
+    .workbench {
+      grid-template-rows: auto minmax(260px, 1fr) minmax(140px, 34%) auto;
+    }
+
+    .statusbar {
+      justify-content: space-between;
+      gap: 0.35rem;
+      padding: 0.24rem 0.35rem;
+      font-size: 9px;
+    }
   }
 </style>
