@@ -1447,7 +1447,9 @@
           <span class="dot amber"></span>
           <span class="dot green"></span>
         </div>
-        <p class="dailyalgo-ide-menubar-title">Kotbo IDE Workspace</p>
+        <p id="dailyalgo-ide-title" class="dailyalgo-ide-menubar-title">
+          Review: {focusedSubmission.authorName}
+        </p>
         <button
           type="button"
           onclick={closeIntegratedIde}
@@ -1458,28 +1460,18 @@
         </button>
       </div>
 
-      <div class="dailyalgo-ide-modal-header">
-        <div>
-          <p class="dailyalgo-ide-modal-eyebrow">Daily Algo</p>
-          <h3 id="dailyalgo-ide-title">Session de review: {focusedSubmission.authorName}</h3>
-          <div class="dailyalgo-ide-modal-meta">
-            <span class="dailyalgo-ide-chip">ID: {focusedSubmission.id}</span>
-            <span class="dailyalgo-ide-chip {submissionStatusMeta(focusedSubmission.status).classes}">
-              {submissionStatusMeta(focusedSubmission.status).label}
-            </span>
-            <span class="dailyalgo-ide-chip">Soumis: {formatDate(focusedSubmission.submittedAt)}</span>
-          </div>
-        </div>
-      </div>
-
       <div class="dailyalgo-ide-modal-grid">
         <section class="dailyalgo-ide-editor-pane">
           <div class="dailyalgo-ide-context-strip">
             <span>Challenge: {dailyAlgoToday?.run?.problem?.title ?? 'Daily Algo'}</span>
             <span class="dot">•</span>
+            <span>{submissionStatusMeta(focusedSubmission.status).label}</span>
+            <span class="dot">•</span>
             <span>Score: {focusedSubmission.scoreFinal ?? '—'}/5</span>
             <span class="dot">•</span>
             <span>Total: {focusedSubmission.totalPoints ?? '—'} pts</span>
+            <span class="dot">•</span>
+            <span>Soumis: {formatDate(focusedSubmission.submittedAt)}</span>
           </div>
           <div class="dailyalgo-ide-host">
             <DailyAlgoMiniIDE
@@ -1491,12 +1483,6 @@
               fileLabel={focusedSubmission.authorName?.replace(/\s+/g, '-').toLowerCase() || 'solution'}
             />
           </div>
-          {#if focusedSubmission.status !== 'PENDING' && focusedSubmission.reviewFeedback}
-            <div class="rounded-xl border border-outline-variant/25 bg-surface-container-low p-3 space-y-1">
-              <p class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Feedback staff</p>
-              <p class="text-xs text-on-surface whitespace-pre-wrap">{focusedSubmission.reviewFeedback}</p>
-            </div>
-          {/if}
         </section>
 
         <aside class="dailyalgo-ide-score-panel">
@@ -1829,52 +1815,6 @@
     background: color-mix(in srgb, var(--color-error) 12%, transparent);
   }
 
-  .dailyalgo-ide-modal-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 0.75rem;
-    padding: 0.85rem 1rem 0.75rem;
-    border-bottom: 1px solid var(--outline-variant);
-    background: color-mix(in srgb, var(--surface-container-low) 78%, transparent);
-  }
-
-  .dailyalgo-ide-modal-eyebrow {
-    margin: 0;
-    font-size: 10px;
-    font-weight: 900;
-    text-transform: uppercase;
-    letter-spacing: 0.18em;
-    color: var(--color-primary);
-  }
-
-  .dailyalgo-ide-modal-header h3 {
-    margin: 0.25rem 0 0;
-    font-size: clamp(1rem, 1.45vw, 1.25rem);
-    font-weight: 900;
-    letter-spacing: -0.02em;
-    color: var(--on-surface);
-  }
-
-  .dailyalgo-ide-modal-meta {
-    margin-top: 0.5rem;
-    display: flex;
-    gap: 0.45rem;
-    flex-wrap: wrap;
-  }
-
-  .dailyalgo-ide-chip {
-    border-radius: 0.55rem;
-    border: 1px solid var(--outline-variant);
-    background: var(--surface-container-low);
-    color: var(--on-surface-variant);
-    padding: 0.25rem 0.5rem;
-    font-size: 10px;
-    font-weight: 900;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-  }
-
   .dailyalgo-ide-modal-grid {
     flex: 1;
     min-height: 0;
@@ -1959,10 +1899,6 @@
   }
 
   @media (max-width: 920px) {
-    .dailyalgo-ide-modal-header {
-      padding: 0.7rem 0.7rem 0.65rem;
-    }
-
     .dailyalgo-ide-modal-grid {
       grid-template-columns: minmax(0, 1fr);
       padding: 0.55rem;
@@ -1971,11 +1907,6 @@
 
     .dailyalgo-ide-score-panel {
       max-height: 42vh;
-    }
-
-    .dailyalgo-ide-chip {
-      font-size: 9px;
-      letter-spacing: 0.04em;
     }
   }
 </style>
