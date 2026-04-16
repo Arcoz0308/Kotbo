@@ -375,6 +375,39 @@ export async function updateDailyAlgoProblem(problemId, problem, guildId = authS
   });
 }
 
+export async function fetchMyApiKeys(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/api-keys', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch API Keys):'
+  });
+}
+
+export async function createOrResetDailyAlgoApiKey(name = 'Kotbo Daily Algo', guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/api-keys', {
+    method: 'POST',
+    payload: {
+      name,
+      permissions: [
+        'daily_algo:read_exercise',
+        'daily_algo:create_exercise',
+        'daily_algo:update_exercise',
+        'daily_algo:manage_exercises'
+      ]
+    },
+    guildId,
+    errorContext: 'API Error (Create or Reset API Key):'
+  });
+}
+
+export async function deleteMyApiKey(keyId, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/api-keys/${keyId}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Delete API Key):'
+  });
+}
+
 export async function fetchTodayDailyAlgoSubmissions(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/daily-algo-submissions/today', {
     method: 'GET',

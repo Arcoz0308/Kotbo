@@ -753,7 +753,7 @@ const json = (res: ServerResponse, statusCode: number, data: unknown) => {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept, X-API-Key',
     'Access-Control-Max-Age': '86400'
   });
   res.end(JSON.stringify(data));
@@ -764,6 +764,60 @@ type AuthClaims = {
   username?: string;
   avatar?: string;
   discordToken?: string;
+};
+
+const DAILY_ALGO_API_READ_PERMISSIONS = new Set([
+  'daily_algo:read_exercise',
+  'daily_algo:create_exercise',
+  'daily_algo:update_exercise',
+  'daily_algo:manage_exercises',
+]);
+
+const DAILY_ALGO_API_WRITE_PERMISSIONS = new Set([
+  'daily_algo:create_exercise',
+  'daily_algo:update_exercise',
+  'daily_algo:manage_exercises',
+]);
+
+const getHeaderValue = (value: string | string[] | undefined): string | null => {
+  if (!value) return null;
+  if (Array.isArray(value)) {
+    if (value.length === 0) return null;
+    return value[0]?.trim() || null;
+  }
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+};
+
+const extractApiKey = (req: IncomingMessage): string | null => {
+  const directHeader = getHeaderValue(req.headers['x-api-key']);
+  if (directHeader) return directHeader;
+
+  const authHeader = getHeaderValue(req.headers.authorization);
+  if (!authHeader) return null;
+
+  if (authHeader.startsWith('ApiKey ')) {
+    return authHeader.slice('ApiKey '.length).trim() || null;
+  }
+
+  if (authHeader.startsWith('Bearer ')) {
+    const bearerValue = authHeader.slice('Bearer '.length).trim();
+    if (bearerValue.startsWith('kb_')) {
+      return bearerValue;
+    }
+  }
+
+  return null;
+};
+
+const hasDailyAlgoApiPermission = (permissions: string[] | null | undefined, mode: 'read' | 'write') => {
+  if (!Array.isArray(permissions) || permissions.length === 0) return false;
+  const granted = new Set(permissions.map((entry) => (typeof entry === 'string' ? entry.trim() : '')).filter(Boolean));
+  const required = mode === 'read' ? DAILY_ALGO_API_READ_PERMISSIONS : DAILY_ALGO_API_WRITE_PERMISSIONS;
+  for (const permission of required) {
+    if (granted.has(permission)) return true;
+  }
+  return false;
 };
 
 const verifyAuth = (req: IncomingMessage): AuthClaims | null => {
@@ -1887,6 +1941,155 @@ export const startDashboardApi = (client: Client) => {
             }
             return;
           }
+        }
+      }
+
+      if (parts.length >= 4 && parts[0] === 'api' && parts[1] === 'public' && parts[2] === 'guilds') {
+        const guildId = parts[3];
+        const rawApiKey = extractApiKey(req);
+        if (!rawApiKey) {
+          json(res, 401, { error: 'Clé API manquante. Utilise le header X-API-Key.' });
+          return;
+        }
+
+        const keyHash = hashAPIKey(rawApiKey);
+        const apiKey = await verifyAPIKey(keyHash, guildId);
+        if (!apiKey) {
+          json(res, 401, { error: 'Clé API invalide ou inactive.' });
+          return;
+        }
+
+        const auditUser = `API ${apiKey.displayKey}`;
+
+        if (parts.length === 5 && parts[4] === 'daily-algo-problems' && req.method === 'GET') {
+          if (!hasDailyAlgoApiPermission(apiKey.permissions, 'read')) {
+            json(res, 403, { error: 'Permission manquante: daily_algo:read_exercise' });
+            return;
+          }
+
+          const problems = await prisma.dailyAlgoProblem.findMany({
+            orderBy: [
+              { usedAt: { sort: 'asc', nulls: 'first' } },
+              { createdAt: 'desc' },
+            ]
+          });
+          json(res, 200, problems);
+          return;
+        }
+
+        if (parts.length === 5 && parts[4] === 'daily-algo-problems' && req.method === 'POST') {
+          if (!hasDailyAlgoApiPermission(apiKey.permissions, 'write')) {
+            json(res, 403, { error: 'Permission manquante: daily_algo:create_exercise' });
+            return;
+          }
+
+          const body = await readJsonBody<DailyAlgoProblemPayload>(req);
+          const validation = validateDailyAlgoProblemPayload(body ?? {});
+          if (!validation.ok || !validation.normalized) {
+            json(res, 400, { error: validation.error ?? 'Payload invalide.' });
+            return;
+          }
+
+          const normalized = validation.normalized;
+          const problem = await prisma.dailyAlgoProblem.create({
+            data: {
+              title: normalized.title,
+              description: normalized.description,
+              solution: normalized.solution || '',
+              difficulty: normalized.difficulty,
+              language: normalized.language,
+              functionName: normalized.functionName,
+              functionArgs: normalized.functionArgs as Prisma.InputJsonValue,
+              unitTests: normalized.unitTests as Prisma.InputJsonValue,
+              allowedLanguages: normalized.allowedLanguages,
+            }
+          });
+
+          await pushAudit(guildId, {
+            user: auditUser,
+            action: 'Ajout Exercice (API)',
+            context: getGuildName(client, guildId),
+            module: 'Daily Algo',
+            eventType: 'API',
+            details: `Ajout d'un nouvel exercice via API : ${problem.title}`,
+            channelId: null
+          });
+
+          broadcastDashboardStateChange(guildId, 'daily_algo_problem_created');
+          json(res, 201, problem);
+          return;
+        }
+
+        if (parts.length === 6 && parts[4] === 'daily-algo-problems' && req.method === 'PATCH') {
+          if (!hasDailyAlgoApiPermission(apiKey.permissions, 'write')) {
+            json(res, 403, { error: 'Permission manquante: daily_algo:update_exercise' });
+            return;
+          }
+
+          const problemId = parts[5];
+          const body = await readJsonBody<DailyAlgoProblemPayload>(req);
+          const validation = validateDailyAlgoProblemPayload(body ?? {});
+          if (!validation.ok || !validation.normalized) {
+            json(res, 400, { error: validation.error ?? 'Payload invalide.' });
+            return;
+          }
+
+          const normalized = validation.normalized;
+          const existing = await prisma.dailyAlgoProblem.findUnique({
+            where: { id: problemId },
+            select: { id: true, title: true },
+          });
+
+          if (!existing) {
+            json(res, 404, { error: 'Exercice introuvable.' });
+            return;
+          }
+
+          const updated = await prisma.dailyAlgoProblem.update({
+            where: { id: problemId },
+            data: {
+              title: normalized.title,
+              description: normalized.description,
+              solution: normalized.solution || '',
+              difficulty: normalized.difficulty,
+              language: normalized.language,
+              functionName: normalized.functionName,
+              functionArgs: normalized.functionArgs as Prisma.InputJsonValue,
+              unitTests: normalized.unitTests as Prisma.InputJsonValue,
+              allowedLanguages: normalized.allowedLanguages,
+            },
+          });
+
+          const todayRun = await prisma.dailyAlgoRun.findFirst({
+            where: {
+              guildId,
+              problemId: problemId,
+              dateKey: getLocalDateKey(),
+              challengeMessageId: { not: null },
+            },
+            select: { id: true },
+          });
+
+          let discordMessageUpdated = false;
+          if (todayRun?.id) {
+            discordMessageUpdated = await refreshDailyAlgoChallengeMessageForRun(client, todayRun.id).catch(() => false);
+          }
+
+          await pushAudit(guildId, {
+            user: auditUser,
+            action: 'Modification Exercice (API)',
+            context: getGuildName(client, guildId),
+            module: 'Daily Algo',
+            eventType: 'API',
+            details: discordMessageUpdated
+              ? `Exercice modifié via API : ${updated.title} (message Discord du jour mis à jour).`
+              : `Exercice modifié via API : ${updated.title}.`,
+            channelId: null
+          });
+
+          broadcastDashboardStateChange(guildId, 'daily_algo_problem_updated');
+          json(res, 200, { ...updated, discordMessageUpdated });
+          return;
         }
       }
 
@@ -3682,7 +3885,7 @@ export const startDashboardApi = (client: Client) => {
 
           try {
             const staffMember = await getStaffMember('any', userId); // Get profile without guildId restriction
-            const apiKeys = staffMember ? await getAPIKeys(staffMember.guildId) : [];
+            const apiKeys = staffMember ? await getAPIKeys(staffMember.guildId, userId) : [];
             const blacklist = staffMember ? await getActiveBlacklist(staffMember.guildId, userId) : null;
 
             json(res, 200, {
@@ -3797,7 +4000,11 @@ export const startDashboardApi = (client: Client) => {
               });
             } catch (err) {
               logger.error('StaffAPI', 'Error creating API key:', err);
-              json(res, 500, { error: 'Erreur lors de la création de la clé API' });
+              json(res, 400, {
+                error: err instanceof Error && err.message
+                  ? err.message
+                  : 'Erreur lors de la création de la clé API'
+              });
             }
             return;
           }
@@ -3805,7 +4012,7 @@ export const startDashboardApi = (client: Client) => {
           // GET /api/dashboard/guilds/:guildId/api-keys - List API keys
           if (req.method === 'GET') {
             try {
-              const keys = await getAPIKeys(guildId);
+              const keys = await getAPIKeys(guildId, user.userId);
               json(res, 200, { keys });
             } catch (err) {
               logger.error('StaffAPI', 'Error getting API keys:', err);
@@ -3818,7 +4025,37 @@ export const startDashboardApi = (client: Client) => {
           if (parts[5] && req.method === 'DELETE') {
             const keyId = parts[5];
             try {
-              await deleteAPIKey(keyId);
+              const caller = await prisma.staffMember.findUnique({
+                where: {
+                  guildId_userId: {
+                    guildId,
+                    userId: user.userId,
+                  },
+                },
+                select: { id: true },
+              });
+
+              if (!caller) {
+                json(res, 403, { error: 'Membre staff introuvable pour cette action.' });
+                return;
+              }
+
+              const ownedKey = await prisma.aPIKey.findFirst({
+                where: {
+                  id: keyId,
+                  guildId,
+                  createdByUserId: caller.id,
+                  isActive: true,
+                },
+                select: { id: true, displayKey: true },
+              });
+
+              if (!ownedKey) {
+                json(res, 404, { error: 'Clé API introuvable (ou non possédée par votre compte).' });
+                return;
+              }
+
+              await deleteAPIKey(ownedKey.id);
 
               await pushAudit(guildId, {
                 user: user.username ?? `User${user.userId}`,
@@ -3826,7 +4063,7 @@ export const startDashboardApi = (client: Client) => {
                 context: getGuildName(client, guildId),
                 module: 'Staff Management',
                 eventType: 'Manuel',
-                details: `Clé API supprimée: ${keyId}`,
+                details: `Clé API supprimée: ${ownedKey.displayKey}`,
                 channelId: null
               });
 

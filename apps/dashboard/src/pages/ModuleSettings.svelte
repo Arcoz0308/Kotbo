@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import {
+    API_BASE_URL,
     deleteFeed,
     updateFeed,
     updateYouTubeSettings,
@@ -9,10 +10,14 @@
     fetchDailyAlgoProblems,
     createDailyAlgoProblem,
     updateDailyAlgoProblem,
+    fetchMyApiKeys,
+    createOrResetDailyAlgoApiKey,
+    deleteMyApiKey,
     fetchTodayDailyAlgoSubmissions,
     fetchDailyAlgoSubmissionHistory,
     reviewDailyAlgoSubmission,
   } from '../lib/api';
+  import { authStore } from '../lib/stores/auth.svelte';
   import { router } from 'tinro';
   import { getModuleMeta } from '../lib/moduleMeta';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
@@ -144,6 +149,20 @@
     }
   }
 
+  async function copyToClipboard(text: string, successMessage = 'Copié dans le presse-papiers.') {
+    if (!text.trim()) {
+      apiKeyAction.setError('Aucune valeur à copier.');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      apiKeyAction.setMessage(successMessage);
+    } catch (error) {
+      console.error(error);
+      apiKeyAction.setError('Impossible de copier automatiquement. Copiez manuellement.');
+    }
+  }
+
   let youtubeReferenceChannelId = $state('');
   let desiredModuleStatus = $state('inactive');
   let deleteFeedModalOpen = $state(false);
@@ -151,6 +170,7 @@
   let editingDailyAlgoProblemId = $state<string | null>(null);
   let pendingFeedDeletion = $state<{ id: string; name: string } | null>(null);
   const formAction = createAsyncActionState();
+  const apiKeyAction = createAsyncActionState();
 
   // Daily Algo state
   let dailyAlgoProblems = $state<any[]>([]);
@@ -159,6 +179,10 @@
   let isFetchingAlgoSubmissions = $state(false);
   let isFetchingAlgoHistory = $state(false);
   let dailyAlgoHistory = $state<any[]>([]);
+  let myApiKeys = $state<any[]>([]);
+  let dailyAlgoApiKeyName = $state('Kotbo Daily Algo');
+  let latestIssuedApiKey = $state('');
+  let isFetchingApiKeys = $state(false);
   let dailyAlgoSubmissionStatusFilter = $state<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
   let ideFocusedSubmissionId = $state<string | null>(null);
   let ideModalOpen = $state(false);
@@ -187,7 +211,7 @@
     if (moduleId === 'youtube') {
       youtubeReferenceChannelId = dashboardStore.state.youtubeReferenceChannelId || '';
     } else if (moduleId === 'dailyalgo') {
-      await Promise.all([loadDailyAlgoProblems(), loadTodayDailyAlgoSubmissions(), loadDailyAlgoHistory()]);
+      await Promise.all([loadDailyAlgoProblems(), loadTodayDailyAlgoSubmissions(), loadDailyAlgoHistory(), loadMyApiKeys()]);
     }
   });
 
@@ -226,6 +250,61 @@
     } finally {
       isFetchingAlgoHistory = false;
     }
+  }
+
+  async function loadMyApiKeys() {
+    isFetchingApiKeys = true;
+    try {
+      const payload = await fetchMyApiKeys();
+      myApiKeys = Array.isArray(payload?.keys) ? payload.keys : [];
+    } catch (err) {
+      console.error(err);
+      apiKeyAction.setError('Erreur lors du chargement de votre clé API.');
+    } finally {
+      isFetchingApiKeys = false;
+    }
+  }
+
+  async function createOrResetMyApiKey() {
+    if (!canManageSettings) {
+      apiKeyAction.setError('Seuls les administrateurs peuvent gérer cette clé API.');
+      return;
+    }
+
+    await apiKeyAction.run(
+      async () => {
+        const payload = await createOrResetDailyAlgoApiKey(dailyAlgoApiKeyName.trim() || 'Kotbo Daily Algo');
+        const fullKey = typeof payload?.fullKey === 'string' ? payload.fullKey.trim() : '';
+        latestIssuedApiKey = fullKey;
+        await loadMyApiKeys();
+        return Boolean(fullKey);
+      },
+      {
+        successMessage: 'Clé API créée/réinitialisée. Copiez-la maintenant (elle ne sera plus visible ensuite).',
+        failureMessage: 'Impossible de créer/réinitialiser la clé API.',
+      }
+    );
+  }
+
+  async function deleteCurrentApiKey(keyId: string) {
+    if (!canManageSettings) {
+      apiKeyAction.setError('Seuls les administrateurs peuvent gérer cette clé API.');
+      return;
+    }
+
+    await apiKeyAction.run(
+      async () => {
+        const ok = await deleteMyApiKey(keyId);
+        if (!ok) return false;
+        latestIssuedApiKey = '';
+        await loadMyApiKeys();
+        return true;
+      },
+      {
+        successMessage: 'Clé API désactivée.',
+        failureMessage: 'Impossible de désactiver la clé API.',
+      }
+    );
   }
 
   function resetDailyAlgoDraft() {
@@ -834,6 +913,32 @@
 
     return known;
   }
+
+  const selectedGuildId = $derived(authStore.selectedGuildId ?? '');
+  const publicApiBaseUrl = $derived.by(() => {
+    const fromEnv = typeof API_BASE_URL === 'string' ? API_BASE_URL.trim() : '';
+    if (fromEnv) return `${fromEnv}/api/public`;
+    if (typeof window !== 'undefined') return `${window.location.origin}/api/public`;
+    return '/api/public';
+  });
+  const dailyAlgoPublicApiProblemsUrl = $derived.by(() => {
+    if (!selectedGuildId) return '';
+    return `${publicApiBaseUrl}/guilds/${selectedGuildId}/daily-algo-problems`;
+  });
+  const currentApiKey = $derived(myApiKeys.length > 0 ? myApiKeys[0] : null);
+  const apiDocPayloadExample = $derived('{"title":"Somme","description":"Retourner a+b","difficulty":"facile","language":"fr","functionName":"solve","functionArgs":[{"name":"a","type":"number"},{"name":"b","type":"number"}],"unitTests":[{"name":"Cas 1","args":[1,2],"expected":3}],"allowedLanguages":["javascript","python"],"solution":""}');
+  const apiDocGetCurl = $derived.by(() => {
+    if (!dailyAlgoPublicApiProblemsUrl) return 'Sélectionnez une guilde pour générer les commandes.';
+    return `curl -H "X-API-Key: kb_..." "${dailyAlgoPublicApiProblemsUrl}"`;
+  });
+  const apiDocPostCurl = $derived.by(() => {
+    if (!dailyAlgoPublicApiProblemsUrl) return 'Sélectionnez une guilde pour générer les commandes.';
+    return `curl -X POST "${dailyAlgoPublicApiProblemsUrl}" \\\n  -H "Content-Type: application/json" \\\n  -H "X-API-Key: kb_..." \\\n  -d '${apiDocPayloadExample}'`;
+  });
+  const apiDocPatchCurl = $derived.by(() => {
+    if (!dailyAlgoPublicApiProblemsUrl) return 'Sélectionnez une guilde pour générer les commandes.';
+    return `curl -X PATCH "${dailyAlgoPublicApiProblemsUrl}/PROBLEM_ID" \\\n  -H "Content-Type: application/json" \\\n  -H "X-API-Key: kb_..." \\\n  -d '${apiDocPayloadExample}'`;
+  });
 
   const sortedDailyAlgoProblems = $derived.by(() => {
     return [...dailyAlgoProblems].sort((left, right) => {
@@ -1513,6 +1618,106 @@
             <div class="w-1.5 h-8 bg-emerald-500 rounded-full"></div>
             Exercices Algorithmiques
           </h3>
+
+          <div class="premium-card p-8 rounded-[2.5rem] space-y-6">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+              <div class="space-y-1">
+                <h4 class="text-lg font-black text-on-surface">Clé API externe (1 clé par compte)</h4>
+                <p class="text-xs text-on-surface-variant">
+                  Créez ou réinitialisez votre clé personnelle pour piloter les exercices via API.
+                </p>
+              </div>
+              <RefreshButton
+                onClick={loadMyApiKeys}
+                loading={isFetchingApiKeys}
+                label="Rafraîchir"
+                className="px-4 py-2 text-[10px] font-black uppercase tracking-wider rounded-xl bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/20 text-on-surface-variant"
+                iconClass="text-sm"
+              />
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div class="rounded-2xl border border-outline-variant/20 bg-surface-container-low p-4 space-y-4">
+                <label for="dailyalgo-api-key-name" class="text-[10px] font-black uppercase tracking-[0.16em] text-on-surface-variant/70">
+                  Nom de la clé
+                </label>
+                <input
+                  id="dailyalgo-api-key-name"
+                  type="text"
+                  bind:value={dailyAlgoApiKeyName}
+                  placeholder="Kotbo Daily Algo"
+                  class="w-full rounded-xl border border-outline-variant/30 bg-surface px-4 py-2 text-sm text-on-surface outline-none focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+                />
+
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-[0.12em] hover:bg-emerald-700 disabled:opacity-60"
+                    onclick={createOrResetMyApiKey}
+                    disabled={!canManageSettings || apiKeyAction.state.loading}
+                  >
+                    {currentApiKey ? 'Reset clé API' : 'Créer clé API'}
+                  </button>
+
+                  {#if currentApiKey}
+                    <button
+                      type="button"
+                      class="px-4 py-2 rounded-xl border border-red-500/30 bg-red-500/10 text-red-700 text-[10px] font-black uppercase tracking-[0.12em] hover:bg-red-500/20 disabled:opacity-60"
+                      onclick={() => deleteCurrentApiKey(currentApiKey.id)}
+                      disabled={!canManageSettings || apiKeyAction.state.loading}
+                    >
+                      Désactiver
+                    </button>
+                  {/if}
+                </div>
+
+                <InlineFeedback message={apiKeyAction.state.message} error={apiKeyAction.state.error} />
+
+                <div class="space-y-2 rounded-xl border border-outline-variant/20 bg-surface px-4 py-3">
+                  <p class="text-[10px] uppercase tracking-[0.16em] font-black text-on-surface-variant/70">Clé active</p>
+                  <p class="text-sm font-mono text-on-surface">{currentApiKey?.displayKey ?? 'Aucune clé active'}</p>
+                  {#if currentApiKey?.lastUsedAt}
+                    <p class="text-[11px] text-on-surface-variant">Dernière utilisation: {formatDate(currentApiKey.lastUsedAt)}</p>
+                  {/if}
+                </div>
+
+                {#if latestIssuedApiKey}
+                  <div class="space-y-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
+                    <p class="text-[10px] uppercase tracking-[0.16em] font-black text-emerald-700">Nouvelle clé (visible une seule fois)</p>
+                    <p class="text-sm font-mono text-emerald-800 break-all">{latestIssuedApiKey}</p>
+                    <button
+                      type="button"
+                      class="px-3 py-1.5 rounded-lg border border-emerald-600/30 bg-white text-emerald-700 text-[10px] font-black uppercase tracking-[0.12em] hover:bg-emerald-50"
+                      onclick={() => copyToClipboard(latestIssuedApiKey, 'Clé API copiée.')}
+                    >
+                      Copier la clé
+                    </button>
+                  </div>
+                {/if}
+              </div>
+
+              <div class="rounded-2xl border border-outline-variant/20 bg-surface-container-low p-4 space-y-4">
+                <div>
+                  <p class="text-[10px] uppercase tracking-[0.16em] font-black text-on-surface-variant/70">Mini doc API (guilde actuelle)</p>
+                  <p class="mt-1 text-xs text-on-surface-variant break-all">Guild ID: {selectedGuildId || 'Aucune guilde sélectionnée'}</p>
+                </div>
+
+                <div class="space-y-2">
+                  <p class="text-[10px] uppercase tracking-[0.16em] font-black text-on-surface-variant/70">Base URL</p>
+                  <div class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-xs font-mono break-all">
+                    {dailyAlgoPublicApiProblemsUrl || 'Sélectionnez une guilde pour voir l’URL.'}
+                  </div>
+                </div>
+
+                <div class="space-y-2">
+                  <p class="text-[10px] uppercase tracking-[0.16em] font-black text-on-surface-variant/70">Exemples cURL</p>
+                  <pre class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-[11px] font-mono overflow-auto">{apiDocGetCurl}</pre>
+                  <pre class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-[11px] font-mono overflow-auto">{apiDocPostCurl}</pre>
+                  <pre class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-[11px] font-mono overflow-auto">{apiDocPatchCurl}</pre>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <div class="premium-card p-8 rounded-[2.5rem] space-y-6">
             <div class="flex items-center justify-between gap-4">

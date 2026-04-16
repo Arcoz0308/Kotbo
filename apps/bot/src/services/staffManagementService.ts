@@ -340,21 +340,45 @@ export const createAPIKey = async (
     throw new Error('Créateur introuvable dans le staff');
   }
 
-  return prisma.aPIKey.create({
-    data: {
-      guildId,
-      createdByUserId: resolvedCreatorId,
-      keyHash,
-      displayKey,
-      name,
-      permissions,
-    },
-  });
+  const [, created] = await prisma.$transaction([
+    prisma.aPIKey.updateMany({
+      where: {
+        guildId,
+        createdByUserId: resolvedCreatorId,
+        isActive: true,
+      },
+      data: { isActive: false },
+    }),
+    prisma.aPIKey.create({
+      data: {
+        guildId,
+        createdByUserId: resolvedCreatorId,
+        keyHash,
+        displayKey,
+        name,
+        permissions,
+      },
+    }),
+  ]);
+
+  return created;
 };
 
-export const getAPIKeys = async (guildId: string) => {
+export const getAPIKeys = async (guildId: string, createdByUserId?: string) => {
+  let resolvedCreatorId: string | null = null;
+  if (createdByUserId) {
+    resolvedCreatorId = await resolveStaffMemberId(guildId, createdByUserId);
+    if (!resolvedCreatorId) {
+      return [];
+    }
+  }
+
   return prisma.aPIKey.findMany({
-    where: { guildId, isActive: true },
+    where: {
+      guildId,
+      isActive: true,
+      ...(resolvedCreatorId ? { createdByUserId: resolvedCreatorId } : {}),
+    },
     select: {
       id: true,
       displayKey: true,
