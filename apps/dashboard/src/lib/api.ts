@@ -102,7 +102,18 @@ async function dashboardRequest(path, {
     });
 
     if (!response.ok) {
-      const error = new Error(`Server error: ${response.status}`);
+      let message = `Server error: ${response.status}`;
+      try {
+        const data = await response.json();
+        if (data && typeof data.error === 'string' && data.error.trim()) {
+          message = data.error.trim();
+        } else if (data && typeof data.message === 'string' && data.message.trim()) {
+          message = data.message.trim();
+        }
+      } catch {
+        // ignore JSON parsing errors and keep fallback message
+      }
+      const error = new Error(message);
       error.status = response.status;
       throw error;
     }
@@ -347,7 +358,7 @@ export async function fetchDailyAlgoProblems(guildId = authStore.selectedGuildId
 }
 
 export async function createDailyAlgoProblem(problem, guildId = authStore.selectedGuildId) {
-  return dashboardMutation('/daily-algo-problems', {
+  return dashboardRequest('/daily-algo-problems', {
     method: 'POST',
     payload: problem,
     guildId,
@@ -356,7 +367,7 @@ export async function createDailyAlgoProblem(problem, guildId = authStore.select
 }
 
 export async function updateDailyAlgoProblem(problemId, problem, guildId = authStore.selectedGuildId) {
-  return dashboardMutation(`/daily-algo-problems/${problemId}`, {
+  return dashboardRequest(`/daily-algo-problems/${problemId}`, {
     method: 'PATCH',
     payload: problem,
     guildId,

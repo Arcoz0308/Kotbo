@@ -39,6 +39,7 @@
   const canManageSettings = $derived(!!dashboardStore.state.access?.canManageSettings);
   const canModerateContent = $derived(!!dashboardStore.state.access?.canModerateContent);
   const supportedDailyAlgoLanguages: IdeLanguage[] = ['javascript', 'typescript', 'python', 'c', 'lua', 'sqlite'];
+  const dailyAlgoLanguageSuggestions = ['javascript', 'typescript', 'python', 'c', 'lua', 'sqlite', 'rust', 'go', 'java', 'php', 'ruby', 'c#'];
 
   type DailyAlgoFunctionArg = {
     name: string;
@@ -50,6 +51,98 @@
     args: unknown[];
     expected: unknown;
   };
+
+  type DailyAlgoFunctionArgDraft = {
+    id: string;
+    name: string;
+    type: string;
+  };
+
+  type DailyAlgoUnitTestDraft = {
+    id: string;
+    name: string;
+    argValues: string[];
+    expectedValue: string;
+  };
+
+  function createDraftId(prefix: string): string {
+    return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  }
+
+  function serializeDraftValue(value: unknown): string {
+    if (typeof value === 'string') return JSON.stringify(value);
+    if (value === undefined) return 'null';
+    try {
+      const serialized = JSON.stringify(value);
+      return typeof serialized === 'string' ? serialized : 'null';
+    } catch {
+      return 'null';
+    }
+  }
+
+  function createFunctionArgDraft(name = 'input', type = 'string'): DailyAlgoFunctionArgDraft {
+    return {
+      id: createDraftId('arg'),
+      name,
+      type,
+    };
+  }
+
+  function createUnitTestDraft(argCount: number, name = 'Cas 1'): DailyAlgoUnitTestDraft {
+    return {
+      id: createDraftId('test'),
+      name,
+      argValues: Array.from({ length: argCount }, () => 'null'),
+      expectedValue: 'null',
+    };
+  }
+
+  function alignUnitTestsWithArgs(tests: DailyAlgoUnitTestDraft[], argCount: number): DailyAlgoUnitTestDraft[] {
+    return tests.map((test) => {
+      const nextArgs = [...test.argValues];
+      if (nextArgs.length > argCount) {
+        nextArgs.length = argCount;
+      }
+      while (nextArgs.length < argCount) {
+        nextArgs.push('null');
+      }
+      return {
+        ...test,
+        argValues: nextArgs,
+      };
+    });
+  }
+
+  function normalizeEditableLanguageList(raw: unknown): string[] {
+    if (!Array.isArray(raw)) return [];
+    const seen = new Set<string>();
+    const normalized: string[] = [];
+
+    for (const entry of raw) {
+      if (typeof entry !== 'string') continue;
+      const value = entry.trim();
+      if (!value) continue;
+      const key = value.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      normalized.push(value);
+    }
+
+    return normalized;
+  }
+
+  function parseDraftJsonValue(raw: string): { ok: true; value: unknown } | { ok: false; error: string } {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      return { ok: false, error: 'Valeur vide' };
+    }
+
+    try {
+      return { ok: true, value: JSON.parse(trimmed) };
+    } catch {
+      return { ok: true, value: trimmed };
+    }
+  }
 
   let youtubeReferenceChannelId = $state('');
   let desiredModuleStatus = $state('inactive');
@@ -83,9 +176,10 @@
     difficulty: 'moyen',
     language: 'fr',
     functionName: '',
-    functionArgsText: '[\n  {\n    \"name\": \"input\",\n    \"type\": \"string\"\n  }\n]',
-    unitTestsText: '[\n  {\n    \"name\": \"Cas 1\",\n    \"args\": [\"hello\"],\n    \"expected\": \"olleh\"\n  }\n]',
-    allowedLanguages: ['javascript', 'typescript', 'python'],
+    allowedLanguages: [] as string[],
+    languageInput: '',
+    functionArgs: [createFunctionArgDraft('input', 'string')] as DailyAlgoFunctionArgDraft[],
+    unitTests: [createUnitTestDraft(1, 'Cas 1')] as DailyAlgoUnitTestDraft[],
   });
 
   onMount(async () => {
@@ -141,9 +235,10 @@
       difficulty: 'moyen',
       language: 'fr',
       functionName: '',
-      functionArgsText: '[\n  {\n    \"name\": \"input\",\n    \"type\": \"string\"\n  }\n]',
-      unitTestsText: '[\n  {\n    \"name\": \"Cas 1\",\n    \"args\": [\"hello\"],\n    \"expected\": \"olleh\"\n  }\n]',
-      allowedLanguages: ['javascript', 'typescript', 'python'],
+      allowedLanguages: [],
+      languageInput: '',
+      functionArgs: [createFunctionArgDraft('input', 'string')],
+      unitTests: [createUnitTestDraft(1, 'Cas 1')],
     };
   }
 
@@ -164,11 +259,37 @@
       return;
     }
 
-    const functionArgs = Array.isArray(problem?.functionArgs) ? problem.functionArgs : [];
-    const unitTests = Array.isArray(problem?.unitTests) ? problem.unitTests : [];
-    const allowedLanguages = Array.isArray(problem?.allowedLanguages) && problem.allowedLanguages.length > 0
-      ? problem.allowedLanguages
-      : ['javascript', 'typescript', 'python'];
+    const functionArgs = Array.isArray(problem?.functionArgs)
+      ? problem.functionArgs
+        .map((entry) => {
+          if (!entry || typeof entry !== 'object') return null;
+          const candidate = entry as { name?: unknown; type?: unknown };
+          const name = typeof candidate.name === 'string' ? candidate.name.trim() : '';
+          const type = typeof candidate.type === 'string' ? candidate.type.trim() : '';
+          if (!name) return null;
+          return createFunctionArgDraft(name, type || 'unknown');
+        })
+        .filter((entry): entry is DailyAlgoFunctionArgDraft => Boolean(entry))
+      : [];
+
+    const argsCount = functionArgs.length;
+    const unitTests = Array.isArray(problem?.unitTests)
+      ? problem.unitTests
+        .map((entry, index) => {
+          if (!entry || typeof entry !== 'object') return null;
+          const candidate = entry as { name?: unknown; args?: unknown[]; expected?: unknown };
+          const args = Array.isArray(candidate.args) ? candidate.args : [];
+          const name = typeof candidate.name === 'string' ? candidate.name.trim() : `Cas ${index + 1}`;
+
+          return {
+            id: createDraftId('test'),
+            name: name || `Cas ${index + 1}`,
+            argValues: Array.from({ length: argsCount }, (_, argIndex) => serializeDraftValue(args[argIndex])),
+            expectedValue: serializeDraftValue(candidate.expected),
+          } as DailyAlgoUnitTestDraft;
+        })
+        .filter((entry): entry is DailyAlgoUnitTestDraft => Boolean(entry))
+      : [];
 
     editingDailyAlgoProblemId = problem.id;
     algoDraft = {
@@ -177,9 +298,10 @@
       difficulty: typeof problem?.difficulty === 'string' ? problem.difficulty : 'moyen',
       language: typeof problem?.language === 'string' ? problem.language : 'fr',
       functionName: typeof problem?.functionName === 'string' ? problem.functionName : '',
-      functionArgsText: JSON.stringify(functionArgs, null, 2),
-      unitTestsText: JSON.stringify(unitTests, null, 2),
-      allowedLanguages,
+      allowedLanguages: normalizeEditableLanguageList(problem?.allowedLanguages),
+      languageInput: '',
+      functionArgs,
+      unitTests: unitTests.length > 0 ? alignUnitTestsWithArgs(unitTests, argsCount) : [createUnitTestDraft(argsCount, 'Cas 1')],
     };
     createDailyAlgoProblemModalOpen = true;
   }
@@ -190,65 +312,117 @@
     resetDailyAlgoDraft();
   }
 
-  function parseDailyAlgoFunctionArgs(rawText: string): DailyAlgoFunctionArg[] | null {
-    try {
-      const parsed = JSON.parse(rawText);
-      if (!Array.isArray(parsed)) return null;
+  function addDraftAllowedLanguage() {
+    const value = algoDraft.languageInput.trim();
+    if (!value) return;
 
-      const normalized = parsed
-        .map((entry) => {
-          if (!entry || typeof entry !== 'object') return null;
-          const candidate = entry as { name?: unknown; type?: unknown };
-          const name = typeof candidate.name === 'string' ? candidate.name.trim() : '';
-          const type = typeof candidate.type === 'string' ? candidate.type.trim() : '';
-          if (!name) return null;
-          return { name, type: type || 'unknown' };
-        })
-        .filter((entry): entry is DailyAlgoFunctionArg => Boolean(entry));
+    const exists = algoDraft.allowedLanguages.some((entry) => entry.toLowerCase() === value.toLowerCase());
+    if (!exists) {
+      algoDraft.allowedLanguages = [...algoDraft.allowedLanguages, value];
+    }
+    algoDraft.languageInput = '';
+  }
 
-      return normalized;
-    } catch {
-      return null;
+  function addSuggestedLanguage(language: string) {
+    const value = language.trim();
+    if (!value) return;
+    const exists = algoDraft.allowedLanguages.some((entry) => entry.toLowerCase() === value.toLowerCase());
+    if (!exists) {
+      algoDraft.allowedLanguages = [...algoDraft.allowedLanguages, value];
     }
   }
 
-  function parseDailyAlgoUnitTests(rawText: string, expectedArgCount: number): DailyAlgoUnitTest[] | null {
-    try {
-      const parsed = JSON.parse(rawText);
-      if (!Array.isArray(parsed)) return null;
-
-      const normalized = parsed
-        .map((entry, index) => {
-          if (!entry || typeof entry !== 'object') return null;
-          const candidate = entry as { name?: unknown; args?: unknown; expected?: unknown };
-          if (!Array.isArray(candidate.args) || candidate.args.length !== expectedArgCount) return null;
-
-          const name = typeof candidate.name === 'string' && candidate.name.trim()
-            ? candidate.name.trim()
-            : `Test ${index + 1}`;
-
-          return {
-            name,
-            args: candidate.args,
-            expected: candidate.expected,
-          };
-        })
-        .filter((entry): entry is DailyAlgoUnitTest => Boolean(entry));
-
-      return normalized;
-    } catch {
-      return null;
-    }
+  function removeDraftAllowedLanguage(language: string) {
+    algoDraft.allowedLanguages = algoDraft.allowedLanguages.filter((entry) => entry !== language);
   }
 
-  function toggleDraftAllowedLanguage(language: IdeLanguage) {
-    const normalized = normalizeIdeLanguage(language);
-    if (algoDraft.allowedLanguages.includes(normalized)) {
-      if (algoDraft.allowedLanguages.length === 1) return;
-      algoDraft.allowedLanguages = algoDraft.allowedLanguages.filter((entry) => entry !== normalized);
-      return;
-    }
-    algoDraft.allowedLanguages = [...algoDraft.allowedLanguages, normalized];
+  function enableFreeLanguageMode() {
+    algoDraft.allowedLanguages = [];
+    algoDraft.languageInput = '';
+  }
+
+  function handleLanguageInputKeydown(event: KeyboardEvent) {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    addDraftAllowedLanguage();
+  }
+
+  function addFunctionArg() {
+    const nextArgs = [...algoDraft.functionArgs, createFunctionArgDraft(`arg${algoDraft.functionArgs.length + 1}`, 'unknown')];
+    algoDraft.functionArgs = nextArgs;
+    algoDraft.unitTests = alignUnitTestsWithArgs(algoDraft.unitTests, nextArgs.length);
+  }
+
+  function removeFunctionArg(index: number) {
+    if (index < 0 || index >= algoDraft.functionArgs.length) return;
+    const nextArgs = algoDraft.functionArgs.filter((_, argIndex) => argIndex !== index);
+    algoDraft.functionArgs = nextArgs;
+    algoDraft.unitTests = alignUnitTestsWithArgs(algoDraft.unitTests, nextArgs.length);
+  }
+
+  function updateFunctionArgName(index: number, value: string) {
+    const nextArgs = [...algoDraft.functionArgs];
+    if (!nextArgs[index]) return;
+    nextArgs[index] = {
+      ...nextArgs[index],
+      name: value,
+    };
+    algoDraft.functionArgs = nextArgs;
+  }
+
+  function updateFunctionArgType(index: number, value: string) {
+    const nextArgs = [...algoDraft.functionArgs];
+    if (!nextArgs[index]) return;
+    nextArgs[index] = {
+      ...nextArgs[index],
+      type: value,
+    };
+    algoDraft.functionArgs = nextArgs;
+  }
+
+  function addUnitTest() {
+    algoDraft.unitTests = [
+      ...algoDraft.unitTests,
+      createUnitTestDraft(algoDraft.functionArgs.length, `Cas ${algoDraft.unitTests.length + 1}`),
+    ];
+  }
+
+  function removeUnitTest(index: number) {
+    if (index < 0 || index >= algoDraft.unitTests.length) return;
+    algoDraft.unitTests = algoDraft.unitTests.filter((_, testIndex) => testIndex !== index);
+  }
+
+  function updateUnitTestName(index: number, value: string) {
+    const nextTests = [...algoDraft.unitTests];
+    if (!nextTests[index]) return;
+    nextTests[index] = {
+      ...nextTests[index],
+      name: value,
+    };
+    algoDraft.unitTests = nextTests;
+  }
+
+  function updateUnitTestArgValue(testIndex: number, argIndex: number, value: string) {
+    const nextTests = [...algoDraft.unitTests];
+    const target = nextTests[testIndex];
+    if (!target) return;
+    const nextArgs = [...target.argValues];
+    nextArgs[argIndex] = value;
+    nextTests[testIndex] = {
+      ...target,
+      argValues: nextArgs,
+    };
+    algoDraft.unitTests = nextTests;
+  }
+
+  function updateUnitTestExpectedValue(index: number, value: string) {
+    const nextTests = [...algoDraft.unitTests];
+    if (!nextTests[index]) return;
+    nextTests[index] = {
+      ...nextTests[index],
+      expectedValue: value,
+    };
+    algoDraft.unitTests = nextTests;
   }
 
   async function submitDailyAlgoProblem() {
@@ -267,22 +441,58 @@
       return;
     }
 
-    const functionArgs = parseDailyAlgoFunctionArgs(algoDraft.functionArgsText);
-    if (!functionArgs) {
-      formAction.setError('Arguments invalides: utilise un JSON tableau valide.');
+    const functionArgs = algoDraft.functionArgs
+      .map((entry) => ({
+        name: entry.name.trim(),
+        type: entry.type.trim() || 'unknown',
+      }))
+      .filter((entry) => entry.name.length > 0);
+
+    const duplicatedArg = functionArgs.find(
+      (arg, index) => functionArgs.findIndex((candidate) => candidate.name.toLowerCase() === arg.name.toLowerCase()) !== index,
+    );
+    if (duplicatedArg) {
+      formAction.setError(`Nom d'argument dupliqué: ${duplicatedArg.name}`);
       return;
     }
 
-    const unitTests = parseDailyAlgoUnitTests(algoDraft.unitTestsText, functionArgs.length);
-    if (!unitTests || unitTests.length === 0) {
-      formAction.setError('Tests invalides: chaque test doit fournir le bon nombre d’arguments et un expected.');
+    if (algoDraft.unitTests.length === 0) {
+      formAction.setError('Ajoute au moins un test unitaire.');
       return;
     }
 
-    if (!algoDraft.allowedLanguages.length) {
-      formAction.setError('Sélectionne au moins un langage autorisé.');
-      return;
+    const unitTests: DailyAlgoUnitTest[] = [];
+    for (let testIndex = 0; testIndex < algoDraft.unitTests.length; testIndex += 1) {
+      const draftTest = algoDraft.unitTests[testIndex];
+      if (draftTest.argValues.length !== functionArgs.length) {
+        formAction.setError(`Le test ${testIndex + 1} n'a pas le bon nombre d'arguments.`);
+        return;
+      }
+
+      const args: unknown[] = [];
+      for (let argIndex = 0; argIndex < draftTest.argValues.length; argIndex += 1) {
+        const parsed = parseDraftJsonValue(draftTest.argValues[argIndex] ?? '');
+        if (!parsed.ok) {
+          formAction.setError(`Argument ${argIndex + 1} du test ${testIndex + 1}: ${parsed.error}`);
+          return;
+        }
+        args.push(parsed.value);
+      }
+
+      const parsedExpected = parseDraftJsonValue(draftTest.expectedValue ?? '');
+      if (!parsedExpected.ok) {
+        formAction.setError(`Valeur attendue du test ${testIndex + 1}: ${parsedExpected.error}`);
+        return;
+      }
+
+      unitTests.push({
+        name: draftTest.name.trim() || `Test ${testIndex + 1}`,
+        args,
+        expected: parsedExpected.value,
+      });
     }
+
+    const allowedLanguages = normalizeEditableLanguageList(algoDraft.allowedLanguages);
 
     const payload = {
       title: algoDraft.title.trim(),
@@ -292,7 +502,7 @@
       functionName: algoDraft.functionName.trim(),
       functionArgs,
       unitTests,
-      allowedLanguages: algoDraft.allowedLanguages,
+      allowedLanguages,
       solution: '',
     };
 
@@ -599,13 +809,30 @@
     return `${functionName}(${args.join(', ')})`;
   }
 
-  function dailyAlgoProblemAllowedLanguages(problem: any): IdeLanguage[] {
+  function toKnownIdeLanguage(input: string): IdeLanguage | null {
+    const normalized = input.trim().toLowerCase();
+    if (normalized === 'javascript' || normalized === 'js') return 'javascript';
+    if (normalized === 'typescript' || normalized === 'ts') return 'typescript';
+    if (normalized === 'python' || normalized === 'py') return 'python';
+    if (normalized === 'c' || normalized === 'cpp' || normalized === 'c++') return 'c';
+    if (normalized === 'lua') return 'lua';
+    if (normalized === 'sqlite' || normalized === 'sql') return 'sqlite';
+    return null;
+  }
+
+  function dailyAlgoProblemAllowedLanguages(problem: any): string[] {
     const raw = Array.isArray(problem?.allowedLanguages) ? problem.allowedLanguages : [];
-    const normalized = raw
-      .map((entry) => normalizeIdeLanguage(typeof entry === 'string' ? entry : ''))
+    return normalizeEditableLanguageList(raw);
+  }
+
+  function dailyAlgoProblemAllowedIdeLanguages(problem: any): IdeLanguage[] {
+    const raw = dailyAlgoProblemAllowedLanguages(problem);
+    const known = raw
+      .map((entry) => toKnownIdeLanguage(entry))
+      .filter((entry): entry is IdeLanguage => Boolean(entry))
       .filter((value, index, array) => supportedDailyAlgoLanguages.includes(value) && array.indexOf(value) === index);
-    if (normalized.length > 0) return normalized;
-    return ['javascript'];
+
+    return known;
   }
 
   const sortedDailyAlgoProblems = $derived.by(() => {
@@ -1587,13 +1814,19 @@
                           <p class="text-xs font-mono text-on-surface">{dailyAlgoProblemFunctionSignature(problem)}</p>
                         </td>
                         <td>
-                          <div class="flex flex-wrap gap-1">
-                            {#each dailyAlgoProblemAllowedLanguages(problem) as lang}
-                              <span class="px-2 py-0.5 rounded-md border border-outline-variant/25 bg-surface text-[10px] font-black uppercase tracking-[0.08em] text-on-surface-variant">
-                                {lang}
-                              </span>
-                            {/each}
-                          </div>
+                          {#if dailyAlgoProblemAllowedLanguages(problem).length === 0}
+                            <span class="px-2 py-0.5 rounded-md border border-emerald-500/25 bg-emerald-500/10 text-[10px] font-black uppercase tracking-[0.08em] text-emerald-700">
+                              Libre
+                            </span>
+                          {:else}
+                            <div class="flex flex-wrap gap-1">
+                              {#each dailyAlgoProblemAllowedLanguages(problem) as lang}
+                                <span class="px-2 py-0.5 rounded-md border border-outline-variant/25 bg-surface text-[10px] font-black uppercase tracking-[0.08em] text-on-surface-variant">
+                                  {lang}
+                                </span>
+                              {/each}
+                            </div>
+                          {/if}
                         </td>
                         <td>
                           <p class="text-xs font-black text-emerald-700">{Array.isArray(problem.unitTests) ? problem.unitTests.length : 0}</p>
@@ -1705,7 +1938,7 @@
             <DailyAlgoMiniIDE
               initialCode={focusedSubmission.solution}
               initialLanguage={ideLanguageForSubmission(focusedSubmission)}
-              allowedLanguages={dailyAlgoProblemAllowedLanguages(dailyAlgoToday?.run?.problem)}
+              allowedLanguages={dailyAlgoProblemAllowedIdeLanguages(dailyAlgoToday?.run?.problem)}
               functionName={typeof dailyAlgoToday?.run?.problem?.functionName === 'string' ? dailyAlgoToday.run.problem.functionName : ''}
               functionArgs={Array.isArray(dailyAlgoToday?.run?.problem?.functionArgs) ? dailyAlgoToday.run.problem.functionArgs : []}
               unitTests={Array.isArray(dailyAlgoToday?.run?.problem?.unitTests) ? dailyAlgoToday.run.problem.unitTests : []}
@@ -1932,20 +2165,70 @@
           />
         </div>
         <div class="space-y-2 md:col-span-2">
-          <p class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Langages autorisés</p>
-          <div class="flex flex-wrap gap-2">
-            {#each supportedDailyAlgoLanguages as languageOption}
+          <p class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Langages autorisés (optionnel)</p>
+          <div class="rounded-2xl border border-outline-variant/15 bg-surface-container-low p-4 space-y-3">
+            <div class="flex flex-wrap gap-2">
+              {#if algoDraft.allowedLanguages.length === 0}
+                <span class="px-2.5 py-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700">
+                  Langage libre
+                </span>
+              {:else}
+                {#each algoDraft.allowedLanguages as lang}
+                  <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-outline-variant/25 bg-surface text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">
+                    {lang}
+                    <button
+                      type="button"
+                      onclick={() => removeDraftAllowedLanguage(lang)}
+                      class="w-4 h-4 rounded-full bg-surface-container-high text-on-surface-variant hover:text-on-surface leading-none"
+                      aria-label={`Retirer ${lang}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                {/each}
+              {/if}
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-2">
+              <input
+                type="text"
+                bind:value={algoDraft.languageInput}
+                onkeydown={handleLanguageInputKeydown}
+                class="flex-1 px-3 py-2 rounded-xl border border-outline-variant/20 bg-surface text-sm text-on-surface outline-none focus:border-emerald-500/40"
+                placeholder="Ajouter un langage (ex: rust, kotlin, c#)"
+              />
               <button
                 type="button"
-                onclick={() => toggleDraftAllowedLanguage(languageOption)}
-                class="px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-[0.12em] transition-colors {algoDraft.allowedLanguages.includes(languageOption) ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-surface border-outline-variant/30 text-on-surface-variant hover:text-on-surface'}"
-                aria-pressed={algoDraft.allowedLanguages.includes(languageOption)}
+                onclick={addDraftAllowedLanguage}
+                class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-[0.12em] hover:bg-emerald-700"
               >
-                {languageOption}
+                Ajouter
               </button>
-            {/each}
+              <button
+                type="button"
+                onclick={enableFreeLanguageMode}
+                class="px-4 py-2 rounded-xl border border-outline-variant/30 text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant hover:text-on-surface hover:bg-surface"
+              >
+                Mode libre
+              </button>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+              {#each dailyAlgoLanguageSuggestions as suggestion}
+                <button
+                  type="button"
+                  onclick={() => addSuggestedLanguage(suggestion)}
+                  class="px-2.5 py-1 rounded-lg border border-outline-variant/25 bg-surface text-[10px] font-black uppercase tracking-[0.1em] text-on-surface-variant hover:text-on-surface"
+                >
+                  {suggestion}
+                </button>
+              {/each}
+            </div>
+
+            <p class="text-[11px] text-on-surface-variant">
+              Laisse vide pour autoriser tous les langages. Tu peux aussi ajouter des langages non disponibles dans l'IDE intégré.
+            </p>
           </div>
-          <p class="text-[11px] text-on-surface-variant">Un participant doit soumettre sa solution dans un de ces langages.</p>
         </div>
         <div class="space-y-2 md:col-span-2">
           <label for="modal-dailyalgo-description" class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Description (Markdown autorisé)</label>
@@ -1957,26 +2240,128 @@
           ></textarea>
         </div>
         <div class="space-y-2 md:col-span-2">
-          <label for="modal-dailyalgo-function-args" class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Arguments de la fonction (JSON)</label>
-          <textarea
-            id="modal-dailyalgo-function-args"
-            bind:value={algoDraft.functionArgsText}
-            class="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-mono outline-none focus:border-emerald-500/40 min-h-30"
-            placeholder={"[\n  { \"name\": \"input\", \"type\": \"string\" }\n]"}
-          ></textarea>
-          <p class="text-[11px] text-on-surface-variant">Chaque argument doit contenir au moins <span class="font-mono">name</span> et éventuellement <span class="font-mono">type</span>.</p>
+          <div class="flex items-center justify-between gap-3">
+            <p class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Arguments de la fonction</p>
+            <button
+              type="button"
+              onclick={addFunctionArg}
+              class="px-3 py-1.5 rounded-lg bg-surface border border-outline-variant/25 text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant hover:text-on-surface"
+            >
+              + Ajouter un argument
+            </button>
+          </div>
+          <div class="rounded-2xl border border-outline-variant/15 bg-surface-container-low p-4 space-y-3">
+            {#if algoDraft.functionArgs.length === 0}
+              <p class="text-xs text-on-surface-variant">Aucun argument: la fonction est attendue sans paramètre.</p>
+            {:else}
+              {#each algoDraft.functionArgs as arg, argIndex}
+                <div class="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-2 items-center">
+                  <input
+                    type="text"
+                    value={arg.name}
+                    oninput={(event) => updateFunctionArgName(argIndex, (event.currentTarget as HTMLInputElement).value)}
+                    class="px-3 py-2 rounded-xl border border-outline-variant/20 bg-surface text-sm text-on-surface outline-none focus:border-emerald-500/40"
+                    placeholder={`arg${argIndex + 1}`}
+                  />
+                  <input
+                    type="text"
+                    value={arg.type}
+                    oninput={(event) => updateFunctionArgType(argIndex, (event.currentTarget as HTMLInputElement).value)}
+                    class="px-3 py-2 rounded-xl border border-outline-variant/20 bg-surface text-sm text-on-surface outline-none focus:border-emerald-500/40"
+                    placeholder="string | number | array | object..."
+                  />
+                  <button
+                    type="button"
+                    onclick={() => removeFunctionArg(argIndex)}
+                    class="px-3 py-2 rounded-xl border border-red-500/20 bg-red-500/10 text-[10px] font-black uppercase tracking-[0.12em] text-red-700 hover:bg-red-500/20"
+                  >
+                    Supprimer
+                  </button>
+                </div>
+              {/each}
+            {/if}
+          </div>
         </div>
         <div class="space-y-2 md:col-span-2">
-          <label for="modal-dailyalgo-unit-tests" class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Tests unitaires (JSON)</label>
-          <textarea
-            id="modal-dailyalgo-unit-tests"
-            bind:value={algoDraft.unitTestsText}
-            class="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-mono outline-none focus:border-emerald-500/40 min-h-36"
-            placeholder={"[\n  { \"name\": \"Cas 1\", \"args\": [\"hello\"], \"expected\": \"olleh\" }\n]"}
-          ></textarea>
-          <p class="text-[11px] text-on-surface-variant">Chaque test doit définir <span class="font-mono">args</span> (tableau) et <span class="font-mono">expected</span>.</p>
+          <div class="flex items-center justify-between gap-3">
+            <p class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Tests unitaires</p>
+            <button
+              type="button"
+              onclick={addUnitTest}
+              class="px-3 py-1.5 rounded-lg bg-surface border border-outline-variant/25 text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant hover:text-on-surface"
+            >
+              + Ajouter un test
+            </button>
+          </div>
+          <div class="rounded-2xl border border-outline-variant/15 bg-surface-container-low p-4 space-y-3">
+            {#if algoDraft.unitTests.length === 0}
+              <p class="text-xs text-on-surface-variant">Aucun test défini.</p>
+            {:else}
+              {#each algoDraft.unitTests as test, testIndex}
+                <div class="rounded-xl border border-outline-variant/20 bg-surface p-3 space-y-3">
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <input
+                      type="text"
+                      value={test.name}
+                      oninput={(event) => updateUnitTestName(testIndex, (event.currentTarget as HTMLInputElement).value)}
+                      class="flex-1 min-w-[220px] px-3 py-2 rounded-xl border border-outline-variant/20 bg-surface-container-low text-sm text-on-surface outline-none focus:border-emerald-500/40"
+                      placeholder={`Cas ${testIndex + 1}`}
+                    />
+                    <button
+                      type="button"
+                      onclick={() => removeUnitTest(testIndex)}
+                      class="px-3 py-2 rounded-xl border border-red-500/20 bg-red-500/10 text-[10px] font-black uppercase tracking-[0.12em] text-red-700 hover:bg-red-500/20"
+                    >
+                      Supprimer
+                    </button>
+                  </div>
+
+                  {#if algoDraft.functionArgs.length === 0}
+                    <p class="text-[11px] text-on-surface-variant">La fonction n'a pas d'argument: ce test sera exécuté avec <span class="font-mono">()</span>.</p>
+                  {:else}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {#each algoDraft.functionArgs as arg, argIndex}
+                        <label class="space-y-1">
+                          <span class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant/60">{arg.name || `arg${argIndex + 1}`}</span>
+                          <input
+                            type="text"
+                            value={test.argValues[argIndex] ?? 'null'}
+                            oninput={(event) => updateUnitTestArgValue(testIndex, argIndex, (event.currentTarget as HTMLInputElement).value)}
+                            class="w-full px-3 py-2 rounded-xl border border-outline-variant/20 bg-surface-container-low text-sm font-mono text-on-surface outline-none focus:border-emerald-500/40"
+                            placeholder={'"hello" | 123 | true | [1,2] | {"k":"v"}'}
+                          />
+                        </label>
+                      {/each}
+                    </div>
+                  {/if}
+
+                  <label class="space-y-1">
+                    <span class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant/60">Valeur attendue</span>
+                    <input
+                      type="text"
+                      value={test.expectedValue}
+                      oninput={(event) => updateUnitTestExpectedValue(testIndex, (event.currentTarget as HTMLInputElement).value)}
+                      class="w-full px-3 py-2 rounded-xl border border-outline-variant/20 bg-surface-container-low text-sm font-mono text-on-surface outline-none focus:border-emerald-500/40"
+                      placeholder={'"olleh" | 42 | false | null | {"ok":true}'}
+                    />
+                  </label>
+                </div>
+              {/each}
+            {/if}
+          </div>
+          <p class="text-[11px] text-on-surface-variant">Valeurs JSON recommandées. Si non JSON, la valeur sera traitée comme texte brut.</p>
         </div>
       </div>
+
+      {#if formAction.state.error}
+        <div class="rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-700">
+          {formAction.state.error}
+        </div>
+      {:else if formAction.state.message}
+        <div class="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs font-bold text-emerald-700">
+          {formAction.state.message}
+        </div>
+      {/if}
 
       <div class="flex items-center justify-end gap-2 pt-2">
         <button

@@ -38,7 +38,11 @@ export function createAsyncActionState() {
       return false;
     } catch (error) {
       console.error('Async action failed:', error);
-      if (failureMessage) setError(failureMessage);
+      if (error instanceof Error && error.message) {
+        setError(error.message);
+      } else if (failureMessage) {
+        setError(failureMessage);
+      }
       return false;
     } finally {
       state.loading = false;

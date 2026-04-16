@@ -427,8 +427,6 @@ type DailyAlgoProblemPayload = {
   allowedLanguages?: unknown;
 };
 
-const SUPPORTED_DAILY_ALGO_LANGUAGES = new Set(['javascript', 'typescript', 'python', 'c', 'lua', 'sqlite']);
-
 function normalizeDailyAlgoFunctionArgs(raw: unknown): DailyAlgoFunctionArg[] {
   if (!Array.isArray(raw)) return [];
 
@@ -474,11 +472,21 @@ function normalizeDailyAlgoUnitTests(raw: unknown, expectedArgCount: number): Da
 function normalizeDailyAlgoAllowedLanguages(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
 
-  const normalized = raw
-    .map((entry) => (typeof entry === 'string' ? entry.trim().toLowerCase() : ''))
-    .filter((entry) => SUPPORTED_DAILY_ALGO_LANGUAGES.has(entry));
+  const seen = new Set<string>();
+  const normalized: string[] = [];
 
-  return [...new Set(normalized)];
+  for (const entry of raw) {
+    if (typeof entry !== 'string') continue;
+    const value = entry.trim();
+    if (!value) continue;
+
+    const key = value.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalized.push(value);
+  }
+
+  return normalized;
 }
 
 function validateDailyAlgoProblemPayload(payload: DailyAlgoProblemPayload): {
@@ -525,9 +533,6 @@ function validateDailyAlgoProblemPayload(payload: DailyAlgoProblemPayload): {
   }
 
   const allowedLanguages = normalizeDailyAlgoAllowedLanguages(payload.allowedLanguages);
-  if (allowedLanguages.length === 0) {
-    return { ok: false, error: 'Sélectionne au moins un langage autorisé.' };
-  }
 
   const unitTests = normalizeDailyAlgoUnitTests(payload.unitTests, functionArgs.length);
   if (unitTests.length === 0) {
@@ -3324,7 +3329,7 @@ export const startDashboardApi = (client: Client) => {
                   functionName: run.problem.functionName,
                   functionArgs: Array.isArray(run.problem.functionArgs) ? run.problem.functionArgs : [],
                   unitTests: Array.isArray(run.problem.unitTests) ? run.problem.unitTests : [],
-                  allowedLanguages: Array.isArray(run.problem.allowedLanguages) ? run.problem.allowedLanguages : ['javascript'],
+                  allowedLanguages: Array.isArray(run.problem.allowedLanguages) ? run.problem.allowedLanguages : [],
                 },
                 createdAt: run.createdAt.toISOString(),
               },

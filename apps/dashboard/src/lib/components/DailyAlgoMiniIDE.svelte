@@ -318,7 +318,18 @@
 
   function normalizedAllowedLanguages(): IdeLanguage[] {
     const normalized = (Array.isArray(allowedLanguages) ? allowedLanguages : [])
-      .map((entry) => normalizeIdeLanguage(entry))
+      .map((entry) => {
+        const value = typeof entry === 'string' ? entry.trim().toLowerCase() : '';
+        if (!value) return null;
+        if (value === 'javascript' || value === 'js') return 'javascript';
+        if (value === 'typescript' || value === 'ts') return 'typescript';
+        if (value === 'python' || value === 'py') return 'python';
+        if (value === 'c' || value === 'cpp' || value === 'c++') return 'c';
+        if (value === 'lua') return 'lua';
+        if (value === 'sqlite' || value === 'sql') return 'sqlite';
+        return null;
+      })
+      .filter((entry): entry is IdeLanguage => Boolean(entry))
       .filter((entry, index, array) => ALL_SUPPORTED_LANGUAGES.includes(entry) && array.indexOf(entry) === index);
 
     if (normalized.length > 0) return normalized;

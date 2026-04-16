@@ -111,9 +111,9 @@ function toDailyAlgoRunMessageData(run: DailyAlgoRunDispatchPayload): DailyAlgoR
     : [];
 
   const unitTests = Array.isArray(run.problem.unitTests) ? run.problem.unitTests : [];
-  const allowedLanguages = Array.isArray(run.problem.allowedLanguages) && run.problem.allowedLanguages.length > 0
-    ? run.problem.allowedLanguages
-    : ['javascript'];
+  const allowedLanguages = Array.isArray(run.problem.allowedLanguages)
+    ? run.problem.allowedLanguages.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
+    : [];
 
   return {
     id: run.id,
@@ -356,9 +356,9 @@ function buildDailyAlgoChallengeEmbed(params: {
   testsCount?: number;
   footerText?: string;
 }) {
-  const allowedLanguages = (params.allowedLanguages.length > 0 ? params.allowedLanguages : ['javascript'])
-    .map((entry) => normalizeAllowedLanguageLabel(entry))
-    .join(' · ');
+  const allowedLanguages = params.allowedLanguages.length > 0
+    ? params.allowedLanguages.map((entry) => normalizeAllowedLanguageLabel(entry)).join(' · ')
+    : 'Libre (aucune contrainte)';
 
   const signature = formatFunctionSignature(params.functionName, params.functionArgs);
   const testsLabel = Number.isFinite(params.testsCount) ? Math.max(0, Number(params.testsCount ?? 0)) : 0;
