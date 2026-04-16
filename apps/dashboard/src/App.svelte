@@ -23,7 +23,8 @@
   import PublicProfile from './pages/PublicProfile.svelte';
   import StaffManagement from './pages/StaffManagement.svelte';
   import Procedures from './pages/Procedures.svelte';
-import News from './pages/News.svelte';
+  import News from './pages/News.svelte';
+  import DailyAlgoIDE from './pages/DailyAlgoIDE.svelte';
 
   const adminOnlyPrefixes = ['/modules', '/module-settings', '/settings', '/notifications', '/automations', '/command-access', '/regulation', '/staff-management'];
 
@@ -83,6 +84,14 @@ import News from './pages/News.svelte';
 {:else}
   <Route path="/login">
     <Login />
+  </Route>
+
+  <Route path="/daily-algo-ide">
+    {#if authStore.isAuthenticated}
+      <DailyAlgoIDE />
+    {:else}
+      <Login />
+    {/if}
   </Route>
 
   <Route path="/*">
@@ -147,4 +156,3 @@ import News from './pages/News.svelte';
     {/if}
   </Route>
 {/if}
-

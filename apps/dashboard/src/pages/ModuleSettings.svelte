@@ -20,6 +20,13 @@
   import FormInput from '../lib/components/FormInput.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import ColumnSortFilter, { type ColumnFilterOption } from '../lib/components/sanctions/ColumnSortFilter.svelte';
+  import DailyAlgoMiniIDE from '../lib/components/DailyAlgoMiniIDE.svelte';
+  import {
+    createIdePayloadKey,
+    detectIdeLanguageFromCode,
+    normalizeIdeLanguage,
+    type IdeLanguage,
+  } from '../lib/dailyAlgoIde';
 
   let { moduleId } = $props();
 
@@ -192,6 +199,41 @@
         [submission.id]: buildDraftFromSubmission(submission),
       };
     }
+  }
+
+  function ideLanguageForSubmission(submission: any): IdeLanguage {
+    if (typeof submission?.language === 'string' && submission.language.trim()) {
+      return normalizeIdeLanguage(submission.language);
+    }
+    return detectIdeLanguageFromCode(submission?.solution ?? '');
+  }
+
+  function openSubmissionInIdeWindow(
+    submission: any,
+    override?: { code: string; language: IdeLanguage },
+  ) {
+    try {
+      const payloadKey = createIdePayloadKey(submission?.id ?? 'submission');
+      const payload = {
+        code: override?.code ?? submission?.solution ?? '',
+        language: override?.language ?? ideLanguageForSubmission(submission),
+        authorName: submission?.authorName ?? 'Soumission Daily Algo',
+        submissionId: submission?.id ?? '',
+      };
+
+      window.localStorage.setItem(payloadKey, JSON.stringify(payload));
+      window.open(`/daily-algo-ide?payloadKey=${encodeURIComponent(payloadKey)}`, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      console.error(error);
+      formAction.setError("Impossible d'ouvrir la soumission dans l'IDE.");
+    }
+  }
+
+  function handleSubmissionIdePopout(
+    submission: any,
+    event: CustomEvent<{ code: string; language: IdeLanguage }>,
+  ) {
+    openSubmissionInIdeWindow(submission, event.detail);
   }
 
   function updateSubmissionScore(
@@ -1154,13 +1196,22 @@
                             </td>
                             <td>
                               <p class="text-xs font-bold text-on-surface">{formatDate(submission.submittedAt)}</p>
-                              <button
-                                type="button"
-                                onclick={() => openSubmissionReview(submission)}
-                                class="mt-1 text-[10px] font-black uppercase tracking-widest text-primary hover:text-primary/80"
-                              >
-                                {expandedSubmissionId === submission.id ? 'Masquer le code' : 'Voir le code'}
-                              </button>
+                              <div class="mt-1 flex flex-wrap items-center gap-3">
+                                <button
+                                  type="button"
+                                  onclick={() => openSubmissionReview(submission)}
+                                  class="text-[10px] font-black uppercase tracking-widest text-primary hover:text-primary/80"
+                                >
+                                  {expandedSubmissionId === submission.id ? 'Masquer le code' : 'Voir le code'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onclick={() => openSubmissionInIdeWindow(submission)}
+                                  class="text-[10px] font-black uppercase tracking-widest text-emerald-700 hover:text-emerald-600"
+                                >
+                                  Ouvrir IDE
+                                </button>
+                              </div>
                             </td>
                             <td>
                               {#if submission.status === 'APPROVED'}
@@ -1212,7 +1263,14 @@
                             <tr>
                               <td colspan="6" class="bg-surface">
                                 <div class="space-y-4 py-2">
-                                  <pre class="w-full overflow-x-auto rounded-xl bg-slate-950 text-slate-100 p-3 text-[11px] leading-relaxed font-mono border border-slate-800"><code>{submission.solution}</code></pre>
+                                  <DailyAlgoMiniIDE
+                                    initialCode={submission.solution}
+                                    initialLanguage={ideLanguageForSubmission(submission)}
+                                    height={320}
+                                    showPopoutButton={true}
+                                    popoutLabel="Nouvelle fenêtre"
+                                    on:popout={(event) => handleSubmissionIdePopout(submission, event)}
+                                  />
 
                                   {#if canModerateContent && (submission.status === 'PENDING' || submission.status === 'APPROVED' || submission.status === 'REJECTED')}
                                     <div class="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3">

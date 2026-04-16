@@ -3081,6 +3081,7 @@ export const startDashboardApi = (client: Client) => {
                     title: true,
                     description: true,
                     difficulty: true,
+                    language: true,
                   },
                 },
                 submissions: {
@@ -3120,6 +3121,7 @@ export const startDashboardApi = (client: Client) => {
                 authorId: submission.authorId,
                 authorName: submission.authorName,
                 solution: submission.solution,
+                language: run.problem.language,
                 status: submission.status,
                 submittedAt: submission.submittedAt.toISOString(),
                 speedRank: submission.speedRank,
@@ -3149,6 +3151,7 @@ export const startDashboardApi = (client: Client) => {
                   title: run.problem.title,
                   description: run.problem.description,
                   difficulty: run.problem.difficulty,
+                  language: run.problem.language,
                 },
                 createdAt: run.createdAt.toISOString(),
               },
