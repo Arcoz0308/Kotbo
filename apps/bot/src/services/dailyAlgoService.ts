@@ -36,16 +36,6 @@ type DailyAlgoChallengeTypeKey =
   | 'language-imposed'
   | 'classic';
 
-const DAILY_ALGO_CHALLENGE_TYPE_LABELS: Record<DailyAlgoChallengeTypeKey, string> = {
-  'time-complexity': '⚡ Complexité temporelle',
-  'space-complexity': '🧠 Complexité spatiale',
-  'code-golf': '✂️ Code court (code golf)',
-  'absurd-constraints': '🎭 Contraintes absurdes',
-  debug: '🧪 Débogage',
-  'language-imposed': '🗣️ Langage imposé',
-  classic: '📘 Classique',
-};
-
 export const DAILY_ALGO_SCORING_RULES = {
   criteria: [
     { key: 'correctness', label: '✅ Exactitude (fonctionnement/cas limites)', max: 5 },
@@ -183,11 +173,6 @@ function detectChallengeTypeKey(title: string, description: string): DailyAlgoCh
   }
 
   return 'classic';
-}
-
-function challengeTypeLabelFromProblem(problem: { title: string; description: string }): string {
-  const key = detectChallengeTypeKey(problem.title, problem.description);
-  return DAILY_ALGO_CHALLENGE_TYPE_LABELS[key];
 }
 
 function pickProblemCandidateWithVariety(params: {
@@ -349,7 +334,6 @@ function buildDailyAlgoChallengeEmbed(params: {
   problemTitle: string;
   description: string;
   difficulty: string;
-  challengeTypeLabel: string;
   functionName: string | null;
   functionArgs: DailyAlgoFunctionArg[];
   allowedLanguages: string[];
@@ -373,11 +357,6 @@ function buildDailyAlgoChallengeEmbed(params: {
     .addFields({
       name: '⚙️ Difficulté',
       value: `${difficultyEmoji(params.difficulty)} \`${truncate(params.difficulty, 32)}\``,
-      inline: true,
-    })
-    .addFields({
-      name: '🧩 Type de défi',
-      value: params.challengeTypeLabel,
       inline: true,
     })
     .addFields({
@@ -426,7 +405,6 @@ async function sendDailyAlgoRunMessage(client: Client, run: DailyAlgoRunMessageD
     problemTitle: run.problem.title,
     description: run.problem.description,
     difficulty: run.problem.difficulty,
-    challengeTypeLabel: challengeTypeLabelFromProblem(run.problem),
     functionName: run.problem.functionName,
     functionArgs: run.problem.functionArgs,
     allowedLanguages: run.problem.allowedLanguages,
@@ -467,7 +445,6 @@ export async function refreshDailyAlgoChallengeMessageForRun(client: Client, run
     problemTitle: run.problem.title,
     description: run.problem.description,
     difficulty: run.problem.difficulty,
-    challengeTypeLabel: challengeTypeLabelFromProblem(run.problem),
     functionName: run.problem.functionName,
     functionArgs: run.problem.functionArgs,
     allowedLanguages: run.problem.allowedLanguages,
