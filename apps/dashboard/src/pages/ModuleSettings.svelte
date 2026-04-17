@@ -10,6 +10,9 @@
     fetchDailyAlgoProblems,
     createDailyAlgoProblem,
     updateDailyAlgoProblem,
+    deleteDailyAlgoProblem,
+    fetchDailyAlgoSchedule,
+    swapTodayDailyAlgoProblem,
     fetchMyApiKeys,
     createOrResetDailyAlgoApiKey,
     deleteMyApiKey,
@@ -195,7 +198,9 @@
   let isFetchingAlgo = $state(false);
   let isFetchingAlgoSubmissions = $state(false);
   let isFetchingAlgoHistory = $state(false);
+  let isFetchingAlgoSchedule = $state(false);
   let dailyAlgoHistory = $state<any[]>([]);
+  let dailyAlgoSchedule = $state<any[]>([]);
   let myApiKeys = $state<any[]>([]);
   let dailyAlgoApiKeyName = $state('Kotbo Daily Algo');
   let latestIssuedApiKey = $state('');
@@ -204,6 +209,8 @@
   let dailyAlgoSubmissionStatusFilter = $state<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
   let dailyAlgoLibrarySearch = $state('');
   let dailyAlgoLibraryMode = $state<'ALL' | 'AVAILABLE' | 'USED'>('ALL');
+  let switchingTodayProblemId = $state<string | null>(null);
+  let deletingDailyAlgoProblemId = $state<string | null>(null);
   let ideFocusedSubmissionId = $state<string | null>(null);
   let ideModalOpen = $state(false);
   let scoreDraftBySubmissionId = $state<Record<string, {
@@ -231,7 +238,7 @@
     if (moduleId === 'youtube') {
       youtubeReferenceChannelId = dashboardStore.state.youtubeReferenceChannelId || '';
     } else if (moduleId === 'dailyalgo') {
-      await Promise.all([loadDailyAlgoProblems(), loadTodayDailyAlgoSubmissions(), loadDailyAlgoHistory(), loadMyApiKeys()]);
+      await Promise.all([loadDailyAlgoProblems(), loadTodayDailyAlgoSubmissions(), loadDailyAlgoHistory(), loadDailyAlgoSchedule(), loadMyApiKeys()]);
     }
   });
 
@@ -269,6 +276,19 @@
       formAction.setError('Erreur lors du chargement de l\'historique Daily Algo.');
     } finally {
       isFetchingAlgoHistory = false;
+    }
+  }
+
+  async function loadDailyAlgoSchedule() {
+    isFetchingAlgoSchedule = true;
+    try {
+      const payload = await fetchDailyAlgoSchedule(7, 21);
+      dailyAlgoSchedule = Array.isArray(payload?.runs) ? payload.runs : [];
+    } catch (err) {
+      console.error(err);
+      formAction.setError('Erreur lors du chargement du planning Daily Algo.');
+    } finally {
+      isFetchingAlgoSchedule = false;
     }
   }
 
@@ -617,8 +637,7 @@
         resetDailyAlgoDraft();
         editingDailyAlgoProblemId = null;
         createDailyAlgoProblemModalOpen = false;
-        await loadDailyAlgoProblems();
-        await loadTodayDailyAlgoSubmissions();
+        await Promise.all([loadDailyAlgoProblems(), loadTodayDailyAlgoSubmissions(), loadDailyAlgoSchedule()]);
         return true;
       },
       {
@@ -787,6 +806,79 @@
     );
   }
 
+  async function setProblemAsToday(problemId: string) {
+    if (!canManageSettings) {
+      formAction.setError('Seuls les administrateurs peuvent changer l’exercice du jour.');
+      return;
+    }
+
+    switchingTodayProblemId = problemId;
+    try {
+      await formAction.run(
+        async () => {
+          const payload = await swapTodayDailyAlgoProblem(problemId);
+          if (!payload?.ok) return false;
+
+          await Promise.all([
+            loadTodayDailyAlgoSubmissions(),
+            loadDailyAlgoProblems(),
+            loadDailyAlgoHistory(),
+            loadDailyAlgoSchedule(),
+            dashboardStore.refresh(),
+          ]);
+          return true;
+        },
+        {
+          successMessage: 'Exercice du jour mis à jour.',
+          failureMessage: 'Impossible de changer l’exercice du jour.',
+        },
+      );
+    } finally {
+      switchingTodayProblemId = null;
+    }
+  }
+
+  async function deleteDailyAlgoProblemFromLibrary(problem: any) {
+    if (!canManageSettings) {
+      formAction.setError('Seuls les administrateurs peuvent supprimer un exercice.');
+      return;
+    }
+
+    if (typeof window !== 'undefined') {
+      const confirmed = window.confirm(`Supprimer définitivement "${problem.title}" ?`);
+      if (!confirmed) return;
+    }
+
+    deletingDailyAlgoProblemId = problem.id;
+    try {
+      await formAction.run(
+        async () => {
+          const payload = await deleteDailyAlgoProblem(problem.id);
+          if (!payload?.ok) return false;
+
+          if (editingDailyAlgoProblemId === problem.id) {
+            closeDailyAlgoProblemModal();
+          }
+
+          await Promise.all([
+            loadDailyAlgoProblems(),
+            loadTodayDailyAlgoSubmissions(),
+            loadDailyAlgoHistory(),
+            loadDailyAlgoSchedule(),
+            dashboardStore.refresh(),
+          ]);
+          return true;
+        },
+        {
+          successMessage: 'Exercice supprimé.',
+          failureMessage: 'Impossible de supprimer cet exercice.',
+        },
+      );
+    } finally {
+      deletingDailyAlgoProblemId = null;
+    }
+  }
+
   function submissionStatusMeta(status: string) {
     if (status === 'APPROVED') {
       return {
@@ -908,13 +1000,6 @@
     return `${year}-${month}-${day}`;
   }
 
-  function dailyAlgoDateKeyWithOffset(offsetDays: number): string {
-    const date = new Date();
-    date.setHours(0, 0, 0, 0);
-    date.setDate(date.getDate() + offsetDays);
-    return dailyAlgoDateKeyFromDate(date);
-  }
-
   function dailyAlgoDetectChallengeTypeKey(title: string, description: string): DailyAlgoChallengeTypeKey {
     const text = `${title ?? ''} ${description ?? ''}`.toLowerCase();
 
@@ -1008,59 +1093,49 @@
     return `curl -X PATCH "${dailyAlgoPublicApiProblemsUrl}/PROBLEM_ID" \\\n  -H "Content-Type: application/json" \\\n  -H "X-API-Key: kb_..." \\\n  -d '${apiDocPayloadExample}'`;
   });
 
-  const dailyAlgoForecast = $derived.by(() => {
-    const candidates = [...dailyAlgoProblems]
-      .filter((problem) => !problem?.usedAt && (!problem?.language || problem.language === 'fr'))
-      .sort((left, right) => {
-        const leftCreatedAt = left?.createdAt ? new Date(left.createdAt).getTime() : 0;
-        const rightCreatedAt = right?.createdAt ? new Date(right.createdAt).getTime() : 0;
-        if (leftCreatedAt !== rightCreatedAt) return leftCreatedAt - rightCreatedAt;
-        return String(left?.id ?? '').localeCompare(String(right?.id ?? ''));
-      });
-
-    const recentTypes = [...dailyAlgoProblems]
-      .filter((problem) => !!problem?.usedAt)
-      .sort((left, right) => {
-        const leftUsedAt = left?.usedAt ? new Date(left.usedAt).getTime() : 0;
-        const rightUsedAt = right?.usedAt ? new Date(right.usedAt).getTime() : 0;
-        return rightUsedAt - leftUsedAt;
-      })
-      .slice(0, 5)
-      .map((problem) => dailyAlgoDetectChallengeTypeKey(problem?.title ?? '', problem?.description ?? ''));
-
-    const upcoming: Array<any & { plannedDateKey: string; challengeType: DailyAlgoChallengeTypeKey }> = [];
-    const queue = [...candidates];
-    let rollingRecent = [...recentTypes];
-
-    const horizon = Math.min(14, queue.length);
-    for (let index = 0; index < horizon; index += 1) {
-      const variedIndex = queue.findIndex((candidate) => {
-        const candidateType = dailyAlgoDetectChallengeTypeKey(candidate?.title ?? '', candidate?.description ?? '');
-        return !rollingRecent.includes(candidateType);
-      });
-      const pickIndex = variedIndex >= 0 ? variedIndex : 0;
-      const picked = queue.splice(pickIndex, 1)[0];
-      if (!picked) continue;
-
-      const challengeType = dailyAlgoDetectChallengeTypeKey(picked?.title ?? '', picked?.description ?? '');
-      rollingRecent = [challengeType, ...rollingRecent].slice(0, 5);
-      upcoming.push({
-        ...picked,
-        challengeType,
-        plannedDateKey: dailyAlgoDateKeyWithOffset(index + 1),
-      });
-    }
-
-    return upcoming;
+  const todayDateKey = $derived.by(() => dailyAlgoDateKeyFromDate(new Date()));
+  const todayRunProblemId = $derived.by(() => {
+    const problemId = dailyAlgoToday?.run?.problem?.id;
+    return typeof problemId === 'string' && problemId.trim() ? problemId : null;
   });
 
-  const dailyAlgoForecastDateByProblemId = $derived.by(() => {
-    const entries = dailyAlgoForecast.map((problem) => [problem.id, problem.plannedDateKey] as const);
+  const dailyAlgoScheduleRuns = $derived.by(() => {
+    const runs = Array.isArray(dailyAlgoSchedule) ? [...dailyAlgoSchedule] : [];
+    return runs
+      .filter((run) => typeof run?.dateKey === 'string' && run.dateKey.trim().length > 0)
+      .sort((left, right) => String(left.dateKey).localeCompare(String(right.dateKey)))
+      .map((run) => {
+        const dateKey = String(run.dateKey);
+        const status = dateKey < todayDateKey
+          ? 'past'
+          : dateKey > todayDateKey
+            ? 'future'
+            : 'today';
+
+        return {
+          ...run,
+          dateKey,
+          status,
+          challengeType: dailyAlgoDetectChallengeTypeKey(
+            run?.problem?.title ?? '',
+            run?.problem?.description ?? '',
+          ),
+        };
+      });
+  });
+
+  const dailyAlgoUpcomingRuns = $derived.by(() => dailyAlgoScheduleRuns.filter((run) => run.status !== 'past'));
+  const dailyAlgoFutureRunsCount = $derived.by(() => dailyAlgoScheduleRuns.filter((run) => run.status === 'future').length);
+
+  const dailyAlgoScheduleDateByProblemId = $derived.by(() => {
+    const entries = dailyAlgoScheduleRuns
+      .filter((run) => typeof run?.problem?.id === 'string' && run.problem.id.trim())
+      .map((run) => [run.problem.id as string, run.dateKey as string] as const);
     return Object.fromEntries(entries);
   });
 
   function dailyAlgoPlannedDateForProblem(problemId: string): string | null {
-    return dailyAlgoForecastDateByProblemId[problemId] ?? null;
+    return dailyAlgoScheduleDateByProblemId[problemId] ?? null;
   }
 
   const filteredDailyAlgoLibrary = $derived.by(() => {
@@ -1090,8 +1165,8 @@
       if (leftUsed !== rightUsed) return leftUsed ? 1 : -1;
 
       if (!leftUsed) {
-        const leftPlanned = dailyAlgoForecastDateByProblemId[left.id] ?? '9999-99-99';
-        const rightPlanned = dailyAlgoForecastDateByProblemId[right.id] ?? '9999-99-99';
+        const leftPlanned = dailyAlgoScheduleDateByProblemId[left.id] ?? '9999-99-99';
+        const rightPlanned = dailyAlgoScheduleDateByProblemId[right.id] ?? '9999-99-99';
         if (leftPlanned !== rightPlanned) return leftPlanned.localeCompare(rightPlanned);
       } else {
         const leftUsedAt = left?.usedAt ? new Date(left.usedAt).getTime() : 0;
@@ -1774,13 +1849,13 @@
                 Daily Algo Control Room
               </h3>
               <p class="mt-2 text-xs text-on-surface-variant">
-                Vue centrée sur le quotidien: exo du jour, modération des soumissions, planning prévisionnel et banque d'exercices.
+                Vue centrée sur le quotidien: exo du jour, modération des soumissions, calendrier confirmé et banque d'exercices.
               </p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
               <RefreshButton
-                onClick={() => Promise.all([loadTodayDailyAlgoSubmissions(), loadDailyAlgoProblems(), loadDailyAlgoHistory(), loadMyApiKeys()])}
-                loading={isFetchingAlgoSubmissions || isFetchingAlgo || isFetchingAlgoHistory || isFetchingApiKeys}
+                onClick={() => Promise.all([loadTodayDailyAlgoSubmissions(), loadDailyAlgoProblems(), loadDailyAlgoHistory(), loadDailyAlgoSchedule(), loadMyApiKeys()])}
+                loading={isFetchingAlgoSubmissions || isFetchingAlgo || isFetchingAlgoHistory || isFetchingAlgoSchedule || isFetchingApiKeys}
                 label="Tout rafraîchir"
                 className="px-4 py-2 text-[10px] font-black uppercase tracking-wider rounded-xl bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/20 text-on-surface-variant"
                 iconClass="text-sm"
@@ -1820,8 +1895,8 @@
                 <p class="text-2xl font-black text-emerald-700 mt-1">{todaySubmissionStats.approved}</p>
               </div>
               <div class="rounded-2xl bg-sky-500/10 border border-sky-500/20 p-4">
-                <p class="text-[9px] uppercase tracking-[0.2em] font-black text-sky-700/80">Prévisions</p>
-                <p class="text-2xl font-black text-sky-700 mt-1">{dailyAlgoForecast.length}</p>
+                <p class="text-[9px] uppercase tracking-[0.2em] font-black text-sky-700/80">Dates sûres</p>
+                <p class="text-2xl font-black text-sky-700 mt-1">{dailyAlgoFutureRunsCount}</p>
               </div>
             </div>
           </div>
@@ -1993,32 +2068,46 @@
           </div>
 
           <div class="premium-card p-8 rounded-[2.5rem] space-y-6">
-            <h4 class="text-lg font-black text-on-surface">2) + 3) Planning prévisionnel & banque d'exercices fusionnés</h4>
+            <h4 class="text-lg font-black text-on-surface">2) + 3) Calendrier réel & banque d'exercices fusionnés</h4>
 
-            <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-4">
+            <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-4">
               <div class="rounded-2xl border border-outline-variant/20 bg-surface-container-low p-4 space-y-4">
                 <div class="flex items-center justify-between gap-2">
-                  <p class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/60">Prochaines dates probables (14 jours max)</p>
-                  <span class="text-[10px] font-bold text-on-surface-variant">{dailyAlgoForecast.length} exo(s) planifié(s)</span>
+                  <p class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/60">Mini calendrier confirmé (dates réelles)</p>
+                  <span class="text-[10px] font-bold text-on-surface-variant">{dailyAlgoUpcomingRuns.length} date(s) affichée(s)</span>
                 </div>
-                {#if dailyAlgoForecast.length === 0}
+                {#if isFetchingAlgoSchedule}
+                  <div class="rounded-xl border border-outline-variant/20 bg-surface px-3 py-3 text-xs text-on-surface-variant animate-pulse">
+                    Chargement du planning confirmé...
+                  </div>
+                {:else if dailyAlgoUpcomingRuns.length === 0}
                   <div class="rounded-xl border border-outline-variant/20 bg-surface px-3 py-3 text-xs text-on-surface-variant">
-                    Aucun exercice disponible pour générer une prévision.
+                    Aucune date future n'est programmée pour l'instant. Utilise “Mettre aujourd'hui” pour fixer l'exercice du jour.
                   </div>
                 {:else}
                   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {#each dailyAlgoForecast as planned, index}
+                    {#each dailyAlgoUpcomingRuns.slice(0, 14) as run}
                       <article class="rounded-xl border border-outline-variant/25 bg-surface px-3 py-3 space-y-1">
-                        <p class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">
-                          J+{index + 1} · {historyDateLabel(planned.plannedDateKey)}
-                        </p>
-                        <p class="text-sm font-black text-on-surface line-clamp-1">{planned.title}</p>
+                        <div class="flex items-center justify-between gap-2">
+                          <p class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">
+                            {historyDateLabel(run.dateKey)}
+                          </p>
+                          <span class="px-2 py-0.5 rounded-md border text-[10px] font-black uppercase tracking-[0.08em] {run.status === 'today'
+                            ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700'
+                            : 'border-sky-500/25 bg-sky-500/10 text-sky-700'}">
+                            {run.status === 'today' ? "Aujourd'hui" : 'Programmé'}
+                          </span>
+                        </div>
+                        <p class="text-sm font-black text-on-surface line-clamp-1">{run.problem?.title ?? 'Exercice inconnu'}</p>
                         <div class="flex flex-wrap items-center gap-1.5">
                           <span class="px-2 py-0.5 rounded-md border border-outline-variant/20 bg-surface-container-low text-[10px] font-black uppercase tracking-[0.08em] text-on-surface-variant">
-                            {difficultyLabel(planned.difficulty)}
+                            {difficultyLabel(run.problem?.difficulty ?? 'moyen')}
                           </span>
                           <span class="px-2 py-0.5 rounded-md border border-sky-500/25 bg-sky-500/10 text-[10px] font-black uppercase tracking-[0.08em] text-sky-700">
-                            {dailyAlgoChallengeTypeLabel(planned.challengeType)}
+                            {dailyAlgoChallengeTypeLabel(run.challengeType)}
+                          </span>
+                          <span class="px-2 py-0.5 rounded-md border border-outline-variant/20 bg-surface-container-low text-[10px] font-black uppercase tracking-[0.08em] text-on-surface-variant">
+                            {run.submissionsCount ?? 0} soum.
                           </span>
                         </div>
                       </article>
@@ -2085,7 +2174,7 @@
                   <table class="data-table">
                     <thead>
                       <tr>
-                        <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Date (joué / prévu)</th>
+                        <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Date réelle</th>
                         <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Exercice</th>
                         <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Difficulté</th>
                         <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Type</th>
@@ -2098,12 +2187,18 @@
                       {#each filteredDailyAlgoLibrary as problem}
                         <tr>
                           <td>
-                            {#if problem.usedAt}
+                            {#if dailyAlgoPlannedDateForProblem(problem.id)}
+                              {#if (dailyAlgoPlannedDateForProblem(problem.id) || '') === todayDateKey}
+                                <span class="inline-flex px-2 py-0.5 rounded-md border border-emerald-500/25 bg-emerald-500/10 text-[10px] font-black uppercase tracking-[0.08em] text-emerald-700">Aujourd'hui</span>
+                              {:else if (dailyAlgoPlannedDateForProblem(problem.id) || '') > todayDateKey}
+                                <span class="inline-flex px-2 py-0.5 rounded-md border border-sky-500/25 bg-sky-500/10 text-[10px] font-black uppercase tracking-[0.08em] text-sky-700">Programmé</span>
+                              {:else}
+                                <span class="inline-flex px-2 py-0.5 rounded-md border border-slate-500/25 bg-slate-500/10 text-[10px] font-black uppercase tracking-[0.08em] text-slate-700">Joué</span>
+                              {/if}
+                              <p class="mt-1 text-[11px] font-bold text-on-surface-variant">{historyDateLabel(dailyAlgoPlannedDateForProblem(problem.id) || '')}</p>
+                            {:else if problem.usedAt}
                               <span class="inline-flex px-2 py-0.5 rounded-md border border-slate-500/25 bg-slate-500/10 text-[10px] font-black uppercase tracking-[0.08em] text-slate-700">Joué</span>
                               <p class="mt-1 text-[11px] font-bold text-on-surface-variant">{formatDate(problem.usedAt)}</p>
-                            {:else if dailyAlgoPlannedDateForProblem(problem.id)}
-                              <span class="inline-flex px-2 py-0.5 rounded-md border border-sky-500/25 bg-sky-500/10 text-[10px] font-black uppercase tracking-[0.08em] text-sky-700">Prévu</span>
-                              <p class="mt-1 text-[11px] font-bold text-on-surface-variant">{historyDateLabel(dailyAlgoPlannedDateForProblem(problem.id) || '')}</p>
                             {:else}
                               <span class="inline-flex px-2 py-0.5 rounded-md border border-amber-500/25 bg-amber-500/10 text-[10px] font-black uppercase tracking-[0.08em] text-amber-700">Backlog</span>
                               <p class="mt-1 text-[11px] font-bold text-on-surface-variant">En attente</p>
@@ -2143,13 +2238,33 @@
                           </td>
                           <td>
                             {#if canManageSettings}
-                              <button
-                                type="button"
-                                onclick={() => openDailyAlgoProblemEditModal(problem)}
-                                class="px-3 py-1.5 rounded-lg border border-outline-variant/30 bg-surface text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant hover:text-on-surface"
-                              >
-                                Éditer
-                              </button>
+                              <div class="flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onclick={() => openDailyAlgoProblemEditModal(problem)}
+                                  class="px-3 py-1.5 rounded-lg border border-outline-variant/30 bg-surface text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant hover:text-on-surface"
+                                >
+                                  Éditer
+                                </button>
+                                <button
+                                  type="button"
+                                  onclick={() => setProblemAsToday(problem.id)}
+                                  disabled={switchingTodayProblemId === problem.id || deletingDailyAlgoProblemId === problem.id || todayRunProblemId === problem.id}
+                                  class="px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-[0.12em] disabled:opacity-50 disabled:cursor-not-allowed {todayRunProblemId === problem.id
+                                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700'
+                                    : 'border-sky-500/30 bg-sky-500/10 text-sky-700 hover:bg-sky-500/20'}"
+                                >
+                                  {todayRunProblemId === problem.id ? "Exo du jour" : 'Mettre aujourd’hui'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onclick={() => deleteDailyAlgoProblemFromLibrary(problem)}
+                                  disabled={deletingDailyAlgoProblemId === problem.id || switchingTodayProblemId === problem.id}
+                                  class="px-3 py-1.5 rounded-lg border border-red-500/30 bg-red-500/10 text-red-700 text-[10px] font-black uppercase tracking-[0.12em] hover:bg-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  Supprimer
+                                </button>
+                              </div>
                             {:else}
                               <span class="text-[10px] text-on-surface-variant">Lecture seule</span>
                             {/if}

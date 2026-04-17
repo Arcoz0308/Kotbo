@@ -375,6 +375,33 @@ export async function updateDailyAlgoProblem(problemId, problem, guildId = authS
   });
 }
 
+export async function deleteDailyAlgoProblem(problemId, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/daily-algo-problems/${problemId}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Delete Daily Algo Problem):'
+  });
+}
+
+export async function fetchDailyAlgoSchedule(daysBack = 7, daysForward = 21, guildId = authStore.selectedGuildId) {
+  const safeDaysBack = Math.max(0, Math.trunc(daysBack || 0));
+  const safeDaysForward = Math.max(0, Math.trunc(daysForward || 0));
+  return dashboardRequest(`/daily-algo-runs/schedule?daysBack=${safeDaysBack}&daysForward=${safeDaysForward}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Daily Algo Schedule):'
+  });
+}
+
+export async function swapTodayDailyAlgoProblem(problemId, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/daily-algo-runs/today/problem', {
+    method: 'PATCH',
+    payload: { problemId },
+    guildId,
+    errorContext: 'API Error (Swap Today Daily Algo Problem):'
+  });
+}
+
 export async function fetchMyApiKeys(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/api-keys', {
     method: 'GET',

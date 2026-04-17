@@ -3433,6 +3433,302 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
+          if (parts.length === 6 && parts[4] === 'daily-algo-runs' && parts[5] === 'schedule' && req.method === 'GET') {
+            const daysBackParam = Number(url.searchParams.get('daysBack') ?? 7);
+            const daysForwardParam = Number(url.searchParams.get('daysForward') ?? 21);
+
+            const daysBack = Number.isFinite(daysBackParam)
+              ? Math.max(0, Math.min(30, Math.trunc(daysBackParam)))
+              : 7;
+            const daysForward = Number.isFinite(daysForwardParam)
+              ? Math.max(0, Math.min(60, Math.trunc(daysForwardParam)))
+              : 21;
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const fromDate = new Date(today);
+            fromDate.setDate(fromDate.getDate() - daysBack);
+
+            const toDate = new Date(today);
+            toDate.setDate(toDate.getDate() + daysForward);
+
+            const fromKey = getLocalDateKey(fromDate);
+            const toKey = getLocalDateKey(toDate);
+            const todayKey = getLocalDateKey(today);
+
+            const runs = await prisma.dailyAlgoRun.findMany({
+              where: {
+                guildId,
+                dateKey: {
+                  not: null,
+                  gte: fromKey,
+                  lte: toKey,
+                },
+              },
+              orderBy: {
+                dateKey: 'asc',
+              },
+              include: {
+                problem: {
+                  select: {
+                    id: true,
+                    title: true,
+                    description: true,
+                    difficulty: true,
+                    language: true,
+                    functionName: true,
+                    functionArgs: true,
+                    unitTests: true,
+                    allowedLanguages: true,
+                  },
+                },
+                _count: {
+                  select: {
+                    submissions: true,
+                  },
+                },
+              },
+            });
+
+            json(res, 200, {
+              todayKey,
+              fromKey,
+              toKey,
+              runs: runs.map((run) => ({
+                id: run.id,
+                dateKey: run.dateKey,
+                challengeChannelId: run.challengeChannelId,
+                validationChannelId: run.validationChannelId,
+                challengeMessageId: run.challengeMessageId,
+                leaderboardMessageId: run.leaderboardMessageId,
+                createdAt: run.createdAt.toISOString(),
+                updatedAt: run.updatedAt.toISOString(),
+                submissionsCount: run._count.submissions,
+                problem: {
+                  id: run.problem.id,
+                  title: run.problem.title,
+                  description: run.problem.description,
+                  difficulty: run.problem.difficulty,
+                  language: run.problem.language,
+                  functionName: run.problem.functionName,
+                  functionArgs: Array.isArray(run.problem.functionArgs) ? run.problem.functionArgs : [],
+                  unitTests: Array.isArray(run.problem.unitTests) ? run.problem.unitTests : [],
+                  allowedLanguages: Array.isArray(run.problem.allowedLanguages) ? run.problem.allowedLanguages : [],
+                },
+              })),
+            });
+            return;
+          }
+
+          if (
+            parts.length === 7
+            && parts[4] === 'daily-algo-runs'
+            && parts[5] === 'today'
+            && parts[6] === 'problem'
+            && req.method === 'PATCH'
+          ) {
+            const body = await readJsonBody<{ problemId?: unknown }>(req);
+            const problemId = typeof body?.problemId === 'string' ? body.problemId.trim() : '';
+
+            if (!problemId) {
+              json(res, 400, { error: 'problemId manquant.' });
+              return;
+            }
+
+            const targetProblem = await prisma.dailyAlgoProblem.findUnique({
+              where: { id: problemId },
+              select: { id: true, title: true },
+            });
+
+            if (!targetProblem) {
+              json(res, 404, { error: 'Exercice introuvable.' });
+              return;
+            }
+
+            const todayKey = getLocalDateKey();
+            const existingRun = await prisma.dailyAlgoRun.findUnique({
+              where: {
+                guildId_dateKey: {
+                  guildId,
+                  dateKey: todayKey,
+                },
+              },
+              include: {
+                _count: {
+                  select: {
+                    submissions: true,
+                  },
+                },
+              },
+            });
+
+            if (
+              existingRun
+              && existingRun.problemId !== problemId
+              && existingRun._count.submissions > 0
+            ) {
+              json(res, 409, {
+                error: 'Impossible de changer l’exercice du jour: des soumissions existent déjà.',
+              });
+              return;
+            }
+
+            let challengeChannelId = existingRun?.challengeChannelId ?? null;
+            let validationChannelId = existingRun?.validationChannelId ?? null;
+
+            if (!existingRun) {
+              const guild = await prisma.guild.findUnique({
+                where: { id: guildId },
+                select: {
+                  dailyAlgoChannelId: true,
+                  dailyAlgoValidationChannelId: true,
+                },
+              });
+
+              if (!guild?.dailyAlgoChannelId) {
+                json(res, 400, { error: 'Configure d’abord le salon Daily Algo.' });
+                return;
+              }
+
+              challengeChannelId = guild.dailyAlgoChannelId;
+              validationChannelId = guild.dailyAlgoValidationChannelId ?? null;
+            }
+
+            const now = new Date();
+            const swapResult = await prisma.$transaction(async (tx) => {
+              let runId = existingRun?.id ?? '';
+              const previousProblemId = existingRun?.problemId ?? null;
+
+              if (existingRun) {
+                if (existingRun.problemId !== problemId) {
+                  await tx.dailyAlgoRun.update({
+                    where: { id: existingRun.id },
+                    data: { problemId },
+                  });
+                }
+              } else {
+                const created = await tx.dailyAlgoRun.create({
+                  data: {
+                    guildId,
+                    dateKey: todayKey,
+                    problemId,
+                    challengeChannelId: challengeChannelId!,
+                    validationChannelId,
+                  },
+                  select: { id: true },
+                });
+                runId = created.id;
+              }
+
+              await tx.dailyAlgoProblem.updateMany({
+                where: {
+                  id: problemId,
+                  usedAt: null,
+                },
+                data: {
+                  usedAt: now,
+                },
+              });
+
+              if (previousProblemId && previousProblemId !== problemId) {
+                const remainingRunsForPrevious = await tx.dailyAlgoRun.count({
+                  where: { problemId: previousProblemId },
+                });
+
+                if (remainingRunsForPrevious === 0) {
+                  await tx.dailyAlgoProblem.updateMany({
+                    where: { id: previousProblemId },
+                    data: { usedAt: null },
+                  });
+                }
+              }
+
+              const run = await tx.dailyAlgoRun.findUnique({
+                where: { id: runId },
+                include: {
+                  problem: {
+                    select: {
+                      id: true,
+                      title: true,
+                      description: true,
+                      difficulty: true,
+                      language: true,
+                      functionName: true,
+                      functionArgs: true,
+                      unitTests: true,
+                      allowedLanguages: true,
+                    },
+                  },
+                  _count: {
+                    select: {
+                      submissions: true,
+                    },
+                  },
+                },
+              });
+
+              return {
+                run,
+                previousProblemId,
+                changed: previousProblemId !== problemId,
+              };
+            });
+
+            if (!swapResult.run) {
+              json(res, 500, { error: 'Impossible de charger le run Daily Algo après modification.' });
+              return;
+            }
+
+            let discordMessageUpdated = false;
+            if (swapResult.changed && swapResult.run.challengeMessageId) {
+              discordMessageUpdated = await refreshDailyAlgoChallengeMessageForRun(client, swapResult.run.id).catch(() => false);
+            }
+
+            await pushAudit(guildId, {
+              user: auditUser,
+              action: 'Changement Exercice du Jour',
+              context: getGuildName(client, guildId),
+              module: 'Daily Algo',
+              eventType: 'Manuel',
+              details: discordMessageUpdated
+                ? `Exercice du jour défini sur "${swapResult.run.problem.title}" (message Discord mis à jour).`
+                : `Exercice du jour défini sur "${swapResult.run.problem.title}".`,
+              channelId: null,
+            });
+
+            broadcastDashboardStateChange(guildId, 'daily_algo_today_problem_changed');
+            json(res, 200, {
+              ok: true,
+              todayKey,
+              changed: swapResult.changed,
+              discordMessageUpdated,
+              run: {
+                id: swapResult.run.id,
+                dateKey: swapResult.run.dateKey,
+                challengeChannelId: swapResult.run.challengeChannelId,
+                validationChannelId: swapResult.run.validationChannelId,
+                challengeMessageId: swapResult.run.challengeMessageId,
+                leaderboardMessageId: swapResult.run.leaderboardMessageId,
+                createdAt: swapResult.run.createdAt.toISOString(),
+                updatedAt: swapResult.run.updatedAt.toISOString(),
+                submissionsCount: swapResult.run._count.submissions,
+                problem: {
+                  id: swapResult.run.problem.id,
+                  title: swapResult.run.problem.title,
+                  description: swapResult.run.problem.description,
+                  difficulty: swapResult.run.problem.difficulty,
+                  language: swapResult.run.problem.language,
+                  functionName: swapResult.run.problem.functionName,
+                  functionArgs: Array.isArray(swapResult.run.problem.functionArgs) ? swapResult.run.problem.functionArgs : [],
+                  unitTests: Array.isArray(swapResult.run.problem.unitTests) ? swapResult.run.problem.unitTests : [],
+                  allowedLanguages: Array.isArray(swapResult.run.problem.allowedLanguages) ? swapResult.run.problem.allowedLanguages : [],
+                },
+              },
+            });
+            return;
+          }
+
           if (parts.length === 6 && parts[4] === 'daily-algo-submissions' && parts[5] === 'today' && req.method === 'GET') {
             const dateKey = getLocalDateKey();
             const run = await prisma.dailyAlgoRun.findUnique({
@@ -3827,6 +4123,48 @@ export const startDashboardApi = (client: Client) => {
 
             broadcastDashboardStateChange(guildId, 'daily_algo_problem_updated');
             json(res, 200, { ...updated, discordMessageUpdated });
+            return;
+          }
+
+          if (parts.length === 6 && parts[4] === 'daily-algo-problems' && req.method === 'DELETE') {
+            const problemId = parts[5];
+            const existing = await prisma.dailyAlgoProblem.findUnique({
+              where: { id: problemId },
+              select: { id: true, title: true },
+            });
+
+            if (!existing) {
+              json(res, 404, { error: 'Exercice introuvable.' });
+              return;
+            }
+
+            const linkedRuns = await prisma.dailyAlgoRun.count({
+              where: { problemId },
+            });
+
+            if (linkedRuns > 0) {
+              json(res, 409, {
+                error: 'Impossible de supprimer cet exercice: il est déjà lié à un run Daily Algo.',
+              });
+              return;
+            }
+
+            await prisma.dailyAlgoProblem.delete({
+              where: { id: problemId },
+            });
+
+            await pushAudit(guildId, {
+              user: auditUser,
+              action: 'Suppression Exercice',
+              context: getGuildName(client, guildId),
+              module: 'Daily Algo',
+              eventType: 'Manuel',
+              details: `Exercice supprimé: ${existing.title}`,
+              channelId: null,
+            });
+
+            broadcastDashboardStateChange(guildId, 'daily_algo_problem_deleted');
+            json(res, 200, { ok: true });
             return;
           }
 
