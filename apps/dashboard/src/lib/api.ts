@@ -393,6 +393,16 @@ export async function fetchDailyAlgoSchedule(daysBack = 7, daysForward = 21, gui
   });
 }
 
+export async function ensureDailyAlgoSchedule(daysForward = 21, guildId = authStore.selectedGuildId) {
+  const safeDaysForward = Math.max(1, Math.trunc(daysForward || 1));
+  return dashboardRequest('/daily-algo-runs/schedule/ensure', {
+    method: 'POST',
+    payload: { daysForward: safeDaysForward },
+    guildId,
+    errorContext: 'API Error (Ensure Daily Algo Schedule):'
+  });
+}
+
 export async function swapTodayDailyAlgoProblem(problemId, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/daily-algo-runs/today/problem', {
     method: 'PATCH',

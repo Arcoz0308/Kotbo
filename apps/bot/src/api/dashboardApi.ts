@@ -3524,6 +3524,156 @@ export const startDashboardApi = (client: Client) => {
           if (
             parts.length === 7
             && parts[4] === 'daily-algo-runs'
+            && parts[5] === 'schedule'
+            && parts[6] === 'ensure'
+            && req.method === 'POST'
+          ) {
+            const body = await readJsonBody<{ daysForward?: unknown }>(req);
+            const daysForwardRaw = Number(body?.daysForward ?? 21);
+            const daysForward = Number.isFinite(daysForwardRaw)
+              ? Math.max(1, Math.min(60, Math.trunc(daysForwardRaw)))
+              : 21;
+
+            const guild = await prisma.guild.findUnique({
+              where: { id: guildId },
+              select: {
+                dailyAlgoEnabled: true,
+                dailyAlgoChannelId: true,
+                dailyAlgoValidationChannelId: true,
+              },
+            });
+
+            if (!guild?.dailyAlgoEnabled) {
+              json(res, 400, { error: 'Le Daily Algo doit être activé avant de planifier des dates.' });
+              return;
+            }
+
+            if (!guild.dailyAlgoChannelId) {
+              json(res, 400, { error: 'Configure d’abord le salon Daily Algo.' });
+              return;
+            }
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const todayKey = getLocalDateKey(today);
+            const endDate = new Date(today);
+            endDate.setDate(endDate.getDate() + daysForward);
+            const endKey = getLocalDateKey(endDate);
+
+            const existingRuns = await prisma.dailyAlgoRun.findMany({
+              where: {
+                guildId,
+                dateKey: {
+                  gte: todayKey,
+                  lte: endKey,
+                },
+              },
+              select: {
+                dateKey: true,
+              },
+            });
+
+            const occupiedDateKeys = new Set(
+              existingRuns
+                .map((run) => (typeof run.dateKey === 'string' ? run.dateKey : null))
+                .filter((value): value is string => Boolean(value)),
+            );
+
+            const candidateProblems = await prisma.dailyAlgoProblem.findMany({
+              where: {
+                usedAt: null,
+                language: 'fr',
+              },
+              orderBy: [
+                { createdAt: 'asc' },
+                { id: 'asc' },
+              ],
+              select: {
+                id: true,
+                title: true,
+              },
+            });
+
+            const problemQueue = [...candidateProblems];
+            let createdRuns = 0;
+            const now = new Date();
+
+            for (let offset = 0; offset <= daysForward; offset += 1) {
+              const date = new Date(today);
+              date.setDate(date.getDate() + offset);
+              const dateKey = getLocalDateKey(date);
+
+              if (occupiedDateKeys.has(dateKey)) {
+                continue;
+              }
+
+              const candidate = problemQueue.shift();
+              if (!candidate) {
+                break;
+              }
+
+              try {
+                await prisma.$transaction(async (tx) => {
+                  const reserve = await tx.dailyAlgoProblem.updateMany({
+                    where: {
+                      id: candidate.id,
+                      usedAt: null,
+                    },
+                    data: {
+                      usedAt: now,
+                    },
+                  });
+
+                  if (reserve.count === 0) {
+                    throw new Error('PROBLEM_ALREADY_RESERVED');
+                  }
+
+                  await tx.dailyAlgoRun.create({
+                    data: {
+                      guildId,
+                      dateKey,
+                      problemId: candidate.id,
+                      challengeChannelId: guild.dailyAlgoChannelId!,
+                      validationChannelId: guild.dailyAlgoValidationChannelId ?? null,
+                    },
+                  });
+                });
+
+                occupiedDateKeys.add(dateKey);
+                createdRuns += 1;
+              } catch (error) {
+                // Ignore unique/race conflicts and continue filling the schedule.
+                logger.warn('DailyAlgo', `Planification ignorée pour ${dateKey} / ${candidate.id}:`, error);
+              }
+            }
+
+            if (createdRuns > 0) {
+              await pushAudit(guildId, {
+                user: auditUser,
+                action: 'Planification Daily Algo',
+                context: getGuildName(client, guildId),
+                module: 'Daily Algo',
+                eventType: 'Manuel',
+                details: `${createdRuns} date(s) Daily Algo confirmée(s) jusqu'au ${endKey}.`,
+                channelId: null,
+              });
+              broadcastDashboardStateChange(guildId, 'daily_algo_schedule_updated');
+            }
+
+            json(res, 200, {
+              ok: true,
+              todayKey,
+              endKey,
+              daysForward,
+              createdRuns,
+              remainingUnscheduledDays: Math.max(0, daysForward + 1 - occupiedDateKeys.size),
+            });
+            return;
+          }
+
+          if (
+            parts.length === 7
+            && parts[4] === 'daily-algo-runs'
             && parts[5] === 'today'
             && parts[6] === 'problem'
             && req.method === 'PATCH'

@@ -12,6 +12,7 @@
     updateDailyAlgoProblem,
     deleteDailyAlgoProblem,
     fetchDailyAlgoSchedule,
+    ensureDailyAlgoSchedule,
     swapTodayDailyAlgoProblem,
     fetchMyApiKeys,
     createOrResetDailyAlgoApiKey,
@@ -199,6 +200,7 @@
   let isFetchingAlgoSubmissions = $state(false);
   let isFetchingAlgoHistory = $state(false);
   let isFetchingAlgoSchedule = $state(false);
+  let isEnsuringAlgoSchedule = $state(false);
   let dailyAlgoHistory = $state<any[]>([]);
   let dailyAlgoSchedule = $state<any[]>([]);
   let myApiKeys = $state<any[]>([]);
@@ -282,12 +284,21 @@
   async function loadDailyAlgoSchedule() {
     isFetchingAlgoSchedule = true;
     try {
+      if (canManageSettings) {
+        isEnsuringAlgoSchedule = true;
+        try {
+          await ensureDailyAlgoSchedule(21);
+        } finally {
+          isEnsuringAlgoSchedule = false;
+        }
+      }
       const payload = await fetchDailyAlgoSchedule(7, 21);
       dailyAlgoSchedule = Array.isArray(payload?.runs) ? payload.runs : [];
     } catch (err) {
       console.error(err);
       formAction.setError('Erreur lors du chargement du planning Daily Algo.');
     } finally {
+      isEnsuringAlgoSchedule = false;
       isFetchingAlgoSchedule = false;
     }
   }
@@ -1855,7 +1866,7 @@
             <div class="flex flex-wrap items-center gap-2">
               <RefreshButton
                 onClick={() => Promise.all([loadTodayDailyAlgoSubmissions(), loadDailyAlgoProblems(), loadDailyAlgoHistory(), loadDailyAlgoSchedule(), loadMyApiKeys()])}
-                loading={isFetchingAlgoSubmissions || isFetchingAlgo || isFetchingAlgoHistory || isFetchingAlgoSchedule || isFetchingApiKeys}
+                loading={isFetchingAlgoSubmissions || isFetchingAlgo || isFetchingAlgoHistory || isFetchingAlgoSchedule || isEnsuringAlgoSchedule || isFetchingApiKeys}
                 label="Tout rafraîchir"
                 className="px-4 py-2 text-[10px] font-black uppercase tracking-wider rounded-xl bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/20 text-on-surface-variant"
                 iconClass="text-sm"
@@ -2076,7 +2087,7 @@
                   <p class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/60">Mini calendrier confirmé (dates réelles)</p>
                   <span class="text-[10px] font-bold text-on-surface-variant">{dailyAlgoUpcomingRuns.length} date(s) affichée(s)</span>
                 </div>
-                {#if isFetchingAlgoSchedule}
+                {#if isFetchingAlgoSchedule || isEnsuringAlgoSchedule}
                   <div class="rounded-xl border border-outline-variant/20 bg-surface px-3 py-3 text-xs text-on-surface-variant animate-pulse">
                     Chargement du planning confirmé...
                   </div>
