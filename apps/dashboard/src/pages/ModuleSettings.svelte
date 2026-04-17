@@ -70,6 +70,15 @@
     expectedValue: string;
   };
 
+  type DailyAlgoChallengeTypeKey =
+    | 'time-complexity'
+    | 'space-complexity'
+    | 'code-golf'
+    | 'absurd-constraints'
+    | 'debug'
+    | 'language-imposed'
+    | 'classic';
+
   function createDraftId(prefix: string): string {
     return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
   }
@@ -163,6 +172,14 @@
     }
   }
 
+  function openDailyAlgoApiModal() {
+    dailyAlgoApiModalOpen = true;
+  }
+
+  function closeDailyAlgoApiModal() {
+    dailyAlgoApiModalOpen = false;
+  }
+
   let youtubeReferenceChannelId = $state('');
   let desiredModuleStatus = $state('inactive');
   let deleteFeedModalOpen = $state(false);
@@ -183,7 +200,10 @@
   let dailyAlgoApiKeyName = $state('Kotbo Daily Algo');
   let latestIssuedApiKey = $state('');
   let isFetchingApiKeys = $state(false);
+  let dailyAlgoApiModalOpen = $state(false);
   let dailyAlgoSubmissionStatusFilter = $state<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
+  let dailyAlgoLibrarySearch = $state('');
+  let dailyAlgoLibraryMode = $state<'ALL' | 'AVAILABLE' | 'USED'>('ALL');
   let ideFocusedSubmissionId = $state<string | null>(null);
   let ideModalOpen = $state(false);
   let scoreDraftBySubmissionId = $state<Record<string, {
@@ -848,6 +868,20 @@
     };
   });
 
+  $effect(() => {
+    if (typeof window === 'undefined') return;
+    if (!dailyAlgoApiModalOpen) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeDailyAlgoApiModal();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  });
+
   function historyDateLabel(dateKey?: string | null) {
     if (!dateKey) return 'Date inconnue';
     const [year, month, day] = dateKey.split('-').map((value) => Number(value));
@@ -867,8 +901,42 @@
     return value;
   }
 
-  function dailyAlgoProblemStatus(problem: any) {
-    return problem.usedAt ? 'Utilisé' : 'Disponible';
+  function dailyAlgoDateKeyFromDate(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  function dailyAlgoDateKeyWithOffset(offsetDays: number): string {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() + offsetDays);
+    return dailyAlgoDateKeyFromDate(date);
+  }
+
+  function dailyAlgoDetectChallengeTypeKey(title: string, description: string): DailyAlgoChallengeTypeKey {
+    const text = `${title ?? ''} ${description ?? ''}`.toLowerCase();
+
+    if (/débog|debug|corrig|fix|bug/.test(text)) return 'debug';
+    if (/complexité|o\(n|o\(log|temps d'exécution|runtime/.test(text)) return 'time-complexity';
+    if (/mémoire|espace|space complexity|in-place|sans allocation/.test(text)) return 'space-complexity';
+    if (/plus court|code golf|minimum de caractères|moins de caractères/.test(text)) return 'code-golf';
+    if (/obligatoirement|en python|en rust|en javascript|en go|en typescript|en c\+\+|en c#|en sql|en bash|langage/.test(text)) {
+      return 'language-imposed';
+    }
+    if (/sans la lettre|interdit|absurde|contraintes absurdes|uniquement|sans utiliser/.test(text)) return 'absurd-constraints';
+    return 'classic';
+  }
+
+  function dailyAlgoChallengeTypeLabel(type: DailyAlgoChallengeTypeKey): string {
+    if (type === 'debug') return 'Débogage';
+    if (type === 'time-complexity') return 'Complexité temps';
+    if (type === 'space-complexity') return 'Complexité mémoire';
+    if (type === 'code-golf') return 'Code golf';
+    if (type === 'language-imposed') return 'Langage imposé';
+    if (type === 'absurd-constraints') return 'Contraintes';
+    return 'Classique';
   }
 
   function dailyAlgoProblemFunctionSignature(problem: any) {
@@ -940,14 +1008,99 @@
     return `curl -X PATCH "${dailyAlgoPublicApiProblemsUrl}/PROBLEM_ID" \\\n  -H "Content-Type: application/json" \\\n  -H "X-API-Key: kb_..." \\\n  -d '${apiDocPayloadExample}'`;
   });
 
-  const sortedDailyAlgoProblems = $derived.by(() => {
-    return [...dailyAlgoProblems].sort((left, right) => {
-      if (!!left.usedAt !== !!right.usedAt) {
-        return left.usedAt ? 1 : -1;
+  const dailyAlgoForecast = $derived.by(() => {
+    const candidates = [...dailyAlgoProblems]
+      .filter((problem) => !problem?.usedAt && (!problem?.language || problem.language === 'fr'))
+      .sort((left, right) => {
+        const leftCreatedAt = left?.createdAt ? new Date(left.createdAt).getTime() : 0;
+        const rightCreatedAt = right?.createdAt ? new Date(right.createdAt).getTime() : 0;
+        if (leftCreatedAt !== rightCreatedAt) return leftCreatedAt - rightCreatedAt;
+        return String(left?.id ?? '').localeCompare(String(right?.id ?? ''));
+      });
+
+    const recentTypes = [...dailyAlgoProblems]
+      .filter((problem) => !!problem?.usedAt)
+      .sort((left, right) => {
+        const leftUsedAt = left?.usedAt ? new Date(left.usedAt).getTime() : 0;
+        const rightUsedAt = right?.usedAt ? new Date(right.usedAt).getTime() : 0;
+        return rightUsedAt - leftUsedAt;
+      })
+      .slice(0, 5)
+      .map((problem) => dailyAlgoDetectChallengeTypeKey(problem?.title ?? '', problem?.description ?? ''));
+
+    const upcoming: Array<any & { plannedDateKey: string; challengeType: DailyAlgoChallengeTypeKey }> = [];
+    const queue = [...candidates];
+    let rollingRecent = [...recentTypes];
+
+    const horizon = Math.min(14, queue.length);
+    for (let index = 0; index < horizon; index += 1) {
+      const variedIndex = queue.findIndex((candidate) => {
+        const candidateType = dailyAlgoDetectChallengeTypeKey(candidate?.title ?? '', candidate?.description ?? '');
+        return !rollingRecent.includes(candidateType);
+      });
+      const pickIndex = variedIndex >= 0 ? variedIndex : 0;
+      const picked = queue.splice(pickIndex, 1)[0];
+      if (!picked) continue;
+
+      const challengeType = dailyAlgoDetectChallengeTypeKey(picked?.title ?? '', picked?.description ?? '');
+      rollingRecent = [challengeType, ...rollingRecent].slice(0, 5);
+      upcoming.push({
+        ...picked,
+        challengeType,
+        plannedDateKey: dailyAlgoDateKeyWithOffset(index + 1),
+      });
+    }
+
+    return upcoming;
+  });
+
+  const dailyAlgoForecastDateByProblemId = $derived.by(() => {
+    const entries = dailyAlgoForecast.map((problem) => [problem.id, problem.plannedDateKey] as const);
+    return Object.fromEntries(entries);
+  });
+
+  function dailyAlgoPlannedDateForProblem(problemId: string): string | null {
+    return dailyAlgoForecastDateByProblemId[problemId] ?? null;
+  }
+
+  const filteredDailyAlgoLibrary = $derived.by(() => {
+    const query = dailyAlgoLibrarySearch.trim().toLowerCase();
+    const filtered = [...dailyAlgoProblems].filter((problem) => {
+      if (dailyAlgoLibraryMode === 'AVAILABLE' && problem?.usedAt) return false;
+      if (dailyAlgoLibraryMode === 'USED' && !problem?.usedAt) return false;
+
+      if (!query) return true;
+
+      const haystack = [
+        problem?.title ?? '',
+        problem?.description ?? '',
+        problem?.difficulty ?? '',
+        dailyAlgoProblemFunctionSignature(problem),
+        ...(dailyAlgoProblemAllowedLanguages(problem) ?? []),
+      ]
+        .join(' ')
+        .toLowerCase();
+
+      return haystack.includes(query);
+    });
+
+    return filtered.sort((left, right) => {
+      const leftUsed = Boolean(left?.usedAt);
+      const rightUsed = Boolean(right?.usedAt);
+      if (leftUsed !== rightUsed) return leftUsed ? 1 : -1;
+
+      if (!leftUsed) {
+        const leftPlanned = dailyAlgoForecastDateByProblemId[left.id] ?? '9999-99-99';
+        const rightPlanned = dailyAlgoForecastDateByProblemId[right.id] ?? '9999-99-99';
+        if (leftPlanned !== rightPlanned) return leftPlanned.localeCompare(rightPlanned);
+      } else {
+        const leftUsedAt = left?.usedAt ? new Date(left.usedAt).getTime() : 0;
+        const rightUsedAt = right?.usedAt ? new Date(right.usedAt).getTime() : 0;
+        if (leftUsedAt !== rightUsedAt) return rightUsedAt - leftUsedAt;
       }
 
-      const leftCreatedAt = left.createdAt ? new Date(left.createdAt).getTime() : 0;
-      const rightCreatedAt = right.createdAt ? new Date(right.createdAt).getTime() : 0;
+      const leftCreatedAt = left?.createdAt ? new Date(left.createdAt).getTime() : 0;
+      const rightCreatedAt = right?.createdAt ? new Date(right.createdAt).getTime() : 0;
       return rightCreatedAt - leftCreatedAt;
     });
   });
@@ -1614,14 +1767,68 @@
         </section>
       {:else if moduleId === 'dailyalgo'}
         <section class="space-y-8">
-          <h3 class="text-xl font-black tracking-tight flex items-center gap-4">
-            <div class="w-1.5 h-8 bg-emerald-500 rounded-full"></div>
-            Exercices Algorithmiques
-          </h3>
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h3 class="text-xl font-black tracking-tight flex items-center gap-4">
+                <div class="w-1.5 h-8 bg-emerald-500 rounded-full"></div>
+                Daily Algo Control Room
+              </h3>
+              <p class="mt-2 text-xs text-on-surface-variant">
+                Vue centrée sur le quotidien: exo du jour, modération des soumissions, planning prévisionnel et banque d'exercices.
+              </p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <RefreshButton
+                onClick={() => Promise.all([loadTodayDailyAlgoSubmissions(), loadDailyAlgoProblems(), loadDailyAlgoHistory(), loadMyApiKeys()])}
+                loading={isFetchingAlgoSubmissions || isFetchingAlgo || isFetchingAlgoHistory || isFetchingApiKeys}
+                label="Tout rafraîchir"
+                className="px-4 py-2 text-[10px] font-black uppercase tracking-wider rounded-xl bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/20 text-on-surface-variant"
+                iconClass="text-sm"
+              />
+              <button
+                type="button"
+                onclick={openDailyAlgoApiModal}
+                class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-outline-variant/30 bg-surface-container-low text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
+              >
+                <span class="material-symbols-outlined text-sm">key</span>
+                API Externe
+              </button>
+              {#if canManageSettings}
+                <button
+                  type="button"
+                  onclick={openDailyAlgoProblemModal}
+                  class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-[0.12em] shadow-lg shadow-emerald-500/20 hover:bg-emerald-700"
+                >
+                  Ajouter un exercice
+                </button>
+              {/if}
+            </div>
+          </div>
+
+          <div class="premium-card rounded-[2.5rem] p-6 md:p-7 bg-gradient-to-br from-emerald-500/10 via-surface to-sky-500/10 border border-emerald-500/15">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div class="rounded-2xl bg-slate-500/10 border border-slate-500/20 p-4">
+                <p class="text-[9px] uppercase tracking-[0.2em] font-black text-slate-700/80">Soumissions</p>
+                <p class="text-2xl font-black text-slate-700 mt-1">{todaySubmissionStats.total}</p>
+              </div>
+              <div class="rounded-2xl bg-amber-500/10 border border-amber-500/20 p-4">
+                <p class="text-[9px] uppercase tracking-[0.2em] font-black text-amber-700/80">En attente</p>
+                <p class="text-2xl font-black text-amber-700 mt-1">{todaySubmissionStats.pending}</p>
+              </div>
+              <div class="rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-4">
+                <p class="text-[9px] uppercase tracking-[0.2em] font-black text-emerald-700/80">Validées</p>
+                <p class="text-2xl font-black text-emerald-700 mt-1">{todaySubmissionStats.approved}</p>
+              </div>
+              <div class="rounded-2xl bg-sky-500/10 border border-sky-500/20 p-4">
+                <p class="text-[9px] uppercase tracking-[0.2em] font-black text-sky-700/80">Prévisions</p>
+                <p class="text-2xl font-black text-sky-700 mt-1">{dailyAlgoForecast.length}</p>
+              </div>
+            </div>
+          </div>
 
           <div class="premium-card p-8 rounded-[2.5rem] space-y-6">
             <div class="flex items-center justify-between gap-4">
-              <h4 class="text-lg font-black text-on-surface">Soumissions du Daily Algo du jour</h4>
+              <h4 class="text-lg font-black text-on-surface">1) Défi du jour & validation des soumissions</h4>
               <RefreshButton
                 onClick={loadTodayDailyAlgoSubmissions}
                 loading={isFetchingAlgoSubmissions}
@@ -1640,27 +1847,13 @@
                 Aucun Daily Algo n'a encore été lancé aujourd'hui.
               </div>
             {:else}
-              <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <div class="rounded-2xl bg-slate-500/10 border border-slate-500/20 p-4">
-                  <p class="text-[9px] uppercase tracking-[0.2em] font-black text-slate-700/80">Soumissions</p>
-                  <p class="text-2xl font-black text-slate-700 mt-1">{todaySubmissionStats.total}</p>
-                </div>
-                <div class="rounded-2xl bg-amber-500/10 border border-amber-500/20 p-4">
-                  <p class="text-[9px] uppercase tracking-[0.2em] font-black text-amber-700/80">En attente</p>
-                  <p class="text-2xl font-black text-amber-700 mt-1">{todaySubmissionStats.pending}</p>
-                </div>
-                <div class="rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-4">
-                  <p class="text-[9px] uppercase tracking-[0.2em] font-black text-emerald-700/80">Validées</p>
-                  <p class="text-2xl font-black text-emerald-700 mt-1">{todaySubmissionStats.approved}</p>
-                </div>
-                <div class="rounded-2xl bg-red-500/10 border border-red-500/20 p-4">
-                  <p class="text-[9px] uppercase tracking-[0.2em] font-black text-red-700/80">Rejetées</p>
-                  <p class="text-2xl font-black text-red-700 mt-1">{todaySubmissionStats.rejected}</p>
-                </div>
-              </div>
-
               <div class="rounded-2xl bg-surface-container-low border border-outline-variant/15 p-4">
-                <p class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/60">Défi en cours</p>
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <p class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/60">Défi en cours</p>
+                  <span class="px-2 py-1 rounded-md border border-outline-variant/25 bg-surface text-[10px] font-black uppercase tracking-[0.08em] text-on-surface-variant">
+                    {dailyAlgoChallengeTypeLabel(dailyAlgoDetectChallengeTypeKey(dailyAlgoToday.run.problem.title, dailyAlgoToday.run.problem.description))}
+                  </span>
+                </div>
                 <p class="mt-1 text-sm font-black text-on-surface">{dailyAlgoToday.run.problem.title}</p>
                 <p class="mt-2 text-xs text-on-surface-variant line-clamp-3">{dailyAlgoToday.run.problem.description}</p>
               </div>
@@ -1800,266 +1993,173 @@
           </div>
 
           <div class="premium-card p-8 rounded-[2.5rem] space-y-6">
-            <div class="flex items-center justify-between gap-4">
-              <h4 class="text-lg font-black text-on-surface">Historique Daily Algo (J-1 et avant)</h4>
-              <RefreshButton
-                onClick={loadDailyAlgoHistory}
-                loading={isFetchingAlgoHistory}
-                label="Rafraîchir"
-                className="px-4 py-2 text-[10px] font-black uppercase tracking-wider rounded-xl bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/20 text-on-surface-variant"
-                iconClass="text-sm"
-              />
-            </div>
+            <h4 class="text-lg font-black text-on-surface">2) + 3) Planning prévisionnel & banque d'exercices fusionnés</h4>
 
-            {#if isFetchingAlgoHistory}
-              <div class="p-8 text-center text-sm font-bold text-on-surface-variant/50 animate-pulse">
-                Chargement de l'historique...
-              </div>
-            {:else if dailyAlgoHistory.length === 0}
-              <div class="p-8 rounded-2xl border border-outline-variant/20 bg-surface-container-low text-sm text-on-surface-variant">
-                Aucun historique Daily Algo disponible pour le moment.
-              </div>
-            {:else}
-              <div class="space-y-3">
-                {#each dailyAlgoHistory as run}
-                  <div class="rounded-2xl border border-outline-variant/20 bg-surface-container-low p-4 space-y-3">
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <p class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/60">{historyDateLabel(run.dateKey)}</p>
-                        <p class="mt-1 text-sm font-black text-on-surface">{run.problem.title}</p>
-                      </div>
-                      <div class="flex items-center gap-2 text-[10px] font-bold text-on-surface-variant">
-                        <span class="px-2 py-1 rounded border border-outline-variant/25 bg-surface">Total: {run.stats.total}</span>
-                        <span class="px-2 py-1 rounded border border-emerald-500/25 bg-emerald-500/10 text-emerald-700">Validées: {run.stats.approved}</span>
-                        <span class="px-2 py-1 rounded border border-red-500/25 bg-red-500/10 text-red-700">Rejetées: {run.stats.rejected}</span>
-                      </div>
-                    </div>
-
-                    {#if run.topEntries?.length}
-                      <div class="space-y-1">
-                        <p class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/60">Top du jour</p>
-                        {#each run.topEntries as entry, index}
-                          <div class="flex items-center justify-between rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-xs">
-                            <span class="font-black text-on-surface">#{index + 1} {entry.authorName}</span>
-                            <span class="font-bold text-emerald-700">{entry.totalPoints} pts</span>
-                          </div>
-                        {/each}
-                      </div>
-                    {/if}
+            <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-4">
+              <div class="rounded-2xl border border-outline-variant/20 bg-surface-container-low p-4 space-y-4">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/60">Prochaines dates probables (14 jours max)</p>
+                  <span class="text-[10px] font-bold text-on-surface-variant">{dailyAlgoForecast.length} exo(s) planifié(s)</span>
+                </div>
+                {#if dailyAlgoForecast.length === 0}
+                  <div class="rounded-xl border border-outline-variant/20 bg-surface px-3 py-3 text-xs text-on-surface-variant">
+                    Aucun exercice disponible pour générer une prévision.
                   </div>
-                {/each}
-              </div>
-            {/if}
-          </div>
-
-          <div class="premium-card p-8 rounded-[2.5rem] space-y-6">
-            <div class="flex flex-wrap items-center justify-between gap-4">
-              <h4 class="text-lg font-black text-on-surface">Exercices disponibles</h4>
-              <div class="flex items-center gap-2">
-                <RefreshButton
-                  onClick={loadDailyAlgoProblems}
-                  loading={isFetchingAlgo}
-                  label="Rafraîchir"
-                  className="px-4 py-2 text-[10px] font-black uppercase tracking-wider rounded-xl bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/20 text-on-surface-variant"
-                  iconClass="text-sm"
-                />
-                {#if canManageSettings}
-                  <button
-                    type="button"
-                    onclick={openDailyAlgoProblemModal}
-                    class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-[0.12em] shadow-lg shadow-emerald-500/20 hover:bg-emerald-700"
-                  >
-                    Ajouter un nouvel exercice
-                  </button>
-                {/if}
-              </div>
-            </div>
-
-            {#if isFetchingAlgo}
-              <div class="p-8 text-center text-sm font-bold text-on-surface-variant/50 animate-pulse">
-                Chargement des exercices...
-              </div>
-            {:else if sortedDailyAlgoProblems.length === 0}
-              <div class="p-10 text-center rounded-2xl border border-outline-variant/20 bg-surface-container-low text-sm text-on-surface-variant">
-                Aucun exercice disponible dans la base.
-              </div>
-            {:else}
-              <div class="overflow-x-auto rounded-2xl border border-outline-variant/15 bg-surface-container-low">
-                <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Titre</th>
-                      <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Difficulté</th>
-                      <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Statut</th>
-                      <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Fonction</th>
-                      <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Langages</th>
-                      <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Tests</th>
-                      <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Description</th>
-                      <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Créé le</th>
-                      <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {#each sortedDailyAlgoProblems as problem}
-                      <tr>
-                        <td>
-                          <p class="text-sm font-black text-on-surface">{problem.title}</p>
-                        </td>
-                        <td>
-                          <span class="inline-flex px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-[0.12em] {problem.difficulty === 'facile' ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20' : problem.difficulty === 'moyen' ? 'bg-amber-500/10 text-amber-700 border-amber-500/20' : 'bg-red-500/10 text-red-700 border-red-500/20'}">
-                            {difficultyLabel(problem.difficulty)}
+                {:else}
+                  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {#each dailyAlgoForecast as planned, index}
+                      <article class="rounded-xl border border-outline-variant/25 bg-surface px-3 py-3 space-y-1">
+                        <p class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">
+                          J+{index + 1} · {historyDateLabel(planned.plannedDateKey)}
+                        </p>
+                        <p class="text-sm font-black text-on-surface line-clamp-1">{planned.title}</p>
+                        <div class="flex flex-wrap items-center gap-1.5">
+                          <span class="px-2 py-0.5 rounded-md border border-outline-variant/20 bg-surface-container-low text-[10px] font-black uppercase tracking-[0.08em] text-on-surface-variant">
+                            {difficultyLabel(planned.difficulty)}
                           </span>
-                        </td>
-                        <td>
-                          <span class="inline-flex px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-[0.12em] {problem.usedAt ? 'bg-slate-500/10 text-slate-700 border-slate-500/20' : 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20'}">
-                            {dailyAlgoProblemStatus(problem)}
+                          <span class="px-2 py-0.5 rounded-md border border-sky-500/25 bg-sky-500/10 text-[10px] font-black uppercase tracking-[0.08em] text-sky-700">
+                            {dailyAlgoChallengeTypeLabel(planned.challengeType)}
                           </span>
-                        </td>
-                        <td>
-                          <p class="text-xs font-mono text-on-surface">{dailyAlgoProblemFunctionSignature(problem)}</p>
-                        </td>
-                        <td>
-                          {#if dailyAlgoProblemAllowedLanguages(problem).length === 0}
-                            <span class="px-2 py-0.5 rounded-md border border-emerald-500/25 bg-emerald-500/10 text-[10px] font-black uppercase tracking-[0.08em] text-emerald-700">
-                              Libre
-                            </span>
-                          {:else}
-                            <div class="flex flex-wrap gap-1">
-                              {#each dailyAlgoProblemAllowedLanguages(problem) as lang}
-                                <span class="px-2 py-0.5 rounded-md border border-outline-variant/25 bg-surface text-[10px] font-black uppercase tracking-[0.08em] text-on-surface-variant">
-                                  {lang}
-                                </span>
-                              {/each}
-                            </div>
-                          {/if}
-                        </td>
-                        <td>
-                          <p class="text-xs font-black text-emerald-700">{Array.isArray(problem.unitTests) ? problem.unitTests.length : 0}</p>
-                        </td>
-                        <td>
-                          <p class="text-xs text-on-surface-variant max-w-xl line-clamp-2">{problem.description}</p>
-                        </td>
-                        <td>
-                          <p class="text-xs font-bold text-on-surface-variant">{formatDate(problem.createdAt)}</p>
-                        </td>
-                        <td>
-                          {#if canManageSettings}
-                            <button
-                              type="button"
-                              onclick={() => openDailyAlgoProblemEditModal(problem)}
-                              class="px-3 py-1.5 rounded-lg border border-outline-variant/30 bg-surface text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant hover:text-on-surface"
-                            >
-                              Éditer
-                            </button>
-                          {:else}
-                            <span class="text-[10px] text-on-surface-variant">-</span>
-                          {/if}
-                        </td>
-                      </tr>
+                        </div>
+                      </article>
                     {/each}
-                  </tbody>
-                </table>
-              </div>
-            {/if}
-          </div>
-
-          <div class="premium-card p-8 rounded-[2.5rem] space-y-6">
-            <div class="flex flex-wrap items-start justify-between gap-4">
-              <div class="space-y-1">
-                <h4 class="text-lg font-black text-on-surface">Clé API externe (1 clé par compte)</h4>
-                <p class="text-xs text-on-surface-variant">
-                  Créez ou réinitialisez votre clé personnelle pour piloter les exercices via API.
-                </p>
-              </div>
-              <RefreshButton
-                onClick={loadMyApiKeys}
-                loading={isFetchingApiKeys}
-                label="Rafraîchir"
-                className="px-4 py-2 text-[10px] font-black uppercase tracking-wider rounded-xl bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/20 text-on-surface-variant"
-                iconClass="text-sm"
-              />
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div class="rounded-2xl border border-outline-variant/20 bg-surface-container-low p-4 space-y-4">
-                <label for="dailyalgo-api-key-name" class="text-[10px] font-black uppercase tracking-[0.16em] text-on-surface-variant/70">
-                  Nom de la clé
-                </label>
-                <input
-                  id="dailyalgo-api-key-name"
-                  type="text"
-                  bind:value={dailyAlgoApiKeyName}
-                  placeholder="Kotbo Daily Algo"
-                  class="w-full rounded-xl border border-outline-variant/30 bg-surface px-4 py-2 text-sm text-on-surface outline-none focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
-                />
-
-                <div class="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-[0.12em] hover:bg-emerald-700 disabled:opacity-60"
-                    onclick={createOrResetMyApiKey}
-                    disabled={!canManageSettings || apiKeyAction.state.loading}
-                  >
-                    {currentApiKey ? 'Reset clé API' : 'Créer clé API'}
-                  </button>
-
-                  {#if currentApiKey}
-                    <button
-                      type="button"
-                      class="px-4 py-2 rounded-xl border border-red-500/30 bg-red-500/10 text-red-700 text-[10px] font-black uppercase tracking-[0.12em] hover:bg-red-500/20 disabled:opacity-60"
-                      onclick={() => deleteCurrentApiKey(currentApiKey.id)}
-                      disabled={!canManageSettings || apiKeyAction.state.loading}
-                    >
-                      Désactiver
-                    </button>
-                  {/if}
-                </div>
-
-                <InlineFeedback message={apiKeyAction.state.message} error={apiKeyAction.state.error} />
-
-                <div class="space-y-2 rounded-xl border border-outline-variant/20 bg-surface px-4 py-3">
-                  <p class="text-[10px] uppercase tracking-[0.16em] font-black text-on-surface-variant/70">Clé active</p>
-                  <p class="text-sm font-mono text-on-surface">{currentApiKey?.displayKey ?? 'Aucune clé active'}</p>
-                  {#if currentApiKey?.lastUsedAt}
-                    <p class="text-[11px] text-on-surface-variant">Dernière utilisation: {formatDate(currentApiKey.lastUsedAt)}</p>
-                  {/if}
-                </div>
-
-                {#if latestIssuedApiKey}
-                  <div class="space-y-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
-                    <p class="text-[10px] uppercase tracking-[0.16em] font-black text-emerald-700">Nouvelle clé (visible une seule fois)</p>
-                    <p class="text-sm font-mono text-emerald-800 break-all">{latestIssuedApiKey}</p>
-                    <button
-                      type="button"
-                      class="px-3 py-1.5 rounded-lg border border-emerald-600/30 bg-white text-emerald-700 text-[10px] font-black uppercase tracking-[0.12em] hover:bg-emerald-50"
-                      onclick={() => copyToClipboard(latestIssuedApiKey, 'Clé API copiée.')}
-                    >
-                      Copier la clé
-                    </button>
                   </div>
                 {/if}
               </div>
 
-              <div class="rounded-2xl border border-outline-variant/20 bg-surface-container-low p-4 space-y-4">
-                <div>
-                  <p class="text-[10px] uppercase tracking-[0.16em] font-black text-on-surface-variant/70">Mini doc API (guilde actuelle)</p>
-                  <p class="mt-1 text-xs text-on-surface-variant break-all">Guild ID: {selectedGuildId || 'Aucune guilde sélectionnée'}</p>
-                </div>
-
-                <div class="space-y-2">
-                  <p class="text-[10px] uppercase tracking-[0.16em] font-black text-on-surface-variant/70">Base URL</p>
-                  <div class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-xs font-mono break-all">
-                    {dailyAlgoPublicApiProblemsUrl || 'Sélectionnez une guilde pour voir l’URL.'}
+              <div class="rounded-2xl border border-outline-variant/20 bg-surface-container-low p-4 space-y-3">
+                <p class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/60">Historique récent</p>
+                {#if dailyAlgoHistory.length === 0}
+                  <p class="text-xs text-on-surface-variant">Aucun run historique pour le moment.</p>
+                {:else}
+                  <div class="space-y-2 max-h-72 overflow-auto pr-1">
+                    {#each dailyAlgoHistory.slice(0, 8) as run}
+                      <div class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2">
+                        <p class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">{historyDateLabel(run.dateKey)}</p>
+                        <p class="text-xs font-bold text-on-surface line-clamp-1 mt-0.5">{run.problem.title}</p>
+                        <p class="text-[10px] text-on-surface-variant mt-1">Total: {run.stats.total} · Validées: {run.stats.approved} · Rejetées: {run.stats.rejected}</p>
+                      </div>
+                    {/each}
                   </div>
-                </div>
-
-                <div class="space-y-2">
-                  <p class="text-[10px] uppercase tracking-[0.16em] font-black text-on-surface-variant/70">Exemples cURL</p>
-                  <pre class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-[11px] font-mono overflow-auto">{apiDocGetCurl}</pre>
-                  <pre class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-[11px] font-mono overflow-auto">{apiDocPostCurl}</pre>
-                  <pre class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-[11px] font-mono overflow-auto">{apiDocPatchCurl}</pre>
-                </div>
+                {/if}
               </div>
+            </div>
+
+            <div class="rounded-2xl border border-outline-variant/20 bg-surface-container-low p-4 space-y-4">
+              <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                <div class="flex flex-wrap items-center gap-2">
+                  {#each [
+                    { value: 'ALL', label: 'Tous' },
+                    { value: 'AVAILABLE', label: 'Disponibles' },
+                    { value: 'USED', label: 'Déjà joués' },
+                  ] as mode}
+                    <button
+                      type="button"
+                      onclick={() => (dailyAlgoLibraryMode = mode.value as 'ALL' | 'AVAILABLE' | 'USED')}
+                      class="px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-[0.12em] transition-colors {dailyAlgoLibraryMode === mode.value
+                        ? 'bg-primary text-on-primary border-primary'
+                        : 'bg-surface text-on-surface-variant border-outline-variant/30 hover:text-on-surface'}"
+                    >
+                      {mode.label}
+                    </button>
+                  {/each}
+                </div>
+                <input
+                  type="search"
+                  bind:value={dailyAlgoLibrarySearch}
+                  placeholder="Rechercher un exo, une signature, un langage..."
+                  class="w-full lg:max-w-lg rounded-xl border border-outline-variant/30 bg-surface px-4 py-2 text-sm text-on-surface outline-none focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+                />
+              </div>
+
+              {#if isFetchingAlgo}
+                <div class="p-8 text-center text-sm font-bold text-on-surface-variant/50 animate-pulse">
+                  Chargement des exercices...
+                </div>
+              {:else if filteredDailyAlgoLibrary.length === 0}
+                <div class="p-8 rounded-xl border border-outline-variant/20 bg-surface text-sm text-on-surface-variant">
+                  Aucun exercice ne correspond au filtre actuel.
+                </div>
+              {:else}
+                <div class="overflow-x-auto rounded-2xl border border-outline-variant/15 bg-surface">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Date (joué / prévu)</th>
+                        <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Exercice</th>
+                        <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Difficulté</th>
+                        <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Type</th>
+                        <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Langages</th>
+                        <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Tests</th>
+                        <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {#each filteredDailyAlgoLibrary as problem}
+                        <tr>
+                          <td>
+                            {#if problem.usedAt}
+                              <span class="inline-flex px-2 py-0.5 rounded-md border border-slate-500/25 bg-slate-500/10 text-[10px] font-black uppercase tracking-[0.08em] text-slate-700">Joué</span>
+                              <p class="mt-1 text-[11px] font-bold text-on-surface-variant">{formatDate(problem.usedAt)}</p>
+                            {:else if dailyAlgoPlannedDateForProblem(problem.id)}
+                              <span class="inline-flex px-2 py-0.5 rounded-md border border-sky-500/25 bg-sky-500/10 text-[10px] font-black uppercase tracking-[0.08em] text-sky-700">Prévu</span>
+                              <p class="mt-1 text-[11px] font-bold text-on-surface-variant">{historyDateLabel(dailyAlgoPlannedDateForProblem(problem.id) || '')}</p>
+                            {:else}
+                              <span class="inline-flex px-2 py-0.5 rounded-md border border-amber-500/25 bg-amber-500/10 text-[10px] font-black uppercase tracking-[0.08em] text-amber-700">Backlog</span>
+                              <p class="mt-1 text-[11px] font-bold text-on-surface-variant">En attente</p>
+                            {/if}
+                          </td>
+                          <td>
+                            <p class="text-sm font-black text-on-surface">{problem.title}</p>
+                            <p class="text-[11px] font-mono text-on-surface-variant mt-1 line-clamp-1">{dailyAlgoProblemFunctionSignature(problem)}</p>
+                          </td>
+                          <td>
+                            <span class="inline-flex px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-[0.12em] {problem.difficulty === 'facile' ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20' : problem.difficulty === 'moyen' ? 'bg-amber-500/10 text-amber-700 border-amber-500/20' : 'bg-red-500/10 text-red-700 border-red-500/20'}">
+                              {difficultyLabel(problem.difficulty)}
+                            </span>
+                          </td>
+                          <td>
+                            <span class="inline-flex px-2 py-0.5 rounded-md border border-outline-variant/20 bg-surface-container-low text-[10px] font-black uppercase tracking-[0.08em] text-on-surface-variant">
+                              {dailyAlgoChallengeTypeLabel(dailyAlgoDetectChallengeTypeKey(problem.title, problem.description))}
+                            </span>
+                          </td>
+                          <td>
+                            {#if dailyAlgoProblemAllowedLanguages(problem).length === 0}
+                              <span class="px-2 py-0.5 rounded-md border border-emerald-500/25 bg-emerald-500/10 text-[10px] font-black uppercase tracking-[0.08em] text-emerald-700">
+                                Libre
+                              </span>
+                            {:else}
+                              <div class="flex flex-wrap gap-1">
+                                {#each dailyAlgoProblemAllowedLanguages(problem) as lang}
+                                  <span class="px-2 py-0.5 rounded-md border border-outline-variant/25 bg-surface text-[10px] font-black uppercase tracking-[0.08em] text-on-surface-variant">
+                                    {lang}
+                                  </span>
+                                {/each}
+                              </div>
+                            {/if}
+                          </td>
+                          <td>
+                            <p class="text-xs font-black text-emerald-700">{Array.isArray(problem.unitTests) ? problem.unitTests.length : 0}</p>
+                          </td>
+                          <td>
+                            {#if canManageSettings}
+                              <button
+                                type="button"
+                                onclick={() => openDailyAlgoProblemEditModal(problem)}
+                                class="px-3 py-1.5 rounded-lg border border-outline-variant/30 bg-surface text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant hover:text-on-surface"
+                              >
+                                Éditer
+                              </button>
+                            {:else}
+                              <span class="text-[10px] text-on-surface-variant">Lecture seule</span>
+                            {/if}
+                          </td>
+                        </tr>
+                      {/each}
+                    </tbody>
+                  </table>
+                </div>
+              {/if}
             </div>
           </div>
         </section>
@@ -2103,6 +2203,127 @@
     </div>
   </div>
 </div>
+
+{#if dailyAlgoApiModalOpen}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="dailyalgo-api-title" tabindex="-1" onclick={closeDailyAlgoApiModal}>
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="dailyalgo-api-popover" onclick={(event) => event.stopPropagation()}>
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">Daily Algo</p>
+          <h3 id="dailyalgo-api-title" class="mt-1 text-lg font-black text-on-surface">Configuration API externe</h3>
+          <p class="mt-1 text-xs text-on-surface-variant">
+            Clé personnelle, URL publique et commandes cURL de la guilde active.
+          </p>
+        </div>
+        <button
+          type="button"
+          onclick={closeDailyAlgoApiModal}
+          class="p-2 rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-on-surface"
+          aria-label="Fermer la configuration API"
+        >
+          <span class="material-symbols-outlined text-base">close</span>
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <div class="rounded-2xl border border-outline-variant/20 bg-surface-container-low p-4 space-y-4">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-[10px] uppercase tracking-[0.16em] font-black text-on-surface-variant/70">Gestion de clé</p>
+            <RefreshButton
+              onClick={loadMyApiKeys}
+              loading={isFetchingApiKeys}
+              label="Rafraîchir"
+              className="px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] rounded-lg bg-surface border border-outline-variant/20 text-on-surface-variant"
+              iconClass="text-sm"
+            />
+          </div>
+
+          <label for="dailyalgo-api-key-name" class="text-[10px] font-black uppercase tracking-[0.16em] text-on-surface-variant/70">
+            Nom de la clé
+          </label>
+          <input
+            id="dailyalgo-api-key-name"
+            type="text"
+            bind:value={dailyAlgoApiKeyName}
+            placeholder="Kotbo Daily Algo"
+            class="w-full rounded-xl border border-outline-variant/30 bg-surface px-4 py-2 text-sm text-on-surface outline-none focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+          />
+
+          <div class="flex flex-wrap gap-2">
+            <button
+              type="button"
+              class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-[0.12em] hover:bg-emerald-700 disabled:opacity-60"
+              onclick={createOrResetMyApiKey}
+              disabled={!canManageSettings || apiKeyAction.state.loading}
+            >
+              {currentApiKey ? 'Reset clé API' : 'Créer clé API'}
+            </button>
+
+            {#if currentApiKey}
+              <button
+                type="button"
+                class="px-4 py-2 rounded-xl border border-red-500/30 bg-red-500/10 text-red-700 text-[10px] font-black uppercase tracking-[0.12em] hover:bg-red-500/20 disabled:opacity-60"
+                onclick={() => deleteCurrentApiKey(currentApiKey.id)}
+                disabled={!canManageSettings || apiKeyAction.state.loading}
+              >
+                Désactiver
+              </button>
+            {/if}
+          </div>
+
+          <InlineFeedback message={apiKeyAction.state.message} error={apiKeyAction.state.error} />
+
+          <div class="space-y-2 rounded-xl border border-outline-variant/20 bg-surface px-4 py-3">
+            <p class="text-[10px] uppercase tracking-[0.16em] font-black text-on-surface-variant/70">Clé active</p>
+            <p class="text-sm font-mono text-on-surface">{currentApiKey?.displayKey ?? 'Aucune clé active'}</p>
+            {#if currentApiKey?.lastUsedAt}
+              <p class="text-[11px] text-on-surface-variant">Dernière utilisation: {formatDate(currentApiKey.lastUsedAt)}</p>
+            {/if}
+          </div>
+
+          {#if latestIssuedApiKey}
+            <div class="space-y-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
+              <p class="text-[10px] uppercase tracking-[0.16em] font-black text-emerald-700">Nouvelle clé (visible une seule fois)</p>
+              <p class="text-sm font-mono text-emerald-800 break-all">{latestIssuedApiKey}</p>
+              <button
+                type="button"
+                class="px-3 py-1.5 rounded-lg border border-emerald-600/30 bg-white text-emerald-700 text-[10px] font-black uppercase tracking-[0.12em] hover:bg-emerald-50"
+                onclick={() => copyToClipboard(latestIssuedApiKey, 'Clé API copiée.')}
+              >
+                Copier la clé
+              </button>
+            </div>
+          {/if}
+        </div>
+
+        <div class="rounded-2xl border border-outline-variant/20 bg-surface-container-low p-4 space-y-4">
+          <div>
+            <p class="text-[10px] uppercase tracking-[0.16em] font-black text-on-surface-variant/70">Mini doc API (guilde actuelle)</p>
+            <p class="mt-1 text-xs text-on-surface-variant break-all">Guild ID: {selectedGuildId || 'Aucune guilde sélectionnée'}</p>
+          </div>
+
+          <div class="space-y-2">
+            <p class="text-[10px] uppercase tracking-[0.16em] font-black text-on-surface-variant/70">Base URL</p>
+            <div class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-xs font-mono break-all">
+              {dailyAlgoPublicApiProblemsUrl || 'Sélectionnez une guilde pour voir l’URL.'}
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <p class="text-[10px] uppercase tracking-[0.16em] font-black text-on-surface-variant/70">Exemples cURL</p>
+            <pre class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-[11px] font-mono overflow-auto">{apiDocGetCurl}</pre>
+            <pre class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-[11px] font-mono overflow-auto">{apiDocPostCurl}</pre>
+            <pre class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-[11px] font-mono overflow-auto">{apiDocPatchCurl}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
 
 {#if ideModalOpen && focusedSubmission}
   <div class="modal-backdrop dailyalgo-ide-overlay" role="dialog" aria-modal="true" aria-labelledby="dailyalgo-ide-title" tabindex="-1">
@@ -2595,6 +2816,20 @@
   .scrollbar-hide::-webkit-scrollbar { display: none; }
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
+  .dailyalgo-api-popover {
+    width: min(980px, calc(100vw - 1.5rem));
+    max-height: calc(100vh - 1.5rem);
+    margin: 0.75rem 0.75rem 0 auto;
+    border-radius: 1.4rem;
+    border: 1px solid var(--outline-variant);
+    background: color-mix(in srgb, var(--surface-container) 92%, transparent);
+    box-shadow:
+      0 24px 55px rgba(0, 0, 0, 0.28),
+      inset 0 1px 0 color-mix(in srgb, var(--surface) 55%, transparent);
+    padding: 1rem;
+    overflow: auto;
+  }
+
   .dailyalgo-ide-overlay {
     inset: 0;
     padding: 0;
@@ -2765,6 +3000,13 @@
   }
 
   @media (max-width: 920px) {
+    .dailyalgo-api-popover {
+      width: calc(100vw - 1rem);
+      max-height: calc(100vh - 1rem);
+      margin: 0.5rem auto;
+      border-radius: 1rem;
+    }
+
     .dailyalgo-ide-modal-grid {
       grid-template-columns: minmax(0, 1fr);
       padding: 0.55rem;
