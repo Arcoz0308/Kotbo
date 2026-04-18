@@ -189,7 +189,7 @@ export async function sendDailyAlgo(client: Client, guildId: string): Promise<Da
 
 export async function runDailyAlgoForAllGuilds(client: Client): Promise<void> {
   const now = new Date();
-  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const currentTime = `${String(now.getUTCHours()).padStart(2, '0')}:${String(now.getUTCMinutes()).padStart(2, '0')}`;
 
   const allGuilds = await prisma.guild.findMany({
     where: { dailyAlgoEnabled: true },

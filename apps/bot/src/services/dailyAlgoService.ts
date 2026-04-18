@@ -201,9 +201,10 @@ function difficultyEmoji(difficulty: string): string {
 // ── Date Utilities ─────────────────────────────────────────────────────────────
 
 export function getLocalDateKey(date = new Date()): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+  // Daily Algo est configuré en UTC côté panneau d'administration.
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
 
   return `${year}-${month}-${day}`;
 }
@@ -1382,7 +1383,7 @@ export async function reviewDailyAlgoSubmission(params: {
 export async function sendDailyAlgoSummaryForGuild(client: Client, guildId: string): Promise<void> {
   const now = new Date();
   const startOfDay = new Date(now);
-  startOfDay.setHours(0, 0, 0, 0);
+  startOfDay.setUTCHours(0, 0, 0, 0);
 
   const runs = await prisma.dailyAlgoRun.findMany({
     where: {
@@ -1556,7 +1557,7 @@ export async function sendDailyAlgoSummaryForGuild(client: Client, guildId: stri
 export async function runDailyAlgoSummariesForAllGuilds(client: Client): Promise<void> {
   const now = new Date();
   const startOfDay = new Date(now);
-  startOfDay.setHours(0, 0, 0, 0);
+  startOfDay.setUTCHours(0, 0, 0, 0);
 
   const runs = await prisma.dailyAlgoRun.findMany({
     where: {

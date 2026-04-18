@@ -80,7 +80,7 @@ export async function registerCrons(client: Client): Promise<void> {
       logger.debug('Cron', 'Génération du bilan quotidien Daily Algo...');
       await runDailyAlgoSummariesForAllGuilds(client);
     }, 2000);
-  });
+  }, { timezone: 'UTC' });
 
   // 🌟 Recap Hebdomadaire: Chaque dimanche à 19:00 UTC
   cron.schedule('0 19 * * 0', async () => {
