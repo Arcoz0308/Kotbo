@@ -214,13 +214,13 @@ function isDailyAlgoRunOpenForSubmissions(params: {
   createdAt: Date;
   summarySentAt: Date | null;
 }): boolean {
-  if (params.summarySentAt) {
-    return false;
-  }
-
   const todayKey = getLocalDateKey();
   if (params.dateKey) {
     return params.dateKey === todayKey;
+  }
+
+  if (params.summarySentAt) {
+    return false;
   }
 
   return getLocalDateKey(params.createdAt) === todayKey;
@@ -400,7 +400,7 @@ async function sendDailyAlgoRunMessage(client: Client, run: DailyAlgoRunMessageD
     throw new Error('Le salon du Daily Algo est introuvable.');
   }
 
-  const dateLabel = formatDailyAlgoDate(getLocalDateKey());
+  const dateLabel = formatDailyAlgoDate(resolveRunDateKey(run.dateKey, run.createdAt));
   const embed = buildDailyAlgoChallengeEmbed({
     title: `💻 Daily Algo du ${dateLabel}`,
     problemTitle: run.problem.title,
@@ -441,6 +441,11 @@ export async function refreshDailyAlgoChallengeMessageForRun(client: Client, run
   }
 
   const runDate = resolveRunDateKey(run.dateKey, run.createdAt);
+  const canSubmit = isDailyAlgoRunOpenForSubmissions({
+    dateKey: run.dateKey,
+    createdAt: run.createdAt,
+    summarySentAt: run.summarySentAt,
+  });
   const embed = buildDailyAlgoChallengeEmbed({
     title: `💻 Daily Algo du ${formatDailyAlgoDate(runDate)}`,
     problemTitle: run.problem.title,
@@ -454,6 +459,7 @@ export async function refreshDailyAlgoChallengeMessageForRun(client: Client, run
 
   await message.edit({
     embeds: [embed],
+    components: [getDailyAlgoButtonRow(run.id, !canSubmit)],
   });
 
   return true;
