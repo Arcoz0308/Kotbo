@@ -195,7 +195,7 @@ function onFormSubmit(e) &#123;
   
   if (Object.keys(responses).length === 0 && e.response) &#123;
     var itemResponses = e.response.getItemResponses();
-    for (var i = 0; i < itemResponses.length; i++) &#123;
+    for (var i = 0; i &lt; itemResponses.length; i++) &#123;
       var itemResponse = itemResponses[i];
       responses[itemResponse.getItem().getTitle()] = itemResponse.getResponse();
     &#125;
