@@ -908,11 +908,14 @@ const resolveDashboardAccess = async (
     return DASHBOARD_ACCESS_NONE;
   }
 
+  // Any registered staff member should be able to access moderation features
+  // (Daily Algo submission review, moderation views), even if they are not
+  // mapped to the single Discord "moderator role" configured for the guild.
   if (guildConfig.moderatorRoleId && member.roles.cache.has(guildConfig.moderatorRoleId)) {
     return DASHBOARD_ACCESS_MODERATOR;
   }
 
-  return DASHBOARD_ACCESS_NONE;
+  return DASHBOARD_ACCESS_MODERATOR;
 };
 
 

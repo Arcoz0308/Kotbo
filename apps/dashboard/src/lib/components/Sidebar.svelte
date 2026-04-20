@@ -10,6 +10,7 @@
 
   const moderationItems = [
     { name: "Contenu", icon: "newspaper", href: "/content" },
+    { name: "Daily Algo", icon: "code", href: "/module-settings/dailyalgo" },
     { name: "Membres", icon: "user", href: "/members" },
     { name: "Sanctions", icon: "alert-triangle", href: "/sanctions" },
     { name: "Logs Discord", icon: "menu", href: "/logs" },

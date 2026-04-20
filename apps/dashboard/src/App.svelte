@@ -28,10 +28,12 @@
   import Recruitment from './pages/Recruitment.svelte';
 
   const adminOnlyPrefixes = ['/modules', '/module-settings', '/settings', '/notifications', '/automations', '/command-access', '/regulation', '/staff-management'];
+  const moderatorAllowedModuleSettings = new Set(['/module-settings/dailyalgo']);
 
   const isPublicPage = $derived($router.path.startsWith('/news') || $router.path.startsWith('/profile/'));
 
   function isAdminOnlyRoute(path: string) {
+    if (moderatorAllowedModuleSettings.has(path)) return false;
     return adminOnlyPrefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
   }
 
@@ -141,6 +143,10 @@
           </Route>
           <Route path="/staff-management">
             <StaffManagement />
+          </Route>
+        {:else}
+          <Route path="/module-settings/dailyalgo">
+            <ModuleSettings moduleId="dailyalgo" />
           </Route>
         {/if}
         <Route path="/members">
