@@ -11,7 +11,7 @@
   </div>
 
   
-  <div class="absolute inset-0 pointer-events-none opacity-[0.015] dark:opacity-[0.03]" style="background-image: url('/noise.svg')"></div>
+  <div class="absolute inset-0 pointer-events-none opacity-[0.015] dark:opacity-[0.03]"></div>
 
   <Sidebar />
   
