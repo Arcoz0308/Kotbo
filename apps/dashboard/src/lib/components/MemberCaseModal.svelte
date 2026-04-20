@@ -346,9 +346,12 @@
             Impossible de relier ce log à un ID utilisateur Discord. Le casier ne peut pas être chargé pour cette entrée.
           </div>
         {:else if loading}
-          <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/40">
-            <span class="material-symbols-outlined text-5xl animate-spin">progress_activity</span>
-            <p class="mt-4 text-sm font-bold uppercase tracking-widest">Chargement du profil…</p>
+          <div class="space-y-6 animate-pulse w-full pt-4">
+            <div class="h-32 w-full bg-surface-variant/30 rounded-3xl"></div>
+            <div class="flex flex-col md:flex-row gap-4">
+              <div class="h-64 flex-1 bg-surface-variant/30 rounded-3xl"></div>
+              <div class="h-64 flex-1 bg-surface-variant/30 rounded-3xl"></div>
+            </div>
           </div>
         {:else if error}
           <div class="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-5 py-4 text-sm font-semibold text-amber-800">

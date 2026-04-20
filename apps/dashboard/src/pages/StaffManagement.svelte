@@ -894,9 +894,15 @@
 
 <div class="space-y-16 animate-in fade-in slide-in-from-bottom-6 duration-1000">
   {#if loading}
-    <div class="flex flex-col items-center justify-center p-24 text-on-surface-variant/25">
-      <span class="material-symbols-outlined text-7xl animate-spin">sync</span>
-      <p class="mt-6 text-sm font-semibold uppercase tracking-[0.2em]">Chargement des données...</p>
+    <div class="space-y-8 p-8 md:p-10 animate-pulse w-full">
+      <div class="h-14 w-1/3 min-w-[250px] bg-surface-variant/50 rounded-2xl"></div>
+      <div class="flex flex-col md:flex-row gap-6">
+        <div class="h-32 flex-1 bg-surface-variant/30 rounded-3xl"></div>
+        <div class="h-32 flex-1 bg-surface-variant/30 rounded-3xl"></div>
+        <div class="h-32 flex-1 bg-surface-variant/30 rounded-3xl"></div>
+        <div class="h-32 flex-1 bg-surface-variant/30 rounded-3xl"></div>
+      </div>
+      <div class="h-[60vh] w-full bg-surface-variant/30 rounded-[3rem]"></div>
     </div>
   {:else if error}
     <div class="mt-6 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-700 text-center max-w-2xl mx-auto">

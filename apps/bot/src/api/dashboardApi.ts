@@ -23,11 +23,11 @@ import {
   type CommandRestrictionRule,
 } from '../utils/commandAccess.js';
 import { runDigestForAllGuilds, runDailyAlgoForAllGuilds } from '../services/digestService.js';
-import { 
-  runDailyAlgoSummariesForAllGuilds, 
-  getDailyAlgoUserProfile, 
+import {
+  runDailyAlgoSummariesForAllGuilds,
+  getDailyAlgoUserProfile,
   getDailyAlgoUserParticipations,
-  getLocalDateKey, 
+  getLocalDateKey,
   reviewDailyAlgoSubmission,
   refreshDailyAlgoChallengeMessageForRun,
 } from '../services/dailyAlgoService.js';
@@ -1145,10 +1145,10 @@ async function fetchMemberConnections(discordToken?: string | null): Promise<{ c
     return {
       connections: Array.isArray(payload)
         ? payload.map((connection) => ({
-            name: connection.name ?? 'Inconnue',
-            type: connection.type ?? 'inconnue',
-            visible: connection.visibility === 1,
-          }))
+          name: connection.name ?? 'Inconnue',
+          type: connection.type ?? 'inconnue',
+          visible: connection.visibility === 1,
+        }))
         : [],
       note: 'Connexions récupérées via le scope OAuth connections.',
     };
@@ -1191,13 +1191,13 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
   const effectivePermissions = member?.permissions.toArray() ?? [];
   const roles = member
     ? [...member.roles.cache.values()]
-        .filter((role) => role.id !== discordGuild.id)
-        .map((role) => mapGuildRolePermissions(role, `<@&${role.id}>`))
-        .sort((left, right) => {
-          const positionLeft = discordGuild.roles.cache.get(left.id)?.position ?? 0;
-          const positionRight = discordGuild.roles.cache.get(right.id)?.position ?? 0;
-          return positionRight - positionLeft || left.name.localeCompare(right.name, 'fr');
-        })
+      .filter((role) => role.id !== discordGuild.id)
+      .map((role) => mapGuildRolePermissions(role, `<@&${role.id}>`))
+      .sort((left, right) => {
+        const positionLeft = discordGuild.roles.cache.get(left.id)?.position ?? 0;
+        const positionRight = discordGuild.roles.cache.get(right.id)?.position ?? 0;
+        return positionRight - positionLeft || left.name.localeCompare(right.name, 'fr');
+      })
     : [];
 
   const tagCandidates = new Set<string>([user?.tag, profile?.userTag, member?.user.tag].filter((entry): entry is string => !!entry));
@@ -1288,9 +1288,9 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
     },
     invite: invite
       ? {
-          ...invite,
-          joinedAt: invite.joinedAt ?? member?.joinedAt?.toISOString() ?? profile?.guildJoinedAt?.toISOString() ?? null,
-        }
+        ...invite,
+        joinedAt: invite.joinedAt ?? member?.joinedAt?.toISOString() ?? profile?.guildJoinedAt?.toISOString() ?? null,
+      }
       : null,
     roles,
     effectivePermissions,
@@ -1573,29 +1573,29 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
   const discordGuild = client.guilds.cache.get(guildId);
   const discordChannels: DashboardChannel[] = discordGuild
     ? discordGuild.channels.cache
-        .filter((channel) => channel.type === ChannelType.GuildText || channel.type === ChannelType.GuildAnnouncement)
-        .map((channel) => ({
-          id: channel.id,
-          name: channel.name,
-          mention: `<#${channel.id}>`,
-          position: channel.rawPosition ?? 0
-        }))
-        .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name, 'fr'))
-        .map(({ id, name, mention }) => ({ id, name, mention }))
+      .filter((channel) => channel.type === ChannelType.GuildText || channel.type === ChannelType.GuildAnnouncement)
+      .map((channel) => ({
+        id: channel.id,
+        name: channel.name,
+        mention: `<#${channel.id}>`,
+        position: channel.rawPosition ?? 0
+      }))
+      .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name, 'fr'))
+      .map(({ id, name, mention }) => ({ id, name, mention }))
     : [];
 
   const discordRoles: DashboardRole[] = discordGuild
     ? discordGuild.roles.cache
-        .filter((role) => role.name !== '@everyone' && !role.managed)
-        .map((role) => ({
-          id: role.id,
-          name: role.name,
-          mention: `<@&${role.id}>`,
-          permissions: role.permissions.toArray(),
-          position: role.position
-        }))
-        .sort((a, b) => b.position - a.position || a.name.localeCompare(b.name, 'fr'))
-        .map(({ id, name, mention, permissions }) => ({ id, name, mention, permissions }))
+      .filter((role) => role.name !== '@everyone' && !role.managed)
+      .map((role) => ({
+        id: role.id,
+        name: role.name,
+        mention: `<@&${role.id}>`,
+        permissions: role.permissions.toArray(),
+        position: role.position
+      }))
+      .sort((a, b) => b.position - a.position || a.name.localeCompare(b.name, 'fr'))
+      .map(({ id, name, mention, permissions }) => ({ id, name, mention, permissions }))
     : [];
 
   return {
@@ -1761,10 +1761,10 @@ export const startDashboardApi = (client: Client) => {
             json(res, 400, { error: 'Payload vide' });
             return;
           }
-          
+
           logger.info('RecruitmentAPI', `Candidature reçue pour le serveur ${guildId}. Données: ${JSON.stringify(body).substring(0, 100)}...`);
           await createCandidature(guildId, body);
-          
+
           json(res, 201, { ok: true, message: 'Candidature enregistrée' });
         } catch (err) {
           logger.error('RecruitmentAPI', 'Webhook error:', err);
@@ -1808,12 +1808,12 @@ export const startDashboardApi = (client: Client) => {
 
           let algoStats = null;
           let recentAlgos: any[] = [];
-          
+
           for (const guild of guilds) {
             const stats = await getDailyAlgoUserProfile(guild.id, profileUserId);
             if (stats && (!algoStats || stats.totalPoints > algoStats.totalPoints)) {
-                algoStats = stats;
-                recentAlgos = await getDailyAlgoUserParticipations(guild.id, profileUserId, 5);
+              algoStats = stats;
+              recentAlgos = await getDailyAlgoUserParticipations(guild.id, profileUserId, 5);
             }
           }
 
@@ -1835,7 +1835,7 @@ export const startDashboardApi = (client: Client) => {
             algo: algoStats,
             recentAlgos,
             stats: {
-                scoutedArticles: scoutingCount
+              scoutedArticles: scoutingCount
             }
           });
           return;
@@ -2223,7 +2223,7 @@ export const startDashboardApi = (client: Client) => {
 
               if (!access.canViewDashboard) continue;
 
-              const sourceGuild = userGuildsById.get(guildId);
+              const sourceGuild = userGuildsById.get(guildId)!;
               accessibleGuilds.set(guildId, {
                 id: guildId,
                 name: sourceGuild.name,
@@ -2505,7 +2505,7 @@ export const startDashboardApi = (client: Client) => {
 
           if (parts.length === 6 && parts[4] === 'modules' && req.method === 'PUT') {
             const moduleId = parts[5];
-            const body = (await readJsonBody<{ status: ModuleStatus }> (req)) ?? { status: 'inactive' };
+            const body = (await readJsonBody<{ status: ModuleStatus }>(req)) ?? { status: 'inactive' };
 
             const updates: Record<string, unknown> = {};
             if (moduleId === 'youtube') updates.youtubeEnabled = body.status === 'active';
@@ -3388,8 +3388,8 @@ export const startDashboardApi = (client: Client) => {
                 module: 'Règlement',
                 eventType: 'Manuel',
                 details: result.mode === 'updated'
-                    ? 'Message de règlement mis à jour dans le salon de publication du règlement.'
-                    : 'Message de règlement publié dans le salon de publication du règlement.',
+                  ? 'Message de règlement mis à jour dans le salon de publication du règlement.'
+                  : 'Message de règlement publié dans le salon de publication du règlement.',
                 channelId: null
               });
 
@@ -4129,12 +4129,12 @@ export const startDashboardApi = (client: Client) => {
 
             let scores:
               | {
-                  correctness: number;
-                  comments: number;
-                  compactness: number;
-                  optimization: number;
-                  readability: number;
-                }
+                correctness: number;
+                comments: number;
+                compactness: number;
+                optimization: number;
+                readability: number;
+              }
               | undefined;
 
             if (body.action === 'approve') {
@@ -4595,7 +4595,7 @@ export const startDashboardApi = (client: Client) => {
         }
 
         // --- MEMBER MANAGEMENT & MODERATION ---
-        
+
         // GET /api/dashboard/guilds/:guildId/members/search - Search members (Moderator access)
         if (parts[4] === 'members' && parts[5] === 'search' && req.method === 'GET') {
           const guildId = parts[3];
@@ -4611,7 +4611,16 @@ export const startDashboardApi = (client: Client) => {
           }
 
           const query = (url.searchParams.get('q') || url.searchParams.get('query') || '').trim();
-          const limit = Math.min(50, Math.max(1, parseInt(url.searchParams.get('limit') || '12')));
+          const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '24')));
+          const page = Math.max(1, parseInt(url.searchParams.get('page') || '1'));
+          const skip = (page - 1) * limit;
+
+          const sortBy = url.searchParams.get('sortBy') || 'lastSeenAt';
+          const sortOrder = url.searchParams.get('sortOrder') === 'asc' ? 'asc' : 'desc';
+          const botFilter = url.searchParams.get('botFilter') || 'all';
+
+          // Ensure sortBy is safe
+          const safeSortBy = ['lastSeenAt', 'messageCount', 'guildJoinedAt'].includes(sortBy) ? sortBy : 'lastSeenAt';
 
           try {
             const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
@@ -4620,53 +4629,76 @@ export const startDashboardApi = (client: Client) => {
               return;
             }
 
-            // Search in DB Profiles first
-            const dbProfiles = await prisma.memberProfile.findMany({
-              where: {
-                guildId,
-                OR: [
-                  { username: { contains: query, mode: 'insensitive' } },
-                  { globalName: { contains: query, mode: 'insensitive' } },
-                  { displayName: { contains: query, mode: 'insensitive' } },
-                  { userTag: { contains: query, mode: 'insensitive' } },
-                  { userId: { contains: query } }
-                ]
-              },
-              take: limit,
-              orderBy: { lastSeenAt: 'desc' }
-            });
-
-            const results = dbProfiles.map(p => ({
-              id: p.userId,
-              username: p.username || p.userTag,
-              displayName: p.displayName || p.globalName || p.username || p.userTag,
-              avatarUrl: p.avatarUrl,
-              isBot: p.isBot,
-              lastSeenAt: p.lastSeenAt?.toISOString(),
-              joinedAt: p.guildJoinedAt?.toISOString()
-            }));
-
-            // Fallback to live Discord search if query is specific and results are low
-            if (results.length < limit && query.length >= 2) {
-              const members = await discordGuild.members.search({ query, limit }).catch(() => null);
-              if (members) {
-                members.forEach(m => {
-                  if (!results.some(r => r.id === m.id)) {
-                    results.push({
-                      id: m.id,
-                      username: m.user.username,
-                      displayName: m.displayName,
-                      avatarUrl: m.user.displayAvatarURL(),
-                      isBot: m.user.bot,
-                      lastSeenAt: null,
-                      joinedAt: m.joinedAt?.toISOString() || null
-                    });
-                  }
-                });
-              }
+            // Hybrid Approach: Fetch Discord members for 100% coverage, 
+            // merge with Prisma profiles for sorting/filtering on stats
+            if (discordGuild.members.cache.size < discordGuild.memberCount && discordGuild.members.cache.size < 50000) {
+              await discordGuild.members.fetch().catch(() => null);
             }
 
-            json(res, 200, { members: results.slice(0, limit) });
+            const dbProfiles = await prisma.memberProfile.findMany({
+              where: { guildId },
+              select: { userId: true, lastSeenAt: true, messageCount: true }
+            });
+            const profileMap = new Map(dbProfiles.map(p => [p.userId, p]));
+
+            let candidates = Array.from(discordGuild.members.cache.values());
+
+            if (query) {
+              const lowerQ = query.toLowerCase();
+              candidates = candidates.filter(m => 
+                m.user.username.toLowerCase().includes(lowerQ) ||
+                (m.displayName && m.displayName.toLowerCase().includes(lowerQ)) ||
+                m.id.includes(lowerQ)
+              );
+            }
+
+            if (botFilter === 'human') candidates = candidates.filter(m => !m.user.bot);
+            if (botFilter === 'bot') candidates = candidates.filter(m => m.user.bot);
+
+            candidates.sort((a, b) => {
+              const pA = profileMap.get(a.id);
+              const pB = profileMap.get(b.id);
+              let valA = 0, valB = 0;
+
+              if (safeSortBy === 'messageCount') {
+                valA = pA?.messageCount || 0;
+                valB = pB?.messageCount || 0;
+              } else if (safeSortBy === 'lastSeenAt') {
+                valA = pA?.lastSeenAt ? pA.lastSeenAt.getTime() : 0;
+                valB = pB?.lastSeenAt ? pB.lastSeenAt.getTime() : 0;
+              } else {
+                valA = a.joinedTimestamp || 0;
+                valB = b.joinedTimestamp || 0;
+              }
+
+              return sortOrder === 'asc' ? valA - valB : valB - valA;
+            });
+
+            const totalFound = candidates.length;
+            const paginated = candidates.slice(skip, skip + limit);
+
+            const members = paginated.map(m => {
+              const p = profileMap.get(m.id);
+              return {
+                id: m.id,
+                username: m.user.username,
+                displayName: m.displayName,
+                avatarUrl: m.user.displayAvatarURL(),
+                isBot: m.user.bot,
+                lastSeenAt: p?.lastSeenAt?.toISOString() || null,
+                joinedAt: m.joinedAt?.toISOString() || null,
+                messageCount: p?.messageCount || 0
+              };
+            });
+
+
+            json(res, 200, {
+              members,
+              totalFound,
+              page,
+              limit,
+              totalPages: Math.ceil(totalFound / limit)
+            });
           } catch (err) {
             logger.error('MembersAPI', 'Error searching members:', err);
             json(res, 500, { error: 'Erreur lors de la recherche des membres' });
@@ -4733,7 +4765,9 @@ export const startDashboardApi = (client: Client) => {
           }
 
           const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
-          if (accessLevel.level !== 'admin') {
+          const isModeratorRoute = parts[5] === 'discord-members' || parts[5] === 'member-case' || parts[6] === 'profile' || parts[6] === 'stats';
+
+          if (accessLevel.level === 'none' || (accessLevel.level !== 'admin' && !isModeratorRoute)) {
             json(res, 403, { error: 'Accès admin requis' });
             return;
           }
@@ -4792,6 +4826,19 @@ export const startDashboardApi = (client: Client) => {
                       avatarUrl: member.displayAvatarURL() || null,
                     }))
                   : [];
+              } else {
+                const members = await discordGuild.members.fetch({ limit }).catch(() => null);
+                candidates = members
+                  ? [...members.values()]
+                    .filter((member) => !member.user.bot)
+                    .map((member) => ({
+                      id: member.user.id,
+                      username: member.user.username,
+                      displayName: member.displayName ?? null,
+                      userTag: member.user.tag ?? null,
+                      avatarUrl: member.displayAvatarURL() || null,
+                    }))
+                  : [];
               }
 
               const members = candidates
@@ -4802,6 +4849,61 @@ export const startDashboardApi = (client: Client) => {
             } catch (err) {
               logger.error('StaffAPI', 'Error searching Discord members:', err);
               json(res, 500, { error: 'Erreur lors de la recherche des membres Discord' });
+            }
+            return;
+          }
+
+          // GET /api/dashboard/guilds/:guildId/staff/member-case/:userId
+          if (parts[5] === 'member-case' && parts[6] && req.method === 'GET') {
+            try {
+              const caseData = await buildMemberCaseData(client, guildId, parts[6], user);
+              if (!caseData) {
+                json(res, 404, { error: 'Membre introuvable' });
+                return;
+              }
+              json(res, 200, caseData);
+            } catch (err) {
+              logger.error('StaffAPI', 'Erreur chargement dossier membre:', err);
+              json(res, 500, { error: 'Erreur lors du chargement du dossier' });
+            }
+            return;
+          }
+
+          // GET /api/dashboard/guilds/:guildId/staff/:userId/profile
+          if (parts[6] === 'profile' && req.method === 'GET') {
+            try {
+              const targetUserId = parts[5];
+              const profileData = await getStaffMember(guildId, targetUserId);
+              if (!profileData) {
+                json(res, 404, { error: 'Profil staff introuvable' });
+                return;
+              }
+              const keys = await getAPIKeys(guildId);
+
+              json(res, 200, {
+                staffMember: profileData,
+                apiKeys: targetUserId === user.userId ? keys : [],
+                isBlacklisted: false,
+                blacklistReason: '',
+                blacklistEndDate: null,
+                accessibleTools: ['daily_algo:create_exercise', 'manage_content']
+              });
+            } catch (err) {
+              logger.error('StaffAPI', 'Erreur chargement profil:', err);
+              json(res, 500, { error: 'Erreur lors du chargement du profil' });
+            }
+            return;
+          }
+
+          // GET /api/dashboard/guilds/:guildId/staff/:userId/stats
+          if (parts[6] === 'stats' && req.method === 'GET') {
+            try {
+              const targetUserId = parts[5];
+              const stats = await getStaffMemberStats(guildId, targetUserId);
+              json(res, 200, { stats });
+            } catch (err) {
+              logger.error('StaffAPI', 'Erreur chargement stats:', err);
+              json(res, 500, { error: 'Erreur lors du chargement des statistiques' });
             }
             return;
           }
@@ -4864,7 +4966,7 @@ export const startDashboardApi = (client: Client) => {
                   const discordMember = await discordGuild.members.fetch(body.userId).catch(() => null);
                   if (discordMember) {
                     const rolesToAssign: string[] = [];
-                    
+
                     // Rôle du grade choisi
                     const staffRoles = await getStaffRoles(guildId);
                     const gradeRole = staffRoles.find(r => r.name === body.grade);
@@ -4882,7 +4984,7 @@ export const startDashboardApi = (client: Client) => {
                     if (guildConfig?.testStaffRoleId) rolesToAssign.push(guildConfig.testStaffRoleId);
 
                     if (rolesToAssign.length > 0) {
-                      await discordMember.roles.add(rolesToAssign).catch(err => 
+                      await discordMember.roles.add(rolesToAssign).catch(err =>
                         logger.error('StaffAPI', `Failed to assign initial roles to ${body.userId}:`, err)
                       );
                     }
@@ -4955,7 +5057,7 @@ export const startDashboardApi = (client: Client) => {
                       }
 
                       if (newRole?.discordRoleId) {
-                        await discordMember.roles.add(newRole.discordRoleId).catch(err => 
+                        await discordMember.roles.add(newRole.discordRoleId).catch(err =>
                           logger.error('StaffAPI', `Failed to add new role ${newRole.discordRoleId} to ${staffUserId}:`, err)
                         );
                       }
@@ -4990,7 +5092,7 @@ export const startDashboardApi = (client: Client) => {
                     if (discordMember) {
                       const staffRoles = await getStaffRoles(guildId);
                       const currentRole = staffRoles.find(r => r.name === currentGrade);
-                      
+
                       const rolesToRemove: string[] = [];
                       if (currentRole?.discordRoleId) rolesToRemove.push(currentRole.discordRoleId);
 
@@ -5310,8 +5412,8 @@ export const startDashboardApi = (client: Client) => {
               const periods = await prisma.testingPeriod.findMany({
                 where: { guildId },
                 orderBy: { createdAt: 'desc' },
-                include: { 
-                  reports: { 
+                include: {
+                  reports: {
                     include: { author: true },
                     orderBy: { createdAt: 'desc' }
                   },
@@ -5320,7 +5422,7 @@ export const startDashboardApi = (client: Client) => {
                     include: {
                       activities: {
                         orderBy: { activityDate: 'desc' },
-                        take: 14 
+                        take: 14
                       }
                     }
                   }
@@ -5350,8 +5452,8 @@ export const startDashboardApi = (client: Client) => {
 
             try {
               const period = await createTestingPeriod(
-                guildId, 
-                body.staffUserId, 
+                guildId,
+                body.staffUserId,
                 body.mentorId,
                 body.plannedDurationDays,
                 body.targetGrade
@@ -5594,21 +5696,21 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
           if (req.method === 'POST' && !parts[5]) {
-             const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
-             if (accessLevel.level !== 'admin') {
-               json(res, 403, { error: 'Admin requis' });
-               return;
-             }
-             const body = await readJsonBody<{ title: string; content: string; sortOrder: number }>(req);
-             if (body && body.title) {
-                try {
-                  const procedure = await upsertProcedure(guildId, null, body.title, body.content || '', body.sortOrder || 0);
-                  json(res, 201, { procedure });
-                } catch (err) {
-                  json(res, 500, { error: 'Erreur' });
-                }
-             }
-             return;
+            const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+            if (accessLevel.level !== 'admin') {
+              json(res, 403, { error: 'Admin requis' });
+              return;
+            }
+            const body = await readJsonBody<{ title: string; content: string; sortOrder: number }>(req);
+            if (body && body.title) {
+              try {
+                const procedure = await upsertProcedure(guildId, null, body.title, body.content || '', body.sortOrder || 0);
+                json(res, 201, { procedure });
+              } catch (err) {
+                json(res, 500, { error: 'Erreur' });
+              }
+            }
+            return;
           }
           if (req.method === 'PATCH' && parts[5]) {
             const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
@@ -5618,12 +5720,12 @@ export const startDashboardApi = (client: Client) => {
             }
             const body = await readJsonBody<{ title: string; content: string; sortOrder: number }>(req);
             if (body) {
-                try {
-                  const procedure = await upsertProcedure(guildId, parts[5], body.title, body.content, body.sortOrder);
-                  json(res, 200, { procedure });
-                } catch (err) {
-                  json(res, 500, { error: 'Erreur' });
-                }
+              try {
+                const procedure = await upsertProcedure(guildId, parts[5], body.title, body.content, body.sortOrder);
+                json(res, 200, { procedure });
+              } catch (err) {
+                json(res, 500, { error: 'Erreur' });
+              }
             }
             return;
           }
@@ -5642,18 +5744,18 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
           if (req.method === 'POST' && parts[5] === 'read') {
-             try {
-                const body = await readJsonBody<{ procedureId: string }>(req);
-                if (body?.procedureId) {
-                  await markProcedureAsRead(body.procedureId, user.userId);
-                  json(res, 200, { success: true });
-                } else {
-                  json(res, 400, { error: 'missing id' });
-                }
-             } catch (err) {
-                json(res, 500, { error: 'Erreur' });
-             }
-             return;
+            try {
+              const body = await readJsonBody<{ procedureId: string }>(req);
+              if (body?.procedureId) {
+                await markProcedureAsRead(body.procedureId, user.userId);
+                json(res, 200, { success: true });
+              } else {
+                json(res, 400, { error: 'missing id' });
+              }
+            } catch (err) {
+              json(res, 500, { error: 'Erreur' });
+            }
+            return;
           }
         }
 

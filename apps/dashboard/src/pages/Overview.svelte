@@ -21,19 +21,21 @@
   
   const jobSuccessRate = "98.5%";
 
-  const LOGO_URL = '/favicon.svg';
+  const LOGO_URL_SERVEUR = "/favicon.svg";
 </script>
 
 <div class="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
   
   <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
     <div class="flex items-center gap-6">
-      <div class="w-20 h-20 rounded-[2.5rem] bg-white shadow-2xl shadow-primary/10 border border-outline-variant/30 p-3 overflow-hidden shrink-0 rotate-3 hover:rotate-0 transition-transform duration-500">
-        <img src={LOGO_URL} alt="Bot Logo" class="w-full h-full object-cover rounded-3xl"/>
-      </div>
+      <img src={LOGO_URL_SERVEUR} alt="Bot Logo" class="w-20 h-20 rounded-3xl shadow-2xl shadow-primary/10 overflow-hidden shrink-0"/>
       <div>
         <h2 class="text-4xl font-black tracking-tighter text-on-surface font-headline leading-tight">
-          {dashboardStore.state.guildName || 'Chargement...'}
+          {#if dashboardStore.state.guildName}
+            {dashboardStore.state.guildName}
+          {:else}
+            <div class="h-10 w-64 bg-surface-variant/50 rounded-lg animate-pulse inline-block align-middle"></div>
+          {/if}
         </h2>
         <p class="text-on-surface-variant/70 mt-1 font-medium italic">Gérez et surveillez les performances de votre architecture bot.</p>
       </div>

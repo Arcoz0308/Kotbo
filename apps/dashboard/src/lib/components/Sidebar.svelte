@@ -18,15 +18,14 @@
   ];
 
   const managementItems = [
-    { name: "Recrutement", icon: "support_agent", href: "/recruitment" },
+    { name: "Recrutement", icon: "list", href: "/recruitment" },
     { name: "Règlement", icon: "text-bubble", href: "/regulation" },
-    { name: "Procédures", icon: "book", href: "/procedures" },
     { name: "Personnel", icon: "sunrise", href: "/staff-management" },
   ];
 
   const configItems = [
     { name: "Modules", icon: "sparkles", href: "/modules" },
-    { name: "Commandes", icon: "admin_panel_settings", href: "/command-access" },
+    { name: "Commandes", icon: "tasks", href: "/command-access" },
     { name: "Paramètres", icon: "gears", href: "/settings" },
   ];
 
@@ -74,13 +73,10 @@
   <div class="p-8 flex items-center gap-4">
     <div class="relative w-11 h-11">
       <div class="absolute inset-0 bg-primary/20 rounded-2xl blur-lg animate-pulse"></div>
-      <div class="relative w-full h-full rounded-2xl bg-white shadow-xl shadow-primary/10 p-1.5 overflow-hidden">
-        <img alt="Logo" src={LOGO_URL} class="w-full h-full object-cover rounded-xl"/>
-      </div>
+      <img alt="Logo" src={LOGO_URL} class="w-full h-full object-cover rounded-xl"/>
     </div>
     <div class="flex flex-col">
       <h1 class="text-xl font-black tracking-tighter text-on-surface font-headline leading-none">Kotbo</h1>
-      <span class="text-[9px] uppercase tracking-[0.3em] font-bold text-primary opacity-60">Dashboard</span>
     </div>
   </div>
 

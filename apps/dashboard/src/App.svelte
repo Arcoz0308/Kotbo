@@ -22,7 +22,6 @@
   import Profile from './pages/Profile.svelte';
   import PublicProfile from './pages/PublicProfile.svelte';
   import StaffManagement from './pages/StaffManagement.svelte';
-  import Procedures from './pages/Procedures.svelte';
   import News from './pages/News.svelte';
   import Members from './pages/Members.svelte';
   import Recruitment from './pages/Recruitment.svelte';
@@ -118,9 +117,6 @@
         </Route>
         <Route path="/profile">
           <Profile />
-        </Route>
-        <Route path="/procedures">
-          <Procedures />
         </Route>
         {#if canManageSettings}
           <Route path="/modules">

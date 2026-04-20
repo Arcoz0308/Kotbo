@@ -59,7 +59,13 @@
     <div class="relative">
       <div class="flex items-center gap-3 bg-surface-container-low px-5 py-2.5 rounded-2xl text-xs font-bold text-on-surface-variant border border-outline-variant/30 transition-all duration-300 shadow-sm">
         <div class="w-2.5 h-2.5 rounded-full {authStore.guilds.find(g => g.id === authStore.selectedGuildId)?.botPresent ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400 opacity-50'}"></div>
-        <span class="tracking-tight">{authStore.guilds.find(g => g.id === authStore.selectedGuildId)?.name || 'Chargement...'}</span>
+        <span class="tracking-tight">
+          {#if authStore.guilds.find(g => g.id === authStore.selectedGuildId)?.name}
+            {authStore.guilds.find(g => g.id === authStore.selectedGuildId)?.name}
+          {:else}
+            <div class="h-4 w-24 bg-surface-variant/50 rounded animate-pulse inline-block align-middle"></div>
+          {/if}
+        </span>
       </div>
     </div>
   </div>
@@ -68,11 +74,6 @@
     <div class="hidden md:flex items-center gap-2 bg-slate-500/10 px-4 py-2 rounded-full border border-slate-500/20">
       <span class="material-symbols-outlined text-sm text-slate-500">verified_user</span>
       <span class="text-[10px] font-black text-slate-600 uppercase tracking-widest">{selectedGuildAccessLabel}</span>
-    </div>
-
-    <div class="hidden md:flex items-center gap-2 bg-emerald-500/10 px-4 py-2 rounded-full border border-emerald-500/20">
-      <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-      <span class="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Connecté</span>
     </div>
 
         <button
@@ -91,7 +92,13 @@
 
     <div class="flex items-center gap-4 group">
       <div class="flex flex-col items-end">
-        <span class="text-xs font-black text-on-surface font-headline leading-none">{authStore.user?.username || 'Chargement...'}</span>
+        <span class="text-xs font-black text-on-surface font-headline leading-none">
+          {#if authStore.user?.username}
+            {authStore.user?.username}
+          {:else}
+            <div class="h-3 w-20 bg-surface-variant/50 rounded animate-pulse"></div>
+          {/if}
+        </span>
         <button onclick={logout} class="text-[9px] font-black text-error/60 uppercase tracking-widest hover:text-error hover:underline transition-colors mt-1">Déconnexion</button>
       </div>
       <button 

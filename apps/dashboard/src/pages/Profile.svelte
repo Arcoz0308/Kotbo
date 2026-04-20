@@ -59,7 +59,7 @@
       user = meData;
 
       // Récupérer le profil staff et les clés API
-      const profileRes = await fetch(`${API_BASE_URL}/api/dashboard/users/${meData.id}/profile`, {
+      const profileRes = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/staff/${meData.id}/profile`, {
         headers: { Authorization: `Bearer ${authStore.token}` }
       });
       const profileData = await profileRes.json();
@@ -72,7 +72,7 @@
 
       // Récupérer les stats
       if (staffMember) {
-        const statsRes = await fetch(`${API_BASE_URL}/api/dashboard/users/${meData.id}/staff-stats`, {
+        const statsRes = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/staff/${meData.id}/stats`, {
           headers: { Authorization: `Bearer ${authStore.token}` }
         });
         const statsData = await statsRes.json();
@@ -159,9 +159,12 @@
 
 <div class="space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-1000">
   {#if loading}
-    <div class="flex flex-col items-center justify-center py-32 text-on-surface-variant/40">
-      <span class="material-symbols-outlined text-7xl animate-spin">progress_activity</span>
-      <p class="mt-6 text-sm font-bold uppercase tracking-[0.2em]">Chargement de votre profil</p>
+    <div class="flex flex-col gap-10 animate-pulse w-full">
+      <div class="h-48 w-full bg-surface-variant/30 rounded-[3rem]"></div>
+      <div class="flex flex-col md:flex-row gap-8">
+         <div class="h-[60vh] w-full md:w-1/3 bg-surface-variant/30 rounded-[3rem]"></div>
+         <div class="h-[60vh] w-full md:w-2/3 bg-surface-variant/30 rounded-[3rem]"></div>
+      </div>
     </div>
   {:else if error}
     <div class="rounded-3xl border border-rose-500/20 bg-rose-500/10 px-8 py-6 text-center">

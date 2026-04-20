@@ -598,9 +598,10 @@
 
       <div class="premium-card rounded-[3rem] overflow-hidden">
         {#if dashboardStore.state.loading && dashboardStore.state.contentItems.length === 0}
-          <div class="p-24 flex flex-col items-center justify-center text-on-surface-variant/25">
-            <span class="material-symbols-outlined text-7xl animate-spin">sync</span>
-            <p class="mt-6 text-sm font-semibold uppercase tracking-[0.2em]">Chargement des contenus</p>
+          <div class="divide-y divide-outline-variant/10 p-6 md:p-8 space-y-6 animate-pulse w-full">
+            <div class="h-40 bg-surface-variant/30 rounded-3xl w-full"></div>
+            <div class="h-40 bg-surface-variant/30 rounded-3xl w-full"></div>
+            <div class="h-40 bg-surface-variant/30 rounded-3xl w-full"></div>
           </div>
         {:else if filteredContent.length > 0}
           <div class="divide-y divide-outline-variant/10">
