@@ -17,6 +17,8 @@ model Guild {
   regulationMessageId String?
   publicChannelId String?
   digestChannelId String?
+  meetingAnnouncementChannelId String?
+  meetingVoiceChannelId String?
 
   youtubeEnabled    Boolean @default(false)
   nathanYtChannelId String?
@@ -631,6 +633,8 @@ model StaffMember {
   pollsCreated StaffPoll[]
   pollVotes StaffPollVote[]
   procedureReads StaffProcedureRead[]
+
+  isTutor Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

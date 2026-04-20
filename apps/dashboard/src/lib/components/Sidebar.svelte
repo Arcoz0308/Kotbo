@@ -4,29 +4,29 @@
   import { authStore } from '../stores/auth.svelte';
 
   const dashboardItems = [
-    { name: "Vue d'ensemble", icon: "grid", href: "/" },
-    { name: "Analytics", icon: "pie", href: "/analytics" },
+    { name: "Vue d'ensemble", icon: "grid_view", href: "/" },
+    { name: "Analytics", icon: "pie_chart", href: "/analytics" },
   ];
 
   const moderationItems = [
-    { name: "Contenu", icon: "newspaper", href: "/content" },
+    { name: "Contenu", icon: "news", href: "/content" },
     { name: "Daily Algo", icon: "code", href: "/module-settings/dailyalgo" },
-    { name: "Membres", icon: "user", href: "/members" },
-    { name: "Sanctions", icon: "alert-triangle", href: "/sanctions" },
-    { name: "Logs Discord", icon: "menu", href: "/logs" },
-    { name: "Journal d'activité", icon: "grades", href: "/activity" },
+    { name: "Membres", icon: "person", href: "/members" },
+    { name: "Sanctions", icon: "warning", href: "/sanctions" },
+    { name: "Logs Discord", icon: "receipt_long", href: "/logs" },
+    { name: "Journal d'activité", icon: "history", href: "/activity" },
   ];
 
   const managementItems = [
-    { name: "Recrutement", icon: "list", href: "/recruitment" },
-    { name: "Règlement", icon: "text-bubble", href: "/regulation" },
-    { name: "Personnel", icon: "sunrise", href: "/staff-management" },
+    { name: "Recrutement", icon: "assignment_ind", href: "/recruitment" },
+    { name: "Règlement", icon: "description", href: "/regulation" },
+    { name: "Personnel", icon: "groups", href: "/staff-management" },
   ];
 
   const configItems = [
-    { name: "Modules", icon: "sparkles", href: "/modules" },
-    { name: "Commandes", icon: "tasks", href: "/command-access" },
-    { name: "Paramètres", icon: "gears", href: "/settings" },
+    { name: "Modules", icon: "extension", href: "/modules" },
+    { name: "Commandes", icon: "terminal", href: "/command-access" },
+    { name: "Paramètres", icon: "settings", href: "/settings" },
   ];
 
   const canManageSettings = $derived(
@@ -85,7 +85,7 @@
       {#if groupIdx > 0}
         <div class="pt-4 mt-3 border-t border-outline-variant/30"></div>
       {/if}
-      <div class="px-3 mb-2 text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-[0.2em]">{group.label}</div>
+      <div class="px-3 mb-2 text-[10px] font-bold text-on-surface-variant/70 uppercase tracking-[0.2em]">{group.label}</div>
       {#each group.items as item}
         <a 
           href={item.href}
@@ -94,7 +94,9 @@
           {#if isActiveNavItem(item.href)}
             <div class="absolute left-0 top-3 bottom-3 w-1.5 bg-primary rounded-full animate-in slide-in-from-left-2 duration-300"></div>
           {/if}
-          <Papicon icon={item.icon} size={22} class="transition-all duration-300 {isActiveNavItem(item.href) ? 'scale-110' : 'opacity-60 group-hover:opacity-100 group-hover:scale-110'}" />
+          <span class="material-symbols-outlined text-[22px] transition-all duration-300 {isActiveNavItem(item.href) ? 'scale-110' : 'opacity-60 group-hover:opacity-100 group-hover:scale-110'}">
+            {item.icon}
+          </span>
           <span class="text-[13px] tracking-tight">{item.name}</span>
         </a>
       {/each}
@@ -102,7 +104,7 @@
 
     <!-- Mon Profil – en bas du nav -->
     <div class="pt-4 mt-3 border-t border-outline-variant/30">
-      <div class="px-3 mb-2 text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-[0.2em]">Personnel</div>
+      <div class="px-3 mb-2 text-[10px] font-bold text-on-surface-variant/70 uppercase tracking-[0.2em]">Personnel</div>
       <a 
         href="/profile"
         class="flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all duration-300 group relative overflow-hidden {isActiveNavItem('/profile') ? 'text-primary bg-primary/5 font-bold' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-hover/50'}"
@@ -110,7 +112,9 @@
         {#if isActiveNavItem('/profile')}
           <div class="absolute left-0 top-3 bottom-3 w-1.5 bg-primary rounded-full animate-in slide-in-from-left-2 duration-300"></div>
         {/if}
-        <Papicon icon="user" size={22} class="transition-all duration-300 {isActiveNavItem('/profile') ? 'scale-110' : 'opacity-60 group-hover:opacity-100 group-hover:scale-110'}" />
+        <span class="material-symbols-outlined text-[22px] transition-all duration-300 {isActiveNavItem('/profile') ? 'scale-110' : 'opacity-60 group-hover:opacity-100 group-hover:scale-110'}">
+          person
+        </span>
         <span class="text-[13px] tracking-tight">Mon Profil</span>
       </a>
     </div>

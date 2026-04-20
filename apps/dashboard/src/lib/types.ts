@@ -9,6 +9,7 @@ export interface StaffMember {
   username?: string | null;
   displayName?: string | null;
   avatarUrl?: string | null;
+  isTutor: boolean;
   createdAt: Date | string;
   updatedAt: Date | string;
 }

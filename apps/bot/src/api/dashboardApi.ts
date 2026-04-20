@@ -1,6 +1,12 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { ChannelType, type Client, type TextChannel } from 'discord.js';
-import { SanctionType, type Prisma } from '@prisma/client';
+import {
+  ChannelType,
+  GuildScheduledEventEntityType,
+  GuildScheduledEventPrivacyLevel,
+  type Client,
+  type TextChannel,
+} from 'discord.js';
+import { SanctionType } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 import WebSocket, { WebSocketServer } from 'ws';
 import prisma from '../utils/db.js';
@@ -15,27 +21,19 @@ import {
   registerTimeoutSanction,
   registerWarnSanction,
   runGuildBan,
-  processScheduledSanctions,
 } from '../services/sanctionService.js';
 import {
   COMMAND_CATALOG,
   normalizeCommandRestrictions,
   type CommandRestrictionRule,
 } from '../utils/commandAccess.js';
-import { runDigestForAllGuilds, runDailyAlgoForAllGuilds } from '../services/digestService.js';
-import {
-  runDailyAlgoSummariesForAllGuilds,
-  getDailyAlgoUserProfile,
-  getDailyAlgoUserParticipations,
-  getLocalDateKey,
-  reviewDailyAlgoSubmission,
-  refreshDailyAlgoChallengeMessageForRun,
-} from '../services/dailyAlgoService.js';
+import { getLocalDateKey, reviewDailyAlgoSubmission } from '../services/dailyAlgoService.js';
 import {
   hashAPIKey,
   generateAPIKey,
   getStaffMember,
   addStaffMember,
+  toggleTutorStatus,
   updateStaffGrade,
   removeStaffMember,
   getStaffMemberStats,
@@ -55,38 +53,15 @@ import {
   recordStaffActivity,
 } from '../services/staffManagementService.js';
 import {
-  getAbsences,
-  createAbsence,
-  updateAbsenceStatus,
-  getMeetings,
-  createMeeting,
-  checkInMeeting,
-  getManagerNotes,
-  createManagerNote,
-  deleteManagerNote,
   getPolls,
   createPoll,
   castPollVote,
-  getProcedures,
-  upsertProcedure,
-  deleteProcedure,
-  markProcedureAsRead,
-  getStaffAlertsAndProgression
+  getAbsences,
+  getMeetings,
+  updateAbsenceStatus,
+  getStaffAlertsAndProgression,
+  createMeeting,
 } from '../services/staffLeadershipService.js';
-import {
-  getCandidatures,
-  createCandidature,
-  updateCandidatureStatus,
-  deleteCandidature,
-  approveCandidature,
-  rejectCandidature,
-  completeOral,
-  getEligibleTutors,
-  assignTutor,
-  getCandidatureHistory,
-  sendAutoRejectDM,
-  handleRecruitmentButton,
-} from '../services/recruitmentService.js';
 
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
@@ -329,47 +304,6 @@ type CommandCatalogEntry = {
 
 type DashboardAccessLevel = 'none' | 'moderator' | 'admin';
 
-type DiscordTokenResponse = {
-  access_token: string;
-  token_type: string;
-  expires_in: number;
-  refresh_token: string;
-  scope: string;
-  error?: string;
-  error_description?: string;
-};
-
-type DiscordUser = {
-  id: string;
-  username: string;
-  avatar: string | null;
-  discriminator: string;
-  public_flags?: number;
-  flags?: number;
-  banner?: string | null;
-  accent_color?: number | null;
-  global_name?: string | null;
-  mfa_enabled?: boolean;
-  locale?: string;
-  premium_type?: number;
-};
-
-type DiscordPartialGuild = {
-  id: string;
-  name: string;
-  icon: string | null;
-  owner: boolean;
-  permissions: string;
-  features: string[];
-};
-
-interface DashboardJwtPayload extends jwt.JwtPayload {
-  userId: string;
-  username: string;
-  avatar: string | null;
-  discordToken: string;
-}
-
 type DashboardAccess = {
   level: DashboardAccessLevel;
   canViewDashboard: boolean;
@@ -405,170 +339,6 @@ function resolveDailyAlgoFinalScore(submission: {
   return Math.round((sum / 5) * 10) / 10;
 }
 
-function resolveDailyAlgoEffectiveSpeedBonus(params: {
-  speedBonusPoints: number | null;
-  runDateKey?: string | null;
-  runCreatedAt?: Date;
-}): number {
-  const todayKey = getLocalDateKey();
-  const runKey = params.runDateKey ?? (params.runCreatedAt ? getLocalDateKey(params.runCreatedAt) : todayKey);
-  if (runKey >= todayKey) {
-    return 0;
-  }
-  return params.speedBonusPoints ?? 0;
-}
-
-type DailyAlgoFunctionArg = {
-  name: string;
-  type: string;
-};
-
-type DailyAlgoUnitTest = {
-  name: string;
-  args: unknown[];
-  expected: unknown;
-};
-
-type DailyAlgoProblemPayload = {
-  title?: string;
-  description?: string;
-  solution?: string;
-  difficulty?: string;
-  language?: string;
-  functionName?: string;
-  functionArgs?: unknown;
-  unitTests?: unknown;
-  allowedLanguages?: unknown;
-};
-
-function normalizeDailyAlgoFunctionArgs(raw: unknown): DailyAlgoFunctionArg[] {
-  if (!Array.isArray(raw)) return [];
-
-  const parsed = raw
-    .map((entry) => {
-      if (!entry || typeof entry !== 'object') return null;
-      const candidate = entry as { name?: unknown; type?: unknown };
-      const name = typeof candidate.name === 'string' ? candidate.name.trim() : '';
-      const type = typeof candidate.type === 'string' ? candidate.type.trim() : '';
-      if (!name) return null;
-      return {
-        name,
-        type: type || 'unknown',
-      };
-    })
-    .filter((entry): entry is DailyAlgoFunctionArg => Boolean(entry));
-
-  return parsed;
-}
-
-function normalizeDailyAlgoUnitTests(raw: unknown, expectedArgCount: number): DailyAlgoUnitTest[] {
-  if (!Array.isArray(raw)) return [];
-
-  return raw
-    .map((entry, index) => {
-      if (!entry || typeof entry !== 'object') return null;
-      const candidate = entry as { name?: unknown; args?: unknown; expected?: unknown };
-      const args = Array.isArray(candidate.args) ? candidate.args : null;
-      if (!args || args.length !== expectedArgCount) return null;
-      const name = typeof candidate.name === 'string' && candidate.name.trim()
-        ? candidate.name.trim()
-        : `Test ${index + 1}`;
-
-      return {
-        name,
-        args,
-        expected: candidate.expected,
-      };
-    })
-    .filter((entry): entry is DailyAlgoUnitTest => Boolean(entry));
-}
-
-function normalizeDailyAlgoAllowedLanguages(raw: unknown): string[] {
-  if (!Array.isArray(raw)) return [];
-
-  const seen = new Set<string>();
-  const normalized: string[] = [];
-
-  for (const entry of raw) {
-    if (typeof entry !== 'string') continue;
-    const value = entry.trim();
-    if (!value) continue;
-
-    const key = value.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    normalized.push(value);
-  }
-
-  return normalized;
-}
-
-function validateDailyAlgoProblemPayload(payload: DailyAlgoProblemPayload): {
-  ok: boolean;
-  error?: string;
-  normalized?: {
-    title: string;
-    description: string;
-    solution: string;
-    difficulty: string;
-    language: string;
-    functionName: string;
-    functionArgs: DailyAlgoFunctionArg[];
-    unitTests: DailyAlgoUnitTest[];
-    allowedLanguages: string[];
-  };
-} {
-  const title = typeof payload.title === 'string' ? payload.title.trim() : '';
-  const description = typeof payload.description === 'string' ? payload.description.trim() : '';
-  const difficulty = typeof payload.difficulty === 'string' ? payload.difficulty.trim().toLowerCase() : 'moyen';
-  const language = typeof payload.language === 'string' && payload.language.trim() ? payload.language.trim().toLowerCase() : 'fr';
-  const functionName = typeof payload.functionName === 'string' ? payload.functionName.trim() : '';
-  const solution = typeof payload.solution === 'string' ? payload.solution.trim() : '';
-
-  if (!title || !description) {
-    return { ok: false, error: 'Titre et description obligatoires.' };
-  }
-
-  if (!['facile', 'moyen', 'difficile'].includes(difficulty)) {
-    return { ok: false, error: 'Difficulté invalide.' };
-  }
-
-  if (!functionName || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(functionName)) {
-    return { ok: false, error: 'Nom de fonction invalide (lettres/chiffres/underscore, sans espace).' };
-  }
-
-  const functionArgs = normalizeDailyAlgoFunctionArgs(payload.functionArgs);
-
-  const duplicatedArgName = functionArgs.find(
-    (arg, index) => functionArgs.findIndex((candidate) => candidate.name.toLowerCase() === arg.name.toLowerCase()) !== index,
-  );
-  if (duplicatedArgName) {
-    return { ok: false, error: `Argument dupliqué: ${duplicatedArgName.name}` };
-  }
-
-  const allowedLanguages = normalizeDailyAlgoAllowedLanguages(payload.allowedLanguages);
-
-  const unitTests = normalizeDailyAlgoUnitTests(payload.unitTests, functionArgs.length);
-  if (unitTests.length === 0) {
-    return { ok: false, error: 'Ajoute au moins un test unitaire valide avec le bon nombre d’arguments.' };
-  }
-
-  return {
-    ok: true,
-    normalized: {
-      title,
-      description,
-      solution,
-      difficulty,
-      language,
-      functionName,
-      functionArgs,
-      unitTests,
-      allowedLanguages,
-    },
-  };
-}
-
 type DashboardState = {
   guildName: string;
   configChannelId: string;
@@ -579,6 +349,7 @@ type DashboardState = {
   feeds: FeedItem[];
   contentItems: ContentItem[];
   discordChannels: DashboardChannel[];
+  discordVoiceChannels: DashboardChannel[];
   discordRoles: DashboardRole[];
   moderatorRoleId: string;
   commandRestrictions: CommandRestrictionState[];
@@ -596,8 +367,6 @@ type DashboardState = {
   regulationRules: RegulationRuleItem[];
   messageTemplate: string;
   analytics: AnalyticsData;
-  recruitmentCategoryId: string | null;
-  recruitmentLogChannelId: string | null;
 };
 
 type RuntimeState = {
@@ -769,7 +538,7 @@ const json = (res: ServerResponse, statusCode: number, data: unknown) => {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept, X-API-Key',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept',
     'Access-Control-Max-Age': '86400'
   });
   res.end(JSON.stringify(data));
@@ -780,60 +549,6 @@ type AuthClaims = {
   username?: string;
   avatar?: string;
   discordToken?: string;
-};
-
-const DAILY_ALGO_API_READ_PERMISSIONS = new Set([
-  'daily_algo:read_exercise',
-  'daily_algo:create_exercise',
-  'daily_algo:update_exercise',
-  'daily_algo:manage_exercises',
-]);
-
-const DAILY_ALGO_API_WRITE_PERMISSIONS = new Set([
-  'daily_algo:create_exercise',
-  'daily_algo:update_exercise',
-  'daily_algo:manage_exercises',
-]);
-
-const getHeaderValue = (value: string | string[] | undefined): string | null => {
-  if (!value) return null;
-  if (Array.isArray(value)) {
-    if (value.length === 0) return null;
-    return value[0]?.trim() || null;
-  }
-  const normalized = value.trim();
-  return normalized.length > 0 ? normalized : null;
-};
-
-const extractApiKey = (req: IncomingMessage): string | null => {
-  const directHeader = getHeaderValue(req.headers['x-api-key']);
-  if (directHeader) return directHeader;
-
-  const authHeader = getHeaderValue(req.headers.authorization);
-  if (!authHeader) return null;
-
-  if (authHeader.startsWith('ApiKey ')) {
-    return authHeader.slice('ApiKey '.length).trim() || null;
-  }
-
-  if (authHeader.startsWith('Bearer ')) {
-    const bearerValue = authHeader.slice('Bearer '.length).trim();
-    if (bearerValue.startsWith('kb_')) {
-      return bearerValue;
-    }
-  }
-
-  return null;
-};
-
-const hasDailyAlgoApiPermission = (permissions: string[] | null | undefined, mode: 'read' | 'write') => {
-  if (!Array.isArray(permissions) || permissions.length === 0) return false;
-  const granted = new Set(permissions.map((entry) => (typeof entry === 'string' ? entry.trim() : '')).filter(Boolean));
-  const required = mode === 'read' ? DAILY_ALGO_API_READ_PERMISSIONS : DAILY_ALGO_API_WRITE_PERMISSIONS;
-  for (const permission of required) {
-    if (granted.has(permission)) return true;
-  }
-  return false;
 };
 
 const verifyAuth = (req: IncomingMessage): AuthClaims | null => {
@@ -918,14 +633,11 @@ const resolveDashboardAccess = async (
     return DASHBOARD_ACCESS_NONE;
   }
 
-  // Any registered staff member should be able to access moderation features
-  // (Daily Algo submission review, moderation views), even if they are not
-  // mapped to the single Discord "moderator role" configured for the guild.
   if (guildConfig.moderatorRoleId && member.roles.cache.has(guildConfig.moderatorRoleId)) {
     return DASHBOARD_ACCESS_MODERATOR;
   }
 
-  return DASHBOARD_ACCESS_MODERATOR;
+  return DASHBOARD_ACCESS_NONE;
 };
 
 
@@ -1086,6 +798,12 @@ function formatChannelName(guild: { channels: { cache: Map<string, { id: string;
   return channel?.name ? `#${channel.name}` : `Salon ${channelId}`;
 }
 
+function extractDiscordSnowflake(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const normalized = value.trim().replace(/[^0-9]/g, '');
+  return normalized.length > 0 ? normalized : null;
+}
+
 function parseCaseField(details: string, label: string): string | null {
   const match = details.match(new RegExp(`${label}:\\s*([^\\n|]+)`, 'i'));
   const value = match?.[1]?.trim();
@@ -1155,10 +873,10 @@ async function fetchMemberConnections(discordToken?: string | null): Promise<{ c
     return {
       connections: Array.isArray(payload)
         ? payload.map((connection) => ({
-          name: connection.name ?? 'Inconnue',
-          type: connection.type ?? 'inconnue',
-          visible: connection.visibility === 1,
-        }))
+            name: connection.name ?? 'Inconnue',
+            type: connection.type ?? 'inconnue',
+            visible: connection.visibility === 1,
+          }))
         : [],
       note: 'Connexions récupérées via le scope OAuth connections.',
     };
@@ -1174,7 +892,7 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
   const discordGuild = client.guilds.cache.get(guildId);
   if (!discordGuild) return null;
 
-  const [user, member, profile, sanctions, auditLogs, inviteConnections, candidatures] = await Promise.all([
+  const [user, member, profile, sanctions, auditLogs, inviteConnections] = await Promise.all([
     client.users.fetch(userId).catch(() => null),
     discordGuild.members.fetch(userId).catch(() => null),
     prisma.memberProfile.findUnique({
@@ -1196,19 +914,18 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
       take: 500,
     }),
     fetchMemberConnections(auth.userId === userId ? auth.discordToken : null),
-    getCandidatureHistory(guildId, userId).catch(() => []),
   ]);
 
   const effectivePermissions = member?.permissions.toArray() ?? [];
   const roles = member
     ? [...member.roles.cache.values()]
-      .filter((role) => role.id !== discordGuild.id)
-      .map((role) => mapGuildRolePermissions(role, `<@&${role.id}>`))
-      .sort((left, right) => {
-        const positionLeft = discordGuild.roles.cache.get(left.id)?.position ?? 0;
-        const positionRight = discordGuild.roles.cache.get(right.id)?.position ?? 0;
-        return positionRight - positionLeft || left.name.localeCompare(right.name, 'fr');
-      })
+        .filter((role) => role.id !== discordGuild.id)
+        .map((role) => mapGuildRolePermissions(role, `<@&${role.id}>`))
+        .sort((left, right) => {
+          const positionLeft = discordGuild.roles.cache.get(left.id)?.position ?? 0;
+          const positionRight = discordGuild.roles.cache.get(right.id)?.position ?? 0;
+          return positionRight - positionLeft || left.name.localeCompare(right.name, 'fr');
+        })
     : [];
 
   const tagCandidates = new Set<string>([user?.tag, profile?.userTag, member?.user.tag].filter((entry): entry is string => !!entry));
@@ -1299,9 +1016,9 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
     },
     invite: invite
       ? {
-        ...invite,
-        joinedAt: invite.joinedAt ?? member?.joinedAt?.toISOString() ?? profile?.guildJoinedAt?.toISOString() ?? null,
-      }
+          ...invite,
+          joinedAt: invite.joinedAt ?? member?.joinedAt?.toISOString() ?? profile?.guildJoinedAt?.toISOString() ?? null,
+        }
       : null,
     roles,
     effectivePermissions,
@@ -1326,7 +1043,6 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
     recentLogCount: mappedLogs.length,
     connections: inviteConnections.connections,
     connectionsNote: inviteConnections.note,
-    candidatures,
   };
 }
 
@@ -1358,7 +1074,7 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
     prisma.feed.findMany({ where: { guildId }, orderBy: { createdAt: 'desc' } }),
     prisma.feedItem.findMany({
       where: { feed: { guildId } },
-      include: { feed: { select: { name: true, category: true } } },
+      include: { feed: { select: { name: true } } },
       orderBy: { createdAt: 'desc' },
       take: 80
     }),
@@ -1585,29 +1301,42 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
   const discordGuild = client.guilds.cache.get(guildId);
   const discordChannels: DashboardChannel[] = discordGuild
     ? discordGuild.channels.cache
-      .filter((channel) => channel.type === ChannelType.GuildText || channel.type === ChannelType.GuildAnnouncement)
-      .map((channel) => ({
-        id: channel.id,
-        name: channel.name,
-        mention: `<#${channel.id}>`,
-        position: channel.rawPosition ?? 0
-      }))
-      .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name, 'fr'))
-      .map(({ id, name, mention }) => ({ id, name, mention }))
+        .filter((channel) => channel.type === ChannelType.GuildText || channel.type === ChannelType.GuildAnnouncement)
+        .map((channel) => ({
+          id: channel.id,
+          name: channel.name,
+          mention: `<#${channel.id}>`,
+          position: channel.rawPosition ?? 0
+        }))
+        .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name, 'fr'))
+        .map(({ id, name, mention }) => ({ id, name, mention }))
+    : [];
+
+  const discordVoiceChannels: DashboardChannel[] = discordGuild
+    ? discordGuild.channels.cache
+        .filter((channel) => channel.type === ChannelType.GuildVoice || channel.type === ChannelType.GuildStageVoice)
+        .map((channel) => ({
+          id: channel.id,
+          name: channel.name,
+          mention: `<#${channel.id}>`,
+          position: channel.rawPosition ?? 0
+        }))
+        .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name, 'fr'))
+        .map(({ id, name, mention }) => ({ id, name, mention }))
     : [];
 
   const discordRoles: DashboardRole[] = discordGuild
     ? discordGuild.roles.cache
-      .filter((role) => role.name !== '@everyone' && !role.managed)
-      .map((role) => ({
-        id: role.id,
-        name: role.name,
-        mention: `<@&${role.id}>`,
-        permissions: role.permissions.toArray(),
-        position: role.position
-      }))
-      .sort((a, b) => b.position - a.position || a.name.localeCompare(b.name, 'fr'))
-      .map(({ id, name, mention, permissions }) => ({ id, name, mention, permissions }))
+        .filter((role) => role.name !== '@everyone' && !role.managed)
+        .map((role) => ({
+          id: role.id,
+          name: role.name,
+          mention: `<@&${role.id}>`,
+          permissions: role.permissions.toArray(),
+          position: role.position
+        }))
+        .sort((a, b) => b.position - a.position || a.name.localeCompare(b.name, 'fr'))
+        .map(({ id, name, mention, permissions }) => ({ id, name, mention, permissions }))
     : [];
 
   return {
@@ -1620,6 +1349,7 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
     feeds: feedMapped,
     contentItems,
     discordChannels,
+    discordVoiceChannels,
     discordRoles,
     moderatorRoleId: guild.moderatorRoleId ?? '',
     commandRestrictions: runtime.commandRestrictions,
@@ -1644,8 +1374,6 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
     sanctionReports: mappedSanctionReports,
     regulationRules: mappedRegulationRules,
     messageTemplate: runtime.messageTemplate,
-    recruitmentCategoryId: guild.recruitmentCategoryId ?? null,
-    recruitmentLogChannelId: guild.recruitmentLogChannelId ?? null,
     analytics: {
       activityTrend: Array.from({ length: 7 }, (_, i) => {
         const d = new Date();
@@ -1766,36 +1494,6 @@ export const startDashboardApi = (client: Client) => {
         return;
       }
 
-      if (parts[0] === 'api' && parts[1] === 'webhooks' && parts[2] === 'recruitment' && parts[3] && req.method === 'POST') {
-        const guildId = parts[3];
-        try {
-          const body = await readJsonBody(req);
-          if (!body) {
-            logger.warn('RecruitmentAPI', `Requête vide reçue pour le serveur ${guildId}`);
-            json(res, 400, { error: 'Payload vide' });
-            return;
-          }
-
-          logger.info('RecruitmentAPI', `Candidature reçue pour le serveur ${guildId}. Données: ${JSON.stringify(body).substring(0, 100)}...`);
-          const { candidature, autoRejected, autoRejectReason } = await createCandidature(guildId, body);
-
-          // Send auto-reject DM if needed
-          if (autoRejected && candidature.discordId) {
-            await sendAutoRejectDM(client, guildId, candidature.discordId, autoRejectReason || 'Votre candidature ne remplit pas les conditions requises.');
-            logger.info('RecruitmentAPI', `Candidature ${candidature.id} auto-rejetée: ${autoRejectReason}`);
-          }
-
-          // Broadcast to dashboard
-          broadcastDashboardStateChange(guildId, 'recruitment_candidature_received');
-
-          json(res, 201, { ok: true, message: autoRejected ? 'Candidature auto-rejetée' : 'Candidature enregistrée', autoRejected });
-        } catch (err) {
-          logger.error('RecruitmentAPI', 'Webhook error:', err);
-          json(res, 500, { error: 'Erreur lors du traitement de la candidature' });
-        }
-        return;
-      }
-
       if (url.pathname === '/api/config' && req.method === 'GET') {
         const missingOAuth = getMissingOAuthConfig();
         if (missingOAuth.length > 0) {
@@ -1810,109 +1508,6 @@ export const startDashboardApi = (client: Client) => {
         return;
       }
 
-      // --- PUBLIC PROFILE ROUTE ---
-      if (parts.length === 4 && parts[0] === 'api' && parts[1] === 'public' && parts[2] === 'profile') {
-        const profileUserId = parts[3];
-
-        try {
-          // 1. Fetch Discord User
-          const discordUser = await client.users.fetch(profileUserId).catch(() => null);
-          if (!discordUser) {
-            json(res, 404, { error: 'Utilisateur introuvable' });
-            return;
-          }
-
-          // 2. Fetch Daily Algo Stats (across all guilds if possible, but currently guild-scoped)
-          // For now, we fetch from the first common guild or a global aggregation
-          const guilds = await prisma.guild.findMany({
-            where: { dailyAlgoEnabled: true },
-            select: { id: true }
-          });
-
-          let algoStats = null;
-          let recentAlgos: any[] = [];
-
-          for (const guild of guilds) {
-            const stats = await getDailyAlgoUserProfile(guild.id, profileUserId);
-            if (stats && (!algoStats || stats.totalPoints > algoStats.totalPoints)) {
-              algoStats = stats;
-              recentAlgos = await getDailyAlgoUserParticipations(guild.id, profileUserId, 5);
-            }
-          }
-
-          // 3. Fetch Scouting Stats (Articles validés via audit logs)
-          const scoutingCount = await prisma.dashboardAuditLog.count({
-            where: {
-              user: { contains: discordUser.username },
-              action: 'Validation contenu'
-            }
-          });
-
-          json(res, 200, {
-            user: {
-              id: discordUser.id,
-              username: discordUser.username,
-              globalName: discordUser.globalName,
-              avatarUrl: discordUser.displayAvatarURL({ size: 512 }),
-            },
-            algo: algoStats,
-            recentAlgos,
-            stats: {
-              scoutedArticles: scoutingCount
-            }
-          });
-          return;
-        } catch (error) {
-          logger.error('API', `Erreur profile public ${profileUserId}:`, error);
-          json(res, 500, { error: 'Erreur lors de la récupération du profil' });
-          return;
-        }
-      }
-
-      // --- PUBLIC NEWS ROUTE ---
-      if (parts.length === 3 && parts[0] === 'api' && parts[1] === 'public' && parts[2] === 'news') {
-        try {
-          const firstGuildConfig = await prisma.guild.findFirst({
-            select: { id: true, publicChannelId: true }
-          });
-
-          if (!firstGuildConfig) {
-            json(res, 404, { error: 'Aucune guilde configurée.' });
-            return;
-          }
-
-          // Fetch real guild info from Discord client
-          const discordGuild = client.guilds.cache.get(firstGuildConfig.id);
-          const firstGuild = {
-            id: firstGuildConfig.id,
-            name: discordGuild?.name || 'Kotbo Gazette',
-            icon: discordGuild?.iconURL() || null
-          };
-
-          const rawNews = await prisma.feedItem.findMany({
-            where: {
-              feed: { guildId: firstGuildConfig.id },
-              status: 'APPROVED'
-            },
-            orderBy: { publishedAt: 'desc' },
-            take: 30,
-            include: { feed: true }
-          });
-
-          // Map to match frontend expectations (description -> excerpt)
-          const news = rawNews.map(item => ({
-            ...item,
-            excerpt: item.descriptionTranslated || item.description
-          }));
-
-          json(res, 200, { news, guild: firstGuild });
-          return;
-        } catch (error) {
-          logger.error('API', `Erreur public news:`, error);
-          json(res, 500, { error: 'Erreur lors de la récupération des news' });
-          return;
-        }
-      }
 
       // --- AUTH ROUTES ---
       if (parts.length >= 2 && parts[0] === 'api' && parts[1] === 'auth') {
@@ -1964,14 +1559,14 @@ export const startDashboardApi = (client: Client) => {
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
               });
 
-              const tokenData = await tokenResponse.json() as DiscordTokenResponse;
+              const tokenData = await tokenResponse.json() as any;
               if (tokenData.error) throw new Error(tokenData.error_description);
 
               // Get user info
               const userResponse = await fetch('https://discord.com/api/users/@me', {
                 headers: { Authorization: `Bearer ${tokenData.access_token}` },
               });
-              const userData = await userResponse.json() as DiscordUser;
+              const userData = await userResponse.json() as any;
 
               // Create JWT
               const token = jwt.sign({
@@ -1997,155 +1592,6 @@ export const startDashboardApi = (client: Client) => {
         }
       }
 
-      if (parts.length >= 4 && parts[0] === 'api' && parts[1] === 'public' && parts[2] === 'guilds') {
-        const guildId = parts[3];
-        const rawApiKey = extractApiKey(req);
-        if (!rawApiKey) {
-          json(res, 401, { error: 'Clé API manquante. Utilise le header X-API-Key.' });
-          return;
-        }
-
-        const keyHash = hashAPIKey(rawApiKey);
-        const apiKey = await verifyAPIKey(keyHash, guildId);
-        if (!apiKey) {
-          json(res, 401, { error: 'Clé API invalide ou inactive.' });
-          return;
-        }
-
-        const auditUser = `API ${apiKey.displayKey}`;
-
-        if (parts.length === 5 && parts[4] === 'daily-algo-problems' && req.method === 'GET') {
-          if (!hasDailyAlgoApiPermission(apiKey.permissions, 'read')) {
-            json(res, 403, { error: 'Permission manquante: daily_algo:read_exercise' });
-            return;
-          }
-
-          const problems = await prisma.dailyAlgoProblem.findMany({
-            orderBy: [
-              { usedAt: { sort: 'asc', nulls: 'first' } },
-              { createdAt: 'desc' },
-            ]
-          });
-          json(res, 200, problems);
-          return;
-        }
-
-        if (parts.length === 5 && parts[4] === 'daily-algo-problems' && req.method === 'POST') {
-          if (!hasDailyAlgoApiPermission(apiKey.permissions, 'write')) {
-            json(res, 403, { error: 'Permission manquante: daily_algo:create_exercise' });
-            return;
-          }
-
-          const body = await readJsonBody<DailyAlgoProblemPayload>(req);
-          const validation = validateDailyAlgoProblemPayload(body ?? {});
-          if (!validation.ok || !validation.normalized) {
-            json(res, 400, { error: validation.error ?? 'Payload invalide.' });
-            return;
-          }
-
-          const normalized = validation.normalized;
-          const problem = await prisma.dailyAlgoProblem.create({
-            data: {
-              title: normalized.title,
-              description: normalized.description,
-              solution: normalized.solution || '',
-              difficulty: normalized.difficulty,
-              language: normalized.language,
-              functionName: normalized.functionName,
-              functionArgs: normalized.functionArgs as Prisma.InputJsonValue,
-              unitTests: normalized.unitTests as Prisma.InputJsonValue,
-              allowedLanguages: normalized.allowedLanguages,
-            }
-          });
-
-          await pushAudit(guildId, {
-            user: auditUser,
-            action: 'Ajout Exercice (API)',
-            context: getGuildName(client, guildId),
-            module: 'Daily Algo',
-            eventType: 'API',
-            details: `Ajout d'un nouvel exercice via API : ${problem.title}`,
-            channelId: null
-          });
-
-          broadcastDashboardStateChange(guildId, 'daily_algo_problem_created');
-          json(res, 201, problem);
-          return;
-        }
-
-        if (parts.length === 6 && parts[4] === 'daily-algo-problems' && req.method === 'PATCH') {
-          if (!hasDailyAlgoApiPermission(apiKey.permissions, 'write')) {
-            json(res, 403, { error: 'Permission manquante: daily_algo:update_exercise' });
-            return;
-          }
-
-          const problemId = parts[5];
-          const body = await readJsonBody<DailyAlgoProblemPayload>(req);
-          const validation = validateDailyAlgoProblemPayload(body ?? {});
-          if (!validation.ok || !validation.normalized) {
-            json(res, 400, { error: validation.error ?? 'Payload invalide.' });
-            return;
-          }
-
-          const normalized = validation.normalized;
-          const existing = await prisma.dailyAlgoProblem.findUnique({
-            where: { id: problemId },
-            select: { id: true, title: true },
-          });
-
-          if (!existing) {
-            json(res, 404, { error: 'Exercice introuvable.' });
-            return;
-          }
-
-          const updated = await prisma.dailyAlgoProblem.update({
-            where: { id: problemId },
-            data: {
-              title: normalized.title,
-              description: normalized.description,
-              solution: normalized.solution || '',
-              difficulty: normalized.difficulty,
-              language: normalized.language,
-              functionName: normalized.functionName,
-              functionArgs: normalized.functionArgs as Prisma.InputJsonValue,
-              unitTests: normalized.unitTests as Prisma.InputJsonValue,
-              allowedLanguages: normalized.allowedLanguages,
-            },
-          });
-
-          const todayRun = await prisma.dailyAlgoRun.findFirst({
-            where: {
-              guildId,
-              problemId: problemId,
-              dateKey: getLocalDateKey(),
-              challengeMessageId: { not: null },
-            },
-            select: { id: true },
-          });
-
-          let discordMessageUpdated = false;
-          if (todayRun?.id) {
-            discordMessageUpdated = await refreshDailyAlgoChallengeMessageForRun(client, todayRun.id).catch(() => false);
-          }
-
-          await pushAudit(guildId, {
-            user: auditUser,
-            action: 'Modification Exercice (API)',
-            context: getGuildName(client, guildId),
-            module: 'Daily Algo',
-            eventType: 'API',
-            details: discordMessageUpdated
-              ? `Exercice modifié via API : ${updated.title} (message Discord du jour mis à jour).`
-              : `Exercice modifié via API : ${updated.title}.`,
-            channelId: null
-          });
-
-          broadcastDashboardStateChange(guildId, 'daily_algo_problem_updated');
-          json(res, 200, { ...updated, discordMessageUpdated });
-          return;
-        }
-      }
-
       if (parts.length >= 2 && parts[0] === 'api' && parts[1] === 'user') {
         const user = verifyAuth(req);
         if (!user) {
@@ -2156,7 +1602,7 @@ export const startDashboardApi = (client: Client) => {
         if (parts[2] === 'me') {
           const authHeader = req.headers.authorization;
           const token = authHeader!.split(' ')[1];
-          const decoded = jwt.decode(token) as DashboardJwtPayload;
+          const decoded = jwt.decode(token) as any;
           json(res, 200, { id: decoded.userId, username: decoded.username, avatar: decoded.avatar });
           return;
         }
@@ -2170,7 +1616,7 @@ export const startDashboardApi = (client: Client) => {
               return;
             }
 
-            const decoded = jwt.decode(token) as DashboardJwtPayload;
+            const decoded = jwt.decode(token) as any;
             if (!decoded?.discordToken) {
               json(res, 400, { error: 'Token Discord manquant dans le JWT' });
               return;
@@ -2189,7 +1635,7 @@ export const startDashboardApi = (client: Client) => {
               return;
             }
 
-            const userGuilds = await guildsResponse.json() as DiscordPartialGuild[];
+            const userGuilds = await guildsResponse.json() as any[];
             if (!Array.isArray(userGuilds)) {
               logger.error('API', 'Discord did not return an array of guilds', userGuilds);
               json(res, 500, { error: 'Réponse Discord invalide' });
@@ -2197,7 +1643,7 @@ export const startDashboardApi = (client: Client) => {
             }
 
             const userGuildPermissions = new Map<string, bigint>();
-            const userGuildsById = new Map<string, DiscordPartialGuild>();
+            const userGuildsById = new Map<string, any>();
 
             for (const guild of userGuilds) {
               userGuildsById.set(guild.id, guild);
@@ -2246,7 +1692,7 @@ export const startDashboardApi = (client: Client) => {
 
               if (!access.canViewDashboard) continue;
 
-              const sourceGuild = userGuildsById.get(guildId)!;
+              const sourceGuild = userGuildsById.get(guildId);
               accessibleGuilds.set(guildId, {
                 id: guildId,
                 name: sourceGuild.name,
@@ -2526,9 +1972,193 @@ export const startDashboardApi = (client: Client) => {
             }
           }
 
+          if (parts.length === 5 && parts[4] === 'leadership' && req.method === 'GET') {
+            try {
+              const metrics = await getStaffAlertsAndProgression(guildId);
+              json(res, 200, { metrics });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error getting leadership metrics:', err);
+              json(res, 500, { error: 'Erreur lors de la récupération des métriques leadership' });
+            }
+            return;
+          }
+
+          if (parts.length === 5 && parts[4] === 'absences' && req.method === 'GET') {
+            try {
+              const absences = await getAbsences(guildId);
+              json(res, 200, { absences });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error getting absences:', err);
+              json(res, 500, { error: 'Erreur lors de la récupération des absences' });
+            }
+            return;
+          }
+
+          if (parts.length === 6 && parts[4] === 'absences' && req.method === 'PATCH') {
+            const absenceId = parts[5];
+            const body = await readJsonBody<{
+              status: 'APPROVED' | 'REJECTED';
+              note?: string;
+            }>(req);
+
+            if (!body?.status) {
+              json(res, 400, { error: 'status est obligatoire' });
+              return;
+            }
+
+            try {
+              const absence = await updateAbsenceStatus(absenceId, body.status, user.userId, body.note);
+
+              await pushAudit(guildId, {
+                user: auditUser,
+                action: `Décision absence (${body.status})`,
+                context: getGuildName(client, guildId),
+                module: 'Staff Management',
+                eventType: 'Manuel',
+                details: `Absence ${absenceId} ${body.status === 'APPROVED' ? 'approuvée' : 'refusée'}`,
+                channelId: null,
+              });
+
+              json(res, 200, { absence });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error updating absence status:', err);
+              json(res, 500, { error: 'Erreur lors de la mise à jour de l\'absence' });
+            }
+            return;
+          }
+
+          if (parts.length === 5 && parts[4] === 'meetings' && req.method === 'GET') {
+            try {
+              const meetings = await getMeetings(guildId);
+              json(res, 200, { meetings });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error getting meetings:', err);
+              json(res, 500, { error: 'Erreur lors de la récupération des réunions' });
+            }
+            return;
+          }
+
+          if (parts.length === 5 && parts[4] === 'meetings' && req.method === 'POST') {
+            const body = await readJsonBody<{
+              title: string;
+              description?: string;
+              scheduledAt: string;
+            }>(req);
+
+            if (!body?.title || !body?.scheduledAt) {
+              json(res, 400, { error: 'title et scheduledAt sont obligatoires' });
+              return;
+            }
+
+            try {
+              const guildConfig = await prisma.guild.findUnique({
+                where: { id: guildId },
+                select: {
+                  meetingAnnouncementChannelId: true,
+                  meetingVoiceChannelId: true,
+                },
+              });
+
+              const announcementChannelId = guildConfig?.meetingAnnouncementChannelId;
+              const voiceChannelId = guildConfig?.meetingVoiceChannelId;
+
+              if (!announcementChannelId || !voiceChannelId) {
+                json(res, 400, {
+                  error: 'Configurez les salons de réunion (annonce + vocal/conférence) dans la configuration staff avant de créer une réunion.',
+                });
+                return;
+              }
+
+              const scheduledAt = new Date(body.scheduledAt);
+              if (Number.isNaN(scheduledAt.getTime())) {
+                json(res, 400, { error: 'Date de réunion invalide' });
+                return;
+              }
+
+              const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
+              if (!discordGuild) {
+                json(res, 500, { error: 'Impossible d’accéder au serveur Discord pour créer la réunion.' });
+                return;
+              }
+
+              const announcementChannel = await client.channels.fetch(announcementChannelId).catch(() => null);
+              if (!announcementChannel || (announcementChannel.type !== ChannelType.GuildText && announcementChannel.type !== ChannelType.GuildAnnouncement)) {
+                json(res, 400, { error: 'Le salon d’annonce configuré est introuvable ou n’est pas un salon texte/annonces.' });
+                return;
+              }
+
+              const voiceChannel = await client.channels.fetch(voiceChannelId).catch(() => null);
+              if (!voiceChannel || (voiceChannel.type !== ChannelType.GuildVoice && voiceChannel.type !== ChannelType.GuildStageVoice)) {
+                json(res, 400, { error: 'Le salon vocal/conférence configuré est introuvable ou invalide.' });
+                return;
+              }
+
+              const scheduledEvent = await discordGuild.scheduledEvents.create({
+                name: body.title.trim().slice(0, 100),
+                description: (body.description?.trim() || 'Réunion staff Kotbo').slice(0, 1000),
+                scheduledStartTime: scheduledAt,
+                scheduledEndTime: new Date(scheduledAt.getTime() + 60 * 60 * 1000),
+                privacyLevel: GuildScheduledEventPrivacyLevel.GuildOnly,
+                entityType: GuildScheduledEventEntityType.Voice,
+                channel: voiceChannel.id,
+                reason: `Création via dashboard par ${user.username ?? user.userId}`,
+              });
+
+              const timestamp = Math.floor(scheduledAt.getTime() / 1000);
+              const announceTextChannel = announcementChannel as TextChannel;
+              try {
+                await announceTextChannel.send({
+                  content: [
+                    '## 📣 Nouvelle réunion staff',
+                    `**${body.title.trim()}**`,
+                    body.description?.trim() ? `${body.description.trim()}` : null,
+                    '',
+                    `🗓️ Date: <t:${timestamp}:F>`,
+                    `🔊 Salon conférence: <#${voiceChannel.id}>`,
+                    `🎫 Événement Discord: ${scheduledEvent.url}`,
+                  ].filter(Boolean).join('\n'),
+                });
+              } catch (announcementError) {
+                await scheduledEvent.delete().catch(() => null);
+                throw announcementError;
+              }
+
+              const meeting = await createMeeting(
+                guildId,
+                user.userId,
+                body.title.trim(),
+                body.description?.trim() || '',
+                scheduledAt
+              );
+
+              await pushAudit(guildId, {
+                user: auditUser,
+                action: 'Création réunion',
+                context: getGuildName(client, guildId),
+                module: 'Staff Management',
+                eventType: 'Manuel',
+                details: `Réunion créée: ${meeting.title} | Event: ${scheduledEvent.id} | Annonce: <#${announcementChannel.id}> | Conférence: <#${voiceChannel.id}>`,
+                channelId: null,
+              });
+
+              json(res, 201, {
+                meeting,
+                event: {
+                  id: scheduledEvent.id,
+                  url: scheduledEvent.url,
+                  channelId: voiceChannel.id,
+                },
+              });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error creating meeting:', err);
+              json(res, 500, { error: 'Erreur lors de la création de la réunion' });
+            }
+            return;
+          }
+
           if (parts.length === 6 && parts[4] === 'modules' && req.method === 'PUT') {
             const moduleId = parts[5];
-            const body = (await readJsonBody<{ status: ModuleStatus }>(req)) ?? { status: 'inactive' };
+            const body = (await readJsonBody<{ status: ModuleStatus }> (req)) ?? { status: 'inactive' };
 
             const updates: Record<string, unknown> = {};
             if (moduleId === 'youtube') updates.youtubeEnabled = body.status === 'active';
@@ -3411,8 +3041,8 @@ export const startDashboardApi = (client: Client) => {
                 module: 'Règlement',
                 eventType: 'Manuel',
                 details: result.mode === 'updated'
-                  ? 'Message de règlement mis à jour dans le salon de publication du règlement.'
-                  : 'Message de règlement publié dans le salon de publication du règlement.',
+                    ? 'Message de règlement mis à jour dans le salon de publication du règlement.'
+                    : 'Message de règlement publié dans le salon de publication du règlement.',
                 channelId: null
               });
 
@@ -3486,452 +3116,6 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
-          if (parts.length === 6 && parts[4] === 'daily-algo-runs' && parts[5] === 'schedule' && req.method === 'GET') {
-            const daysBackParam = Number(url.searchParams.get('daysBack') ?? 7);
-            const daysForwardParam = Number(url.searchParams.get('daysForward') ?? 21);
-
-            const daysBack = Number.isFinite(daysBackParam)
-              ? Math.max(0, Math.min(30, Math.trunc(daysBackParam)))
-              : 7;
-            const daysForward = Number.isFinite(daysForwardParam)
-              ? Math.max(0, Math.min(60, Math.trunc(daysForwardParam)))
-              : 21;
-
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
-            const fromDate = new Date(today);
-            fromDate.setDate(fromDate.getDate() - daysBack);
-
-            const toDate = new Date(today);
-            toDate.setDate(toDate.getDate() + daysForward);
-
-            const fromKey = getLocalDateKey(fromDate);
-            const toKey = getLocalDateKey(toDate);
-            const todayKey = getLocalDateKey(today);
-
-            const runs = await prisma.dailyAlgoRun.findMany({
-              where: {
-                guildId,
-                dateKey: {
-                  not: null,
-                  gte: fromKey,
-                  lte: toKey,
-                },
-              },
-              orderBy: {
-                dateKey: 'asc',
-              },
-              include: {
-                problem: {
-                  select: {
-                    id: true,
-                    title: true,
-                    description: true,
-                    difficulty: true,
-                    language: true,
-                    functionName: true,
-                    functionArgs: true,
-                    unitTests: true,
-                    allowedLanguages: true,
-                  },
-                },
-                _count: {
-                  select: {
-                    submissions: true,
-                  },
-                },
-              },
-            });
-
-            json(res, 200, {
-              todayKey,
-              fromKey,
-              toKey,
-              runs: runs.map((run) => ({
-                id: run.id,
-                dateKey: run.dateKey,
-                challengeChannelId: run.challengeChannelId,
-                validationChannelId: run.validationChannelId,
-                challengeMessageId: run.challengeMessageId,
-                leaderboardMessageId: run.leaderboardMessageId,
-                createdAt: run.createdAt.toISOString(),
-                updatedAt: run.updatedAt.toISOString(),
-                submissionsCount: run._count.submissions,
-                problem: {
-                  id: run.problem.id,
-                  title: run.problem.title,
-                  description: run.problem.description,
-                  difficulty: run.problem.difficulty,
-                  language: run.problem.language,
-                  functionName: run.problem.functionName,
-                  functionArgs: Array.isArray(run.problem.functionArgs) ? run.problem.functionArgs : [],
-                  unitTests: Array.isArray(run.problem.unitTests) ? run.problem.unitTests : [],
-                  allowedLanguages: Array.isArray(run.problem.allowedLanguages) ? run.problem.allowedLanguages : [],
-                },
-              })),
-            });
-            return;
-          }
-
-          if (
-            parts.length === 7
-            && parts[4] === 'daily-algo-runs'
-            && parts[5] === 'schedule'
-            && parts[6] === 'ensure'
-            && req.method === 'POST'
-          ) {
-            const body = await readJsonBody<{ daysForward?: unknown }>(req);
-            const daysForwardRaw = Number(body?.daysForward ?? 21);
-            const daysForward = Number.isFinite(daysForwardRaw)
-              ? Math.max(1, Math.min(60, Math.trunc(daysForwardRaw)))
-              : 21;
-
-            const guild = await prisma.guild.findUnique({
-              where: { id: guildId },
-              select: {
-                dailyAlgoEnabled: true,
-                dailyAlgoChannelId: true,
-                dailyAlgoValidationChannelId: true,
-              },
-            });
-
-            if (!guild?.dailyAlgoEnabled) {
-              json(res, 400, { error: 'Le Daily Algo doit être activé avant de planifier des dates.' });
-              return;
-            }
-
-            if (!guild.dailyAlgoChannelId) {
-              json(res, 400, { error: 'Configure d’abord le salon Daily Algo.' });
-              return;
-            }
-
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const todayKey = getLocalDateKey(today);
-            const endDate = new Date(today);
-            endDate.setDate(endDate.getDate() + daysForward);
-            const endKey = getLocalDateKey(endDate);
-
-            const existingRuns = await prisma.dailyAlgoRun.findMany({
-              where: {
-                guildId,
-                dateKey: {
-                  gte: todayKey,
-                  lte: endKey,
-                },
-              },
-              select: {
-                dateKey: true,
-              },
-            });
-
-            const occupiedDateKeys = new Set(
-              existingRuns
-                .map((run) => (typeof run.dateKey === 'string' ? run.dateKey : null))
-                .filter((value): value is string => Boolean(value)),
-            );
-
-            const candidateProblems = await prisma.dailyAlgoProblem.findMany({
-              where: {
-                usedAt: null,
-                language: 'fr',
-              },
-              orderBy: [
-                { createdAt: 'asc' },
-                { id: 'asc' },
-              ],
-              select: {
-                id: true,
-                title: true,
-              },
-            });
-
-            const problemQueue = [...candidateProblems];
-            let createdRuns = 0;
-            const now = new Date();
-
-            for (let offset = 0; offset <= daysForward; offset += 1) {
-              const date = new Date(today);
-              date.setDate(date.getDate() + offset);
-              const dateKey = getLocalDateKey(date);
-
-              if (occupiedDateKeys.has(dateKey)) {
-                continue;
-              }
-
-              const candidate = problemQueue.shift();
-              if (!candidate) {
-                break;
-              }
-
-              try {
-                await prisma.$transaction(async (tx) => {
-                  const reserve = await tx.dailyAlgoProblem.updateMany({
-                    where: {
-                      id: candidate.id,
-                      usedAt: null,
-                    },
-                    data: {
-                      usedAt: now,
-                    },
-                  });
-
-                  if (reserve.count === 0) {
-                    throw new Error('PROBLEM_ALREADY_RESERVED');
-                  }
-
-                  await tx.dailyAlgoRun.create({
-                    data: {
-                      guildId,
-                      dateKey,
-                      problemId: candidate.id,
-                      challengeChannelId: guild.dailyAlgoChannelId!,
-                      validationChannelId: guild.dailyAlgoValidationChannelId ?? null,
-                    },
-                  });
-                });
-
-                occupiedDateKeys.add(dateKey);
-                createdRuns += 1;
-              } catch (error) {
-                // Ignore unique/race conflicts and continue filling the schedule.
-                logger.warn('DailyAlgo', `Planification ignorée pour ${dateKey} / ${candidate.id}:`, error);
-              }
-            }
-
-            if (createdRuns > 0) {
-              await pushAudit(guildId, {
-                user: auditUser,
-                action: 'Planification Daily Algo',
-                context: getGuildName(client, guildId),
-                module: 'Daily Algo',
-                eventType: 'Manuel',
-                details: `${createdRuns} date(s) Daily Algo confirmée(s) jusqu'au ${endKey}.`,
-                channelId: null,
-              });
-              broadcastDashboardStateChange(guildId, 'daily_algo_schedule_updated');
-            }
-
-            json(res, 200, {
-              ok: true,
-              todayKey,
-              endKey,
-              daysForward,
-              createdRuns,
-              remainingUnscheduledDays: Math.max(0, daysForward + 1 - occupiedDateKeys.size),
-            });
-            return;
-          }
-
-          if (
-            parts.length === 7
-            && parts[4] === 'daily-algo-runs'
-            && parts[5] === 'today'
-            && parts[6] === 'problem'
-            && req.method === 'PATCH'
-          ) {
-            const body = await readJsonBody<{ problemId?: unknown }>(req);
-            const problemId = typeof body?.problemId === 'string' ? body.problemId.trim() : '';
-
-            if (!problemId) {
-              json(res, 400, { error: 'problemId manquant.' });
-              return;
-            }
-
-            const targetProblem = await prisma.dailyAlgoProblem.findUnique({
-              where: { id: problemId },
-              select: { id: true, title: true },
-            });
-
-            if (!targetProblem) {
-              json(res, 404, { error: 'Exercice introuvable.' });
-              return;
-            }
-
-            const todayKey = getLocalDateKey();
-            const existingRun = await prisma.dailyAlgoRun.findUnique({
-              where: {
-                guildId_dateKey: {
-                  guildId,
-                  dateKey: todayKey,
-                },
-              },
-              include: {
-                _count: {
-                  select: {
-                    submissions: true,
-                  },
-                },
-              },
-            });
-
-            if (
-              existingRun
-              && existingRun.problemId !== problemId
-              && existingRun._count.submissions > 0
-            ) {
-              json(res, 409, {
-                error: 'Impossible de changer l’exercice du jour: des soumissions existent déjà.',
-              });
-              return;
-            }
-
-            let challengeChannelId = existingRun?.challengeChannelId ?? null;
-            let validationChannelId = existingRun?.validationChannelId ?? null;
-
-            if (!existingRun) {
-              const guild = await prisma.guild.findUnique({
-                where: { id: guildId },
-                select: {
-                  dailyAlgoChannelId: true,
-                  dailyAlgoValidationChannelId: true,
-                },
-              });
-
-              if (!guild?.dailyAlgoChannelId) {
-                json(res, 400, { error: 'Configure d’abord le salon Daily Algo.' });
-                return;
-              }
-
-              challengeChannelId = guild.dailyAlgoChannelId;
-              validationChannelId = guild.dailyAlgoValidationChannelId ?? null;
-            }
-
-            const now = new Date();
-            const swapResult = await prisma.$transaction(async (tx) => {
-              let runId = existingRun?.id ?? '';
-              const previousProblemId = existingRun?.problemId ?? null;
-
-              if (existingRun) {
-                if (existingRun.problemId !== problemId) {
-                  await tx.dailyAlgoRun.update({
-                    where: { id: existingRun.id },
-                    data: { problemId },
-                  });
-                }
-              } else {
-                const created = await tx.dailyAlgoRun.create({
-                  data: {
-                    guildId,
-                    dateKey: todayKey,
-                    problemId,
-                    challengeChannelId: challengeChannelId!,
-                    validationChannelId,
-                  },
-                  select: { id: true },
-                });
-                runId = created.id;
-              }
-
-              await tx.dailyAlgoProblem.updateMany({
-                where: {
-                  id: problemId,
-                  usedAt: null,
-                },
-                data: {
-                  usedAt: now,
-                },
-              });
-
-              if (previousProblemId && previousProblemId !== problemId) {
-                const remainingRunsForPrevious = await tx.dailyAlgoRun.count({
-                  where: { problemId: previousProblemId },
-                });
-
-                if (remainingRunsForPrevious === 0) {
-                  await tx.dailyAlgoProblem.updateMany({
-                    where: { id: previousProblemId },
-                    data: { usedAt: null },
-                  });
-                }
-              }
-
-              const run = await tx.dailyAlgoRun.findUnique({
-                where: { id: runId },
-                include: {
-                  problem: {
-                    select: {
-                      id: true,
-                      title: true,
-                      description: true,
-                      difficulty: true,
-                      language: true,
-                      functionName: true,
-                      functionArgs: true,
-                      unitTests: true,
-                      allowedLanguages: true,
-                    },
-                  },
-                  _count: {
-                    select: {
-                      submissions: true,
-                    },
-                  },
-                },
-              });
-
-              return {
-                run,
-                previousProblemId,
-                changed: previousProblemId !== problemId,
-              };
-            });
-
-            if (!swapResult.run) {
-              json(res, 500, { error: 'Impossible de charger le run Daily Algo après modification.' });
-              return;
-            }
-
-            let discordMessageUpdated = false;
-            if (swapResult.changed && swapResult.run.challengeMessageId) {
-              discordMessageUpdated = await refreshDailyAlgoChallengeMessageForRun(client, swapResult.run.id).catch(() => false);
-            }
-
-            await pushAudit(guildId, {
-              user: auditUser,
-              action: 'Changement Exercice du Jour',
-              context: getGuildName(client, guildId),
-              module: 'Daily Algo',
-              eventType: 'Manuel',
-              details: discordMessageUpdated
-                ? `Exercice du jour défini sur "${swapResult.run.problem.title}" (message Discord mis à jour).`
-                : `Exercice du jour défini sur "${swapResult.run.problem.title}".`,
-              channelId: null,
-            });
-
-            broadcastDashboardStateChange(guildId, 'daily_algo_today_problem_changed');
-            json(res, 200, {
-              ok: true,
-              todayKey,
-              changed: swapResult.changed,
-              discordMessageUpdated,
-              run: {
-                id: swapResult.run.id,
-                dateKey: swapResult.run.dateKey,
-                challengeChannelId: swapResult.run.challengeChannelId,
-                validationChannelId: swapResult.run.validationChannelId,
-                challengeMessageId: swapResult.run.challengeMessageId,
-                leaderboardMessageId: swapResult.run.leaderboardMessageId,
-                createdAt: swapResult.run.createdAt.toISOString(),
-                updatedAt: swapResult.run.updatedAt.toISOString(),
-                submissionsCount: swapResult.run._count.submissions,
-                problem: {
-                  id: swapResult.run.problem.id,
-                  title: swapResult.run.problem.title,
-                  description: swapResult.run.problem.description,
-                  difficulty: swapResult.run.problem.difficulty,
-                  language: swapResult.run.problem.language,
-                  functionName: swapResult.run.problem.functionName,
-                  functionArgs: Array.isArray(swapResult.run.problem.functionArgs) ? swapResult.run.problem.functionArgs : [],
-                  unitTests: Array.isArray(swapResult.run.problem.unitTests) ? swapResult.run.problem.unitTests : [],
-                  allowedLanguages: Array.isArray(swapResult.run.problem.allowedLanguages) ? swapResult.run.problem.allowedLanguages : [],
-                },
-              },
-            });
-            return;
-          }
-
           if (parts.length === 6 && parts[4] === 'daily-algo-submissions' && parts[5] === 'today' && req.method === 'GET') {
             const dateKey = getLocalDateKey();
             const run = await prisma.dailyAlgoRun.findUnique({
@@ -3948,11 +3132,6 @@ export const startDashboardApi = (client: Client) => {
                     title: true,
                     description: true,
                     difficulty: true,
-                    language: true,
-                    functionName: true,
-                    functionArgs: true,
-                    unitTests: true,
-                    allowedLanguages: true,
                   },
                 },
                 submissions: {
@@ -3983,13 +3162,8 @@ export const startDashboardApi = (client: Client) => {
 
             const submissions = run.submissions.map((submission) => {
               const finalScore = resolveDailyAlgoFinalScore(submission);
-              const effectiveSpeedBonus = resolveDailyAlgoEffectiveSpeedBonus({
-                speedBonusPoints: submission.speedBonusPoints,
-                runDateKey: run.dateKey,
-                runCreatedAt: run.createdAt,
-              });
               const totalPoints = finalScore !== null
-                ? Math.round((finalScore + effectiveSpeedBonus) * 10) / 10
+                ? Math.round((finalScore + (submission.speedBonusPoints ?? 0)) * 10) / 10
                 : null;
 
               return {
@@ -3997,11 +3171,10 @@ export const startDashboardApi = (client: Client) => {
                 authorId: submission.authorId,
                 authorName: submission.authorName,
                 solution: submission.solution,
-                language: null,
                 status: submission.status,
                 submittedAt: submission.submittedAt.toISOString(),
                 speedRank: submission.speedRank,
-                speedBonusPoints: effectiveSpeedBonus,
+                speedBonusPoints: submission.speedBonusPoints,
                 scoreCorrectness: submission.scoreCorrectness,
                 scoreComments: submission.scoreComments,
                 scoreCompactness: submission.scoreCompactness,
@@ -4009,7 +3182,6 @@ export const startDashboardApi = (client: Client) => {
                 scoreReadability: submission.scoreReadability,
                 scoreFinal: finalScore,
                 totalPoints,
-                reviewFeedback: submission.reviewFeedback,
                 validatedById: submission.validatedById,
                 validatedByName: submission.validatedById ? validatedByMap.get(submission.validatedById) ?? `Utilisateur ${submission.validatedById}` : null,
                 validatedAt: submission.validatedAt?.toISOString() ?? null,
@@ -4027,11 +3199,6 @@ export const startDashboardApi = (client: Client) => {
                   title: run.problem.title,
                   description: run.problem.description,
                   difficulty: run.problem.difficulty,
-                  language: run.problem.language,
-                  functionName: run.problem.functionName,
-                  functionArgs: Array.isArray(run.problem.functionArgs) ? run.problem.functionArgs : [],
-                  unitTests: Array.isArray(run.problem.unitTests) ? run.problem.unitTests : [],
-                  allowedLanguages: Array.isArray(run.problem.allowedLanguages) ? run.problem.allowedLanguages : [],
                 },
                 createdAt: run.createdAt.toISOString(),
               },
@@ -4084,11 +3251,7 @@ export const startDashboardApi = (client: Client) => {
                   authorName: submission.authorName,
                   totalPoints: 0,
                   scoreFinal: null,
-                  speedBonusPoints: resolveDailyAlgoEffectiveSpeedBonus({
-                    speedBonusPoints: submission.speedBonusPoints,
-                    runDateKey: run.dateKey,
-                    runCreatedAt: run.createdAt,
-                  }),
+                  speedBonusPoints: submission.speedBonusPoints,
                   speedRank: submission.speedRank,
                 }))
                 .map((entry) => ({
@@ -4142,7 +3305,6 @@ export const startDashboardApi = (client: Client) => {
                 optimization?: number;
                 readability?: number;
               };
-              feedback?: string;
             }>(req);
 
             if (!body?.action || !['approve', 'reject'].includes(body.action)) {
@@ -4152,12 +3314,12 @@ export const startDashboardApi = (client: Client) => {
 
             let scores:
               | {
-                correctness: number;
-                comments: number;
-                compactness: number;
-                optimization: number;
-                readability: number;
-              }
+                  correctness: number;
+                  comments: number;
+                  compactness: number;
+                  optimization: number;
+                  readability: number;
+                }
               | undefined;
 
             if (body.action === 'approve') {
@@ -4184,26 +3346,16 @@ export const startDashboardApi = (client: Client) => {
               scores = parsed;
             }
 
-            let success = false;
-            try {
-              success = await reviewDailyAlgoSubmission({
-                client,
-                submissionId,
-                action: body.action,
-                moderatorId: user.userId,
-                allowReviewedUpdate: true,
-                scores,
-                feedback: typeof body.feedback === 'string' ? body.feedback : undefined,
-              });
-            } catch (error) {
-              json(res, 400, {
-                error: error instanceof Error ? error.message : 'Validation Daily Algo impossible.',
-              });
-              return;
-            }
+            const success = await reviewDailyAlgoSubmission({
+              client,
+              submissionId,
+              action: body.action,
+              moderatorId: user.userId,
+              scores,
+            });
 
             if (!success) {
-              json(res, 404, { error: 'Soumission Daily Algo introuvable ou non modifiable (édition autorisée uniquement sur le Daily Algo du jour).' });
+              json(res, 404, { error: 'Soumission Daily Algo introuvable ou déjà traitée.' });
               return;
             }
 
@@ -4225,25 +3377,19 @@ export const startDashboardApi = (client: Client) => {
           }
 
           if (parts.length === 5 && parts[4] === 'daily-algo-problems' && req.method === 'POST') {
-            const body = await readJsonBody<DailyAlgoProblemPayload>(req);
-            const validation = validateDailyAlgoProblemPayload(body ?? {});
-            if (!validation.ok || !validation.normalized) {
-              json(res, 400, { error: validation.error ?? 'Payload invalide.' });
+            const body = await readJsonBody<{ title: string; description: string; solution: string; difficulty: string; language: string }>(req);
+            if (!body || !body.title || !body.description || !body.solution) {
+              json(res, 400, { error: 'Payload invalide : champs manquants' });
               return;
             }
 
-            const normalized = validation.normalized;
             const problem = await prisma.dailyAlgoProblem.create({
               data: {
-                title: normalized.title,
-                description: normalized.description,
-                solution: normalized.solution || '',
-                difficulty: normalized.difficulty,
-                language: normalized.language,
-                functionName: normalized.functionName,
-                functionArgs: normalized.functionArgs as Prisma.InputJsonValue,
-                unitTests: normalized.unitTests as Prisma.InputJsonValue,
-                allowedLanguages: normalized.allowedLanguages,
+                title: body.title,
+                description: body.description,
+                solution: body.solution,
+                difficulty: body.difficulty || 'moyen',
+                language: body.language || 'fr',
               }
             });
 
@@ -4257,117 +3403,7 @@ export const startDashboardApi = (client: Client) => {
               channelId: null
             });
 
-            broadcastDashboardStateChange(guildId, 'daily_algo_problem_created');
             json(res, 201, problem);
-            return;
-          }
-
-          if (parts.length === 6 && parts[4] === 'daily-algo-problems' && req.method === 'PATCH') {
-            const problemId = parts[5];
-            const body = await readJsonBody<DailyAlgoProblemPayload>(req);
-            const validation = validateDailyAlgoProblemPayload(body ?? {});
-            if (!validation.ok || !validation.normalized) {
-              json(res, 400, { error: validation.error ?? 'Payload invalide.' });
-              return;
-            }
-
-            const normalized = validation.normalized;
-            const existing = await prisma.dailyAlgoProblem.findUnique({
-              where: { id: problemId },
-              select: { id: true, title: true },
-            });
-
-            if (!existing) {
-              json(res, 404, { error: 'Exercice introuvable.' });
-              return;
-            }
-
-            const updated = await prisma.dailyAlgoProblem.update({
-              where: { id: problemId },
-              data: {
-                title: normalized.title,
-                description: normalized.description,
-                solution: normalized.solution || '',
-                difficulty: normalized.difficulty,
-                language: normalized.language,
-                functionName: normalized.functionName,
-                functionArgs: normalized.functionArgs as Prisma.InputJsonValue,
-                unitTests: normalized.unitTests as Prisma.InputJsonValue,
-                allowedLanguages: normalized.allowedLanguages,
-              },
-            });
-
-            const todayRun = await prisma.dailyAlgoRun.findFirst({
-              where: {
-                guildId,
-                problemId: problemId,
-                dateKey: getLocalDateKey(),
-                challengeMessageId: { not: null },
-              },
-              select: { id: true },
-            });
-
-            let discordMessageUpdated = false;
-            if (todayRun?.id) {
-              discordMessageUpdated = await refreshDailyAlgoChallengeMessageForRun(client, todayRun.id).catch(() => false);
-            }
-
-            await pushAudit(guildId, {
-              user: auditUser,
-              action: 'Modification Exercice',
-              context: getGuildName(client, guildId),
-              module: 'Daily Algo',
-              eventType: 'Manuel',
-              details: discordMessageUpdated
-                ? `Exercice modifié : ${updated.title} (message Discord du Daily Algo du jour mis à jour).`
-                : `Exercice modifié : ${updated.title}.`,
-              channelId: null
-            });
-
-            broadcastDashboardStateChange(guildId, 'daily_algo_problem_updated');
-            json(res, 200, { ...updated, discordMessageUpdated });
-            return;
-          }
-
-          if (parts.length === 6 && parts[4] === 'daily-algo-problems' && req.method === 'DELETE') {
-            const problemId = parts[5];
-            const existing = await prisma.dailyAlgoProblem.findUnique({
-              where: { id: problemId },
-              select: { id: true, title: true },
-            });
-
-            if (!existing) {
-              json(res, 404, { error: 'Exercice introuvable.' });
-              return;
-            }
-
-            const linkedRuns = await prisma.dailyAlgoRun.count({
-              where: { problemId },
-            });
-
-            if (linkedRuns > 0) {
-              json(res, 409, {
-                error: 'Impossible de supprimer cet exercice: il est déjà lié à un run Daily Algo.',
-              });
-              return;
-            }
-
-            await prisma.dailyAlgoProblem.delete({
-              where: { id: problemId },
-            });
-
-            await pushAudit(guildId, {
-              user: auditUser,
-              action: 'Suppression Exercice',
-              context: getGuildName(client, guildId),
-              module: 'Daily Algo',
-              eventType: 'Manuel',
-              details: `Exercice supprimé: ${existing.title}`,
-              channelId: null,
-            });
-
-            broadcastDashboardStateChange(guildId, 'daily_algo_problem_deleted');
-            json(res, 200, { ok: true });
             return;
           }
 
@@ -4426,7 +3462,7 @@ export const startDashboardApi = (client: Client) => {
 
           try {
             const staffMember = await getStaffMember('any', userId); // Get profile without guildId restriction
-            const apiKeys = staffMember ? await getAPIKeys(staffMember.guildId, userId) : [];
+            const apiKeys = staffMember ? await getAPIKeys(staffMember.guildId) : [];
             const blacklist = staffMember ? await getActiveBlacklist(staffMember.guildId, userId) : null;
 
             json(res, 200, {
@@ -4541,11 +3577,7 @@ export const startDashboardApi = (client: Client) => {
               });
             } catch (err) {
               logger.error('StaffAPI', 'Error creating API key:', err);
-              json(res, 400, {
-                error: err instanceof Error && err.message
-                  ? err.message
-                  : 'Erreur lors de la création de la clé API'
-              });
+              json(res, 500, { error: 'Erreur lors de la création de la clé API' });
             }
             return;
           }
@@ -4553,7 +3585,7 @@ export const startDashboardApi = (client: Client) => {
           // GET /api/dashboard/guilds/:guildId/api-keys - List API keys
           if (req.method === 'GET') {
             try {
-              const keys = await getAPIKeys(guildId, user.userId);
+              const keys = await getAPIKeys(guildId);
               json(res, 200, { keys });
             } catch (err) {
               logger.error('StaffAPI', 'Error getting API keys:', err);
@@ -4566,37 +3598,7 @@ export const startDashboardApi = (client: Client) => {
           if (parts[5] && req.method === 'DELETE') {
             const keyId = parts[5];
             try {
-              const caller = await prisma.staffMember.findUnique({
-                where: {
-                  guildId_userId: {
-                    guildId,
-                    userId: user.userId,
-                  },
-                },
-                select: { id: true },
-              });
-
-              if (!caller) {
-                json(res, 403, { error: 'Membre staff introuvable pour cette action.' });
-                return;
-              }
-
-              const ownedKey = await prisma.aPIKey.findFirst({
-                where: {
-                  id: keyId,
-                  guildId,
-                  createdByUserId: caller.id,
-                  isActive: true,
-                },
-                select: { id: true, displayKey: true },
-              });
-
-              if (!ownedKey) {
-                json(res, 404, { error: 'Clé API introuvable (ou non possédée par votre compte).' });
-                return;
-              }
-
-              await deleteAPIKey(ownedKey.id);
+              await deleteAPIKey(keyId);
 
               await pushAudit(guildId, {
                 user: user.username ?? `User${user.userId}`,
@@ -4604,7 +3606,7 @@ export const startDashboardApi = (client: Client) => {
                 context: getGuildName(client, guildId),
                 module: 'Staff Management',
                 eventType: 'Manuel',
-                details: `Clé API supprimée: ${ownedKey.displayKey}`,
+                details: `Clé API supprimée: ${keyId}`,
                 channelId: null
               });
 
@@ -4612,323 +3614,6 @@ export const startDashboardApi = (client: Client) => {
             } catch (err) {
               logger.error('StaffAPI', 'Error deleting API key:', err);
               json(res, 500, { error: 'Erreur lors de la suppression de la clé API' });
-            }
-            return;
-          }
-        }
-
-        // --- MEMBER MANAGEMENT & MODERATION ---
-
-        // GET /api/dashboard/guilds/:guildId/members/search - Search members (Moderator access)
-        if (parts[4] === 'members' && parts[5] === 'search' && req.method === 'GET') {
-          const guildId = parts[3];
-          if (!guildId) {
-            json(res, 400, { error: 'guildId manquant' });
-            return;
-          }
-
-          const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
-          if (accessLevel.level === 'none') {
-            json(res, 403, { error: 'Accès restreint aux modérateurs.' });
-            return;
-          }
-
-          const query = (url.searchParams.get('q') || url.searchParams.get('query') || '').trim();
-          const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '24')));
-          const page = Math.max(1, parseInt(url.searchParams.get('page') || '1'));
-          const skip = (page - 1) * limit;
-
-          const sortBy = url.searchParams.get('sortBy') || 'lastSeenAt';
-          const sortOrder = url.searchParams.get('sortOrder') === 'asc' ? 'asc' : 'desc';
-          const botFilter = url.searchParams.get('botFilter') || 'all';
-
-          // Ensure sortBy is safe
-          const safeSortBy = ['lastSeenAt', 'messageCount', 'guildJoinedAt'].includes(sortBy) ? sortBy : 'lastSeenAt';
-
-          try {
-            const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
-            if (!discordGuild) {
-              json(res, 404, { error: 'Serveur introuvable' });
-              return;
-            }
-
-            // Hybrid Approach: Fetch Discord members for 100% coverage, 
-            // merge with Prisma profiles for sorting/filtering on stats
-            if (discordGuild.members.cache.size < discordGuild.memberCount && discordGuild.members.cache.size < 50000) {
-              await discordGuild.members.fetch().catch(() => null);
-            }
-
-            const dbProfiles = await prisma.memberProfile.findMany({
-              where: { guildId },
-              select: { userId: true, lastSeenAt: true, messageCount: true }
-            });
-            const profileMap = new Map(dbProfiles.map(p => [p.userId, p]));
-
-            let candidates = Array.from(discordGuild.members.cache.values());
-
-            if (query) {
-              const lowerQ = query.toLowerCase();
-              candidates = candidates.filter(m => 
-                m.user.username.toLowerCase().includes(lowerQ) ||
-                (m.displayName && m.displayName.toLowerCase().includes(lowerQ)) ||
-                m.id.includes(lowerQ)
-              );
-            }
-
-            if (botFilter === 'human') candidates = candidates.filter(m => !m.user.bot);
-            if (botFilter === 'bot') candidates = candidates.filter(m => m.user.bot);
-
-            candidates.sort((a, b) => {
-              const pA = profileMap.get(a.id);
-              const pB = profileMap.get(b.id);
-              let valA = 0, valB = 0;
-
-              if (safeSortBy === 'messageCount') {
-                valA = pA?.messageCount || 0;
-                valB = pB?.messageCount || 0;
-              } else if (safeSortBy === 'lastSeenAt') {
-                valA = pA?.lastSeenAt ? pA.lastSeenAt.getTime() : 0;
-                valB = pB?.lastSeenAt ? pB.lastSeenAt.getTime() : 0;
-              } else {
-                valA = a.joinedTimestamp || 0;
-                valB = b.joinedTimestamp || 0;
-              }
-
-              return sortOrder === 'asc' ? valA - valB : valB - valA;
-            });
-
-            const totalFound = candidates.length;
-            const paginated = candidates.slice(skip, skip + limit);
-
-            const members = paginated.map(m => {
-              const p = profileMap.get(m.id);
-              return {
-                id: m.id,
-                username: m.user.username,
-                displayName: m.displayName,
-                avatarUrl: m.user.displayAvatarURL(),
-                isBot: m.user.bot,
-                lastSeenAt: p?.lastSeenAt?.toISOString() || null,
-                joinedAt: m.joinedAt?.toISOString() || null,
-                messageCount: p?.messageCount || 0
-              };
-            });
-
-
-            json(res, 200, {
-              members,
-              totalFound,
-              page,
-              limit,
-              totalPages: Math.ceil(totalFound / limit)
-            });
-          } catch (err) {
-            logger.error('MembersAPI', 'Error searching members:', err);
-            json(res, 500, { error: 'Erreur lors de la recherche des membres' });
-          }
-          return;
-        }
-
-        // --- RECRUITMENT ROUTES ---
-        if (parts[4] === 'recruitment') {
-          const guildId = parts[3];
-          const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
-          if (accessLevel.level !== 'admin') {
-            json(res, 403, { error: 'Accès administrateur requis pour le recrutement.' });
-            return;
-          }
-
-          // GET /api/dashboard/guilds/:guildId/recruitment/candidatures
-          if (parts[5] === 'candidatures' && req.method === 'GET' && !parts[6]) {
-            try {
-              const list = await getCandidatures(guildId);
-              json(res, 200, { candidatures: list });
-            } catch (err) {
-              logger.error('RecruitmentAPI', 'Error fetching candidatures:', err);
-              json(res, 500, { error: 'Erreur lors du chargement des candidatures' });
-            }
-            return;
-          }
-
-          // PATCH /api/dashboard/guilds/:guildId/recruitment/candidatures/:id
-          if (parts[5] === 'candidatures' && parts[6] && req.method === 'PATCH') {
-            const candidatureId = parts[6];
-            try {
-              const body = await readJsonBody<{
-                action: string; // 'approve' | 'reject' | 'oral_pass' | 'oral_fail' | 'assign_tutor' | 'status_update'
-                discordUserId?: string;
-                reason?: string;
-                tutorUserId?: string;
-                status?: string;
-                notes?: string;
-              }>(req);
-
-              if (!body || !body.action) {
-                json(res, 400, { error: 'Action manquante' });
-                return;
-              }
-
-              const auditUser = user.username ?? `User${user.userId}`;
-
-              if (body.action === 'approve') {
-                if (!body.discordUserId) {
-                  json(res, 400, { error: 'discordUserId requis pour l\'approbation' });
-                  return;
-                }
-                const updated = await approveCandidature(client, guildId, candidatureId, body.discordUserId, user.userId);
-                await pushAudit(guildId, {
-                  user: auditUser,
-                  action: 'Candidature validée (oral)',
-                  context: getGuildName(client, guildId),
-                  module: 'Recrutement',
-                  eventType: 'Manuel',
-                  details: `Candidature ${candidatureId} validée pour <@${body.discordUserId}>`,
-                  channelId: null,
-                });
-                broadcastDashboardStateChange(guildId, 'recruitment_candidature_updated');
-                json(res, 200, updated);
-              }
-
-              else if (body.action === 'reject') {
-                const updated = await rejectCandidature(client, guildId, candidatureId, body.reason, user.userId);
-                await pushAudit(guildId, {
-                  user: auditUser,
-                  action: 'Candidature refusée',
-                  context: getGuildName(client, guildId),
-                  module: 'Recrutement',
-                  eventType: 'Manuel',
-                  details: `Candidature ${candidatureId} refusée${body.reason ? `: ${body.reason}` : ''}`,
-                  channelId: null,
-                });
-                broadcastDashboardStateChange(guildId, 'recruitment_candidature_updated');
-                json(res, 200, updated);
-              }
-
-              else if (body.action === 'oral_pass') {
-                const updated = await completeOral(client, guildId, candidatureId, 'PASSED', body.reason, user.userId);
-                await pushAudit(guildId, {
-                  user: auditUser,
-                  action: 'Oral concluant',
-                  context: getGuildName(client, guildId),
-                  module: 'Recrutement',
-                  eventType: 'Manuel',
-                  details: `Candidature ${candidatureId}: oral passé avec succès`,
-                  channelId: null,
-                });
-                broadcastDashboardStateChange(guildId, 'recruitment_candidature_updated');
-                json(res, 200, updated);
-              }
-
-              else if (body.action === 'oral_fail') {
-                const updated = await completeOral(client, guildId, candidatureId, 'FAILED', body.reason, user.userId);
-                await pushAudit(guildId, {
-                  user: auditUser,
-                  action: 'Oral non concluant',
-                  context: getGuildName(client, guildId),
-                  module: 'Recrutement',
-                  eventType: 'Manuel',
-                  details: `Candidature ${candidatureId}: oral échoué${body.reason ? ` — ${body.reason}` : ''}`,
-                  channelId: null,
-                });
-                broadcastDashboardStateChange(guildId, 'recruitment_candidature_updated');
-                json(res, 200, updated);
-              }
-
-              else if (body.action === 'assign_tutor') {
-                if (!body.tutorUserId) {
-                  json(res, 400, { error: 'tutorUserId requis pour l\'attribution du tuteur' });
-                  return;
-                }
-                const updated = await assignTutor(candidatureId, body.tutorUserId);
-                await pushAudit(guildId, {
-                  user: auditUser,
-                  action: 'Tuteur assigné',
-                  context: getGuildName(client, guildId),
-                  module: 'Recrutement',
-                  eventType: 'Manuel',
-                  details: `Tuteur <@${body.tutorUserId}> assigné à la candidature ${candidatureId}`,
-                  channelId: null,
-                });
-                broadcastDashboardStateChange(guildId, 'recruitment_candidature_updated');
-                json(res, 200, updated);
-              }
-
-              else if (body.action === 'status_update') {
-                if (!body.status) {
-                  json(res, 400, { error: 'Status manquant' });
-                  return;
-                }
-                const updated = await updateCandidatureStatus(candidatureId, body.status as any, body.notes);
-                json(res, 200, updated);
-              }
-
-              else {
-                json(res, 400, { error: `Action inconnue: ${body.action}` });
-              }
-            } catch (err) {
-              logger.error('RecruitmentAPI', 'Error updating candidature:', err);
-              json(res, 500, { error: err instanceof Error ? err.message : 'Erreur lors de la mise à jour' });
-            }
-            return;
-          }
-
-          // DELETE /api/dashboard/guilds/:guildId/recruitment/candidatures/:id
-          if (parts[5] === 'candidatures' && parts[6] && req.method === 'DELETE') {
-            const candidatureId = parts[6];
-            try {
-              await deleteCandidature(candidatureId);
-              json(res, 200, { ok: true });
-            } catch (err) {
-              logger.error('RecruitmentAPI', 'Error deleting candidature:', err);
-              json(res, 500, { error: 'Erreur lors de la suppression' });
-            }
-            return;
-          }
-
-          // GET /api/dashboard/guilds/:guildId/recruitment/tutors
-          if (parts[5] === 'tutors' && req.method === 'GET') {
-            try {
-              const tutors = await getEligibleTutors(guildId);
-              json(res, 200, { tutors });
-            } catch (err) {
-              logger.error('RecruitmentAPI', 'Error fetching tutors:', err);
-              json(res, 500, { error: 'Erreur lors du chargement des tuteurs' });
-            }
-            return;
-          }
-
-          // GET /api/dashboard/guilds/:guildId/recruitment/history/:discordId
-          if (parts[5] === 'history' && parts[6] && req.method === 'GET') {
-            try {
-              const history = await getCandidatureHistory(guildId, parts[6]);
-              json(res, 200, { history });
-            } catch (err) {
-              logger.error('RecruitmentAPI', 'Error fetching history:', err);
-              json(res, 500, { error: 'Erreur lors du chargement de l\'historique' });
-            }
-            return;
-          }
-
-          // PATCH /api/dashboard/guilds/:guildId/recruitment/config
-          if (parts[5] === 'config' && req.method === 'PATCH') {
-            try {
-              const body = await readJsonBody<{
-                recruitmentCategoryId?: string | null;
-                recruitmentLogChannelId?: string | null;
-              }>(req);
-
-              await prisma.guild.update({
-                where: { id: guildId },
-                data: {
-                  ...(body?.recruitmentCategoryId !== undefined ? { recruitmentCategoryId: body.recruitmentCategoryId } : {}),
-                  ...(body?.recruitmentLogChannelId !== undefined ? { recruitmentLogChannelId: body.recruitmentLogChannelId } : {}),
-                },
-              });
-
-              json(res, 200, { ok: true });
-            } catch (err) {
-              logger.error('RecruitmentAPI', 'Error updating recruitment config:', err);
-              json(res, 500, { error: 'Erreur lors de la mise à jour de la config' });
             }
             return;
           }
@@ -4943,9 +3628,7 @@ export const startDashboardApi = (client: Client) => {
           }
 
           const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
-          const isModeratorRoute = parts[5] === 'discord-members' || parts[5] === 'member-case' || parts[6] === 'profile' || parts[6] === 'stats';
-
-          if (accessLevel.level === 'none' || (accessLevel.level !== 'admin' && !isModeratorRoute)) {
+          if (accessLevel.level !== 'admin') {
             json(res, 403, { error: 'Accès admin requis' });
             return;
           }
@@ -5004,19 +3687,6 @@ export const startDashboardApi = (client: Client) => {
                       avatarUrl: member.displayAvatarURL() || null,
                     }))
                   : [];
-              } else {
-                const members = await discordGuild.members.fetch({ limit }).catch(() => null);
-                candidates = members
-                  ? [...members.values()]
-                    .filter((member) => !member.user.bot)
-                    .map((member) => ({
-                      id: member.user.id,
-                      username: member.user.username,
-                      displayName: member.displayName ?? null,
-                      userTag: member.user.tag ?? null,
-                      avatarUrl: member.displayAvatarURL() || null,
-                    }))
-                  : [];
               }
 
               const members = candidates
@@ -5027,61 +3697,6 @@ export const startDashboardApi = (client: Client) => {
             } catch (err) {
               logger.error('StaffAPI', 'Error searching Discord members:', err);
               json(res, 500, { error: 'Erreur lors de la recherche des membres Discord' });
-            }
-            return;
-          }
-
-          // GET /api/dashboard/guilds/:guildId/staff/member-case/:userId
-          if (parts[5] === 'member-case' && parts[6] && req.method === 'GET') {
-            try {
-              const caseData = await buildMemberCaseData(client, guildId, parts[6], user);
-              if (!caseData) {
-                json(res, 404, { error: 'Membre introuvable' });
-                return;
-              }
-              json(res, 200, caseData);
-            } catch (err) {
-              logger.error('StaffAPI', 'Erreur chargement dossier membre:', err);
-              json(res, 500, { error: 'Erreur lors du chargement du dossier' });
-            }
-            return;
-          }
-
-          // GET /api/dashboard/guilds/:guildId/staff/:userId/profile
-          if (parts[6] === 'profile' && req.method === 'GET') {
-            try {
-              const targetUserId = parts[5];
-              const profileData = await getStaffMember(guildId, targetUserId);
-              if (!profileData) {
-                json(res, 404, { error: 'Profil staff introuvable' });
-                return;
-              }
-              const keys = await getAPIKeys(guildId);
-
-              json(res, 200, {
-                staffMember: profileData,
-                apiKeys: targetUserId === user.userId ? keys : [],
-                isBlacklisted: false,
-                blacklistReason: '',
-                blacklistEndDate: null,
-                accessibleTools: ['daily_algo:create_exercise', 'manage_content']
-              });
-            } catch (err) {
-              logger.error('StaffAPI', 'Erreur chargement profil:', err);
-              json(res, 500, { error: 'Erreur lors du chargement du profil' });
-            }
-            return;
-          }
-
-          // GET /api/dashboard/guilds/:guildId/staff/:userId/stats
-          if (parts[6] === 'stats' && req.method === 'GET') {
-            try {
-              const targetUserId = parts[5];
-              const stats = await getStaffMemberStats(guildId, targetUserId);
-              json(res, 200, { stats });
-            } catch (err) {
-              logger.error('StaffAPI', 'Erreur chargement stats:', err);
-              json(res, 500, { error: 'Erreur lors du chargement des statistiques' });
             }
             return;
           }
@@ -5127,7 +3742,7 @@ export const startDashboardApi = (client: Client) => {
               const member = await addStaffMember(
                 guildId,
                 body.userId,
-                body.grade as string,
+                body.grade as any,
                 body.userTag,
                 body.username,
                 body.displayName,
@@ -5136,41 +3751,6 @@ export const startDashboardApi = (client: Client) => {
 
               // Créer une période de test initiale
               await createTestingPeriod(guildId, body.userId);
-
-              // Synchronisation des rôles Discord
-              try {
-                const discordGuild = client.guilds.cache.get(guildId);
-                if (discordGuild) {
-                  const discordMember = await discordGuild.members.fetch(body.userId).catch(() => null);
-                  if (discordMember) {
-                    const rolesToAssign: string[] = [];
-
-                    // Rôle du grade choisi
-                    const staffRoles = await getStaffRoles(guildId);
-                    const gradeRole = staffRoles.find(r => r.name === body.grade);
-                    if (gradeRole?.discordRoleId) {
-                      rolesToAssign.push(gradeRole.discordRoleId);
-                    }
-
-                    // Rôles de base et de test configurés sur la guilde
-                    const guildConfig = await prisma.guild.findUnique({
-                      where: { id: guildId },
-                      select: { baseStaffRoleId: true, testStaffRoleId: true }
-                    });
-
-                    if (guildConfig?.baseStaffRoleId) rolesToAssign.push(guildConfig.baseStaffRoleId);
-                    if (guildConfig?.testStaffRoleId) rolesToAssign.push(guildConfig.testStaffRoleId);
-
-                    if (rolesToAssign.length > 0) {
-                      await discordMember.roles.add(rolesToAssign).catch(err =>
-                        logger.error('StaffAPI', `Failed to assign initial roles to ${body.userId}:`, err)
-                      );
-                    }
-                  }
-                }
-              } catch (roleErr) {
-                logger.error('StaffAPI', 'Error syncing Discord roles during onboarding:', roleErr);
-              }
 
               await pushAudit(guildId, {
                 user: user.username ?? `User${user.userId}`,
@@ -5213,37 +3793,7 @@ export const startDashboardApi = (client: Client) => {
 
             try {
               if (body?.grade) {
-                const existingStaff = await getStaffMember(guildId, staffUserId);
-                const oldGrade = existingStaff?.grade;
-
-                await updateStaffGrade(guildId, staffUserId, body.grade as string);
-
-                // Synchronisation des rôles Discord
-                try {
-                  const discordGuild = client.guilds.cache.get(guildId);
-                  if (discordGuild) {
-                    const discordMember = await discordGuild.members.fetch(staffUserId).catch(() => null);
-                    if (discordMember) {
-                      const staffRoles = await getStaffRoles(guildId);
-                      const oldRole = staffRoles.find(r => r.name === oldGrade);
-                      const newRole = staffRoles.find(r => r.name === body.grade);
-
-                      if (oldRole?.discordRoleId && discordMember.roles.cache.has(oldRole.discordRoleId)) {
-                        if (oldRole.discordRoleId !== newRole?.discordRoleId) {
-                          await discordMember.roles.remove(oldRole.discordRoleId).catch(() => null);
-                        }
-                      }
-
-                      if (newRole?.discordRoleId) {
-                        await discordMember.roles.add(newRole.discordRoleId).catch(err =>
-                          logger.error('StaffAPI', `Failed to add new role ${newRole.discordRoleId} to ${staffUserId}:`, err)
-                        );
-                      }
-                    }
-                  }
-                } catch (roleErr) {
-                  logger.error('StaffAPI', 'Error syncing Discord roles during grade change:', roleErr);
-                }
+                await updateStaffGrade(guildId, staffUserId, body.grade as any);
 
                 await pushAudit(guildId, {
                   user: user.username ?? `User${user.userId}`,
@@ -5251,44 +3801,13 @@ export const startDashboardApi = (client: Client) => {
                   context: getGuildName(client, guildId),
                   module: 'Staff Management',
                   eventType: 'Manuel',
-                  details: `Grade changé pour ${staffUserId}: ${oldGrade} -> ${body.grade}`,
+                  details: `Grade changé pour ${staffUserId}: ${body.grade}`,
                   channelId: null
                 });
               }
 
               if (body?.action === 'remove') {
-                const existingStaff = await getStaffMember(guildId, staffUserId);
-                const currentGrade = existingStaff?.grade;
-
                 await removeStaffMember(guildId, staffUserId);
-
-                // Nettoyage des rôles Discord
-                try {
-                  const discordGuild = client.guilds.cache.get(guildId);
-                  if (discordGuild) {
-                    const discordMember = await discordGuild.members.fetch(staffUserId).catch(() => null);
-                    if (discordMember) {
-                      const staffRoles = await getStaffRoles(guildId);
-                      const currentRole = staffRoles.find(r => r.name === currentGrade);
-
-                      const rolesToRemove: string[] = [];
-                      if (currentRole?.discordRoleId) rolesToRemove.push(currentRole.discordRoleId);
-
-                      const guildConfig = await prisma.guild.findUnique({
-                        where: { id: guildId },
-                        select: { baseStaffRoleId: true, testStaffRoleId: true }
-                      });
-                      if (guildConfig?.baseStaffRoleId) rolesToRemove.push(guildConfig.baseStaffRoleId);
-                      if (guildConfig?.testStaffRoleId) rolesToRemove.push(guildConfig.testStaffRoleId);
-
-                      if (rolesToRemove.length > 0) {
-                        await discordMember.roles.remove(rolesToRemove).catch(() => null);
-                      }
-                    }
-                  }
-                } catch (roleErr) {
-                  logger.error('StaffAPI', 'Error removing Discord roles after staff removal:', roleErr);
-                }
 
                 await pushAudit(guildId, {
                   user: user.username ?? `User${user.userId}`,
@@ -5305,6 +3824,31 @@ export const startDashboardApi = (client: Client) => {
             } catch (err) {
               logger.error('StaffAPI', 'Error updating staff member:', err);
               json(res, 500, { error: 'Erreur lors de la mise à jour du membre staff' });
+            }
+            return;
+          }
+
+          // POST /api/dashboard/guilds/:guildId/staff/members/:userId/tutor - Toggle tutor status
+          if (parts[5] === 'members' && parts[6] && parts[7] === 'tutor' && req.method === 'POST') {
+            const staffUserId = parts[6];
+
+            try {
+              const member = await toggleTutorStatus(guildId, staffUserId);
+
+              await pushAudit(guildId, {
+                user: user.username ?? `User${user.userId}`,
+                action: member.isTutor ? 'Activation tuteur' : 'Désactivation tuteur',
+                context: getGuildName(client, guildId),
+                module: 'Staff Management',
+                eventType: 'Manuel',
+                details: `Statut tuteur modifié pour ${staffUserId}: ${member.isTutor ? 'ON' : 'OFF'}`,
+                channelId: null
+              });
+
+              json(res, 200, { member });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error toggling tutor status:', err);
+              json(res, 500, { error: 'Erreur lors de la modification du statut tuteur' });
             }
             return;
           }
@@ -5474,6 +4018,241 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
+          // GET/PATCH /api/dashboard/guilds/:guildId/staff/config - Staff global config
+          if (parts[5] === 'config' && !parts[6]) {
+            if (req.method === 'GET') {
+              try {
+                const guild = await prisma.guild.findUnique({
+                  where: { id: guildId },
+                  select: {
+                    baseStaffRoleId: true,
+                    testStaffRoleId: true,
+                    meetingAnnouncementChannelId: true,
+                    meetingVoiceChannelId: true,
+                  },
+                });
+
+                if (!guild) {
+                  json(res, 404, { error: 'Serveur introuvable' });
+                  return;
+                }
+
+                json(res, 200, { config: guild });
+              } catch (err) {
+                logger.error('StaffAPI', 'Error getting staff config:', err);
+                json(res, 500, { error: 'Erreur lors de la récupération de la configuration staff' });
+              }
+              return;
+            }
+
+            if (req.method === 'PATCH') {
+              const body = await readJsonBody<{
+                baseStaffRoleId?: string | null;
+                testStaffRoleId?: string | null;
+                meetingAnnouncementChannelId?: string | null;
+                meetingVoiceChannelId?: string | null;
+              }>(req);
+
+              try {
+                const data: {
+                  baseStaffRoleId?: string | null;
+                  testStaffRoleId?: string | null;
+                  meetingAnnouncementChannelId?: string | null;
+                  meetingVoiceChannelId?: string | null;
+                } = {};
+
+                if (Object.prototype.hasOwnProperty.call(body ?? {}, 'baseStaffRoleId')) {
+                  data.baseStaffRoleId = extractDiscordSnowflake(body?.baseStaffRoleId ?? null);
+                }
+                if (Object.prototype.hasOwnProperty.call(body ?? {}, 'testStaffRoleId')) {
+                  data.testStaffRoleId = extractDiscordSnowflake(body?.testStaffRoleId ?? null);
+                }
+                if (Object.prototype.hasOwnProperty.call(body ?? {}, 'meetingAnnouncementChannelId')) {
+                  data.meetingAnnouncementChannelId = extractDiscordSnowflake(body?.meetingAnnouncementChannelId ?? null);
+                }
+                if (Object.prototype.hasOwnProperty.call(body ?? {}, 'meetingVoiceChannelId')) {
+                  data.meetingVoiceChannelId = extractDiscordSnowflake(body?.meetingVoiceChannelId ?? null);
+                }
+
+                const updatedGuild = await prisma.guild.update({
+                  where: { id: guildId },
+                  data,
+                  select: {
+                    baseStaffRoleId: true,
+                    testStaffRoleId: true,
+                    meetingAnnouncementChannelId: true,
+                    meetingVoiceChannelId: true,
+                  },
+                });
+
+                await pushAudit(guildId, {
+                  user: user.username ?? `User${user.userId}`,
+                  action: 'Mise à jour config staff',
+                  context: getGuildName(client, guildId),
+                  module: 'Staff Management',
+                  eventType: 'Manuel',
+                  details: `Configuration staff mise à jour (base: ${updatedGuild.baseStaffRoleId ?? 'aucun'}, test: ${updatedGuild.testStaffRoleId ?? 'aucun'}, annonce: ${updatedGuild.meetingAnnouncementChannelId ?? 'aucun'}, conférence: ${updatedGuild.meetingVoiceChannelId ?? 'aucun'})`,
+                  channelId: null,
+                });
+
+                json(res, 200, { config: updatedGuild });
+              } catch (err) {
+                logger.error('StaffAPI', 'Error updating staff config:', err);
+                json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration staff' });
+              }
+              return;
+            }
+          }
+
+          // GET /api/dashboard/guilds/:guildId/staff/polls - List polls
+          if (parts[5] === 'polls' && req.method === 'GET' && !parts[6]) {
+            try {
+              const polls = await getPolls(guildId);
+              json(res, 200, { polls });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error getting polls:', err);
+              json(res, 500, { error: 'Erreur lors de la récupération des sondages' });
+            }
+            return;
+          }
+
+          // POST /api/dashboard/guilds/:guildId/staff/polls - Create poll
+          if (parts[5] === 'polls' && req.method === 'POST' && !parts[6]) {
+            const body = await readJsonBody<{
+              title: string;
+              description?: string;
+              options: string[];
+              closesAt?: string;
+              isAnonymous?: boolean;
+            }>(req);
+
+            if (!body?.title || !Array.isArray(body?.options) || body.options.length < 2) {
+              json(res, 400, { error: 'title et au moins 2 options sont obligatoires' });
+              return;
+            }
+
+            try {
+              const author = await getStaffMember(guildId, user.userId);
+              if (!author) {
+                json(res, 403, { error: 'Le créateur doit être membre du staff' });
+                return;
+              }
+
+              const poll = await createPoll(
+                guildId,
+                author.id,
+                body.title.trim(),
+                body.description?.trim() || '',
+                body.options.map((opt) => opt.trim()).filter(Boolean),
+                body.isAnonymous ?? true,
+                body.closesAt ? new Date(body.closesAt) : undefined
+              );
+
+              await pushAudit(guildId, {
+                user: user.username ?? `User${user.userId}`,
+                action: 'Création sondage staff',
+                context: getGuildName(client, guildId),
+                module: 'Staff Management',
+                eventType: 'Manuel',
+                details: `Sondage créé: ${poll.title}`,
+                channelId: null
+              });
+
+              json(res, 201, { poll });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error creating poll:', err);
+              json(res, 500, { error: 'Erreur lors de la création du sondage' });
+            }
+            return;
+          }
+
+          // POST /api/dashboard/guilds/:guildId/staff/polls/vote - Cast vote
+          if (parts[5] === 'polls' && parts[6] === 'vote' && req.method === 'POST') {
+            const body = await readJsonBody<{
+              pollId: string;
+              optionId: string;
+            }>(req);
+
+            if (!body?.pollId || !body?.optionId) {
+              json(res, 400, { error: 'pollId et optionId sont obligatoires' });
+              return;
+            }
+
+            try {
+              const voter = await getStaffMember(guildId, user.userId);
+              if (!voter) {
+                json(res, 403, { error: 'Le votant doit être membre du staff' });
+                return;
+              }
+
+              const poll = await prisma.staffPoll.findFirst({
+                where: { id: body.pollId, guildId },
+                include: { options: true },
+              });
+
+              if (!poll) {
+                json(res, 404, { error: 'Sondage introuvable' });
+                return;
+              }
+
+              if (poll.status !== 'OPEN') {
+                json(res, 400, { error: 'Ce sondage est fermé' });
+                return;
+              }
+
+              if (poll.closesAt && poll.closesAt.getTime() <= Date.now()) {
+                json(res, 400, { error: 'Ce sondage est expiré' });
+                return;
+              }
+
+              const optionExists = poll.options.some((option) => option.id === body.optionId);
+              if (!optionExists) {
+                json(res, 400, { error: 'Option de vote invalide' });
+                return;
+              }
+
+              const vote = await castPollVote(body.pollId, voter.id, body.optionId);
+              json(res, 200, { vote });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error casting poll vote:', err);
+              json(res, 500, { error: 'Erreur lors du vote' });
+            }
+            return;
+          }
+
+          // PATCH /api/dashboard/guilds/:guildId/staff/polls/:pollId/close - Close poll
+          if (parts[5] === 'polls' && parts[6] && parts[7] === 'close' && req.method === 'PATCH') {
+            const pollId = parts[6];
+
+            try {
+              const result = await prisma.staffPoll.updateMany({
+                where: { id: pollId, guildId },
+                data: { status: 'CLOSED' },
+              });
+
+              if (result.count === 0) {
+                json(res, 404, { error: 'Sondage introuvable' });
+                return;
+              }
+
+              await pushAudit(guildId, {
+                user: user.username ?? `User${user.userId}`,
+                action: 'Clôture sondage staff',
+                context: getGuildName(client, guildId),
+                module: 'Staff Management',
+                eventType: 'Manuel',
+                details: `Sondage clôturé: ${pollId}`,
+                channelId: null
+              });
+
+              json(res, 200, { ok: true });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error closing poll:', err);
+              json(res, 500, { error: 'Erreur lors de la clôture du sondage' });
+            }
+            return;
+          }
+
           // POST /api/dashboard/guilds/:guildId/testing-periods - Create testing period
           if (parts[5] === 'testing-periods' && req.method === 'POST' && !parts[6]) {
             const body = await readJsonBody<{
@@ -5590,25 +4369,12 @@ export const startDashboardApi = (client: Client) => {
               const periods = await prisma.testingPeriod.findMany({
                 where: { guildId },
                 orderBy: { createdAt: 'desc' },
-                include: {
-                  reports: {
-                    include: { author: true },
-                    orderBy: { createdAt: 'desc' }
-                  },
-                  mentor: true,
-                  staffMember: {
-                    include: {
-                      activities: {
-                        orderBy: { activityDate: 'desc' },
-                        take: 14
-                      }
-                    }
-                  }
-                },
+                include: { reports: true },
               });
+
               json(res, 200, { periods });
             } catch (err) {
-              logger.error('StaffAPI', 'Error listing testing periods:', err);
+              logger.error('StaffAPI', 'Error getting testing periods:', err);
               json(res, 500, { error: 'Erreur lors de la récupération des périodes de test' });
             }
             return;
@@ -5619,8 +4385,6 @@ export const startDashboardApi = (client: Client) => {
             const body = await readJsonBody<{
               staffUserId: string;
               mentorId?: string;
-              plannedDurationDays?: number;
-              targetGrade?: string;
             }>(req);
 
             if (!body?.staffUserId) {
@@ -5629,13 +4393,7 @@ export const startDashboardApi = (client: Client) => {
             }
 
             try {
-              const period = await createTestingPeriod(
-                guildId,
-                body.staffUserId,
-                body.mentorId,
-                body.plannedDurationDays,
-                body.targetGrade
-              );
+              const period = await createTestingPeriod(guildId, body.staffUserId, body.mentorId);
               json(res, 201, { period });
             } catch (err) {
               logger.error('StaffAPI', 'Error creating testing period:', err);
@@ -5674,319 +4432,6 @@ export const startDashboardApi = (client: Client) => {
             } catch (err) {
               logger.error('StaffAPI', 'Error ending testing period:', err);
               json(res, 500, { error: 'Erreur lors de la fin de la période de test' });
-            }
-            return;
-          }
-        }
-
-        // HR / LEADERSHIP METRICS
-        if (parts[4] === 'leadership' && req.method === 'GET') {
-          const guildId = parts[3] ?? null;
-          if (!guildId) {
-            json(res, 400, { error: 'guildId manquant' });
-            return;
-          }
-          const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
-          if (accessLevel.level !== 'admin') {
-            json(res, 403, { error: 'Accès admin requis' });
-            return;
-          }
-          try {
-            const metrics = await getStaffAlertsAndProgression(guildId);
-            json(res, 200, { metrics });
-          } catch (err) {
-            logger.error('API', 'Error metrics:', err);
-            json(res, 500, { error: 'Erreur interne' });
-          }
-          return;
-        }
-
-        // ABSENCES
-        if (parts[4] === 'absences') {
-          const guildId = parts[3] ?? null;
-          if (!guildId) {
-            json(res, 400, { error: 'guildId manquant' });
-            return;
-          }
-          if (req.method === 'GET' && !parts[5]) {
-            try {
-              const absences = await getAbsences(guildId);
-              json(res, 200, { absences });
-            } catch (err) {
-              json(res, 500, { error: 'Erreur' });
-            }
-            return;
-          }
-          if (req.method === 'PATCH' && parts[5]) {
-            const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
-            if (accessLevel.level !== 'admin') {
-              json(res, 403, { error: 'Admin requis' });
-              return;
-            }
-            const body = await readJsonBody<{ status: 'APPROVED' | 'REJECTED'; note?: string }>(req);
-            if (body && body.status) {
-              try {
-                const absence = await updateAbsenceStatus(parts[5], body.status, user.userId, body.note);
-                json(res, 200, { absence });
-              } catch (err) {
-                json(res, 500, { error: 'Erreur' });
-              }
-            } else {
-              json(res, 400, { error: 'missing status' });
-            }
-            return;
-          }
-        }
-
-        // MEETINGS
-        if (parts[4] === 'meetings') {
-          const guildId = parts[3] ?? null;
-          if (!guildId) {
-            json(res, 400, { error: 'guildId manquant' });
-            return;
-          }
-          if (req.method === 'GET') {
-            try {
-              const meetings = await getMeetings(guildId);
-              json(res, 200, { meetings });
-            } catch (err) {
-              json(res, 500, { error: 'Erreur' });
-            }
-            return;
-          }
-          if (req.method === 'POST' && !parts[5]) {
-            const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
-            if (accessLevel.level !== 'admin') {
-              json(res, 403, { error: 'Admin requis' });
-              return;
-            }
-            const body = await readJsonBody<{ title: string; description: string; scheduledAt: string }>(req);
-            if (body && body.title && body.scheduledAt) {
-              try {
-                const meeting = await createMeeting(guildId, user.userId, body.title, body.description || '', new Date(body.scheduledAt));
-                json(res, 201, { meeting });
-              } catch (err) {
-                json(res, 500, { error: 'Erreur' });
-              }
-            }
-            return;
-          }
-        }
-
-        // POLLS
-        if (parts[4] === 'polls') {
-          const guildId = parts[3] ?? null;
-          if (!guildId) {
-            json(res, 400, { error: 'guildId manquant' });
-            return;
-          }
-          if (req.method === 'GET') {
-            try {
-              const polls = await getPolls(guildId);
-              json(res, 200, { polls });
-            } catch (err) {
-              json(res, 500, { error: 'Erreur' });
-            }
-            return;
-          }
-          if (req.method === 'POST' && !parts[5]) {
-            const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
-            if (accessLevel.level !== 'admin') {
-              json(res, 403, { error: 'Admin requis' });
-              return;
-            }
-            const body = await readJsonBody<{ title: string; description: string; options: string[]; closesAt: string }>(req);
-            if (body && body.title) {
-              try {
-                const poll = await createPoll(guildId, user.userId, body.title, body.description || '', body.options || [], true, body.closesAt ? new Date(body.closesAt) : undefined);
-                json(res, 201, { poll });
-              } catch (err) {
-                json(res, 500, { error: 'Erreur' });
-              }
-            }
-            return;
-          }
-
-          // POST /api/dashboard/guilds/:guildId/polls/vote - Cast vote
-          if (parts[5] === 'vote' && req.method === 'POST') {
-            try {
-              const body = await readJsonBody<{ pollId: string; optionId: string }>(req);
-              if (!body?.pollId || !body?.optionId) {
-                json(res, 400, { error: 'pollId et optionId requis' });
-                return;
-              }
-
-              // Récupérer le grade du membre pour le poids du vote
-              const staff = await getStaffMember(guildId, user.userId);
-              if (!staff) {
-                json(res, 403, { error: 'Seulement le staff peut participer aux votes' });
-                return;
-              }
-
-              const roles = await getStaffRoles(guildId);
-              const userRole = roles.find(r => r.name === staff.grade);
-              const weight = userRole?.level ?? 1.0;
-
-              await castPollVote(body.pollId, user.userId, body.optionId, weight);
-              json(res, 200, { ok: true });
-            } catch (err) {
-              logger.error('StaffAPI', 'Error casting vote:', err);
-              json(res, 500, { error: 'Erreur lors du vote' });
-            }
-            return;
-          }
-
-          // PATCH /api/dashboard/guilds/:guildId/polls/:pollId/close - Close poll
-          if (parts[5] && req.method === 'PATCH') {
-            const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
-            if (accessLevel.level !== 'admin') {
-              json(res, 403, { error: 'Admin requis' });
-              return;
-            }
-
-            try {
-              await prisma.staffPoll.update({
-                where: { id: parts[5] },
-                data: { closesAt: new Date() }
-              });
-              json(res, 200, { ok: true });
-            } catch (err) {
-              json(res, 500, { error: 'Erreur clôture' });
-            }
-            return;
-          }
-        }
-
-        // PROCEDURES
-        if (parts[4] === 'procedures') {
-          const guildId = parts[3] ?? null;
-          if (!guildId) {
-            json(res, 400, { error: 'guildId manquant' });
-            return;
-          }
-          if (req.method === 'GET') {
-            try {
-              const procedures = await getProcedures(guildId);
-              json(res, 200, { procedures });
-            } catch (err) {
-              json(res, 500, { error: 'Erreur' });
-            }
-            return;
-          }
-          if (req.method === 'POST' && !parts[5]) {
-            const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
-            if (accessLevel.level !== 'admin') {
-              json(res, 403, { error: 'Admin requis' });
-              return;
-            }
-            const body = await readJsonBody<{ title: string; content: string; sortOrder: number }>(req);
-            if (body && body.title) {
-              try {
-                const procedure = await upsertProcedure(guildId, null, body.title, body.content || '', body.sortOrder || 0);
-                json(res, 201, { procedure });
-              } catch (err) {
-                json(res, 500, { error: 'Erreur' });
-              }
-            }
-            return;
-          }
-          if (req.method === 'PATCH' && parts[5]) {
-            const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
-            if (accessLevel.level !== 'admin') {
-              json(res, 403, { error: 'Admin requis' });
-              return;
-            }
-            const body = await readJsonBody<{ title: string; content: string; sortOrder: number }>(req);
-            if (body) {
-              try {
-                const procedure = await upsertProcedure(guildId, parts[5], body.title, body.content, body.sortOrder);
-                json(res, 200, { procedure });
-              } catch (err) {
-                json(res, 500, { error: 'Erreur' });
-              }
-            }
-            return;
-          }
-          if (req.method === 'DELETE' && parts[5]) {
-            const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
-            if (accessLevel.level !== 'admin') {
-              json(res, 403, { error: 'Admin requis' });
-              return;
-            }
-            try {
-              await deleteProcedure(parts[5]);
-              json(res, 200, { success: true });
-            } catch (err) {
-              json(res, 500, { error: 'Erreur' });
-            }
-            return;
-          }
-          if (req.method === 'POST' && parts[5] === 'read') {
-            try {
-              const body = await readJsonBody<{ procedureId: string }>(req);
-              if (body?.procedureId) {
-                await markProcedureAsRead(body.procedureId, user.userId);
-                json(res, 200, { success: true });
-              } else {
-                json(res, 400, { error: 'missing id' });
-              }
-            } catch (err) {
-              json(res, 500, { error: 'Erreur' });
-            }
-            return;
-          }
-        }
-
-        // STAFF NOTES
-        if (parts[4] === 'staff' && parts[6] === 'notes') {
-          const guildId = parts[3] ?? null;
-          if (!guildId) {
-            json(res, 400, { error: 'guildId manquant' });
-            return;
-          }
-          const staffUserId = parts[5];
-          if (req.method === 'GET') {
-            const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
-            if (accessLevel.level !== 'admin') {
-              json(res, 403, { error: 'Admin requis' });
-              return;
-            }
-            try {
-              const notes = await getManagerNotes(guildId, staffUserId);
-              json(res, 200, { notes });
-            } catch (err) {
-              json(res, 500, { error: 'Erreur' });
-            }
-            return;
-          }
-          if (req.method === 'POST' && !parts[7]) {
-            const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
-            if (accessLevel.level !== 'admin') {
-              json(res, 403, { error: 'Admin requis' });
-              return;
-            }
-            const body = await readJsonBody<{ content: string }>(req);
-            if (body && body.content) {
-              try {
-                const note = await createManagerNote(guildId, staffUserId, user.userId, body.content);
-                json(res, 201, { note });
-              } catch (err) {
-                json(res, 500, { error: 'Erreur' });
-              }
-            }
-            return;
-          }
-          if (req.method === 'DELETE' && parts[7]) {
-            const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
-            if (accessLevel.level !== 'admin') {
-              json(res, 403, { error: 'Admin requis' });
-              return;
-            }
-            try {
-              await deleteManagerNote(parts[7]);
-              json(res, 200, { success: true });
-            } catch (err) {
-              json(res, 500, { error: 'Erreur' });
             }
             return;
           }

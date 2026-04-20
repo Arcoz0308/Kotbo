@@ -206,7 +206,7 @@
           <span class="material-symbols-outlined text-lg text-on-surface-variant">settings</span>
         </button>
       </h2>
-      <p class="text-sm text-on-surface-variant/60 font-medium mt-1">Suivi des candidatures et intégration du personnel</p>
+      <p class="text-sm text-on-surface-variant/75 font-medium mt-1">Suivi des candidatures et intégration du personnel</p>
     </div>
 
     <!-- Stats summary -->
@@ -217,7 +217,7 @@
         </div>
         <div class="text-xs">
             <p class="text-2xl font-black text-on-surface leading-none">{stats.pending}</p>
-            <p class="text-[9px] uppercase tracking-widest text-on-surface-variant/40 font-bold mt-1">En attente</p>
+            <p class="text-[9px] uppercase tracking-widest text-on-surface-variant/70 font-bold mt-1">En attente</p>
         </div>
       </div>
       <div class="px-6 py-4 rounded-[2rem] bg-surface-container-low/50 border border-outline-variant/10 flex items-center gap-4 hover:shadow-2xl hover:shadow-primary/5 transition-all">
@@ -226,7 +226,7 @@
         </div>
         <div class="text-xs">
             <p class="text-2xl font-black text-on-surface leading-none">{stats.oral}</p>
-            <p class="text-[9px] uppercase tracking-widest text-on-surface-variant/40 font-bold mt-1">Oraux</p>
+            <p class="text-[9px] uppercase tracking-widest text-on-surface-variant/70 font-bold mt-1">Oraux</p>
         </div>
       </div>
       <div class="px-6 py-4 rounded-[2rem] bg-rose-500/10 border border-rose-500/20 flex items-center gap-4 hover:shadow-2xl hover:shadow-rose-500/20 transition-all">
@@ -299,12 +299,12 @@
                             <div>
                                 <h3 class="text-xl font-black text-on-surface font-headline tracking-tight">{candidature.username || 'Anonyme'}</h3>
                                 <div class="flex flex-wrap items-center gap-3 mt-1">
-                                    <span class="text-xs font-bold text-on-surface-variant/60">{new Date(candidature.createdAt).toLocaleDateString()}</span>
+                                    <span class="text-xs font-bold text-on-surface-variant/75">{new Date(candidature.createdAt).toLocaleDateString()}</span>
                                     <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border {getStatusColor(candidature.status)}">
                                         {getStatusLabel(candidature.status)}
                                     </span>
                                     {#if candidature.discordId}
-                                       <span class="text-[10px] font-mono text-on-surface-variant/40">ID: {candidature.discordId}</span>
+                                       <span class="text-[10px] font-mono text-on-surface-variant/70">ID: {candidature.discordId}</span>
                                     {/if}
                                 </div>
                             </div>
@@ -330,7 +330,7 @@
                         {#each Object.entries(candidature.data) as [key, value]}
                            {#if typeof value !== 'object' || Array.isArray(value)}
                             <div class="space-y-1">
-                                <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 leading-tight">{key}</p>
+                                <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/70 leading-tight">{key}</p>
                                 <div class="text-sm font-medium text-on-surface/80 bg-surface-container/30 rounded-xl px-4 py-2 border border-outline-variant/5">
                                    <div class="max-h-32 overflow-y-auto scrollbar-hide whitespace-pre-wrap">{formatValue(value)}</div>
                                 </div>
@@ -348,7 +348,7 @@
                            bind:value={candidature.notes}
                            onblur={() => doAction(candidature.id, 'status_update', { status: candidature.status, notes: candidature.notes })}
                            placeholder="Ajouter une observation interne..."
-                           class="w-full h-32 bg-surface-container/50 border border-outline-variant/20 rounded-2xl p-4 text-xs text-on-surface placeholder:text-on-surface-variant/30 focus:outline-hidden focus:border-primary/50 transition-all resize-none"></textarea>
+                           class="w-full h-32 bg-surface-container/50 border border-outline-variant/20 rounded-2xl p-4 text-xs text-on-surface placeholder:text-on-surface-variant/60 focus:outline-hidden focus:border-primary/50 transition-all resize-none"></textarea>
                     </div>
                     
                     {#if candidature.status === 'ORAL' && candidature.ticketChannelId}

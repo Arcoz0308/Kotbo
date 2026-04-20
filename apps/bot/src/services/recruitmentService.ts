@@ -593,11 +593,14 @@ export async function getEligibleTutors(guildId: string) {
 
   if (eligibleGradeNames.length === 0) return [];
 
-  // Then find staff members with those grades
+  // Then find staff members with those grades OR with isTutor flag
   return prisma.staffMember.findMany({
     where: {
       guildId,
-      grade: { in: eligibleGradeNames },
+      OR: [
+        { grade: { in: eligibleGradeNames } },
+        { isTutor: true }
+      ]
     },
     orderBy: { grade: 'asc' },
   });

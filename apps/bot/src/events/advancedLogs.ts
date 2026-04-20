@@ -73,6 +73,7 @@ const MESSAGE_SNAPSHOT_TTL_MS = 4 * 60 * 60 * 1000;
 const MESSAGE_SNAPSHOT_MAX_SIZE = 3_000;
 const AUDIT_LOOKBACK_MS = 12_000;
 const MAX_BULK_AUTHOR_PREVIEW = 8;
+const advancedLogsRegisteredClients = new WeakSet<Client>();
 
 function truncate(value: string, max = 1000): string {
   if (value.length <= max) return value;
@@ -577,6 +578,12 @@ function buildModerationEmbed(
 }
 
 export function registerAdvancedLogsListener(client: Client): void {
+  if (advancedLogsRegisteredClients.has(client)) {
+    logger.warn('Logs', 'Écouteur de logs avancés déjà enregistré, double enregistrement ignoré.');
+    return;
+  }
+  advancedLogsRegisteredClients.add(client);
+
   client.on(Events.MessageCreate, (message) => {
     if (shouldIgnoreMessage(message)) return;
 

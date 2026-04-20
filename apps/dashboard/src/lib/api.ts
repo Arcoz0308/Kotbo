@@ -495,11 +495,11 @@ export async function createMeeting(title, description, scheduledAt, guildId = a
 }
 
 export async function fetchPolls(guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/polls', { method: 'GET', guildId });
+  return dashboardRequest('/staff/polls', { method: 'GET', guildId });
 }
 
 export async function createPoll(title, description, options, closesAt, guildId = authStore.selectedGuildId) {
-  return dashboardMutation('/polls', { method: 'POST', payload: { title, description, options, closesAt }, guildId });
+  return dashboardMutation('/staff/polls', { method: 'POST', payload: { title, description, options, closesAt }, guildId });
 }
 
 export async function fetchProcedures(guildId = authStore.selectedGuildId) {
@@ -532,4 +532,8 @@ export async function addManagerNote(staffUserId, content, guildId = authStore.s
 
 export async function deleteManagerNote(staffUserId, noteId, guildId = authStore.selectedGuildId) {
   return dashboardMutation(`/staff/${staffUserId}/notes/${noteId}`, { method: 'DELETE', guildId });
+}
+
+export async function toggleTutorStatus(userId, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/staff/members/${userId}/tutor`, { method: 'POST', guildId });
 }

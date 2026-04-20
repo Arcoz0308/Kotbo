@@ -1,6 +1,7 @@
 <script lang="ts">
   import FormInput from './FormInput.svelte';
   import { dashboardStore } from '../stores/dashboard.svelte';
+  import { authStore } from '../stores/auth.svelte';
 
   type MemberCaseTab = 'resume' | 'identite' | 'activite' | 'messages' | 'logs' | 'sanctions' | 'invites' | 'connexions';
 
@@ -32,6 +33,8 @@
       rolesSnapshot: string[];
       presenceStatus: string | null;
       pronouns: string | null;
+      isTutor: boolean;
+      staffGrade: string | null;
     } | null;
     invite: {
       code: string | null;
@@ -300,7 +303,7 @@
               {caseData?.profile?.displayName || caseData?.profile?.globalName || userName}
             </h3>
             <div class="mt-1 flex flex-wrap items-center gap-2">
-              <span class="text-sm font-semibold text-on-surface-variant">
+              <span class="text-sm font-semibold text-on-surface-variant/80">
                 @{caseData?.profile?.username || userName}
               </span>
               {#if caseData?.profile?.isBot}
@@ -313,6 +316,12 @@
                 <span class="h-2 w-2 rounded-full {getPresenceColor(caseData?.profile?.presenceStatus)}"></span>
                 {getPresenceLabel(caseData?.profile?.presenceStatus)}
               </span>
+              {#if caseData?.profile?.isTutor}
+                <span class="badge bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 shadow-sm animate-in zoom-in-95 duration-500">
+                  <span class="material-symbols-outlined text-[12px] mr-1">verified_user</span>
+                  Tuteur
+                </span>
+              {/if}
               {#if userId}
                 <a
                   href="/profile/{userId}"
@@ -386,7 +395,7 @@
                 <div class="flex items-center justify-between gap-4">
                   <div>
                     <p class="section-label">Actions rapides</p>
-                    <p class="mt-1 text-xs text-on-surface-variant">Actions appliquées sur le serveur sélectionné.</p>
+                    <p class="mt-1 text-xs text-on-surface-variant/75">Actions appliquées sur le serveur sélectionné.</p>
                   </div>
                 </div>
                 <div class="grid gap-3 md:grid-cols-2">
@@ -414,6 +423,7 @@
                     <span class="material-symbols-outlined text-base">block</span>
                     Ban
                   </button>
+
                 </div>
                 {#if actionFeedback}
                   <div class="rounded-xl px-4 py-3 text-xs font-semibold {actionIsError ? 'border border-rose-200 bg-rose-50 text-rose-800' : 'border border-emerald-200 bg-emerald-50 text-emerald-800'}">
@@ -434,7 +444,7 @@
                       <p class="section-label">Messages</p>
                     </div>
                     <p class="text-3xl font-black text-on-surface tracking-tight">{caseData.profile?.messageCount ?? 0}</p>
-                    <p class="mt-1 text-xs text-on-surface-variant">Dernier : {formatDateShort(caseData.profile?.lastMessageAt)}</p>
+                    <p class="mt-1 text-xs text-on-surface-variant/75">Dernier : {formatDateShort(caseData.profile?.lastMessageAt)}</p>
                   </div>
                   <div class="stat-kpi">
                     <div class="flex items-center gap-3 mb-3">
@@ -444,7 +454,7 @@
                       <p class="section-label">Vocal</p>
                     </div>
                     <p class="text-3xl font-black text-on-surface tracking-tight">{formatDurationFromSeconds(caseData.profile?.voiceTimeSeconds)}</p>
-                    <p class="mt-1 text-xs text-on-surface-variant">{caseData.profile?.voiceSessionCount ?? 0} session(s)</p>
+                    <p class="mt-1 text-xs text-on-surface-variant/75">{caseData.profile?.voiceSessionCount ?? 0} session(s)</p>
                   </div>
                   <div class="stat-kpi">
                     <div class="flex items-center gap-3 mb-3">
@@ -464,7 +474,7 @@
                       <p class="section-label">Ancienneté</p>
                     </div>
                     <p class="text-lg font-black text-on-surface tracking-tight">{formatDateShort(caseData.profile?.guildJoinedAt)}</p>
-                    <p class="mt-1 text-xs text-on-surface-variant">Compte créé le {formatDateShort(caseData.profile?.accountCreatedAt)}</p>
+                    <p class="mt-1 text-xs text-on-surface-variant/75">Compte créé le {formatDateShort(caseData.profile?.accountCreatedAt)}</p>
                   </div>
                 </div>
 
@@ -495,6 +505,7 @@
                       <div class="info-row"><dt>Locale</dt><dd>{caseData.profile?.locale ?? 'Inconnue'}</dd></div>
                       <div class="info-row"><dt>Bot</dt><dd>{caseData.profile?.isBot ? 'Oui' : 'Non'}</dd></div>
                       <div class="info-row"><dt>Pronoms</dt><dd>{caseData.profile?.pronouns ?? 'Non disponibles'}</dd></div>
+                      <div class="info-row"><dt>Tuteur</dt><dd>{caseData.profile?.isTutor ? 'Oui' : 'Non'}</dd></div>
                     </dl>
                   </div>
                   <div class="section-card p-5 space-y-4">
@@ -505,12 +516,12 @@
                         <span class="text-xs font-semibold text-on-surface-variant">Avatar disponible</span>
                       </div>
                     {:else}
-                      <p class="text-xs text-on-surface-variant">Aucun avatar personnalisé</p>
+                      <p class="text-xs text-on-surface-variant/70">Aucun avatar personnalisé</p>
                     {/if}
                     {#if caseData.profile?.bannerUrl}
                       <img src={caseData.profile.bannerUrl} alt="Bannière" class="w-full h-20 rounded-xl object-cover border border-outline-variant" />
                     {:else}
-                      <p class="text-xs text-on-surface-variant">Aucune bannière</p>
+                      <p class="text-xs text-on-surface-variant/70">Aucune bannière</p>
                     {/if}
                     {#if caseData.profile?.accentColor}
                       <div class="flex items-center gap-3">
@@ -553,8 +564,8 @@
                   <div class="stat-kpi text-center">
                     <span class="material-symbols-outlined text-3xl text-primary/60">chat</span>
                     <p class="mt-2 text-3xl font-black text-on-surface">{caseData.profile?.messageCount ?? 0}</p>
-                    <p class="mt-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Messages</p>
-                    <p class="mt-1 text-xs text-on-surface-variant">Dernier : {formatDateShort(caseData.profile?.lastMessageAt)}</p>
+                    <p class="mt-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70">Messages</p>
+                    <p class="mt-1 text-xs text-on-surface-variant/75">Dernier : {formatDateShort(caseData.profile?.lastMessageAt)}</p>
                   </div>
                   <div class="stat-kpi text-center">
                     <span class="material-symbols-outlined text-3xl text-secondary/60">mic</span>
@@ -581,7 +592,7 @@
                     <div class="space-y-1.5">
                       <div class="flex items-center justify-between text-sm">
                         <span class="font-bold text-on-surface">{channelSummary.channelName}</span>
-                        <span class="text-xs font-black text-primary">{channelSummary.count}</span>
+                        <span class="text-xs font-black text-primary/80">{channelSummary.count}</span>
                       </div>
                       <div class="h-2 w-full rounded-full bg-surface-container-highest overflow-hidden">
 
@@ -623,7 +634,7 @@
                     </div>
                   {/each}
                   {#if caseData.messagesByChannel.length === 0}
-                    <div class="flex flex-col items-center py-8 text-on-surface-variant/40">
+                    <div class="flex flex-col items-center py-8 text-on-surface-variant/70">
                       <span class="material-symbols-outlined text-4xl">chat_bubble_outline</span>
                       <p class="mt-2 text-sm font-semibold">Aucun message observé</p>
                     </div>
@@ -643,11 +654,11 @@
                         <div class="flex items-start justify-between gap-3">
                           <div>
                             <p class="text-sm font-bold text-on-surface">{log.action}</p>
-                            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant">{log.module} · {log.eventType} · {log.source}</p>
+                            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant/75">{log.module} · {log.eventType} · {log.source}</p>
                           </div>
                           <span class="shrink-0 text-[10px] font-bold text-on-surface-variant whitespace-nowrap">{formatDateShort(log.dateIso)} {formatTimeShort(log.dateIso)}</span>
                         </div>
-                        <p class="mt-1 text-xs text-on-surface-variant leading-relaxed">{sanitizeLogSnippet(log.details)}</p>
+                        <p class="mt-1 text-xs text-on-surface-variant/75 leading-relaxed">{sanitizeLogSnippet(log.details)}</p>
                       </div>
                     {/each}
                   </div>

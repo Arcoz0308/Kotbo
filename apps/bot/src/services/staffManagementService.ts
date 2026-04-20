@@ -86,6 +86,25 @@ export const updateStaffGrade = async (
   });
 };
 
+export const toggleTutorStatus = async (
+  guildId: string,
+  userId: string
+) => {
+  const member = await prisma.staffMember.findUnique({
+    where: { guildId_userId: { guildId, userId } },
+    select: { isTutor: true }
+  });
+
+  if (!member) throw new Error('Membre staff introuvable');
+
+  return prisma.staffMember.update({
+    where: { guildId_userId: { guildId, userId } },
+    data: {
+      isTutor: !member.isTutor
+    }
+  });
+};
+
 export const removeStaffMember = async (guildId: string, userId: string) => {
   return prisma.staffMember.delete({
     where: { guildId_userId: { guildId, userId } },
@@ -264,7 +283,7 @@ export const endTestingPeriod = async (
       endDate: new Date(),
       notes,
     },
-    include: { reports: true },
+    include: { reports: true, staffMember: true },
   });
 };
 

@@ -1,19 +1,49 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { router } from 'tinro';
   import { authStore } from '../lib/stores/auth.svelte';
-  import { API_BASE_URL, fetchGuildState, fetchPolls } from '../lib/api';
+  import { API_BASE_URL, fetchGuildState, fetchPolls, toggleTutorStatus } from '../lib/api';
   import DiscordMemberLookup from '../lib/components/DiscordMemberLookup.svelte';
   import MetricCard from '../lib/components/MetricCard.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
+  import Skeleton from '../lib/components/Skeleton.svelte';
   import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
 
   let guildId = $state<string | null>(null);
   let accessLevel = $state('none');
-  let loading = $state(true);
   let error = $state('');
+  
+  type StaffTab = 'members' | 'roles' | 'testing' | 'warnings' | 'blacklist' | 'polls' | 'leadership' | 'absences' | 'meetings';
 
-  // Onglets
-  let activeTab = $state<'members' | 'roles' | 'testing' | 'warnings' | 'blacklist' | 'polls' | 'leadership' | 'absences' | 'meetings'>('members');
+  let activeTab = $state<StaffTab>('members');
+  
+  // États de chargement par catégorie
+  let loadingStates = $state<Record<string, boolean>>({
+    members: true,
+    roles: true,
+    testing: true,
+    warnings: false, // Pas de fetch au démarrage (interne)
+    blacklist: false, // Pas de fetch au démarrage (interne)
+    polls: true,
+    leadership: true,
+    absences: true,
+    meetings: true
+  });
+
+  // Synchronisation de l'onglet avec l'URL
+  $effect(() => {
+    const tabFromUrl = router.location.query.tab as StaffTab;
+    if (tabFromUrl && tabFromUrl !== activeTab) {
+      activeTab = tabFromUrl;
+    }
+  });
+
+  function switchTab(tab: StaffTab) {
+    activeTab = tab;
+    router.goto(`/staff-management?tab=${tab}`);
+    // Si on change d'onglet et qu'il n'est pas encore prêt (par ex: lazy load non fini)
+    // on peut forcer le refresh ici si besoin, mais le background load s'en occupe.
+  }
 
   // Data
   let staffMembers = $state<StaffMember[]>([]);
@@ -24,6 +54,8 @@
   let absences = $state<any[]>([]);
   let meetings = $state<any[]>([]);
   let availableDiscordRoles = $state<Array<{ id: string; name: string }>>([]);
+  let availableDiscordChannels = $state<Array<{ id: string; name: string }>>([]);
+  let availableDiscordVoiceChannels = $state<Array<{ id: string; name: string }>>([]);
 
   // Forms
   let showAddMemberForm = $state(false);
@@ -94,6 +126,8 @@
   
   let baseStaffRoleId = $state<string | null>(null);
   let testStaffRoleId = $state<string | null>(null);
+  let meetingAnnouncementChannelId = $state<string | null>(null);
+  let meetingVoiceChannelId = $state<string | null>(null);
   let isSavingConfig = $state(false);
 
   $effect(() => {
@@ -323,7 +357,6 @@
   onMount(async () => {
     if (!authStore.token) {
       error = 'Non authentifié';
-      loading = false;
       return;
     }
 
@@ -345,33 +378,54 @@
 
       if (accessLevel !== 'admin') {
         error = 'Accès admin requis pour cette page';
-        loading = false;
         return;
       }
 
-        const dashboardState = await fetchGuildState(guildId);
-        availableDiscordRoles = dashboardState?.discordRoles || [];
+      const dashboardState = await fetchGuildState(guildId);
+      availableDiscordRoles = dashboardState?.discordRoles || [];
+      availableDiscordChannels = dashboardState?.discordChannels || [];
+      availableDiscordVoiceChannels = dashboardState?.discordVoiceChannels || [];
 
-      // Charger les données
-      await loadStaffMembers();
-      await loadStaffRoles();
-      await loadTestingPeriods();
-      await loadStaffConfig();
-      await loadPolls();
-      await loadLeadershipMetrics();
-      await loadAbsences();
-      await loadMeetings();
-
-      loading = false;
+      // Démarrage du chargement intelligent
+      console.log('--- PRIORITIZED LOADING START ---');
+      await loadInitialData();
+      console.log('--- PRIORITIZED LOADING END ---');
     } catch (err) {
       console.error('Erreur:', err);
       error = 'Erreur lors du chargement';
-      loading = false;
     }
   });
 
+  async function loadInitialData() {
+    // 1. Charger les configs essentielles (non bloquantes pour l'UI, mais nécessaires pour les selects/rôles)
+    await Promise.all([loadStaffRoles(), loadStaffConfig()]);
+
+    // 2. Charger l'onglet actif immédiatement
+    await loadTabData(activeTab);
+
+    // 3. Charger le reste en tâche de fond (lazy loading)
+    const otherTabs: StaffTab[] = ['members', 'roles', 'testing', 'polls', 'leadership', 'absences', 'meetings']
+       .filter(t => t !== activeTab) as StaffTab[];
+    
+    // On lance en parallèle sans await pour ne pas bloquer l'interactivité
+    otherTabs.forEach(tab => loadTabData(tab));
+  }
+
+  async function loadTabData(tab: StaffTab) {
+    switch (tab) {
+      case 'members': await loadStaffMembers(); break;
+      case 'roles': await loadStaffRoles(); break;
+      case 'testing': await loadTestingPeriods(); break;
+      case 'polls': await loadPolls(); break;
+      case 'leadership': await loadLeadershipMetrics(); break;
+      case 'absences': await loadAbsences(); break;
+      case 'meetings': await loadMeetings(); break;
+    }
+  }
+
   async function loadStaffMembers() {
     if (!guildId || !authStore.token) return;
+    loadingStates.members = true;
     try {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/members`, {
         headers: { Authorization: `Bearer ${authStore.token}` }
@@ -381,11 +435,14 @@
       staffMembers = data.members || [];
     } catch (err) {
       console.error('Erreur loading staff members:', err);
+    } finally {
+      loadingStates.members = false;
     }
   }
 
   async function loadStaffRoles() {
     if (!guildId || !authStore.token) return;
+    loadingStates.roles = true;
     try {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/roles`, {
         headers: { Authorization: `Bearer ${authStore.token}` }
@@ -395,6 +452,8 @@
       staffRoles = data.roles || [];
     } catch (err) {
       console.error('Erreur loading staff roles:', err);
+    } finally {
+      loadingStates.roles = false;
     }
   }
 
@@ -408,6 +467,8 @@
         const data = await res.json();
         baseStaffRoleId = data.config?.baseStaffRoleId ?? null;
         testStaffRoleId = data.config?.testStaffRoleId ?? null;
+        meetingAnnouncementChannelId = data.config?.meetingAnnouncementChannelId ?? null;
+        meetingVoiceChannelId = data.config?.meetingVoiceChannelId ?? null;
       }
     } catch (err) {
       console.error('Erreur loading staff config:', err);
@@ -424,7 +485,12 @@
           'Content-Type': 'application/json',
           Authorization: `Bearer ${authStore.token}`
         },
-        body: JSON.stringify({ baseStaffRoleId, testStaffRoleId })
+        body: JSON.stringify({
+          baseStaffRoleId,
+          testStaffRoleId,
+          meetingAnnouncementChannelId,
+          meetingVoiceChannelId
+        })
       });
       if (!res.ok) throw new Error('Erreur');
     } catch (err) {
@@ -436,6 +502,7 @@
 
   async function loadTestingPeriods() {
     if (!guildId || !authStore.token) return;
+    loadingStates.testing = true;
     try {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/testing-periods`, {
         headers: { Authorization: `Bearer ${authStore.token}` }
@@ -445,11 +512,14 @@
       testingPeriods = data.periods || [];
     } catch (err) {
       console.error('Erreur loading testing periods:', err);
+    } finally {
+      loadingStates.testing = false;
     }
   }
 
   async function loadLeadershipMetrics() {
     if (!guildId || !authStore.token) return;
+    loadingStates.leadership = true;
     try {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/leadership`, {
         headers: { Authorization: `Bearer ${authStore.token}` }
@@ -460,11 +530,14 @@
       }
     } catch (err) {
       console.error('Erreur loading metrics:', err);
+    } finally {
+      loadingStates.leadership = false;
     }
   }
 
   async function loadAbsences() {
     if (!guildId || !authStore.token) return;
+    loadingStates.absences = true;
     try {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/absences`, {
         headers: { Authorization: `Bearer ${authStore.token}` }
@@ -475,11 +548,14 @@
       }
     } catch (err) {
       console.error('Erreur loading absences:', err);
+    } finally {
+      loadingStates.absences = false;
     }
   }
 
   async function loadMeetings() {
     if (!guildId || !authStore.token) return;
+    loadingStates.meetings = true;
     try {
        const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/meetings`, {
         headers: { Authorization: `Bearer ${authStore.token}` }
@@ -490,16 +566,21 @@
       }
     } catch (err) {
       console.error('Erreur loading meetings:', err);
+    } finally {
+      loadingStates.meetings = false;
     }
   }
 
   async function loadPolls() {
     if (!guildId || !authStore.token) return;
+    loadingStates.polls = true;
     try {
       const data = await fetchPolls(guildId);
       polls = data.polls || [];
     } catch (err) {
       console.error('Erreur loading polls:', err);
+    } finally {
+      loadingStates.polls = false;
     }
   }
 
@@ -525,6 +606,10 @@
 
   async function createMeeting() {
     if (!guildId || !authStore.token || !newMeetingTitle || !newMeetingScheduledAt) return;
+    if (!meetingAnnouncementChannelId || !meetingVoiceChannelId) {
+      alert('Configurez d\'abord les salons de réunion (annonce + vocal/conférence) dans l\'onglet Rôles.');
+      return;
+    }
     isSavingMeeting = true;
     try {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/meetings`, {
@@ -664,6 +749,18 @@
     } catch (err) {
       console.error('Erreur:', err);
       alert('Erreur lors de l\'ajout du membre');
+    }
+  }
+
+  async function toggleTutor(userId: string) {
+    if (!guildId || !authStore.token) return;
+    try {
+      const ok = await toggleTutorStatus(userId, guildId);
+      if (!ok) throw new Error('Erreur API');
+      await loadStaffMembers();
+    } catch (err) {
+      console.error('Erreur toggle tutor:', err);
+      alert('Erreur lors de la modification du statut tuteur');
     }
   }
 
@@ -867,6 +964,7 @@
       note: "dans l'équipe",
       icon: "groups",
       color: "bg-primary/10 text-primary",
+      loading: loadingStates.members
     },
     {
       label: "Rôles Staff",
@@ -874,6 +972,7 @@
       note: "niveaux configurés",
       icon: "admin_panel_settings",
       color: "bg-emerald-500/10 text-emerald-700",
+      loading: loadingStates.roles
     },
     {
       label: "Avertissements",
@@ -881,6 +980,7 @@
       note: "actifs actuellement",
       icon: "warning",
       color: "bg-amber-500/10 text-amber-700",
+      loading: loadingStates.members // Dépend de staffMembers
     },
     {
       label: "Périodes de Test",
@@ -888,21 +988,22 @@
       note: "en cours d'évaluation",
       icon: "pending_actions",
       color: "bg-slate-500/10 text-slate-600",
+      loading: loadingStates.testing
     },
   ]);
 </script>
 
 <div class="space-y-16 animate-in fade-in slide-in-from-bottom-6 duration-1000">
-  {#if loading}
-    <div class="space-y-8 p-8 md:p-10 animate-pulse w-full">
-      <div class="h-14 w-1/3 min-w-[250px] bg-surface-variant/50 rounded-2xl"></div>
+  {#if !guildId && !error}
+    <div class="space-y-8 p-8 md:p-10 w-full animate-in fade-in duration-700">
+      <Skeleton width="w-1/3" height="h-14" rounded="rounded-2xl" />
       <div class="flex flex-col md:flex-row gap-6">
-        <div class="h-32 flex-1 bg-surface-variant/30 rounded-3xl"></div>
-        <div class="h-32 flex-1 bg-surface-variant/30 rounded-3xl"></div>
-        <div class="h-32 flex-1 bg-surface-variant/30 rounded-3xl"></div>
-        <div class="h-32 flex-1 bg-surface-variant/30 rounded-3xl"></div>
+        <Skeleton height="h-32" class="flex-1" rounded="rounded-3xl" />
+        <Skeleton height="h-32" class="flex-1" rounded="rounded-3xl" />
+        <Skeleton height="h-32" class="flex-1" rounded="rounded-3xl" />
+        <Skeleton height="h-32" class="flex-1" rounded="rounded-3xl" />
       </div>
-      <div class="h-[60vh] w-full bg-surface-variant/30 rounded-[3rem]"></div>
+      <Skeleton height="h-[60vh]" rounded="rounded-[3rem]" />
     </div>
   {:else if error}
     <div class="mt-6 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-700 text-center max-w-2xl mx-auto">
@@ -937,6 +1038,7 @@
           note={stat.note}
           icon={stat.icon}
           toneClass={stat.color}
+          loading={stat.loading}
         />
       {/each}
     </div>
@@ -955,7 +1057,7 @@
         { id: 'meetings', label: 'Réunions', icon: 'groups' }
       ] as tab}
         <button
-          onclick={() => (activeTab = tab.id as typeof activeTab)}
+          onclick={() => switchTab(tab.id as StaffTab)}
           class="inline-flex items-center gap-2 rounded-full px-5 py-3 text-xs font-black uppercase tracking-[0.18em] transition-all {activeTab === tab.id
             ? 'bg-primary text-white shadow-xl shadow-primary/20 scale-[1.02]'
             : 'border border-outline-variant/20 bg-surface-container-low/50 text-on-surface-variant/70 hover:bg-surface-container-low hover:text-on-surface'}"
@@ -1019,13 +1121,35 @@
           </div>
         {/if}
 
-        {#if staffMembers.length > 0}
+        {#if loadingStates.members}
+          <div class="divide-y divide-outline-variant/10">
+            {#each Array(5) as _}
+              <div class="px-8 py-6 flex flex-col gap-6 lg:flex-row lg:items-center">
+                <div class="flex items-center gap-4 flex-1">
+                  <Skeleton width="w-12" height="h-12" circle={true} />
+                  <div class="space-y-2 flex-1">
+                    <Skeleton width="w-1/4" height="h-5" />
+                    <div class="flex gap-2">
+                       <Skeleton width="w-16" height="h-4" rounded="rounded-full" />
+                       <Skeleton width="w-24" height="h-4" rounded="rounded-full" />
+                    </div>
+                  </div>
+                </div>
+                <div class="flex gap-2">
+                  <Skeleton width="w-10" height="h-10" rounded="rounded-xl" />
+                  <Skeleton width="w-10" height="h-10" rounded="rounded-xl" />
+                  <Skeleton width="w-10" height="h-10" rounded="rounded-xl" />
+                </div>
+              </div>
+            {/each}
+          </div>
+        {:else if staffMembers.length > 0}
           <div class="divide-y divide-outline-variant/10">
             {#each staffMembers as member (member.id)}
               <article class="group bg-transparent px-6 py-6 md:px-8 transition-all hover:bg-primary/4">
                 <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
                   <div class="flex items-center gap-4 flex-1">
-                    <div class="h-12 w-12 shrink-0 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant/40 border border-outline-variant/20 shadow-sm overflow-hidden">
+                    <div class="h-12 w-12 shrink-0 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant/70 border border-outline-variant/20 shadow-sm overflow-hidden">
                       {#if member.avatarUrl}
                         <img src={member.avatarUrl} alt="" class="h-full w-full object-cover" />
                       {:else}
@@ -1040,7 +1164,13 @@
                         <span class="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-primary">
                           {member.grade}
                         </span>
-                        <span class="text-[11px] font-medium text-on-surface-variant/50">
+                        {#if member.isTutor}
+                          <span class="inline-flex items-center gap-1 item rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.15em] text-indigo-600 shadow-sm shadow-indigo-500/5 transition-all animate-in zoom-in-95 duration-300">
+                            <span class="material-symbols-outlined text-[12px]">verified_user</span>
+                            Tuteur
+                          </span>
+                        {/if}
+                        <span class="text-[11px] font-medium text-on-surface-variant/70">
                           Membre depuis {new Date(member.joinedStaffAt).toLocaleDateString()}
                         </span>
                         {#if (member.warnings?.length || 0) > 0}
@@ -1071,6 +1201,20 @@
                   </div>
 
                   <div class="flex items-center gap-2 shrink-0 flex-wrap">
+                    <button
+                      onclick={() => toggleTutor(member.userId)}
+                      class="group/tutor relative inline-flex items-center justify-center rounded-xl p-2.5 transition-all {member.isTutor ? 'text-indigo-600 bg-indigo-500/15 border border-indigo-500/30 shadow-lg shadow-indigo-500/10 ring-2 ring-indigo-500/20' : 'text-on-surface-variant/40 hover:text-indigo-600 hover:bg-indigo-500/10 border border-outline-variant/20 bg-surface-container-low/50 hover:border-indigo-500/30'}"
+                      title={member.isTutor ? 'Retirer le statut de tuteur' : 'Désigner comme Tuteur'}
+                    >
+                      <span class="material-symbols-outlined text-xl transition-transform group-hover/tutor:scale-110 group-active/tutor:scale-90">{member.isTutor ? 'person_check' : 'person_add'}</span>
+                      {#if member.isTutor}
+                         <span class="absolute -top-1 -right-1 flex h-3 w-3">
+                           <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                           <span class="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+                         </span>
+                      {/if}
+                    </button>
+                    <div class="w-px h-6 bg-outline-variant/10 mx-1"></div>
                     <button
                       onclick={() => promoteStaff(member.userId)}
                       disabled={(() => {
@@ -1124,7 +1268,7 @@
         <div class="p-6 md:p-8 flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-low/30 backdrop-blur-sm">
           <div>
             <h3 class="text-2xl font-black tracking-tighter text-on-surface">Hiérarchie des Rôles</h3>
-            <p class="text-sm font-medium text-on-surface-variant/60 mt-1">Associez un rôle Discord à un grade staff, et réordonnez la hiérarchie.</p>
+            <p class="text-sm font-medium text-on-surface-variant/75 mt-1">Associez un rôle Discord à un grade staff, et réordonnez la hiérarchie.</p>
           </div>
           <button
             onclick={() => showAddRoleForm = !showAddRoleForm}
@@ -1165,6 +1309,28 @@
                 </select>
               </label>
             </div>
+            <div>
+              <label>
+                <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">Salon d'annonce des réunions <span class="text-on-surface-variant/50 normal-case tracking-normal">(Texte)</span></span>
+                <select bind:value={meetingAnnouncementChannelId} onchange={saveStaffConfig} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
+                  <option value={null}>-- Aucun --</option>
+                  {#each availableDiscordChannels as dc}
+                    <option value={dc.id}>#{dc.name}</option>
+                  {/each}
+                </select>
+              </label>
+            </div>
+            <div>
+              <label>
+                <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">Salon vocal / conférence des réunions</span>
+                <select bind:value={meetingVoiceChannelId} onchange={saveStaffConfig} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
+                  <option value={null}>-- Aucun --</option>
+                  {#each availableDiscordVoiceChannels as vc}
+                    <option value={vc.id}>{vc.name}</option>
+                  {/each}
+                </select>
+              </label>
+            </div>
           </div>
         </div>
 
@@ -1198,7 +1364,7 @@
                         onclick={() => selectRoleSuggestion(role)}
                       >
                         <span class="font-bold text-sm text-on-surface">{role.name}</span>
-                        <span class="text-xs text-on-surface-variant/40">@{role.id}</span>
+                        <span class="text-xs text-on-surface-variant/70">@{role.id}</span>
                       </button>
                     {/each}
                   </div>
@@ -1218,7 +1384,19 @@
           </div>
         {/if}
 
-        {#if orderedStaffRoles.length > 0}
+        {#if loadingStates.roles}
+          <div class="p-6 md:p-8 space-y-3">
+            {#each Array(4) as _}
+              <div class="flex items-center justify-between gap-4 rounded-3xl border border-outline-variant/10 bg-surface-container px-6 py-4">
+                <div class="flex items-center gap-3">
+                  <Skeleton width="w-8" height="h-8" rounded="rounded-lg" />
+                  <Skeleton width="w-32" height="h-5" />
+                </div>
+                <Skeleton width="w-24" height="h-4" rounded="rounded-full" />
+              </div>
+            {/each}
+          </div>
+        {:else if orderedStaffRoles.length > 0}
           <div class="p-6 md:p-8" role="list" aria-label="Liste des rôles staff">
             <div class="flex flex-col gap-3">
               {#each orderedStaffRoles as role (role.id)}
@@ -1239,7 +1417,7 @@
                   <div class="flex items-center gap-4 min-w-0">
                     <button
                       type="button"
-                      class="flex shrink-0 cursor-grab items-center justify-center rounded-xl p-2.5 text-on-surface-variant/30 hover:bg-primary/10 hover:text-primary active:cursor-grabbing"
+                      class="flex shrink-0 cursor-grab items-center justify-center rounded-xl p-2.5 text-on-surface-variant/70 hover:bg-primary/10 hover:text-primary active:cursor-grabbing"
                       draggable="true"
                       ondragstart={() => startRoleDrag(role.id)}
                       ondragend={clearRoleDragState}
@@ -1254,7 +1432,7 @@
                           Niveau {orderedStaffRoles.indexOf(role) + 1}
                         </span>
                       </h4>
-                      <p class="mt-0.5 truncate text-sm font-medium text-on-surface-variant/60">
+                      <p class="mt-0.5 truncate text-sm font-medium text-on-surface-variant/75">
                         {#if role.discordRoleId}
                           Rôle Discord lié: <span class="font-bold text-on-surface-variant">@{availableDiscordRoles.find((entry) => entry.id === role.discordRoleId)?.name || role.discordRoleId}</span>
                         {:else}
@@ -1305,8 +1483,24 @@
                 </div>
 
                 <!-- Testing Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {#each testingPeriods.filter(p => p.status === 'ONGOING') as period}
+                <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                  {#if loadingStates.testing}
+                    {#each Array(3) as _}
+                      <div class="flex flex-col rounded-[32px] border border-outline-variant/10 bg-surface-container p-6">
+                        <div class="flex items-center justify-between mb-6">
+                          <Skeleton width="w-12" height="h-12" rounded="rounded-2xl" />
+                          <Skeleton width="w-20" height="h-4" rounded="rounded-full" />
+                        </div>
+                        <Skeleton width="w-3/4" height="h-6" class="mb-2" />
+                        <Skeleton width="w-full" height="h-32" rounded="rounded-2xl" class="mb-4" />
+                        <div class="mt-auto pt-6 border-t border-outline-variant/5 flex justify-between">
+                           <Skeleton width="w-1/3" height="h-8" rounded="rounded-xl" />
+                           <Skeleton width="w-1/3" height="h-8" rounded="rounded-xl" />
+                        </div>
+                      </div>
+                    {/each}
+                  {:else}
+                    {#each testingPeriods.filter(p => p.status === 'ONGOING') as period}
                     {@const activity = period.staffMember?.activities || []}
                     {@const totalMessages = activity.reduce((sum, a) => sum + (a.messageCount || 0), 0)}
                     {@const totalVoice = activity.reduce((sum, a) => sum + (a.voiceMinutes || 0), 0)}
@@ -1338,7 +1532,7 @@
                           <h3 class="truncate text-xl font-black text-on-surface leading-tight tracking-tight">
                             {period.staffMember?.displayName || period.staffMember?.username}
                           </h3>
-                          <p class="text-[11px] font-bold text-on-surface-variant/60 flex items-center gap-1.5 mt-1">
+                          <p class="text-[11px] font-bold text-on-surface-variant/75 flex items-center gap-1.5 mt-1">
                             <span class="material-symbols-rounded text-[14px] text-primary">calendar_today</span>
                             Depuis le {new Date(period.startDate).toLocaleDateString('fr-FR')}
                           </p>
@@ -1348,7 +1542,7 @@
                       <!-- Progress Section -->
                       <div class="mb-6 rounded-2xl bg-surface-container/40 p-4 border border-outline-variant/10">
                         <div class="flex justify-between items-end mb-3">
-                          <span class="text-[9px] font-black uppercase text-on-surface-variant/50 tracking-widest">Évolution du Test</span>
+                          <span class="text-[9px] font-black uppercase text-on-surface-variant/70 tracking-widest">Évolution du Test</span>
                           <span class="text-xs font-black text-primary">{daysElapsed} / {period.plannedDurationDays || 14} jours</span>
                         </div>
                         <div class="h-2.5 w-full overflow-hidden rounded-full bg-surface-container-highest/50">
@@ -1389,7 +1583,7 @@
                         <div class="space-y-2.5">
                           {#if !period.reports || period.reports.length === 0}
                             <div class="py-4 text-center">
-                              <span class="text-[10px] font-bold italic text-on-surface-variant/30 uppercase tracking-widest leading-relaxed">Aucun rapport publié</span>
+                              <span class="text-[10px] font-bold italic text-on-surface-variant/70 uppercase tracking-widest leading-relaxed">Aucun rapport publié</span>
                             </div>
                           {:else}
                             {#each period.reports.slice(0, 2) as report}
@@ -1456,6 +1650,7 @@
                       </button>
                     </div>
                   {/each}
+                  {/if}
                 </div>
 
                 <!-- History Toggle -->
@@ -1739,7 +1934,29 @@
         {/if}
 
         <div class="p-6 md:p-8 space-y-6">
-          {#if polls.length === 0}
+          {#if loadingStates.polls}
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {#each Array(4) as _}
+                <div class="bg-surface-container px-6 py-6 rounded-3xl border border-outline-variant/10">
+                   <div class="flex justify-between items-start mb-6">
+                      <div class="space-y-2">
+                        <Skeleton width="w-24" height="h-4" rounded="rounded-full" />
+                        <Skeleton width="w-48" height="h-6" />
+                      </div>
+                      <Skeleton width="w-8" height="h-8" rounded="rounded-lg" />
+                   </div>
+                   <div class="space-y-3 mb-6">
+                      <Skeleton height="h-10" rounded="rounded-xl" />
+                      <Skeleton height="h-10" rounded="rounded-xl" />
+                   </div>
+                   <div class="pt-4 border-t border-outline-variant/10 flex justify-between">
+                      <Skeleton width="w-32" height="h-3" />
+                      <Skeleton width="w-24" height="h-3" />
+                   </div>
+                </div>
+              {/each}
+            </div>
+          {:else if polls.length === 0}
             <div class="p-16 flex flex-col items-center justify-center text-center opacity-40">
               <span class="material-symbols-outlined text-6xl">ballot</span>
               <p class="mt-4 text-sm font-bold uppercase tracking-widest">Aucun sondage actif</p>
@@ -1844,7 +2061,25 @@
                 </tr>
               </thead>
               <tbody class="divide-y divide-outline-variant/5">
-                {#each leadershipMetrics as metric}
+                {#if loadingStates.leadership}
+                  {#each Array(5) as _}
+                    <tr>
+                      <td class="px-8 py-5">
+                        <div class="flex items-center gap-3">
+                          <Skeleton width="w-9" height="h-9" circle={true} />
+                          <div class="space-y-1">
+                            <Skeleton width="w-24" height="h-4" />
+                            <Skeleton width="w-16" height="h-3" />
+                          </div>
+                        </div>
+                      </td>
+                      <td class="px-8 py-5"><Skeleton width="w-32" height="h-4" /></td>
+                      <td class="px-8 py-5"><Skeleton width="w-24" height="h-10" /></td>
+                      <td class="px-8 py-5 text-right"><Skeleton width="w-20" height="h-5" rounded="rounded-full" class="ml-auto" /></td>
+                    </tr>
+                  {/each}
+                {:else}
+                  {#each leadershipMetrics as metric}
                   {@const member = staffMembers.find(m => m.userId === metric.staffUserId)}
                   <tr class="group hover:bg-primary/4 transition-colors">
                     <td class="px-8 py-5">
@@ -1891,6 +2126,7 @@
                     </td>
                   </tr>
                 {/each}
+                {/if}
               </tbody>
             </table>
           </div>
@@ -1906,7 +2142,21 @@
           </div>
 
           <div class="grid gap-6">
-            {#each absences as absence}
+            {#if loadingStates.absences}
+              {#each Array(3) as _}
+                <div class="bg-surface-container px-6 py-6 rounded-3xl border border-outline-variant/10 flex items-center justify-between">
+                  <div class="flex items-center gap-4">
+                    <Skeleton width="w-12" height="h-12" rounded="rounded-full" />
+                    <div class="space-y-2">
+                       <Skeleton width="w-32" height="h-5" />
+                       <Skeleton width="w-48" height="h-4" />
+                    </div>
+                  </div>
+                  <Skeleton width="w-24" height="h-10" rounded="rounded-xl" />
+                </div>
+              {/each}
+            {:else}
+              {#each absences as absence}
               <div class="bg-surface-container px-6 py-6 rounded-3xl border border-outline-variant/10 flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div class="flex items-center gap-4">
                   <div class="h-12 w-12 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant/40 border border-outline-variant/10">
@@ -1947,6 +2197,7 @@
                 </div>
               {/if}
             {/each}
+            {/if}
           </div>
         </div>
 
@@ -1965,6 +2216,16 @@
 
           {#if showMeetingForm}
              <div class="p-6 md:p-8 bg-primary/5 border border-primary/10 rounded-[2.5rem] animate-in slide-in-from-top-4 duration-300">
+                <div class="mb-6 grid gap-3 md:grid-cols-2">
+                  <div class="rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-xs text-on-surface-variant/80">
+                    <p class="font-black uppercase tracking-wider text-[10px] text-on-surface-variant/50 mb-1">Salon d'annonce</p>
+                    <p class="font-semibold">{meetingAnnouncementChannelId ? `<#${meetingAnnouncementChannelId}>` : 'Non configuré'}</p>
+                  </div>
+                  <div class="rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-xs text-on-surface-variant/80">
+                    <p class="font-black uppercase tracking-wider text-[10px] text-on-surface-variant/50 mb-1">Salon conférence</p>
+                    <p class="font-semibold">{meetingVoiceChannelId ? `<#${meetingVoiceChannelId}>` : 'Non configuré'}</p>
+                  </div>
+                </div>
                 <div class="grid gap-6 md:grid-cols-2">
                    <div class="space-y-4">
                       <FormInput label="Titre de la réunion" bind:value={newMeetingTitle} placeholder="Ex: Débriefing hebdomadaire" />
@@ -1979,7 +2240,7 @@
                          <input id="meeting-scheduled-at" type="datetime-local" bind:value={newMeetingScheduledAt} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
                       </div>
                       <div class="flex justify-end pt-4">
-                         <button onclick={createMeeting} disabled={isSavingMeeting} class="inline-flex items-center gap-2 rounded-2xl bg-primary px-8 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 disabled:opacity-50 transition-all">
+                         <button onclick={createMeeting} disabled={isSavingMeeting || !meetingAnnouncementChannelId || !meetingVoiceChannelId} class="inline-flex items-center gap-2 rounded-2xl bg-primary px-8 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 disabled:opacity-50 transition-all">
                             {isSavingMeeting ? 'Enregistrement...' : 'Enregistrer la réunion'}
                          </button>
                       </div>
@@ -1989,7 +2250,25 @@
           {/if}
 
           <div class="grid gap-6 lg:grid-cols-2">
-            {#each meetings as meeting}
+            {#if loadingStates.meetings}
+              {#each Array(2) as _}
+                 <div class="bg-surface-container px-6 py-6 rounded-3xl border border-outline-variant/10 flex flex-col gap-4">
+                    <div class="flex justify-between items-start">
+                       <div class="space-y-2">
+                          <Skeleton width="w-32" height="h-4" rounded="rounded-full" />
+                          <Skeleton width="w-48" height="h-6" />
+                       </div>
+                       <Skeleton width="w-8" height="h-8" rounded="rounded-lg" />
+                    </div>
+                    <Skeleton height="h-12" rounded="rounded-xl" />
+                    <div class="flex justify-between items-center pt-4 border-t border-outline-variant/5">
+                       <Skeleton width="w-20" height="h-4" />
+                       <Skeleton width="w-20" height="h-4" />
+                    </div>
+                 </div>
+              {/each}
+            {:else}
+              {#each meetings as meeting}
               <div class="bg-surface-container px-6 py-6 rounded-3xl border border-outline-variant/10 group transition-all hover:border-primary/20">
                 <div class="flex items-start justify-between">
                   <div class="space-y-1">
@@ -2022,6 +2301,7 @@
                 </div>
               </div>
             {/each}
+            {/if}
           </div>
         </div>
       {/if}

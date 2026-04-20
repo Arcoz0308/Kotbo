@@ -194,7 +194,7 @@
               <h2 class="text-3xl md:text-5xl font-black text-on-surface tracking-tighter font-headline leading-tight">
                 {staffMember.displayName || staffMember.username || user.username}
               </h2>
-              <p class="text-sm text-on-surface-variant/70 mt-1">@{user.username} • Identifiant: <span class="font-mono text-[10px] opacity-50">{user.id}</span></p>
+              <p class="text-sm text-on-surface-variant/80 mt-1">@{user.username} • Identifiant: <span class="font-mono text-[10px] opacity-60">{user.id}</span></p>
             </div>
             <div class="flex flex-wrap items-center gap-3">
               <span class="inline-flex items-center gap-2 rounded-full bg-linear-to-r {gradeColor(staffMember.grade)} px-4 py-2 text-xs font-black text-white shadow-lg uppercase tracking-widest font-headline">
@@ -289,7 +289,7 @@
                 <span class="material-symbols-outlined text-2xl">key</span>
               </div>
               <div>
-                <p class="text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant/40">Développement</p>
+                <p class="text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant/70">Développement</p>
                 <h3 class="text-lg font-black tracking-tighter text-on-surface">Mes Clés API</h3>
               </div>
             </div>
@@ -332,18 +332,18 @@
                       </div>
                     </div>
                     <div class="flex items-center gap-3">
-                      <code class="text-xs font-mono text-on-surface-variant/60 bg-surface-container rounded px-2 py-0.5">{key.displayKey}</code>
+                      <code class="text-xs font-mono text-on-surface-variant/75 bg-surface-container rounded px-2 py-0.5">{key.displayKey}</code>
                       <button
                         type="button"
                         onclick={() => copyToClipboard(key.displayKey, key.id)}
-                        class="text-on-surface-variant/40 hover:text-primary transition-colors"
+                        class="text-on-surface-variant/70 hover:text-primary transition-colors"
                         title="Copier"
                       >
                         <span class="material-symbols-outlined text-sm">{copiedKeyId === key.id ? 'check' : 'content_copy'}</span>
                       </button>
                     </div>
                     {#if key.lastUsedAt}
-                      <p class="text-[10px] text-on-surface-variant/40">Dernière utilisation : {formatDate(key.lastUsedAt)}</p>
+                      <p class="text-[10px] text-on-surface-variant/70">Dernière utilisation : {formatDate(key.lastUsedAt)}</p>
                     {/if}
                   </div>
                   <button 
@@ -362,7 +362,7 @@
                 <span class="material-symbols-outlined text-3xl">key_off</span>
               </div>
               <h4 class="mt-4 text-lg font-black tracking-tighter text-on-surface">Aucune clé API</h4>
-              <p class="mt-2 max-w-sm text-sm leading-relaxed text-on-surface-variant/65">
+              <p class="mt-2 max-w-sm text-sm leading-relaxed text-on-surface-variant/75">
                 Crée une nouvelle clé pour utiliser l'API Kotbo et intégrer tes propres outils.
               </p>
             </div>
@@ -379,7 +379,7 @@
                 <span class="material-symbols-outlined text-2xl">build</span>
               </div>
               <div>
-                <p class="text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant/40">Accès</p>
+                <p class="text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant/70">Accès</p>
                 <h3 class="text-lg font-black tracking-tighter text-on-surface">Outils disponibles</h3>
               </div>
             </div>
@@ -400,7 +400,7 @@
               <span class="material-symbols-outlined text-2xl">info</span>
             </div>
             <div>
-              <p class="text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant/40">Information</p>
+              <p class="text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant/70">Information</p>
               <h3 class="text-lg font-black tracking-tighter text-on-surface">À propos</h3>
             </div>
           </div>
@@ -410,7 +410,7 @@
           </div>
           <div class="grid gap-3">
             <div class="rounded-3xl border border-outline-variant/15 bg-surface-container-low/70 p-4">
-              <p class="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant/40">Identifiant</p>
+              <p class="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant/70">Identifiant</p>
               <p class="mt-1 text-sm font-bold text-on-surface font-mono">{user.id}</p>
             </div>
             <div class="rounded-3xl border border-outline-variant/15 bg-surface-container-low/70 p-4">
