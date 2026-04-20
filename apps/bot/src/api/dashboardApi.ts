@@ -73,6 +73,12 @@ import {
   markProcedureAsRead,
   getStaffAlertsAndProgression
 } from '../services/staffLeadershipService.js';
+import {
+  getCandidatures,
+  createCandidature,
+  updateCandidatureStatus,
+  deleteCandidature,
+} from '../services/recruitmentService.js';
 
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
@@ -1740,6 +1746,25 @@ export const startDashboardApi = (client: Client) => {
 
       if (url.pathname === '/health') {
         json(res, 200, { ok: true, service: 'kotbo-dashboard-api' });
+        return;
+      }
+
+      if (parts[0] === 'api' && parts[1] === 'webhooks' && parts[2] === 'recruitment' && parts[3] && req.method === 'POST') {
+        const guildId = parts[3];
+        try {
+          const body = await readJsonBody(req);
+          if (!body) {
+            json(res, 400, { error: 'Payload vide' });
+            return;
+          }
+          
+          await createCandidature(guildId, body);
+          
+          json(res, 201, { ok: true, message: 'Candidature enregistrée' });
+        } catch (err) {
+          logger.error('RecruitmentAPI', 'Webhook error:', err);
+          json(res, 500, { error: 'Erreur lors du traitement de la candidature' });
+        }
         return;
       }
 
@@ -4559,6 +4584,136 @@ export const startDashboardApi = (client: Client) => {
             } catch (err) {
               logger.error('StaffAPI', 'Error deleting API key:', err);
               json(res, 500, { error: 'Erreur lors de la suppression de la clé API' });
+            }
+            return;
+          }
+        }
+
+        // --- MEMBER MANAGEMENT & MODERATION ---
+        
+        // GET /api/dashboard/guilds/:guildId/members/search - Search members (Moderator access)
+        if (parts[4] === 'members' && parts[5] === 'search' && req.method === 'GET') {
+          const guildId = parts[3];
+          if (!guildId) {
+            json(res, 400, { error: 'guildId manquant' });
+            return;
+          }
+
+          const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+          if (accessLevel.level === 'none') {
+            json(res, 403, { error: 'Accès restreint aux modérateurs.' });
+            return;
+          }
+
+          const query = (url.searchParams.get('q') || url.searchParams.get('query') || '').trim();
+          const limit = Math.min(50, Math.max(1, parseInt(url.searchParams.get('limit') || '12')));
+
+          try {
+            const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+            if (!discordGuild) {
+              json(res, 404, { error: 'Serveur introuvable' });
+              return;
+            }
+
+            // Search in DB Profiles first
+            const dbProfiles = await prisma.memberProfile.findMany({
+              where: {
+                guildId,
+                OR: [
+                  { username: { contains: query, mode: 'insensitive' } },
+                  { globalName: { contains: query, mode: 'insensitive' } },
+                  { displayName: { contains: query, mode: 'insensitive' } },
+                  { userTag: { contains: query, mode: 'insensitive' } },
+                  { userId: { contains: query } }
+                ]
+              },
+              take: limit,
+              orderBy: { lastSeenAt: 'desc' }
+            });
+
+            const results = dbProfiles.map(p => ({
+              id: p.userId,
+              username: p.username || p.userTag,
+              displayName: p.displayName || p.globalName || p.username || p.userTag,
+              avatarUrl: p.avatarUrl,
+              isBot: p.isBot,
+              lastSeenAt: p.lastSeenAt?.toISOString(),
+              joinedAt: p.guildJoinedAt?.toISOString()
+            }));
+
+            // Fallback to live Discord search if query is specific and results are low
+            if (results.length < limit && query.length >= 2) {
+              const members = await discordGuild.members.search({ query, limit }).catch(() => null);
+              if (members) {
+                members.forEach(m => {
+                  if (!results.some(r => r.id === m.id)) {
+                    results.push({
+                      id: m.id,
+                      username: m.user.username,
+                      displayName: m.displayName,
+                      avatarUrl: m.user.displayAvatarURL(),
+                      isBot: m.user.bot,
+                      lastSeenAt: null,
+                      joinedAt: m.joinedAt?.toISOString() || null
+                    });
+                  }
+                });
+              }
+            }
+
+            json(res, 200, { members: results.slice(0, limit) });
+          } catch (err) {
+            logger.error('MembersAPI', 'Error searching members:', err);
+            json(res, 500, { error: 'Erreur lors de la recherche des membres' });
+          }
+          return;
+        }
+
+        // --- RECRUITMENT ROUTES (Placeholder) ---
+        if (parts[4] === 'recruitment') {
+          const guildId = parts[3];
+          const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+          if (accessLevel.level !== 'admin') {
+            json(res, 403, { error: 'Accès administrateur requis pour le recrutement.' });
+            return;
+          }
+
+          if (parts[5] === 'candidatures' && req.method === 'GET') {
+            try {
+              const list = await getCandidatures(guildId);
+              json(res, 200, { candidatures: list });
+            } catch (err) {
+              logger.error('RecruitmentAPI', 'Error fetching candidatures:', err);
+              json(res, 500, { error: 'Erreur lors du chargement des candidatures' });
+            }
+            return;
+          }
+
+          if (parts[5] === 'candidatures' && parts[6] && req.method === 'PATCH') {
+            const candidatureId = parts[6];
+            try {
+              const body = await readJsonBody<{ status: string; notes?: string }>(req);
+              if (!body || !body.status) {
+                json(res, 400, { error: 'Status manquant' });
+                return;
+              }
+              const updated = await updateCandidatureStatus(candidatureId, body.status as any, body.notes);
+              json(res, 200, updated);
+            } catch (err) {
+              logger.error('RecruitmentAPI', 'Error updating candidature:', err);
+              json(res, 500, { error: 'Erreur lors de la mise à jour' });
+            }
+            return;
+          }
+
+          if (parts[5] === 'candidatures' && parts[6] && req.method === 'DELETE') {
+            const candidatureId = parts[6];
+            try {
+              await deleteCandidature(candidatureId);
+              json(res, 200, { ok: true });
+            } catch (err) {
+              logger.error('RecruitmentAPI', 'Error deleting candidature:', err);
+              json(res, 500, { error: 'Erreur lors de la suppression' });
             }
             return;
           }

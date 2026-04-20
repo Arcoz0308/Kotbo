@@ -24,6 +24,8 @@
   import StaffManagement from './pages/StaffManagement.svelte';
   import Procedures from './pages/Procedures.svelte';
   import News from './pages/News.svelte';
+  import Members from './pages/Members.svelte';
+  import Recruitment from './pages/Recruitment.svelte';
 
   const adminOnlyPrefixes = ['/modules', '/module-settings', '/settings', '/notifications', '/automations', '/command-access', '/regulation', '/staff-management'];
 
@@ -141,6 +143,12 @@
             <StaffManagement />
           </Route>
         {/if}
+        <Route path="/members">
+          <Members />
+        </Route>
+        <Route path="/recruitment">
+          <Recruitment />
+        </Route>
       </MainLayout>
     {:else if $router.path !== '/login'}
        <!-- Optional: Loader or nothing while redirecting -->

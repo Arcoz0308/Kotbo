@@ -81,6 +81,7 @@ model Guild {
   staffManagerNotes StaffManagerNote[]
   staffPolls StaffPoll[]
   staffProcedures StaffProcedure[]
+  candidatures RecruitmentCandidature[]
 
   @@map("guilds")
 }
@@ -1001,4 +1002,37 @@ model StaffProcedureRead {
 
   @@unique([procedureId, staffUserId])
   @@map("staff_procedure_reads")
+}
+
+enum CandidatureStatus {
+  PENDING
+  ORAL
+  APPROVED
+  REJECTED
+}
+
+model RecruitmentCandidature {
+  id String @id @default(cuid())
+  guildId String
+  
+  // Identifying fields (can be submitted or parsed)
+  discordId String?
+  username String?
+  email String?
+  
+  status CandidatureStatus @default(PENDING)
+  
+  // The raw submission from Google Forms / Webhook
+  data Json
+  
+  // Internal notes from staff
+  notes String?
+  
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, status])
+  @@map("recruitment_candidatures")
 }

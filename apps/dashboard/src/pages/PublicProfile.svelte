@@ -3,7 +3,7 @@
   import { API_BASE_URL, fetchManagerNotes, addManagerNote } from '../lib/api';
   import { authStore } from '../lib/stores/auth.svelte';
   import { router } from 'tinro';
-  import Papicon from '../lib/components/Papicon.svelte';
+  import ManagerNotesPane from '../lib/components/ManagerNotesPane.svelte';
   import type { StaffManagerNote } from '../lib/types';
 
   interface Props {
@@ -15,8 +15,6 @@
   let notes = $state<StaffManagerNote[]>([]);
   let loading = $state(true);
   let error = $state('');
-  let newNote = $state('');
-  let isSavingNote = $state(false);
 
   const isAdmin = $derived(
     authStore.guilds.find((g) => g.id === authStore.selectedGuildId)?.accessLevel === 'admin'
@@ -30,7 +28,6 @@
         throw new Error('Erreur lors de la récupération du profil');
       }
       profile = await res.json();
-      console.log('[PublicProfile] Received profile data:', profile);
       
       if (isAdmin) {
         notes = await fetchManagerNotes(userId);
@@ -41,20 +38,6 @@
       loading = false;
     }
   });
-
-  async function handleAddNote() {
-    if (!newNote.trim()) return;
-    isSavingNote = true;
-    try {
-      await addManagerNote(userId, newNote);
-      newNote = '';
-      notes = await fetchManagerNotes(userId);
-    } catch (err) {
-      alert('Erreur lors de l\'ajout de la note');
-    } finally {
-      isSavingNote = false;
-    }
-  }
 
   function getTierColor(tier: string) {
     switch (tier) {
@@ -68,119 +51,107 @@
 
 <div class="public-profile">
   {#if loading}
-    <div class="status-box">
-        <div class="spinner"></div>
-        <p>Chargement du profil scout...</p>
+    <div class="flex flex-col items-center justify-center py-32 text-on-surface-variant/20">
+      <span class="material-symbols-outlined text-6xl animate-spin">progress_activity</span>
+      <p class="mt-4 text-xs font-black uppercase tracking-[0.3em]">Chargement du profil...</p>
     </div>
   {:else if error}
-    <div class="status-box error">
-        <div class="icon">⚠️</div>
-        <p>{error}</p>
-        <button onclick={() => router.goto('/')}>Retour à l'accueil</button>
+    <div class="max-w-xl text-center">
+      <span class="material-symbols-outlined text-6xl text-rose-500 mb-6">error</span>
+      <h2 class="text-3xl font-black text-on-surface mb-2">{error}</h2>
+      <p class="text-on-surface-variant font-medium mb-8">L'utilisateur a peut-être rejoint une autre sphère.</p>
+      <button onclick={() => router.goto('/')} class="px-8 py-3 rounded-2xl bg-surface-container text-on-surface font-black uppercase tracking-widest text-xs border border-outline-variant/10">Retour</button>
     </div>
   {:else if profile}
     <div class="profile-card">
-        <div class="banner" style="background: linear-gradient(135deg, {getTierColor(profile.algo?.tier || 'Débutant')} 0%, #0f1219 100%)">
-            <div class="badge-overlay">PROFIL PUBLIC</div>
+        <div class="banner">
+           {#if profile.banner}
+             <img src={profile.banner} alt="Banner" class="w-full h-full object-cover" />
+           {/if}
+           <div class="badge-overlay">Profile Vérifié</div>
         </div>
-        
+
         <div class="header">
             <div class="avatar-container">
-                <img src={profile.user.avatarUrl} alt={profile.user.username} class="avatar" />
-                {#if profile.algo?.tier === 'Légende'}
-                    <div class="crown">👑</div>
-                {/if}
+               <img src={profile.avatar} alt={profile.username} class="avatar" />
+               {#if profile.rank === 0}
+                 <span class="material-symbols-outlined crown">workspace_premium</span>
+               {/if}
             </div>
-            
             <div class="user-info">
-                <h1>{profile.user.globalName || profile.user.username}</h1>
-                <p class="tag">@{profile.user.username}</p>
-                <div class="badges">
-                    {#if profile.algo}
-                        <span class="badge tier" style="background: {getTierColor(profile.algo.tier)}">{profile.algo.tier}</span>
-                    {/if}
-                    {#if profile.stats?.scoutedArticles > 50}
-                        <span class="badge contributor">Scout Élite</span>
-                    {/if}
-                </div>
+               <h1>{profile.displayName || profile.username}</h1>
+               <p class="tag">@{profile.username}</p>
+               
+               <div class="badges">
+                 {#each profile.roles || [] as role}
+                   <span class="badge contributor">{role.name}</span>
+                 {/each}
+               </div>
             </div>
         </div>
 
         <div class="stats-grid">
             <div class="stat-item">
-                <span class="value">{profile.algo?.totalPoints || 0}</span>
-                <span class="label">Points Algo</span>
+               <span class="value">{profile.points || 0}</span>
+               <span class="label">Points</span>
             </div>
             <div class="stat-item">
-                <span class="value">{profile.algo?.currentStreak || 0}</span>
-                <span class="label">Série actuelle</span>
+               <span class="value" style="color: {getTierColor(profile.tier)}">{profile.tier || 'Nouveau'}</span>
+               <span class="label">Tier</span>
             </div>
             <div class="stat-item">
-                <span class="value">{profile.stats?.scoutedArticles ?? 0}</span>
-                <span class="label">News validées</span>
+               <span class="value">{profile.streak || 0}j</span>
+               <span class="label">Streak</span>
             </div>
             <div class="stat-item">
-                <span class="value">{profile.algo?.rank || '—'}</span>
-                <span class="label">Rang Global</span>
+               <span class="value">#{(profile.rank || 0) + 1}</span>
+               <span class="label">Rang</span>
             </div>
         </div>
 
-        {#if profile.recentAlgos && profile.recentAlgos.length > 0}
-            <div class="section">
-                <h3>Derniers Défis Réalisés</h3>
-                <div class="algo-list">
-                    {#each profile.recentAlgos as algo}
-                        <div class="algo-card">
-                            <div class="algo-header">
-                                <span class="difficulty {(algo.difficulty || 'moyen').toLowerCase()}"></span>
-                                <span class="title">{algo.problemTitle ?? 'Défi sans titre'}</span>
-                            </div>
-                            <div class="algo-footer">
-                                <span>Note: {algo.scoreFinal ?? '—'}/5</span>
-                                <span>{algo.submittedAt ? new Date(algo.submittedAt).toLocaleDateString('fr') : '—'}</span>
-                            </div>
-                        </div>
-                    {/each}
-                </div>
+        <div class="section">
+            <h3>Activités Récentes</h3>
+            <div class="algo-list">
+                {#each profile.recentAlgos || [] as algo}
+                   <div class="algo-card">
+                      <div class="flex items-center gap-3">
+                         <span class="material-symbols-outlined text-primary">terminal</span>
+                         <p class="text-sm font-black text-on-surface">{algo.title}</p>
+                      </div>
+                      <p class="text-[10px] text-on-surface-variant font-medium">Validé le {new Date(algo.date).toLocaleDateString()}</p>
+                   </div>
+                {/each}
+                {#if (profile.recentAlgos?.length || 0) === 0}
+                   <p class="col-span-2 text-center text-[10px] text-on-surface-variant/40 italic">Aucune donnée algorithmique enregistrée.</p>
+                {/if}
             </div>
-        {/if}
+        </div>
 
         {#if isAdmin}
-            <div class="manager-notes-section">
-                <div class="section-header">
-                    <Papicon icon="lock" size={16} />
-                    <h3>Notes de Management (Privé Admin)</h3>
-                </div>
-                
-                <div class="notes-list">
-                    {#each notes as note}
-                        <div class="note-card">
-                            <div class="note-meta">
-                                <span class="author">Par {note.author?.displayName || 'Admin'}</span>
-                                <span class="date">{new Date(note.createdAt).toLocaleDateString('fr')}</span>
-                            </div>
-                            <p class="note-content">{note.content}</p>
-                        </div>
-                    {:else}
-                        <p class="no-notes">Aucune note pour le moment.</p>
-                    {/each}
-                </div>
-
-                <div class="add-note-box">
-                    <textarea 
-                        bind:value={newNote} 
-                        placeholder="Ajouter une note de suivi sur ce membre..."
-                        rows="3"
-                    ></textarea>
-                    <button onclick={handleAddNote} disabled={isSavingNote}>
-                        {isSavingNote ? 'Enregistrement...' : 'Ajouter la note'}
-                    </button>
-                </div>
+          <div class="p-8 border-t border-outline-variant/10 bg-linear-to-b from-rose-500/[0.02] to-transparent">
+            <div class="flex items-center gap-3 mb-8">
+              <div class="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-600 flex items-center justify-center">
+                <span class="material-symbols-outlined text-2xl">privacy_tip</span>
+              </div>
+              <div>
+                <p class="text-[10px] font-black uppercase tracking-[0.2em] text-rose-500/60">Espace Administration</p>
+                <h3 class="text-xl font-black tracking-tighter text-on-surface" style="margin-bottom: 0; opacity: 1; text-align: left;">Notes de Management</h3>
+              </div>
             </div>
+
+            <ManagerNotesPane 
+              {userId} 
+              {notes} 
+              onNoteAdded={async () => { notes = await fetchManagerNotes(userId); }}
+              onNoteDeleted={async () => { notes = await fetchManagerNotes(userId); }}
+            />
+          </div>
         {/if}
 
-        <div class="footer">
-            <p>Kotbo Community Profile • Données vérifiées sur la blockchain Kotbo</p>
+        <div class="p-8 border-t border-outline-variant/5 text-center">
+            <p class="text-[10px] font-bold uppercase tracking-[0.3em] text-on-surface-variant/20 italic">
+              Kotbo Intelligent Ecosystem • Verified Core Profile
+            </p>
         </div>
     </div>
   {/if}
@@ -192,108 +163,126 @@
     justify-content: center;
     align-items: flex-start;
     min-height: 100vh;
-    background: radial-gradient(circle at top right, #1a222e 0%, #0f1219 100%);
-    padding: 6rem 1rem; /* Even more top padding to avoid any browser UI overlap */
-    font-family: 'Inter', sans-serif;
-    color: #ffffff;
-    overflow-y: auto;
-  }
-
-  .status-box {
-    text-align: center;
-    background: rgba(255, 255, 255, 0.05);
-    padding: 3rem;
-    border-radius: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: radial-gradient(circle at top right, var(--surface-container-high), var(--surface-container-lowest));
+    padding: 6rem 1.5rem;
+    color: var(--on-surface);
   }
 
   .profile-card {
     width: 100%;
-    max-width: 600px;
-    background: rgba(17, 20, 29, 0.8);
-    backdrop-filter: blur(20px);
-    border-radius: 24px;
+    max-width: 720px;
+    background: var(--surface-container-low);
+    border-radius: 4rem;
     overflow: hidden;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: var(--shadow-xl);
+    border: 1px solid var(--outline-variant);
+    animation: slide-up 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes slide-up {
+    from { opacity: 0; transform: translateY(40px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
   }
 
   .banner {
-    height: 180px; /* Taller banner for more "breath" at the top */
+    height: 240px;
     position: relative;
+    overflow: hidden;
+  }
+
+  .banner::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, transparent 40%, var(--surface-container-low));
   }
 
   .badge-overlay {
     position: absolute;
-    top: 32px; /* Moved further from top edge */
-    right: 32px; /* Moved further from right edge */
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(12px);
-    padding: 6px 14px;
-    border-radius: 12px;
+    top: 2rem;
+    right: 2rem;
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(20px);
+    padding: 0.5rem 1.25rem;
+    border-radius: 1.5rem;
     font-size: 0.65rem;
-    font-weight: 800;
-    letter-spacing: 1.5px;
+    font-weight: 900;
+    letter-spacing: 0.2em;
     border: 1px solid rgba(255, 255, 255, 0.15);
-    color: rgba(255, 255, 255, 0.9);
+    color: white;
     text-transform: uppercase;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-    z-index: 10;
+    z-index: 20;
   }
 
   .header {
-    margin-top: -60px; /* Slightly more overlap for larger banner */
-    padding: 0 2rem;
+    margin-top: -120px;
+    padding: 0 3rem;
     display: flex;
     flex-direction: column;
     align-items: center;
     text-align: center;
+    position: relative;
+    z-index: 10;
   }
 
   .avatar-container {
     position: relative;
-    margin-bottom: 1rem;
+    margin-bottom: 2rem;
   }
 
   .avatar {
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
-    border: 6px solid #11141d;
-    background: #11141d;
+    width: 180px;
+    height: 180px;
+    border-radius: 4rem;
+    border: 8px solid var(--surface-container-low);
+    background: var(--surface-container-low);
+    box-shadow: var(--shadow-2xl);
+    object-fit: cover;
   }
 
   .crown {
     position: absolute;
-    top: -10px;
-    right: -10px;
-    font-size: 2rem;
-    filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.5));
+    top: -20px;
+    right: -20px;
+    font-size: 3.5rem;
+    filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.5));
+    animation: float 4s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0) rotate(5deg); }
+    50% { transform: translateY(-10px) rotate(-5deg); }
   }
 
   .user-info h1 {
-    margin: 0;
-    font-size: 1.8rem;
-    font-weight: 800;
+    font-size: 2.5rem;
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    font-family: var(--font-headline);
   }
 
   .tag {
-    color: #8b949e;
-    margin: 0.2rem 0 1rem 0;
+    color: var(--on-surface-variant);
+    opacity: 0.5;
+    font-weight: 700;
+    font-size: 1.1rem;
+    margin: 0.5rem 0 1.5rem;
   }
 
   .badges {
     display: flex;
-    gap: 0.5rem;
+    gap: 0.75rem;
     justify-content: center;
   }
 
   .badge {
-    padding: 4px 12px;
-    border-radius: 6px;
-    font-size: 0.75rem;
-    font-weight: 700;
+    padding: 0.5rem 1.25rem;
+    border-radius: 1rem;
+    font-size: 0.7rem;
+    font-weight: 900;
     text-transform: uppercase;
+    letter-spacing: 0.1em;
   }
 
   .contributor {
@@ -304,240 +293,87 @@
 
   .stats-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1rem;
-    padding: 2rem;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+    padding: 3rem;
   }
 
   .stat-item {
-    background: rgba(255, 255, 255, 0.03);
-    backdrop-filter: blur(8px);
-    padding: 1.5rem;
-    border-radius: 20px;
+    background: var(--surface-container);
+    padding: 2rem 1rem;
+    border-radius: 2.5rem;
     display: flex;
     flex-direction: column;
     align-items: center;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid var(--outline-variant);
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .stat-item:hover {
-    transform: translateY(-8px);
-    background: rgba(255, 255, 255, 0.07);
-    border-color: rgba(255, 255, 255, 0.2);
-    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+    transform: translateY(-12px);
+    background: var(--surface-container-high);
+    border-color: var(--primary);
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.3);
   }
 
   .stat-item .value {
-    font-size: 1.5rem;
-    font-weight: 800;
-    color: #ffffff;
+    font-size: 1.75rem;
+    font-weight: 950;
+    color: var(--on-surface);
   }
 
   .stat-item .label {
-    font-size: 0.8rem;
-    color: #8b949e;
+    font-size: 0.6rem;
+    color: var(--on-surface-variant);
+    opacity: 0.4;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-top: 0.4rem;
+    font-weight: 900;
+    letter-spacing: 0.15em;
+    margin-top: 0.5rem;
   }
 
   .section {
-    padding: 0 2rem 2rem 2rem;
+    padding: 0 3rem 3rem;
   }
 
   .section h3 {
-    font-size: 1rem;
-    color: #8b949e;
+    font-size: 0.8rem;
+    color: var(--on-surface-variant);
+    opacity: 0.3;
     text-transform: uppercase;
-    margin-bottom: 1rem;
-    letter-spacing: 1px;
+    font-weight: 900;
+    margin-bottom: 2rem;
+    letter-spacing: 0.2em;
+    text-align: center;
   }
 
   .algo-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.8rem;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
   }
 
   .algo-card {
-    background: rgba(255, 255, 255, 0.02);
-    padding: 1rem;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-  }
-
-  .algo-header {
-    display: flex;
-    align-items: center;
-    gap: 0.8rem;
-    margin-bottom: 0.5rem;
-  }
-
-  .difficulty {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-  }
-
-  .difficulty.facile { background: #57f287; }
-  .difficulty.moyen { background: #fee75c; }
-  .difficulty.difficile { background: #ed4245; }
-
-  .algo-header .title {
-    font-weight: 600;
-    font-size: 0.9rem;
-  }
-
-  .algo-footer {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.75rem;
-    color: #8b949e;
-  }
-
-  .footer {
-    padding: 1rem 2rem;
-    text-align: center;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
-    font-size: 0.7rem;
-    color: #4e5563;
-  }
-
-  .spinner {
-    width: 40px;
-    height: 40px;
-    border: 4px solid rgba(255, 255, 255, 0.1);
-    border-top: 4px solid #5865f2;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin: 0 auto 1rem auto;
-  }
-
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-
-  .manager-notes-section {
-    padding: 2rem;
-    background: rgba(255, 69, 58, 0.03);
-    border-top: 1px solid rgba(255, 69, 58, 0.1);
-    border-bottom: 1px solid rgba(255, 69, 58, 0.1);
-  }
-
-  .section-header {
-    display: flex;
-    items-center: center;
-    gap: 0.5rem;
-    margin-bottom: 1.5rem;
-    color: #ff453a;
-  }
-
-  .section-header h3 {
-    margin: 0;
-    font-size: 0.9rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: #ff453a;
-  }
-
-  .notes-list {
+    background: var(--surface-container-low);
+    padding: 1.5rem;
+    border-radius: 2rem;
+    border: 1px solid var(--outline-variant);
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    margin-bottom: 1.5rem;
+    transition: all 0.3s ease;
   }
 
-  .note-card {
-    background: rgba(255, 255, 255, 0.02);
-    backdrop-filter: blur(4px);
-    padding: 1.25rem;
-    border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    transition: background 0.2s;
+  .algo-card:hover {
+    background: var(--surface-container);
+    border-color: var(--primary);
   }
 
-  .note-card:hover {
-    background: rgba(255, 255, 255, 0.04);
-  }
-
-  .note-meta {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.75rem;
-    margin-bottom: 0.5rem;
-  }
-
-  .note-meta .author {
-    font-weight: 700;
-    color: #ff453a;
-  }
-
-  .note-meta .date {
-    color: #8b949e;
-  }
-
-  .note-content {
-    font-size: 0.85rem;
-    line-height: 1.5;
-    color: #e6edf3;
-    margin: 0;
-    white-space: pre-wrap;
-  }
-
-  .no-notes {
-    text-align: center;
-    padding: 1rem;
-    font-size: 0.8rem;
-    color: #8b949e;
-    font-style: italic;
-  }
-
-  .add-note-box {
-    display: flex;
-    flex-direction: column;
-    gap: 0.8rem;
-  }
-
-  .add-note-box textarea {
-    width: 100%;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 1rem;
-    color: white;
-    font-family: inherit;
-    font-size: 0.85rem;
-    outline: none;
-    resize: none;
-    transition: border-color 0.2s;
-  }
-
-  .add-note-box textarea:focus {
-    border-color: #ff453a;
-  }
-
-  .add-note-box button {
-    align-self: flex-end;
-    background: #ff453a;
-    color: white;
-    border: none;
-    padding: 0.6rem 1.2rem;
-    border-radius: 8px;
-    font-size: 0.8rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: opacity 0.2s;
-  }
-
-  .add-note-box button:hover {
-    opacity: 0.9;
-  }
-
-  .add-note-box button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+  @media (max-width: 640px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .algo-list { grid-template-columns: 1fr; }
+    .header { margin-top: -80px; padding: 0 1.5rem; }
+    .avatar { width: 140px; height: 140px; border-radius: 3rem; }
+    .user-info h1 { font-size: 2rem; }
   }
 </style>

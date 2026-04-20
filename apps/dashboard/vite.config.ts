@@ -18,4 +18,10 @@ export default defineConfig({
     svelte(),
     tailwindcss(),
   ],
+  optimizeDeps: {
+    include: ['monaco-editor'],
+  },
+  worker: {
+    format: 'es',
+  },
 })

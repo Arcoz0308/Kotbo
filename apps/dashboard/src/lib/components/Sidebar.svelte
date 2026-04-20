@@ -3,43 +3,70 @@
   import Papicon from './Papicon.svelte';
   import { authStore } from '../stores/auth.svelte';
 
-  const navItems = [
+  const dashboardItems = [
     { name: "Vue d'ensemble", icon: "grid", href: "/" },
-    { name: "Modules", icon: "sparkles", href: "/modules" },
-    { name: "Contenu", icon: "newspaper", href: "/content" },
-    { name: "Sanctions", icon: "alert-triangle", href: "/sanctions" },
-    { name: "Règlement", icon: "text-bubble", href: "/regulation" },
-    { name: "Mon Profil", icon: "user", href: "/profile" },
     { name: "Analytics", icon: "pie", href: "/analytics" },
+  ];
+
+  const moderationItems = [
+    { name: "Contenu", icon: "newspaper", href: "/content" },
+    { name: "Membres", icon: "user", href: "/members" },
+    { name: "Sanctions", icon: "alert-triangle", href: "/sanctions" },
+    { name: "Logs Discord", icon: "menu", href: "/logs" },
+    { name: "Journal d'activité", icon: "grades", href: "/activity" },
+  ];
+
+  const managementItems = [
+    { name: "Recrutement", icon: "support_agent", href: "/recruitment" },
+    { name: "Règlement", icon: "text-bubble", href: "/regulation" },
     { name: "Procédures", icon: "book", href: "/procedures" },
-    { name: "Logs", icon: "menu", href: "/logs" },
+    { name: "Personnel", icon: "sunrise", href: "/staff-management" },
+  ];
+
+  const configItems = [
+    { name: "Modules", icon: "sparkles", href: "/modules" },
+    { name: "Commandes", icon: "admin_panel_settings", href: "/command-access" },
+    { name: "Paramètres", icon: "gears", href: "/settings" },
   ];
 
   const canManageSettings = $derived(
     authStore.guilds.find((guild) => guild.id === authStore.selectedGuildId)?.accessLevel !== 'moderator'
   );
 
-  const visibleNavItems = $derived(
-    canManageSettings ? navItems : navItems.filter((item) => item.href !== '/modules' && item.href !== '/regulation')
+  // Modérateurs ne voient pas Modules, Règlement, Commandes, Paramètres
+  const visibleModerationItems = $derived(moderationItems);
+  const visibleManagementItems = $derived(
+    canManageSettings ? managementItems : managementItems.filter((item) => item.href !== '/regulation')
+  );
+  const visibleConfigItems = $derived(
+    canManageSettings ? configItems : []
   );
 
-  function isActiveNavItem(href) {
+  function isActiveNavItem(href: string) {
     if (href === '/') return $router.path === '/';
     return $router.path === href || $router.path.startsWith(`${href}/`);
   }
 
-  const secondaryItems = [
-    { name: "Paramètres globaux", icon: "gears", href: "/settings" },
-    { name: "Commandes", icon: "admin_panel_settings", href: "/command-access" },
-    { name: "Gestion du Personnel", icon: "sunrise", href: "/staff-management" },
-    { name: "Journal d'activité", icon: "grades", href: "/activity" },
-  ];
-
-  const visibleSecondaryItems = $derived(
-    canManageSettings ? secondaryItems : secondaryItems.filter((item) => item.href !== '/settings' && item.href !== '/command-access')
-  );
-
   const LOGO_URL = "/favicon.svg";
+
+  type NavGroup = {
+    label: string;
+    items: typeof dashboardItems;
+  };
+
+  const navGroups = $derived.by((): NavGroup[] => {
+    const groups: NavGroup[] = [
+      { label: 'Tableau de bord', items: dashboardItems },
+      { label: 'Modération', items: visibleModerationItems },
+    ];
+    if (visibleManagementItems.length > 0) {
+      groups.push({ label: 'Gestion', items: visibleManagementItems });
+    }
+    if (visibleConfigItems.length > 0) {
+      groups.push({ label: 'Configuration', items: visibleConfigItems });
+    }
+    return groups;
+  });
 </script>
 
 <aside class="flex flex-col fixed left-0 top-0 h-screen w-64 bg-surface-container-low/80 backdrop-blur-3xl border-r border-outline-variant/30 z-50 transition-all duration-500 hover:shadow-[20px_0_40px_rgba(0,0,0,0.05)]">
@@ -56,32 +83,39 @@
     </div>
   </div>
 
-  <nav class="flex-1 mt-6 px-4 space-y-1.5 overflow-y-auto scrollbar-hide">
-    <div class="px-3 mb-2 text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-[0.2em]">Menu Principal</div>
-    {#each visibleNavItems as item}
-      <a 
-        href={item.href}
-        class="flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all duration-300 group relative overflow-hidden {isActiveNavItem(item.href) ? 'text-primary bg-primary/5 font-bold' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-hover/50'}"
-      >
-        {#if isActiveNavItem(item.href)}
-          <div class="absolute left-0 top-3 bottom-3 w-1.5 bg-primary rounded-full animate-in slide-in-from-left-2 duration-300"></div>
-        {/if}
-        <Papicon icon={item.icon} size={22} class="transition-all duration-300 {isActiveNavItem(item.href) ? 'scale-110' : 'opacity-60 group-hover:opacity-100 group-hover:scale-110'}" />
-        <span class="text-[13px] tracking-tight">{item.name}</span>
-      </a>
-    {/each}
-
-    <div class="pt-6 mt-6 border-t border-outline-variant/30 px-3 flex flex-col gap-1.5">
-      <div class="mb-2 text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-[0.2em]">Configuration</div>
-      {#each visibleSecondaryItems as item}
+  <nav class="flex-1 mt-2 px-4 space-y-1 overflow-y-auto scrollbar-hide">
+    {#each navGroups as group, groupIdx}
+      {#if groupIdx > 0}
+        <div class="pt-4 mt-3 border-t border-outline-variant/30"></div>
+      {/if}
+      <div class="px-3 mb-2 text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-[0.2em]">{group.label}</div>
+      {#each group.items as item}
         <a 
           href={item.href}
-          class="flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all duration-300 group {$router.path === item.href ? 'text-primary bg-primary/5 font-bold' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-hover/50'}"
+          class="flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all duration-300 group relative overflow-hidden {isActiveNavItem(item.href) ? 'text-primary bg-primary/5 font-bold' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-hover/50'}"
         >
-          <Papicon icon={item.icon} size={20} class="transition-all duration-300 {$router.path === item.href ? 'scale-110' : 'opacity-60 group-hover:opacity-100'}" />
+          {#if isActiveNavItem(item.href)}
+            <div class="absolute left-0 top-3 bottom-3 w-1.5 bg-primary rounded-full animate-in slide-in-from-left-2 duration-300"></div>
+          {/if}
+          <Papicon icon={item.icon} size={22} class="transition-all duration-300 {isActiveNavItem(item.href) ? 'scale-110' : 'opacity-60 group-hover:opacity-100 group-hover:scale-110'}" />
           <span class="text-[13px] tracking-tight">{item.name}</span>
         </a>
       {/each}
+    {/each}
+
+    <!-- Mon Profil – en bas du nav -->
+    <div class="pt-4 mt-3 border-t border-outline-variant/30">
+      <div class="px-3 mb-2 text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-[0.2em]">Personnel</div>
+      <a 
+        href="/profile"
+        class="flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all duration-300 group relative overflow-hidden {isActiveNavItem('/profile') ? 'text-primary bg-primary/5 font-bold' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-hover/50'}"
+      >
+        {#if isActiveNavItem('/profile')}
+          <div class="absolute left-0 top-3 bottom-3 w-1.5 bg-primary rounded-full animate-in slide-in-from-left-2 duration-300"></div>
+        {/if}
+        <Papicon icon="user" size={22} class="transition-all duration-300 {isActiveNavItem('/profile') ? 'scale-110' : 'opacity-60 group-hover:opacity-100 group-hover:scale-110'}" />
+        <span class="text-[13px] tracking-tight">Mon Profil</span>
+      </a>
     </div>
   </nav>
 

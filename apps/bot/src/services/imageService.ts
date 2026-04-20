@@ -230,7 +230,16 @@ export async function generateStatsImage(guildId: string): Promise<Buffer> {
 }
 
 export async function generateWeeklyRecapImage(guildId: string, items: any[]): Promise<Buffer> {
-  const W = 1000, H = 850; // Increased height to avoid overlap
+  const itemX = 50;
+  const itemW = 900; // W (1000) - 100
+  const itemH = 110; // Slightly taller for better breathing room
+  const itemGap = 25;
+  const headerH = 210;
+  const footerH = 60;
+  
+  const W = 1000;
+  const H = Math.max(600, headerH + items.length * (itemH + itemGap) + footerH);
+  
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
 
@@ -283,15 +292,12 @@ export async function generateWeeklyRecapImage(guildId: string, items: any[]): P
   ctx.fillText(`[TIMESTAMP: ${dateStr.toUpperCase()}]`, 50, 170);
 
   // 4. Render News Items (Modern CLI Cards)
-  const itemX = 50;
-  let itemY = 210;
-  const itemW = W - 100;
-  const itemH = 105; // Slightly taller for better legibility
-  const itemGap = 20;
+  let currentY = headerH;
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
-    const y = itemY + i * (itemH + itemGap);
+    const y = currentY;
+    currentY += itemH + itemGap;
 
     // Subtle container border
     ctx.strokeStyle = 'rgba(88, 101, 242, 0.2)';
@@ -342,18 +348,19 @@ export async function generateWeeklyRecapImage(guildId: string, items: any[]): P
   }
 
   // 5. Console Footer (Stuck to bottom)
-  const footerH = 40;
   ctx.fillStyle = '#11141a';
   ctx.fillRect(0, H - footerH, W, footerH);
   ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(0, H - footerH);
   ctx.lineTo(W, H - footerH);
   ctx.stroke();
 
-  const footerTextY = H - 15;
+  const footerTextY = H - (footerH / 2) + 5;
   ctx.fillStyle = '#4e5563';
   ctx.font = '14px monospace';
+  ctx.textAlign = 'left';
   ctx.fillText(`KOTBO_OS_v1.0.4 [SUCCESS] - ${items.length} items parsed.`, 50, footerTextY);
   
   ctx.textAlign = 'right';

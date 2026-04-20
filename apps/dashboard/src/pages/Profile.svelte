@@ -3,6 +3,8 @@
   import { authStore } from '../lib/stores/auth.svelte';
   import { API_BASE_URL } from '../lib/api';
   import type { APIKey, StaffMember } from '../lib/types';
+  import MetricCard from '../lib/components/MetricCard.svelte';
+  import FormInput from '../lib/components/FormInput.svelte';
 
   let user: any = null;
   let staffMember: StaffMember | null = null;
@@ -16,6 +18,30 @@
   let error = '';
   let showNewKeyForm = false;
   let newKeyName = 'Ma clé API';
+  let copiedKeyId = '';
+
+  const getUserAvatar = () => {
+    if (staffMember?.avatarUrl) return staffMember.avatarUrl;
+    if (!user?.id || !user?.avatar) return 'https://cdn.discordapp.com/embed/avatars/0.png';
+    return `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png`;
+  };
+
+  const gradeIcon = (grade: string) => {
+    const g = grade?.toLowerCase();
+    if (g?.includes('admin')) return 'shield';
+    if (g?.includes('mod')) return 'verified_user';
+    if (g?.includes('dev')) return 'code';
+    if (g?.includes('helper') || g?.includes('test')) return 'support_agent';
+    return 'badge';
+  };
+
+  const gradeColor = (grade: string) => {
+    const g = grade?.toLowerCase();
+    if (g?.includes('admin')) return 'from-rose-500 to-orange-500';
+    if (g?.includes('mod')) return 'from-blue-500 to-indigo-500';
+    if (g?.includes('dev')) return 'from-emerald-500 to-teal-500';
+    return 'from-primary to-primary-container';
+  };
 
   onMount(async () => {
     if (!authStore.token) {
@@ -65,7 +91,7 @@
     if (!user || !staffMember) return;
 
     try {
-      const res = await fetch(`/api/dashboard/guilds/${staffMember.guildId}/api-keys`, {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${staffMember.guildId}/api-keys`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -80,11 +106,10 @@
       if (!res.ok) throw new Error('Erreur lors de la création de la clé API');
 
       const data = await res.json();
-      // Afficher la clé complète une seule fois à l'utilisateur
       alert(`Votre clé API a été créée:\n\n${data.fullKey}\n\nCopie-la maintenant, tu ne pourras pas la revoir!`);
       
       // Recharger les clés API
-      const keysRes = await fetch(`/api/dashboard/guilds/${staffMember.guildId}/api-keys`, {
+      const keysRes = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${staffMember.guildId}/api-keys`, {
         headers: { Authorization: `Bearer ${authStore.token}` }
       });
       const keysData = await keysRes.json();
@@ -101,7 +126,7 @@
     if (!staffMember || !confirm('Tu es sûr de vouloir supprimer cette clé API?')) return;
 
     try {
-      const res = await fetch(`/api/dashboard/guilds/${staffMember.guildId}/api-keys/${keyId}`, {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${staffMember.guildId}/api-keys/${keyId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${authStore.token}` }
       });
@@ -109,7 +134,7 @@
       if (!res.ok) throw new Error('Erreur lors de la suppression');
 
       // Recharger les clés API
-      const keysRes = await fetch(`/api/dashboard/guilds/${staffMember.guildId}/api-keys`, {
+      const keysRes = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${staffMember.guildId}/api-keys`, {
         headers: { Authorization: `Bearer ${authStore.token}` }
       });
       const keysData = await keysRes.json();
@@ -119,363 +144,290 @@
       alert('Erreur lors de la suppression');
     }
   }
+
+  function copyToClipboard(text: string, keyId: string) {
+    navigator.clipboard.writeText(text);
+    copiedKeyId = keyId;
+    setTimeout(() => { copiedKeyId = ''; }, 2000);
+  }
+
+  function formatDate(date: string | Date | null | undefined) {
+    if (!date) return '—';
+    return new Date(date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+  }
 </script>
 
-<div class="profile-container">
+<div class="space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-1000">
   {#if loading}
-    <div class="loading">Chargement...</div>
+    <div class="flex flex-col items-center justify-center py-32 text-on-surface-variant/40">
+      <span class="material-symbols-outlined text-7xl animate-spin">progress_activity</span>
+      <p class="mt-6 text-sm font-bold uppercase tracking-[0.2em]">Chargement de votre profil</p>
+    </div>
   {:else if error}
-    <div class="error">{error}</div>
+    <div class="rounded-3xl border border-rose-500/20 bg-rose-500/10 px-8 py-6 text-center">
+      <span class="material-symbols-outlined text-4xl text-rose-500">error</span>
+      <p class="mt-3 text-lg font-bold text-rose-700">{error}</p>
+    </div>
   {:else if user && staffMember}
-    <div class="profile-header">
-      <h1>Mon Profil Staff</h1>
-      <div class="profile-info">
-        <div class="user-card">
-          {#if staffMember.avatarUrl}
-            <img src={staffMember.avatarUrl} alt="Avatar" class="avatar" />
-          {/if}
-          <div class="user-details">
-            <h2>{staffMember.displayName || staffMember.username}</h2>
-            <p class="staff-grade">Grade: <strong>{staffMember.grade}</strong></p>
-            {#if isBlacklisted}
-              <p class="blacklist-warning">⚠️ Blacklisté: {blacklistReason}</p>
-              {#if blacklistEndDate}
-                <p class="blacklist-end">Jusqu'au: {new Date(blacklistEndDate).toLocaleDateString('fr')}</p>
-              {:else}
-                <p class="blacklist-permanent">Permanent</p>
+
+    <!-- ── Hero Section ──────────────────────────────────────── -->
+    <div class="rounded-[3rem] border border-outline-variant/20 bg-linear-to-br from-surface-container/90 via-surface-container-low/80 to-surface-container/50 p-8 md:p-10 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur-xl overflow-hidden relative">
+      <!-- Background gradient orb -->
+      <div class="absolute -top-32 -right-32 w-80 h-80 bg-linear-to-br {gradeColor(staffMember.grade)} rounded-full blur-[120px] opacity-20 pointer-events-none"></div>
+
+      <div class="relative flex flex-col gap-8 xl:flex-row xl:items-center xl:justify-between">
+        <div class="flex items-center gap-8">
+          <!-- Avatar -->
+          <div class="relative shrink-0">
+            <div class="absolute -inset-2 bg-linear-to-br {gradeColor(staffMember.grade)} rounded-3xl blur-xl opacity-40 animate-pulse"></div>
+            <div class="relative w-24 h-24 md:w-28 md:h-28 rounded-3xl border-4 border-surface-container-lowest shadow-2xl overflow-hidden">
+              <img src={getUserAvatar()} alt="Avatar" class="w-full h-full object-cover" />
+            </div>
+          </div>
+
+          <div class="space-y-3">
+            <div>
+              <p class="text-[10px] font-black uppercase tracking-[0.3em] text-primary mb-1">Espace Personnel</p>
+              <h2 class="text-3xl md:text-5xl font-black text-on-surface tracking-tighter font-headline leading-tight">
+                {staffMember.displayName || staffMember.username || user.username}
+              </h2>
+              <p class="text-sm text-on-surface-variant/70 mt-1">@{user.username} • Identifiant: <span class="font-mono text-[10px] opacity-50">{user.id}</span></p>
+            </div>
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="inline-flex items-center gap-2 rounded-full bg-linear-to-r {gradeColor(staffMember.grade)} px-4 py-2 text-xs font-black text-white shadow-lg uppercase tracking-widest font-headline">
+                <span class="material-symbols-outlined text-base font-bold">{gradeIcon(staffMember.grade)}</span>
+                {staffMember.grade}
+              </span>
+              {#if isBlacklisted}
+                <span class="inline-flex items-center gap-2 rounded-full bg-rose-500/10 border border-rose-500/20 px-4 py-2 text-xs font-black text-rose-700 uppercase tracking-widest">
+                  <span class="material-symbols-outlined text-base">block</span>
+                  Blacklisté
+                </span>
               {/if}
-            {/if}
+            </div>
           </div>
         </div>
 
-        {#if stats}
-          <div class="stats-grid">
-            <div class="stat-card">
-              <div class="stat-value">{stats.totalMessages}</div>
-              <div class="stat-label">Messages</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">{stats.totalVoiceMinutes}</div>
-              <div class="stat-label">Minutes Vocal</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">{stats.activeWarnings}</div>
-              <div class="stat-label">Avertissements</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">{stats.sanctionsIssued ?? 0}</div>
-              <div class="stat-label">Sanctions émises</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">{stats.pendingReports ?? 0}</div>
-              <div class="stat-label">Rapports en attente</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">{new Date(stats.joinedStaffAt).toLocaleDateString('fr')}</div>
-              <div class="stat-label">Depuis le (Staff)</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">{new Date(stats.currentRoleStartedAt).toLocaleDateString('fr')}</div>
-              <div class="stat-label">Depuis le (Grade)</div>
+        <div class="flex items-center gap-4">
+          <a href="/profile/{user.id}" class="inline-flex items-center gap-2 rounded-2xl border border-outline-variant/20 bg-white/5 hover:bg-white/10 px-6 py-3 text-xs font-black uppercase tracking-widest text-on-surface-variant transition-all hover:scale-[1.05] active:scale-[0.95]">
+            <span class="material-symbols-outlined text-lg">visibility</span>
+            Voir mon profil public
+          </a>
+        </div>
+      </div>
+
+      {#if isBlacklisted}
+        <div class="mt-6 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-5 py-4">
+          <div class="flex items-start gap-3">
+            <span class="material-symbols-outlined text-xl text-rose-500 shrink-0 mt-0.5">warning</span>
+            <div>
+              <p class="text-sm font-bold text-rose-700">Compte blacklisté</p>
+              <p class="text-xs text-rose-600 mt-1">{blacklistReason}</p>
+              {#if blacklistEndDate}
+                <p class="text-xs text-rose-500/70 mt-1">Jusqu'au {formatDate(blacklistEndDate)}</p>
+              {:else}
+                <p class="text-xs text-rose-500/70 mt-1 italic">Permanent</p>
+              {/if}
             </div>
           </div>
-        {/if}
+        </div>
+      {/if}
+    </div>
 
+    <!-- ── Stats Grid ──────────────────────────────────────── -->
+    {#if stats}
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <MetricCard label="Messages" value={`${stats.totalMessages ?? 0}`} note="total envoyés" icon="chat" toneClass="bg-primary/10 text-primary" />
+        <MetricCard label="Vocal" value={`${stats.totalVoiceMinutes ?? 0} min`} note="temps vocal" icon="mic" toneClass="bg-secondary/10 text-secondary" />
+        <MetricCard label="Avertissements" value={`${stats.activeWarnings ?? 0}`} note="actifs" icon="warning" toneClass="bg-amber-500/10 text-amber-700" />
+        <MetricCard label="Sanctions" value={`${stats.sanctionsIssued ?? 0}`} note="émises" icon="gavel" toneClass="bg-emerald-500/10 text-emerald-700" />
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="stat-kpi">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600">
+              <span class="material-symbols-outlined">pending_actions</span>
+            </div>
+            <p class="section-label">Rapports en attente</p>
+          </div>
+          <p class="text-3xl font-black text-on-surface tracking-tight">{stats.pendingReports ?? 0}</p>
+        </div>
+        <div class="stat-kpi">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600">
+              <span class="material-symbols-outlined">calendar_month</span>
+            </div>
+            <p class="section-label">Staff depuis</p>
+          </div>
+          <p class="text-lg font-black text-on-surface tracking-tight">{formatDate(stats.joinedStaffAt)}</p>
+        </div>
+        <div class="stat-kpi">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-600">
+              <span class="material-symbols-outlined">trending_up</span>
+            </div>
+            <p class="section-label">Grade depuis</p>
+          </div>
+          <p class="text-lg font-black text-on-surface tracking-tight">{formatDate(stats.currentRoleStartedAt)}</p>
+        </div>
+      </div>
+    {/if}
+
+    <!-- ── Tools & API Keys ──────────────────────────────────── -->
+    <div class="grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-8 items-start">
+
+      <!-- API Keys -->
+      <div class="premium-card rounded-[2.5rem] overflow-hidden">
+        <div class="p-6 md:p-8">
+          <div class="flex items-center justify-between gap-4 mb-6">
+            <div class="flex items-center gap-3">
+              <div class="w-11 h-11 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
+                <span class="material-symbols-outlined text-2xl">key</span>
+              </div>
+              <div>
+                <p class="text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant/40">Développement</p>
+                <h3 class="text-lg font-black tracking-tighter text-on-surface">Mes Clés API</h3>
+              </div>
+            </div>
+            <button 
+              onclick={() => showNewKeyForm = !showNewKeyForm} 
+              class="inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-xs font-black uppercase tracking-widest transition-all {showNewKeyForm ? 'bg-rose-500/10 text-rose-700 border border-rose-500/20 hover:bg-rose-500/20' : 'bg-primary text-on-primary shadow-lg shadow-primary/20 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]'}"
+            >
+              <span class="material-symbols-outlined text-lg">{showNewKeyForm ? 'close' : 'add'}</span>
+              {showNewKeyForm ? 'Annuler' : 'Nouvelle clé'}
+            </button>
+          </div>
+
+          {#if showNewKeyForm}
+            <div class="flex gap-3 items-end mb-6 p-4 rounded-2xl border border-outline-variant/20 bg-surface-container-low/60">
+              <div class="flex-1">
+                <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-1 block">Nom de la clé</label>
+                <FormInput bind:value={newKeyName} type="text" placeholder="Ma clé API" className="w-full" />
+              </div>
+              <button 
+                onclick={createNewAPIKey} 
+                class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 text-white px-5 py-3 text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 hover:scale-[1.02] active:scale-[0.98] transition-all"
+              >
+                <span class="material-symbols-outlined text-lg">check</span>
+                Créer
+              </button>
+            </div>
+          {/if}
+
+          {#if apiKeys.length > 0}
+            <div class="space-y-3">
+              {#each apiKeys as key (key.id)}
+                <div class="flex items-center justify-between gap-4 rounded-2xl border border-outline-variant/15 bg-surface-container-low/60 p-4 transition-all hover:border-primary/20 hover:shadow-sm group">
+                  <div class="min-w-0 flex-1 space-y-1.5">
+                    <div class="flex items-center gap-3">
+                      <span class="text-sm font-black text-on-surface">{key.name}</span>
+                      <div class="flex items-center gap-1.5">
+                        {#each key.permissions as perm}
+                          <span class="badge badge-info">{perm}</span>
+                        {/each}
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                      <code class="text-xs font-mono text-on-surface-variant/60 bg-surface-container rounded px-2 py-0.5">{key.displayKey}</code>
+                      <button
+                        type="button"
+                        onclick={() => copyToClipboard(key.displayKey, key.id)}
+                        class="text-on-surface-variant/40 hover:text-primary transition-colors"
+                        title="Copier"
+                      >
+                        <span class="material-symbols-outlined text-sm">{copiedKeyId === key.id ? 'check' : 'content_copy'}</span>
+                      </button>
+                    </div>
+                    {#if key.lastUsedAt}
+                      <p class="text-[10px] text-on-surface-variant/40">Dernière utilisation : {formatDate(key.lastUsedAt)}</p>
+                    {/if}
+                  </div>
+                  <button 
+                    onclick={() => deleteAPIKey(key.id)} 
+                    class="inline-flex items-center gap-1 rounded-xl border border-rose-500/20 bg-rose-500/8 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-rose-700 opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-600 hover:text-white hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    <span class="material-symbols-outlined text-sm">delete</span>
+                    Supprimer
+                  </button>
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <div class="flex flex-col items-center justify-center p-12 text-center">
+              <div class="w-16 h-16 rounded-3xl bg-primary/8 text-primary flex items-center justify-center shadow-inner">
+                <span class="material-symbols-outlined text-3xl">key_off</span>
+              </div>
+              <h4 class="mt-4 text-lg font-black tracking-tighter text-on-surface">Aucune clé API</h4>
+              <p class="mt-2 max-w-sm text-sm leading-relaxed text-on-surface-variant/65">
+                Crée une nouvelle clé pour utiliser l'API Kotbo et intégrer tes propres outils.
+              </p>
+            </div>
+          {/if}
+        </div>
+      </div>
+
+      <!-- Accessible Tools Sidebar -->
+      <div class="space-y-6">
         {#if accessibleTools.length > 0}
-          <div class="tools-section">
-            <h3 class="tools-title">Outils Accessibles</h3>
-            <div class="tools-grid">
+          <div class="premium-card rounded-[2.5rem] p-6 space-y-5">
+            <div class="flex items-center gap-3">
+              <div class="w-11 h-11 rounded-2xl bg-secondary/10 text-secondary flex items-center justify-center">
+                <span class="material-symbols-outlined text-2xl">build</span>
+              </div>
+              <div>
+                <p class="text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant/40">Accès</p>
+                <h3 class="text-lg font-black tracking-tighter text-on-surface">Outils disponibles</h3>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-2">
               {#each accessibleTools as tool}
-                <div class="tool-badge">{tool}</div>
+                <span class="inline-flex items-center gap-2 rounded-full border border-secondary/20 bg-secondary/8 px-4 py-2 text-xs font-black uppercase tracking-widest text-secondary">
+                  <span class="material-symbols-outlined text-sm">check_circle</span>
+                  {tool}
+                </span>
               {/each}
             </div>
           </div>
         {/if}
-      </div>
-    </div>
 
-    <div class="api-keys-section">
-      <div class="section-header">
-        <h3>Mes Clés API</h3>
-        <button onclick={() => showNewKeyForm = !showNewKeyForm} class="btn-primary">
-          {showNewKeyForm ? 'Annuler' : '+ Nouvelle clé'}
-        </button>
-      </div>
-
-      {#if showNewKeyForm}
-        <div class="new-key-form">
-          <input
-            type="text"
-            placeholder="Nom de la clé"
-            bind:value={newKeyName}
-            class="form-input"
-          />
-          <button onclick={createNewAPIKey} class="btn-success">Créer la clé</button>
-        </div>
-      {/if}
-
-      {#if apiKeys.length > 0}
-        <div class="keys-list">
-          {#each apiKeys as key (key.id)}
-            <div class="key-card">
-              <div class="key-info">
-                <div class="key-display">{key.displayKey}</div>
-                <div class="key-name">{key.name}</div>
-                <div class="key-perms">
-                  {#each key.permissions as perm}
-                    <span class="perm-badge">{perm}</span>
-                  {/each}
-                </div>
-                {#if key.lastUsedAt}
-                  <small>Dernière utilisation: {new Date(key.lastUsedAt).toLocaleDateString('fr')}</small>
-                {/if}
-              </div>
-              <button onclick={() => deleteAPIKey(key.id)} class="btn-danger">Supprimer</button>
+        <div class="premium-card rounded-[2.5rem] p-6 space-y-4">
+          <div class="flex items-center gap-3">
+            <div class="w-11 h-11 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
+              <span class="material-symbols-outlined text-2xl">info</span>
             </div>
-          {/each}
+            <div>
+              <p class="text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant/40">Information</p>
+              <h3 class="text-lg font-black tracking-tighter text-on-surface">À propos</h3>
+            </div>
+          </div>
+          <div class="space-y-3 text-sm leading-relaxed text-on-surface-variant/70">
+            <p>Ce profil affiche vos informations de staff et vos statistiques sur le serveur.</p>
+            <p>Les clés API permettent d'interagir programmatiquement avec les services Kotbo.</p>
+          </div>
+          <div class="grid gap-3">
+            <div class="rounded-3xl border border-outline-variant/15 bg-surface-container-low/70 p-4">
+              <p class="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant/40">Identifiant</p>
+              <p class="mt-1 text-sm font-bold text-on-surface font-mono">{user.id}</p>
+            </div>
+            <div class="rounded-3xl border border-outline-variant/15 bg-surface-container-low/70 p-4">
+              <p class="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant/40">Serveur</p>
+              <p class="mt-1 text-sm font-bold text-on-surface">{staffMember.guildId}</p>
+            </div>
+          </div>
         </div>
-      {:else}
-        <p class="no-keys">Aucune clé API créée. Crée une nouvelle clé pour utiliser l'API Kotbo.</p>
-      {/if}
+      </div>
     </div>
+
   {:else}
-    <div class="error">Aucun profil staff trouvé</div>
+    <div class="flex flex-col items-center justify-center py-24 text-center">
+      <div class="w-20 h-20 rounded-4xl bg-amber-500/10 text-amber-500 flex items-center justify-center shadow-inner">
+        <span class="material-symbols-outlined text-4xl">person_off</span>
+      </div>
+      <h3 class="mt-6 text-2xl font-black tracking-tighter text-on-surface">Aucun profil staff trouvé</h3>
+      <p class="mt-3 max-w-xl text-sm leading-relaxed text-on-surface-variant/65">
+        Vous n'êtes pas enregistré comme membre du staff sur ce serveur. Contactez un administrateur pour être ajouté.
+      </p>
+    </div>
   {/if}
 </div>
-
-<style>
-  .profile-container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 2rem;
-  }
-
-  .loading, .error {
-    text-align: center;
-    padding: 2rem;
-    font-size: 1.1rem;
-  }
-
-  .error {
-    color: #d32f2f;
-  }
-
-  .profile-header {
-    margin-bottom: 3rem;
-  }
-
-  .profile-header h1 {
-    margin-bottom: 1.5rem;
-    font-size: 2rem;
-  }
-
-  .user-card {
-    display: flex;
-    gap: 2rem;
-    padding: 2rem;
-    background: var(--color-surface);
-    border-radius: 8px;
-    margin-bottom: 2rem;
-    align-items: center;
-  }
-
-  .avatar {
-    width: 100px;
-    height: 100px;
-    border-radius: 50%;
-    object-fit: cover;
-  }
-
-  .user-details h2 {
-    margin: 0;
-    font-size: 1.5rem;
-  }
-
-  .staff-grade {
-    margin: 0.5rem 0;
-    font-size: 1.1rem;
-    color: var(--color-primary);
-  }
-
-  .blacklist-warning {
-    margin: 0.5rem 0;
-    color: #d32f2f;
-    font-weight: bold;
-  }
-
-  .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 1rem;
-    margin-top: 2rem;
-  }
-
-  .stat-card {
-    padding: 1rem;
-    background: var(--color-surface);
-    border-radius: 8px;
-    text-align: center;
-  }
-
-  .stat-value {
-    font-size: 1.8rem;
-    font-weight: bold;
-    color: var(--color-primary);
-  }
-
-  .stat-label {
-    margin-top: 0.5rem;
-    font-size: 0.85rem;
-    color: var(--color-text-secondary);
-  }
-
-  .tools-section {
-    margin-top: 2rem;
-    padding: 1.5rem;
-    background: var(--color-surface);
-    border-radius: 8px;
-    border-left: 4px solid var(--color-primary);
-  }
-
-  .tools-title {
-    margin: 0 0 1rem 0;
-    font-size: 1.2rem;
-    color: var(--color-text-secondary);
-  }
-
-  .tools-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.8rem;
-  }
-
-  .tool-badge {
-    background: var(--color-background);
-    color: var(--color-primary);
-    padding: 0.5rem 1rem;
-    border-radius: 20px;
-    font-size: 0.9rem;
-    font-weight: 500;
-    border: 1px solid var(--color-primary);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  }
-
-  .api-keys-section {
-    background: var(--color-surface);
-    padding: 2rem;
-    border-radius: 8px;
-  }
-
-  .section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1.5rem;
-  }
-
-  .section-header h3 {
-    margin: 0;
-  }
-
-  .new-key-form {
-    display: flex;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-    padding: 1rem;
-    background: var(--color-background);
-    border-radius: 4px;
-  }
-
-  .form-input {
-    flex: 1;
-    padding: 0.5rem;
-    border: 1px solid var(--color-border);
-    border-radius: 4px;
-  }
-
-  .keys-list {
-    display: grid;
-    gap: 1rem;
-  }
-
-  .key-card {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1rem;
-    background: var(--color-background);
-    border-radius: 4px;
-    border-left: 4px solid var(--color-primary);
-  }
-
-  .key-info {
-    flex: 1;
-  }
-
-  .key-display {
-    font-family: monospace;
-    font-size: 0.9rem;
-    margin-bottom: 0.25rem;
-  }
-
-  .key-name {
-    font-weight: bold;
-    margin-bottom: 0.5rem;
-  }
-
-  .key-perms {
-    margin-bottom: 0.5rem;
-  }
-
-  .perm-badge {
-    display: inline-block;
-    padding: 0.25rem 0.5rem;
-    background: var(--color-primary);
-    color: white;
-    border-radius: 3px;
-    font-size: 0.75rem;
-    margin-right: 0.5rem;
-  }
-
-  .no-keys {
-    text-align: center;
-    padding: 1rem;
-    color: var(--color-text-secondary);
-  }
-
-  .btn-primary, .btn-success, .btn-danger {
-    padding: 0.5rem 1rem;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.95rem;
-    transition: all 0.2s;
-  }
-
-  .btn-primary {
-    background: var(--color-primary);
-    color: white;
-  }
-
-  .btn-primary:hover {
-    opacity: 0.9;
-  }
-
-  .btn-success {
-    background: #4caf50;
-    color: white;
-  }
-
-  .btn-success:hover {
-    background: #45a049;
-  }
-
-  .btn-danger {
-    background: #d32f2f;
-    color: white;
-  }
-
-  .btn-danger:hover {
-    background: #c62828;
-  }
-</style>

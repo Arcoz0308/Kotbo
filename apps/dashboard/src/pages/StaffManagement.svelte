@@ -981,26 +981,30 @@
           <div class="p-6 md:p-8 border-b border-primary/10 bg-primary/5 animate-in slide-in-from-top-4 fade-in duration-300">
             <div class="flex flex-col gap-4 md:flex-row md:items-end">
               <div class="flex-1">
-                <label class="block text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant/70 mb-2">Utilisateur Discord</label>
-                <div class="min-w-0">
-                  <DiscordMemberLookup
-                    {guildId}
-                    bind:query={addMemberLookupQuery}
-                    bind:selectedId={newMemberUserId}
-                    bind:selectedUsername={newMemberUsername}
-                    bind:selectedAvatarUrl={newMemberAvatarUrl}
-                    placeholder="@mention, pseudo ou ID Discord"
-                    selectedIdPlaceholder="ID Discord (auto-rempli)"
-                  />
-                </div>
+                <label>
+                  <span class="block text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant/70 mb-2">Utilisateur Discord</span>
+                  <div class="min-w-0">
+                    <DiscordMemberLookup
+                      {guildId}
+                      bind:query={addMemberLookupQuery}
+                      bind:selectedId={newMemberUserId}
+                      bind:selectedUsername={newMemberUsername}
+                      bind:selectedAvatarUrl={newMemberAvatarUrl}
+                      placeholder="@mention, pseudo ou ID Discord"
+                      selectedIdPlaceholder="ID Discord (auto-rempli)"
+                    />
+                  </div>
+                </label>
               </div>
               <div class="md:w-64 shrink-0">
-                <label class="block text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant/70 mb-2">Grade</label>
-                <select bind:value={newMemberGrade} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
-                  {#each orderedStaffRoles as role}
-                    <option value={role.name}>{role.name}</option>
-                  {/each}
-                </select>
+                <label>
+                  <span class="block text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant/70 mb-2">Grade</span>
+                  <select bind:value={newMemberGrade} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
+                    {#each orderedStaffRoles as role}
+                      <option value={role.name}>{role.name}</option>
+                    {/each}
+                  </select>
+                </label>
               </div>
               <button onclick={addStaffMember} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-primary px-8 py-3 text-xs font-black uppercase tracking-[0.18em] text-white shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]">
                 Ajouter
@@ -1134,22 +1138,26 @@
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">Rôle Staff de base <span class="text-on-surface-variant/50 normal-case tracking-normal">(Optionnel)</span></label>
-              <select bind:value={baseStaffRoleId} onchange={saveStaffConfig} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
-                <option value={null}>-- Aucun --</option>
-                {#each availableDiscordRoles as dr}
-                  <option value={dr.id}>{dr.name}</option>
-                {/each}
-              </select>
+              <label>
+                <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">Rôle Staff de base <span class="text-on-surface-variant/50 normal-case tracking-normal">(Optionnel)</span></span>
+                <select bind:value={baseStaffRoleId} onchange={saveStaffConfig} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
+                  <option value={null}>-- Aucun --</option>
+                  {#each availableDiscordRoles as dr}
+                    <option value={dr.id}>{dr.name}</option>
+                  {/each}
+                </select>
+              </label>
             </div>
             <div>
-              <label class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">Rôle Staff en Test <span class="text-on-surface-variant/50 normal-case tracking-normal">(Optionnel)</span></label>
-              <select bind:value={testStaffRoleId} onchange={saveStaffConfig} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
-                <option value={null}>-- Aucun --</option>
-                {#each availableDiscordRoles as dr}
-                  <option value={dr.id}>{dr.name}</option>
-                {/each}
-              </select>
+              <label>
+                <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">Rôle Staff en Test <span class="text-on-surface-variant/50 normal-case tracking-normal">(Optionnel)</span></span>
+                <select bind:value={testStaffRoleId} onchange={saveStaffConfig} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
+                  <option value={null}>-- Aucun --</option>
+                  {#each availableDiscordRoles as dr}
+                    <option value={dr.id}>{dr.name}</option>
+                  {/each}
+                </select>
+              </label>
             </div>
           </div>
         </div>
@@ -1547,13 +1555,15 @@
               </div>
 
               <div class="space-y-4">
-                <label class="block text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant/70">Raison de l'avertissement</label>
-                <textarea
-                  bind:value={warnReason}
-                  placeholder="Décrivez précisément le manquement constaté..."
-                  rows="3"
-                  class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 resize-none"
-                ></textarea>
+                <label>
+                  <span class="block text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant/70 mb-2">Raison de l'avertissement</span>
+                  <textarea
+                    bind:value={warnReason}
+                    placeholder="Décrivez précisément le manquement constaté..."
+                    rows="3"
+                    class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 resize-none"
+                  ></textarea>
+                </label>
               </div>
 
               <div class="space-y-4 flex flex-col justify-between">
@@ -1607,24 +1617,28 @@
           <div class="p-6 md:p-8 border-b border-rose-500/10 bg-rose-500/5 animate-in slide-in-from-top-4 fade-in duration-300">
             <div class="grid gap-6 md:grid-cols-2">
               <div class="space-y-4 md:col-span-2">
-                <label class="block text-xs font-bold uppercase tracking-[0.1em] text-rose-700/80">Membre à blacklister</label>
-                <DiscordMemberLookup
-                  {guildId}
-                  bind:query={blacklistLookupQuery}
-                  bind:selectedId={blacklistTargetUserId}
-                  placeholder="@mention, pseudo ou ID Discord"
-                  selectedIdPlaceholder="ID Discord du staff (auto-rempli)"
-                />
+                <label>
+                  <span class="block text-xs font-bold uppercase tracking-[0.1em] text-rose-700/80 mb-2">Membre à blacklister</span>
+                  <DiscordMemberLookup
+                    {guildId}
+                    bind:query={blacklistLookupQuery}
+                    bind:selectedId={blacklistTargetUserId}
+                    placeholder="@mention, pseudo ou ID Discord"
+                    selectedIdPlaceholder="ID Discord du staff (auto-rempli)"
+                  />
+                </label>
               </div>
 
               <div class="space-y-4">
-                <label class="block text-xs font-bold uppercase tracking-[0.1em] text-rose-700/80">Raison de l'exclusion</label>
-                <textarea
-                  bind:value={blacklistReason}
-                  placeholder="Décrivez précisément ce qui a mené à cette blacklist..."
-                  rows="3"
-                  class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-rose-500/40 focus:ring-4 focus:ring-rose-500/10 resize-none"
-                ></textarea>
+                <label>
+                  <span class="block text-xs font-bold uppercase tracking-[0.1em] text-rose-700/80 mb-2">Raison de l'exclusion</span>
+                  <textarea
+                    bind:value={blacklistReason}
+                    placeholder="Décrivez précisément ce qui a mené à cette blacklist..."
+                    rows="3"
+                    class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-rose-500/40 focus:ring-4 focus:ring-rose-500/10 resize-none"
+                  ></textarea>
+                </label>
               </div>
 
               <div class="space-y-4 flex flex-col justify-between">

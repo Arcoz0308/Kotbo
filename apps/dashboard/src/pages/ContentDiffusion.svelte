@@ -548,7 +548,7 @@
                 ? 'border-slate-500/30 bg-slate-500/12 text-slate-700'
                 : 'border-outline-variant/20 bg-surface-container-low text-on-surface'}"
             >
-              {contentFilters.filteredOnly ? 'Filtrées seulement' : 'Inclure non filtrées'}
+              {contentFilters.filteredOnly ? 'Filtrées uniquement' : 'Toutes les news'}
             </button>
 
             {#if hasActiveFiltersOrSort}

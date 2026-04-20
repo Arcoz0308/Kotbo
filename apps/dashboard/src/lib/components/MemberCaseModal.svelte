@@ -300,6 +300,15 @@
                 <span class="h-2 w-2 rounded-full {getPresenceColor(caseData?.profile?.presenceStatus)}"></span>
                 {getPresenceLabel(caseData?.profile?.presenceStatus)}
               </span>
+              {#if userId}
+                <a
+                  href="/profile/{userId}"
+                  class="inline-flex items-center gap-1.5 rounded-lg bg-white/15 backdrop-blur-md px-3 py-1.5 text-[10px] font-black text-white/80 uppercase tracking-widest transition-all hover:bg-white/25 hover:text-white hover:scale-[1.02] active:scale-[0.98] shadow-sm ml-auto"
+                >
+                  <span class="material-symbols-outlined text-sm">open_in_new</span>
+                  Profil
+                </a>
+              {/if}
             </div>
           </div>
         </div>

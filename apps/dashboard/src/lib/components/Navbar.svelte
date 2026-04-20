@@ -6,6 +6,7 @@
   import { API_BASE_URL } from '../api';
 
   let config = $state({ discordClientId: '' });
+  let userMenuOpen = $state(false);
 
   onMount(async () => {
     try {
@@ -16,6 +17,16 @@
     } catch (err) {
       console.error('Fetch config error:', err);
     }
+
+    // Close dropdown on outside click
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.user-menu-container')) {
+        userMenuOpen = false;
+      }
+    };
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
   });
 
   const logout = () => {
@@ -34,6 +45,11 @@
       ? 'Modérateur'
       : 'Administrateur'
   );
+
+  function toggleUserMenu(e: MouseEvent) {
+    e.stopPropagation();
+    userMenuOpen = !userMenuOpen;
+  }
 </script>
 
 <svelte:window />
@@ -78,18 +94,64 @@
         <span class="text-xs font-black text-on-surface font-headline leading-none">{authStore.user?.username || 'Chargement...'}</span>
         <button onclick={logout} class="text-[9px] font-black text-error/60 uppercase tracking-widest hover:text-error hover:underline transition-colors mt-1">Déconnexion</button>
       </div>
-      <div class="relative w-11 h-11 shrink-0">
-        <div class="absolute -inset-1 bg-linear-to-tr from-primary/40 to-secondary/40 rounded-2xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-        <div class="relative w-full h-full rounded-2xl border-2 border-white/50 shadow-2xl shadow-primary/5 overflow-hidden group-hover:scale-105 transition-transform duration-500 cursor-pointer">
-          <img class="w-full h-full object-cover" src={getUserAvatar()} alt="Avatar"/>
+      <button 
+        onclick={toggleUserMenu}
+        class="flex items-center gap-2 hover:bg-surface-container-high/50 p-1.5 rounded-2xl transition-all duration-300 group/avatar"
+      >
+        <div class="relative w-10 h-10 shrink-0">
+          <div class="absolute -inset-1 bg-linear-to-tr from-primary/40 to-secondary/40 rounded-xl blur-md opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-500"></div>
+          <div class="relative w-full h-full rounded-xl border-2 border-white/50 shadow-lg overflow-hidden transition-transform duration-500 group-hover/avatar:scale-105">
+            <img class="w-full h-full object-cover" src={getUserAvatar()} alt="Avatar"/>
+          </div>
         </div>
-      </div>
+        <span class="material-symbols-outlined text-sm text-on-surface-variant/50 transition-transform duration-300 {userMenuOpen ? 'rotate-180' : ''}">expand_more</span>
+      </button>
+
+      {#if userMenuOpen}
+        <div class="absolute right-0 top-16 w-56 rounded-2xl border border-outline-variant/30 bg-surface-container-lowest/95 backdrop-blur-2xl shadow-2xl shadow-black/15 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-50">
+          <div class="p-4 border-b border-outline-variant/20">
+            <p class="text-xs font-black text-on-surface truncate">{authStore.user?.username}</p>
+            <p class="text-[10px] text-on-surface-variant/60 mt-0.5">ID: {authStore.user?.id?.slice(0, 10)}...</p>
+          </div>
+          <div class="py-1.5">
+            <a 
+              href="/profile" 
+              class="flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-on-surface-variant transition-all hover:bg-primary/8 hover:text-primary"
+              onclick={() => userMenuOpen = false}
+            >
+              <span class="material-symbols-outlined text-lg">person</span>
+              Mon Profil
+            </a>
+            <a 
+              href="/activity" 
+              class="flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-on-surface-variant transition-all hover:bg-primary/8 hover:text-primary"
+              onclick={() => userMenuOpen = false}
+            >
+              <span class="material-symbols-outlined text-lg">history</span>
+              Mon Activité
+            </a>
+            <a 
+              href="/settings" 
+              class="flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-on-surface-variant transition-all hover:bg-primary/8 hover:text-primary"
+              onclick={() => userMenuOpen = false}
+            >
+              <span class="material-symbols-outlined text-lg">settings</span>
+              Paramètres
+            </a>
+          </div>
+          <div class="border-t border-outline-variant/20 py-1.5">
+            <button 
+              type="button"
+              onclick={logout} 
+              class="flex items-center gap-3 px-4 py-2.5 w-full text-left text-sm font-black text-rose-600 transition-all hover:bg-rose-500/8"
+            >
+              <span class="material-symbols-outlined text-lg">logout</span>
+              Déconnexion
+            </button>
+          </div>
+        </div>
+      {/if}
     </div>
   </div>
 </header>
 <div class="h-20"></div> 
-
-<style>
-  .scrollbar-hide::-webkit-scrollbar { display: none; }
-  .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-</style>

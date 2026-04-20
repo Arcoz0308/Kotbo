@@ -46,8 +46,38 @@ class DashboardStore {
     error: null
   });
 
+  private isRefreshing = false;
+
+  private mergeAuditTrail(existing: any[], incoming: any[]): any[] {
+    if (!Array.isArray(incoming) || incoming.length === 0) {
+      return existing;
+    }
+    
+    const allEntries = new Map();
+    
+    // Add existing
+    for (const e of existing) {
+      const key = e.id || `${e.dateIso}-${e.user}-${e.action}-${e.module}`;
+      allEntries.set(key, e);
+    }
+    
+    // Add incoming (deduplicates within incoming too if they lack IDs)
+    for (const e of incoming) {
+      const key = e.id || `${e.dateIso}-${e.user}-${e.action}-${e.module}`;
+      allEntries.set(key, e);
+    }
+    
+    // Convert back and sort by date descending
+    return Array.from(allEntries.values())
+      .sort((a, b) => new Date(b.dateIso).getTime() - new Date(a.dateIso).getTime())
+      .slice(0, 1000); // Keep reasonable history
+  }
+
   async refresh() {
+    if (this.isRefreshing) return;
+    this.isRefreshing = true;
     this.state.loading = true;
+
     try {
       const data = await fetchGuildState();
       
@@ -72,14 +102,12 @@ class DashboardStore {
         this.state.contentItems = data.contentItems;
         this.state.youtubeReferenceChannelId = data.youtubeReferenceChannelId || '';
         this.state.notifications = data.notifications;
-        this.state.auditTrail = data.auditTrail;
+        this.state.auditTrail = this.mergeAuditTrail(this.state.auditTrail, data.auditTrail);
         this.state.sanctions = data.sanctions || [];
         this.state.sanctionReports = data.sanctionReports || [];
         this.state.regulationRules = data.regulationRules || [];
         this.state.messageTemplate = data.messageTemplate;
         this.state.analytics = data.analytics;
-        this.state.error = null;
-      } else {
         this.state.error = null;
       }
     } catch (err) {
@@ -95,6 +123,7 @@ class DashboardStore {
       }
     } finally {
       this.state.loading = false;
+      this.isRefreshing = false;
     }
   }
 }

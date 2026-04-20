@@ -24,7 +24,7 @@
   const rawItems = $derived(isTranslated ? localNews : (dashboardStore.state.contentItems || []));
   
   const uniqueSources = $derived.by(() => {
-    const items = dashboardStore.state.contentItems || [];
+    const items = rawItems || [];
     const filtered = selectedCategory === 'Toutes' 
       ? items 
       : items.filter(item => item.feed?.category === selectedCategory);
@@ -37,7 +37,7 @@
 
   const uniqueCategories = $derived([
     'Toutes',
-    ...new Set((dashboardStore.state.contentItems || []).map(item => item.feed?.category).filter(Boolean))
+    ...new Set((rawItems || []).map(item => item.feed?.category).filter(Boolean))
   ]);
 
   const filteredNews = $derived.by(() => {
@@ -407,6 +407,18 @@
             <span>Paris, {formatter.format(new Date())}</span>
             <span>Prix: Gratuit / Connaissances</span>
           </div>
+          {#if uniqueCategories.length > 1}
+            <nav class="flex items-center justify-center gap-6 pt-4 border-t border-[#1a1a1a]/20 dark:border-[#f0f0f0]/20 flex-wrap">
+              {#each uniqueCategories as cat}
+                <button 
+                  onclick={() => { selectedCategory = cat; selectedSource = 'Toutes les sources'; }}
+                  class="text-[10px] font-black uppercase tracking-widest transition-all pb-1 border-b-2 whitespace-nowrap {selectedCategory === cat ? 'opacity-100 border-[#1a1a1a] dark:border-[#f0f0f0]' : 'opacity-40 border-transparent hover:opacity-100'}"
+                >
+                  {cat === 'Toutes' ? 'Tous les sujets' : cat}
+                </button>
+              {/each}
+            </nav>
+          {/if}
         </header>
 
         {@render FilterBar()}
