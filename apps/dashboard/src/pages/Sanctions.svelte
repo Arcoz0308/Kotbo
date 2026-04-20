@@ -438,7 +438,7 @@
       {/if}
     </div>
   </div>
-  <div class="px-6 pt-4">
+  <div class="px-6 pb-4">
     <label class="relative block w-full md:max-w-xl">
       <span class="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
       <FormInput

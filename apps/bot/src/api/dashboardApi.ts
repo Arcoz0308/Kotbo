@@ -78,6 +78,14 @@ import {
   createCandidature,
   updateCandidatureStatus,
   deleteCandidature,
+  approveCandidature,
+  rejectCandidature,
+  completeOral,
+  getEligibleTutors,
+  assignTutor,
+  getCandidatureHistory,
+  sendAutoRejectDM,
+  handleRecruitmentButton,
 } from '../services/recruitmentService.js';
 
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
@@ -588,6 +596,8 @@ type DashboardState = {
   regulationRules: RegulationRuleItem[];
   messageTemplate: string;
   analytics: AnalyticsData;
+  recruitmentCategoryId: string | null;
+  recruitmentLogChannelId: string | null;
 };
 
 type RuntimeState = {
@@ -1164,7 +1174,7 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
   const discordGuild = client.guilds.cache.get(guildId);
   if (!discordGuild) return null;
 
-  const [user, member, profile, sanctions, auditLogs, inviteConnections] = await Promise.all([
+  const [user, member, profile, sanctions, auditLogs, inviteConnections, candidatures] = await Promise.all([
     client.users.fetch(userId).catch(() => null),
     discordGuild.members.fetch(userId).catch(() => null),
     prisma.memberProfile.findUnique({
@@ -1186,6 +1196,7 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
       take: 500,
     }),
     fetchMemberConnections(auth.userId === userId ? auth.discordToken : null),
+    getCandidatureHistory(guildId, userId).catch(() => []),
   ]);
 
   const effectivePermissions = member?.permissions.toArray() ?? [];
@@ -1315,6 +1326,7 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
     recentLogCount: mappedLogs.length,
     connections: inviteConnections.connections,
     connectionsNote: inviteConnections.note,
+    candidatures,
   };
 }
 
@@ -1632,6 +1644,8 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
     sanctionReports: mappedSanctionReports,
     regulationRules: mappedRegulationRules,
     messageTemplate: runtime.messageTemplate,
+    recruitmentCategoryId: guild.recruitmentCategoryId ?? null,
+    recruitmentLogChannelId: guild.recruitmentLogChannelId ?? null,
     analytics: {
       activityTrend: Array.from({ length: 7 }, (_, i) => {
         const d = new Date();
@@ -1763,9 +1777,18 @@ export const startDashboardApi = (client: Client) => {
           }
 
           logger.info('RecruitmentAPI', `Candidature reçue pour le serveur ${guildId}. Données: ${JSON.stringify(body).substring(0, 100)}...`);
-          await createCandidature(guildId, body);
+          const { candidature, autoRejected, autoRejectReason } = await createCandidature(guildId, body);
 
-          json(res, 201, { ok: true, message: 'Candidature enregistrée' });
+          // Send auto-reject DM if needed
+          if (autoRejected && candidature.discordId) {
+            await sendAutoRejectDM(client, guildId, candidature.discordId, autoRejectReason || 'Votre candidature ne remplit pas les conditions requises.');
+            logger.info('RecruitmentAPI', `Candidature ${candidature.id} auto-rejetée: ${autoRejectReason}`);
+          }
+
+          // Broadcast to dashboard
+          broadcastDashboardStateChange(guildId, 'recruitment_candidature_received');
+
+          json(res, 201, { ok: true, message: autoRejected ? 'Candidature auto-rejetée' : 'Candidature enregistrée', autoRejected });
         } catch (err) {
           logger.error('RecruitmentAPI', 'Webhook error:', err);
           json(res, 500, { error: 'Erreur lors du traitement de la candidature' });
@@ -4706,7 +4729,7 @@ export const startDashboardApi = (client: Client) => {
           return;
         }
 
-        // --- RECRUITMENT ROUTES (Placeholder) ---
+        // --- RECRUITMENT ROUTES ---
         if (parts[4] === 'recruitment') {
           const guildId = parts[3];
           const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
@@ -4715,7 +4738,8 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
-          if (parts[5] === 'candidatures' && req.method === 'GET') {
+          // GET /api/dashboard/guilds/:guildId/recruitment/candidatures
+          if (parts[5] === 'candidatures' && req.method === 'GET' && !parts[6]) {
             try {
               const list = await getCandidatures(guildId);
               json(res, 200, { candidatures: list });
@@ -4726,23 +4750,129 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
+          // PATCH /api/dashboard/guilds/:guildId/recruitment/candidatures/:id
           if (parts[5] === 'candidatures' && parts[6] && req.method === 'PATCH') {
             const candidatureId = parts[6];
             try {
-              const body = await readJsonBody<{ status: string; notes?: string }>(req);
-              if (!body || !body.status) {
-                json(res, 400, { error: 'Status manquant' });
+              const body = await readJsonBody<{
+                action: string; // 'approve' | 'reject' | 'oral_pass' | 'oral_fail' | 'assign_tutor' | 'status_update'
+                discordUserId?: string;
+                reason?: string;
+                tutorUserId?: string;
+                status?: string;
+                notes?: string;
+              }>(req);
+
+              if (!body || !body.action) {
+                json(res, 400, { error: 'Action manquante' });
                 return;
               }
-              const updated = await updateCandidatureStatus(candidatureId, body.status as any, body.notes);
-              json(res, 200, updated);
+
+              const auditUser = user.username ?? `User${user.userId}`;
+
+              if (body.action === 'approve') {
+                if (!body.discordUserId) {
+                  json(res, 400, { error: 'discordUserId requis pour l\'approbation' });
+                  return;
+                }
+                const updated = await approveCandidature(client, guildId, candidatureId, body.discordUserId, user.userId);
+                await pushAudit(guildId, {
+                  user: auditUser,
+                  action: 'Candidature validée (oral)',
+                  context: getGuildName(client, guildId),
+                  module: 'Recrutement',
+                  eventType: 'Manuel',
+                  details: `Candidature ${candidatureId} validée pour <@${body.discordUserId}>`,
+                  channelId: null,
+                });
+                broadcastDashboardStateChange(guildId, 'recruitment_candidature_updated');
+                json(res, 200, updated);
+              }
+
+              else if (body.action === 'reject') {
+                const updated = await rejectCandidature(client, guildId, candidatureId, body.reason, user.userId);
+                await pushAudit(guildId, {
+                  user: auditUser,
+                  action: 'Candidature refusée',
+                  context: getGuildName(client, guildId),
+                  module: 'Recrutement',
+                  eventType: 'Manuel',
+                  details: `Candidature ${candidatureId} refusée${body.reason ? `: ${body.reason}` : ''}`,
+                  channelId: null,
+                });
+                broadcastDashboardStateChange(guildId, 'recruitment_candidature_updated');
+                json(res, 200, updated);
+              }
+
+              else if (body.action === 'oral_pass') {
+                const updated = await completeOral(client, guildId, candidatureId, 'PASSED', body.reason, user.userId);
+                await pushAudit(guildId, {
+                  user: auditUser,
+                  action: 'Oral concluant',
+                  context: getGuildName(client, guildId),
+                  module: 'Recrutement',
+                  eventType: 'Manuel',
+                  details: `Candidature ${candidatureId}: oral passé avec succès`,
+                  channelId: null,
+                });
+                broadcastDashboardStateChange(guildId, 'recruitment_candidature_updated');
+                json(res, 200, updated);
+              }
+
+              else if (body.action === 'oral_fail') {
+                const updated = await completeOral(client, guildId, candidatureId, 'FAILED', body.reason, user.userId);
+                await pushAudit(guildId, {
+                  user: auditUser,
+                  action: 'Oral non concluant',
+                  context: getGuildName(client, guildId),
+                  module: 'Recrutement',
+                  eventType: 'Manuel',
+                  details: `Candidature ${candidatureId}: oral échoué${body.reason ? ` — ${body.reason}` : ''}`,
+                  channelId: null,
+                });
+                broadcastDashboardStateChange(guildId, 'recruitment_candidature_updated');
+                json(res, 200, updated);
+              }
+
+              else if (body.action === 'assign_tutor') {
+                if (!body.tutorUserId) {
+                  json(res, 400, { error: 'tutorUserId requis pour l\'attribution du tuteur' });
+                  return;
+                }
+                const updated = await assignTutor(candidatureId, body.tutorUserId);
+                await pushAudit(guildId, {
+                  user: auditUser,
+                  action: 'Tuteur assigné',
+                  context: getGuildName(client, guildId),
+                  module: 'Recrutement',
+                  eventType: 'Manuel',
+                  details: `Tuteur <@${body.tutorUserId}> assigné à la candidature ${candidatureId}`,
+                  channelId: null,
+                });
+                broadcastDashboardStateChange(guildId, 'recruitment_candidature_updated');
+                json(res, 200, updated);
+              }
+
+              else if (body.action === 'status_update') {
+                if (!body.status) {
+                  json(res, 400, { error: 'Status manquant' });
+                  return;
+                }
+                const updated = await updateCandidatureStatus(candidatureId, body.status as any, body.notes);
+                json(res, 200, updated);
+              }
+
+              else {
+                json(res, 400, { error: `Action inconnue: ${body.action}` });
+              }
             } catch (err) {
               logger.error('RecruitmentAPI', 'Error updating candidature:', err);
-              json(res, 500, { error: 'Erreur lors de la mise à jour' });
+              json(res, 500, { error: err instanceof Error ? err.message : 'Erreur lors de la mise à jour' });
             }
             return;
           }
 
+          // DELETE /api/dashboard/guilds/:guildId/recruitment/candidatures/:id
           if (parts[5] === 'candidatures' && parts[6] && req.method === 'DELETE') {
             const candidatureId = parts[6];
             try {
@@ -4751,6 +4881,54 @@ export const startDashboardApi = (client: Client) => {
             } catch (err) {
               logger.error('RecruitmentAPI', 'Error deleting candidature:', err);
               json(res, 500, { error: 'Erreur lors de la suppression' });
+            }
+            return;
+          }
+
+          // GET /api/dashboard/guilds/:guildId/recruitment/tutors
+          if (parts[5] === 'tutors' && req.method === 'GET') {
+            try {
+              const tutors = await getEligibleTutors(guildId);
+              json(res, 200, { tutors });
+            } catch (err) {
+              logger.error('RecruitmentAPI', 'Error fetching tutors:', err);
+              json(res, 500, { error: 'Erreur lors du chargement des tuteurs' });
+            }
+            return;
+          }
+
+          // GET /api/dashboard/guilds/:guildId/recruitment/history/:discordId
+          if (parts[5] === 'history' && parts[6] && req.method === 'GET') {
+            try {
+              const history = await getCandidatureHistory(guildId, parts[6]);
+              json(res, 200, { history });
+            } catch (err) {
+              logger.error('RecruitmentAPI', 'Error fetching history:', err);
+              json(res, 500, { error: 'Erreur lors du chargement de l\'historique' });
+            }
+            return;
+          }
+
+          // PATCH /api/dashboard/guilds/:guildId/recruitment/config
+          if (parts[5] === 'config' && req.method === 'PATCH') {
+            try {
+              const body = await readJsonBody<{
+                recruitmentCategoryId?: string | null;
+                recruitmentLogChannelId?: string | null;
+              }>(req);
+
+              await prisma.guild.update({
+                where: { id: guildId },
+                data: {
+                  ...(body?.recruitmentCategoryId !== undefined ? { recruitmentCategoryId: body.recruitmentCategoryId } : {}),
+                  ...(body?.recruitmentLogChannelId !== undefined ? { recruitmentLogChannelId: body.recruitmentLogChannelId } : {}),
+                },
+              });
+
+              json(res, 200, { ok: true });
+            } catch (err) {
+              logger.error('RecruitmentAPI', 'Error updating recruitment config:', err);
+              json(res, 500, { error: 'Erreur lors de la mise à jour de la config' });
             }
             return;
           }

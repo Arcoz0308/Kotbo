@@ -40,10 +40,20 @@
     return `https://cdn.discordapp.com/avatars/${authStore.user.id}/${authStore.user.avatar}.png`;
   };
 
+  const selectedGuild = $derived(
+    authStore.guilds.find((guild) => guild.id === authStore.selectedGuildId)
+  );
+
   const selectedGuildAccessLabel = $derived(
-    authStore.guilds.find((guild) => guild.id === authStore.selectedGuildId)?.accessLevel === 'moderator'
+    selectedGuild?.accessLevel === 'moderator'
       ? 'Modérateur'
       : 'Administrateur'
+  );
+
+  const guildIconUrl = $derived(
+    selectedGuild?.icon 
+      ? `https://cdn.discordapp.com/icons/${selectedGuild.id}/${selectedGuild.icon}.png`
+      : null
   );
 
   function toggleUserMenu(e: MouseEvent) {
@@ -58,10 +68,16 @@
   <div class="flex items-center gap-6">
     <div class="relative">
       <div class="flex items-center gap-3 bg-surface-container-low px-5 py-2.5 rounded-2xl text-xs font-bold text-on-surface-variant border border-outline-variant/30 transition-all duration-300 shadow-sm">
-        <div class="w-2.5 h-2.5 rounded-full {authStore.guilds.find(g => g.id === authStore.selectedGuildId)?.botPresent ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400 opacity-50'}"></div>
+        {#if guildIconUrl}
+          <img src={guildIconUrl} alt="Server Logo" class="w-6 h-6 rounded-lg object-cover">
+        {:else}
+          <div class="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center text-[10px] font-black text-primary border border-primary/20">
+            {selectedGuild?.name?.charAt(0) || '?'}
+          </div>
+        {/if}
         <span class="tracking-tight">
-          {#if authStore.guilds.find(g => g.id === authStore.selectedGuildId)?.name}
-            {authStore.guilds.find(g => g.id === authStore.selectedGuildId)?.name}
+          {#if selectedGuild?.name}
+            {selectedGuild.name}
           {:else}
             <div class="h-4 w-24 bg-surface-variant/50 rounded animate-pulse inline-block align-middle"></div>
           {/if}

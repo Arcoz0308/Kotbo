@@ -46,6 +46,7 @@ import { parseModalSessionId, parseNewsSessionId, parseSetupStep, parseUserCaseR
 import { toggleFeedBoolean, toggleGuildBoolean } from '../utils/prismaToggles.js';
 import { normalizeCommaKeywords, requireSingleSelectedValue, validateTimeField } from '../utils/interactionValidation.js';
 import { buildMemberCasePanel, type MemberCaseSection } from '../services/memberCaseService.js';
+import { handleRecruitmentButton } from '../services/recruitmentService.js';
 
 function canUpdateInteraction(value: unknown): value is { update: (options: unknown) => Promise<unknown> } {
   if (!value || typeof value !== 'object') return false;
@@ -145,6 +146,12 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       components: panel.components,
       flags: [MessageFlags.Ephemeral],
     });
+    return;
+  }
+
+  // Recruitment ticket buttons
+  if (customId.startsWith('recruit:')) {
+    await handleRecruitmentButton(client, customId, interaction);
     return;
   }
 

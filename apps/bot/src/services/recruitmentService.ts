@@ -1,6 +1,130 @@
-import type { CandidatureStatus } from '@prisma/client';
+import type { CandidatureStatus, OralResult } from '@prisma/client';
+import { ChannelType, PermissionFlagsBits, type Client, type Guild as DiscordGuild, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, type TextChannel } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
+
+// ============================================================================
+// FIELD DETECTION HELPERS
+// ============================================================================
+
+/** Fields that are considered "paragraph" fields and must have ≥200 chars */
+const PARAGRAPH_EXCEPTION_KEYWORDS = [
+  'expérience de modération',
+  'experience de moderation',
+  'expérience de modération précédente',
+  'rôle que vous occupiez',
+  'role que vous occupiez',
+  'responsabilités principales',
+  'responsabilites principales',
+];
+
+/** Returns true if this field key is the exception field (moderation experience) */
+function isExceptionField(key: string): boolean {
+  const lower = key.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return PARAGRAPH_EXCEPTION_KEYWORDS.some(kw => {
+    const normalizedKw = kw.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return lower.includes(normalizedKw);
+  });
+}
+
+/** Returns true if the field key looks like a "paragraph" question (open-ended long questions) */
+function isParagraphField(key: string): boolean {
+  const lower = key.toLowerCase();
+  // Paragraph fields = long open text fields (not age, not yes/no, not username, not email, not micro)
+  const shortFieldIndicators = [
+    'âge', 'age', 'ans',
+    'micro', 'microphone',
+    'discord', 'pseudo', 'username', 'identifiant', 'nom d\'utilisateur',
+    'email', 'mail',
+    'prénom', 'prenom', 'nom',
+    'horodateur', 'timestamp',
+    'disponibilité', 'disponibilite',
+    'combien de temps', 'heures par',
+    'fuseau', 'timezone',
+  ];
+  return !shortFieldIndicators.some(ind => lower.includes(ind));
+}
+
+/** Extracts the age from the form data */
+function extractAge(data: Record<string, unknown>): number | null {
+  for (const [key, value] of Object.entries(data)) {
+    const k = key.toLowerCase();
+    if (k.includes('âge') || k.includes('age') || k.includes('ans')) {
+      const val = String(value).trim();
+      const num = parseInt(val, 10);
+      if (!isNaN(num) && num > 0 && num < 120) return num;
+    }
+  }
+  return null;
+}
+
+/** Checks if the user has a microphone */
+function hasMicrophone(data: Record<string, unknown>): boolean | null {
+  for (const [key, value] of Object.entries(data)) {
+    const k = key.toLowerCase();
+    if (k.includes('micro') || k.includes('microphone')) {
+      const val = String(value).toLowerCase().trim();
+      if (val === 'oui' || val === 'yes' || val === 'true' || val === '1') return true;
+      if (val === 'non' || val === 'no' || val === 'false' || val === '0') return false;
+      // Array format from Google Forms (["Oui"])
+      if (Array.isArray(value)) {
+        const first = String(value[0] || '').toLowerCase().trim();
+        if (first === 'oui' || first === 'yes') return true;
+        if (first === 'non' || first === 'no') return false;
+      }
+    }
+  }
+  return null;
+}
+
+// ============================================================================
+// AUTO-REJECTION LOGIC
+// ============================================================================
+
+interface AutoRejectResult {
+  rejected: boolean;
+  reason: string;
+}
+
+export function checkAutoReject(data: Record<string, unknown>): AutoRejectResult {
+  // 1) Check age
+  const age = extractAge(data);
+  if (age !== null && age < 16) {
+    return {
+      rejected: true,
+      reason: `Votre candidature a été automatiquement refusée car vous avez indiqué avoir ${age} ans. L'âge minimum requis pour rejoindre l'équipe est de 16 ans.`,
+    };
+  }
+
+  // 2) Check microphone
+  const hasMic = hasMicrophone(data);
+  if (hasMic === false) {
+    return {
+      rejected: true,
+      reason: `Votre candidature a été automatiquement refusée car vous avez indiqué ne pas posséder de microphone. Un microphone fonctionnel est obligatoire pour l'entretien oral et la modération vocale.`,
+    };
+  }
+
+  // 3) Check paragraph lengths
+  for (const [key, value] of Object.entries(data)) {
+    if (isExceptionField(key)) continue;
+    if (!isParagraphField(key)) continue;
+
+    const text = Array.isArray(value) ? value.join(', ') : String(value || '');
+    if (text.length < 200) {
+      return {
+        rejected: true,
+        reason: `Votre candidature a été automatiquement refusée car votre réponse au champ "${key}" est trop courte (${text.length} caractères). Un minimum de 200 caractères est requis pour les questions ouvertes afin de démontrer votre motivation.`,
+      };
+    }
+  }
+
+  return { rejected: false, reason: '' };
+}
+
+// ============================================================================
+// CRUD
+// ============================================================================
 
 export async function getCandidatures(guildId: string) {
   return await prisma.recruitmentCandidature.findMany({
@@ -42,16 +166,23 @@ export async function createCandidature(guildId: string, data: any) {
   // Google Apps Script usually sends: { timestamp: "...", data: { "Field 1": ["Value"], ... } }
   const rawData = data.data || data;
 
-  return await prisma.recruitmentCandidature.create({
+  // Check auto-rejection
+  const autoRejectCheck = checkAutoReject(rawData);
+
+  const candidature = await prisma.recruitmentCandidature.create({
     data: {
       guildId,
       discordId,
       username: username || (discordId ? `User_${discordId}` : 'Candidat Anonyme'),
       email,
       data: rawData,
-      status: 'PENDING',
+      status: autoRejectCheck.rejected ? 'AUTO_REJECTED' : 'PENDING',
+      autoRejected: autoRejectCheck.rejected,
+      autoRejectReason: autoRejectCheck.rejected ? autoRejectCheck.reason : null,
     },
   });
+
+  return { candidature, autoRejected: autoRejectCheck.rejected, autoRejectReason: autoRejectCheck.reason };
 }
 
 export async function updateCandidatureStatus(id: string, status: CandidatureStatus, notes?: string) {
@@ -68,4 +199,539 @@ export async function deleteCandidature(id: string) {
   return await prisma.recruitmentCandidature.delete({
     where: { id },
   });
+}
+
+// ============================================================================
+// APPROVE → Create ticket for oral
+// ============================================================================
+
+export async function approveCandidature(
+  client: Client,
+  guildId: string,
+  candidatureId: string,
+  targetDiscordUserId: string,
+  processedByUserId: string,
+) {
+  const candidature = await prisma.recruitmentCandidature.findUnique({ where: { id: candidatureId } });
+  if (!candidature) throw new Error('Candidature introuvable');
+
+  const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+  const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
+  if (!discordGuild) throw new Error('Serveur Discord introuvable');
+
+  // Update Discord ID on candidature
+  await prisma.recruitmentCandidature.update({
+    where: { id: candidatureId },
+    data: { discordId: targetDiscordUserId, processedByUserId },
+  });
+
+  // Get the target member
+  const targetMember = await discordGuild.members.fetch(targetDiscordUserId).catch(() => null);
+  const pseudo = targetMember?.displayName || candidature.username || 'candidat';
+
+  // Count existing recruitment tickets for this user to generate the number
+  const existingCount = await prisma.recruitmentCandidature.count({
+    where: { guildId, discordId: targetDiscordUserId },
+  });
+
+  const ticketName = `recrutement-${pseudo.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').slice(0, 30)}-${existingCount}`;
+
+  // Create the ticket channel
+  const categoryId = guild?.recruitmentCategoryId || undefined;
+  
+  const permissionOverwrites: any[] = [
+    {
+      id: discordGuild.id, // @everyone
+      deny: [PermissionFlagsBits.ViewChannel],
+    },
+  ];
+
+  // Add the target member
+  if (targetMember) {
+    permissionOverwrites.push({
+      id: targetDiscordUserId,
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
+    });
+  }
+
+  // Add moderator role if configured
+  if (guild?.moderatorRoleId) {
+    permissionOverwrites.push({
+      id: guild.moderatorRoleId,
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageMessages],
+    });
+  }
+
+  // Add base staff role if configured
+  if (guild?.baseStaffRoleId) {
+    permissionOverwrites.push({
+      id: guild.baseStaffRoleId,
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
+    });
+  }
+
+  const ticketChannel = await discordGuild.channels.create({
+    name: ticketName,
+    type: ChannelType.GuildText,
+    parent: categoryId,
+    permissionOverwrites,
+    topic: `Recrutement de ${pseudo} — Candidature: ${candidatureId}`,
+  });
+
+  // Create the embed with action buttons
+  const embed = new EmbedBuilder()
+    .setColor(0x5865f2)
+    .setTitle(`📋 Recrutement — ${pseudo}`)
+    .setDescription(`Ce ticket a été créé pour l'entretien oral de **${pseudo}**.\n\nCandidat : <@${targetDiscordUserId}>\nDate de candidature : <t:${Math.floor(new Date(candidature.createdAt).getTime() / 1000)}:f>`)
+    .setFooter({ text: `Kotbo · Recrutement · ID: ${candidatureId}` })
+    .setTimestamp();
+
+  const actionRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`recruit:claim:${candidatureId}`)
+      .setLabel('Claim')
+      .setStyle(ButtonStyle.Primary)
+      .setEmoji('🙋'),
+    new ButtonBuilder()
+      .setCustomId(`recruit:info:${candidatureId}`)
+      .setLabel('Informations Ticket')
+      .setStyle(ButtonStyle.Secondary)
+      .setEmoji('ℹ️'),
+    new ButtonBuilder()
+      .setCustomId(`recruit:close:${candidatureId}`)
+      .setLabel('Fermer')
+      .setStyle(ButtonStyle.Secondary)
+      .setEmoji('🔒'),
+    new ButtonBuilder()
+      .setCustomId(`recruit:delete:${candidatureId}`)
+      .setLabel('Supprimer Ticket')
+      .setStyle(ButtonStyle.Danger)
+      .setEmoji('🗑️'),
+  );
+
+  await ticketChannel.send({ embeds: [embed], components: [actionRow] });
+
+  // Send the mention + availability message
+  await ticketChannel.send({
+    content: `<@${targetDiscordUserId}> 🎉 **Bienvenue dans ton ticket de recrutement !**\n\nTa candidature a été validée pour un entretien oral. Merci de **définir tes disponibilités pour un vocal** avec l'équipe de recrutement.\n\nIndique les jours et horaires qui te conviennent le mieux. 📅`,
+  });
+
+  // Update the candidature
+  const updated = await prisma.recruitmentCandidature.update({
+    where: { id: candidatureId },
+    data: {
+      status: 'ORAL',
+      oralResult: 'PENDING',
+      ticketChannelId: ticketChannel.id,
+      processedByUserId,
+    },
+  });
+
+  logger.success('Recruitment', `Ticket créé: ${ticketName} pour ${pseudo} (${targetDiscordUserId})`);
+  return updated;
+}
+
+// ============================================================================
+// REJECT  → Send DM with reason
+// ============================================================================
+
+export async function rejectCandidature(
+  client: Client,
+  guildId: string,
+  candidatureId: string,
+  reason?: string,
+  processedByUserId?: string,
+) {
+  const candidature = await prisma.recruitmentCandidature.findUnique({ where: { id: candidatureId } });
+  if (!candidature) throw new Error('Candidature introuvable');
+
+  const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
+
+  // Send DM if we have a discord ID and there's a reason
+  if (candidature.discordId && discordGuild) {
+    try {
+      const member = await discordGuild.members.fetch(candidature.discordId).catch(() => null);
+      if (member) {
+        const embed = new EmbedBuilder()
+          .setColor(0xed4245)
+          .setTitle('❌ Candidature Refusée')
+          .setDescription(
+            reason
+              ? `Votre candidature sur **${discordGuild.name}** a été refusée.\n\n**Raison :** ${reason}`
+              : `Votre candidature sur **${discordGuild.name}** a été refusée. Aucune raison spécifique n'a été communiquée.`
+          )
+          .setFooter({ text: 'Kotbo · Recrutement' })
+          .setTimestamp();
+
+        await member.send({ embeds: [embed] }).catch(err => {
+          logger.warn('Recruitment', `Impossible d'envoyer un MP à ${candidature.discordId}: ${err.message}`);
+        });
+      }
+    } catch (err) {
+      logger.warn('Recruitment', `Erreur lors de l'envoi du MP de refus: ${err}`);
+    }
+  }
+
+  return await prisma.recruitmentCandidature.update({
+    where: { id: candidatureId },
+    data: {
+      status: 'REJECTED',
+      rejectionReason: reason || null,
+      processedByUserId: processedByUserId || null,
+    },
+  });
+}
+
+// ============================================================================
+// SEND AUTO-REJECT DM
+// ============================================================================
+
+export async function sendAutoRejectDM(
+  client: Client,
+  guildId: string,
+  discordId: string | null,
+  reason: string,
+) {
+  if (!discordId) return;
+
+  const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
+  if (!discordGuild) return;
+
+  try {
+    const member = await discordGuild.members.fetch(discordId).catch(() => null);
+    if (member) {
+      const embed = new EmbedBuilder()
+        .setColor(0xed4245)
+        .setTitle('❌ Candidature Automatiquement Refusée')
+        .setDescription(`Votre candidature sur **${discordGuild.name}** a été automatiquement refusée.\n\n**Raison :** ${reason}`)
+        .setFooter({ text: 'Kotbo · Recrutement Automatique' })
+        .setTimestamp();
+
+      await member.send({ embeds: [embed] }).catch(err => {
+        logger.warn('Recruitment', `Impossible d'envoyer le MP d'auto-refus à ${discordId}: ${err.message}`);
+      });
+    }
+  } catch (err) {
+    logger.warn('Recruitment', `Erreur lors de l'envoi du MP d'auto-refus: ${err}`);
+  }
+}
+
+// ============================================================================
+// ORAL COMPLETE → pass or fail
+// ============================================================================
+
+export async function completeOral(
+  client: Client,
+  guildId: string,
+  candidatureId: string,
+  result: 'PASSED' | 'FAILED',
+  reason?: string,
+  processedByUserId?: string,
+) {
+  const candidature = await prisma.recruitmentCandidature.findUnique({ where: { id: candidatureId } });
+  if (!candidature) throw new Error('Candidature introuvable');
+
+  const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
+
+  if (result === 'FAILED') {
+    // Calculate reapply date (1 month from now)
+    const reapplyDate = new Date();
+    reapplyDate.setMonth(reapplyDate.getMonth() + 1);
+    const reapplyTimestamp = Math.floor(reapplyDate.getTime() / 1000);
+
+    // Send DM with reapply date
+    if (candidature.discordId && discordGuild) {
+      try {
+        const member = await discordGuild.members.fetch(candidature.discordId).catch(() => null);
+        if (member) {
+          const embed = new EmbedBuilder()
+            .setColor(0xed4245)
+            .setTitle('❌ Entretien Oral Non Concluant')
+            .setDescription(
+              `Votre entretien oral sur **${discordGuild.name}** n'a malheureusement pas été concluant.\n\n` +
+              (reason ? `**Raison :** ${reason}\n\n` : '') +
+              `Vous pourrez re-candidater à partir du <t:${reapplyTimestamp}:f> (<t:${reapplyTimestamp}:R>).`
+            )
+            .setFooter({ text: 'Kotbo · Recrutement' })
+            .setTimestamp();
+
+          await member.send({ embeds: [embed] }).catch(err => {
+            logger.warn('Recruitment', `Impossible d'envoyer le MP oral échoué à ${candidature.discordId}: ${err.message}`);
+          });
+        }
+      } catch (err) {
+        logger.warn('Recruitment', `Erreur lors de l'envoi du MP oral: ${err}`);
+      }
+    }
+
+    return await prisma.recruitmentCandidature.update({
+      where: { id: candidatureId },
+      data: {
+        oralResult: 'FAILED',
+        oralNotes: reason || null,
+        status: 'REJECTED',
+        rejectionReason: reason || 'Entretien oral non concluant',
+        reapplyAfter: reapplyDate,
+        processedByUserId: processedByUserId || null,
+      },
+    });
+  }
+
+  // PASSED — Create staff member
+  if (!candidature.discordId) {
+    throw new Error('Impossible de créer le membre staff : aucun Discord ID associé à la candidature.');
+  }
+
+  const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+
+  // Find the "Helper Test" grade or lowest level staff role
+  const staffRoles = await prisma.staffRole.findMany({
+    where: { guildId, enabled: true },
+    orderBy: { level: 'asc' },
+  });
+  const helperTestRole = staffRoles.find(r => r.name.toLowerCase().includes('helper') || r.name.toLowerCase().includes('test')) || staffRoles[0];
+  const gradeName = helperTestRole?.name || 'Helper Test';
+
+  // Get Discord member info for the staff member
+  let userTag: string | undefined;
+  let username: string | undefined;
+  let displayName: string | undefined;
+  let avatarUrl: string | undefined;
+
+  if (discordGuild && candidature.discordId) {
+    try {
+      const member = await discordGuild.members.fetch(candidature.discordId).catch(() => null);
+      if (member) {
+        userTag = member.user.tag;
+        username = member.user.username;
+        displayName = member.displayName;
+        avatarUrl = member.user.displayAvatarURL() || undefined;
+      }
+    } catch { /* ignore */ }
+  }
+
+  // Create the staff member
+  const staffMember = await prisma.staffMember.upsert({
+    where: { guildId_userId: { guildId, userId: candidature.discordId } },
+    update: {
+      grade: gradeName,
+      userTag,
+      username,
+      displayName,
+      avatarUrl,
+    },
+    create: {
+      guildId,
+      userId: candidature.discordId,
+      grade: gradeName,
+      userTag,
+      username,
+      displayName,
+      avatarUrl,
+    },
+  });
+
+  // Create a testing period
+  await prisma.testingPeriod.create({
+    data: {
+      guildId,
+      staffUserId: staffMember.id,
+      plannedDurationDays: 14,
+      targetGrade: gradeName,
+    },
+  });
+
+  // Assign Discord roles
+  if (discordGuild && candidature.discordId) {
+    try {
+      const discordMember = await discordGuild.members.fetch(candidature.discordId).catch(() => null);
+      if (discordMember) {
+        const rolesToAssign: string[] = [];
+
+        if (helperTestRole?.discordRoleId) rolesToAssign.push(helperTestRole.discordRoleId);
+        if (guild?.baseStaffRoleId) rolesToAssign.push(guild.baseStaffRoleId);
+        if (guild?.testStaffRoleId) rolesToAssign.push(guild.testStaffRoleId);
+
+        if (rolesToAssign.length > 0) {
+          await discordMember.roles.add(rolesToAssign).catch(err =>
+            logger.error('Recruitment', `Erreur attribution rôles staff: ${err.message}`)
+          );
+        }
+      }
+    } catch (err) {
+      logger.error('Recruitment', `Erreur sync rôles Discord: ${err}`);
+    }
+  }
+
+  // Update the candidature
+  const updated = await prisma.recruitmentCandidature.update({
+    where: { id: candidatureId },
+    data: {
+      oralResult: 'PASSED',
+      oralNotes: reason || null,
+      status: 'APPROVED',
+      staffMemberId: staffMember.id,
+      processedByUserId: processedByUserId || null,
+    },
+  });
+
+  logger.success('Recruitment', `Candidature ${candidatureId} APPROVED → StaffMember ${staffMember.id} créé (${gradeName})`);
+  return updated;
+}
+
+// ============================================================================
+// TUTOR MANAGEMENT
+// ============================================================================
+
+/** Get eligible tutors: staff members with a grade whose StaffRole level ≥ 2 */
+export async function getEligibleTutors(guildId: string) {
+  // First get all roles with level ≥ 2
+  const eligibleRoles = await prisma.staffRole.findMany({
+    where: { guildId, enabled: true, level: { gte: 2 } },
+  });
+  const eligibleGradeNames = eligibleRoles.map(r => r.name);
+
+  if (eligibleGradeNames.length === 0) return [];
+
+  // Then find staff members with those grades
+  return prisma.staffMember.findMany({
+    where: {
+      guildId,
+      grade: { in: eligibleGradeNames },
+    },
+    orderBy: { grade: 'asc' },
+  });
+}
+
+/** Assign a tutor to a candidature's testing period */
+export async function assignTutor(candidatureId: string, tutorUserId: string) {
+  const candidature = await prisma.recruitmentCandidature.findUnique({
+    where: { id: candidatureId },
+  });
+  if (!candidature) throw new Error('Candidature introuvable');
+  if (!candidature.staffMemberId) throw new Error('Aucun StaffMember lié à cette candidature');
+
+  // Find the tutor's staff member record
+  const tutor = await prisma.staffMember.findUnique({
+    where: { guildId_userId: { guildId: candidature.guildId, userId: tutorUserId } },
+  });
+  if (!tutor) throw new Error('Tuteur introuvable dans le staff');
+
+  // Find the ONGOING testing period for this staff member
+  const testingPeriod = await prisma.testingPeriod.findFirst({
+    where: {
+      guildId: candidature.guildId,
+      staffUserId: candidature.staffMemberId,
+      status: 'ONGOING',
+    },
+  });
+
+  if (testingPeriod) {
+    await prisma.testingPeriod.update({
+      where: { id: testingPeriod.id },
+      data: { mentorId: tutor.id },
+    });
+  }
+
+  // Update candidature
+  return await prisma.recruitmentCandidature.update({
+    where: { id: candidatureId },
+    data: { assignedTutorId: tutor.id },
+  });
+}
+
+// ============================================================================
+// CANDIDATURE HISTORY
+// ============================================================================
+
+/** Get full candidature history for a Discord user across all statuses */
+export async function getCandidatureHistory(guildId: string, discordId: string) {
+  return prisma.recruitmentCandidature.findMany({
+    where: { guildId, discordId },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
+// ============================================================================
+// TICKET BUTTON HANDLERS
+// ============================================================================
+
+export async function handleRecruitmentButton(
+  client: Client,
+  customId: string,
+  interaction: any,
+) {
+  const parts = customId.split(':');
+  const action = parts[1]; // claim, info, close, delete
+  const candidatureId = parts[2];
+
+  if (!candidatureId) return;
+
+  const candidature = await prisma.recruitmentCandidature.findUnique({ where: { id: candidatureId } });
+  if (!candidature) {
+    await interaction.reply({ content: '❌ Candidature introuvable.', ephemeral: true });
+    return;
+  }
+
+  if (action === 'claim') {
+    const embed = new EmbedBuilder()
+      .setColor(0x57f287)
+      .setDescription(`🙋 Ce ticket a été pris en charge par <@${interaction.user.id}>.`)
+      .setTimestamp();
+    await interaction.reply({ embeds: [embed] });
+  }
+
+  else if (action === 'info') {
+    const data = candidature.data as Record<string, unknown>;
+    const fields = Object.entries(data)
+      .filter(([, v]) => v !== null && v !== undefined && String(v).length > 0)
+      .slice(0, 25)
+      .map(([k, v]) => ({
+        name: k.slice(0, 256),
+        value: String(Array.isArray(v) ? v.join(', ') : v).slice(0, 1024),
+        inline: String(v).length < 60,
+      }));
+
+    const embed = new EmbedBuilder()
+      .setColor(0x5865f2)
+      .setTitle(`📋 Informations — ${candidature.username || 'Candidat'}`)
+      .addFields(fields)
+      .setFooter({ text: `Candidature ID: ${candidatureId}` })
+      .setTimestamp();
+
+    await interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
+  else if (action === 'close') {
+    const channel = interaction.channel;
+    if (channel && candidature.discordId) {
+      // Remove candidate's view access
+      await channel.permissionOverwrites.edit(candidature.discordId, {
+        ViewChannel: false,
+      }).catch(() => null);
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor(0xfee75c)
+      .setDescription(`🔒 Ticket fermé par <@${interaction.user.id}>.`)
+      .setTimestamp();
+
+    await interaction.reply({ embeds: [embed] });
+  }
+
+  else if (action === 'delete') {
+    const embed = new EmbedBuilder()
+      .setColor(0xed4245)
+      .setDescription(`🗑️ Ce ticket sera supprimé dans 5 secondes...`);
+
+    await interaction.reply({ embeds: [embed] });
+
+    setTimeout(async () => {
+      try {
+        await interaction.channel?.delete().catch(() => null);
+      } catch (err) {
+        logger.warn('Recruitment', `Erreur suppression ticket: ${err}`);
+      }
+    }, 5000);
+  }
 }

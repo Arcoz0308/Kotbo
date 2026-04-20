@@ -79,6 +79,18 @@
     recentLogCount: number;
     connections: Array<{ name: string; type: string; visible: boolean }>;
     connectionsNote: string;
+    candidatures: Array<{
+      id: string;
+      status: string;
+      notes: string;
+      createdAt: string;
+      data: any;
+      autoRejected: boolean;
+      autoRejectReason: string | null;
+      rejectionReason: string | null;
+      oralResult: string | null;
+      reapplyAfter: string | null;
+    }>;
   };
 
   let {
@@ -111,7 +123,7 @@
     onAction?: (action: 'WARN' | 'KICK' | 'TIMEOUT' | 'BAN') => void;
   }>();
 
-  let activeTab = $state<MemberCaseTab>('resume');
+  let activeTab = $state<MemberCaseTab | 'candidatures'>('resume');
 
   const sanctions = $derived(
     caseData?.sanctions
@@ -126,6 +138,7 @@
     { id: 'messages', label: 'Messages', icon: 'chat', count: () => caseData?.recentMessageCount ?? 0 },
     { id: 'logs', label: 'Logs', icon: 'history', count: () => caseData?.recentLogCount ?? 0 },
     { id: 'sanctions', label: 'Sanctions', icon: 'gavel', count: () => sanctions.length },
+    { id: 'candidatures', label: 'Candidats', icon: 'assignment_ind', count: () => caseData?.candidatures?.length ?? 0 },
     { id: 'invites', label: 'Invitations', icon: 'mail' },
     { id: 'connexions', label: 'Connexions', icon: 'link' },
   ];
@@ -732,6 +745,59 @@
                       <div class="md:col-span-2 flex flex-col items-center py-8 text-on-surface-variant/40">
                         <span class="material-symbols-outlined text-4xl">link_off</span>
                         <p class="mt-2 text-sm font-semibold">Aucune connexion exposée</p>
+                      </div>
+                    {/if}
+                  </div>
+                </div>
+
+              {:else if activeTab === 'candidatures'}
+                <div class="section-card p-5 space-y-4">
+                  <div class="flex items-center justify-between gap-3">
+                    <p class="section-label">Historique des candidatures</p>
+                    <span class="text-[10px] font-bold text-on-surface-variant">{(caseData.candidatures || []).length} candidature(s)</span>
+                  </div>
+                  <div class="space-y-4">
+                    {#each (caseData.candidatures || []) as candidature}
+                      <div class="rounded-2xl border border-outline-variant/30 p-4 space-y-3 bg-surface-container-low transition-all">
+                        <div class="flex items-start justify-between">
+                          <div>
+                            <span class="text-xs font-bold uppercase tracking-widest text-primary mb-1 block">
+                              {formatDateShort(candidature.createdAt)}
+                            </span>
+                            <span class="badge {candidature.status === 'APPROVED' ? 'badge-success' : candidature.status === 'REJECTED' || candidature.status === 'AUTO_REJECTED' ? 'badge-danger' : 'badge-warning'}">
+                              {candidature.status}
+                            </span>
+                          </div>
+                          {#if candidature.oralResult}
+                            <div class="text-[10px] font-bold uppercase text-on-surface-variant/80 border border-outline-variant/50 px-2 py-1 rounded-sm">
+                              Oral: {candidature.oralResult}
+                            </div>
+                          {/if}
+                        </div>
+                        
+                        {#if candidature.autoRejected}
+                           <div class="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-400">
+                             <span class="material-symbols-outlined text-sm align-middle mr-1">robot_2</span> Auto-refus: {candidature.autoRejectReason}
+                           </div>
+                        {/if}
+                        
+                        {#if candidature.rejectionReason}
+                           <div class="rounded-xl border border-rose-500/20 px-3 py-2 text-xs font-medium text-rose-400 bg-surface-container-lowest">
+                             <span class="material-symbols-outlined text-sm align-middle mr-1">cancel</span> Motif: {candidature.rejectionReason}
+                           </div>
+                        {/if}
+                        
+                        {#if candidature.notes}
+                           <div class="text-xs text-on-surface-variant/80 bg-surface-container rounded-xl p-3 border-l-2 border-primary/40 italic">
+                             {candidature.notes}
+                           </div>
+                        {/if}
+                      </div>
+                    {/each}
+                    {#if (caseData.candidatures || []).length === 0}
+                      <div class="flex flex-col items-center py-8 text-on-surface-variant/40">
+                        <span class="material-symbols-outlined text-4xl">person_search</span>
+                        <p class="mt-2 text-sm font-semibold">Aucune candidature enregistrée</p>
                       </div>
                     {/if}
                   </div>

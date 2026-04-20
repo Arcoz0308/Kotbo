@@ -29,6 +29,9 @@ model Guild {
   baseStaffRoleId   String?
   testStaffRoleId   String?
 
+  recruitmentCategoryId  String?
+  recruitmentLogChannelId String?
+
   digestEnabled    Boolean         @default(false)
   digestFrequency  DigestFrequency @default(DAILY)
   digestTime       String          @default("08:00") // HH:MM
@@ -1009,6 +1012,13 @@ enum CandidatureStatus {
   ORAL
   APPROVED
   REJECTED
+  AUTO_REJECTED
+}
+
+enum OralResult {
+  PENDING
+  PASSED
+  FAILED
 }
 
 model RecruitmentCandidature {
@@ -1028,11 +1038,34 @@ model RecruitmentCandidature {
   // Internal notes from staff
   notes String?
   
+  // Rejection
+  rejectionReason String?
+  autoRejected    Boolean @default(false)
+  autoRejectReason String?
+  
+  // Oral interview
+  oralResult    OralResult?
+  oralNotes     String?
+  
+  // Ticket Discord
+  ticketChannelId String?
+  
+  // Staff linkage (after acceptance)
+  assignedTutorId  String?
+  staffMemberId    String?
+  
+  // Reapply cooldown
+  reapplyAfter DateTime?
+  
+  // Who processed this candidature
+  processedByUserId String?
+  
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([guildId, status])
+  @@index([guildId, discordId])
   @@map("recruitment_candidatures")
 }

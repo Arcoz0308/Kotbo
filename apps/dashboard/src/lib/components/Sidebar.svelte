@@ -70,7 +70,7 @@
 </script>
 
 <aside class="flex flex-col fixed left-0 top-0 h-screen w-64 bg-surface-container-low/80 backdrop-blur-3xl border-r border-outline-variant/30 z-50 transition-all duration-500 hover:shadow-[20px_0_40px_rgba(0,0,0,0.05)]">
-  <div class="p-8 flex items-center gap-4">
+  <div class="pl-8 pt-8 pb-2 flex items-center gap-4">
     <div class="relative w-11 h-11">
       <div class="absolute inset-0 bg-primary/20 rounded-2xl blur-lg animate-pulse"></div>
       <img alt="Logo" src={LOGO_URL} class="w-full h-full object-cover rounded-xl"/>
@@ -80,7 +80,7 @@
     </div>
   </div>
 
-  <nav class="flex-1 mt-2 px-4 space-y-1 overflow-y-auto scrollbar-hide">
+  <nav class="flex-1 mt-2 px-4 pb-8 space-y-1 overflow-y-auto scrollbar-hide">
     {#each navGroups as group, groupIdx}
       {#if groupIdx > 0}
         <div class="pt-4 mt-3 border-t border-outline-variant/30"></div>
@@ -115,18 +115,6 @@
       </a>
     </div>
   </nav>
-
-  
-  <div class="p-6">
-    <div class="bg-linear-to-br from-primary to-primary-container p-5 rounded-3xl text-on-primary shadow-2xl shadow-primary/20 relative overflow-hidden group">
-      <div class="absolute -top-12 -right-12 w-24 h-24 bg-white/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
-      <p class="text-[10px] font-bold uppercase tracking-widest opacity-60 mb-1">Status</p>
-      <div class="flex items-center gap-2">
-        <span class="w-2 h-2 bg-white rounded-full animate-pulse shadow-[0_0_8px_white]"></span>
-        <span class="text-xs font-bold font-headline">Système Actif</span>
-      </div>
-    </div>
-  </div>
 </aside>
 
 <style>
