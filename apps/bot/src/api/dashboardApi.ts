@@ -1754,10 +1754,12 @@ export const startDashboardApi = (client: Client) => {
         try {
           const body = await readJsonBody(req);
           if (!body) {
+            logger.warn('RecruitmentAPI', `Requête vide reçue pour le serveur ${guildId}`);
             json(res, 400, { error: 'Payload vide' });
             return;
           }
           
+          logger.info('RecruitmentAPI', `Candidature reçue pour le serveur ${guildId}. Données: ${JSON.stringify(body).substring(0, 100)}...`);
           await createCandidature(guildId, body);
           
           json(res, 201, { ok: true, message: 'Candidature enregistrée' });

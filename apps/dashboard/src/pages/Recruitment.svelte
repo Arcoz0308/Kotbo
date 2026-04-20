@@ -190,8 +190,17 @@ function onFormSubmit(e) &#123;
   // URL de ton webhook Kotbo
   var url = "{API_BASE_URL}/api/webhooks/recruitment/{authStore.selectedGuildId}";
   
-  // Récupération des réponses (format simple pour le dash)
-  var responses = e.namedValues;
+  // Supporte à la fois Script lié au Formulaire et au Google Sheet
+  var responses = e.namedValues || &#123;&#125;;
+  
+  if (Object.keys(responses).length === 0 && e.response) &#123;
+    var itemResponses = e.response.getItemResponses();
+    for (var i = 0; i < itemResponses.length; i++) &#123;
+      var itemResponse = itemResponses[i];
+      responses[itemResponse.getItem().getTitle()] = itemResponse.getResponse();
+    &#125;
+  &#125;
+  
   var payload = JSON.stringify(responses);
   
   try &#123;
