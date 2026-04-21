@@ -73,6 +73,12 @@ import {
   getCandidatures,
   createCandidature,
   getEligibleTutors,
+  updateCandidatureStatus,
+  deleteCandidature as deleteRecruitmentCandidature,
+  approveCandidature,
+  rejectCandidature,
+  completeOral,
+  assignTutor,
 } from '../services/recruitmentService.js';
 
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
@@ -1917,6 +1923,118 @@ export const startDashboardApi = (client: Client) => {
             } catch (err) {
               logger.error('RecruitmentAPI', 'Error getting candidatures:', err);
               json(res, 500, { error: 'Erreur lors de la récupération des candidatures' });
+            }
+            return;
+          }
+
+          // PATCH /api/dashboard/guilds/:guildId/recruitment/candidatures/:id - Update candidature workflow
+          if (parts.length === 7 && parts[4] === 'recruitment' && parts[5] === 'candidatures' && req.method === 'PATCH') {
+            const candidatureId = parts[6];
+
+            const candidature = await prisma.recruitmentCandidature.findFirst({
+              where: { id: candidatureId, guildId },
+              select: { id: true }
+            });
+
+            if (!candidature) {
+              json(res, 404, { error: 'Candidature introuvable pour ce serveur.' });
+              return;
+            }
+
+            const body = await readJsonBody<{
+              action?: string;
+              status?: string;
+              notes?: string;
+              reason?: string;
+              discordUserId?: string;
+              tutorUserId?: string;
+            }>(req);
+
+            const action = body?.action;
+
+            try {
+              if (action === 'status_update') {
+                const nextStatus = body?.status;
+                if (!nextStatus || !['PENDING', 'ORAL', 'APPROVED', 'REJECTED', 'AUTO_REJECTED'].includes(nextStatus)) {
+                  json(res, 400, { error: 'Statut candidature invalide.' });
+                  return;
+                }
+
+                await updateCandidatureStatus(candidatureId, nextStatus as any, body?.notes);
+                json(res, 200, { ok: true });
+                return;
+              }
+
+              if (action === 'approve') {
+                const discordUserId = body?.discordUserId?.trim();
+                if (!discordUserId) {
+                  json(res, 400, { error: 'discordUserId est requis pour valider une candidature.' });
+                  return;
+                }
+
+                await approveCandidature(client, guildId, candidatureId, discordUserId, user.userId);
+                json(res, 200, { ok: true });
+                return;
+              }
+
+              if (action === 'reject') {
+                await rejectCandidature(client, guildId, candidatureId, body?.reason?.trim(), user.userId);
+                json(res, 200, { ok: true });
+                return;
+              }
+
+              if (action === 'oral_pass') {
+                await completeOral(client, guildId, candidatureId, 'PASSED', body?.reason?.trim(), user.userId);
+                json(res, 200, { ok: true });
+                return;
+              }
+
+              if (action === 'oral_fail') {
+                await completeOral(client, guildId, candidatureId, 'FAILED', body?.reason?.trim(), user.userId);
+                json(res, 200, { ok: true });
+                return;
+              }
+
+              if (action === 'assign_tutor') {
+                const tutorUserId = body?.tutorUserId?.trim();
+                if (!tutorUserId) {
+                  json(res, 400, { error: 'tutorUserId est requis pour assigner un tuteur.' });
+                  return;
+                }
+
+                await assignTutor(candidatureId, tutorUserId);
+                json(res, 200, { ok: true });
+                return;
+              }
+
+              json(res, 400, { error: 'Action de candidature non reconnue.' });
+            } catch (err) {
+              logger.error('RecruitmentAPI', 'Error updating candidature:', err);
+              json(res, 500, { error: err instanceof Error ? err.message : 'Erreur lors de la mise à jour de la candidature' });
+            }
+            return;
+          }
+
+          // DELETE /api/dashboard/guilds/:guildId/recruitment/candidatures/:id - Delete candidature
+          if (parts.length === 7 && parts[4] === 'recruitment' && parts[5] === 'candidatures' && req.method === 'DELETE') {
+            const candidatureId = parts[6];
+
+            const candidature = await prisma.recruitmentCandidature.findFirst({
+              where: { id: candidatureId, guildId },
+              select: { id: true }
+            });
+
+            if (!candidature) {
+              json(res, 404, { error: 'Candidature introuvable pour ce serveur.' });
+              return;
+            }
+
+            try {
+              await deleteRecruitmentCandidature(candidatureId);
+              json(res, 200, { ok: true });
+            } catch (err) {
+              logger.error('RecruitmentAPI', 'Error deleting candidature:', err);
+              json(res, 500, { error: 'Erreur lors de la suppression de la candidature' });
             }
             return;
           }
