@@ -1526,10 +1526,11 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
           <div class="p-6 md:p-8 border-b border-primary/10 bg-primary/5 animate-in slide-in-from-top-4 fade-in duration-300">
             <div class="flex flex-col gap-4 md:flex-row md:items-end">
               <div class="flex-1 relative">
-                <label class="block text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant/70 mb-2">Rechercher un rôle Discord</label>
+                <label for="staff-role-search" class="block text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant/70 mb-2">Rechercher un rôle Discord</label>
                 <div class="relative">
                   <span class="material-symbols-outlined pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/40 text-xl">search</span>
                   <input
+                    id="staff-role-search"
                     type="text"
                     placeholder="Saisissez un nom de rôle..."
                     value={roleSearchQuery}
@@ -1957,8 +1958,9 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
 
               <div class="space-y-4 flex flex-col justify-between">
                 <div>
-                   <label class="block text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant/70 mb-2">Expire le (Optionnel)</label>
+                   <label for="warn-expires-at" class="block text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant/70 mb-2">Expire le (Optionnel)</label>
                    <input
+                     id="warn-expires-at"
                      type="datetime-local"
                      bind:value={warnExpiresAt}
                      class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
@@ -2032,8 +2034,9 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
 
               <div class="space-y-4 flex flex-col justify-between">
                 <div>
-                   <label class="block text-xs font-bold uppercase tracking-[0.1em] text-rose-700/80 mb-2">Fin de blacklist (vide = permanent)</label>
+                   <label for="blacklist-end-date" class="block text-xs font-bold uppercase tracking-[0.1em] text-rose-700/80 mb-2">Fin de blacklist (vide = permanent)</label>
                    <input
+                     id="blacklist-end-date"
                      type="date"
                      bind:value={blacklistEndDate}
                      class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-rose-500/40 focus:ring-4 focus:ring-rose-500/10"

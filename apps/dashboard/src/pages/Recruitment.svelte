@@ -410,8 +410,8 @@
         
         <div class="space-y-4">
              <div>
-                <label class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">ID Catégorie Tickets (Optionnel)</label>
-                <input type="text" bind:value={recruitmentCategoryId} class="w-full bg-surface-container rounded-2xl px-5 py-4 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm font-medium" placeholder="Ex: 123456789012345678">
+               <label for="recruitment-category-id" class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">ID Catégorie Tickets (Optionnel)</label>
+               <input id="recruitment-category-id" type="text" bind:value={recruitmentCategoryId} class="w-full bg-surface-container rounded-2xl px-5 py-4 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm font-medium" placeholder="Ex: 123456789012345678">
                 <p class="text-[10px] opacity-50 mt-1">L'ID de la catégorie où les tickets d'entretiens oraux seront créés.</p>
              </div>
         </div>
@@ -435,8 +435,8 @@
         <p class="text-sm text-on-surface-variant/80 mb-6">Cette action créera un salon ticket et enverra un message privé au candidat.</p>
         
         <div>
-            <label class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">ID Discord du Candidat</label>
-            <input type="text" bind:value={validationDiscordId} class="w-full bg-surface-container rounded-2xl px-5 py-4 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm font-medium font-mono" placeholder="Ex: 123456789012345678">
+          <label for="validate-discord-id" class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">ID Discord du Candidat</label>
+          <input id="validate-discord-id" type="text" bind:value={validationDiscordId} class="w-full bg-surface-container rounded-2xl px-5 py-4 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm font-medium font-mono" placeholder="Ex: 123456789012345678">
             <p class="text-[10px] text-on-surface-variant/60 mt-2">Ce champ doit être pré-rempli si le candidat a fourni un ID valide. Le bot s'en servira pour l'assigner au ticket.</p>
         </div>
         
@@ -464,8 +464,8 @@
         <p class="text-sm text-on-surface-variant/80 mb-6">Cette action clôturera la candidature.</p>
         
         <div>
-            <label class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Raison (Envoyée en MP) — Optionnel</label>
-            <textarea bind:value={rejectReason} class="w-full h-32 bg-surface-container rounded-2xl p-4 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm" placeholder="Raison spécifique du refus..."></textarea>
+          <label for="reject-reason" class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Raison (Envoyée en MP) — Optionnel</label>
+          <textarea id="reject-reason" bind:value={rejectReason} class="w-full h-32 bg-surface-container rounded-2xl p-4 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm" placeholder="Raison spécifique du refus..."></textarea>
         </div>
         
         <div class="flex gap-4 mt-8 pt-6 border-t border-outline-variant/20">
@@ -492,8 +492,8 @@
         
         <div class="space-y-4">
              <div>
-                <label class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Assigner un tuteur</label>
-                <select bind:value={tutorSelected} class="w-full bg-surface-container rounded-2xl px-5 py-4 focus:outline-hidden text-sm font-medium border-r-8 border-transparent appearance-none">
+               <label for="oral-pass-tutor" class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Assigner un tuteur</label>
+               <select id="oral-pass-tutor" bind:value={tutorSelected} class="w-full bg-surface-container rounded-2xl px-5 py-4 focus:outline-hidden text-sm font-medium border-r-8 border-transparent appearance-none">
                     <option value="" disabled>Sélectionner un tuteur...</option>
                     {#each tutors as tutor}
                        <option value={tutor.userId}>{tutor.displayName || tutor.username} ({tutor.grade})</option>
@@ -504,8 +504,8 @@
                 {/if}
              </div>
              <div>
-                <label class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Notes d'entretien</label>
-                <textarea bind:value={oralPassNotes} class="w-full h-24 bg-surface-container rounded-2xl p-4 focus:outline-hidden text-sm" placeholder="Observation sur l'entretien..."></textarea>
+               <label for="oral-pass-notes" class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Notes d'entretien</label>
+               <textarea id="oral-pass-notes" bind:value={oralPassNotes} class="w-full h-24 bg-surface-container rounded-2xl p-4 focus:outline-hidden text-sm" placeholder="Observation sur l'entretien..."></textarea>
              </div>
         </div>
         
@@ -536,8 +536,8 @@
         <p class="text-sm text-on-surface-variant/80 mb-6">Le profil est rejeté et une attente d'1 mois est appliquée avant de pouvoir re-candidater.</p>
         
         <div>
-            <label class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Raison (Envoyée en MP) — Optionnel</label>
-            <textarea bind:value={oralFailReason} class="w-full h-32 bg-surface-container rounded-2xl p-4 focus:outline-hidden text-sm" placeholder="Raison de l'échec..."></textarea>
+          <label for="oral-fail-reason" class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Raison (Envoyée en MP) — Optionnel</label>
+          <textarea id="oral-fail-reason" bind:value={oralFailReason} class="w-full h-32 bg-surface-container rounded-2xl p-4 focus:outline-hidden text-sm" placeholder="Raison de l'échec..."></textarea>
         </div>
         
         <div class="flex gap-4 mt-8 pt-6 border-t border-outline-variant/20">

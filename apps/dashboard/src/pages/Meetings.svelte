@@ -274,8 +274,9 @@
 
       <div class="p-8 space-y-6">
         <div>
-          <label class="block text-xs font-black text-on-surface-variant uppercase tracking-[0.2em] mb-2">Titre de la réunion</label>
+          <label for="meeting-title" class="block text-xs font-black text-on-surface-variant uppercase tracking-[0.2em] mb-2">Titre de la réunion</label>
           <FormInput 
+            id="meeting-title"
             bind:value={meetingTitle}
             placeholder="Ex: Réunion de coordination hebdomadaire"
             className="w-full text-lg font-bold"
@@ -283,8 +284,9 @@
         </div>
 
         <div>
-          <label class="block text-xs font-black text-on-surface-variant uppercase tracking-[0.2em] mb-2">Date et Heure prévue</label>
+          <label for="meeting-date" class="block text-xs font-black text-on-surface-variant uppercase tracking-[0.2em] mb-2">Date et Heure prévue</label>
           <FormInput 
+            id="meeting-date"
             type="datetime-local"
             bind:value={meetingDate}
             className="w-full"
@@ -292,8 +294,9 @@
         </div>
 
         <div>
-          <label class="block text-xs font-black text-on-surface-variant uppercase tracking-[0.2em] mb-2">Ordre du jour / Description</label>
+          <label for="meeting-desc" class="block text-xs font-black text-on-surface-variant uppercase tracking-[0.2em] mb-2">Ordre du jour / Description</label>
           <FormTextarea 
+            id="meeting-desc"
             bind:value={meetingDesc}
             placeholder="Détails de la réunion, points à aborder..."
             rows={5}

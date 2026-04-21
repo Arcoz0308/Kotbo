@@ -71,6 +71,7 @@ import {
 } from '../services/staffLeadershipService.js';
 import {
   getCandidatures,
+  createCandidature,
   getEligibleTutors,
 } from '../services/recruitmentService.js';
 
@@ -571,6 +572,30 @@ const verifyAuth = (req: IncomingMessage): AuthClaims | null => {
   } catch {
     return null;
   }
+};
+
+const verifyRecruitmentWebhookAuth = async (req: IncomingMessage, guildId: string): Promise<AuthClaims | null> => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    try {
+      return jwt.verify(token, JWT_SECRET) as AuthClaims;
+    } catch {
+      // ignore and try API key below
+    }
+  }
+
+  const apiKey = req.headers['x-kotbo-api-key'] ?? req.headers['x-api-key'];
+  const apiKeyValue = Array.isArray(apiKey) ? apiKey[0] : apiKey;
+  if (!apiKeyValue || typeof apiKeyValue !== 'string') return null;
+
+  const key = await verifyAPIKey(hashAPIKey(apiKeyValue.trim()), guildId);
+  if (!key) return null;
+
+  return {
+    userId: key.createdByUserId,
+    username: key.name,
+  };
 };
 
 const getAuditActor = (auth: AuthClaims) => {
@@ -1727,6 +1752,29 @@ export const startDashboardApi = (client: Client) => {
 
 
       if (parts.length >= 2 && parts[0] === 'api' && parts[1] === 'dashboard') {
+        if (parts.length === 6 && parts[2] === 'guilds' && parts[4] === 'recruitment' && parts[5] === 'candidatures' && req.method === 'POST') {
+          const guildId = parts[3];
+          const webhookUser = await verifyRecruitmentWebhookAuth(req, guildId);
+          if (!webhookUser) {
+            json(res, 401, { error: 'Non authentifié' });
+            return;
+          }
+
+          try {
+            const body = await readJsonBody<Record<string, unknown>>(req);
+            const payload = body && typeof body === 'object' && 'data' in body
+              ? ((body.data as Record<string, unknown>) ?? body)
+              : (body ?? {});
+
+            const result = await createCandidature(guildId, payload);
+            json(res, 201, result);
+          } catch (err) {
+            logger.error('RecruitmentAPI', 'Error creating candidature:', err);
+            json(res, 500, { error: 'Erreur lors de la création de la candidature' });
+          }
+          return;
+        }
+
         const user = verifyAuth(req);
         if (!user) {
           json(res, 401, { error: 'Non authentifié' });

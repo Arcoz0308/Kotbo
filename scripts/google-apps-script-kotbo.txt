@@ -1,0 +1,108 @@
+function onFormSubmit(e) {
+  if (!e) {
+    Logger.log("Aucun objet evenement fourni. Lancez cette fonction uniquement via un declencheur On form submit.");
+    return;
+  }
+
+  var props = PropertiesService.getScriptProperties();
+  var apiBaseUrl = props.getProperty("KOTBO_API_BASE_URL");
+  var apiKey = props.getProperty("KOTBO_API_KEY");
+  var bearerToken = props.getProperty("KOTBO_BEARER_TOKEN");
+  var guildId = props.getProperty("KOTBO_GUILD_ID");
+
+  if (!apiBaseUrl || (!apiKey && !bearerToken) || !guildId) {
+    Logger.log("Config manquante: KOTBO_API_BASE_URL / KOTBO_GUILD_ID et (KOTBO_API_KEY ou KOTBO_BEARER_TOKEN)");
+    return;
+  }
+
+  var endpoint = apiBaseUrl + "/api/dashboard/guilds/" + guildId + "/recruitment/candidatures";
+
+  // Reponses du formulaire Google Forms
+  var reponses = {};
+
+  if (e.namedValues) {
+    reponses = e.namedValues;
+  } else if (e.response && typeof e.response.getItemResponses === "function") {
+    var itemResponses = e.response.getItemResponses();
+    for (var i = 0; i < itemResponses.length; i++) {
+      var item = itemResponses[i].getItem();
+      var itemTitle = item && typeof item.getTitle === "function" ? item.getTitle() : "Champ " + (i + 1);
+      var responseValue = itemResponses[i].getResponse();
+      reponses[itemTitle] = [String(responseValue ?? "")];
+    }
+  } else {
+    Logger.log("Format d'evenement non supporte: impossible de lire les reponses du formulaire.");
+    return;
+  }
+
+  // Optionnel: si le formulaire contient des champs explicites, on peut les extraire
+  var discordId = (reponses["Discord ID"] && reponses["Discord ID"][0]) ? reponses["Discord ID"][0] : "";
+  var username = (reponses["Pseudo"] && reponses["Pseudo"][0]) ? reponses["Pseudo"][0] : "";
+  var email = (reponses["Email"] && reponses["Email"][0]) ? reponses["Email"][0] : "";
+
+  var submittedAt = new Date().toISOString();
+
+  var payload = {
+    data: reponses,
+    submittedAt: submittedAt,
+    discordId: discordId,
+    username: username,
+    email: email
+  };
+
+  var headers = {
+    Accept: "application/json"
+  };
+
+  // Mode recommande: cle API Kotbo
+  if (apiKey) {
+    headers["X-Kotbo-Api-Key"] = apiKey;
+    headers["X-Api-Key"] = apiKey;
+  }
+
+  // Mode legacy: JWT dashboard
+  if (bearerToken) {
+    headers.Authorization = "Bearer " + bearerToken;
+  }
+
+  var options = {
+    method: "post",
+    contentType: "application/json",
+    headers: headers,
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  };
+
+  try {
+    var response = UrlFetchApp.fetch(endpoint, options);
+    var status = response.getResponseCode();
+    var body = response.getContentText();
+
+    if (status < 200 || status >= 300) {
+      Logger.log("Diagnostic auth => hasApiKey=" + (!!apiKey) + " hasBearer=" + (!!bearerToken) + " guildId=" + guildId);
+      Logger.log("Erreur Kotbo " + status + " : " + body);
+      return;
+    }
+
+    Logger.log("Candidature Kotbo envoyee OK : " + body);
+  } catch (err) {
+    Logger.log("Exception envoi candidature Kotbo : " + err);
+  }
+}
+
+function testOnFormSubmit() {
+  Logger.log("Cette fonction ne doit pas etre lancee manuellement sans objet evenement.");
+}
+
+/*
+Configuration a faire (une fois):
+1) Projets Apps Script > Parametres du projet > Proprietes du script
+2) Ajouter:
+   - KOTBO_API_BASE_URL = https://api.tondomaine.com
+  - KOTBO_GUILD_ID = id du serveur Discord
+  - KOTBO_API_KEY = ta cle API Kotbo (recommande)
+  - KOTBO_BEARER_TOKEN = token JWT dashboard (optionnel / legacy)
+3) Creer une cle API dans le dashboard Kotbo
+4) Creer un declencheur installable: On form submit
+5) Verifier que les noms des questions du formulaire correspondent bien aux champs attendus
+*/

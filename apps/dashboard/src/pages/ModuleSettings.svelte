@@ -2453,7 +2453,7 @@
 
 {#if ideModalOpen && focusedSubmission}
   <div class="modal-backdrop dailyalgo-ide-overlay" role="dialog" aria-modal="true" aria-labelledby="dailyalgo-ide-title" tabindex="-1">
-    <div class="modal-panel modal-panel-dailyalgo-ide" onclick={(event) => event.stopPropagation()}>
+    <div class="modal-panel modal-panel-dailyalgo-ide">
       <div class="dailyalgo-ide-menubar">
         <div class="dailyalgo-ide-window-controls">
           <span class="dot red"></span>

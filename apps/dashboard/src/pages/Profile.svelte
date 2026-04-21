@@ -55,13 +55,19 @@
       const meRes = await fetch(`${API_BASE_URL}/api/user/me`, {
         headers: { Authorization: `Bearer ${authStore.token}` }
       });
+      if (!meRes.ok) {
+        throw new Error('Impossible de récupérer le profil utilisateur');
+      }
       const meData = await meRes.json();
       user = meData;
 
       // Récupérer le profil staff et les clés API
-      const profileRes = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/staff/${meData.id}/profile`, {
+      const profileRes = await fetch(`${API_BASE_URL}/api/dashboard/users/${meData.id}/profile`, {
         headers: { Authorization: `Bearer ${authStore.token}` }
       });
+      if (!profileRes.ok) {
+        throw new Error('Impossible de récupérer le profil staff');
+      }
       const profileData = await profileRes.json();
       staffMember = profileData.staffMember;
       apiKeys = profileData.apiKeys || [];
@@ -72,11 +78,13 @@
 
       // Récupérer les stats
       if (staffMember) {
-        const statsRes = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/staff/${meData.id}/stats`, {
+        const statsRes = await fetch(`${API_BASE_URL}/api/dashboard/users/${meData.id}/staff-stats`, {
           headers: { Authorization: `Bearer ${authStore.token}` }
         });
-        const statsData = await statsRes.json();
-        stats = statsData.stats;
+        if (statsRes.ok) {
+          const statsData = await statsRes.json();
+          stats = statsData.stats;
+        }
       }
 
       loading = false;
@@ -305,8 +313,8 @@
           {#if showNewKeyForm}
             <div class="flex gap-3 items-end mb-6 p-4 rounded-2xl border border-outline-variant/20 bg-surface-container-low/60">
               <div class="flex-1">
-                <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-1 block">Nom de la clé</label>
-                <FormInput bind:value={newKeyName} type="text" placeholder="Ma clé API" className="w-full" />
+                <label for="new-api-key-name" class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-1 block">Nom de la clé</label>
+                <FormInput id="new-api-key-name" bind:value={newKeyName} type="text" placeholder="Ma clé API" className="w-full" />
               </div>
               <button 
                 onclick={createNewAPIKey} 

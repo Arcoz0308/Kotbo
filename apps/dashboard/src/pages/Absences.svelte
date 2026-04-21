@@ -272,18 +272,19 @@
       <div class="p-8 space-y-6">
         <div class="grid grid-cols-2 gap-4">
            <div>
-            <label class="block text-xs font-black text-on-surface-variant uppercase tracking-[0.2em] mb-2">Début</label>
-            <FormInput type="date" bind:value={startDate} className="w-full" />
+            <label for="absence-start-date" class="block text-xs font-black text-on-surface-variant uppercase tracking-[0.2em] mb-2">Début</label>
+              <FormInput id="absence-start-date" type="date" bind:value={startDate} className="w-full" />
           </div>
           <div>
-            <label class="block text-xs font-black text-on-surface-variant uppercase tracking-[0.2em] mb-2">Fin (Inclus)</label>
-            <FormInput type="date" bind:value={endDate} className="w-full" />
+              <label for="absence-end-date" class="block text-xs font-black text-on-surface-variant uppercase tracking-[0.2em] mb-2">Fin (Inclus)</label>
+              <FormInput id="absence-end-date" type="date" bind:value={endDate} className="w-full" />
           </div>
         </div>
 
         <div>
-          <label class="block text-xs font-black text-on-surface-variant uppercase tracking-[0.2em] mb-2">Raison de l'absence</label>
+            <label for="absence-reason" class="block text-xs font-black text-on-surface-variant uppercase tracking-[0.2em] mb-2">Raison de l'absence</label>
           <FormTextarea 
+              id="absence-reason"
             bind:value={reason}
             placeholder="Ex: Vacances, Personnel, Travail..."
             rows={4}
