@@ -1868,7 +1868,7 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
-          // GET /api/dashboard/guilds/:guildId/members/search - Search members from database
+          // GET /api/dashboard/guilds/:guildId/members/search - Search members from Discord + database
           if (parts.length === 5 && parts[4] === 'search' && req.method === 'GET') {
             try {
               const searchQuery = (url.searchParams.get('q') ?? '').trim().toLowerCase();
@@ -1882,46 +1882,28 @@ export const startDashboardApi = (client: Client) => {
               // Validate sortBy to prevent injection
               const validSortFields = ['lastSeenAt', 'messageCount', 'guildJoinedAt'];
               const finalSortBy = validSortFields.includes(sortBy) ? sortBy : 'lastSeenAt';
-              const finalSortOrder = sortOrder === 'asc' ? 'asc' : 'desc';
 
-              // Build filter
-              const whereClause: any = { guildId };
-              if (!showLeftMembers) {
-                whereClause.guildLeftAt = null;
+              // Fetch all server members from Discord
+              const discordGuild = client.guilds.cache.get(guildId);
+              let discordMembers: Map<string, any> = new Map();
+
+              if (discordGuild) {
+                try {
+                  const allServerMembers = await discordGuild.members.fetch({ limit: 1000 }).catch(() => null);
+                  if (allServerMembers) {
+                    for (const member of allServerMembers.values()) {
+                      discordMembers.set(member.id, member);
+                    }
+                  }
+                } catch (err) {
+                  logger.debug('MembersAPI', 'Could not fetch Discord members:', String(err));
+                }
               }
 
-              // Filter by bot status
-              if (botFilter === 'human') {
-                whereClause.isBot = false;
-              } else if (botFilter === 'bot') {
-                whereClause.isBot = true;
-              }
-              // If botFilter === 'all', don't add any bot filter
-
-              // Search by username, displayName, globalName, or ID
-              if (searchQuery) {
-                whereClause.OR = [
-                  { username: { contains: searchQuery, mode: 'insensitive' } },
-                  { displayName: { contains: searchQuery, mode: 'insensitive' } },
-                  { globalName: { contains: searchQuery, mode: 'insensitive' } },
-                  { userTag: { contains: searchQuery, mode: 'insensitive' } },
-                  { userId: { contains: searchQuery, mode: 'insensitive' } },
-                ];
-              }
-
-              // Get total count for pagination
-              const totalFound = await prisma.memberProfile.count({ where: whereClause });
-              const totalPages = Math.ceil(totalFound / limit);
-              const skip = (page - 1) * limit;
-
-              // Fetch members from database
-              const dbMembers = await prisma.memberProfile.findMany({
-                where: whereClause,
-                orderBy: { [finalSortBy]: finalSortOrder },
-                skip,
-                take: limit,
+              // Fetch all members from database for enrichment
+              const allDbMembers = await prisma.memberProfile.findMany({
+                where: { guildId },
                 select: {
-                  id: false,
                   userId: true,
                   username: true,
                   displayName: true,
@@ -1936,36 +1918,96 @@ export const startDashboardApi = (client: Client) => {
                 },
               });
 
-              // Fetch all server members once for presence check
-              const discordGuild = client.guilds.cache.get(guildId);
-              let serverMemberIds = new Set<string>();
-              if (discordGuild) {
-                try {
-                  const allServerMembers = await discordGuild.members.fetch({ limit: 1000 }).catch(() => null);
-                  if (allServerMembers) {
-                    serverMemberIds = new Set(allServerMembers.map(m => m.id));
+              // Create map for quick lookup
+              const dbMemberMap = new Map(allDbMembers.map(m => [m.userId, m]));
+
+              // Build list of members from Discord + DB
+              let allMembers: any[] = [];
+
+              // Add Discord members
+              for (const [userId, discordMember] of discordMembers.entries()) {
+                const dbMember = dbMemberMap.get(userId);
+                allMembers.push({
+                  id: userId,
+                  username: dbMember?.username || discordMember.user.username,
+                  displayName: dbMember?.displayName || discordMember.displayName || discordMember.user.globalName || discordMember.user.username,
+                  avatarUrl: dbMember?.avatarUrl || discordMember.user.displayAvatarURL({ size: 256 }),
+                  isBot: discordMember.user.bot,
+                  lastSeenAt: dbMember?.lastSeenAt?.toISOString() ?? null,
+                  messageCount: dbMember?.messageCount || 0,
+                  guildJoinedAt: discordMember.joinedAt?.toISOString() ?? dbMember?.guildJoinedAt?.toISOString() ?? null,
+                  guildLeftAt: null, // They're on the server
+                  isOnServer: true,
+                  _sortKey: finalSortBy === 'lastSeenAt' ? (dbMember?.lastSeenAt?.getTime() ?? 0) : (finalSortBy === 'messageCount' ? (dbMember?.messageCount ?? 0) : (discordMember.joinedAt?.getTime() ?? 0)),
+                });
+              }
+
+              // If showLeftMembers, add members from DB that are not on Discord
+              if (showLeftMembers) {
+                for (const dbMember of allDbMembers) {
+                  if (!discordMembers.has(dbMember.userId)) {
+                    allMembers.push({
+                      id: dbMember.userId,
+                      username: dbMember.username || 'Utilisateur inconnu',
+                      displayName: dbMember.displayName || dbMember.globalName || dbMember.userTag || dbMember.username || 'Utilisateur inconnu',
+                      avatarUrl: dbMember.avatarUrl,
+                      isBot: dbMember.isBot || false,
+                      lastSeenAt: dbMember.lastSeenAt?.toISOString() ?? null,
+                      messageCount: dbMember.messageCount || 0,
+                      guildJoinedAt: dbMember.guildJoinedAt?.toISOString() ?? null,
+                      guildLeftAt: dbMember.guildLeftAt?.toISOString() ?? null,
+                      isOnServer: false,
+                      _sortKey: finalSortBy === 'lastSeenAt' ? (dbMember.lastSeenAt?.getTime() ?? 0) : (finalSortBy === 'messageCount' ? (dbMember.messageCount ?? 0) : (dbMember.guildJoinedAt?.getTime() ?? 0)),
+                    });
                   }
-                } catch (err) {
-                  logger.debug('MembersAPI', 'Could not fetch Discord members:', String(err));
                 }
               }
 
-              // Enrich with Discord presence
-              const members = dbMembers.map((member) => {
-                const isOnServer = serverMemberIds.has(member.userId);
+              // Filter by search query
+              if (searchQuery) {
+                allMembers = allMembers.filter(member =>
+                  member.username?.toLowerCase().includes(searchQuery) ||
+                  member.displayName?.toLowerCase().includes(searchQuery) ||
+                  member.id.includes(searchQuery)
+                );
+              }
 
-                return {
-                  id: member.userId,
-                  username: member.username || 'Utilisateur inconnu',
-                  displayName: member.displayName || member.globalName || member.userTag || member.username || 'Utilisateur inconnu',
-                  avatarUrl: member.avatarUrl,
-                  isBot: member.isBot || false,
-                  lastSeenAt: member.lastSeenAt?.toISOString() ?? null,
-                  messageCount: member.messageCount || 0,
-                  guildJoinedAt: member.guildJoinedAt?.toISOString() ?? null,
-                  guildLeftAt: member.guildLeftAt?.toISOString() ?? null,
-                  isOnServer,
-                };
+              // Filter by bot status
+              if (botFilter === 'human') {
+                allMembers = allMembers.filter(m => !m.isBot);
+              } else if (botFilter === 'bot') {
+                allMembers = allMembers.filter(m => m.isBot);
+              }
+
+              // Sort members
+              const finalSortOrder = sortOrder === 'asc' ? 1 : -1;
+              if (sortBy === 'messageCount') {
+                allMembers.sort((a, b) => (a.messageCount - b.messageCount) * finalSortOrder);
+              } else if (sortBy === 'guildJoinedAt') {
+                allMembers.sort((a, b) => {
+                  const dateA = a.guildJoinedAt ? new Date(a.guildJoinedAt).getTime() : 0;
+                  const dateB = b.guildJoinedAt ? new Date(b.guildJoinedAt).getTime() : 0;
+                  return (dateA - dateB) * finalSortOrder;
+                });
+              } else {
+                // lastSeenAt (default)
+                allMembers.sort((a, b) => {
+                  const dateA = a.lastSeenAt ? new Date(a.lastSeenAt).getTime() : 0;
+                  const dateB = b.lastSeenAt ? new Date(b.lastSeenAt).getTime() : 0;
+                  return (dateA - dateB) * finalSortOrder;
+                });
+              }
+
+              // Paginate
+              const totalFound = allMembers.length;
+              const totalPages = Math.ceil(totalFound / limit);
+              const skip = (page - 1) * limit;
+              const paginatedMembers = allMembers.slice(skip, skip + limit);
+
+              // Clean up response
+              const members = paginatedMembers.map(m => {
+                const { _sortKey, ...member } = m;
+                return member;
               });
 
               json(res, 200, {
