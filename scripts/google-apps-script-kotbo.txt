@@ -36,9 +36,39 @@ function onFormSubmit(e) {
   }
 
   // Optionnel: si le formulaire contient des champs explicites, on peut les extraire
-  var discordId = (reponses["Discord ID"] && reponses["Discord ID"][0]) ? reponses["Discord ID"][0] : "";
+  function firstAnswer(values, keys) {
+    for (var i = 0; i < keys.length; i++) {
+      var key = keys[i];
+      if (values[key] && values[key][0]) return String(values[key][0]).trim();
+    }
+    return "";
+  }
+
+  function normalizeDiscordId(input) {
+    if (!input) return "";
+    var raw = String(input).trim();
+
+    // Supporte les formats: 123..., <@123...>, <@!123...>
+    var mention = raw.match(/^<@!?(\d{17,20})>$/);
+    if (mention) return mention[1];
+
+    var digits = raw.match(/\d{17,20}/);
+    return digits ? digits[0] : "";
+  }
+
+  var discordIdRaw = firstAnswer(reponses, [
+    "Discord ID",
+    "ID Discord",
+    "Quel est votre ID Discord ?",
+    "Quel est votre ID Discord?"
+  ]);
+  var discordId = normalizeDiscordId(discordIdRaw);
   var username = (reponses["Pseudo"] && reponses["Pseudo"][0]) ? reponses["Pseudo"][0] : "";
   var email = (reponses["Email"] && reponses["Email"][0]) ? reponses["Email"][0] : "";
+
+  if (!discordId) {
+    Logger.log("ID Discord non detecte dans le formulaire (champ attendu: 'Quel est votre ID Discord ?').");
+  }
 
   var submittedAt = new Date().toISOString();
 

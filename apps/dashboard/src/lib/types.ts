@@ -52,8 +52,21 @@ export interface TestingPeriod {
   plannedDurationDays: number;
   targetGrade?: string | null;
   notes?: string | null;
+  staffMember?: StaffMember | null;
+  mentor?: StaffMember | null;
+  reports?: MentorReport[];
   createdAt: Date | string;
   updatedAt: Date | string;
+}
+
+export interface MentorReport {
+  id: string;
+  testingPeriodId: string;
+  authorId: string;
+  type: 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL';
+  content: string;
+  createdAt: Date | string;
+  author?: StaffMember | null;
 }
 
 export interface StaffManagerNote {

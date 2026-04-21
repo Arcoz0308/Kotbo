@@ -17,6 +17,7 @@
   
   let recruitmentCategoryId = $state('');
   let recruitmentLogChannelId = $state('');
+  let recruitmentAutoRejectEnabled = $state(true);
   
   // Modals state
   let validateModalTarget = $state<any>(null);
@@ -56,6 +57,7 @@
         state = await resState.json();
         recruitmentCategoryId = state.recruitmentCategoryId || '';
         recruitmentLogChannelId = state.recruitmentLogChannelId || '';
+        recruitmentAutoRejectEnabled = state.recruitmentAutoRejectEnabled !== false;
       }
       
       const [resCand, resTutors] = await Promise.all([
@@ -95,7 +97,11 @@
           'Authorization': `Bearer ${authStore.token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ recruitmentCategoryId, recruitmentLogChannelId })
+        body: JSON.stringify({
+          recruitmentCategoryId,
+          recruitmentLogChannelId,
+          recruitmentAutoRejectEnabled
+        })
       });
       if (!res.ok) throw new Error('Erreur configuration.');
       configVisible = false;
@@ -370,6 +376,13 @@
                                 Refuser
                             </button>
                          {/if}
+                         {#if candidature.status === 'AUTO_REJECTED'}
+                           <button 
+                             onclick={() => openValidateModal(candidature)}
+                             class="col-span-2 py-3 rounded-2xl bg-emerald-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2">
+                              <span class="material-symbols-outlined text-sm">verified</span> Accepter quand même
+                           </button>
+                         {/if}
                          {#if candidature.status === 'ORAL'}
                             <button 
                                onclick={() => openOralPassModal(candidature)}
@@ -413,6 +426,19 @@
                <label for="recruitment-category-id" class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">ID Catégorie Tickets (Optionnel)</label>
                <input id="recruitment-category-id" type="text" bind:value={recruitmentCategoryId} class="w-full bg-surface-container rounded-2xl px-5 py-4 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm font-medium" placeholder="Ex: 123456789012345678">
                 <p class="text-[10px] opacity-50 mt-1">L'ID de la catégorie où les tickets d'entretiens oraux seront créés.</p>
+             </div>
+             <div class="rounded-2xl border border-outline-variant/20 bg-surface-container-low/50 p-4 flex items-center justify-between gap-4">
+                <div>
+                  <p class="text-xs font-black uppercase tracking-widest text-primary">Auto-refus</p>
+                  <p class="text-[11px] text-on-surface-variant/70 mt-1">Désactivez pour laisser toutes les candidatures en attente (sans refus automatique).</p>
+                </div>
+                <button
+                  type="button"
+                  onclick={() => recruitmentAutoRejectEnabled = !recruitmentAutoRejectEnabled}
+                  class="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all {recruitmentAutoRejectEnabled ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}"
+                >
+                  {recruitmentAutoRejectEnabled ? 'Activé' : 'Désactivé'}
+                </button>
              </div>
         </div>
         

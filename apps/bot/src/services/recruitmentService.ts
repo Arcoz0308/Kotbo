@@ -133,7 +133,11 @@ export async function getCandidatures(guildId: string) {
   });
 }
 
-export async function createCandidature(guildId: string, data: any) {
+export async function createCandidature(
+  guildId: string,
+  data: any,
+  options?: { autoRejectEnabled?: boolean }
+) {
   // Try to find identifiers in the data
   let discordId: string | null = null;
   let username: string | null = null;
@@ -166,8 +170,11 @@ export async function createCandidature(guildId: string, data: any) {
   // Google Apps Script usually sends: { timestamp: "...", data: { "Field 1": ["Value"], ... } }
   const rawData = data.data || data;
 
-  // Check auto-rejection
-  const autoRejectCheck = checkAutoReject(rawData);
+  // Check auto-rejection (can be disabled from dashboard config)
+  const autoRejectEnabled = options?.autoRejectEnabled !== false;
+  const autoRejectCheck = autoRejectEnabled
+    ? checkAutoReject(rawData)
+    : { rejected: false, reason: '' };
 
   const candidature = await prisma.recruitmentCandidature.create({
     data: {

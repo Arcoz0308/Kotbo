@@ -363,6 +363,9 @@ type DashboardState = {
   logChannelId: string;
   regulationChannelId: string;
   regulationMessageId: string | null;
+  recruitmentCategoryId: string;
+  recruitmentLogChannelId: string;
+  recruitmentAutoRejectEnabled: boolean;
   modules: ModuleItem[];
   feeds: FeedItem[];
   contentItems: ContentItem[];
@@ -417,9 +420,179 @@ const DEFAULT_SEVERITY_BY_MODULE: Array<{ module: string; level: SeverityLevel }
 const DEFAULT_MESSAGE_TEMPLATE =
   '🔔 {titre}\n\n{resume}\n\nSource: {source}\nAuteur: {auteur}\n\nPublié automatiquement par Kotbo.';
 
+const recruitmentAutoRejectEnabledByGuild = new Map<string, boolean>();
+
+const isRecruitmentAutoRejectEnabled = (guildId: string) => {
+  return recruitmentAutoRejectEnabledByGuild.get(guildId) ?? true;
+};
+
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
 const nowIso = () => new Date().toISOString();
+
+function getDailyAlgoDateKeyWithOffset(offsetDays: number, baseDate = new Date()): string {
+  const anchor = new Date(Date.UTC(baseDate.getUTCFullYear(), baseDate.getUTCMonth(), baseDate.getUTCDate()));
+  anchor.setUTCDate(anchor.getUTCDate() + offsetDays);
+
+  const year = anchor.getUTCFullYear();
+  const month = String(anchor.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(anchor.getUTCDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+async function getDailyAlgoScheduleRuns(guildId: string, daysBack: number, daysForward: number) {
+  const safeDaysBack = Math.max(0, Math.trunc(daysBack));
+  const safeDaysForward = Math.max(0, Math.trunc(daysForward));
+  const startDateKey = getDailyAlgoDateKeyWithOffset(-safeDaysBack);
+  const endDateKey = getDailyAlgoDateKeyWithOffset(safeDaysForward);
+
+  const runs = await prisma.dailyAlgoRun.findMany({
+    where: {
+      guildId,
+      dateKey: {
+        gte: startDateKey,
+        lte: endDateKey,
+      },
+    },
+    include: {
+      problem: true,
+      _count: {
+        select: {
+          submissions: true,
+        },
+      },
+    },
+    orderBy: {
+      dateKey: 'asc',
+    },
+  });
+
+  return runs.map((run) => ({
+    id: run.id,
+    guildId: run.guildId,
+    dateKey: run.dateKey,
+    problemId: run.problemId,
+    challengeChannelId: run.challengeChannelId,
+    validationChannelId: run.validationChannelId,
+    challengeMessageId: run.challengeMessageId,
+    leaderboardMessageId: run.leaderboardMessageId,
+    summarySentAt: run.summarySentAt?.toISOString() ?? null,
+    createdAt: run.createdAt.toISOString(),
+    updatedAt: run.updatedAt.toISOString(),
+    submissionsCount: run._count.submissions,
+    problem: {
+      id: run.problem.id,
+      title: run.problem.title,
+      description: run.problem.description,
+      solution: run.problem.solution,
+      difficulty: run.problem.difficulty,
+      language: run.problem.language,
+      functionName: run.problem.functionName,
+      functionArgs: run.problem.functionArgs,
+      unitTests: run.problem.unitTests,
+      allowedLanguages: run.problem.allowedLanguages,
+      usedAt: run.problem.usedAt?.toISOString() ?? null,
+      createdAt: run.problem.createdAt.toISOString(),
+      updatedAt: run.problem.updatedAt.toISOString(),
+    },
+  }));
+}
+
+async function ensureDailyAlgoScheduleRuns(guildId: string, daysForward: number) {
+  const safeDaysForward = Math.max(1, Math.trunc(daysForward));
+  const guild = await prisma.guild.findUnique({
+    where: { id: guildId },
+    select: {
+      id: true,
+      dailyAlgoChannelId: true,
+      dailyAlgoValidationChannelId: true,
+    },
+  });
+
+  if (!guild) {
+    throw new Error('Guilde introuvable.');
+  }
+
+  if (!guild.dailyAlgoChannelId) {
+    throw new Error('Le salon Daily Algo doit être configuré avant de générer le planning.');
+  }
+
+  const createdDateKeys: string[] = [];
+
+  for (let offsetDays = 0; offsetDays <= safeDaysForward; offsetDays += 1) {
+    const dateKey = getDailyAlgoDateKeyWithOffset(offsetDays);
+    const existingRun = await prisma.dailyAlgoRun.findUnique({
+      where: {
+        guildId_dateKey: {
+          guildId,
+          dateKey,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existingRun) {
+      continue;
+    }
+
+    const problemCandidate = await prisma.dailyAlgoProblem.findFirst({
+      where: {
+        language: 'fr',
+        usedAt: null,
+      },
+      orderBy: [
+        { createdAt: 'asc' },
+        { id: 'asc' },
+      ],
+      select: {
+        id: true,
+      },
+    });
+
+    if (!problemCandidate) {
+      break;
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.dailyAlgoRun.create({
+        data: {
+          guildId,
+          dateKey,
+          problemId: problemCandidate.id,
+          challengeChannelId: guild.dailyAlgoChannelId!,
+          validationChannelId: guild.dailyAlgoValidationChannelId ?? null,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      const reservedProblem = await tx.dailyAlgoProblem.updateMany({
+        where: {
+          id: problemCandidate.id,
+          usedAt: null,
+        },
+        data: {
+          usedAt: new Date(),
+        },
+      });
+
+      if (reservedProblem.count === 0) {
+        throw new Error('Le problème Daily Algo a déjà été réservé.');
+      }
+
+      createdDateKeys.push(dateKey);
+    });
+  }
+
+  return {
+    createdDateKeys,
+    createdCount: createdDateKeys.length,
+  };
+}
 
 function normalizeLangCode(value: string | null | undefined): string | null {
   const normalized = value?.trim().toUpperCase();
@@ -1403,6 +1576,9 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
     logChannelId: guild.logChannelId ?? '',
     regulationChannelId: guild.regulationChannelId ?? '',
     regulationMessageId: guild.regulationMessageId ?? null,
+    recruitmentCategoryId: guild.recruitmentCategoryId ?? '',
+    recruitmentLogChannelId: guild.recruitmentLogChannelId ?? '',
+    recruitmentAutoRejectEnabled: isRecruitmentAutoRejectEnabled(guildId),
     modules,
     feeds: feedMapped,
     contentItems,
@@ -1790,7 +1966,9 @@ export const startDashboardApi = (client: Client) => {
               ? ((body.data as Record<string, unknown>) ?? body)
               : (body ?? {});
 
-            const result = await createCandidature(guildId, payload);
+            const result = await createCandidature(guildId, payload, {
+              autoRejectEnabled: isRecruitmentAutoRejectEnabled(guildId),
+            });
             json(res, 201, result);
           } catch (err) {
             logger.error('RecruitmentAPI', 'Error creating candidature:', err);
@@ -1924,6 +2102,38 @@ export const startDashboardApi = (client: Client) => {
               logger.error('RecruitmentAPI', 'Error getting candidatures:', err);
               json(res, 500, { error: 'Erreur lors de la récupération des candidatures' });
             }
+            return;
+          }
+
+          // PATCH /api/dashboard/guilds/:guildId/recruitment/config - Update recruitment configuration
+          if (parts.length === 6 && parts[4] === 'recruitment' && parts[5] === 'config' && req.method === 'PATCH') {
+            const body = await readJsonBody<{
+              recruitmentCategoryId?: string | null;
+              recruitmentLogChannelId?: string | null;
+              recruitmentAutoRejectEnabled?: boolean;
+            }>(req);
+
+            const recruitmentCategoryId = body?.recruitmentCategoryId?.trim() || null;
+            const recruitmentLogChannelId = body?.recruitmentLogChannelId?.trim() || null;
+
+            await prisma.guild.update({
+              where: { id: guildId },
+              data: {
+                recruitmentCategoryId,
+                recruitmentLogChannelId,
+              }
+            });
+
+            if (typeof body?.recruitmentAutoRejectEnabled === 'boolean') {
+              recruitmentAutoRejectEnabledByGuild.set(guildId, body.recruitmentAutoRejectEnabled);
+            }
+
+            json(res, 200, {
+              ok: true,
+              recruitmentCategoryId,
+              recruitmentLogChannelId,
+              recruitmentAutoRejectEnabled: isRecruitmentAutoRejectEnabled(guildId),
+            });
             return;
           }
 
@@ -4006,6 +4216,33 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
+          if (parts.length === 6 && parts[4] === 'daily-algo-runs' && parts[5] === 'schedule' && req.method === 'GET') {
+            try {
+              const daysBack = Number(url.searchParams.get('daysBack') ?? '7');
+              const daysForward = Number(url.searchParams.get('daysForward') ?? '21');
+              const runs = await getDailyAlgoScheduleRuns(guildId, daysBack, daysForward);
+              json(res, 200, { runs });
+            } catch (err) {
+              logger.error('DashboardAPI', 'Erreur lors de la récupération du planning Daily Algo:', err);
+              json(res, 500, { error: 'Erreur lors de la récupération du planning Daily Algo' });
+            }
+            return;
+          }
+
+          if (parts.length === 7 && parts[4] === 'daily-algo-runs' && parts[5] === 'schedule' && parts[6] === 'ensure' && req.method === 'POST') {
+            try {
+              const body = await readJsonBody<{ daysForward?: unknown }>(req);
+              const parsedDaysForward = Number(body?.daysForward ?? url.searchParams.get('daysForward') ?? '21');
+              const daysForward = Number.isFinite(parsedDaysForward) ? parsedDaysForward : 21;
+              const result = await ensureDailyAlgoScheduleRuns(guildId, daysForward);
+              json(res, 200, { ok: true, ...result });
+            } catch (err) {
+              logger.error('DashboardAPI', 'Erreur lors de la génération du planning Daily Algo:', err);
+              json(res, 500, { error: err instanceof Error ? err.message : 'Erreur lors de la génération du planning Daily Algo' });
+            }
+            return;
+          }
+
           if (parts.length === 5 && parts[4] === 'import' && req.method === 'POST') {
             const body = await readJsonBody<DashboardState>(req);
             if (!body) {
@@ -5011,7 +5248,14 @@ export const startDashboardApi = (client: Client) => {
               const periods = await prisma.testingPeriod.findMany({
                 where: { guildId },
                 orderBy: { createdAt: 'desc' },
-                include: { reports: true },
+                include: {
+                  staffMember: true,
+                  mentor: true,
+                  reports: {
+                    orderBy: { createdAt: 'desc' },
+                    include: { author: true },
+                  },
+                },
               });
 
               json(res, 200, { periods });

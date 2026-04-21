@@ -1775,7 +1775,8 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
                               <span class="text-[10px] font-bold italic text-on-surface-variant/70 uppercase tracking-widest leading-relaxed">Aucun rapport publié</span>
                             </div>
                           {:else}
-                            {#each period.reports.slice(0, 2) as report}
+                            {@const latestReports = [...period.reports].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()).slice(0, 2)}
+                            {#each latestReports as report}
                               <div class="p-3 rounded-[18px] bg-surface-container/30 border border-outline-variant/5 relative overflow-hidden group/report">
                                 <div class="absolute left-0 top-0 bottom-0 w-1 {report.type === 'POSITIVE' ? 'bg-green-500' : report.type === 'NEGATIVE' ? 'bg-red-500' : 'bg-primary/50'}"></div>
                                 <p class="text-[11px] font-medium line-clamp-2 text-on-surface leading-relaxed italic">"{report.content}"</p>
