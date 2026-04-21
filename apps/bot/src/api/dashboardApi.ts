@@ -574,12 +574,20 @@ const verifyAuth = (req: IncomingMessage): AuthClaims | null => {
   }
 };
 
-const verifyRecruitmentWebhookAuth = async (req: IncomingMessage, guildId: string): Promise<AuthClaims | null> => {
+type RecruitmentWebhookAuthResult = {
+  auth: AuthClaims | null;
+  reason: 'ok_jwt' | 'ok_api_key' | 'missing_credentials' | 'invalid_jwt' | 'invalid_api_key';
+};
+
+const verifyRecruitmentWebhookAuth = async (req: IncomingMessage, guildId: string): Promise<RecruitmentWebhookAuthResult> => {
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.split(' ')[1];
     try {
-      return jwt.verify(token, JWT_SECRET) as AuthClaims;
+      return {
+        auth: jwt.verify(token, JWT_SECRET) as AuthClaims,
+        reason: 'ok_jwt',
+      };
     } catch {
       // ignore and try API key below
     }
@@ -587,14 +595,22 @@ const verifyRecruitmentWebhookAuth = async (req: IncomingMessage, guildId: strin
 
   const apiKey = req.headers['x-kotbo-api-key'] ?? req.headers['x-api-key'];
   const apiKeyValue = Array.isArray(apiKey) ? apiKey[0] : apiKey;
-  if (!apiKeyValue || typeof apiKeyValue !== 'string') return null;
+  if (!apiKeyValue || typeof apiKeyValue !== 'string') {
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      return { auth: null, reason: 'invalid_jwt' };
+    }
+    return { auth: null, reason: 'missing_credentials' };
+  }
 
   const key = await verifyAPIKey(hashAPIKey(apiKeyValue.trim()), guildId);
-  if (!key) return null;
+  if (!key) return { auth: null, reason: 'invalid_api_key' };
 
   return {
-    userId: key.createdByUserId,
-    username: key.name,
+    auth: {
+      userId: key.createdByUserId,
+      username: key.name,
+    },
+    reason: 'ok_api_key',
   };
 };
 
@@ -1754,9 +1770,11 @@ export const startDashboardApi = (client: Client) => {
       if (parts.length >= 2 && parts[0] === 'api' && parts[1] === 'dashboard') {
         if (parts.length === 6 && parts[2] === 'guilds' && parts[4] === 'recruitment' && parts[5] === 'candidatures' && req.method === 'POST') {
           const guildId = parts[3];
-          const webhookUser = await verifyRecruitmentWebhookAuth(req, guildId);
+          const webhookAuth = await verifyRecruitmentWebhookAuth(req, guildId);
+          const webhookUser = webhookAuth.auth;
           if (!webhookUser) {
-            json(res, 401, { error: 'Non authentifié' });
+            logger.warn('RecruitmentAPI', `Webhook auth failed for guild ${guildId}: ${webhookAuth.reason}`);
+            json(res, 401, { error: 'Non authentifié', reason: webhookAuth.reason });
             return;
           }
 
