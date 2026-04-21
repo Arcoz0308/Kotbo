@@ -20,6 +20,7 @@
   const managementItems = [
     { name: "Recrutement", icon: "assignment_ind", href: "/recruitment" },
     { name: "Règlement", icon: "description", href: "/regulation" },
+    { name: "Réunions", icon: "event", href: "/meetings" },
     { name: "Personnel", icon: "groups", href: "/staff-management" },
   ];
 
@@ -104,7 +105,7 @@
 
     <!-- Mon Profil – en bas du nav -->
     <div class="pt-4 mt-3 border-t border-outline-variant/30">
-      <div class="px-3 mb-2 text-[10px] font-bold text-on-surface-variant/70 uppercase tracking-[0.2em]">Personnel</div>
+      <div class="px-3 mb-2 text-[10px] font-bold text-on-surface-variant/70 uppercase tracking-[0.2em]">Espace Staff</div>
       <a 
         href="/profile"
         class="flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all duration-300 group relative overflow-hidden {isActiveNavItem('/profile') ? 'text-primary bg-primary/5 font-bold' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-hover/50'}"
@@ -116,6 +117,18 @@
           person
         </span>
         <span class="text-[13px] tracking-tight">Mon Profil</span>
+      </a>
+      <a 
+        href="/absences"
+        class="flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all duration-300 group relative overflow-hidden {isActiveNavItem('/absences') ? 'text-primary bg-primary/5 font-bold' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-hover/50'}"
+      >
+        {#if isActiveNavItem('/absences')}
+          <div class="absolute left-0 top-3 bottom-3 w-1.5 bg-primary rounded-full animate-in slide-in-from-left-2 duration-300"></div>
+        {/if}
+        <span class="material-symbols-outlined text-[22px] transition-all duration-300 {isActiveNavItem('/absences') ? 'scale-110' : 'opacity-60 group-hover:opacity-100 group-hover:scale-110'}">
+          event_busy
+        </span>
+        <span class="text-[13px] tracking-tight">Mes Absences</span>
       </a>
     </div>
   </nav>

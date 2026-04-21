@@ -21,6 +21,36 @@ function normalizeEmoji(value: string | null | undefined): string | null {
   return emoji ? emoji : null;
 }
 
+const EMOJI_ICON_MAP: Record<string, string> = {
+  '⚠️': 'warning',
+  '⚠': 'warning',
+  '⛔': 'block',
+  '🚫': 'block',
+  '✅': 'check_circle',
+  '❌': 'close',
+  '📝': 'edit_note',
+  '📌': 'push_pin',
+  '⌛': 'hourglass_top',
+  '⏳': 'hourglass_bottom',
+};
+
+export function reportRuleIcon(rule: Pick<ReportRuleOption, 'emoji' | 'label' | 'details'>): string {
+  const emoji = normalizeEmoji(rule.emoji);
+  if (emoji && EMOJI_ICON_MAP[emoji]) {
+    return EMOJI_ICON_MAP[emoji];
+  }
+
+  const sourceText = `${rule.label} ${rule.details}`.toLowerCase();
+
+  if (sourceText.includes('danger') || sourceText.includes('risque')) return 'warning';
+  if (sourceText.includes('spam') || sourceText.includes('publicité')) return 'campaign';
+  if (sourceText.includes('harc') || sourceText.includes('menace')) return 'report';
+  if (sourceText.includes('insulte') || sourceText.includes('provocation')) return 'sentiment_dissatisfied';
+  if (sourceText.includes('fuite') || sourceText.includes('confident')) return 'lock';
+
+  return 'gavel';
+}
+
 function toRuleOption(rule: RegulationRuleItem): ReportRuleOption {
   return {
     id: rule.id,

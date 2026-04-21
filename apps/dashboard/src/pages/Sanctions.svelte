@@ -213,7 +213,7 @@
     if (linkedReport) {
       return {
         label: 'Voir le rapport',
-        icon: '📄',
+        icon: 'description',
         disabled: false,
         variant: 'success',
         hint: 'Le rapport de sanction existe déjà et peut être consulté.',
@@ -223,7 +223,7 @@
     if (canCreate) {
       return {
         label: 'Creer le rapport',
-        icon: '📋',
+        icon: 'assignment',
         disabled: false,
         variant: 'primary',
         hint: 'Ouvre le formulaire pour compléter le rapport lié à cette sanction.',
@@ -232,7 +232,7 @@
 
     return {
       label: 'Rapport reserve',
-      icon: '🔒',
+      icon: 'lock',
       disabled: true,
       variant: 'muted',
       hint: 'Seule la personne qui a appliqué la sanction peut créer ce rapport.',
@@ -566,7 +566,7 @@
                       disabled={deletingSanctionId === entry.id}
                       title="Supprimer cette infraction"
                       variant="danger"
-                      icon="🗑️"
+                      icon="delete"
                       label={deletingSanctionId === entry.id ? 'Suppression...' : 'Supprimer'}
                       className="min-w-42.5"
                     />

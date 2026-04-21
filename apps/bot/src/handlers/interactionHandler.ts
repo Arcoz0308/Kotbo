@@ -47,6 +47,7 @@ import { toggleFeedBoolean, toggleGuildBoolean } from '../utils/prismaToggles.js
 import { normalizeCommaKeywords, requireSingleSelectedValue, validateTimeField } from '../utils/interactionValidation.js';
 import { buildMemberCasePanel, type MemberCaseSection } from '../services/memberCaseService.js';
 import { handleRecruitmentButton } from '../services/recruitmentService.js';
+import { checkInMeeting } from '../services/staffLeadershipService.js';
 
 function canUpdateInteraction(value: unknown): value is { update: (options: unknown) => Promise<unknown> } {
   if (!value || typeof value !== 'object') return false;
@@ -259,6 +260,54 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     const feed = await prisma.feed.findUnique({ where: { id: feedId } });
     if (feed) {
       await sendDMSubscribePanel(user, feed.guildId);
+    }
+    return;
+  }
+
+  if (customId.startsWith('meeting_rsvp_')) {
+    const parts = customId.split('_');
+    const statusType = parts[2]; // present, excused, absent
+    const meetingId = parts[3];
+
+    const statusMap = {
+      present: 'PRESENT',
+      excused: 'EXCUSED',
+      absent: 'ABSENT',
+    } as const;
+
+    const status = statusMap[statusType as keyof typeof statusMap];
+    if (!status) return;
+
+    if (!guildId) {
+      await interaction.reply({ content: '❌ Action impossible hors serveur.', flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    const staffMember = await prisma.staffMember.findFirst({
+      where: { guildId, userId: user.id },
+    });
+
+    if (!staffMember) {
+      await interaction.reply({
+        content: '❌ Vous ne faites pas partie de l\'équipe staff enregistrée sur ce serveur.',
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
+    try {
+      await checkInMeeting(meetingId, staffMember.id, status);
+      const labels = { PRESENT: 'Présent ✅', EXCUSED: 'Excusé 📝', ABSENT: 'Absent ❌' };
+      await interaction.reply({
+        content: `✅ Votre statut pour cette réunion est désormais : **${labels[status]}**.`,
+        flags: [MessageFlags.Ephemeral],
+      });
+    } catch (error) {
+      logger.error('Handler', `Error during meeting RSVP: ${error}`);
+      await interaction.reply({
+        content: '❌ Une erreur est survenue lors de l\'enregistrement de votre réponse.',
+        flags: [MessageFlags.Ephemeral],
+      });
     }
     return;
   }

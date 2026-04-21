@@ -5,46 +5,145 @@ import type {
   StaffProcedure, StaffProcedureRead
 } from '@prisma/client';
 
+type AbsenceMutableStatus = 'PENDING' | 'ACKNOWLEDGED' | 'APPROVED' | 'REJECTED' | 'CANCELED' | 'ENDED';
+
 export const getAbsences = async (guildId: string) => {
-  return prisma.staffAbsence.findMany({
+  const absences = await prisma.staffAbsence.findMany({
     where: { guildId },
+    include: { staffMember: true },
+    orderBy: { startDate: 'desc' },
+  });
+
+  // Fetch unique superior IDs (Discord IDs)
+  const superiorUserIds = [...new Set(absences.map(a => a.superiorUserId).filter(Boolean))] as string[];
+
+  if (superiorUserIds.length === 0) return absences;
+
+  // Fetch superior staff members
+  const superiors = await prisma.staffMember.findMany({
+    where: {
+      guildId,
+      userId: { in: superiorUserIds }
+    }
+  });
+
+  // Attach superior info and resolve display names
+  return absences.map((absence) => {
+    const staff = absence.staffMember;
+    const superior = superiors.find((s) => s.userId === absence.superiorUserId) || null;
+
+    // Helper to resolve display name: Pseudo > Tag > Username > Discord ID
+    const resolveName = (m: any, defaultId: string) => {
+      if (!m) return defaultId;
+      return m.displayName || m.userTag || m.username || m.userId || defaultId;
+    };
+
+    return {
+      ...absence,
+      staffMember: {
+        ...staff,
+        displayName: resolveName(staff, absence.staffUserId),
+      },
+      superior: superior
+        ? {
+            ...superior,
+            displayName: resolveName(superior, absence.superiorUserId!),
+          }
+        : null,
+    };
+  });
+};
+
+
+
+export const createAbsence = async (
+  params: {
+    guildId: string;
+    staffMemberId: string;
+    startDate: Date;
+    endDate?: Date;
+    reason: string;
+    type: string;
+    message?: string;
+    superiorUserId: string;
+  }
+) => {
+  const isIndefinite = !params.endDate;
+
+  return prisma.staffAbsence.create({
+    data: {
+      guildId: params.guildId,
+      staffUserId: params.staffMemberId,
+      startDate: params.startDate,
+      endDate: params.endDate,
+      reason: params.reason,
+      type: params.type,
+      message: params.message,
+      isIndefinite,
+      superiorUserId: params.superiorUserId,
+      superiorNotifiedAt: new Date(),
+      status: 'ACKNOWLEDGED'
+    }
+  });
+};
+
+export const getAbsenceById = async (guildId: string, absenceId: string) => {
+  return prisma.staffAbsence.findFirst({
+    where: { id: absenceId, guildId },
+    include: { staffMember: true },
+  });
+};
+
+export const getLatestOpenAbsenceForMember = async (guildId: string, staffMemberId: string) => {
+  return prisma.staffAbsence.findFirst({
+    where: {
+      guildId,
+      staffUserId: staffMemberId,
+      status: {
+        in: ['PENDING', 'ACKNOWLEDGED', 'APPROVED'],
+      },
+      endedAt: null,
+    },
     include: { staffMember: true },
     orderBy: { startDate: 'desc' },
   });
 };
 
-export const createAbsence = async (
-  guildId: string,
-  staffUserId: string,
-  startDate: Date,
-  endDate: Date,
-  reason: string
-) => {
-  return prisma.staffAbsence.create({
-    data: {
-      guildId,
-      staffUserId,
-      startDate,
-      endDate,
-      reason,
-      status: 'PENDING'
-    }
-  });
-};
-
 export const updateAbsenceStatus = async (
   id: string,
-  status: 'APPROVED' | 'REJECTED',
+  status: AbsenceMutableStatus,
   decisionByUserId: string,
   decisionNote?: string
 ) => {
+  const now = new Date();
   return prisma.staffAbsence.update({
     where: { id },
     data: {
       status,
       decisionByUserId,
-      decisionNote
+      decisionNote,
+      decidedAt: now,
+      endedByUserId: status === 'ENDED' || status === 'CANCELED' ? decisionByUserId : null,
+      endedAt: status === 'ENDED' || status === 'CANCELED' ? now : null,
     }
+  });
+};
+
+export const closeAbsence = async (
+  absenceId: string,
+  endedByUserId: string,
+  closeNote?: string
+) => {
+  return prisma.staffAbsence.update({
+    where: { id: absenceId },
+    data: {
+      status: 'ENDED',
+      endedByUserId,
+      endedAt: new Date(),
+      decisionByUserId: endedByUserId,
+      decisionNote: closeNote,
+      decidedAt: new Date(),
+    },
   });
 };
 
@@ -61,7 +160,9 @@ export const createMeeting = async (
   createdByUserId: string,
   title: string,
   description: string,
-  scheduledAt: Date
+  scheduledAt: Date,
+  discordMessageId?: string,
+  discordEventId?: string
 ) => {
   return prisma.staffMeeting.create({
     data: {
@@ -69,8 +170,41 @@ export const createMeeting = async (
       createdByUserId,
       title,
       description,
-      scheduledAt
+      scheduledAt,
+      discordMessageId,
+      discordEventId,
+      status: 'SCHEDULED'
     }
+  });
+};
+
+export const updateMeetingStatus = async (id: string, status: 'SCHEDULED' | 'COMPLETED' | 'CANCELED') => {
+  return prisma.staffMeeting.update({
+    where: { id },
+    data: { status }
+  });
+};
+
+export const updateMeeting = async (
+  id: string,
+  data: {
+    title?: string;
+    description?: string;
+    scheduledAt?: Date;
+    status?: 'SCHEDULED' | 'COMPLETED' | 'CANCELED';
+    discordMessageId?: string;
+    discordEventId?: string;
+  }
+) => {
+  return prisma.staffMeeting.update({
+    where: { id },
+    data,
+  });
+};
+
+export const deleteMeeting = async (id: string) => {
+  return prisma.staffMeeting.delete({
+    where: { id }
   });
 };
 
@@ -95,6 +229,34 @@ export const checkInMeeting = async (
       note
     }
   });
+};
+
+export const syncMeetingPresencesWithAbsences = async (meetingId: string) => {
+  const meeting = await prisma.staffMeeting.findUnique({
+    where: { id: meetingId },
+    select: { guildId: true, scheduledAt: true }
+  });
+  if (!meeting) return;
+
+  const absences = await prisma.staffAbsence.findMany({
+    where: {
+      guildId: meeting.guildId,
+      status: { in: ['APPROVED', 'ACKNOWLEDGED'] },
+      startDate: { lte: meeting.scheduledAt },
+      OR: [
+        { endDate: { gte: meeting.scheduledAt } },
+        { isIndefinite: true }
+      ]
+    }
+  });
+
+  for (const absence of absences) {
+    await prisma.staffMeetingPresence.upsert({
+      where: { meetingId_staffUserId: { meetingId, staffUserId: absence.staffUserId } },
+      update: { status: 'EXCUSED', note: `Absence automatique (Staff Panel): ${absence.type} - ${absence.reason}` },
+      create: { meetingId, staffUserId: absence.staffUserId, status: 'EXCUSED', note: `Absence automatique (Staff Panel): ${absence.type} - ${absence.reason}` }
+    });
+  }
 };
 
 export const getManagerNotes = async (guildId: string, staffUserId: string) => {

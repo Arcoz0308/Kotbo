@@ -824,13 +824,21 @@ model StaffAbsence {
   staffUserId String
 
   startDate DateTime
-  endDate DateTime
+  endDate DateTime?
   reason String
+  type String @default("Autre")
+  message String?
+  isIndefinite Boolean @default(false)
   status AbsenceStatus @default(PENDING)
   isVoid Boolean @default(false)
+  superiorUserId String?
+  superiorNotifiedAt DateTime?
   
   decisionByUserId String?
   decisionNote String?
+  decidedAt DateTime?
+  endedByUserId String?
+  endedAt DateTime?
 
   staffMember StaffMember @relation(fields: [staffUserId], references: [id], onDelete: Cascade)
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
@@ -845,8 +853,11 @@ model StaffAbsence {
 
 enum AbsenceStatus {
   PENDING
+  ACKNOWLEDGED
   APPROVED
   REJECTED
+  CANCELED
+  ENDED
 }
 
 model StaffMeeting {
@@ -858,6 +869,9 @@ model StaffMeeting {
   scheduledAt DateTime
   status MeetingStatus @default(SCHEDULED)
   createdByUserId String
+  
+  discordMessageId String?
+  discordEventId   String?
   
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
   presences StaffMeetingPresence[]

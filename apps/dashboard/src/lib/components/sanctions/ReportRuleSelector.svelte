@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ReportRuleOption } from '../../sanctions/reportRules';
+  import { reportRuleIcon } from '../../sanctions/reportRules';
 
   let {
     id,
@@ -42,7 +43,12 @@
           class="mt-0.5 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary disabled:opacity-100"
         />
         <span>
-          <span class="block font-bold text-slate-800 dark:text-slate-100">{rule.emoji ? `${rule.emoji} ` : ''}[{rule.scope}] {rule.label}</span>
+          <span class="block font-bold text-slate-800 dark:text-slate-100">
+            <span class="inline-flex items-center gap-1.5">
+              <span class="material-symbols-outlined text-[12px] leading-none text-slate-500 dark:text-slate-400">{reportRuleIcon(rule)}</span>
+              <span>[{rule.scope}] {rule.label}</span>
+            </span>
+          </span>
           <span class="block text-[11px] text-on-surface-variant">{rule.details}</span>
         </span>
       </label>

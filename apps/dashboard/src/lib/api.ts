@@ -494,6 +494,18 @@ export async function createMeeting(title, description, scheduledAt, guildId = a
   return dashboardMutation('/meetings', { method: 'POST', payload: { title, description, scheduledAt }, guildId });
 }
 
+export async function deleteMeeting(meetingId, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/meetings/${meetingId}`, { method: 'DELETE', guildId });
+}
+
+export async function updateMeeting(meetingId, data, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/meetings/${meetingId}`, { method: 'PATCH', payload: data, guildId });
+}
+
+export async function createAbsence(data, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/absences', { method: 'POST', payload: data, guildId });
+}
+
 export async function fetchPolls(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/staff/polls', { method: 'GET', guildId });
 }

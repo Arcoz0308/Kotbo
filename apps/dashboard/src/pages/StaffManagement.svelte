@@ -7,13 +7,25 @@
   import MetricCard from '../lib/components/MetricCard.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
-  import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
+  import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
+import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
+
 
   let guildId = $state<string | null>(null);
   let accessLevel = $state('none');
   let error = $state('');
   
   type StaffTab = 'members' | 'roles' | 'testing' | 'warnings' | 'blacklist' | 'polls' | 'leadership' | 'absences' | 'meetings';
+  const staffTabs: StaffTab[] = ['members', 'roles', 'testing', 'warnings', 'blacklist', 'polls', 'leadership', 'absences', 'meetings'];
+
+  function isStaffTab(value: string | null | undefined): value is StaffTab {
+    return !!value && staffTabs.includes(value as StaffTab);
+  }
+
+  function getTabFromSearch(search: string): StaffTab | null {
+    const tab = new URLSearchParams(search).get('tab');
+    return isStaffTab(tab) ? tab : null;
+  }
 
   let activeTab = $state<StaffTab>('members');
   
@@ -32,7 +44,9 @@
 
   // Synchronisation de l'onglet avec l'URL
   $effect(() => {
-    const tabFromUrl = router.location.query.tab as StaffTab;
+    if (typeof window === 'undefined') return;
+
+    const tabFromUrl = getTabFromSearch(window.location.search);
     if (tabFromUrl && tabFromUrl !== activeTab) {
       activeTab = tabFromUrl;
     }
@@ -49,10 +63,10 @@
   let staffMembers = $state<StaffMember[]>([]);
   let staffRoles = $state<StaffRole[]>([]);
   let testingPeriods = $state<TestingPeriod[]>([]);
-  let polls = $state<any[]>([]);
-  let leadershipMetrics = $state<any[]>([]);
   let absences = $state<any[]>([]);
   let meetings = $state<any[]>([]);
+  let polls = $state<any[]>([]);
+  let leadershipMetrics = $state<any[]>([]);
   let availableDiscordRoles = $state<Array<{ id: string; name: string }>>([]);
   let availableDiscordChannels = $state<Array<{ id: string; name: string }>>([]);
   let availableDiscordVoiceChannels = $state<Array<{ id: string; name: string }>>([]);
@@ -96,6 +110,18 @@
   let blacklistEndDate = $state('');
 
   // Absences
+  let showAbsenceForm = $state(false);
+  let absenceLookupQuery = $state('');
+  let absenceTargetUserId = $state('');
+  let absenceType = $state('Autre');
+  let absenceStartDate = $state('');
+  let absenceEndDate = $state('');
+  let absenceReason = $state('');
+  let absenceMessage = $state('');
+  let absenceSuperiorLookupQuery = $state('');
+  let absenceSuperiorUserId = $state('');
+  let absenceConfirmIndefinite = $state(false);
+  let isSavingAbsence = $state(false);
   let showAbsenceDecision = $state<string | null>(null);
   let absenceDecisionNote = $state('');
 
@@ -129,6 +155,42 @@
   let meetingAnnouncementChannelId = $state<string | null>(null);
   let meetingVoiceChannelId = $state<string | null>(null);
   let isSavingConfig = $state(false);
+  
+  // Member Case Modal State
+  let caseModalOpen = $state(false);
+  let caseSelectedUserId = $state<string | null>(null);
+  let caseSelectedUserName = $state('');
+  let caseData = $state<any>(null);
+  let caseLoading = $state(false);
+  let caseError = $state('');
+
+  async function openMemberCase(userId: string, userName: string) {
+    if (!guildId || !authStore.token || !userId) return;
+    
+    // Si l'ID ressemble à un cuid (commence par 'c'), on ne peut pas l'utiliser pour le member-case Discord
+    // Mais ici les userId passés devraient être les IDs Discord (18-19 chiffres)
+    caseSelectedUserId = userId;
+    caseSelectedUserName = userName;
+    caseModalOpen = true;
+    caseLoading = true;
+    caseError = '';
+    caseData = null;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/member-case/${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${authStore.token}`
+        }
+      });
+      if (!res.ok) throw new Error('Impossible de charger le dossier');
+      caseData = await res.json();
+    } catch (err: any) {
+      caseError = err.message;
+    } finally {
+      caseLoading = false;
+    }
+  }
+
 
   $effect(() => {
     if (!newMemberGrade && orderedStaffRoles.length > 0) {
@@ -355,6 +417,11 @@
   }
 
   onMount(async () => {
+    const initialTab = getTabFromSearch(window.location.search);
+    if (initialTab) {
+      activeTab = initialTab;
+    }
+
     if (!authStore.token) {
       error = 'Non authentifié';
       return;
@@ -584,7 +651,99 @@
     }
   }
 
-  async function updateAbsence(absenceId: string, status: 'APPROVED' | 'REJECTED') {
+  function resetAbsenceForm() {
+    absenceLookupQuery = '';
+    absenceTargetUserId = '';
+    absenceType = 'Autre';
+    absenceStartDate = '';
+    absenceEndDate = '';
+    absenceReason = '';
+    absenceMessage = '';
+    absenceSuperiorLookupQuery = '';
+    absenceSuperiorUserId = '';
+    absenceConfirmIndefinite = false;
+  }
+
+  async function createAbsenceFromDashboard() {
+    if (!guildId || !authStore.token) return;
+    if (!absenceTargetUserId || !absenceType || !absenceStartDate || !absenceReason.trim() || !absenceSuperiorUserId) {
+      alert('Remplissez les champs obligatoires de la demande d\'absence.');
+      return;
+    }
+
+    if (!absenceEndDate && !absenceConfirmIndefinite) {
+      alert('Confirmez l\'absence indéterminée pour continuer.');
+      return;
+    }
+
+    isSavingAbsence = true;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/absences`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authStore.token}`
+        },
+        body: JSON.stringify({
+          staffUserId: absenceTargetUserId,
+          type: absenceType,
+          startDate: absenceStartDate,
+          endDate: absenceEndDate || undefined,
+          reason: absenceReason,
+          message: absenceMessage || undefined,
+          superiorUserId: absenceSuperiorUserId,
+          confirmIndefinite: !absenceEndDate ? absenceConfirmIndefinite : true
+        })
+      });
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        throw new Error(payload?.error || 'Erreur lors de la création de l\'absence');
+      }
+
+      showAbsenceForm = false;
+      resetAbsenceForm();
+      await loadAbsences();
+    } catch (err: any) {
+      alert(err?.message || 'Erreur lors de la création de l\'absence');
+    } finally {
+      isSavingAbsence = false;
+    }
+  }
+
+  function getAbsenceStatusLabel(status: string): string {
+    switch (status) {
+      case 'ACKNOWLEDGED': return 'Supérieur notifié';
+      case 'APPROVED': return 'Approuvée';
+      case 'REJECTED': return 'Refusée';
+      case 'CANCELED': return 'Annulée';
+      case 'ENDED': return 'Terminée';
+      default: return 'En attente';
+    }
+  }
+
+  function getAbsenceStatusClass(status: string): string {
+    switch (status) {
+      case 'ACKNOWLEDGED':
+        return 'bg-indigo-500/10 text-indigo-600 border border-indigo-500/20';
+      case 'APPROVED':
+        return 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20';
+      case 'REJECTED':
+        return 'bg-rose-500/10 text-rose-600 border border-rose-500/20';
+      case 'CANCELED':
+        return 'bg-amber-500/10 text-amber-700 border border-amber-500/20';
+      case 'ENDED':
+        return 'bg-slate-500/10 text-slate-600 border border-slate-500/20';
+      default:
+        return 'bg-primary/10 text-primary border border-primary/20';
+    }
+  }
+
+  function canAbsenceBeClosed(status: string): boolean {
+    return status === 'PENDING' || status === 'ACKNOWLEDGED' || status === 'APPROVED';
+  }
+
+  async function updateAbsence(absenceId: string, status: 'ACKNOWLEDGED' | 'APPROVED' | 'REJECTED' | 'CANCELED' | 'ENDED') {
     if (!guildId || !authStore.token) return;
     try {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/absences/${absenceId}`, {
@@ -605,11 +764,30 @@
   }
 
   async function createMeeting() {
-    if (!guildId || !authStore.token || !newMeetingTitle || !newMeetingScheduledAt) return;
+    if (!guildId || !authStore.token) return;
+
+    const trimmedTitle = newMeetingTitle.trim();
+    if (!trimmedTitle) {
+      alert('Le titre de la réunion est obligatoire.');
+      return;
+    }
+
+    if (!newMeetingScheduledAt) {
+      alert('La date et l\'heure de la réunion sont obligatoires.');
+      return;
+    }
+
     if (!meetingAnnouncementChannelId || !meetingVoiceChannelId) {
       alert('Configurez d\'abord les salons de réunion (annonce + vocal/conférence) dans l\'onglet Rôles.');
       return;
     }
+
+    const scheduledAt = new Date(newMeetingScheduledAt);
+    if (Number.isNaN(scheduledAt.getTime())) {
+      alert('La date de réunion est invalide.');
+      return;
+    }
+
     isSavingMeeting = true;
     try {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/meetings`, {
@@ -619,19 +797,29 @@
           Authorization: `Bearer ${authStore.token}`
         },
         body: JSON.stringify({
-          title: newMeetingTitle,
+          title: trimmedTitle,
           description: newMeetingDescription,
-          scheduledAt: new Date(newMeetingScheduledAt).toISOString()
+          scheduledAt: scheduledAt.toISOString()
         })
       });
-      if (!res.ok) throw new Error('Erreur');
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        throw new Error(payload?.error || 'Erreur lors de la création de la réunion');
+      }
+
+      const payload = await res.json().catch(() => null);
+      if (payload?.meeting) {
+        meetings = [payload.meeting, ...meetings.filter((meeting) => meeting.id !== payload.meeting.id)];
+      }
+
       showMeetingForm = false;
       newMeetingTitle = '';
       newMeetingDescription = '';
       newMeetingScheduledAt = '';
       await loadMeetings();
-    } catch (err) {
-      alert('Erreur lors de la création de la réunion');
+    } catch (err: any) {
+      alert(err?.message || 'Erreur lors de la création de la réunion');
     } finally {
       isSavingMeeting = false;
     }
@@ -1224,7 +1412,7 @@
                       class="inline-flex items-center justify-center rounded-xl p-2.5 transition-colors disabled:opacity-40 {(orderedStaffRoles.findIndex((r) => r.name === member.grade) >= orderedStaffRoles.length - 1) ? 'text-on-surface-variant/30' : 'text-emerald-600 hover:bg-emerald-500/15 border border-emerald-500/20 bg-emerald-500/5'}"
                       title="Promouvoir"
                     >
-                      <span class="material-symbols-outlined text-xl">stat_2</span>
+                      <span class="material-symbols-outlined text-xl">keyboard_double_arrow_up</span>
                     </button>
                     <button
                       onclick={() => demoteStaff(member.userId)}
@@ -1235,7 +1423,7 @@
                       class="inline-flex items-center justify-center rounded-xl p-2.5 transition-colors disabled:opacity-40 {(orderedStaffRoles.findIndex((r) => r.name === member.grade) <= 0) ? 'text-on-surface-variant/30' : 'text-amber-600 hover:bg-amber-500/15 border border-amber-500/20 bg-amber-500/5'}"
                       title="Rétrograder"
                     >
-                      <span class="material-symbols-outlined text-xl">stat_minus_2</span>
+                      <span class="material-symbols-outlined text-xl">keyboard_double_arrow_down</span>
                     </button>
                     <div class="w-px h-6 bg-outline-variant/20 mx-1"></div>
                     <button
@@ -1477,7 +1665,7 @@
                     onclick={() => (showCreateTestDialog = true)}
                     class="flex items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-3.5 text-xs font-black uppercase tracking-widest text-on-primary shadow-lg shadow-primary/20 transition hover:bg-primary/90 focus:ring-4 focus:ring-primary/20 active:scale-95"
                   >
-                    <span class="material-symbols-rounded text-lg">add_circle</span>
+                    <span class="material-symbols-outlined text-lg">add_circle</span>
                     Lancer un test
                   </button>
                 </div>
@@ -1533,7 +1721,7 @@
                             {period.staffMember?.displayName || period.staffMember?.username}
                           </h3>
                           <p class="text-[11px] font-bold text-on-surface-variant/75 flex items-center gap-1.5 mt-1">
-                            <span class="material-symbols-rounded text-[14px] text-primary">calendar_today</span>
+                            <span class="material-symbols-outlined text-[14px] text-primary">calendar_today</span>
                             Depuis le {new Date(period.startDate).toLocaleDateString('fr-FR')}
                           </p>
                         </div>
@@ -1616,7 +1804,7 @@
                             class="h-9 w-9 flex items-center justify-center rounded-xl bg-primary/10 text-primary transition hover:bg-primary/20 active:scale-90"
                             title="Ajouter un rapport"
                           >
-                            <span class="material-symbols-rounded text-lg">add_comment</span>
+                            <span class="material-symbols-outlined text-lg">add_comment</span>
                           </button>
                         </div>
 
@@ -1625,14 +1813,14 @@
                             onclick={() => endTesting(period, 'PASSED')}
                             class="group/btn w-full flex items-center justify-center gap-1.5 rounded-2xl bg-green-500/10 py-3 text-[10px] font-black uppercase tracking-widest text-green-600 transition hover:bg-green-500 hover:text-white"
                           >
-                            <span class="material-symbols-rounded text-sm group-hover/btn:rotate-12 transition-transform">verified</span>
+                            <span class="material-symbols-outlined text-sm group-hover/btn:rotate-12 transition-transform">verified</span>
                             Valider
                           </button>
                           <button 
                             onclick={() => endTesting(period, 'FAILED')}
                             class="group/btn w-full flex items-center justify-center gap-1.5 rounded-2xl bg-red-500/10 py-3 text-[10px] font-black uppercase tracking-widest text-red-600 transition hover:bg-red-500 hover:text-white"
                           >
-                            <span class="material-symbols-rounded text-sm group-hover/btn:-rotate-12 transition-transform">close</span>
+                            <span class="material-symbols-outlined text-sm group-hover/btn:-rotate-12 transition-transform">close</span>
                             Échouer
                           </button>
                         </div>
@@ -1641,7 +1829,7 @@
                   {:else}
                     <div class="col-span-full py-20 flex flex-col items-center justify-center rounded-[40px] border-4 border-dashed border-outline-variant/10 bg-surface-container-low/20">
                       <div class="h-24 w-24 rounded-[32px] bg-surface-container-high flex items-center justify-center mb-6 text-on-surface-variant/20 shadow-inner">
-                        <span class="material-symbols-rounded text-5xl">person_search</span>
+                        <span class="material-symbols-outlined text-5xl">person_search</span>
                       </div>
                       <h4 class="text-xl font-black text-on-surface tracking-tight">Aucun test en cours</h4>
                       <p class="text-sm font-medium text-on-surface-variant/50 mt-2">Prêt à évaluer de nouveaux talents ?</p>
@@ -1660,7 +1848,7 @@
                       onclick={() => (showHistory = !showHistory)}
                       class="flex items-center gap-3 px-6 py-3 rounded-2xl bg-surface-container/50 border border-outline-variant/10 text-xs font-black uppercase tracking-widest text-on-surface-variant hover:text-primary hover:border-primary/20 transition group"
                     >
-                      <span class="material-symbols-rounded transition-transform duration-300 {showHistory ? 'rotate-90' : ''} group-hover:scale-110">chevron_right</span>
+                      <span class="material-symbols-outlined transition-transform duration-300 {showHistory ? 'rotate-90' : ''} group-hover:scale-110">chevron_right</span>
                       Historique des Tests ({testingPeriods.filter(p => p.status !== 'ONGOING').length})
                     </button>
                     
@@ -1710,7 +1898,7 @@
                                 </td>
                                 <td class="px-8 py-5 text-right">
                                   <button class="p-2.5 rounded-xl text-on-surface-variant hover:bg-primary/10 hover:text-primary transition">
-                                    <span class="material-symbols-rounded text-xl">description</span>
+                                    <span class="material-symbols-outlined text-xl">description</span>
                                   </button>
                                 </td>
                               </tr>
@@ -1969,7 +2157,7 @@
                   const optVotes = poll.votes?.filter(v => v.optionId === opt.id) || [];
                   return sum + optVotes.reduce((s, v) => s + (v.weight || 1), 0);
                 }, 0)}
-                {@const userVote = poll.votes?.find(v => v.staffUserId === authStore.user?.userId)}
+                {@const userVote = poll.votes?.find(v => v.staffUserId === authStore.user?.id)}
                 <div class="bg-surface-container px-6 py-6 rounded-3xl border border-outline-variant/10 group transition-all hover:border-primary/20">
                   <div class="flex items-start justify-between gap-4">
                     <div class="space-y-1">
@@ -2137,9 +2325,94 @@
           <div class="flex items-center justify-between">
             <div>
               <h3 class="text-2xl font-black tracking-tighter text-on-surface">Gestion des Absences</h3>
-              <p class="text-sm font-medium text-on-surface-variant/60 mt-1">Validez les demandes d'absence et consultez le planning staff.</p>
+              <p class="text-sm font-medium text-on-surface-variant/60 mt-1">Flux staff complet: déclaration, notification supérieur, validation et clôture.</p>
             </div>
+            <button
+              onclick={() => {
+                showAbsenceForm = !showAbsenceForm;
+                if (!showAbsenceForm) resetAbsenceForm();
+              }}
+              class="inline-flex items-center gap-2 rounded-2xl bg-primary px-6 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all"
+            >
+              <span class="material-symbols-outlined text-sm">{showAbsenceForm ? 'close' : 'add'}</span>
+              {showAbsenceForm ? 'Fermer' : 'Nouvelle absence'}
+            </button>
           </div>
+
+          {#if showAbsenceForm}
+            <div class="rounded-[2rem] border border-primary/20 bg-primary/5 p-6 md:p-8 animate-in fade-in slide-in-from-top-2 duration-300">
+              <h4 class="text-lg font-black tracking-tight text-on-surface mb-4">Créer une absence staff</h4>
+              <div class="grid gap-5 md:grid-cols-2">
+                <div>
+                  <span class="block text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant/70 mb-2">Staff concerné</span>
+                  <DiscordMemberLookup
+                    {guildId}
+                    bind:query={absenceLookupQuery}
+                    bind:selectedId={absenceTargetUserId}
+                    placeholder="@mention, pseudo ou ID Discord"
+                    selectedIdPlaceholder="ID Discord staff"
+                  />
+                </div>
+
+                <div>
+                  <span class="block text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant/70 mb-2">Supérieur notifié</span>
+                  <DiscordMemberLookup
+                    {guildId}
+                    bind:query={absenceSuperiorLookupQuery}
+                    bind:selectedId={absenceSuperiorUserId}
+                    placeholder="@mention, pseudo ou ID Discord"
+                    selectedIdPlaceholder="ID Discord supérieur"
+                  />
+                </div>
+
+                <div>
+                  <label for="absence-type" class="block text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant/70 mb-2">Type d'absence</label>
+                  <select id="absence-type" bind:value={absenceType} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
+                    <option value="Conge">Congé</option>
+                    <option value="Maladie">Maladie</option>
+                    <option value="Personnel">Personnel</option>
+                    <option value="Autre">Autre</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label for="absence-start-date" class="block text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant/70 mb-2">Date de début</label>
+                  <input id="absence-start-date" type="date" bind:value={absenceStartDate} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
+                </div>
+
+                <div>
+                  <label for="absence-end-date" class="block text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant/70 mb-2">Date de fin (optionnel)</label>
+                  <input id="absence-end-date" type="date" bind:value={absenceEndDate} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
+                </div>
+
+                <div class="md:col-span-2">
+                  <label for="absence-reason" class="block text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant/70 mb-2">Motif</label>
+                  <input id="absence-reason" type="text" bind:value={absenceReason} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" placeholder="Ex: indisponibilité professionnelle" />
+                </div>
+
+                <div class="md:col-span-2">
+                  <label for="absence-message" class="block text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant/70 mb-2">Message complémentaire (optionnel)</label>
+                  <textarea id="absence-message" bind:value={absenceMessage} rows="3" class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" placeholder="Informations utiles pour le supérieur"></textarea>
+                </div>
+
+                {#if !absenceEndDate}
+                  <label class="md:col-span-2 inline-flex items-start gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs text-amber-800">
+                    <input type="checkbox" bind:checked={absenceConfirmIndefinite} class="mt-0.5 h-4 w-4 rounded border-amber-600/30" />
+                    <span>
+                      Je confirme une absence indéterminée: la fin devra être posée par le staff concerné ou son supérieur notifié.
+                    </span>
+                  </label>
+                {/if}
+              </div>
+
+              <div class="mt-6 flex justify-end gap-3">
+                <button onclick={() => { showAbsenceForm = false; resetAbsenceForm(); }} class="rounded-xl px-4 py-2 text-xs font-bold uppercase text-on-surface-variant/60">Annuler</button>
+                <button onclick={createAbsenceFromDashboard} disabled={isSavingAbsence} class="rounded-xl bg-primary px-5 py-2 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-primary/20 disabled:opacity-60">
+                  {isSavingAbsence ? 'Création...' : 'Créer l\'absence'}
+                </button>
+              </div>
+            </div>
+          {/if}
 
           <div class="grid gap-6">
             {#if loadingStates.absences}
@@ -2164,25 +2437,54 @@
                   </div>
                   <div>
                     <div class="flex items-center gap-2 mb-1">
-                      <h4 class="text-base font-black text-on-surface">{absence.staffMember?.displayName || absence.staffUserId}</h4>
+                      <button 
+                        onclick={() => openMemberCase(absence.staffMember?.userId || absence.staffUserId, absence.staffMember?.displayName || absence.staffUserId)}
+                        class="text-left group/name"
+                      >
+                        <h4 class="text-base font-black text-on-surface group-hover/name:text-primary transition-colors underline-offset-4 group-hover/name:underline decoration-primary/30">
+                          {absence.staffMember?.displayName || absence.staffMember?.userId || absence.staffUserId}
+                        </h4>
+                      </button>
                       <span class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-widest">{absence.staffMember?.grade}</span>
                     </div>
-                    <p class="text-xs font-bold text-primary">Du {new Date(absence.startDate).toLocaleDateString()} au {new Date(absence.endDate).toLocaleDateString()}</p>
+                    <p class="text-xs font-bold text-primary">
+                      Du {new Date(absence.startDate).toLocaleDateString()} au {absence.endDate ? new Date(absence.endDate).toLocaleDateString() : 'indéterminé'}
+                    </p>
                     <p class="mt-2 text-xs text-on-surface-variant/70 italic">"{absence.reason}"</p>
+                    <div class="mt-2 flex flex-wrap gap-2">
+                      <span class="inline-flex items-center rounded-full bg-slate-500/10 border border-slate-500/20 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-slate-600">{absence.type || 'Autre'}</span>
+                      {#if absence.superiorUserId}
+                        <button 
+                          onclick={() => openMemberCase(absence.superior?.userId || absence.superiorUserId, absence.superior?.displayName || absence.superiorUserId)}
+                          class="inline-flex items-center rounded-full bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:bg-indigo-500 hover:text-white transition-all shadow-sm"
+                        >
+                          Supérieur: {absence.superior?.displayName || absence.superiorUserId}
+                        </button>
+                      {/if}
+                    </div>
                   </div>
                 </div>
 
                 <div class="flex items-center gap-3">
-                  {#if absence.status === 'PENDING'}
+
+                  {#if absence.status === 'PENDING' || absence.status === 'ACKNOWLEDGED'}
                     <div class="flex items-center gap-2">
+                      {#if absence.status === 'PENDING'}
+                        <button onclick={() => updateAbsence(absence.id, 'ACKNOWLEDGED')} class="rounded-xl px-4 py-2 text-xs font-black uppercase tracking-widest bg-indigo-600 text-white shadow-lg shadow-indigo-500/20 hover:scale-105 transition-all">Notifier supérieur</button>
+                      {/if}
                       <button onclick={() => updateAbsence(absence.id, 'APPROVED')} class="rounded-xl px-4 py-2 text-xs font-black uppercase tracking-widest bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 hover:scale-105 transition-all">Approuver</button>
                       <button onclick={() => { showAbsenceDecision = absence.id; absenceDecisionNote = ''; }} class="rounded-xl px-4 py-2 text-xs font-black uppercase tracking-widest bg-rose-500/10 text-rose-600 border border-rose-500/20 hover:bg-rose-500 hover:text-white transition-all">Refuser</button>
+                      <button onclick={() => updateAbsence(absence.id, 'CANCELED')} class="rounded-xl px-4 py-2 text-xs font-black uppercase tracking-widest bg-amber-500/10 text-amber-700 border border-amber-500/20 hover:bg-amber-500 hover:text-white transition-all">Annuler</button>
                     </div>
                   {:else}
-                    <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest {absence.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-600 border border-rose-500/20'}">
-                       <span class="material-symbols-outlined text-xs">{absence.status === 'APPROVED' ? 'check_circle' : 'cancel'}</span>
-                       {absence.status === 'APPROVED' ? 'Acceptée' : 'Refusée'}
+                    <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest {getAbsenceStatusClass(absence.status)}">
+                       <span class="material-symbols-outlined text-xs">{absence.status === 'REJECTED' ? 'cancel' : 'check_circle'}</span>
+                       {getAbsenceStatusLabel(absence.status)}
                     </span>
+                  {/if}
+
+                  {#if canAbsenceBeClosed(absence.status)}
+                    <button onclick={() => updateAbsence(absence.id, 'ENDED')} class="rounded-xl px-4 py-2 text-xs font-black uppercase tracking-widest bg-slate-700 text-white hover:bg-slate-800 transition-all">Clôturer</button>
                   {/if}
                 </div>
               </div>
@@ -2240,7 +2542,7 @@
                          <input id="meeting-scheduled-at" type="datetime-local" bind:value={newMeetingScheduledAt} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
                       </div>
                       <div class="flex justify-end pt-4">
-                         <button onclick={createMeeting} disabled={isSavingMeeting || !meetingAnnouncementChannelId || !meetingVoiceChannelId} class="inline-flex items-center gap-2 rounded-2xl bg-primary px-8 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 disabled:opacity-50 transition-all">
+                         <button onclick={createMeeting} disabled={isSavingMeeting || !newMeetingTitle.trim() || !newMeetingScheduledAt || !meetingAnnouncementChannelId || !meetingVoiceChannelId} class="inline-flex items-center gap-2 rounded-2xl bg-primary px-8 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 disabled:opacity-50 transition-all">
                             {isSavingMeeting ? 'Enregistrement...' : 'Enregistrer la réunion'}
                          </button>
                       </div>
@@ -2309,3 +2611,14 @@
     </div>
   {/if}
 </div>
+
+<MemberCaseModal
+  open={caseModalOpen}
+  userId={caseSelectedUserId}
+  userName={caseSelectedUserName}
+  caseData={caseData}
+  loading={caseLoading}
+  error={caseError}
+  onClose={() => caseModalOpen = false}
+/>
+

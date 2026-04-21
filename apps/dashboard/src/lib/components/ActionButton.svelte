@@ -59,7 +59,7 @@
   class="{baseClass} {sizeClasses[size]} {variantClasses[variant]} {fullWidth ? 'w-full' : ''} {className}"
 >
   {#if icon}
-    <span aria-hidden="true" class={iconBubbleClass}>{icon}</span>
+    <span aria-hidden="true" class="material-symbols-outlined {iconBubbleClass}">{icon}</span>
   {/if}
   <span>{label}</span>
 </button>

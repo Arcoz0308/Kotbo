@@ -15,6 +15,7 @@
   let sortBy = $state('lastSeenAt');
   let sortOrder = $state('desc');
   let botFilter = $state('human');
+  let showLeftMembers = $state(false);
 
   // For MemberCaseModal
   let modalOpen = $state(false);
@@ -36,7 +37,8 @@
         page: page.toString(),
         sortBy,
         sortOrder,
-        botFilter
+        botFilter,
+        showLeftMembers: showLeftMembers.toString()
       });
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/members/search?${params.toString()}`, {
         headers: {
@@ -138,6 +140,10 @@
           <option value="human">Humains</option>
           <option value="bot">Bots</option>
           <option value="all">Tous</option>
+        </select>
+        <select onchange={(e) => { showLeftMembers = e.currentTarget.value === 'true'; search(true); }} value={showLeftMembers ? 'true' : 'false'} class="bg-surface-container border border-outline-variant/10 rounded-xl px-3 py-2 text-xs text-on-surface-variant outline-hidden focus:border-primary/50">
+          <option value="false">Sur le serveur</option>
+          <option value="true">Tous (+ partis)</option>
         </select>
       </div>
     </div>
