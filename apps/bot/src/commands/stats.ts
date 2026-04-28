@@ -5,7 +5,7 @@ import { COLORS } from '../utils/embeds.js';
 
 export const data = new SlashCommandBuilder()
   .setName('stats')
-  .setDescription('📊 Affiche les statistiques d\\'activité d\\'un membre')
+  .setDescription("📊 Affiche les statistiques d'activité d'un membre")
   .addUserOption((option) =>
     option
       .setName('membre')

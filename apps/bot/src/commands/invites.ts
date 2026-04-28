@@ -4,7 +4,7 @@ import { COLORS } from '../utils/embeds.js';
 
 export const data = new SlashCommandBuilder()
   .setName('invites')
-  .setDescription('📩 Affiche les statistiques d\\'invitations d\\'un membre')
+  .setDescription("📩 Affiche les statistiques d'invitations d'un membre")
   .addUserOption((option) =>
     option
       .setName('membre')
