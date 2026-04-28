@@ -1,7 +1,7 @@
 {
   "name": "@kotbo/dashboard",
   "private": true,
-  "version": "3.32",
+  "version": "3.50",
   "type": "module",
   "scripts": {
     "dev": "vite",

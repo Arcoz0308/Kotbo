@@ -570,7 +570,7 @@
                 </div>
 
                 <!-- Activity Chart (Bento Large) -->
-                {#if analyticsData}
+                {#if analyticsData && analyticsData.dailyTrend && analyticsData.dailyTrend.length > 0}
                   <div class="md:col-span-3 rounded-[3rem] bg-surface-container-low/30 p-10 border border-outline-variant/10 shadow-sm group">
                     <div class="flex items-center justify-between mb-8">
                        <div class="flex items-center gap-4">
@@ -617,6 +617,19 @@
                          height={200} 
                        />
                      </div>
+                  </div>
+                {:else if analyticsLoading}
+                  <div class="md:col-span-3 rounded-[3rem] bg-surface-container-low/30 p-10 border border-outline-variant/10 shadow-sm animate-pulse flex flex-col justify-center items-center">
+                    <Papicon icon="loader" size={32} class="animate-spin text-primary/20 mb-4" />
+                    <p class="text-xs font-black uppercase tracking-widest text-on-surface-variant/20">Calcul des stats...</p>
+                  </div>
+                {:else}
+                  <div class="md:col-span-3 rounded-[3rem] bg-surface-container-low/10 p-10 border border-dashed border-outline-variant/20 flex flex-col justify-center items-center text-center">
+                    <div class="h-12 w-12 rounded-2xl bg-on-surface/5 flex items-center justify-center text-on-surface-variant/20 mb-4">
+                      <Papicon icon="bar-chart-2" size={24} />
+                    </div>
+                    <p class="text-sm font-black text-on-surface-variant/40">Statistiques indisponibles</p>
+                    <p class="text-[10px] font-bold text-on-surface-variant/20 mt-1 uppercase tracking-widest">Activité insuffisante sur 30j</p>
                   </div>
                 {/if}
 
@@ -782,7 +795,111 @@
                 </div>
               </div>
 
-              {:else if activeTab === 'activite'}
+            {:else if activeTab === 'identite'}
+              <div class="grid gap-6 md:grid-cols-2">
+                <!-- Profile details -->
+                <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm hover:bg-surface-container-low transition-all duration-500 group">
+                   <div class="flex items-center gap-3 mb-8">
+                     <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary group-hover:scale-110 transition-transform">
+                       <Papicon icon="user" size={24} />
+                     </div>
+                     <div>
+                       <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Données Compte</p>
+                       <p class="text-lg font-black text-on-surface">Profil Complet</p>
+                     </div>
+                   </div>
+                   <dl class="space-y-5">
+                     <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
+                       <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">ID Discord</dt>
+                       <dd class="text-sm font-black text-on-surface select-all">{caseData.profile?.userId ?? userId}</dd>
+                     </div>
+                     <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
+                       <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Nom d'utilisateur</dt>
+                       <dd class="text-sm font-black text-on-surface">@{caseData.profile?.username ?? 'Inconnu'}</dd>
+                     </div>
+                     <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
+                       <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Nom Global</dt>
+                       <dd class="text-sm font-black text-on-surface">{caseData.profile?.globalName ?? 'Inconnu'}</dd>
+                     </div>
+                     <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
+                       <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Surnom Serveur</dt>
+                       <dd class="text-sm font-black text-on-surface">{caseData.profile?.displayName ?? 'Inconnu'}</dd>
+                     </div>
+                     <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
+                       <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Pronoms</dt>
+                       <dd class="text-sm font-black text-on-surface">{caseData.profile?.pronouns ?? 'Non spécifiés'}</dd>
+                     </div>
+                     <div class="flex items-center justify-between">
+                       <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Langue (Locale)</dt>
+                       <dd class="text-sm font-black text-on-surface uppercase tracking-widest">{caseData.profile?.locale ?? 'Inconnue'}</dd>
+                     </div>
+                   </dl>
+                </div>
+
+                <!-- Timeline -->
+                <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm hover:bg-surface-container-low transition-all duration-500 group">
+                   <div class="flex items-center gap-3 mb-8">
+                     <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary/10 text-secondary group-hover:scale-110 transition-transform">
+                       <Papicon icon="calendar" size={24} />
+                     </div>
+                     <div>
+                       <p class="text-[10px] font-black uppercase tracking-[0.2em] text-secondary">Chronologie</p>
+                       <p class="text-lg font-black text-on-surface">Dates Clés</p>
+                     </div>
+                   </div>
+                   <dl class="space-y-5">
+                     <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
+                       <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Création Compte</dt>
+                       <dd class="text-sm font-black text-on-surface">{formatDateTime(caseData.profile?.accountCreatedAt)}</dd>
+                     </div>
+                     <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
+                       <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Arrivée Serveur</dt>
+                       <dd class="text-sm font-black text-on-surface">{formatDateTime(caseData.profile?.guildJoinedAt)}</dd>
+                     </div>
+                     {#if caseData.profile?.guildLeftAt}
+                       <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
+                         <dt class="text-[10px] font-black uppercase tracking-widest text-rose-500/60">Dernier Départ</dt>
+                         <dd class="text-sm font-black text-rose-500">{formatDateTime(caseData.profile?.guildLeftAt)}</dd>
+                       </div>
+                     {/if}
+                     <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
+                       <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Première Vue</dt>
+                       <dd class="text-sm font-black text-on-surface">{formatDateTime(caseData.profile?.firstSeenAt)}</dd>
+                     </div>
+                     <div class="flex items-center justify-between">
+                       <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Dernière Vue</dt>
+                       <dd class="text-sm font-black text-on-surface">{formatDateTime(caseData.profile?.lastSeenAt)}</dd>
+                     </div>
+                   </dl>
+                </div>
+
+                <!-- Roles Detailed -->
+                <div class="md:col-span-2 rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm hover:bg-surface-container-low transition-all duration-500 group">
+                   <div class="flex items-center gap-3 mb-8">
+                     <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-500 group-hover:rotate-12 transition-transform">
+                       <Papicon icon="shield" size={24} />
+                     </div>
+                     <div>
+                       <p class="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500">Autorisations</p>
+                       <p class="text-lg font-black text-on-surface">Rôles ({caseData.roles.length})</p>
+                     </div>
+                   </div>
+                   <div class="flex flex-wrap gap-3">
+                     {#each caseData.roles as role}
+                       <span class="px-5 py-2.5 rounded-2xl bg-surface-container-high text-xs font-black text-on-surface border border-outline-variant/20 shadow-sm transition-all hover:scale-105 hover:bg-surface-container-highest">
+                         {role.name}
+                       </span>
+                     {/each}
+                     {#if caseData.roles.length === 0}
+                        <div class="w-full py-10 text-center bg-surface-container-low rounded-3xl border border-dashed border-outline-variant/20">
+                          <p class="text-sm font-black text-on-surface-variant/40 uppercase tracking-widest">Aucun rôle attribué</p>
+                        </div>
+                     {/if}
+                   </div>
+                </div>
+              </div>
+
+            {:else if activeTab === 'activite'}
                 <div class="space-y-8">
                   <div class="grid gap-6 md:grid-cols-3">
                     <div class="rounded-[2rem] bg-primary/5 p-6 border border-primary/10 text-center">
@@ -830,16 +947,22 @@
               {:else if activeTab === 'analytics'}
                 <div class="space-y-8">
                   {#if analyticsLoading}
-                    <div class="flex flex-col items-center justify-center py-20 bg-surface-container-low/30 rounded-[2.5rem]">
-                      <Papicon icon="loader" size={40} class="animate-spin text-primary/40 mb-4" />
-                      <p class="text-xs font-black uppercase tracking-widest text-on-surface-variant/40">Analyse des données...</p>
+                    <div class="flex flex-col items-center justify-center py-24 bg-surface-container-low/30 rounded-[3rem] border border-outline-variant/10">
+                      <div class="relative mb-6">
+                        <div class="absolute -inset-4 rounded-full bg-primary/10 blur-xl animate-pulse"></div>
+                        <Papicon icon="loader" size={48} class="animate-spin text-primary" />
+                      </div>
+                      <p class="text-xs font-black uppercase tracking-[0.3em] text-on-surface-variant/60">Analyse du comportement...</p>
                     </div>
-                  {:else if analyticsData}
+                  {:else if analyticsData && analyticsData.dailyTrend && analyticsData.dailyTrend.length > 0}
                     <div class="grid gap-6 lg:grid-cols-2">
-                       <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10">
+                       <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm group">
                          <div class="flex items-center justify-between mb-8">
-                            <h4 class="text-sm font-black uppercase tracking-widest text-primary">Volume Messages</h4>
-                            <span class="text-xs font-bold text-on-surface-variant/40">30 derniers jours</span>
+                            <div>
+                              <p class="text-[10px] font-black uppercase tracking-widest text-primary mb-1">Activité</p>
+                              <h4 class="text-sm font-black text-on-surface uppercase tracking-widest">Volume Messages</h4>
+                            </div>
+                            <span class="text-[10px] font-bold text-on-surface-variant/40 bg-surface-container-high px-3 py-1 rounded-lg">30 derniers jours</span>
                          </div>
                           <Chart 
                             data={{
@@ -863,10 +986,13 @@
                             height={180} 
                           />
                        </div>
-                       <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10">
+                       <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm group">
                          <div class="flex items-center justify-between mb-8">
-                            <h4 class="text-sm font-black uppercase tracking-widest text-secondary">Activité Vocal</h4>
-                            <span class="text-xs font-bold text-on-surface-variant/40">Minutes / jour</span>
+                            <div>
+                              <p class="text-[10px] font-black uppercase tracking-widest text-secondary mb-1">Engagement</p>
+                              <h4 class="text-sm font-black text-on-surface uppercase tracking-widest">Activité Vocal</h4>
+                            </div>
+                            <span class="text-[10px] font-bold text-on-surface-variant/40 bg-surface-container-high px-3 py-1 rounded-lg">Minutes / jour</span>
                          </div>
                           <Chart 
                             data={{
@@ -890,6 +1016,16 @@
                             height={180} 
                           />
                        </div>
+                    </div>
+                  {:else}
+                    <div class="flex flex-col items-center justify-center py-24 text-center bg-surface-container-low/30 rounded-[3rem] border-2 border-dashed border-outline-variant/20">
+                      <div class="flex h-20 w-20 items-center justify-center rounded-3xl bg-surface-container-high text-on-surface-variant/20 mb-8">
+                        <Papicon icon="bar-chart-2" size={40} />
+                      </div>
+                      <h3 class="text-2xl font-black text-on-surface-variant font-headline">Aucune donnée analytique</h3>
+                      <p class="mt-2 text-sm text-on-surface-variant/60 max-w-sm mx-auto px-6">
+                        Nous n'avons pas encore assez de données d'activité pour générer des graphiques pour ce membre sur les 30 derniers jours.
+                      </p>
                     </div>
                   {/if}
                 </div>
@@ -917,6 +1053,17 @@
                       </div>
                     </div>
                   {/each}
+                  {#if caseData.messagesByChannel.length === 0}
+                    <div class="flex flex-col items-center justify-center py-24 text-center bg-surface-container-low/30 rounded-[3rem] border-2 border-dashed border-outline-variant/20">
+                      <div class="flex h-20 w-20 items-center justify-center rounded-3xl bg-surface-container-high text-on-surface-variant/20 mb-8">
+                        <Papicon icon="message-square" size={40} />
+                      </div>
+                      <h3 class="text-2xl font-black text-on-surface-variant font-headline">Silence radio</h3>
+                      <p class="mt-2 text-sm text-on-surface-variant/60 max-w-sm mx-auto px-6">
+                        Aucun message récent n'a été indexé pour ce membre dans les salons surveillés.
+                      </p>
+                    </div>
+                  {/if}
                 </div>
 
               {:else if activeTab === 'logs'}
@@ -937,6 +1084,12 @@
                         </div>
                       </div>
                     {/each}
+                    {#if caseData.logs.length === 0}
+                      <div class="flex flex-col items-center justify-center py-10 text-on-surface-variant/20">
+                         <Papicon icon="history" size={48} />
+                         <p class="mt-4 text-sm font-black uppercase tracking-widest">Aucun log disponible</p>
+                      </div>
+                    {/if}
                   </div>
                 </div>
 
