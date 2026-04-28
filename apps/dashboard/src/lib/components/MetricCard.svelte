@@ -1,9 +1,11 @@
 <script lang="ts">
+  import Papicon from './Papicon.svelte';
+
   let {
     label,
     value,
     note = '',
-    icon = 'query_stats',
+    icon = 'activity',
     toneClass = 'bg-primary/10 text-primary',
     cardClass = '',
     loading = false
@@ -12,7 +14,7 @@
 
 <div class="premium-card rounded-[2.25rem] p-6 flex items-center gap-5 group {cardClass}">
   <div class="w-14 h-14 rounded-[1.25rem] {toneClass} flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner shrink-0">
-    <span class="material-symbols-outlined text-2xl">{icon}</span>
+    <Papicon {icon} size={24} />
   </div>
   <div class="flex-1 min-w-0">
     <p class="text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant/40 truncate">{label}</p>

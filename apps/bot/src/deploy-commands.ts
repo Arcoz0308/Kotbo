@@ -24,8 +24,10 @@ import * as profileCmd from './commands/profile.js';
 import * as sanctionCmd from './commands/sanction.js';
 import * as casierCmd from './commands/casier.js';
 import * as absentCmd from './commands/absent.js';
-// import * as statsCmd from './commands/stats.js';
-
+import * as statsCmd from './commands/stats.js';
+import * as leaderboardCmd from './commands/leaderboard.js';
+import * as serverstatsCmd from './commands/serverstats.js';
+import * as invitesCmd from './commands/invites.js';
 const commands = [
   setupCmd,
   configCmd,
@@ -47,6 +49,10 @@ const commands = [
   sanctionCmd,
   casierCmd,
   absentCmd,
+  statsCmd,
+  leaderboardCmd,
+  serverstatsCmd,
+  invitesCmd,
 ].map((cmd) => cmd.data.toJSON());
 
 const token = process.env.DISCORD_TOKEN;

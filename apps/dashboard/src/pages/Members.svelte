@@ -1,23 +1,61 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
-  import { API_BASE_URL } from '../lib/api';
+  import { API_BASE_URL, fetchMemberCase } from '../lib/api';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
-  import MetricCard from '../lib/components/MetricCard.svelte';
+  import Papicon from '../lib/components/Papicon.svelte';
 
-  let members = $state<any[]>([]);
+  type MemberSearchResult = {
+    id: string;
+    username: string | null;
+    displayName: string | null;
+    avatarUrl: string | null;
+    isBot: boolean;
+    lastSeenAt: string | null;
+    messageCount: number;
+    guildJoinedAt: string | null;
+    guildLeftAt: string | null;
+    isOnServer: boolean;
+  };
+
+  type MembersSearchResponse = {
+    members: MemberSearchResult[];
+    totalFound: number;
+    totalPages: number;
+    onServerCount: number;
+    leftCount: number;
+    botCount: number;
+  };
+
+  const sortOptions = [
+    { value: 'lastSeenAt', label: 'Dernière activité' },
+    { value: 'messageCount', label: 'Messages envoyés' },
+    { value: 'guildJoinedAt', label: 'Date d’arrivée' },
+  ] as const;
+
+  const botOptions = [
+    { value: 'human', label: 'Humains' },
+    { value: 'bot', label: 'Bots' },
+    { value: 'all', label: 'Tous' },
+  ] as const;
+
+  let members = $state<MemberSearchResult[]>([]);
   let searchQuery = $state('');
   let loadingSearch = $state(false);
+  let searchError = $state('');
   let totalFound = $state(0);
+  let onServerCount = $state(0);
+  let leftCount = $state(0);
+  let botCount = $state(0);
   let page = $state(1);
   let limit = $state(24);
   let totalPages = $state(1);
-  let sortBy = $state('lastSeenAt');
-  let sortOrder = $state('desc');
-  let botFilter = $state('human');
+  let sortBy = $state<'lastSeenAt' | 'messageCount' | 'guildJoinedAt'>('lastSeenAt');
+  let sortOrder = $state<'asc' | 'desc'>('desc');
+  let botFilter = $state<'human' | 'bot' | 'all'>('human');
   let showLeftMembers = $state(false);
+  let searchRequestId = 0;
 
-  // For MemberCaseModal
   let modalOpen = $state(false);
   let selectedUserId = $state<string | null>(null);
   let selectedUserName = $state('');
@@ -25,220 +63,427 @@
   let loadingCase = $state(false);
   let caseError = $state('');
 
+  const stats = $derived({
+    total: totalFound,
+    onServer: onServerCount,
+    left: leftCount,
+    bots: botCount,
+  });
+
+  const activeSortLabel = $derived(sortOptions.find((option) => option.value === sortBy)?.label ?? 'Dernière activité');
+  const activeBotLabel = $derived(botOptions.find((option) => option.value === botFilter)?.label ?? 'Humains');
+
+  function formatDate(value: string | null) {
+    if (!value) return 'Jamais';
+    return new Date(value).toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  }
+
+  function formatRelative(value: string | null) {
+    if (!value) return 'Inconnu';
+    const diffMs = Date.now() - new Date(value).getTime();
+    if (Number.isNaN(diffMs)) return 'Inconnu';
+    const minutes = Math.max(1, Math.floor(diffMs / 60000));
+    if (minutes < 60) return `il y a ${minutes} min`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `il y a ${hours} h`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `il y a ${days} j`;
+    return formatDate(value);
+  }
+
+  function debounceSearch() {
+    window.clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(() => {
+      void search(true);
+    }, 320);
+  }
+
+  let searchTimer: ReturnType<typeof setTimeout> | undefined;
+
   async function search(resetPage = false) {
     if (!authStore.selectedGuildId) return;
+
+    const requestId = ++searchRequestId;
     if (resetPage) page = 1;
     loadingSearch = true;
+    searchError = '';
+
     try {
-      const q = searchQuery;
       const params = new URLSearchParams({
-        q,
-        limit: limit.toString(),
-        page: page.toString(),
+        q: searchQuery.trim(),
+        limit: String(limit),
+        page: String(page),
         sortBy,
         sortOrder,
         botFilter,
-        showLeftMembers: showLeftMembers.toString()
+        showLeftMembers: String(showLeftMembers),
       });
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/members/search?${params.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${authStore.token}`
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/members/search?${params.toString()}`,
+        {
+          headers: {
+            Authorization: `Bearer ${authStore.token}`,
+          },
         }
-      });
-      if (!res.ok) throw new Error('Erreur de recherche');
-      const data = await res.json();
-      members = data.members || [];
-      totalFound = data.totalFound || 0;
-      totalPages = data.totalPages || 1;
-    } catch (err) {
-      console.error(err);
+      );
+
+      if (!response.ok) {
+        throw new Error('Impossible de charger l’annuaire des membres');
+      }
+
+      const data = (await response.json()) as MembersSearchResponse;
+
+      if (requestId !== searchRequestId) return;
+
+      members = data.members ?? [];
+      totalFound = data.totalFound ?? 0;
+      onServerCount = data.onServerCount ?? 0;
+      leftCount = data.leftCount ?? 0;
+      botCount = data.botCount ?? 0;
+      totalPages = data.totalPages ?? 1;
+    } catch (error) {
+      if (requestId !== searchRequestId) return;
+      console.error('Erreur de recherche des membres:', error);
+      searchError = error instanceof Error ? error.message : 'Une erreur est survenue pendant la recherche';
+      members = [];
+      totalFound = 0;
+      onServerCount = 0;
+      leftCount = 0;
+      botCount = 0;
+      totalPages = 1;
     } finally {
-      loadingSearch = false;
+      if (requestId === searchRequestId) {
+        loadingSearch = false;
+      }
     }
   }
 
-  let searchTimeout: any;
-  function handleSearchInput() {
-    clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(() => {
-      search(true);
-    }, 500);
-  }
+  async function openMemberCase(member: MemberSearchResult) {
+    if (!authStore.selectedGuildId) return;
 
-  async function openMemberCase(member: any) {
     selectedUserId = member.id;
-    selectedUserName = member.displayName || member.username;
+    selectedUserName = member.displayName || member.username || 'Membre';
     modalOpen = true;
     loadingCase = true;
     caseError = '';
     caseData = null;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/staff/member-case/${member.id}`, {
-        headers: {
-          'Authorization': `Bearer ${authStore.token}`
-        }
-      });
-      if (!res.ok) throw new Error('Impossible de charger le dossier');
-      caseData = await res.json();
-    } catch (err: any) {
-      caseError = err.message;
+      caseData = await fetchMemberCase(member.id, authStore.selectedGuildId);
+    } catch (error) {
+      caseError = error instanceof Error ? error.message : 'Impossible de charger le dossier';
     } finally {
       loadingCase = false;
     }
   }
 
-  onMount(() => {
-    search();
-  });
-
-  function formatDate(date: string | null) {
-    if (!date) return 'Jamais';
-    return new Date(date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+  function resetSearch() {
+    searchQuery = '';
+    sortBy = 'lastSeenAt';
+    sortOrder = 'desc';
+    botFilter = 'human';
+    showLeftMembers = false;
+    limit = 24;
+    page = 1;
+    void search(true);
   }
+
+  function updateQuery(event: Event) {
+    searchQuery = (event.currentTarget as HTMLInputElement).value;
+    debounceSearch();
+  }
+
+  function changeFilter<T extends string>(setter: (value: T) => void, value: T) {
+    setter(value);
+    void search(true);
+  }
+
+  onMount(() => {
+    void search();
+  });
 </script>
 
-<div class="space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-1000">
-  
-  <!-- Header & Search -->
-  <div class="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
-    <div>
-      <h2 class="text-3xl font-black text-on-surface tracking-tighter font-headline">Membres du serveur</h2>
-      <p class="text-sm text-on-surface-variant/60 font-medium">Rechercher et gérer les profils des utilisateurs</p>
+<svelte:head>
+  <title>Annuaire des membres</title>
+</svelte:head>
+
+<div class="space-y-10 animate-in fade-in duration-700">
+  <!-- Section Titre et Stats Minimaliste -->
+  <header class="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+    <div class="space-y-2">
+      <div class="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.25em] text-primary">
+        <Papicon icon="users" size={14} />
+        Annuaire des membres
+      </div>
+      <h1 class="text-4xl font-black tracking-tight text-on-surface font-headline">Gestion des membres</h1>
+      <p class="max-w-2xl text-sm text-on-surface-variant/60">
+        Recherchez, filtrez et consultez les dossiers détaillés des membres de votre communauté.
+      </p>
     </div>
 
-    <div class="flex flex-col gap-3 w-full md:w-[28rem]">
-      <div class="relative group">
-        <div class="absolute inset-y-0 left-4 flex items-center pointer-events-none text-on-surface-variant/40 group-focus-within:text-primary transition-colors">
-          <span class="material-symbols-outlined">search</span>
-        </div>
-        <input
-          type="text"
-          placeholder="Rechercher par nom, tag ou ID..."
-          bind:value={searchQuery}
-          oninput={handleSearchInput}
-          class="w-full bg-surface-container-low/50 border border-outline-variant/20 rounded-2xl py-3.5 pl-12 pr-4 text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-hidden focus:border-primary/50 focus:bg-surface-container transition-all shadow-sm"
-        />
-        {#if loadingSearch}
-          <div class="absolute inset-y-0 right-4 flex items-center">
-            <span class="material-symbols-outlined animate-spin text-primary/40 text-sm">progress_activity</span>
+    <div class="flex items-center gap-4">
+      <div class="flex -space-x-3">
+        {#each members.slice(0, 5) as member}
+          <img
+            src={member.avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+            alt=""
+            class="h-8 w-8 rounded-full border-2 border-surface-container object-cover"
+          />
+        {/each}
+        {#if totalFound > 5}
+          <div class="flex h-8 w-8 items-center justify-center rounded-full border-2 border-surface-container bg-surface-container-high text-[10px] font-bold text-on-surface-variant">
+            +{totalFound - 5}
           </div>
         {/if}
       </div>
+      <div class="h-8 w-px bg-outline-variant/20"></div>
+      <div class="text-right">
+        <div class="text-lg font-black text-on-surface">{totalFound.toLocaleString('fr-FR')}</div>
+        <div class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40">Total membres</div>
+      </div>
+    </div>
+  </header>
 
-      <div class="flex gap-2">
-        <select bind:value={sortBy} onchange={() => search(true)} class="flex-1 bg-surface-container border border-outline-variant/10 rounded-xl px-3 py-2 text-xs text-on-surface-variant outline-hidden focus:border-primary/50">
-          <option value="lastSeenAt">Dernière connexion</option>
-          <option value="messageCount">Activité (Messages)</option>
-          <option value="guildJoinedAt">Ancienneté (Rejoint le)</option>
-        </select>
-        <select bind:value={sortOrder} onchange={() => search(true)} class="bg-surface-container border border-outline-variant/10 rounded-xl px-3 py-2 text-xs text-on-surface-variant outline-hidden focus:border-primary/50">
-          <option value="desc">Décroissant</option>
-          <option value="asc">Croissant</option>
-        </select>
-        <select bind:value={botFilter} onchange={() => search(true)} class="bg-surface-container border border-outline-variant/10 rounded-xl px-3 py-2 text-xs text-on-surface-variant outline-hidden focus:border-primary/50">
-          <option value="human">Humains</option>
-          <option value="bot">Bots</option>
-          <option value="all">Tous</option>
-        </select>
-        <select onchange={(e) => { showLeftMembers = e.currentTarget.value === 'true'; search(true); }} value={showLeftMembers ? 'true' : 'false'} class="bg-surface-container border border-outline-variant/10 rounded-xl px-3 py-2 text-xs text-on-surface-variant outline-hidden focus:border-primary/50">
-          <option value="false">Sur le serveur</option>
-          <option value="true">Tous (+ partis)</option>
+  <!-- Barre d'Action Ergonomique -->
+  <section class="sticky top-0 z-10 -mx-4 space-y-4 rounded-b-[2rem] bg-surface/80 px-4 pb-6 pt-2 backdrop-blur-xl md:top-4 md:mx-0 md:rounded-[2rem] md:pt-4">
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
+      <div class="relative flex-1">
+        <span class="pointer-events-none absolute inset-y-0 left-4 flex items-center text-on-surface-variant/40">
+          <Papicon icon="search" size={18} />
+        </span>
+        <input
+          type="search"
+          value={searchQuery}
+          oninput={updateQuery}
+          placeholder="Rechercher par nom, pseudo ou ID..."
+          class="w-full rounded-2xl border border-outline-variant/10 bg-surface-container-low/70 py-3.5 pl-12 pr-12 text-sm text-on-surface placeholder:text-on-surface-variant/30 outline-hidden transition-all focus:border-primary/30 focus:bg-surface-container focus:ring-4 focus:ring-primary/5"
+        />
+        {#if loadingSearch}
+          <span class="absolute inset-y-0 right-4 flex items-center text-primary/60">
+            <Papicon icon="loader" size={16} class="animate-spin" />
+          </span>
+        {/if}
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="group relative">
+          <select
+            value={sortBy}
+            onchange={(event) => changeFilter((value) => { sortBy = value; }, (event.currentTarget as HTMLSelectElement).value as typeof sortBy)}
+            class="appearance-none rounded-2xl border border-outline-variant/10 bg-surface-container-low/70 py-3.5 pl-4 pr-10 text-xs font-bold text-on-surface-variant transition-colors hover:bg-surface-container focus:border-primary/30"
+          >
+            {#each sortOptions as option}
+              <option value={option.value}>{option.label}</option>
+            {/each}
+          </select>
+          <span class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant/40">
+            <Papicon icon="chevron-down" size={14} />
+          </span>
+        </div>
+
+        <button
+          onclick={() => changeFilter((value) => { sortOrder = value; }, sortOrder === 'asc' ? 'desc' : 'asc')}
+          class="inline-flex h-[46px] w-[46px] items-center justify-center rounded-2xl border border-outline-variant/10 bg-surface-container-low/70 text-on-surface-variant transition-colors hover:bg-surface-container"
+          title={sortOrder === 'asc' ? 'Tri croissant' : 'Tri décroissant'}
+        >
+          <Papicon icon={sortOrder === 'asc' ? 'sort-asc' : 'sort-desc'} size={18} />
+        </button>
+
+        <div class="h-8 w-px bg-outline-variant/20 mx-1 hidden sm:block"></div>
+
+        <div class="flex rounded-2xl border border-outline-variant/10 bg-surface-container-low/70 p-1">
+          <button
+            onclick={() => { botFilter = 'human'; void search(true); }}
+            class={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${botFilter === 'human' ? 'bg-surface text-primary shadow-xs' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
+          >
+            Humains
+          </button>
+          <button
+            onclick={() => { botFilter = 'bot'; void search(true); }}
+            class={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${botFilter === 'bot' ? 'bg-surface text-primary shadow-xs' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
+          >
+            Bots
+          </button>
+        </div>
+
+        <button
+          onclick={() => { showLeftMembers = !showLeftMembers; void search(true); }}
+          class={`inline-flex h-[46px] items-center gap-2 rounded-2xl border px-4 text-xs font-bold transition-all ${showLeftMembers ? 'border-primary/30 bg-primary/5 text-primary' : 'border-outline-variant/10 bg-surface-container-low/70 text-on-surface-variant hover:bg-surface-container'}`}
+        >
+          <Papicon icon="log-out" size={14} />
+          Membres partis
+        </button>
+
+        <button
+          onclick={resetSearch}
+          class="inline-flex h-[46px] w-[46px] items-center justify-center rounded-2xl border border-outline-variant/10 bg-surface-container-low/70 text-on-surface-variant transition-colors hover:bg-surface-container hover:text-rose-500"
+          title="Réinitialiser les filtres"
+        >
+          <Papicon icon="rotate-ccw" size={18} />
+        </button>
+      </div>
+    </div>
+
+    <!-- Quick Stats Bar -->
+    <div class="flex flex-wrap items-center gap-4 px-2">
+      <div class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/40">
+        <div class="h-1.5 w-1.5 rounded-full bg-emerald-500"></div>
+        {stats.onServer} en ligne
+      </div>
+      <div class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/40">
+        <div class="h-1.5 w-1.5 rounded-full bg-amber-500"></div>
+        {stats.left} partis
+      </div>
+      <div class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/40">
+        <div class="h-1.5 w-1.5 rounded-full bg-primary/50"></div>
+        {stats.bots} bots
+      </div>
+      <div class="ml-auto flex items-center gap-2">
+        <span class="text-[10px] font-black uppercase tracking-wider text-on-surface-variant/40">Par page:</span>
+        <select
+          value={limit}
+          onchange={(event) => {
+            limit = Number((event.currentTarget as HTMLSelectElement).value);
+            void search(true);
+          }}
+          class="bg-transparent text-[10px] font-bold text-on-surface-variant outline-hidden"
+        >
+          <option value="12">12</option>
+          <option value="24">24</option>
+          <option value="48">48</option>
         </select>
       </div>
     </div>
-  </div>
+  </section>
 
-  <!-- Content -->
-  {#if loadingSearch && members.length === 0}
-     <div class="flex flex-col items-center justify-center py-32 text-on-surface-variant/20">
-        <span class="material-symbols-outlined text-6xl animate-spin">progress_activity</span>
-        <p class="mt-4 text-xs font-black uppercase tracking-[0.3em]">Initialisation de l'annuaire</p>
-     </div>
-  {:else if members.length === 0}
-     <div class="flex flex-col items-center justify-center py-32 text-on-surface-variant/30 border-2 border-dashed border-outline-variant/10 rounded-[3rem]">
-        <div class="w-20 h-20 rounded-4xl bg-surface-container flex items-center justify-center mb-6">
-          <span class="material-symbols-outlined text-4xl">person_search</span>
-        </div>
-        <h3 class="text-xl font-black tracking-tight text-on-surface/50">Aucun membre trouvé</h3>
-        <p class="mt-2 text-sm max-w-xs text-center">Affinez votre recherche ou vérifiez l'orthographe.</p>
-     </div>
-  {:else}
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-      {#each members as member (member.id)}
-        <button
-          onclick={() => openMemberCase(member)}
-          class="group relative flex flex-col p-6 rounded-[2.5rem] bg-surface-container-low/40 border border-outline-variant/10 hover:border-primary/30 hover:bg-surface-container-low hover:shadow-2xl hover:shadow-primary/5 transition-all duration-500 text-left"
-        >
-          <!-- Background accent -->
-          <div class="absolute inset-0 bg-linear-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-[2.5rem]"></div>
-          
-          <div class="relative flex items-center gap-4 mb-6">
-            <div class="relative">
-              <div class="w-14 h-14 rounded-2xl overflow-hidden border-2 border-outline-variant/20 group-hover:border-primary/50 transition-all shadow-lg">
-                <img src={member.avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="Avatar" class="w-full h-full object-cover" />
-              </div>
-              {#if member.isBot}
-                <div class="absolute -bottom-1 -right-1 bg-primary text-white text-[8px] font-black px-1.5 py-0.5 rounded-lg shadow-sm border border-surface-container">BOT</div>
-              {/if}
-            </div>
-            <div class="min-w-0">
-              <h4 class="font-black text-on-surface tracking-tight truncate font-headline">{member.displayName}</h4>
-              <p class="text-[10px] font-bold text-on-surface-variant/40 tracking-wider font-mono truncate">@{member.username}</p>
-            </div>
-          </div>
-
-          <div class="relative mt-auto space-y-3">
-             <div class="flex items-center justify-between">
-                <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Dernière vue</span>
-                <span class="text-xs font-bold text-on-surface-variant/80">{formatDate(member.lastSeenAt)}</span>
-             </div>
-             <div class="flex items-center justify-between">
-                <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">ID</span>
-                <span class="text-[10px] font-mono text-on-surface-variant/40">{member.id.substring(0, 12)}...</span>
-             </div>
-          </div>
-
-          <div class="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
-             <span class="material-symbols-outlined text-primary">arrow_forward</span>
-          </div>
-        </button>
-      {/each}
+  {#if searchError}
+    <div class="rounded-2xl border border-rose-500/20 bg-rose-500/5 px-4 py-3 text-sm font-medium text-rose-600 flex items-center gap-3">
+      <Papicon icon="alert-circle" size={18} />
+      {searchError}
     </div>
   {/if}
 
-  <!-- Footer Controls -->
-  <div class="flex flex-col sm:flex-row items-center justify-between pt-6 border-t border-outline-variant/10 gap-4 mt-8">
-    <div class="px-6 py-2 rounded-full bg-surface-container/50 border border-outline-variant/10 text-[10px] font-black uppercase tracking-[0.3em] text-on-surface-variant/40">
-      {totalFound} Membres
-    </div>
-
-    <!-- Pagination -->
-    {#if totalPages > 1}
-    <div class="flex items-center gap-2">
-      <button 
-        onclick={() => { page--; search(); }}
-        disabled={page === 1}
-        class="w-10 h-10 rounded-xl flex items-center justify-center border border-outline-variant/10 transition-colors bg-surface-container-low hover:bg-surface-container disabled:opacity-30 disabled:cursor-not-allowed text-on-surface-variant">
-        <span class="material-symbols-outlined text-sm">arrow_back</span>
-      </button>
-      
-      <div class="flex items-center px-4 h-10 rounded-xl bg-surface-container/50 border border-outline-variant/10">
-        <span class="text-xs font-bold text-on-surface-variant">Page {page} <span class="opacity-40">/ {totalPages}</span></span>
+  <!-- Grille de Résultats Sobres -->
+  <main>
+    {#if loadingSearch && members.length === 0}
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {#each Array(8) as _, index}
+          <div class="animate-pulse rounded-3xl border border-outline-variant/10 bg-surface-container-low/40 p-4" aria-hidden="true">
+            <div class="flex items-center gap-4">
+              <div class="h-12 w-12 rounded-xl bg-on-surface/5"></div>
+              <div class="flex-1 space-y-2">
+                <div class="h-3 w-3/4 rounded-full bg-on-surface/5"></div>
+                <div class="h-2 w-1/2 rounded-full bg-on-surface/5"></div>
+              </div>
+            </div>
+            <div class="mt-4 space-y-2">
+              <div class="h-2 rounded-full bg-on-surface/5"></div>
+              <div class="h-2 rounded-full bg-on-surface/5"></div>
+            </div>
+          </div>
+        {/each}
       </div>
+    {:else if members.length === 0}
+      <div class="flex flex-col items-center justify-center py-24 text-center">
+        <div class="flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-container-low text-on-surface-variant/20">
+          <Papicon icon="users" size={32} />
+        </div>
+        <h3 class="mt-6 text-xl font-bold text-on-surface">Aucun résultat</h3>
+        <p class="mt-2 text-sm text-on-surface-variant/50 max-w-xs">
+          Nous n'avons trouvé aucun membre correspondant à vos critères de recherche.
+        </p>
+        <button onclick={resetSearch} class="mt-6 text-xs font-black uppercase tracking-widest text-primary hover:underline">
+          Réinitialiser tout
+        </button>
+      </div>
+    {:else}
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {#each members as member (member.id)}
+          <button
+            onclick={() => openMemberCase(member)}
+            class="group flex flex-col rounded-3xl border border-outline-variant/10 bg-surface-container-low/40 p-4 text-left transition-all duration-300 hover:border-primary/20 hover:bg-surface-container-low hover:shadow-xl hover:shadow-primary/5"
+          >
+            <div class="flex items-start gap-4">
+              <div class="relative">
+                <img
+                  src={member.avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                  alt=""
+                  class="h-12 w-12 rounded-xl object-cover grayscale-[0.2] transition-all group-hover:grayscale-0"
+                />
+                {#if member.isBot}
+                  <div class="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[8px] text-white">
+                    <Papicon icon="bot" size={10} />
+                  </div>
+                {/if}
+                <div class={`absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border-2 border-surface-container-low ${member.isOnServer ? 'bg-emerald-500' : 'bg-amber-500'}`}></div>
+              </div>
 
-      <button 
-        onclick={() => { page++; search(); }}
-        disabled={page === totalPages}
-        class="w-10 h-10 rounded-xl flex items-center justify-center border border-outline-variant/10 transition-colors bg-surface-container-low hover:bg-surface-container disabled:opacity-30 disabled:cursor-not-allowed text-on-surface-variant">
-        <span class="material-symbols-outlined text-sm">arrow_forward</span>
-      </button>
-    </div>
+              <div class="min-w-0 flex-1">
+                <h3 class="truncate text-base font-bold text-on-surface">{member.displayName || 'Sans nom'}</h3>
+                <p class="truncate text-[10px] font-bold tracking-wider text-on-surface-variant/40">@{member.username || member.id.slice(0, 8)}</p>
+              </div>
+            </div>
+
+            <div class="mt-6 grid grid-cols-2 gap-3">
+              <div class="space-y-0.5">
+                <div class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/30">Activité</div>
+                <div class="text-[11px] font-bold text-on-surface-variant/70">{formatRelative(member.lastSeenAt)}</div>
+              </div>
+              <div class="space-y-0.5">
+                <div class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/30">Messages</div>
+                <div class="text-[11px] font-bold text-on-surface-variant/70">{member.messageCount.toLocaleString('fr-FR')}</div>
+              </div>
+            </div>
+
+            <div class="mt-4 flex items-center justify-between border-t border-outline-variant/5 pt-3">
+              <span class="text-[9px] font-bold text-on-surface-variant/30">{member.id.slice(0, 14)}…</span>
+              <span class="text-[9px] font-black uppercase tracking-widest text-primary/0 transition-all group-hover:text-primary/100">
+                Dossier <Papicon icon="arrow-right" size={10} />
+              </span>
+            </div>
+          </button>
+        {/each}
+      </div>
     {/if}
-  </div>
+  </main>
+
+  <!-- Pagination Minimaliste -->
+  {#if totalPages > 1}
+    <footer class="flex items-center justify-between border-t border-outline-variant/10 pt-8">
+      <p class="text-xs font-bold text-on-surface-variant/40">
+        {members.length} / {totalFound} membres
+      </p>
+
+      <div class="flex items-center gap-1">
+        <button
+          onclick={() => { if (page > 1) { page -= 1; void search(); } }}
+          disabled={page === 1 || loadingSearch}
+          class="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-container-low text-on-surface-variant transition-colors hover:bg-surface-container disabled:opacity-30"
+        >
+          <Papicon icon="chevron-left" size={16} />
+        </button>
+
+        <div class="px-4 text-xs font-black text-on-surface">
+          {page} <span class="mx-1 text-on-surface-variant/30">/</span> {totalPages}
+        </div>
+
+        <button
+          onclick={() => { if (page < totalPages) { page += 1; void search(); } }}
+          disabled={page === totalPages || loadingSearch}
+          class="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-container-low text-on-surface-variant transition-colors hover:bg-surface-container disabled:opacity-30"
+        >
+          <Papicon icon="chevron-right" size={16} />
+        </button>
+      </div>
+    </footer>
+  {/if}
 </div>
 
-<!-- Dossier Modal -->
 <MemberCaseModal
   open={modalOpen}
   userId={selectedUserId}
@@ -246,5 +491,7 @@
   {caseData}
   loading={loadingCase}
   error={caseError}
-  onClose={() => modalOpen = false}
+  onClose={() => {
+    modalOpen = false;
+  }}
 />

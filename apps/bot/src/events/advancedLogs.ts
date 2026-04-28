@@ -75,6 +75,196 @@ const AUDIT_LOOKBACK_MS = 12_000;
 const MAX_BULK_AUTHOR_PREVIEW = 8;
 const advancedLogsRegisteredClients = new WeakSet<Client>();
 
+function getDateKey(date = new Date()): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+async function incrementChannelDailyStat(guildId: string, channelId: string, authorId: string): Promise<void> {
+  const dateKey = getDateKey();
+  await prisma.channelDailyStat.upsert({
+    where: { guildId_channelId_dateKey: { guildId, channelId, dateKey } },
+    create: { guildId, channelId, dateKey, messagesCount: 1, uniqueAuthors: 1 },
+    update: { messagesCount: { increment: 1 } },
+  }).catch((error) => {
+    logger.debug('Analytics', `Channel daily stat error: ${String(error)}`);
+  });
+}
+
+async function incrementGuildDailyMessages(guildId: string): Promise<void> {
+  const dateKey = getDateKey();
+  await prisma.guildDailyStat.upsert({
+    where: { guildId_dateKey: { guildId, dateKey } },
+    create: { guildId, dateKey, messagesCount: 1 },
+    update: { messagesCount: { increment: 1 } },
+  }).catch((error) => {
+    logger.debug('Analytics', `Guild daily stat msg error: ${String(error)}`);
+  });
+}
+
+async function incrementGuildDailyJoin(guildId: string): Promise<void> {
+  const dateKey = getDateKey();
+  await prisma.guildDailyStat.upsert({
+    where: { guildId_dateKey: { guildId, dateKey } },
+    create: { guildId, dateKey, membersJoined: 1 },
+    update: { membersJoined: { increment: 1 } },
+  }).catch((error) => {
+    logger.debug('Analytics', `Guild daily stat join error: ${String(error)}`);
+  });
+}
+
+async function incrementGuildDailyLeave(guildId: string): Promise<void> {
+  const dateKey = getDateKey();
+  await prisma.guildDailyStat.upsert({
+    where: { guildId_dateKey: { guildId, dateKey } },
+    create: { guildId, dateKey, membersLeft: 1 },
+    update: { membersLeft: { increment: 1 } },
+  }).catch((error) => {
+    logger.debug('Analytics', `Guild daily stat leave error: ${String(error)}`);
+  });
+}
+
+async function persistMemberInvite(guildId: string, userId: string, invite: InviteSnapshot | null): Promise<void> {
+  await prisma.memberInvite.create({
+    data: {
+      guildId,
+      userId,
+      inviteCode: invite?.code ?? null,
+      inviterId: invite?.inviterId ?? null,
+      inviterTag: invite?.inviterTag ?? null,
+    },
+  }).catch((error) => {
+    logger.debug('Analytics', `Member invite persist error: ${String(error)}`);
+  });
+}
+
+async function incrementGuildDailyVoice(guildId: string, durationMinutes: number): Promise<void> {
+  const dateKey = getDateKey();
+  await prisma.guildDailyStat.upsert({
+    where: { guildId_dateKey: { guildId, dateKey } },
+    create: { guildId, dateKey, voiceMinutes: durationMinutes, voiceSessionsCount: 1 },
+    update: { voiceMinutes: { increment: durationMinutes }, voiceSessionsCount: { increment: 1 } },
+  }).catch((error) => {
+    logger.debug('Analytics', `Guild daily stat voice error: ${String(error)}`);
+  });
+}
+
+// 📊 Hourly guild stats (for heatmap)
+async function incrementGuildHourlyStat(guildId: string, type: 'message' | 'voice' | 'join' | 'leave' | 'reaction' | 'thread', value = 1): Promise<void> {
+  const now = new Date();
+  const dateKey = getDateKey(now);
+  const hour = now.getHours();
+
+  await prisma.guildHourlyStat.upsert({
+    where: { guildId_dateKey_hour: { guildId, dateKey, hour } },
+    update: {
+      messagesCount: type === 'message' ? { increment: value } : undefined,
+      voiceMinutes: type === 'voice' ? { increment: value } : undefined,
+      joinsCount: type === 'join' ? { increment: value } : undefined,
+      leavesCount: type === 'leave' ? { increment: value } : undefined,
+      reactionsCount: type === 'reaction' ? { increment: value } : undefined,
+      threadsCount: type === 'thread' ? { increment: value } : undefined,
+    },
+    create: {
+      guildId,
+      dateKey,
+      hour,
+      messagesCount: type === 'message' ? value : 0,
+      voiceMinutes: type === 'voice' ? value : 0,
+      joinsCount: type === 'join' ? value : 0,
+      leavesCount: type === 'leave' ? value : 0,
+      reactionsCount: type === 'reaction' ? value : 0,
+      threadsCount: type === 'thread' ? value : 0,
+    },
+  }).catch((error) => {
+    logger.debug('Analytics', `Guild hourly stat error: ${String(error)}`);
+  });
+}
+
+export async function runHourlyAnalyticsSnapshot(client: Client): Promise<void> {
+  const dateKey = getDateKey();
+  const hour = new Date().getHours();
+
+  for (const guild of client.guilds.cache.values()) {
+    const onlineMembers = guild.members.cache.filter(m => m.presence?.status && m.presence.status !== 'offline').size;
+    const voiceMembers = guild.members.cache.filter(m => m.voice.channelId).size;
+
+    await prisma.guildHourlyStat.upsert({
+      where: { guildId_dateKey_hour: { guildId: guild.id, dateKey, hour } },
+      update: {
+        onlineMembers,
+        voiceMembers,
+      },
+      create: {
+        guildId: guild.id,
+        dateKey,
+        hour,
+        onlineMembers,
+        voiceMembers,
+      },
+    }).catch((error) => {
+      logger.debug('Analytics', `Hourly snapshot error for guild ${guild.id}: ${String(error)}`);
+    });
+  }
+}
+
+// 📊 Per-member daily stats
+async function incrementMemberDailyMessages(guildId: string, userId: string): Promise<void> {
+  const dateKey = getDateKey();
+  await prisma.memberDailyStat.upsert({
+    where: { guildId_userId_dateKey: { guildId, userId, dateKey } },
+    create: { guildId, userId, dateKey, messagesCount: 1 },
+    update: { messagesCount: { increment: 1 } },
+  }).catch((error) => {
+    logger.debug('Analytics', `Member daily stat msg error: ${String(error)}`);
+  });
+}
+
+async function incrementMemberDailyVoice(guildId: string, userId: string, minutes: number): Promise<void> {
+  const dateKey = getDateKey();
+  await prisma.memberDailyStat.upsert({
+    where: { guildId_userId_dateKey: { guildId, userId, dateKey } },
+    create: { guildId, userId, dateKey, voiceMinutes: minutes },
+    update: { voiceMinutes: { increment: minutes } },
+  }).catch((error) => {
+    logger.debug('Analytics', `Member daily stat voice error: ${String(error)}`);
+  });
+}
+
+// 📊 Track unique authors per channel per day (in-memory set, flushed periodically)
+const channelDailyAuthorsCache = new Map<string, Set<string>>();
+
+function trackChannelUniqueAuthor(guildId: string, channelId: string, authorId: string): void {
+  const dateKey = getDateKey();
+  const key = `${guildId}:${channelId}:${dateKey}`;
+  let authors = channelDailyAuthorsCache.get(key);
+  if (!authors) {
+    authors = new Set<string>();
+    channelDailyAuthorsCache.set(key, authors);
+  }
+  authors.add(authorId);
+}
+
+async function flushChannelUniqueAuthors(): Promise<void> {
+  const entries = [...channelDailyAuthorsCache.entries()];
+  channelDailyAuthorsCache.clear();
+
+  for (const [key, authors] of entries) {
+    const [guildId, channelId, dateKey] = key.split(':');
+    if (!guildId || !channelId || !dateKey) continue;
+
+    await prisma.channelDailyStat.upsert({
+      where: { guildId_channelId_dateKey: { guildId, channelId, dateKey } },
+      create: { guildId, channelId, dateKey, uniqueAuthors: authors.size },
+      update: { uniqueAuthors: authors.size },
+    }).catch((error) => {
+      logger.debug('Analytics', `Channel unique authors flush error: ${String(error)}`);
+    });
+  }
+}
+
+// Flush every 60 seconds
+setInterval(() => { void flushChannelUniqueAuthors(); }, 60_000);
+
 function truncate(value: string, max = 1000): string {
   if (value.length <= max) return value;
   return `${value.slice(0, max - 1)}…`;
@@ -607,6 +797,13 @@ export function registerAdvancedLogsListener(client: Client): void {
       logger.debug('StaffManagement', `Staff activity tracking: ${String(error)}`);
     });
 
+    // 📊 Analytics: track par channel et guild
+    void incrementChannelDailyStat(snapshot.guildId, message.channelId, message.author.id);
+    void incrementGuildDailyMessages(snapshot.guildId);
+    void incrementGuildHourlyStat(snapshot.guildId, 'message');
+    void incrementMemberDailyMessages(snapshot.guildId, message.author.id);
+    trackChannelUniqueAuthor(snapshot.guildId, message.channelId, message.author.id);
+
     cleanupMessageSnapshots();
   });
 
@@ -759,6 +956,11 @@ export function registerAdvancedLogsListener(client: Client): void {
         void recordStaffActivity(guild.id, member.id, new Date(), 0, durationMinutes).catch((error) => {
           logger.debug('StaffManagement', `Staff activity tracking: ${String(error)}`);
         });
+
+        // 📊 Analytics: track voice duration
+        void incrementGuildDailyVoice(guild.id, durationMinutes);
+        void incrementGuildHourlyStat(guild.id, 'voice', durationMinutes);
+        void incrementMemberDailyVoice(guild.id, member.id, durationMinutes);
       }
 
       await sendLogEmbed(guild, embed, [buildMemberCaseActionRow(userId)]);
@@ -824,15 +1026,32 @@ export function registerAdvancedLogsListener(client: Client): void {
       });
     }
 
-    const base = buildMemberEmbed('✅ Membre connecté au serveur', 0x2a9d8f, member);
+    // 📊 Analytics: persist invite + increment daily join + hourly join
+    void persistMemberInvite(member.guild.id, member.id, usedInvite);
+    void incrementGuildDailyJoin(member.guild.id);
+    void incrementGuildHourlyStat(member.guild.id, 'join');
+
+    const accountAge = Date.now() - member.user.createdTimestamp;
+    const accountAgeDays = Math.floor(accountAge / (1000 * 60 * 60 * 24));
+    const isVeryYoung = accountAgeDays < 3; // Warning if < 3 days
+
+    const base = buildMemberEmbed(
+      isVeryYoung ? '⚠️ Nouveau compte détecté !' : '✅ Membre connecté au serveur',
+      isVeryYoung ? 0xea4335 : 0x2a9d8f,
+      member
+    );
     const inviteCode = usedInvite?.code ?? 'Inconnue / vanity / impossible à détecter';
     const inviter = usedInvite ? formatInviteCreator(usedInvite) : 'Inconnu';
 
     const embed = EmbedBuilder.from(base).addFields(
       { name: 'Invite utilisée', value: inviteCode, inline: true },
       { name: 'Créateur de l\'invite', value: inviter, inline: true },
-      { name: 'ID créateur', value: usedInvite?.inviterId ?? 'Inconnu', inline: true },
+      { name: 'Âge du compte', value: accountAgeDays === 0 ? 'Moins d\'un jour' : `${accountAgeDays} jours`, inline: true },
     );
+
+    if (isVeryYoung) {
+      embed.setDescription(`⚠️ Ce compte a été créé il y a seulement **${accountAgeDays} jours**. Soyez vigilant.`);
+    }
 
     await sendLogEmbed(member.guild, embed, [buildMemberCaseActionRow(member.id)]);
   });
@@ -850,6 +1069,16 @@ export function registerAdvancedLogsListener(client: Client): void {
     }).catch((error) => {
       logger.warn('Casier', `Impossible de synchroniser la sortie du membre ${member.id}: ${String(error)}`);
     });
+
+    // 📊 Analytics: increment daily leave + hourly leave
+    void incrementGuildDailyLeave(member.guild.id);
+    void incrementGuildHourlyStat(member.guild.id, 'leave');
+
+    const stayDuration = member.joinedAt ? Date.now() - member.joinedAt.getTime() : null;
+    const stayDurationDays = stayDuration ? Math.floor(stayDuration / (1000 * 60 * 60 * 24)) : null;
+    const stayDurationFmt = stayDurationDays !== null 
+      ? (stayDurationDays === 0 ? 'Moins d\'un jour' : `${stayDurationDays} jours`) 
+      : 'Inconnu';
 
     const embed = buildMemberEmbed(
       '👋 Membre déconnecté du serveur',
@@ -876,6 +1105,11 @@ export function registerAdvancedLogsListener(client: Client): void {
         inline: true,
       },
       {
+        name: 'Durée de présence',
+        value: stayDurationFmt,
+        inline: true,
+      },
+      {
         name: 'ID créateur',
         value: joinedInvite?.inviterId ?? 'Inconnu',
         inline: true,
@@ -883,6 +1117,15 @@ export function registerAdvancedLogsListener(client: Client): void {
     );
 
     await sendLogEmbed(member.guild, embed, [buildMemberCaseActionRow(member.id)]);
+  });
+
+  client.on(Events.MessageReactionAdd, async (reaction) => {
+    if (!reaction.message.guildId) return;
+    void incrementGuildHourlyStat(reaction.message.guildId, 'reaction');
+  });
+
+  client.on(Events.ThreadCreate, async (thread) => {
+    void incrementGuildHourlyStat(thread.guildId, 'thread');
   });
 
   client.on(Events.InviteCreate, async (invite) => {

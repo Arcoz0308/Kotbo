@@ -5,6 +5,7 @@
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import FilterChips from '../lib/components/FilterChips.svelte';
   import { getModuleIcon } from '../lib/moduleMeta';
+  import Papicon from '../lib/components/Papicon.svelte';
   import { refreshDashboardOnMount } from '../lib/dashboardLifecycle';
 
   refreshDashboardOnMount();
@@ -71,9 +72,7 @@
         <div class="group section-card p-6 hover:shadow-xl transition-all hover:border-primary/20">
           <div class="flex justify-between items-start mb-4">
             <div class="p-3 rounded-xl {module.status === 'active' ? 'bg-primary/10 text-primary' : module.status === 'error' ? 'bg-error-container/20 text-error' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}">
-              <span class="material-symbols-outlined">
-                {getModuleIcon(module.id)}
-              </span>
+              <Papicon icon={getModuleIcon(module.id)} size={24} />
             </div>
             <ToggleSwitch
               checked={module.status === 'active'}
@@ -112,7 +111,7 @@
 <section class="grid grid-cols-1 md:grid-cols-4 gap-6 font-inter">
   <div class="md:col-span-2 bg-slate-900 rounded-3xl p-8 text-white flex flex-col justify-between shadow-xl relative overflow-hidden">
     <div class="absolute top-0 right-0 p-8 opacity-10">
-      <span class="material-symbols-outlined text-8xl">hub</span>
+      <Papicon icon="hub" size={80} />
     </div>
     <div>
       <h4 class="text-xs font-bold uppercase tracking-[0.2em] opacity-60 mb-2">État Global</h4>
@@ -129,7 +128,7 @@
   </div>
   
   <div class="bg-primary/5 dark:bg-primary/10 rounded-3xl p-8 flex flex-col justify-between border border-primary/10">
-    <span class="material-symbols-outlined text-primary text-3xl">bolt</span>
+    <Papicon icon="bolt" size={32} class="text-primary" />
     <div>
       <p class="text-3xl font-extrabold text-primary font-headline">{dashboardStore.state.contentItems.length}</p>
       <p class="text-xs font-bold text-primary/70 uppercase tracking-widest mt-1">Interactions Totales</p>
@@ -137,7 +136,7 @@
   </div>
   
   <div class="bg-slate-50 dark:bg-slate-800 rounded-3xl p-8 flex flex-col justify-between border border-slate-100 dark:border-slate-700">
-    <span class="material-symbols-outlined text-slate-400 text-3xl">api</span>
+    <Papicon icon="api" size={32} class="text-slate-400" />
     <div>
       <p class="text-3xl font-extrabold text-slate-800 dark:text-white font-headline">Synchro</p>
       <p class="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Statut API {dashboardStore.state.error ? 'OFF' : 'ON'}</p>

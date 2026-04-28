@@ -36,6 +36,7 @@
     normalizeIdeLanguage,
     type IdeLanguage,
   } from '../lib/dailyAlgoIde';
+  import Papicon from '../lib/components/Papicon.svelte';
 
   let { moduleId } = $props();
 
@@ -1498,7 +1499,7 @@
   
   <div class="flex items-center gap-3 px-2">
     <a href="/modules" class="text-[10px] font-black text-on-surface-variant/40 hover:text-primary uppercase tracking-[0.25em] transition-colors">Catalogue</a>
-    <span class="material-symbols-outlined text-sm text-slate-400 opacity-30">chevron_right</span>
+    <Papicon icon="chevron_right" size={14} class="text-slate-400 opacity-30" />
     <span class="text-[10px] font-black text-primary uppercase tracking-[0.25em]">{module.name}</span>
   </div>
 
@@ -1506,7 +1507,7 @@
   <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-8 pb-8 border-b border-outline-variant/20">
     <div class="flex items-center gap-6">
       <div class="w-16 h-16 rounded-[1.75rem] {moduleMeta.headerToneClasses} flex items-center justify-center shadow-inner border group hover:rotate-6 transition-transform">
-        <span class="material-symbols-outlined text-3xl">{moduleMeta.icon}</span>
+        <Papicon icon={moduleMeta.icon} size={30} />
       </div>
       <div>
         <h2 class="text-3xl font-black font-headline tracking-tighter leading-tight">{module.name}</h2>
@@ -1599,7 +1600,7 @@
             <div class="flex flex-col gap-4">
               <div class="flex flex-col md:flex-row md:items-center gap-3 justify-between">
                 <label class="relative w-full md:max-w-xl">
-                  <span class="material-symbols-outlined pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/40 text-lg">search</span>
+                  <Papicon icon="search" size={18} class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/40" />
                   <FormInput
                     bind:value={feedSearchQuery}
                     type="search"
@@ -1659,7 +1660,7 @@
                 <div class="flex flex-wrap items-start justify-between gap-4">
                   <div class="flex items-center gap-5 min-w-0">
                     <div class="w-12 h-12 {feed.enabled ? 'bg-orange-500/10 text-orange-600' : 'bg-slate-500/10 text-slate-400'} rounded-2xl flex items-center justify-center border border-current opacity-20">
-                      <span class="material-symbols-outlined text-2xl">rss_feed</span>
+                      <Papicon icon="rss_feed" size={24} />
                     </div>
                     <div class="min-w-0">
                       <p class="font-black text-on-surface tracking-tight leading-none mb-1.5">{feed.name}</p>
@@ -1683,7 +1684,7 @@
                       class="p-3 text-on-surface-variant/40 hover:text-primary hover:bg-primary/10 rounded-xl transition-all"
                       title="Modifier le flux"
                     >
-                      <span class="material-symbols-outlined">edit</span>
+                      <Papicon icon="edit" size={18} />
                     </button>
                     <button 
                       onclick={() => openDeleteFeedModal(feed)}
@@ -1691,7 +1692,7 @@
                       class="p-3 text-on-surface-variant/20 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
                       title="Supprimer le flux"
                     >
-                      <span class="material-symbols-outlined">delete</span>
+                      <Papicon icon="delete" size={18} />
                     </button>
                   </div>
                 </div>
@@ -1819,12 +1820,12 @@
 
             {#if activeFeeds.length === 0}
               <div class="p-20 text-center premium-card rounded-[3rem] border-dashed border-2 opacity-30 flex flex-col items-center">
-                <span class="material-symbols-outlined text-6xl mb-6">rss_feed</span>
+                <Papicon icon="rss_feed" size={60} class="mb-6" />
                 <p class="text-[10px] font-black uppercase tracking-[0.3em]">Aucun flux n'est encore lié à cette instance</p>
               </div>
             {:else if filteredFeeds.length === 0}
               <div class="p-14 text-center premium-card rounded-[3rem] border-dashed border-2 opacity-55 flex flex-col items-center">
-                <span class="material-symbols-outlined text-5xl mb-4">filter_alt_off</span>
+                <Papicon icon="filter_alt_off" size={50} class="mb-4" />
                 <p class="text-[10px] font-black uppercase tracking-[0.3em]">Aucun flux ne correspond aux filtres</p>
               </div>
             {/if}
@@ -1876,7 +1877,7 @@
                 onclick={openDailyAlgoApiModal}
                 class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-outline-variant/30 bg-surface-container-low text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
               >
-                <span class="material-symbols-outlined text-sm">key</span>
+                <Papicon icon="key" size={14} />
                 API Externe
               </button>
               {#if canManageSettings}
@@ -2351,7 +2352,7 @@
           class="p-2 rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-on-surface"
           aria-label="Fermer la configuration API"
         >
-          <span class="material-symbols-outlined text-base">close</span>
+          <Papicon icon="close" size={16} />
         </button>
       </div>
 
@@ -2469,7 +2470,7 @@
           class="dailyalgo-ide-close"
           aria-label="Fermer l'IDE intégré"
         >
-          <span class="material-symbols-outlined text-base">close</span>
+          <Papicon icon="close" size={16} />
         </button>
       </div>
 
@@ -2681,7 +2682,7 @@
           class="p-2 rounded-lg border border-outline-variant/30 text-on-surface-variant hover:text-on-surface"
           aria-label="Fermer"
         >
-          <span class="material-symbols-outlined text-base">close</span>
+          <Papicon icon="close" size={16} />
         </button>
       </div>
 

@@ -10,6 +10,7 @@
   import MetricCard from "../lib/components/MetricCard.svelte";
   import FormInput from "../lib/components/FormInput.svelte";
   import ColumnSortFilter, { type ColumnFilterOption } from "../lib/components/sanctions/ColumnSortFilter.svelte";
+  import Papicon from "../lib/components/Papicon.svelte";
 
   let { initialFilter = "À valider" } = $props();
 
@@ -443,7 +444,7 @@
       ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700'
       : 'border-rose-500/30 bg-rose-500/10 text-rose-700'}">
       <div class="flex items-start gap-2">
-        <span class="material-symbols-outlined text-base">{actionNotice.type === 'success' ? 'check_circle' : 'error'}</span>
+        <Papicon icon={actionNotice.type === 'success' ? 'check_circle' : 'error'} size={16} />
         <p class="text-xs font-black uppercase tracking-[0.12em]">{actionNotice.message}</p>
       </div>
     </div>
@@ -455,7 +456,7 @@
     <div class="flex flex-col gap-8 xl:flex-row xl:items-end xl:justify-between">
       <div class="max-w-3xl space-y-4">
         <div class="inline-flex items-center gap-2 rounded-full border border-outline-variant/20 bg-white/60 px-4 py-2 text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant/60">
-          <span class="material-symbols-outlined text-base text-primary">fact_check</span>
+          <Papicon icon="fact_check" size={16} class="text-primary" />
           Modération du contenu
         </div>
         <h2 class="text-4xl font-black text-on-surface tracking-tighter font-headline leading-tight md:text-5xl">
@@ -533,7 +534,7 @@
 
           <div class="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center lg:flex-nowrap lg:justify-end">
             <label class="relative w-full sm:min-w-72 sm:flex-1 lg:max-w-90 lg:flex-none">
-              <span class="material-symbols-outlined pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/40 text-xl">search</span>
+              <Papicon icon="search" size={20} class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/40" />
               <FormInput
                 bind:value={search}
                 type="search"
@@ -570,10 +571,10 @@
                   : 'border border-blue-500/20 bg-blue-500/8 text-blue-700 hover:bg-blue-600 hover:text-white'}"
               >
                 {#if bulkTranslationInProgress}
-                  <span class="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                  <Papicon icon="progress_activity" size={14} class="animate-spin" />
                   Traduction en chaîne...
                 {:else}
-                  <span class="material-symbols-outlined text-sm">translate</span>
+                  <Papicon icon="translate" size={14} />
                   Tout traduire
                 {/if}
               </button>
@@ -581,14 +582,14 @@
                 href="/content/filtered"
                 class="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-slate-500/20 bg-slate-500/8 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-600 transition-colors hover:bg-slate-500/15"
               >
-                <span class="material-symbols-outlined text-sm">filter_alt</span>
+                <Papicon icon="filter_alt" size={14} />
                 Filtrées
               </a>
               <a
                 href="/content"
                 class="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant/70 transition-colors hover:text-on-surface"
               >
-                <span class="material-symbols-outlined text-sm">newsstand</span>
+                <Papicon icon="newsstand" size={14} />
                 Toutes
               </a>
             </div>
@@ -613,12 +614,12 @@
                   <div class="min-w-0 flex-1 space-y-4">
                     <div class="flex flex-wrap items-center gap-3">
                       <span class="inline-flex items-center gap-2 rounded-full border border-outline-variant/20 bg-surface-container-low px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant/70">
-                        <span class="material-symbols-outlined text-base text-secondary">rss_feed</span>
+                        <Papicon icon="rss_feed" size={16} class="text-secondary" />
                         {item.source}
                       </span>
                       {#if item.filteredOut}
                         <span class="inline-flex items-center gap-2 rounded-full border border-slate-500/25 bg-slate-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-slate-600">
-                          <span class="material-symbols-outlined text-base">filter_alt</span>
+                          <Papicon icon="filter_alt" size={16} />
                           Filtrée
                         </span>
                       {/if}
@@ -647,11 +648,11 @@
 
                     <div class="flex flex-wrap items-center gap-4 text-xs font-medium text-on-surface-variant/55">
                       <span class="inline-flex items-center gap-2">
-                        <span class="material-symbols-outlined text-base">person</span>
+                        <Papicon icon="person" size={16} />
                         {item.author || 'Auteur inconnu'}
                       </span>
                       <span class="inline-flex items-center gap-2">
-                        <span class="material-symbols-outlined text-base">schedule</span>
+                        <Papicon icon="schedule" size={16} />
                         {formatDateTime(item.scheduleAt)}
                       </span>
                     </div>
@@ -663,7 +664,7 @@
                         onclick={() => toggleContentView(item)}
                         class="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-500/20 bg-slate-500/8 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-slate-300 transition-all hover:bg-slate-500/15 hover:text-white hover:scale-[1.02] active:scale-[0.98]"
                       >
-                        <span class="material-symbols-outlined text-lg">swap_horiz</span>
+                        <Papicon icon="swap_horiz" size={18} />
                         {#if isViewingOriginal(item)}
                           Voir traduit
                         {:else}
@@ -680,16 +681,16 @@
                         : 'border border-blue-500/20 bg-blue-500/8 text-blue-700 hover:bg-blue-600 hover:text-white hover:scale-[1.02] active:scale-[0.98]'}"
                     >
                       {#if pendingAction === 'translate-title'}
-                        <span class="material-symbols-outlined text-lg animate-spin">progress_activity</span>
+                        <Papicon icon="progress_activity" size={18} class="animate-spin" />
                         Titre...
                       {:else if pendingAction === 'translate-description'}
-                        <span class="material-symbols-outlined text-lg animate-spin">progress_activity</span>
+                        <Papicon icon="progress_activity" size={18} class="animate-spin" />
                         Description...
                       {:else if pendingAction === 'translate'}
-                        <span class="material-symbols-outlined text-lg animate-spin">progress_activity</span>
+                        <Papicon icon="progress_activity" size={18} class="animate-spin" />
                         Traduction...
                       {:else}
-                        <span class="material-symbols-outlined text-lg">translate</span>
+                        <Papicon icon="translate" size={18} />
                         Traduire
                       {/if}
                     </button>
@@ -702,10 +703,10 @@
                         : 'cursor-not-allowed bg-emerald-500/10 text-emerald-700/40'}"
                     >
                       {#if pendingAction === 'publish'}
-                        <span class="material-symbols-outlined text-lg animate-spin">progress_activity</span>
+                        <Papicon icon="progress_activity" size={18} class="animate-spin" />
                         Publication...
                       {:else}
-                        <span class="material-symbols-outlined text-lg">check_circle</span>
+                        <Papicon icon="check_circle" size={18} />
                         {item.filteredOut ? 'Publier quand même' : 'Publier'}
                       {/if}
                     </button>
@@ -718,10 +719,10 @@
                         : 'cursor-not-allowed border border-rose-500/10 bg-rose-500/5 text-rose-700/35'}"
                     >
                       {#if pendingAction === 'reject'}
-                        <span class="material-symbols-outlined text-lg animate-spin">progress_activity</span>
+                        <Papicon icon="progress_activity" size={18} class="animate-spin" />
                         Rejet...
                       {:else}
-                        <span class="material-symbols-outlined text-lg">cancel</span>
+                        <Papicon icon="cancel" size={18} />
                         Rejeter
                       {/if}
                     </button>
@@ -731,11 +732,11 @@
                 <div class="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-outline-variant/10 bg-surface-container-low/60 px-4 py-3">
                   <div class="flex flex-wrap items-center gap-3 text-xs font-semibold text-on-surface-variant/60">
                     <span class="inline-flex items-center gap-2">
-                      <span class="material-symbols-outlined text-base">tag</span>
+                      <Papicon icon="tag" size={16} />
                       {item.status === 'planifie' ? 'En attente de validation' : status.label}
                     </span>
                     <span class="inline-flex items-center gap-2">
-                      <span class="material-symbols-outlined text-base">calendar_month</span>
+                      <Papicon icon="calendar_month" size={16} />
                       {formatDateTime(item.scheduleAt)}
                     </span>
                   </div>
@@ -749,7 +750,7 @@
                         class="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-secondary transition-colors hover:text-secondary-container"
                       >
                         Aller à la news
-                        <span class="material-symbols-outlined text-base">open_in_new</span>
+                        <Papicon icon="open_in_new" size={16} />
                       </a>
                     {/if}
 
@@ -758,7 +759,7 @@
                       class="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-primary transition-colors hover:text-primary-container"
                     >
                       Voir le journal
-                      <span class="material-symbols-outlined text-base">open_in_new</span>
+                      <Papicon icon="open_in_new" size={16} />
                     </a>
                   </div>
                 </div>
@@ -768,7 +769,7 @@
         {:else}
           <div class="flex flex-col items-center justify-center p-16 text-center">
             <div class="w-20 h-20 rounded-4xl bg-primary/8 text-primary flex items-center justify-center shadow-inner">
-              <span class="material-symbols-outlined text-4xl">inbox</span>
+              <Papicon icon="inbox" size={40} />
             </div>
             <h3 class="mt-6 text-2xl font-black tracking-tighter text-on-surface">
               Aucun contenu ne correspond à vos critères
@@ -789,7 +790,7 @@
           class="inline-flex items-center gap-2 font-black uppercase tracking-[0.18em] text-primary transition-colors hover:text-primary-container"
         >
           Ouvrir le journal complet
-          <span class="material-symbols-outlined text-base">arrow_forward</span>
+          <Papicon icon="arrow_forward" size={16} />
         </a>
       </div>
     </div>
@@ -798,7 +799,7 @@
       <div class="premium-card rounded-[2.5rem] p-6 space-y-5">
         <div class="flex items-center gap-3">
           <div class="w-11 h-11 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
-            <span class="material-symbols-outlined text-2xl">tune</span>
+            <Papicon icon="tune" size={24} />
           </div>
           <div>
             <p class="text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant/40">Ergonomie</p>

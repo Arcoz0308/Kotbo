@@ -3,29 +3,30 @@
   import Papicon from './Papicon.svelte';
   import { authStore } from '../stores/auth.svelte';
 
-  const dashboardItems = [
-    { name: "Vue d'ensemble", icon: "grid_view", href: "/" },
-    { name: "Analytics", icon: "pie_chart", href: "/analytics" },
-  ];
+  const dashboardItems = $derived([
+    { name: "Vue d'ensemble", icon: "grid", href: "/" },
+    { name: "Mon Profil", icon: "user", href: "/profile/" + (authStore.user?.id || "") },
+    { name: "Analytics", icon: "pie-chart", href: "/analytics" },
+  ]);
 
   const moderationItems = [
-    { name: "Contenu", icon: "news", href: "/content" },
+    { name: "Contenu", icon: "file-text", href: "/content" },
     { name: "Daily Algo", icon: "code", href: "/module-settings/dailyalgo" },
-    { name: "Membres", icon: "person", href: "/members" },
-    { name: "Sanctions", icon: "warning", href: "/sanctions" },
-    { name: "Logs Discord", icon: "receipt_long", href: "/logs" },
+    { name: "Membres", icon: "user", href: "/members" },
+    { name: "Sanctions", icon: "alert-triangle", href: "/sanctions" },
+    { name: "Logs Discord", icon: "file-text", href: "/logs" },
     { name: "Journal d'activité", icon: "history", href: "/activity" },
   ];
 
   const managementItems = [
-    { name: "Recrutement", icon: "assignment_ind", href: "/recruitment" },
-    { name: "Règlement", icon: "description", href: "/regulation" },
-    { name: "Réunions", icon: "event", href: "/meetings" },
-    { name: "Personnel", icon: "groups", href: "/staff-management" },
+    { name: "Recrutement", icon: "user-plus", href: "/recruitment" },
+    { name: "Règlement", icon: "book", href: "/regulation" },
+    { name: "Réunions", icon: "calendar", href: "/meetings" },
+    { name: "Personnel", icon: "users", href: "/staff-management" },
   ];
 
   const configItems = [
-    { name: "Modules", icon: "extension", href: "/modules" },
+    { name: "Modules", icon: "package", href: "/modules" },
     { name: "Commandes", icon: "terminal", href: "/command-access" },
     { name: "Paramètres", icon: "settings", href: "/settings" },
   ];
@@ -95,9 +96,11 @@
           {#if isActiveNavItem(item.href)}
             <div class="absolute left-0 top-3 bottom-3 w-1.5 bg-primary rounded-full animate-in slide-in-from-left-2 duration-300"></div>
           {/if}
-          <span class="material-symbols-outlined text-[22px] transition-all duration-300 {isActiveNavItem(item.href) ? 'scale-110' : 'opacity-60 group-hover:opacity-100 group-hover:scale-110'}">
-            {item.icon}
-          </span>
+          <Papicon 
+            icon={item.icon} 
+            size={20} 
+            class="transition-all duration-300 {isActiveNavItem(item.href) ? 'scale-110' : 'opacity-60 group-hover:opacity-100 group-hover:scale-110'}" 
+          />
           <span class="text-[13px] tracking-tight">{item.name}</span>
         </a>
       {/each}
@@ -113,10 +116,12 @@
         {#if isActiveNavItem('/profile')}
           <div class="absolute left-0 top-3 bottom-3 w-1.5 bg-primary rounded-full animate-in slide-in-from-left-2 duration-300"></div>
         {/if}
-        <span class="material-symbols-outlined text-[22px] transition-all duration-300 {isActiveNavItem('/profile') ? 'scale-110' : 'opacity-60 group-hover:opacity-100 group-hover:scale-110'}">
-          person
-        </span>
-        <span class="text-[13px] tracking-tight">Mon Profil</span>
+        <Papicon 
+          icon="shield" 
+          size={20} 
+          class="transition-all duration-300 {isActiveNavItem('/profile') ? 'scale-110' : 'opacity-60 group-hover:opacity-100 group-hover:scale-110'}" 
+        />
+        <span class="text-[13px] tracking-tight">Paramètres Staff</span>
       </a>
       <a 
         href="/absences"
@@ -125,9 +130,11 @@
         {#if isActiveNavItem('/absences')}
           <div class="absolute left-0 top-3 bottom-3 w-1.5 bg-primary rounded-full animate-in slide-in-from-left-2 duration-300"></div>
         {/if}
-        <span class="material-symbols-outlined text-[22px] transition-all duration-300 {isActiveNavItem('/absences') ? 'scale-110' : 'opacity-60 group-hover:opacity-100 group-hover:scale-110'}">
-          event_busy
-        </span>
+        <Papicon 
+          icon="calendar" 
+          size={20} 
+          class="transition-all duration-300 {isActiveNavItem('/absences') ? 'scale-110' : 'opacity-60 group-hover:opacity-100 group-hover:scale-110'}" 
+        />
         <span class="text-[13px] tracking-tight">Mes Absences</span>
       </a>
     </div>

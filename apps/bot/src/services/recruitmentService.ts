@@ -189,8 +189,32 @@ export async function createCandidature(
     },
   });
 
+  // Notifier les managers recrutement (si non auto-refusée)
+  if (!autoRejectCheck.rejected) {
+    const managers = await prisma.staffMember.findMany({
+      where: {
+        guildId,
+        grade: { in: ['Manager', 'Admin', 'Administrateur', 'Fondateur', 'Direction', 'Recrutement'] }
+      }
+    });
+
+    const notifsData = managers.map(m => ({
+      guildId,
+      userId: m.userId,
+      title: 'Nouvelle candidature',
+      message: `Une nouvelle candidature a été reçue de ${candidature.username}.`,
+      type: 'INFO' as const,
+      link: '/recruitment',
+      isRead: false
+    }));
+
+    if (notifsData.length > 0) {
+      await prisma.notification.createMany({ data: notifsData });
+    }
+  }
+
   return { candidature, autoRejected: autoRejectCheck.rejected, autoRejectReason: autoRejectCheck.reason };
-}
+};
 
 export async function updateCandidatureStatus(id: string, status: CandidatureStatus, notes?: string) {
   return await prisma.recruitmentCandidature.update({
@@ -644,10 +668,25 @@ export async function assignTutor(candidatureId: string, tutorUserId: string) {
   }
 
   // Update candidature
-  return await prisma.recruitmentCandidature.update({
+  const updated = await prisma.recruitmentCandidature.update({
     where: { id: candidatureId },
     data: { assignedTutorId: tutor.id },
   });
+
+  // Notifier le tuteur
+  await prisma.notification.create({
+    data: {
+      guildId: candidature.guildId,
+      userId: tutorUserId,
+      title: 'Nouveau tutoré assigné',
+      message: `Vous avez été assigné comme tuteur pour ${candidature.username}.`,
+      type: 'INFO',
+      link: '/recruitment',
+      isRead: false
+    }
+  });
+
+  return updated;
 }
 
 // ============================================================================

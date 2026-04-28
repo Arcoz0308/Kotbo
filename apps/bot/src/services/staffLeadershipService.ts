@@ -30,7 +30,7 @@ export const getAbsences = async (guildId: string) => {
   // Attach superior info and resolve display names
   return absences.map((absence) => {
     const staff = absence.staffMember;
-    const superior = superiors.find((s) => s.userId === absence.superiorUserId) || null;
+    const superior = absence.superiorUserId ? superiors.find(s => s.userId === absence.superiorUserId) : null;
 
     // Helper to resolve display name: Pseudo > Tag > Username > Discord ID
     const resolveName = (m: any, defaultId: string) => {
@@ -70,7 +70,7 @@ export const createAbsence = async (
 ) => {
   const isIndefinite = !params.endDate;
 
-  return prisma.staffAbsence.create({
+  const absence = await prisma.staffAbsence.create({
     data: {
       guildId: params.guildId,
       staffUserId: params.staffMemberId,
@@ -85,6 +85,30 @@ export const createAbsence = async (
       status: 'ACKNOWLEDGED'
     }
   });
+
+  // Notifier tous les managers/admins
+  const managers = await prisma.staffMember.findMany({
+    where: {
+      guildId: params.guildId,
+      grade: { in: ['Manager', 'Admin', 'Administrateur', 'Fondateur', 'Direction'] }
+    }
+  });
+  
+  const notifsData = managers.map(m => ({
+    guildId: params.guildId,
+    userId: m.userId,
+    title: 'Nouvelle absence demandée',
+    message: `Une absence a été soumise pour le motif: ${params.reason}.`,
+    type: 'INFO',
+    link: '/absences',
+    isRead: false
+  }));
+
+  if (notifsData.length > 0) {
+    await prisma.notification.createMany({ data: notifsData });
+  }
+
+  return absence;
 };
 
 export const getAbsenceById = async (guildId: string, absenceId: string) => {
@@ -116,7 +140,7 @@ export const updateAbsenceStatus = async (
   decisionNote?: string
 ) => {
   const now = new Date();
-  return prisma.staffAbsence.update({
+  const result = await prisma.staffAbsence.update({
     where: { id },
     data: {
       status,
@@ -127,6 +151,24 @@ export const updateAbsenceStatus = async (
       endedAt: status === 'ENDED' || status === 'CANCELED' ? now : null,
     }
   });
+
+  // Notifier le demandeur
+  const absence = await prisma.staffAbsence.findUnique({ where: { id } });
+  if (absence && absence.staffUserId !== decisionByUserId) {
+    await prisma.notification.create({
+      data: {
+        guildId: absence.guildId,
+        userId: absence.staffUserId,
+        title: 'Mise à jour de votre absence',
+        message: `Votre absence a été marquée comme: ${status}.`,
+        type: status === 'APPROVED' ? 'SUCCESS' : (status === 'REJECTED' ? 'ERROR' : 'INFO'),
+        link: '/absences',
+        isRead: false
+      }
+    });
+  }
+
+  return result;
 };
 
 export const closeAbsence = async (
@@ -164,7 +206,7 @@ export const createMeeting = async (
   discordMessageId?: string,
   discordEventId?: string
 ) => {
-  return prisma.staffMeeting.create({
+  const meeting = await prisma.staffMeeting.create({
     data: {
       guildId,
       createdByUserId,
@@ -176,6 +218,27 @@ export const createMeeting = async (
       status: 'SCHEDULED'
     }
   });
+
+  // Notifier tout le staff
+  const staff = await prisma.staffMember.findMany({
+    where: { guildId }
+  });
+  
+  const notifsData = staff.map(m => ({
+    guildId,
+    userId: m.userId,
+    title: 'Nouvelle réunion planifiée',
+    message: `La réunion "${title}" a été planifiée pour le ${scheduledAt.toLocaleString('fr-FR')}.`,
+    type: 'INFO',
+    link: '/meetings',
+    isRead: false
+  }));
+
+  if (notifsData.length > 0) {
+    await prisma.notification.createMany({ data: notifsData });
+  }
+
+  return meeting;
 };
 
 export const updateMeetingStatus = async (id: string, status: 'SCHEDULED' | 'COMPLETED' | 'CANCELED') => {
@@ -445,5 +508,48 @@ export const getStaffAlertsAndProgression = async (guildId: string) => {
       avg30d: Math.round(avg30d * 10) / 10,
       avg7d: Math.round(avg7d * 10) / 10
     };
+  });
+};
+
+export const getNotifications = async (guildId: string, userId: string) => {
+  return prisma.notification.findMany({
+    where: { guildId, userId },
+    orderBy: { createdAt: 'desc' },
+    take: 50
+  });
+};
+
+export const markNotificationRead = async (id: string, userId: string) => {
+  return prisma.notification.update({
+    where: { id, userId },
+    data: { isRead: true }
+  });
+};
+
+export const markAllNotificationsRead = async (guildId: string, userId: string) => {
+  return prisma.notification.updateMany({
+    where: { guildId, userId, isRead: false },
+    data: { isRead: true }
+  });
+};
+
+export const createNotification = async (
+  guildId: string,
+  userId: string,
+  title: string,
+  message: string,
+  type: string = 'INFO',
+  link?: string
+) => {
+  return prisma.notification.create({
+    data: {
+      guildId,
+      userId,
+      title,
+      message,
+      type,
+      link,
+      isRead: false
+    }
   });
 };

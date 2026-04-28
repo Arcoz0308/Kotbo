@@ -1,86 +1,161 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
-  import { fetchAbsences, createAbsence, updateAbsenceStatus } from '../lib/api';
+  import { fetchAbsences, createAbsence, updateAbsenceStatus, fetchStaffMembers, fetchStaffRoles } from '../lib/api';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import ActionButton from '../lib/components/ActionButton.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
+  import FormSelect from '../lib/components/FormSelect.svelte';
   import FormTextarea from '../lib/components/FormTextarea.svelte';
+  import Papicon from '../lib/components/Papicon.svelte';
 
   let absences = $state<any[]>([]);
+  let allStaff = $state<any[]>([]);
+  let allRoles = $state<any[]>([]);
   let loading = $state(true);
   let modalOpen = $state(false);
   let saving = $state(false);
+  let errorMsg = $state('');
+  
+  // Decision Modal State
+  let decisionModalOpen = $state(false);
+  let selectedAbsenceForDecision = $state<any>(null);
+  let decisionStatus = $state<'APPROVED' | 'REJECTED'>('APPROVED');
+  let decisionNote = $state('');
+  let decisionSaving = $state(false);
 
   let startDate = $state(new Date().toISOString().slice(0, 10));
   let endDate = $state(new Date(Date.now() + 86400000).toISOString().slice(0, 10));
   let reason = $state('');
+  let superiorUserId = $state('');
+
+  const myStaffRecord = $derived(allStaff.find(s => s.userId === authStore.user?.id));
+  
+  const eligibleSuperiors = $derived(() => {
+    if (!myStaffRecord || allRoles.length === 0) return [];
+    
+    const myRole = allRoles.find(r => r.name === myStaffRecord.grade);
+    if (!myRole) return allStaff; 
+    
+    return allStaff.filter(s => {
+      if (s.userId === authStore.user?.id) return false;
+      
+      const sRole = allRoles.find(r => r.name === s.grade);
+      if (!sRole) return false;
+      
+      return (sRole.sortOrder ?? 0) >= (myRole.sortOrder ?? 0);
+    }).sort((a, b) => {
+       const roleA = allRoles.find(r => r.name === a.grade);
+       const roleB = allRoles.find(r => r.name === b.grade);
+       return (roleB?.sortOrder ?? 0) - (roleA?.sortOrder ?? 0);
+    });
+  });
 
   const isAdmin = $derived(authStore.guilds.find(g => g.id === authStore.selectedGuildId)?.accessLevel === 'admin');
 
-  async function loadAbsences() {
+  async function loadData() {
     loading = true;
     try {
-      const data = await fetchAbsences();
-      absences = data.absences || [];
+      const [absData, membersData, rolesData] = await Promise.all([
+        fetchAbsences(),
+        fetchStaffMembers(),
+        fetchStaffRoles()
+      ]);
+      
+      absences = absData.absences || [];
+      allStaff = membersData.members || [];
+      allRoles = rolesData.roles || [];
+
       // Sort: My absences first, then by date desc
       absences.sort((a, b) => {
-        const isMineA = a.staffUserId === authStore.user?.id;
-        const isMineB = b.staffUserId === authStore.user?.id;
+        const isMineA = a.staffMember?.userId === authStore.user?.id;
+        const isMineB = b.staffMember?.userId === authStore.user?.id;
         if (isMineA && !isMineB) return -1;
         if (!isMineA && isMineB) return 1;
         return new Date(b.startDate).getTime() - new Date(a.startDate).getTime();
       });
     } catch (e) {
-      console.error('Failed to fetch absences:', e);
+      console.error('Failed to fetch data:', e);
     } finally {
       loading = false;
     }
   }
 
-  onMount(loadAbsences);
+  onMount(loadData);
 
   function openCreate() {
     startDate = new Date().toISOString().slice(0, 10);
     endDate = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
     reason = '';
+    superiorUserId = '';
+    errorMsg = '';
     modalOpen = true;
   }
 
   async function save() {
-    if (!startDate || !endDate || !reason) return;
+    let targetSuperiorId = superiorUserId;
+    
+    if (isAdmin && !targetSuperiorId) {
+      targetSuperiorId = authStore.user?.id || '';
+    }
+
+    if (!startDate || !endDate || !reason || !targetSuperiorId) {
+      errorMsg = 'Veuillez remplir tous les champs, y compris votre référent.';
+      return;
+    }
+    
     saving = true;
+    errorMsg = '';
+    
     try {
-      // Pour une déclaration personnelle, on utilise l'ID de l'utilisateur actuel
-      // Et on peut laisser le backend choisir un supérieur par défaut ou demander à l'utilisateur
-      // Dans notre cas, pour simplifier, on va chercher le premier admin disponible comme "supérieur" par défaut
-      // ou laisser le backend le gérer si on modifie l'API.
-      // Mais l'API demande explicitement superiorUserId. 
-      // On va donc envoyer les infos nécessaires.
-      await createAbsence({ 
+      const success = await createAbsence({ 
         staffUserId: authStore.user?.id,
-        startDate: new Date(startDate).toISOString(), 
-        endDate: new Date(endDate).toISOString(), 
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
         reason,
-        type: 'Congé', // Type par défaut
-        superiorUserId: 'system' // Le backend devra gérer ou on peut demander à l'utilisateur
+        type: 'ABSENCE',
+        superiorUserId: targetSuperiorId
       });
-      modalOpen = false;
-      await loadAbsences();
-    } catch (e) {
+      
+      if (success) {
+        modalOpen = false;
+        await loadData();
+      } else {
+        errorMsg = "Erreur lors de l'envoi de la déclaration. Vérifiez les informations.";
+      }
+    } catch (e: any) {
       console.error('Failed to create absence:', e);
+      errorMsg = e.message || "Une erreur inattendue est survenue.";
     } finally {
       saving = false;
     }
   }
 
-  async function setStatus(id: string, status: string) {
+  async function setStatus(id: string, status: string, note: string = '') {
     if (!isAdmin) return;
     try {
-      await updateAbsenceStatus(id, status, '');
-      await loadAbsences();
+      await updateAbsenceStatus(id, status, note);
+      await loadData();
     } catch (e) {
       console.error('Failed to update status:', e);
+    }
+  }
+
+  function openDecision(absence: any, status: 'APPROVED' | 'REJECTED') {
+    selectedAbsenceForDecision = absence;
+    decisionStatus = status;
+    decisionNote = absence.note || '';
+    decisionModalOpen = true;
+  }
+
+  async function confirmDecision() {
+    if (!selectedAbsenceForDecision) return;
+    decisionSaving = true;
+    try {
+      await setStatus(selectedAbsenceForDecision.id, decisionStatus, decisionNote);
+      decisionModalOpen = false;
+    } finally {
+      decisionSaving = false;
     }
   }
 
@@ -102,8 +177,8 @@
     }
   }
 
-  const myAbsences = $derived(absences.filter(a => a.staffUserId === authStore.user?.id));
-  const otherAbsences = $derived(absences.filter(a => a.staffUserId !== authStore.user?.id));
+  const myAbsences = $derived(absences.filter(a => a.staffMember?.userId === authStore.user?.id));
+  const otherAbsences = $derived(absences.filter(a => a.staffMember?.userId !== authStore.user?.id));
 
 </script>
 
@@ -113,8 +188,8 @@
     <p class="text-on-surface-variant mt-1 leading-relaxed">Déclarez vos congés ou absences pour être automatiquement excusé des réunions.</p>
   </div>
   <div class="flex items-center gap-3">
-    <RefreshButton onClick={loadAbsences} loading={loading} label="Actualiser" />
-    <ActionButton onClick={openCreate} variant="primary" icon="event_note" label="Déclarer une Absence" />
+    <RefreshButton onClick={loadData} loading={loading} label="Actualiser" />
+    <ActionButton onClick={openCreate} variant="primary" icon="calendar" label="Déclarer une Absence" />
   </div>
 </div>
 
@@ -123,7 +198,7 @@
   <section class="section-card-flush bg-surface-container-low/30 overflow-hidden rounded-3xl border border-outline-variant/30">
     <div class="px-8 py-5 border-b border-outline-variant/30 flex items-center justify-between">
       <h3 class="text-lg font-black text-on-surface flex items-center gap-3">
-        <span class="material-symbols-outlined text-primary">person</span>
+        <Papicon icon="user" class="text-primary" size={20} />
         Mes Absences
       </h3>
     </div>
@@ -168,8 +243,17 @@
                   </span>
                 </td>
                 <td class="px-8 py-5">
-                   {#if absence.status === 'REJECTED' && absence.note}
-                      <span class="material-symbols-outlined text-red-500 cursor-help" title={absence.note}>info</span>
+                   {#if absence.note}
+                      <div title={absence.note} class="group/note relative flex items-center justify-center">
+                        <Papicon 
+                          icon="message-square" 
+                          class={absence.status === 'REJECTED' ? 'text-red-500' : 'text-primary'} 
+                          size={16} 
+                        />
+                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-surface-container-high rounded-lg shadow-xl border border-outline-variant/30 text-[10px] text-on-surface font-medium opacity-0 pointer-events-none group-hover/note:opacity-100 transition-opacity z-10">
+                          {absence.note}
+                        </div>
+                      </div>
                    {:else}
                       <span class="text-on-surface-variant/20">–</span>
                    {/if}
@@ -187,7 +271,7 @@
     <section class="section-card-flush bg-surface-container-low/10 overflow-hidden rounded-3xl border border-outline-variant/30">
       <div class="px-8 py-5 border-b border-outline-variant/30 flex items-center justify-between">
         <h3 class="text-lg font-black text-on-surface flex items-center gap-3">
-          <span class="material-symbols-outlined text-amber-500">admin_panel_settings</span>
+          <Papicon icon="shield" class="text-amber-500" size={20} />
           Gestion des Absences (Admin)
         </h3>
       </div>
@@ -230,20 +314,31 @@
                     </span>
                   </td>
                   <td class="px-8 py-5 text-right">
-                    {#if absence.status === 'PENDING'}
-                      <div class="flex items-center justify-end gap-2">
-                        <button onclick={() => setStatus(absence.id, 'APPROVED')} class="p-2 bg-emerald-500/10 text-emerald-500 rounded-lg hover:bg-emerald-500 hover:text-white transition-all shadow-sm" title="Approuver">
-                          <span class="material-symbols-outlined text-lg">check</span>
-                        </button>
-                        <button onclick={() => setStatus(absence.id, 'REJECTED')} class="p-2 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500 hover:text-white transition-all shadow-sm" title="Refuser">
-                          <span class="material-symbols-outlined text-lg">close</span>
-                        </button>
-                      </div>
-                    {:else}
-                       <button onclick={() => setStatus(absence.id, 'PENDING')} class="text-[10px] font-bold text-on-surface-variant hover:text-primary transition-colors">
-                         Réinitialiser
-                       </button>
-                    {/if}
+                    <div class="flex items-center justify-end gap-3">
+                      {#if absence.note}
+                         <div title={absence.note} class="group/note relative">
+                           <Papicon icon="message-square" class="text-on-surface-variant/40 hover:text-primary transition-colors" size={16} />
+                           <div class="absolute bottom-full right-0 mb-2 w-48 p-2 bg-surface-container-high rounded-lg shadow-xl border border-outline-variant/30 text-[10px] text-on-surface font-medium opacity-0 pointer-events-none group-hover/note:opacity-100 transition-opacity z-10">
+                             {absence.note}
+                           </div>
+                         </div>
+                      {/if}
+
+                      {#if absence.status === 'PENDING'}
+                        <div class="flex items-center gap-2">
+                          <button onclick={() => openDecision(absence, 'APPROVED')} class="p-2 bg-emerald-500/10 text-emerald-500 rounded-lg hover:bg-emerald-500 hover:text-white transition-all shadow-sm" title="Approuver">
+                            <Papicon icon="check" size={18} />
+                          </button>
+                          <button onclick={() => openDecision(absence, 'REJECTED')} class="p-2 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500 hover:text-white transition-all shadow-sm" title="Refuser">
+                            <Papicon icon="x" size={18} />
+                          </button>
+                        </div>
+                      {:else}
+                         <button onclick={() => setStatus(absence.id, 'PENDING')} class="text-[10px] font-bold text-on-surface-variant hover:text-primary transition-colors">
+                           Réinitialiser
+                         </button>
+                      {/if}
+                    </div>
                   </td>
                 </tr>
               {/each}
@@ -257,9 +352,14 @@
 
 {#if modalOpen}
   <div class="fixed inset-0 z-[100] flex items-center justify-center p-4">
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick={() => modalOpen = false}></div>
+    <div 
+      class="absolute inset-0 bg-black/60 backdrop-blur-sm" 
+      onclick={() => modalOpen = false}
+      onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && (modalOpen = false)}
+      role="button"
+      tabindex="-1"
+      aria-label="Fermer le modal"
+    ></div>
     
     <div class="relative w-full max-w-lg bg-surface-container-lowest rounded-3xl shadow-2xl overflow-hidden border border-outline-variant/30 font-inter">
       <div class="p-8 border-b border-outline-variant/30 flex items-center justify-between bg-primary/5">
@@ -292,8 +392,35 @@
           />
         </div>
 
+        <div>
+          <label for="absence-superior" class="block text-xs font-black text-on-surface-variant uppercase tracking-[0.2em] mb-2">
+            Référent / Supérieur (à qui notifier)
+            {#if isAdmin}
+              <span class="ml-1 normal-case font-medium text-primary/60 text-[10px]">(Optionnel pour Admin)</span>
+            {/if}
+          </label>
+          <FormSelect id="absence-superior" bind:value={superiorUserId} className="w-full">
+            <option value="" disabled={!isAdmin}>{isAdmin ? 'Aucun (Auto-notifié)' : 'Sélectionner un supérieur...'}</option>
+            {#each eligibleSuperiors() as superior}
+              <option value={superior.userId}>
+                {superior.displayName || superior.username} ({superior.grade})
+              </option>
+            {/each}
+          </FormSelect>
+          {#if !isAdmin && eligibleSuperiors().length === 0}
+            <p class="text-[10px] text-red-500 mt-1">Aucun référent éligible trouvé. Vous devez être enregistré dans le staff.</p>
+          {/if}
+        </div>
+
+        {#if errorMsg}
+          <div class="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 flex gap-3 animate-shake">
+            <Papicon icon="alert-circle" class="text-red-500" size={16} />
+            <p class="text-xs text-red-700 dark:text-red-300 font-bold">{errorMsg}</p>
+          </div>
+        {/if}
+
         <div class="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 flex gap-3">
-           <span class="material-symbols-outlined text-amber-500">lightbulb</span>
+           <Papicon icon="help-circle" class="text-amber-500" size={20} />
            <p class="text-[11px] text-amber-800 dark:text-amber-200 leading-relaxed font-medium">
              Une absence approuvée vous marquera automatiquement comme <strong>Excusé</strong> lors de la création d'une réunion tombant pendant cette période.
            </p>
@@ -305,13 +432,76 @@
           </button>
           <button 
             onclick={save}
-            disabled={saving || !startDate || !endDate || !reason}
+            disabled={saving || !startDate || !endDate || !reason || !superiorUserId}
             class="px-8 py-2.5 bg-primary text-on-primary rounded-xl font-black shadow-lg shadow-primary/20 hover:shadow-primary/40 disabled:opacity-50 transition-all flex items-center gap-2"
           >
             {#if saving}
               <div class="w-4 h-4 border-2 border-on-primary/20 border-t-on-primary rounded-full animate-spin"></div>
             {/if}
             Envoyer la déclaration
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if decisionModalOpen}
+  <div class="fixed inset-0 z-[110] flex items-center justify-center p-4">
+    <div 
+      class="absolute inset-0 bg-black/60 backdrop-blur-sm" 
+      onclick={() => decisionModalOpen = false}
+      onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && (decisionModalOpen = false)}
+      role="button"
+      tabindex="-1"
+      aria-label="Fermer le modal"
+    ></div>
+    
+    <div class="relative w-full max-w-md bg-surface-container-lowest rounded-3xl shadow-2xl overflow-hidden border border-outline-variant/30 font-inter">
+      <div class="p-6 border-b border-outline-variant/30 flex items-center justify-between {decisionStatus === 'APPROVED' ? 'bg-emerald-500/5' : 'bg-red-500/5'}">
+        <div>
+          <h3 class="text-xl font-black text-on-surface">
+            {decisionStatus === 'APPROVED' ? 'Approuver' : 'Refuser'} l'absence
+          </h3>
+          <p class="text-on-surface-variant text-xs mt-1">
+            Ajoutez un commentaire pour justifier votre décision.
+          </p>
+        </div>
+        <button onclick={() => decisionModalOpen = false} class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-surface-hover transition-colors">
+          <Papicon icon="x" size={20} />
+        </button>
+      </div>
+
+      <div class="p-6 space-y-4">
+        <div class="p-4 bg-surface-container-low rounded-2xl border border-outline-variant/10 text-xs">
+          <p class="text-on-surface-variant font-bold mb-1 uppercase tracking-widest text-[9px]">Raison originale :</p>
+          <p class="text-on-surface italic">"{selectedAbsenceForDecision?.reason}"</p>
+        </div>
+
+        <div>
+          <label for="decision-note" class="block text-[10px] font-black text-on-surface-variant uppercase tracking-[0.2em] mb-2">Commentaire / Note</label>
+          <FormTextarea 
+            id="decision-note"
+            bind:value={decisionNote}
+            placeholder={decisionStatus === 'APPROVED' ? "Ex: Bonnes vacances !" : "Ex: Manque de justificatif..."}
+            rows={3}
+            className="w-full resize-none"
+          />
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-2">
+          <button onclick={() => decisionModalOpen = false} class="px-4 py-2 text-xs font-bold text-on-surface-variant hover:bg-surface-hover rounded-xl transition-colors">
+            Annuler
+          </button>
+          <button 
+            onclick={confirmDecision}
+            disabled={decisionSaving}
+            class="px-6 py-2 {decisionStatus === 'APPROVED' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-red-500 hover:bg-red-600'} text-white rounded-xl text-xs font-black shadow-lg transition-all flex items-center gap-2"
+          >
+            {#if decisionSaving}
+              <div class="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+            {/if}
+            Confirmer le {decisionStatus === 'APPROVED' ? 'choix' : 'refus'}
           </button>
         </div>
       </div>

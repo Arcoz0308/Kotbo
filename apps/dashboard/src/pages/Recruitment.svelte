@@ -3,6 +3,7 @@
   import { authStore } from '../lib/stores/auth.svelte';
   import { API_BASE_URL } from '../lib/api';
   import { themeStore } from '../lib/stores/theme.svelte';
+  import Papicon from '../lib/components/Papicon.svelte';
 
   let candidatures = $state<any[]>([]);
   let tutors = $state<any[]>([]);
@@ -209,7 +210,7 @@
       <h2 class="text-4xl font-black text-on-surface tracking-tighter font-headline flex items-center gap-4">
         Gestion du Recrutement
         <button onclick={() => configVisible = true} class="w-10 h-10 rounded-full bg-surface-container hover:bg-surface-container-high border-outline-variant/20 border flex items-center justify-center transition-colors">
-          <span class="material-symbols-outlined text-lg text-on-surface-variant">settings</span>
+          <Papicon icon="settings" size={18} class="text-on-surface-variant" />
         </button>
       </h2>
       <p class="text-sm text-on-surface-variant/75 font-medium mt-1">Suivi des candidatures et intégration du personnel</p>
@@ -219,7 +220,7 @@
     <div class="flex flex-wrap gap-4">
       <div class="px-6 py-4 rounded-[2rem] bg-surface-container-low/50 border border-outline-variant/10 flex items-center gap-4 hover:shadow-2xl hover:shadow-primary/5 transition-all">
         <div class="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
-            <span class="material-symbols-outlined text-lg">pending_actions</span>
+            <Papicon icon="pending_actions" size={18} />
         </div>
         <div class="text-xs">
             <p class="text-2xl font-black text-on-surface leading-none">{stats.pending}</p>
@@ -228,7 +229,7 @@
       </div>
       <div class="px-6 py-4 rounded-[2rem] bg-surface-container-low/50 border border-outline-variant/10 flex items-center gap-4 hover:shadow-2xl hover:shadow-primary/5 transition-all">
         <div class="w-10 h-10 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center">
-            <span class="material-symbols-outlined text-lg">forum</span>
+            <Papicon icon="forum" size={18} />
         </div>
         <div class="text-xs">
             <p class="text-2xl font-black text-on-surface leading-none">{stats.oral}</p>
@@ -237,7 +238,7 @@
       </div>
       <div class="px-6 py-4 rounded-[2rem] bg-rose-500/10 border border-rose-500/20 flex items-center gap-4 hover:shadow-2xl hover:shadow-rose-500/20 transition-all">
         <div class="w-10 h-10 rounded-2xl bg-background text-rose-500 flex items-center justify-center shadow-lg shadow-rose-500/20">
-            <span class="material-symbols-outlined text-lg">block</span>
+            <Papicon icon="block" size={18} />
         </div>
         <div class="text-xs text-rose-500">
             <p class="text-2xl font-black leading-none">{stats.autoRejected}</p>
@@ -275,13 +276,13 @@
     </div>
   {:else if error}
     <div class="rounded-[3rem] border border-rose-500/20 bg-rose-500/10 px-8 py-10 text-center flex flex-col items-center">
-      <span class="material-symbols-outlined text-5xl text-rose-500 mb-4">error</span>
+      <Papicon icon="error" size={48} class="text-rose-500 mb-4" />
       <p class="text-xl font-bold text-rose-700">{error}</p>
     </div>
   {:else if candidatures.length === 0}
     <div class="flex flex-col items-center justify-center py-32 text-on-surface-variant/30 border-2 border-dashed border-outline-variant/10 rounded-[4rem] bg-surface-container-low/20">
       <div class="w-24 h-24 rounded-[3rem] bg-surface-container flex items-center justify-center mb-6 shadow-inner">
-        <span class="material-symbols-outlined text-5xl">person_add_disabled</span>
+        <Papicon icon="person_add_disabled" size={48} />
       </div>
       <h3 class="text-2xl font-black tracking-tight text-on-surface/50">Aucune candidature</h3>
       <p class="mt-3 text-sm max-w-sm text-center opacity-60 leading-relaxed px-10">
@@ -315,18 +316,18 @@
                                 </div>
                             </div>
                         </div>
-                        <button 
-                            onclick={() => deleteCandidature(candidature.id)}
-                            class="w-10 h-10 rounded-full bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
-                            title="Supprimer la candidature"
-                        >
-                            <span class="material-symbols-outlined text-sm">delete</span>
-                        </button>
+                            <button 
+                                onclick={() => deleteCandidature(candidature.id)}
+                                class="w-10 h-10 rounded-full bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
+                                title="Supprimer la candidature"
+                            >
+                                <Papicon icon="delete" size={14} />
+                            </button>
                     </div>
                     
                     {#if candidature.autoRejected && candidature.autoRejectReason}
                         <div class="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 flex gap-4 text-rose-400">
-                           <span class="material-symbols-outlined shrink-0 text-xl">robot_2</span>
+                           <Papicon icon="robot_2" size={20} class="shrink-0" />
                            <p class="text-sm font-medium">{candidature.autoRejectReason}</p>
                         </div>
                     {/if}
@@ -359,7 +360,7 @@
                     
                     {#if candidature.status === 'ORAL' && candidature.ticketChannelId}
                        <div class="flex items-center gap-2 p-3 rounded-xl bg-surface-container-low text-xs font-medium text-on-surface-variant">
-                          <span class="material-symbols-outlined text-base">forum</span> Ticket créé
+                          <Papicon icon="forum" size={16} /> Ticket créé
                        </div>
                     {/if}
 
@@ -368,7 +369,7 @@
                             <button 
                                onclick={() => openValidateModal(candidature)}
                                class="col-span-2 py-3 rounded-2xl bg-blue-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2">
-                                <span class="material-symbols-outlined text-sm">check_circle</span> Passer Oral
+                                <Papicon icon="check_circle" size={14} /> Passer Oral
                             </button>
                             <button 
                                onclick={() => openRejectModal(candidature)}
@@ -380,7 +381,7 @@
                            <button 
                              onclick={() => openValidateModal(candidature)}
                              class="col-span-2 py-3 rounded-2xl bg-emerald-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2">
-                              <span class="material-symbols-outlined text-sm">verified</span> Accepter quand même
+                              <Papicon icon="verified" size={14} /> Accepter quand même
                            </button>
                          {/if}
                          {#if candidature.status === 'ORAL'}
@@ -455,7 +456,7 @@
 <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
     <div class="bg-surface border border-outline-variant/30 rounded-[3rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95 duration-300">
         <div class="flex items-center gap-4 mb-2 text-blue-500">
-           <span class="material-symbols-outlined text-4xl">check_circle</span>
+           <Papicon icon="check_circle" size={36} />
            <h3 class="text-2xl font-black">Valider la candidature</h3>
         </div>
         <p class="text-sm text-on-surface-variant/80 mb-6">Cette action créera un salon ticket et enverra un message privé au candidat.</p>
@@ -484,7 +485,7 @@
 <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
     <div class="bg-surface border border-outline-variant/30 rounded-[3rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95 duration-300">
         <div class="flex items-center gap-4 mb-2 text-rose-500">
-           <span class="material-symbols-outlined text-4xl">cancel</span>
+           <Papicon icon="cancel" size={36} />
            <h3 class="text-2xl font-black">Refuser la candidature</h3>
         </div>
         <p class="text-sm text-on-surface-variant/80 mb-6">Cette action clôturera la candidature.</p>
@@ -511,7 +512,7 @@
 <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
     <div class="bg-surface border border-outline-variant/30 rounded-[3rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95 duration-300">
         <div class="flex items-center gap-4 mb-2 text-emerald-500">
-           <span class="material-symbols-outlined text-4xl">how_to_reg</span>
+           <Papicon icon="how_to_reg" size={36} />
            <h3 class="text-2xl font-black">Oral Concluant</h3>
         </div>
         <p class="text-sm text-on-surface-variant/80 mb-6">Crée automatiquement le profil Staff Helper Test et assigne le tuteur de suivi.</p>
@@ -556,7 +557,7 @@
 <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
     <div class="bg-surface border border-outline-variant/30 rounded-[3rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95 duration-300">
         <div class="flex items-center gap-4 mb-2 text-rose-500">
-           <span class="material-symbols-outlined text-4xl">thumb_down</span>
+           <Papicon icon="thumb_down" size={36} />
            <h3 class="text-2xl font-black">Oral Échoué</h3>
         </div>
         <p class="text-sm text-on-surface-variant/80 mb-6">Le profil est rejeté et une attente d'1 mois est appliquée avant de pouvoir re-candidater.</p>

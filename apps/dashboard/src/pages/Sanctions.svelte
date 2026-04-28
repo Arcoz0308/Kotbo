@@ -4,6 +4,7 @@
   import { refreshDashboardOnMount } from '../lib/dashboardLifecycle';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import ActionButton from '../lib/components/ActionButton.svelte';
+  import Papicon from '../lib/components/Papicon.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
   import FormTextarea from '../lib/components/FormTextarea.svelte';
   import ReportRuleSelector from '../lib/components/sanctions/ReportRuleSelector.svelte';
@@ -213,7 +214,7 @@
     if (linkedReport) {
       return {
         label: 'Voir le rapport',
-        icon: 'description',
+        icon: 'paper',
         disabled: false,
         variant: 'success',
         hint: 'Le rapport de sanction existe déjà et peut être consulté.',
@@ -223,7 +224,7 @@
     if (canCreate) {
       return {
         label: 'Creer le rapport',
-        icon: 'assignment',
+        icon: 'plus',
         disabled: false,
         variant: 'primary',
         hint: 'Ouvre le formulaire pour compléter le rapport lié à cette sanction.',
@@ -440,7 +441,7 @@
   </div>
   <div class="px-6 pb-4">
     <label class="relative block w-full md:max-w-xl">
-      <span class="material-symbols-outlined pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+      <Papicon icon="search" size={18} class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
       <FormInput
         type="search"
         bind:value={searchQuery}
@@ -566,7 +567,7 @@
                       disabled={deletingSanctionId === entry.id}
                       title="Supprimer cette infraction"
                       variant="danger"
-                      icon="delete"
+                      icon="trash"
                       label={deletingSanctionId === entry.id ? 'Suppression...' : 'Supprimer'}
                       className="min-w-42.5"
                     />
@@ -594,16 +595,27 @@
 </section>
 
 {#if modalOpen && selectedSanction}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div class="modal-backdrop" role="dialog" aria-modal="true" tabindex="-1" onclick={closeModal}>
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="modal-panel modal-panel-lg space-y-5 font-inter" onclick={(e) => e.stopPropagation()}>
+  <div 
+    class="modal-backdrop" 
+    onclick={closeModal}
+    onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && closeModal()}
+    aria-label="Fermer le modal"
+    role="button"
+    tabindex="-1"
+  >
+    <div 
+      class="modal-panel modal-panel-lg space-y-5 font-inter" 
+      onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+      tabindex="-1"
+    >
       <div class="flex items-start justify-between gap-4">
         <div>
           <p class="text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant">Sanction selectionnee</p>
-          <h3 class="text-xl font-black text-on-surface mt-1">{typeLabel(selectedSanction.type)} - {selectedSanction.targetTag}</h3>
+          <h3 id="modal-title" class="text-xl font-black text-on-surface mt-1">{typeLabel(selectedSanction.type)} - {selectedSanction.targetTag}</h3>
           <p class="text-xs text-on-surface-variant mt-1">Par {selectedSanction.moderatorTag} le {new Date(selectedSanction.createdAt).toLocaleString('fr-FR')}</p>
         </div>
         <ActionButton onClick={closeModal} size="sm" variant="neutral" label="Fermer" />
@@ -740,12 +752,23 @@
 {/if}
 
 {#if deleteModalOpen && pendingDeletion}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="delete-sanction-title" tabindex="-1" onclick={closeDeleteModal}>
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="modal-panel max-w-lg space-y-4 font-inter" onclick={(e) => e.stopPropagation()}>
+  <div 
+    class="modal-backdrop" 
+    onclick={closeDeleteModal}
+    onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && closeDeleteModal()}
+    aria-label="Fermer le modal"
+    role="button"
+    tabindex="-1"
+  >
+    <div 
+      class="modal-panel max-w-lg space-y-4 font-inter" 
+      onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delete-sanction-title"
+      tabindex="-1"
+    >
       <div>
         <p class="text-[10px] font-black uppercase tracking-[0.25em] text-red-500">Action sensible</p>
         <h3 id="delete-sanction-title" class="mt-1 text-xl font-black text-on-surface">Confirmer la suppression</h3>

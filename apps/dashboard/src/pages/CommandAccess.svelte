@@ -5,6 +5,7 @@
   import AccessEntitySelector from '../lib/components/AccessEntitySelector.svelte';
   import { refreshDashboardOnMount } from '../lib/dashboardLifecycle';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
+  import Papicon from '../lib/components/Papicon.svelte';
 
   refreshDashboardOnMount();
 
@@ -371,7 +372,7 @@
     <div class="section-card p-6">
       <div class="flex items-center justify-between gap-3 mb-4">
         <h3 class="text-xl font-bold font-headline flex items-center gap-3">
-          <span class="material-symbols-outlined text-primary">segment</span>
+          <Papicon icon="segment" size={20} class="text-primary" />
           Catalogue des commandes
         </h3>
         <span class="text-[10px] font-black uppercase tracking-[0.18em] px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-on-surface-variant">{filteredCommandCatalog.length}</span>
@@ -380,7 +381,7 @@
       <div class="mb-4">
         <label class="sr-only" for="command-search">Rechercher une commande</label>
         <div class="relative">
-          <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-base">search</span>
+          <Papicon icon="search" size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
           <input
             id="command-search"
             type="text"

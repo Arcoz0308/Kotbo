@@ -4,6 +4,8 @@
   import { dashboardStore } from '../stores/dashboard.svelte';
   import { themeStore } from '../stores/theme.svelte';
   import { API_BASE_URL } from '../api';
+  import NotificationBell from './NotificationBell.svelte';
+  import Papicon from './Papicon.svelte';
 
   let config = $state({ discordClientId: '' });
   let userMenuOpen = $state(false);
@@ -44,11 +46,23 @@
     authStore.guilds.find((guild) => guild.id === authStore.selectedGuildId)
   );
 
-  const selectedGuildAccessLabel = $derived(
-    selectedGuild?.accessLevel === 'moderator'
-      ? 'Modérateur'
-      : 'Administrateur'
-  );
+  const highestRole = $derived.by(() => {
+    const roles = authStore.member?.roles;
+    if (!roles) return '...';
+
+    const sortedRoles = [...roles]
+      .filter(r => r.name !== '@everyone' && !r.managed)
+      .sort((a, b) => b.position - a.position);
+
+    if (sortedRoles.length === 0) return 'Membre';
+
+    let topRole = sortedRoles[0];
+    if (topRole.name === 'Gérant' && sortedRoles.length > 1) {
+      topRole = sortedRoles[1];
+    }
+
+    return topRole?.name || 'Membre';
+  });
 
   const guildIconUrl = $derived(
     selectedGuild?.icon 
@@ -87,10 +101,17 @@
   </div>
 
   <div class="flex items-center gap-8">
-    <div class="hidden md:flex items-center gap-2 bg-slate-500/10 px-4 py-2 rounded-full border border-slate-500/20">
-      <span class="material-symbols-outlined text-sm text-slate-500">verified_user</span>
-      <span class="text-[10px] font-black text-slate-600 uppercase tracking-widest">{selectedGuildAccessLabel}</span>
-    </div>
+    {#if !authStore.member}
+      <div class="hidden md:flex items-center gap-2 bg-slate-500/5 px-4 py-2 rounded-full border border-slate-500/10 animate-pulse">
+        <div class="w-5 h-5 bg-slate-500/20 rounded-full"></div>
+        <div class="w-16 h-3 bg-slate-500/20 rounded-md"></div>
+      </div>
+    {:else}
+      <div class="hidden md:flex items-center gap-2 bg-slate-500/10 px-4 py-2 rounded-full border border-slate-500/20">
+        <Papicon icon={selectedGuild?.accessLevel === 'moderator' ? 'user' : selectedGuild?.accessLevel === 'admin' ? 'crown' : 'none'} size={24} class="text-slate-500" />
+        <span class="text-[12px] font-black text-slate-600 uppercase tracking-widest">{highestRole}</span>
+      </div>
+    {/if}
 
         <button
       onclick={() => themeStore.toggle()}
@@ -100,11 +121,13 @@
     >
       <div class="absolute inset-0 bg-linear-to-tr from-amber-400/0 to-indigo-500/0 group-hover/theme:from-amber-400/10 group-hover/theme:to-indigo-500/10 transition-all duration-500"></div>
       {#if themeStore.dark}
-        <span class="material-symbols-outlined text-lg text-amber-400 transition-all duration-500 group-hover/theme:rotate-[360deg] group-hover/theme:scale-110" style="font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24">light_mode</span>
+        <Papicon icon="sun" size={18} class="text-amber-400 transition-all duration-500 group-hover/theme:rotate-[360deg] group-hover/theme:scale-110" />
       {:else}
-        <span class="material-symbols-outlined text-lg text-indigo-400 transition-all duration-500 group-hover/theme:-rotate-[20deg] group-hover/theme:scale-110" style="font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24">dark_mode</span>
+        <Papicon icon="moon" size={18} class="text-indigo-400 transition-all duration-500 group-hover/theme:-rotate-[20deg] group-hover/theme:scale-110" />
       {/if}
     </button>
+
+    <NotificationBell />
 
     <div class="flex items-center gap-4 group">
       <div class="flex flex-col items-end">
@@ -124,10 +147,14 @@
         <div class="relative w-10 h-10 shrink-0">
           <div class="absolute -inset-1 bg-linear-to-tr from-primary/40 to-secondary/40 rounded-xl blur-md opacity-0 group-hover/avatar:opacity-100 transition-opacity duration-500"></div>
           <div class="relative w-full h-full rounded-xl border-2 border-white/50 shadow-lg overflow-hidden transition-transform duration-500 group-hover/avatar:scale-105">
-            <img class="w-full h-full object-cover" src={getUserAvatar()} alt="Avatar"/>
+            {#if !authStore.user}
+              <div class="w-full h-full bg-slate-500/20 animate-pulse"></div>
+            {:else}
+              <img class="w-full h-full object-cover" src={getUserAvatar()} alt="Avatar"/>
+            {/if}
           </div>
         </div>
-        <span class="material-symbols-outlined text-sm text-on-surface-variant/50 transition-transform duration-300 {userMenuOpen ? 'rotate-180' : ''}">expand_more</span>
+        <Papicon icon="chevron-down" size={14} class="text-on-surface-variant/50 transition-transform duration-300 {userMenuOpen ? 'rotate-180' : ''}" />
       </button>
 
       {#if userMenuOpen}
@@ -138,11 +165,11 @@
           </div>
           <div class="py-1.5">
             <a 
-              href="/profile" 
+              href="/profile/{authStore.user?.id}" 
               class="flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-on-surface-variant transition-all hover:bg-primary/8 hover:text-primary"
               onclick={() => userMenuOpen = false}
             >
-              <span class="material-symbols-outlined text-lg">person</span>
+              <Papicon icon="user" size={18} />
               Mon Profil
             </a>
             <a 
@@ -150,7 +177,7 @@
               class="flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-on-surface-variant transition-all hover:bg-primary/8 hover:text-primary"
               onclick={() => userMenuOpen = false}
             >
-              <span class="material-symbols-outlined text-lg">history</span>
+              <Papicon icon="history" size={18} />
               Mon Activité
             </a>
             <a 
@@ -158,7 +185,7 @@
               class="flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-on-surface-variant transition-all hover:bg-primary/8 hover:text-primary"
               onclick={() => userMenuOpen = false}
             >
-              <span class="material-symbols-outlined text-lg">settings</span>
+              <Papicon icon="settings" size={18} />
               Paramètres
             </a>
           </div>
@@ -168,7 +195,7 @@
               onclick={logout} 
               class="flex items-center gap-3 px-4 py-2.5 w-full text-left text-sm font-black text-rose-600 transition-all hover:bg-rose-500/8"
             >
-              <span class="material-symbols-outlined text-lg">logout</span>
+              <Papicon icon="log-out" size={18} />
               Déconnexion
             </button>
           </div>

@@ -5,6 +5,7 @@
   import type { APIKey, StaffMember } from '../lib/types';
   import MetricCard from '../lib/components/MetricCard.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
+  import Papicon from '../lib/components/Papicon.svelte';
 
   let user: any = null;
   let staffMember: StaffMember | null = null;
@@ -29,9 +30,9 @@
   const gradeIcon = (grade: string) => {
     const g = grade?.toLowerCase();
     if (g?.includes('admin')) return 'shield';
-    if (g?.includes('mod')) return 'verified_user';
+    if (g?.includes('mod')) return 'shield-check';
     if (g?.includes('dev')) return 'code';
-    if (g?.includes('helper') || g?.includes('test')) return 'support_agent';
+    if (g?.includes('helper') || g?.includes('test')) return 'life-buoy';
     return 'badge';
   };
 
@@ -176,7 +177,7 @@
     </div>
   {:else if error}
     <div class="rounded-3xl border border-rose-500/20 bg-rose-500/10 px-8 py-6 text-center">
-      <span class="material-symbols-outlined text-4xl text-rose-500">error</span>
+      <Papicon icon="alert-circle" size={40} class="text-rose-500 mx-auto" />
       <p class="mt-3 text-lg font-bold text-rose-700">{error}</p>
     </div>
   {:else if user && staffMember}
@@ -206,12 +207,12 @@
             </div>
             <div class="flex flex-wrap items-center gap-3">
               <span class="inline-flex items-center gap-2 rounded-full bg-linear-to-r {gradeColor(staffMember.grade)} px-4 py-2 text-xs font-black text-white shadow-lg uppercase tracking-widest font-headline">
-                <span class="material-symbols-outlined text-base font-bold">{gradeIcon(staffMember.grade)}</span>
+                <Papicon icon={gradeIcon(staffMember.grade)} size={16} />
                 {staffMember.grade}
               </span>
               {#if isBlacklisted}
                 <span class="inline-flex items-center gap-2 rounded-full bg-rose-500/10 border border-rose-500/20 px-4 py-2 text-xs font-black text-rose-700 uppercase tracking-widest">
-                  <span class="material-symbols-outlined text-base">block</span>
+                  <Papicon icon="slash" size={16} />
                   Blacklisté
                 </span>
               {/if}
@@ -221,7 +222,7 @@
 
         <div class="flex items-center gap-4">
           <a href="/profile/{user.id}" class="inline-flex items-center gap-2 rounded-2xl border border-outline-variant/20 bg-white/5 hover:bg-white/10 px-6 py-3 text-xs font-black uppercase tracking-widest text-on-surface-variant transition-all hover:scale-[1.05] active:scale-[0.95]">
-            <span class="material-symbols-outlined text-lg">visibility</span>
+            <Papicon icon="eye" size={18} />
             Voir mon profil public
           </a>
         </div>
@@ -230,7 +231,7 @@
       {#if isBlacklisted}
         <div class="mt-6 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-5 py-4">
           <div class="flex items-start gap-3">
-            <span class="material-symbols-outlined text-xl text-rose-500 shrink-0 mt-0.5">warning</span>
+            <Papicon icon="alert-triangle" size={20} class="text-rose-500 shrink-0 mt-0.5" />
             <div>
               <p class="text-sm font-bold text-rose-700">Compte blacklisté</p>
               <p class="text-xs text-rose-600 mt-1">{blacklistReason}</p>
@@ -248,17 +249,17 @@
     <!-- ── Stats Grid ──────────────────────────────────────── -->
     {#if stats}
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard label="Messages" value={`${stats.totalMessages ?? 0}`} note="total envoyés" icon="chat" toneClass="bg-primary/10 text-primary" />
+        <MetricCard label="Messages" value={`${stats.totalMessages ?? 0}`} note="total envoyés" icon="message-square" toneClass="bg-primary/10 text-primary" />
         <MetricCard label="Vocal" value={`${stats.totalVoiceMinutes ?? 0} min`} note="temps vocal" icon="mic" toneClass="bg-secondary/10 text-secondary" />
-        <MetricCard label="Avertissements" value={`${stats.activeWarnings ?? 0}`} note="actifs" icon="warning" toneClass="bg-amber-500/10 text-amber-700" />
-        <MetricCard label="Sanctions" value={`${stats.sanctionsIssued ?? 0}`} note="émises" icon="gavel" toneClass="bg-emerald-500/10 text-emerald-700" />
+        <MetricCard label="Avertissements" value={`${stats.activeWarnings ?? 0}`} note="actifs" icon="alert-triangle" toneClass="bg-amber-500/10 text-amber-700" />
+        <MetricCard label="Sanctions" value={`${stats.sanctionsIssued ?? 0}`} note="émises" icon="hammer" toneClass="bg-emerald-500/10 text-emerald-700" />
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div class="stat-kpi">
           <div class="flex items-center gap-3 mb-3">
             <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600">
-              <span class="material-symbols-outlined">pending_actions</span>
+              <Papicon icon="clock" size={20} />
             </div>
             <p class="section-label">Rapports en attente</p>
           </div>
@@ -267,7 +268,7 @@
         <div class="stat-kpi">
           <div class="flex items-center gap-3 mb-3">
             <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600">
-              <span class="material-symbols-outlined">calendar_month</span>
+              <Papicon icon="calendar" size={20} />
             </div>
             <p class="section-label">Staff depuis</p>
           </div>
@@ -276,7 +277,7 @@
         <div class="stat-kpi">
           <div class="flex items-center gap-3 mb-3">
             <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-600">
-              <span class="material-symbols-outlined">trending_up</span>
+              <Papicon icon="trending-up" size={20} />
             </div>
             <p class="section-label">Grade depuis</p>
           </div>
@@ -294,7 +295,7 @@
           <div class="flex items-center justify-between gap-4 mb-6">
             <div class="flex items-center gap-3">
               <div class="w-11 h-11 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
-                <span class="material-symbols-outlined text-2xl">key</span>
+                <Papicon icon="key" size={24} />
               </div>
               <div>
                 <p class="text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant/70">Développement</p>
@@ -305,7 +306,7 @@
               onclick={() => showNewKeyForm = !showNewKeyForm} 
               class="inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-xs font-black uppercase tracking-widest transition-all {showNewKeyForm ? 'bg-rose-500/10 text-rose-700 border border-rose-500/20 hover:bg-rose-500/20' : 'bg-primary text-on-primary shadow-lg shadow-primary/20 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]'}"
             >
-              <span class="material-symbols-outlined text-lg">{showNewKeyForm ? 'close' : 'add'}</span>
+              <Papicon icon={showNewKeyForm ? 'x' : 'plus'} size={18} />
               {showNewKeyForm ? 'Annuler' : 'Nouvelle clé'}
             </button>
           </div>
@@ -320,7 +321,7 @@
                 onclick={createNewAPIKey} 
                 class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 text-white px-5 py-3 text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:bg-emerald-700 hover:scale-[1.02] active:scale-[0.98] transition-all"
               >
-                <span class="material-symbols-outlined text-lg">check</span>
+                <Papicon icon="check" size={18} />
                 Créer
               </button>
             </div>
@@ -347,7 +348,7 @@
                         class="text-on-surface-variant/70 hover:text-primary transition-colors"
                         title="Copier"
                       >
-                        <span class="material-symbols-outlined text-sm">{copiedKeyId === key.id ? 'check' : 'content_copy'}</span>
+                                                  <Papicon icon={copiedKeyId === key.id ? 'check' : 'copy'} size={14} />
                       </button>
                     </div>
                     {#if key.lastUsedAt}
@@ -358,7 +359,7 @@
                     onclick={() => deleteAPIKey(key.id)} 
                     class="inline-flex items-center gap-1 rounded-xl border border-rose-500/20 bg-rose-500/8 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-rose-700 opacity-0 group-hover:opacity-100 transition-all hover:bg-rose-600 hover:text-white hover:scale-[1.02] active:scale-[0.98]"
                   >
-                    <span class="material-symbols-outlined text-sm">delete</span>
+                    <Papicon icon="trash-2" size={12} />
                     Supprimer
                   </button>
                 </div>
@@ -367,7 +368,7 @@
           {:else}
             <div class="flex flex-col items-center justify-center p-12 text-center">
               <div class="w-16 h-16 rounded-3xl bg-primary/8 text-primary flex items-center justify-center shadow-inner">
-                <span class="material-symbols-outlined text-3xl">key_off</span>
+                <Papicon icon="key" size={32} />
               </div>
               <h4 class="mt-4 text-lg font-black tracking-tighter text-on-surface">Aucune clé API</h4>
               <p class="mt-2 max-w-sm text-sm leading-relaxed text-on-surface-variant/75">
@@ -384,7 +385,7 @@
           <div class="premium-card rounded-[2.5rem] p-6 space-y-5">
             <div class="flex items-center gap-3">
               <div class="w-11 h-11 rounded-2xl bg-secondary/10 text-secondary flex items-center justify-center">
-                <span class="material-symbols-outlined text-2xl">build</span>
+                <Papicon icon="tool" size={24} />
               </div>
               <div>
                 <p class="text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant/70">Accès</p>
@@ -394,7 +395,7 @@
             <div class="flex flex-wrap gap-2">
               {#each accessibleTools as tool}
                 <span class="inline-flex items-center gap-2 rounded-full border border-secondary/20 bg-secondary/8 px-4 py-2 text-xs font-black uppercase tracking-widest text-secondary">
-                  <span class="material-symbols-outlined text-sm">check_circle</span>
+                  <Papicon icon="check-circle" size={14} />
                   {tool}
                 </span>
               {/each}
@@ -405,7 +406,7 @@
         <div class="premium-card rounded-[2.5rem] p-6 space-y-4">
           <div class="flex items-center gap-3">
             <div class="w-11 h-11 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
-              <span class="material-symbols-outlined text-2xl">info</span>
+              <Papicon icon="info" size={24} />
             </div>
             <div>
               <p class="text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant/70">Information</p>
@@ -433,12 +434,18 @@
   {:else}
     <div class="flex flex-col items-center justify-center py-24 text-center">
       <div class="w-20 h-20 rounded-4xl bg-amber-500/10 text-amber-500 flex items-center justify-center shadow-inner">
-        <span class="material-symbols-outlined text-4xl">person_off</span>
+        <Papicon icon="user-x" size={40} />
       </div>
       <h3 class="mt-6 text-2xl font-black tracking-tighter text-on-surface">Aucun profil staff trouvé</h3>
       <p class="mt-3 max-w-xl text-sm leading-relaxed text-on-surface-variant/65">
         Vous n'êtes pas enregistré comme membre du staff sur ce serveur. Contactez un administrateur pour être ajouté.
       </p>
+      <div class="mt-10">
+        <a href="/profile/{user?.id || ''}" class="inline-flex items-center gap-2 rounded-2xl bg-primary px-8 py-4 text-sm font-black uppercase tracking-widest text-on-primary shadow-xl shadow-primary/20 transition-all hover:scale-[1.05] active:scale-[0.95]">
+          <Papicon icon="user" size={20} />
+          Voir mon profil public
+        </a>
+      </div>
     </div>
   {/if}
 </div>

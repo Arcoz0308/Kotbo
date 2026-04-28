@@ -5,6 +5,7 @@
   import FormInput from '../lib/components/FormInput.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
+  import Papicon from '../lib/components/Papicon.svelte';
 
   let isGazetteMode = $state(true);
   let isDarkTheme = $state(false);
@@ -208,7 +209,7 @@
     <div class="flex flex-col lg:flex-row lg:items-center gap-6">
       <!-- Search -->
       <div class="w-full lg:w-64 relative">
-        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-sm opacity-50">search</span>
+        <Papicon icon="search" size={14} class="absolute left-3 top-1/2 -translate-y-1/2 opacity-50" />
         <FormInput 
           bind:value={searchQuery} 
           placeholder={isGazetteMode ? 'RECHERCHER...' : 'Rechercher un article...'}
@@ -237,9 +238,7 @@
         onclick={() => sortOrder = sortOrder === 'newest' ? 'oldest' : 'newest'}
         class="flex items-center gap-2 px-4 py-2 {isGazetteMode ? 'font-[\'Lora\'] italic text-sm border border-[#1a1a1a]/20 dark:border-[#f0f0f0]/20' : 'text-[10px] font-black uppercase tracking-widest bg-surface-container rounded-lg'}"
       >
-        <span class="material-symbols-outlined text-sm">
-          {sortOrder === 'newest' ? 'arrow_downward' : 'arrow_upward'}
-        </span>
+        <Papicon icon={sortOrder === 'newest' ? 'arrow_downward' : 'arrow_upward'} size={14} />
         {isGazetteMode ? (sortOrder === 'newest' ? 'Plus récents' : 'Plus anciens') : (sortOrder === 'newest' ? 'Récents' : 'Ancients')}
       </button>
     </div>

@@ -478,6 +478,14 @@ export async function fetchStaffMetrics(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/leadership', { method: 'GET', guildId });
 }
 
+export async function fetchStaffMembers(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/staff/members', { method: 'GET', guildId });
+}
+
+export async function fetchStaffRoles(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/staff/roles', { method: 'GET', guildId });
+}
+
 export async function fetchAbsences(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/absences', { method: 'GET', guildId });
 }
@@ -503,7 +511,7 @@ export async function updateMeeting(meetingId, data, guildId = authStore.selecte
 }
 
 export async function createAbsence(data, guildId = authStore.selectedGuildId) {
-  return dashboardMutation('/absences', { method: 'POST', payload: data, guildId });
+  return dashboardRequest('/absences', { method: 'POST', payload: data, guildId });
 }
 
 export async function fetchPolls(guildId = authStore.selectedGuildId) {
@@ -548,4 +556,12 @@ export async function deleteManagerNote(staffUserId, noteId, guildId = authStore
 
 export async function toggleTutorStatus(userId, guildId = authStore.selectedGuildId) {
   return dashboardMutation(`/staff/members/${userId}/tutor`, { method: 'POST', guildId });
+}
+
+export async function fetchAnalytics(period = 30, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/analytics?period=${period}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Analytics):'
+  });
 }

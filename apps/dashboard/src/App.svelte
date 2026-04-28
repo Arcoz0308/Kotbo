@@ -27,6 +27,7 @@
   import Recruitment from './pages/Recruitment.svelte';
   import Meetings from './pages/Meetings.svelte';
   import Absences from './pages/Absences.svelte';
+  import Inbox from './pages/Inbox.svelte';
 
   const adminOnlyPrefixes = ['/modules', '/module-settings', '/settings', '/notifications', '/automations', '/command-access', '/regulation', '/staff-management'];
   const moderatorAllowedModuleSettings = new Set(['/module-settings/dailyalgo']);
@@ -158,6 +159,9 @@
         </Route>
         <Route path="/absences">
           <Absences />
+        </Route>
+        <Route path="/inbox">
+          <Inbox />
         </Route>
       </MainLayout>
     {:else if $router.path !== '/login'}

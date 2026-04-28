@@ -4,6 +4,7 @@ import { API_BASE_URL } from '../api';
 class AuthStore {
     token = $state(localStorage.getItem('kotbo_token') || null);
     user = $state(null);
+    member = $state(null);
     guilds = $state([]);
     selectedGuildId = $state(localStorage.getItem('kotbo_guild_id') || null);
     loading = $state(false);

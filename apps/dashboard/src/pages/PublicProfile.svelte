@@ -5,6 +5,7 @@
   import { router } from 'tinro';
   import ManagerNotesPane from '../lib/components/ManagerNotesPane.svelte';
   import type { StaffManagerNote } from '../lib/types';
+  import Papicon from '../lib/components/Papicon.svelte';
 
   interface Props {
     userId: string;
@@ -52,12 +53,12 @@
 <div class="public-profile">
   {#if loading}
     <div class="flex flex-col items-center justify-center py-32 text-on-surface-variant/20">
-      <span class="material-symbols-outlined text-6xl animate-spin">progress_activity</span>
+      <Papicon icon="progress_activity" size={60} class="animate-spin" />
       <p class="mt-4 text-xs font-black uppercase tracking-[0.3em]">Chargement du profil...</p>
     </div>
   {:else if error}
     <div class="max-w-xl text-center">
-      <span class="material-symbols-outlined text-6xl text-rose-500 mb-6">error</span>
+      <Papicon icon="error" size={60} class="text-rose-500 mb-6" />
       <h2 class="text-3xl font-black text-on-surface mb-2">{error}</h2>
       <p class="text-on-surface-variant font-medium mb-8">L'utilisateur a peut-être rejoint une autre sphère.</p>
       <button onclick={() => router.goto('/')} class="px-8 py-3 rounded-2xl bg-surface-container text-on-surface font-black uppercase tracking-widest text-xs border border-outline-variant/10">Retour</button>
@@ -75,7 +76,9 @@
             <div class="avatar-container">
                <img src={profile.avatar} alt={profile.username} class="avatar" />
                {#if profile.rank === 0}
-                 <span class="material-symbols-outlined crown">workspace_premium</span>
+                 <div class="crown">
+                   <Papicon icon="workspace_premium" size={56} />
+                 </div>
                {/if}
             </div>
             <div class="user-info">
@@ -87,6 +90,15 @@
                    <span class="badge contributor">{role.name}</span>
                  {/each}
                </div>
+
+               {#if authStore.user?.id === userId}
+                 <div class="mt-6">
+                   <a href="/profile" class="inline-flex items-center gap-2 px-6 py-2 rounded-xl bg-primary text-on-primary text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-transform shadow-lg shadow-primary/20">
+                     <Papicon icon="shield_person" size={14} />
+                     Espace Personnel Staff
+                   </a>
+                 </div>
+               {/if}
             </div>
         </div>
 
@@ -115,7 +127,7 @@
                 {#each profile.recentAlgos || [] as algo}
                    <div class="algo-card">
                       <div class="flex items-center gap-3">
-                         <span class="material-symbols-outlined text-primary">terminal</span>
+                         <Papicon icon="terminal" size={18} class="text-primary" />
                          <p class="text-sm font-black text-on-surface">{algo.title}</p>
                       </div>
                       <p class="text-[10px] text-on-surface-variant font-medium">Validé le {new Date(algo.date).toLocaleDateString()}</p>
@@ -131,7 +143,7 @@
           <div class="p-8 border-t border-outline-variant/10 bg-linear-to-b from-rose-500/[0.02] to-transparent">
             <div class="flex items-center gap-3 mb-8">
               <div class="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-600 flex items-center justify-center">
-                <span class="material-symbols-outlined text-2xl">privacy_tip</span>
+                <Papicon icon="privacy_tip" size={24} />
               </div>
               <div>
                 <p class="text-[10px] font-black uppercase tracking-[0.2em] text-rose-500/60">Espace Administration</p>

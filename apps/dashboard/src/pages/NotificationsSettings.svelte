@@ -7,6 +7,7 @@
   import FormSelect from '../lib/components/FormSelect.svelte';
   import { refreshDashboardOnMount } from '../lib/dashboardLifecycle';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
+  import Papicon from '../lib/components/Papicon.svelte';
 
   const availableChannels = $derived(dashboardStore.state.discordChannels || []);
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
@@ -136,7 +137,7 @@
       <div class="flex items-center justify-between mb-8">
         <div class="flex items-center gap-4">
           <div class="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shrink-0 transition-transform group-hover:scale-110">
-            <span class="material-symbols-outlined text-2xl">discord</span>
+            <Papicon icon="discord" size={24} />
           </div>
           <h3 class="text-xl font-bold font-headline">Configuration Discord</h3>
         </div>
@@ -208,14 +209,14 @@
     
     <div class="section-card p-8">
       <h3 class="text-xl font-bold font-headline mb-8 flex items-center gap-4">
-        <span class="material-symbols-outlined text-primary">notifications_active</span>
+        <Papicon icon="notifications_active" size={24} class="text-primary" />
         Préférences de Notifications
       </h3>
       
       <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div class="flex items-start gap-4 p-4 rounded-2xl hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
           <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 group-hover:bg-primary/10 group-hover:text-primary transition-all">
-            <span class="material-symbols-outlined">cloud_upload</span>
+            <Papicon icon="cloud_upload" size={24} />
           </div>
           <div class="flex-1">
             <div class="flex items-center justify-between mb-1">
@@ -232,7 +233,7 @@
 
         <div class="flex items-start gap-4 p-4 rounded-2xl hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
           <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 group-hover:bg-primary/10 group-hover:text-primary transition-all">
-            <span class="material-symbols-outlined">bug_report</span>
+            <Papicon icon="bug_report" size={24} />
           </div>
           <div class="flex-1">
             <div class="flex items-center justify-between mb-1">
@@ -249,7 +250,7 @@
 
         <div class="flex items-start gap-4 p-4 rounded-2xl hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
           <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 group-hover:bg-primary/10 group-hover:text-primary transition-all">
-            <span class="material-symbols-outlined">mail</span>
+            <Papicon icon="mail" size={24} />
           </div>
           <div class="flex-1">
             <div class="flex items-center justify-between mb-1">
@@ -311,9 +312,11 @@
         <h4 class="text-xs font-black uppercase tracking-[0.2em] opacity-60 mb-6">Statut de Connexion</h4>
         <div class="flex items-center gap-6 mb-8">
           <div class="w-16 h-16 rounded-3xl bg-white/10 flex items-center justify-center backdrop-blur-md border border-white/20">
-            <span class="material-symbols-outlined text-4xl {dashboardStore.state.error ? 'text-red-300' : 'text-green-300'}">
-              {dashboardStore.state.error ? 'report_problem' : 'check_circle'}
-            </span>
+            <Papicon 
+              icon={dashboardStore.state.error ? 'report_problem' : 'check_circle'} 
+              size={36} 
+              class={dashboardStore.state.error ? 'text-red-300' : 'text-green-300'} 
+            />
           </div>
           <div>
             <div class="text-3xl font-black font-headline">{dashboardStore.state.error ? 'Erreur' : 'Connecté'}</div>
@@ -333,7 +336,7 @@
       <div class="space-y-6">
         <div class="flex gap-4">
           <div class="w-8 h-8 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center shrink-0">
-            <span class="material-symbols-outlined text-slate-400 text-lg">extension</span>
+            <Papicon icon="extension" size={18} class="text-slate-400" />
           </div>
           <div>
             <p class="text-xs font-bold text-slate-800 dark:text-slate-200">{dashboardStore.state.modules.length} Modules Détectés</p>
@@ -341,7 +344,7 @@
         </div>
         <div class="flex gap-4">
           <div class="w-8 h-8 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center shrink-0">
-            <span class="material-symbols-outlined text-slate-400 text-lg">rss_feed</span>
+            <Papicon icon="rss_feed" size={18} class="text-slate-400" />
           </div>
           <div>
             <p class="text-xs font-bold text-slate-800 dark:text-slate-200">{dashboardStore.state.feeds.length} Flux RSS Configurés</p>

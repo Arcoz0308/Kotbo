@@ -19,7 +19,8 @@
     "esModuleInterop": true,
     "types": ["vite/client"],
     "skipLibCheck": true,
-    "checkJs": false
+    "checkJs": false,
+    "allowArbitraryExtensions": true
   },
   /**
    * Use global.d.ts instead of compilerOptions.types

@@ -48,7 +48,8 @@
       'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-container-high',
   };
 
-  const iconBubbleClass = 'inline-flex h-5 w-5 items-center justify-center rounded-lg bg-black/5 text-[11px] transition-transform duration-200 group-hover:scale-105 dark:bg-white/10';
+  import Papicon from './Papicon.svelte';
+  const iconBubbleClass = 'inline-flex h-5 w-5 items-center justify-center rounded-lg bg-black/5 transition-transform duration-200 group-hover:scale-105 dark:bg-white/10';
 </script>
 
 <button
@@ -59,7 +60,7 @@
   class="{baseClass} {sizeClasses[size]} {variantClasses[variant]} {fullWidth ? 'w-full' : ''} {className}"
 >
   {#if icon}
-    <span aria-hidden="true" class="material-symbols-outlined {iconBubbleClass}">{icon}</span>
+    <Papicon {icon} size={14} class={iconBubbleClass} />
   {/if}
   <span>{label}</span>
 </button>

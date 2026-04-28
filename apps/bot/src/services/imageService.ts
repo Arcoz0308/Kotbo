@@ -370,6 +370,270 @@ export async function generateWeeklyRecapImage(guildId: string, items: any[]): P
   return canvas.toBuffer('image/png');
 }
 
+export async function generateMemberStatsImage(
+  userName: string,
+  periodDays: number,
+  stats: { totalMessages: number; totalVoice: number; activeDays: number; peakDayMessages: number },
+  dailyData: { date: string; messages: number; voice: number }[]
+): Promise<Buffer> {
+  const W = 800, H = 500;
+  const canvas = createCanvas(W, H);
+  const ctx = canvas.getContext('2d');
+
+  // Background
+  const bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, '#0b0e14');
+  bg.addColorStop(1, '#1a1f2e');
+  ctx.fillStyle = bg;
+  roundRect(ctx, 0, 0, W, H, 0, bg);
+
+  // Top Bar
+  const topBar = ctx.createLinearGradient(0, 0, W, 0);
+  topBar.addColorStop(0, '#5865f2');
+  topBar.addColorStop(1, '#57f287');
+  ctx.fillStyle = topBar;
+  ctx.fillRect(0, 0, W, 4);
+
+  // Title
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 28px sans-serif';
+  ctx.fillText(`📊 Profil d'activité: ${userName}`, 40, 50);
+
+  ctx.fillStyle = '#8b949e';
+  ctx.font = '16px sans-serif';
+  ctx.fillText(`Les ${periodDays} derniers jours`, 40, 75);
+
+  // KPIs
+  const cards = [
+    { label: 'Messages', value: String(stats.totalMessages), color: '#5865f2' },
+    { label: 'Vocal (min)', value: String(stats.totalVoice), color: '#57f287' },
+    { label: 'Jours Actifs', value: String(stats.activeDays), color: '#fee75c' },
+  ];
+
+  const cardW = 200, cardH = 80, cardY = 110, cardGap = 20;
+  for (let i = 0; i < cards.length; i++) {
+    const c = cards[i];
+    const x = 40 + i * (cardW + cardGap);
+
+    roundRect(ctx, x, cardY, cardW, cardH, 12, '#161b25');
+    roundRect(ctx, x, cardY, 4, cardH, 2, c.color);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 28px sans-serif';
+    ctx.fillText(c.value, x + 20, cardY + 45);
+
+    ctx.fillStyle = '#8b949e';
+    ctx.font = '14px sans-serif';
+    ctx.fillText(c.label, x + 20, cardY + 65);
+  }
+
+  // Chart (Messages / Voice Area)
+  const chartX = 40, chartY = 240, chartW = W - 80, chartH = 200;
+  roundRect(ctx, chartX, chartY, chartW, chartH, 12, '#11141a');
+
+  if (dailyData.length > 0) {
+    const maxVal = Math.max(...dailyData.map((d) => Math.max(d.messages, d.voice)), 1);
+    const stepX = chartW / (dailyData.length - 1 || 1);
+
+    // Draw grid lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 5; i++) {
+      const y = chartY + (chartH * i) / 4;
+      ctx.beginPath();
+      ctx.moveTo(chartX, y);
+      ctx.lineTo(chartX + chartW, y);
+      ctx.stroke();
+    }
+
+    // Voice Line (Green)
+    ctx.beginPath();
+    ctx.moveTo(chartX, chartY + chartH);
+    for (let i = 0; i < dailyData.length; i++) {
+      const x = chartX + i * stepX;
+      const y = chartY + chartH - (dailyData[i].voice / maxVal) * chartH;
+      ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = '#57f287';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // Messages Line (Blurple)
+    ctx.beginPath();
+    ctx.moveTo(chartX, chartY + chartH);
+    for (let i = 0; i < dailyData.length; i++) {
+      const x = chartX + i * stepX;
+      const y = chartY + chartH - (dailyData[i].messages / maxVal) * chartH;
+      ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = '#5865f2';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = '#8b949e';
+    ctx.font = 'italic 16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Aucune donnée pour cette période', chartX + chartW / 2, chartY + chartH / 2);
+    ctx.textAlign = 'left';
+  }
+
+  return canvas.toBuffer('image/png');
+}
+
+export async function generateLeaderboardImage(
+  topMembers: { name: string; score: number }[],
+  type: 'messages' | 'voice' | 'mixed',
+  periodDays: number
+): Promise<Buffer> {
+  const W = 600, H = 800;
+  const canvas = createCanvas(W, H);
+  const ctx = canvas.getContext('2d');
+
+  // Background
+  const bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, '#0b0e14');
+  bg.addColorStop(1, '#11141a');
+  ctx.fillStyle = bg;
+  roundRect(ctx, 0, 0, W, H, 0, bg);
+
+  // Theme color based on type
+  const themeColor = type === 'messages' ? '#5865f2' : type === 'voice' ? '#57f287' : '#fee75c';
+
+  // Top Bar
+  ctx.fillStyle = themeColor;
+  ctx.fillRect(0, 0, W, 4);
+
+  // Title
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 32px sans-serif';
+  const typeLabel = type === 'messages' ? 'Messages' : type === 'voice' ? 'Vocal' : 'Activité Mixte';
+  ctx.fillText(`🏆 Top 10 ${typeLabel}`, 40, 60);
+
+  ctx.fillStyle = '#8b949e';
+  ctx.font = '16px sans-serif';
+  ctx.fillText(`Les ${periodDays} derniers jours`, 40, 85);
+
+  const startY = 130;
+  const rowH = 55;
+  const maxScore = Math.max(...topMembers.map(m => m.score), 1);
+
+  for (let i = 0; i < topMembers.length; i++) {
+    const member = topMembers[i];
+    const y = startY + i * rowH;
+
+    // Rank badge
+    const rankColor = i === 0 ? '#fee75c' : i === 1 ? '#c9d1d9' : i === 2 ? '#cd7f32' : '#2f3136';
+    const rankTextColor = i < 3 ? '#000000' : '#ffffff';
+    roundRect(ctx, 40, y, 40, 40, 8, rankColor);
+    
+    ctx.fillStyle = rankTextColor;
+    ctx.font = 'bold 18px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`#${i + 1}`, 60, y + 26);
+    ctx.textAlign = 'left';
+
+    // Name
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 18px sans-serif';
+    ctx.fillText(truncate(member.name, 20), 100, y + 26);
+
+    // Bar
+    const barMaxW = 280;
+    const barW = Math.max(5, (member.score / maxScore) * barMaxW);
+    roundRect(ctx, 320, y + 10, barW, 20, 10, themeColor);
+
+    // Score
+    ctx.fillStyle = '#c9d1d9';
+    ctx.font = '16px sans-serif';
+    const scoreFmt = type === 'voice' ? `${Math.floor(member.score / 60)}h ${member.score % 60}m` : member.score.toLocaleString('fr-FR');
+    ctx.fillText(scoreFmt, 320 + barW + 10, y + 25);
+  }
+
+  return canvas.toBuffer('image/png');
+}
+
+export async function generateServerStatsImage(
+  guildName: string,
+  periodDays: number,
+  stats: { totalMessages: number; totalVoice: number; newMembers: number; activeMembers: number; totalMembers: number }
+): Promise<Buffer> {
+  const W = 800, H = 500;
+  const canvas = createCanvas(W, H);
+  const ctx = canvas.getContext('2d');
+
+  // Background
+  const bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, '#0b0e14');
+  bg.addColorStop(1, '#11141a');
+  ctx.fillStyle = bg;
+  roundRect(ctx, 0, 0, W, H, 0, bg);
+
+  // Top Bar
+  const topBar = ctx.createLinearGradient(0, 0, W, 0);
+  topBar.addColorStop(0, '#5865f2');
+  topBar.addColorStop(1, '#eb459e');
+  ctx.fillStyle = topBar;
+  ctx.fillRect(0, 0, W, 4);
+
+  // Title
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 32px sans-serif';
+  ctx.fillText(`📈 Stats Serveur: ${guildName}`, 40, 60);
+
+  ctx.fillStyle = '#8b949e';
+  ctx.font = '18px sans-serif';
+  ctx.fillText(`Les ${periodDays} derniers jours`, 40, 90);
+
+  // KPIs
+  const cards = [
+    { label: 'Messages', value: stats.totalMessages.toLocaleString('fr-FR'), color: '#5865f2', icon: '💬' },
+    { label: 'Vocal (min)', value: stats.totalVoice.toLocaleString('fr-FR'), color: '#57f287', icon: '🎙️' },
+    { label: 'Nouveaux', value: `+${stats.newMembers}`, color: '#fee75c', icon: '👋' },
+    { label: 'Membres', value: stats.totalMembers.toLocaleString('fr-FR'), color: '#eb459e', icon: '👥' },
+  ];
+
+  const cardW = 340, cardH = 100, cardGap = 20;
+  const startX = 40, startY = 140;
+
+  for (let i = 0; i < cards.length; i++) {
+    const c = cards[i];
+    const row = Math.floor(i / 2);
+    const col = i % 2;
+    const x = startX + col * (cardW + cardGap);
+    const y = startY + row * (cardH + cardGap);
+
+    roundRect(ctx, x, y, cardW, cardH, 12, '#161b25');
+    roundRect(ctx, x, y, 4, cardH, 2, c.color);
+
+    ctx.font = '32px sans-serif';
+    ctx.fillText(c.icon, x + 20, y + 60);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 36px sans-serif';
+    ctx.fillText(c.value, x + 70, y + 55);
+
+    ctx.fillStyle = '#8b949e';
+    ctx.font = '16px sans-serif';
+    ctx.fillText(c.label, x + 70, y + 80);
+  }
+
+  // Footer / Status
+  const footerY = H - 60;
+  ctx.fillStyle = '#1a1f2e';
+  roundRect(ctx, 40, footerY, W - 80, 40, 8, '#1a1f2e');
+  
+  ctx.fillStyle = '#57f287';
+  ctx.beginPath();
+  ctx.arc(60, footerY + 20, 6, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#c9d1d9';
+  ctx.font = '16px sans-serif';
+  ctx.fillText(`${stats.activeMembers} membres actifs sur cette période`, 80, footerY + 26);
+
+  return canvas.toBuffer('image/png');
+}
+
 function roundRect(
   ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>,
   x: number,

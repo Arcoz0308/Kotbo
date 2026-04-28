@@ -3,6 +3,7 @@
   import { authStore } from '../lib/stores/auth.svelte';
   import { API_BASE_URL } from '../lib/api';
   import { router } from 'tinro';
+  import Papicon from '../lib/components/Papicon.svelte';
 
   let errorMessage = $state(null);
   const oauthLoginUrl = `${API_BASE_URL || ''}/api/auth/discord/login`;
@@ -111,7 +112,7 @@
         <div class="space-y-6">
           {#if errorMessage}
             <div class="p-4 rounded-xl bg-error/10 border border-error/20 flex items-center gap-3 animate-in fade-in duration-500">
-              <span class="material-symbols-outlined text-error">warning</span>
+              <Papicon icon="warning" size={20} class="text-error" />
               <p class="text-xs font-bold text-error leading-relaxed">
                 {errorMessage}
               </p>
@@ -122,7 +123,7 @@
             onclick={loginWithDiscord}
             class="w-full bg-primary text-on-primary flex items-center justify-center gap-4 py-4 px-8 rounded-2xl font-black transition-all hover:bg-primary-container active:scale-95 group shadow-xl shadow-primary/20"
           >
-            <span class="material-symbols-outlined text-xl group-hover:rotate-12 transition-transform">account_circle</span>
+            <Papicon icon="account_circle" size={20} class="group-hover:rotate-12 transition-transform" />
             <span class="font-body text-sm tracking-tight uppercase">Se connecter avec Discord</span>
           </button>
 
@@ -134,11 +135,11 @@
 
           <div class="grid grid-cols-2 gap-4 pt-4">
             <div class="flex items-center gap-3 p-4 rounded-xl bg-surface-container-low border border-outline-variant/10">
-              <span class="material-symbols-outlined text-primary text-lg opacity-60">verified_user</span>
+              <Papicon icon="verified_user" size={18} class="text-primary opacity-60" />
               <span class="text-[10px] font-black font-label text-on-surface-variant uppercase tracking-tighter">OAuth2 Séquentiel</span>
             </div>
             <div class="flex items-center gap-3 p-4 rounded-xl bg-surface-container-low border border-outline-variant/10">
-              <span class="material-symbols-outlined text-primary text-lg opacity-60">encrypted</span>
+              <Papicon icon="encrypted" size={18} class="text-primary opacity-60" />
               <span class="text-[10px] font-black font-label text-on-surface-variant uppercase tracking-tighter">Chiffrement AES</span>
             </div>
           </div>

@@ -9,6 +9,8 @@
     iconClass = 'text-sm'
   } = $props();
 
+  import Papicon from './Papicon.svelte';
+
   function getBaseClass() {
     return iconOnly
       ? 'p-3 rounded-2xl bg-surface-container-low border border-outline-variant/30 text-on-surface-variant hover:text-primary hover:border-primary transition-all active:scale-95'
@@ -22,7 +24,11 @@
   aria-label={ariaLabel}
   class="{getBaseClass()} {className}"
 >
-  <span class="material-symbols-outlined {iconClass} {loading ? 'animate-spin' : ''}">refresh</span>
+  <Papicon 
+    icon="refresh-cw" 
+    size={14} 
+    class="{iconClass} {loading ? 'animate-spin' : ''}" 
+  />
   {#if !iconOnly}
     {label}
   {/if}

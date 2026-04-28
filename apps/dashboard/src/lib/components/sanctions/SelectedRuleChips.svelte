@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ReportRuleOption } from '../../sanctions/reportRules';
   import { reportRuleIcon } from '../../sanctions/reportRules';
+  import Papicon from '../Papicon.svelte';
 
   let {
     selectedRules,
@@ -13,7 +14,7 @@
   <div class="flex flex-wrap gap-2">
     {#each selectedRules as selectedRule}
       <span class="inline-flex items-center gap-1.5 rounded-full bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200 px-3 py-1 text-[10px] font-bold uppercase tracking-wide">
-        <span class="material-symbols-outlined text-[12px] leading-none">{reportRuleIcon(selectedRule)}</span>
+        <Papicon icon={reportRuleIcon(selectedRule)} size={12} />
         <span>{selectedRule.label}</span>
       </span>
     {/each}

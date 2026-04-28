@@ -7,6 +7,7 @@
   import ActionButton from '../lib/components/ActionButton.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
   import FormTextarea from '../lib/components/FormTextarea.svelte';
+  import Papicon from '../lib/components/Papicon.svelte';
 
   let meetings = $state<any[]>([]);
   let loading = $state(true);
@@ -147,7 +148,7 @@
   <div class="flex items-center gap-3">
     <RefreshButton onClick={loadMeetings} loading={loading} label="Actualiser" />
     {#if isAdmin}
-      <ActionButton onClick={openCreate} variant="primary" icon="add" label="Nouvelle Réunion" />
+      <ActionButton onClick={openCreate} variant="primary" icon="plus" label="Nouvelle Réunion" />
     {/if}
   </div>
 </div>
@@ -160,7 +161,7 @@
     </div>
   {:else if meetings.length === 0}
     <div class="flex flex-col items-center justify-center py-20 bg-surface-container-lowest rounded-3xl border border-outline-variant/30">
-      <span class="material-symbols-outlined text-6xl text-on-surface-variant/20 mb-4">event_busy</span>
+      <Papicon icon="calendar" size={60} class="text-on-surface-variant/20 mb-4" />
       <h3 class="text-xl font-bold text-on-surface">Aucune réunion prévue</h3>
       <p class="text-on-surface-variant mt-1">Planifiez votre première réunion pour commencer le suivi.</p>
       {#if isAdmin}
@@ -182,17 +183,17 @@
                 </span>
                 <h4 class="text-xl font-bold text-on-surface leading-tight">{meeting.title}</h4>
                 <div class="flex items-center gap-2 mt-1 text-on-surface-variant text-sm font-medium">
-                  <span class="material-symbols-outlined text-lg">calendar_today</span>
+                  <Papicon icon="calendar" size={18} />
                   {new Date(meeting.scheduledAt).toLocaleString('fr-FR', { dateStyle: 'full', timeStyle: 'short' })}
                 </div>
               </div>
               {#if isAdmin}
                 <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button onclick={() => openEdit(meeting)} class="p-2 hover:bg-surface-hover rounded-full transition-colors text-on-surface-variant hover:text-primary" title="Modifier">
-                    <span class="material-symbols-outlined text-lg">edit</span>
+                    <Papicon icon="edit-2" size={18} />
                   </button>
                   <button onclick={() => remove(meeting.id)} class="p-2 hover:bg-red-500/10 rounded-full transition-colors text-on-surface-variant hover:text-red-500" title="Supprimer">
-                    <span class="material-symbols-outlined text-lg">delete</span>
+                    <Papicon icon="trash-2" size={18} />
                   </button>
                 </div>
               {/if}
@@ -268,7 +269,7 @@
           <p class="text-on-surface-variant text-sm">Remplissez les détails pour l'organisation.</p>
         </div>
         <button onclick={() => modalOpen = false} class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-hover transition-colors">
-          <span class="material-symbols-outlined">close</span>
+          <Papicon icon="x" size={24} />
         </button>
       </div>
 
@@ -306,7 +307,7 @@
 
         {#if !editMode}
           <div class="bg-blue-500/5 border border-blue-500/20 rounded-2xl p-4 flex gap-3">
-             <span class="material-symbols-outlined text-blue-500">info</span>
+             <Papicon icon="info" size={24} class="text-blue-500" />
              <p class="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
                La création d'une réunion annoncera automatiquement l'événement dans le salon dédié sur Discord et activera les boutons de RSVP.
              </p>
@@ -344,12 +345,12 @@
         <div>
           <h3 class="text-2xl font-black text-on-surface">{selectedMeeting.title}</h3>
           <p class="text-on-surface-variant text-sm flex items-center gap-1">
-             <span class="material-symbols-outlined text-xs">calendar_today</span>
+             <Papicon icon="calendar" size={12} />
              {new Date(selectedMeeting.scheduledAt).toLocaleString('fr-FR')}
           </p>
         </div>
         <button onclick={() => detailModalOpen = false} class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-hover transition-colors">
-          <span class="material-symbols-outlined">close</span>
+          <Papicon icon="x" size={24} />
         </button>
       </div>
 

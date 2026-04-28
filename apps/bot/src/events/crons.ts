@@ -8,6 +8,7 @@ import { runDailyAlgoSummariesForAllGuilds } from '../services/dailyAlgoService.
 import { runWeeklyRecapForAllGuilds } from '../services/recapService.js';
 import { processScheduledSanctions } from '../services/sanctionService.js';
 import { logger } from '../utils/logger.js';
+import { runHourlyAnalyticsSnapshot } from './advancedLogs.js';
 
 const runningJobs = new Set<string>();
 
@@ -147,6 +148,78 @@ export async function registerCrons(client: Client): Promise<void> {
         logger.info('Cron', `✅ ${expiredBlacklists.length} blacklist(s) staff expiré(e)s`);
       }
     }, 1000);
+  });
+
+  // 📊 Analytics: Snapshot horaire à HH:00
+  cron.schedule('0 * * * *', async () => {
+    await runCronJob('analytics-hourly-snapshot', async () => {
+      logger.info('Cron', 'Exécution du snapshot analytique horaire...');
+      await runHourlyAnalyticsSnapshot(client);
+    }, 2000);
+  });
+
+  // 📊 Analytics: Snapshot des stats serveur toutes les 15 minutes
+  cron.schedule('*/15 * * * *', async () => {
+    await runCronJob('analytics-snapshot', async () => {
+      logger.debug('Cron', 'Snapshot analytics serveur...');
+      const guilds = await prisma.guild.findMany({ select: { id: true } });
+
+      for (const guild of guilds) {
+        const discordGuild = client.guilds.cache.get(guild.id);
+        if (!discordGuild) continue;
+
+        const now = new Date();
+        const dateKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+        const totalMembers = discordGuild.memberCount;
+        const members = discordGuild.members.cache;
+        const onlineMembers = members.filter(m => m.presence?.status === 'online').size;
+        const idleMembers = members.filter(m => m.presence?.status === 'idle').size;
+        const dndMembers = members.filter(m => m.presence?.status === 'dnd').size;
+        const offlineMembers = totalMembers - onlineMembers - idleMembers - dndMembers;
+        const totalBots = members.filter(m => m.user.bot).size;
+        const totalHumans = totalMembers - totalBots;
+
+        const currentOnline = onlineMembers + idleMembers + dndMembers;
+        const voiceConnected = members.filter(m => !!m.voice?.channelId).size;
+
+        await prisma.guildDailyStat.upsert({
+          where: { guildId_dateKey: { guildId: guild.id, dateKey } },
+          create: {
+            guildId: guild.id,
+            dateKey,
+            totalMembers,
+            onlineMembers,
+            idleMembers,
+            dndMembers,
+            offlineMembers,
+            totalBots,
+            totalHumans,
+            peakOnline: currentOnline,
+            peakVoice: voiceConnected,
+          },
+          update: {
+            totalMembers,
+            onlineMembers,
+            idleMembers,
+            dndMembers,
+            offlineMembers,
+            totalBots,
+            totalHumans,
+          },
+        }).catch((error) => {
+          logger.debug('Analytics', `Guild stats snapshot error: ${String(error)}`);
+        });
+
+        // Update peaks using raw query for conditional max
+        await prisma.$executeRawUnsafe(
+          `UPDATE guild_daily_stats SET "peakOnline" = GREATEST("peakOnline", $1), "peakVoice" = GREATEST("peakVoice", $2) WHERE "guildId" = $3 AND "dateKey" = $4`,
+          currentOnline, voiceConnected, guild.id, dateKey
+        ).catch((error) => {
+          logger.debug('Analytics', `Guild peak update error: ${String(error)}`);
+        });
+      }
+    }, 2000);
   });
 
   logger.success('Cron', 'Tous les jobs cron sont enregistrés');

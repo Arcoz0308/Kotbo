@@ -1,9 +1,20 @@
 <script lang="ts">
   import FormInput from './FormInput.svelte';
-  import { dashboardStore } from '../stores/dashboard.svelte';
-  import { authStore } from '../stores/auth.svelte';
+  import { dashboardStore } from '../stores/dashboard.svelte.ts';
+  import { authStore } from '../stores/auth.svelte.ts';
+  import Papicon from './Papicon.svelte';
+  import Chart from './charts/Chart.svelte';
+  import { fetchMemberCase } from '../api';
 
-  type MemberCaseTab = 'resume' | 'identite' | 'activite' | 'messages' | 'logs' | 'sanctions' | 'invites' | 'connexions';
+  type MemberCaseTab = 'resume' | 'identite' | 'activite' | 'messages' | 'logs' | 'sanctions' | 'invites' | 'connexions' | 'analytics';
+
+  type MemberAnalyticsResponse = {
+    totalMessages: number;
+    totalVoiceMinutes: number;
+    activeDays: number;
+    period: number;
+    dailyTrend: Array<{ dateKey: string; messages: number; voiceMinutes: number }>;
+  };
 
   type MemberCaseResponse = {
     profile: {
@@ -127,6 +138,8 @@
   }>();
 
   let activeTab = $state<MemberCaseTab | 'candidatures'>('resume');
+  let analyticsData = $state<MemberAnalyticsResponse | null>(null);
+  let analyticsLoading = $state(false);
 
   const sanctions = $derived(
     caseData?.sanctions
@@ -135,13 +148,14 @@
   );
 
   const tabs: { id: MemberCaseTab; label: string; icon: string; count?: () => number }[] = [
-    { id: 'resume', label: 'Résumé', icon: 'dashboard' },
-    { id: 'identite', label: 'Identité', icon: 'person' },
-    { id: 'activite', label: 'Activité', icon: 'trending_up' },
-    { id: 'messages', label: 'Messages', icon: 'chat', count: () => caseData?.recentMessageCount ?? 0 },
+    { id: 'resume', label: 'Résumé', icon: 'layout' },
+    { id: 'identite', label: 'Identité', icon: 'user' },
+    { id: 'activite', label: 'Activité', icon: 'trending-up' },
+    { id: 'analytics', label: 'Analytiques', icon: 'bar-chart-2' },
+    { id: 'messages', label: 'Messages', icon: 'message-square', count: () => caseData?.recentMessageCount ?? 0 },
     { id: 'logs', label: 'Logs', icon: 'history', count: () => caseData?.recentLogCount ?? 0 },
-    { id: 'sanctions', label: 'Sanctions', icon: 'gavel', count: () => sanctions.length },
-    { id: 'candidatures', label: 'Candidats', icon: 'assignment_ind', count: () => caseData?.candidatures?.length ?? 0 },
+    { id: 'sanctions', label: 'Sanctions', icon: 'hammer', count: () => sanctions.length },
+    { id: 'candidatures', label: 'Candidats', icon: 'user-check', count: () => caseData?.candidatures?.length ?? 0 },
     { id: 'invites', label: 'Invitations', icon: 'mail' },
     { id: 'connexions', label: 'Connexions', icon: 'link' },
   ];
@@ -173,6 +187,48 @@
     if (minutes) parts.push(`${minutes}m`);
     if (parts.length === 0) parts.push(`${totalSeconds}s`);
     return parts.join(' ');
+  }
+
+  function formatRelative(value: string | null | undefined) {
+    if (!value) return 'Jamais';
+    const date = new Date(value);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const seconds = Math.floor(diff / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (seconds < 60) return "À l'instant";
+    if (minutes < 60) return `Il y a ${minutes}m`;
+    if (hours < 24) return `Il y a ${hours}h`;
+    if (days < 7) return `Il y a ${days}j`;
+    return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+  }
+
+  function getDurationSince(value: string | null | undefined) {
+    if (!value) return 'Inconnu';
+    const start = new Date(value);
+    const now = new Date();
+    let years = now.getFullYear() - start.getFullYear();
+    let months = now.getMonth() - start.getMonth();
+    
+    if (months < 0) {
+      years--;
+      months += 12;
+    }
+
+    const parts: string[] = [];
+    if (years > 0) parts.push(`${years} an${years > 1 ? 's' : ''}`);
+    if (months > 0) parts.push(`${months} mois`);
+    
+    if (parts.length === 0) {
+       const days = Math.floor((now.getTime() - start.getTime()) / 86400000);
+       if (days <= 0) return "Aujourd'hui";
+       return `${days} jour${days > 1 ? 's' : ''}`;
+    }
+    
+    return parts.join(', ');
   }
 
   function formatChannelLabel(channelId: string | null | undefined) {
@@ -217,21 +273,17 @@
 
   function getConnectionIcon(type: string) {
     const t = type.toLowerCase();
-    if (t === 'youtube') return 'smart_display';
-    if (t === 'twitch') return 'videogame_asset';
-    if (t === 'twitter' || t === 'x') return 'tag';
-    if (t === 'spotify') return 'music_note';
-    if (t === 'github') return 'code';
-    if (t === 'steam') return 'sports_esports';
-    if (t === 'reddit') return 'forum';
-    if (t === 'instagram') return 'photo_camera';
-    if (t === 'facebook') return 'group';
-    if (t === 'tiktok') return 'play_circle';
-    if (t === 'playstation') return 'sports_esports';
-    if (t === 'xbox') return 'sports_esports';
-    if (t === 'battlenet') return 'sports_esports';
-    if (t === 'epicgames') return 'sports_esports';
-    if (t === 'riotgames') return 'sports_esports';
+    if (t === 'youtube') return 'video';
+    if (t === 'twitch') return 'tv';
+    if (t === 'twitter' || t === 'x') return 'twitter';
+    if (t === 'spotify') return 'music';
+    if (t === 'github') return 'github';
+    if (t === 'steam') return 'gamepad';
+    if (t === 'reddit') return 'message-square';
+    if (t === 'instagram') return 'instagram';
+    if (t === 'facebook') return 'facebook';
+    if (t === 'tiktok') return 'play';
+    if (t === 'playstation' || t === 'xbox' || t === 'battlenet' || t === 'epicgames' || t === 'riotgames') return 'gamepad';
     return 'link';
   }
 
@@ -250,9 +302,22 @@
     return status;
   }
 
+  async function loadMemberAnalytics() {
+    if (!userId || !authStore.selectedGuildId) return;
+    analyticsLoading = true;
+    try {
+      analyticsData = await authStore.apiClient?.get(`/guilds/${authStore.selectedGuildId}/analytics/members?userId=${userId}&period=30`);
+    } catch (e) {
+      console.error('Failed to load member analytics:', e);
+    } finally {
+      analyticsLoading = false;
+    }
+  }
+
   $effect(() => {
     if (open) {
       activeTab = 'resume';
+      void loadMemberAnalytics();
     }
   });
 </script>
@@ -276,7 +341,7 @@
           onclick={onClose}
           class="absolute top-4 right-4 z-50 flex h-9 w-9 items-center justify-center rounded-xl bg-black/20 text-white/80 backdrop-blur-lg transition-all hover:bg-black/40 hover:text-white hover:scale-110 active:scale-95 shadow-lg"
         >
-          <span class="material-symbols-outlined text-lg">close</span>
+          <Papicon icon="x" size={18} />
         </button>
 
         <!-- Avatar + Identity block -->
@@ -318,7 +383,7 @@
               </span>
               {#if caseData?.profile?.isTutor}
                 <span class="badge bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 shadow-sm animate-in zoom-in-95 duration-500">
-                  <span class="material-symbols-outlined text-[12px] mr-1">verified_user</span>
+                  <Papicon icon="shield" size={12} class="mr-1" />
                   Tuteur
                 </span>
               {/if}
@@ -327,7 +392,7 @@
                   href="/profile/{userId}"
                   class="inline-flex items-center gap-1.5 rounded-lg bg-white/15 backdrop-blur-md px-3 py-1.5 text-[10px] font-black text-white/80 uppercase tracking-widest transition-all hover:bg-white/25 hover:text-white hover:scale-[1.02] active:scale-[0.98] shadow-sm ml-auto"
                 >
-                  <span class="material-symbols-outlined text-sm">open_in_new</span>
+                  <Papicon icon="external-link" size={14} />
                   Profil
                 </a>
               {/if}
@@ -345,7 +410,7 @@
               onclick={() => activeTab = tab.id}
               class="tab-button {activeTab === tab.id ? 'active' : ''}"
             >
-              <span class="material-symbols-outlined text-base">{tab.icon}</span>
+              <Papicon icon={tab.icon} size={16} />
               <span>{tab.label}</span>
               {#if tab.count && caseData}
                 {@const c = tab.count()}
@@ -363,498 +428,623 @@
       <!-- ── Content Area ──────────────────────────────────────── -->
       <div class="px-6 pb-6 pt-2">
         {#if !userId}
-          <div class="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-5 py-4 text-sm font-semibold text-amber-800">
-            <span class="material-symbols-outlined text-lg align-middle mr-2">warning</span>
-            Impossible de relier ce log à un ID utilisateur Discord. Le casier ne peut pas être chargé pour cette entrée.
+          <div class="flex flex-col items-center justify-center py-20 text-center bg-amber-500/5 rounded-[2.5rem] border-2 border-dashed border-amber-500/20">
+            <div class="flex h-16 w-16 items-center justify-center rounded-3xl bg-amber-500/10 text-amber-500 mb-6">
+              <Papicon icon="alert-triangle" size={32} />
+            </div>
+            <h3 class="text-xl font-black text-amber-600 font-headline">Utilisateur introuvable</h3>
+            <p class="mt-2 text-sm text-amber-700/60 max-w-sm">
+              Impossible de relier ce log à un ID utilisateur Discord. Le dossier ne peut pas être chargé.
+            </p>
           </div>
         {:else if loading}
-          <div class="space-y-6 animate-pulse w-full pt-4">
-            <div class="h-32 w-full bg-surface-variant/30 rounded-3xl"></div>
-            <div class="flex flex-col md:flex-row gap-4">
-              <div class="h-64 flex-1 bg-surface-variant/30 rounded-3xl"></div>
-              <div class="h-64 flex-1 bg-surface-variant/30 rounded-3xl"></div>
-            </div>
+          <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3 animate-pulse">
+            <div class="h-48 bg-surface-container-high/30 rounded-[2rem]"></div>
+            <div class="h-48 bg-surface-container-high/30 rounded-[2rem]"></div>
+            <div class="h-48 bg-surface-container-high/30 rounded-[2rem]"></div>
+            <div class="md:col-span-2 h-80 bg-surface-container-high/30 rounded-[2rem]"></div>
+            <div class="h-80 bg-surface-container-high/30 rounded-[2rem]"></div>
           </div>
         {:else if error}
-          <div class="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-5 py-4 text-sm font-semibold text-amber-800">
-            <span class="material-symbols-outlined text-lg align-middle mr-2">error</span>
-            {error}
+          <div class="flex flex-col items-center justify-center py-20 text-center bg-rose-500/5 rounded-[2.5rem] border-2 border-dashed border-rose-500/20">
+            <div class="flex h-16 w-16 items-center justify-center rounded-3xl bg-rose-500/10 text-rose-500 mb-6">
+              <Papicon icon="alert-circle" size={32} />
+            </div>
+            <h3 class="text-xl font-black text-rose-600 font-headline">Erreur de chargement</h3>
+            <p class="mt-2 text-sm text-rose-700/60 max-w-sm">{error}</p>
           </div>
         {:else if !caseData}
-          <div class="rounded-2xl border border-outline-variant bg-surface-container-low px-5 py-4 text-sm font-semibold text-on-surface-variant">
-            Aucune donnée détaillée n'est disponible pour ce membre.
+          <div class="flex flex-col items-center justify-center py-20 text-center bg-surface-container-low rounded-[2.5rem] border-2 border-dashed border-outline-variant/30">
+            <div class="flex h-16 w-16 items-center justify-center rounded-3xl bg-surface-container-high text-on-surface-variant/30 mb-6">
+              <Papicon icon="user-x" size={32} />
+            </div>
+            <h3 class="text-xl font-black text-on-surface-variant font-headline">Aucune donnée</h3>
+            <p class="mt-2 text-sm text-on-surface-variant/60 max-w-sm">
+              Aucun dossier détaillé n'est disponible pour ce membre.
+            </p>
           </div>
         {:else}
-          <div class="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] items-start">
+          <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
 
-            <!-- ── Left Column ────────────────── -->
-            <div class="min-w-0 space-y-5">
+            {#if activeTab === 'resume'}
+              <!-- ── Bento Layout ────────────────── -->
+              <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
 
-              <!-- Quick Actions Panel -->
-              <div class="section-card p-5 space-y-4">
-                <div class="flex items-center justify-between gap-4">
-                  <div>
-                    <p class="section-label">Actions rapides</p>
-                    <p class="mt-1 text-xs text-on-surface-variant/75">Actions appliquées sur le serveur sélectionné.</p>
-                  </div>
-                </div>
-                <div class="grid gap-3 md:grid-cols-2">
-                  <FormInput bind:value={actionReason} type="text" placeholder="Motif de l'action" />
-                  <FormInput bind:value={actionDuration} type="text" placeholder="Durée timeout (30m, 2h, 1j)" />
-                </div>
-                <div class="flex flex-wrap gap-2">
-                  <button type="button" onclick={() => onAction('WARN')} disabled={actionBusy}
-                    class="inline-flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-xs font-black text-white shadow-lg shadow-amber-500/20 transition-all hover:bg-amber-600 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none">
-                    <span class="material-symbols-outlined text-base">warning</span>
-                    Warn
-                  </button>
-                  <button type="button" onclick={() => onAction('TIMEOUT')} disabled={actionBusy}
-                    class="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-black text-white shadow-lg shadow-blue-600/20 transition-all hover:bg-blue-700 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none">
-                    <span class="material-symbols-outlined text-base">timer</span>
-                    Timeout
-                  </button>
-                  <button type="button" onclick={() => onAction('KICK')} disabled={actionBusy}
-                    class="inline-flex items-center gap-2 rounded-xl bg-orange-600 px-4 py-2.5 text-xs font-black text-white shadow-lg shadow-orange-600/20 transition-all hover:bg-orange-700 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none">
-                    <span class="material-symbols-outlined text-base">logout</span>
-                    Kick
-                  </button>
-                  <button type="button" onclick={() => onAction('BAN')} disabled={actionBusy}
-                    class="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-xs font-black text-white shadow-lg shadow-red-600/20 transition-all hover:bg-red-700 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none">
-                    <span class="material-symbols-outlined text-base">block</span>
-                    Ban
-                  </button>
+                <!-- Account Identity Card (Bento Large) -->
+                <div class="md:col-span-2 rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm transition-all hover:shadow-xl hover:bg-surface-container-low duration-500 group">
+                   <div class="flex items-center justify-between mb-8">
+                     <div class="flex items-center gap-3">
+                       <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary group-hover:scale-110 transition-transform">
+                         <Papicon icon="user" size={24} />
+                       </div>
+                       <div>
+                         <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Informations Compte</p>
+                         <p class="text-lg font-black text-on-surface">Identité & Ancienneté</p>
+                       </div>
+                     </div>
+                   </div>
 
+                   <div class="grid grid-cols-2 gap-8">
+                     <div class="space-y-1">
+                       <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Âge du compte</p>
+                       <p class="text-lg font-black text-on-surface">{getDurationSince(caseData.profile?.accountCreatedAt)}</p>
+                       <p class="text-[10px] font-bold text-on-surface-variant/60">Créé le {formatDateShort(caseData.profile?.accountCreatedAt)}</p>
+                     </div>
+                     <div class="space-y-1">
+                       <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Présence Serveur</p>
+                       <p class="text-lg font-black text-on-surface">{getDurationSince(caseData.profile?.guildJoinedAt)}</p>
+                       <p class="text-[10px] font-bold text-on-surface-variant/60">Arrivé le {formatDateShort(caseData.profile?.guildJoinedAt)}</p>
+                     </div>
+                     <div class="space-y-1">
+                       <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Invité par</p>
+                       {#if caseData.invite?.inviterTag}
+                         <div class="flex items-center gap-2">
+                           <div class="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
+                             {caseData.invite.inviterTag.slice(0, 1).toUpperCase()}
+                           </div>
+                           <p class="text-sm font-black text-on-surface truncate">@{caseData.invite.inviterTag}</p>
+                         </div>
+                       {:else}
+                         <p class="text-sm font-bold text-on-surface-variant/40 italic">Origine inconnue</p>
+                       {/if}
+                     </div>
+                     <div class="space-y-1">
+                       <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Code d'invitation</p>
+                       <p class="text-sm font-black text-on-surface">{caseData.invite?.code || '—'}</p>
+                     </div>
+                   </div>
                 </div>
-                {#if actionFeedback}
-                  <div class="rounded-xl px-4 py-3 text-xs font-semibold {actionIsError ? 'border border-rose-200 bg-rose-50 text-rose-800' : 'border border-emerald-200 bg-emerald-50 text-emerald-800'}">
-                    {actionFeedback}
+
+                <!-- Sanctions Status Card -->
+                <div class="rounded-[2.5rem] {sanctions.filter(s => s.status === 'ACTIVE').length > 0 ? 'bg-rose-500/5 border-rose-500/20 shadow-rose-500/5' : 'bg-surface-container-low/50 border-outline-variant/10 shadow-sm'} p-8 border transition-all hover:shadow-xl duration-500 group">
+                   <div class="flex items-center gap-3 mb-8">
+                     <div class="flex h-12 w-12 items-center justify-center rounded-2xl {sanctions.filter(s => s.status === 'ACTIVE').length > 0 ? 'bg-rose-500/10 text-rose-500' : 'bg-amber-500/10 text-amber-500'} group-hover:rotate-12 transition-transform">
+                       <Papicon icon="hammer" size={24} />
+                     </div>
+                     <div>
+                       <p class="text-[10px] font-black uppercase tracking-[0.2em] {sanctions.filter(s => s.status === 'ACTIVE').length > 0 ? 'text-rose-500' : 'text-amber-500'}">Casier</p>
+                       <p class="text-lg font-black text-on-surface">Sanctions</p>
+                     </div>
+                   </div>
+
+                   <div class="space-y-4">
+                     <div class="flex items-end justify-between">
+                        <span class="text-4xl font-black text-on-surface">{sanctions.length}</span>
+                        <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 pb-1">Total</span>
+                     </div>
+                     <div class="h-2 w-full rounded-full bg-on-surface/5 overflow-hidden">
+                        <div class="h-full bg-rose-500 transition-all duration-1000" style="width: {sanctions.length > 0 ? (sanctions.filter(s => s.status === 'ACTIVE').length / sanctions.length) * 100 : 0}%"></div>
+                     </div>
+                     <p class="text-xs font-bold {sanctions.filter(s => s.status === 'ACTIVE').length > 0 ? 'text-rose-500' : 'text-on-surface-variant/60'}">
+                        {sanctions.filter(s => s.status === 'ACTIVE').length} sanction(s) active(s)
+                     </p>
+                   </div>
+                </div>
+
+                <!-- Activity Summary Card -->
+                <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm transition-all hover:shadow-xl duration-500 group">
+                   <div class="flex items-center gap-3 mb-8">
+                     <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary/10 text-secondary group-hover:scale-110 transition-transform">
+                       <Papicon icon="activity" size={24} />
+                     </div>
+                     <div>
+                       <p class="text-[10px] font-black uppercase tracking-[0.2em] text-secondary">Activité</p>
+                       <p class="text-lg font-black text-on-surface">Engagement</p>
+                     </div>
+                   </div>
+
+                   <div class="grid grid-cols-1 gap-4">
+                     <div class="flex items-center justify-between">
+                       <span class="text-xs font-bold text-on-surface-variant/60">Messages</span>
+                       <span class="text-sm font-black text-on-surface">{caseData.profile?.messageCount?.toLocaleString('fr-FR') ?? 0}</span>
+                     </div>
+                     <div class="flex items-center justify-between">
+                       <span class="text-xs font-bold text-on-surface-variant/60">Vocal</span>
+                       <span class="text-sm font-black text-on-surface">{formatDurationFromSeconds(caseData.profile?.voiceTimeSeconds)}</span>
+                     </div>
+                     <div class="flex items-center justify-between">
+                       <span class="text-xs font-bold text-on-surface-variant/60">Dernier passage</span>
+                       <span class="text-sm font-black text-on-surface">{formatRelative(caseData.profile?.lastSeenAt)}</span>
+                     </div>
+                   </div>
+                </div>
+
+                <!-- Activity Chart (Bento Large) -->
+                {#if analyticsData}
+                  <div class="md:col-span-3 rounded-[3rem] bg-surface-container-low/30 p-10 border border-outline-variant/10 shadow-sm group">
+                    <div class="flex items-center justify-between mb-8">
+                       <div class="flex items-center gap-4">
+                         <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                           <Papicon icon="trending-up" size={28} />
+                         </div>
+                         <div>
+                           <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Statistiques</p>
+                           <h4 class="text-2xl font-black text-on-surface font-headline">Tendance d'activité (30j)</h4>
+                         </div>
+                       </div>
+                       <div class="flex gap-2">
+                         <div class="flex flex-col items-end">
+                           <p class="text-2xl font-black text-primary">{analyticsData.totalMessages.toLocaleString('fr-FR')}</p>
+                           <p class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/40">Messages totaux</p>
+                         </div>
+                         <div class="h-8 w-px bg-outline-variant/20 mx-4"></div>
+                         <div class="flex flex-col items-end">
+                           <p class="text-2xl font-black text-secondary">{Math.round(analyticsData.totalVoiceMinutes)}m</p>
+                           <p class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/40">Temps vocal</p>
+                         </div>
+                       </div>
+                    </div>
+                    <div class="h-[200px] w-full">
+                       <Chart 
+                         data={{
+                           labels: analyticsData.dailyTrend.map(d => d.dateKey.slice(5)),
+                           datasets: [{
+                             label: 'Messages',
+                             data: analyticsData.dailyTrend.map(d => d.messages),
+                             borderColor: '#6366f1',
+                             backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                             fill: true,
+                             tension: 0.4,
+                             pointRadius: 0,
+                             gradient: {
+                               backgroundColor: {
+                                 axis: 'y',
+                                 colors: { 0: 'rgba(99, 102, 241, 0)', 100: 'rgba(99, 102, 241, 0.2)' }
+                               }
+                             }
+                           }]
+                         }} 
+                         height={200} 
+                       />
+                     </div>
                   </div>
                 {/if}
-              </div>
 
-              <!-- ── Tab Content ─────────────── -->
-              {#if activeTab === 'resume'}
-                <div class="grid gap-4 md:grid-cols-2">
-                  <!-- Key Stats -->
-                  <div class="stat-kpi">
-                    <div class="flex items-center gap-3 mb-3">
-                      <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                        <span class="material-symbols-outlined">chat</span>
-                      </div>
-                      <p class="section-label">Messages</p>
+                <!-- Role & Permissions (Bento Side) -->
+                <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm transition-all hover:shadow-xl duration-500 group overflow-hidden relative">
+                   <div class="absolute -right-10 -bottom-10 opacity-[0.03] rotate-12 pointer-events-none">
+                     <Papicon icon="shield" size={160} />
+                   </div>
+                   <div class="flex items-center gap-3 mb-8">
+                     <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-500 group-hover:scale-110 transition-transform">
+                       <Papicon icon="shield" size={24} />
+                     </div>
+                     <div>
+                       <p class="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500">Autorisations</p>
+                       <p class="text-lg font-black text-on-surface">Rôles & Accès</p>
+                     </div>
+                   </div>
+
+                   <div class="space-y-6">
+                     <div>
+                        <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-3">Rôles Principaux</p>
+                        <div class="flex flex-wrap gap-2">
+                          {#each caseData.roles.slice(0, 4) as role}
+                            <span class="px-3 py-1.5 rounded-xl bg-surface-container-high text-[10px] font-bold text-on-surface border border-outline-variant/20">{role.name}</span>
+                          {/each}
+                          {#if caseData.roles.length > 4}
+                            <span class="px-3 py-1.5 rounded-xl bg-primary/5 text-[10px] font-black text-primary border border-primary/10">+{caseData.roles.length - 4}</span>
+                          {/if}
+                        </div>
+                     </div>
+                     <div>
+                        <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-3">Permissions Clés</p>
+                        <div class="flex flex-wrap gap-1.5">
+                          {#each caseData.effectivePermissions.slice(0, 3) as perm}
+                            <span class="text-[10px] font-black text-emerald-500 uppercase tracking-tighter flex items-center gap-1.5">
+                              <Papicon icon="check-circle" size={10} /> {perm}
+                            </span>
+                          {/each}
+                        </div>
+                     </div>
+                   </div>
+                </div>
+
+                <!-- Moderation Console (Bento Side) -->
+                <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm transition-all hover:shadow-xl duration-500 group">
+                   <div class="flex items-center gap-3 mb-8">
+                     <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-500 group-hover:scale-110 transition-transform">
+                       <Papicon icon="hammer" size={24} />
+                     </div>
+                     <div>
+                       <p class="text-[10px] font-black uppercase tracking-[0.2em] text-rose-500">Modération</p>
+                       <p class="text-lg font-black text-on-surface">Console d'action</p>
+                     </div>
+                   </div>
+
+                   <div class="space-y-4">
+                     <div class="space-y-1.5">
+                        <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Raison</p>
+                        <input 
+                          type="text" 
+                          bind:value={actionReason} 
+                          placeholder="Motif de l'action..." 
+                          class="w-full rounded-2xl bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface placeholder:text-on-surface-variant/30 border border-outline-variant/10 focus:border-rose-500/50 outline-hidden transition-all"
+                        />
+                     </div>
+                     <div class="space-y-1.5">
+                        <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Durée (si applicable)</p>
+                        <input 
+                          type="text" 
+                          bind:value={actionDuration} 
+                          placeholder="Ex: 30m, 2h, 1j..." 
+                          class="w-full rounded-2xl bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface placeholder:text-on-surface-variant/30 border border-outline-variant/10 focus:border-rose-500/50 outline-hidden transition-all"
+                        />
+                     </div>
+                     {#if actionFeedback}
+                        <p class="text-[10px] font-black {actionIsError ? 'text-rose-500' : 'text-emerald-500'} animate-pulse px-1">
+                          {actionFeedback}
+                        </p>
+                     {/if}
+                   </div>
+                </div>
+
+                <!-- Recent Activity Feed (Wide Footer) -->
+                <div class="md:col-span-4 rounded-[3rem] bg-surface-container-low/20 p-10 border border-outline-variant/10 group">
+                  <div class="flex items-center justify-between mb-10">
+                    <div class="flex items-center gap-4">
+                       <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-on-surface/5 text-on-surface-variant">
+                         <Papicon icon="history" size={28} />
+                       </div>
+                       <div>
+                         <p class="text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant/40">Timeline</p>
+                         <h4 class="text-2xl font-black text-on-surface font-headline">Activités récentes</h4>
+                       </div>
                     </div>
-                    <p class="text-3xl font-black text-on-surface tracking-tight">{caseData.profile?.messageCount ?? 0}</p>
-                    <p class="mt-1 text-xs text-on-surface-variant/75">Dernier : {formatDateShort(caseData.profile?.lastMessageAt)}</p>
+                    <button onclick={() => activeTab = 'logs'} class="group/btn inline-flex items-center gap-2 rounded-2xl bg-white/5 px-6 py-3 text-xs font-black text-on-surface-variant uppercase tracking-widest transition-all hover:bg-white/10 hover:text-on-surface">
+                      Voir tous les logs
+                      <Papicon icon="arrow-right" size={14} class="group-hover/btn:translate-x-1 transition-transform" />
+                    </button>
                   </div>
-                  <div class="stat-kpi">
-                    <div class="flex items-center gap-3 mb-3">
-                      <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary/10 text-secondary">
-                        <span class="material-symbols-outlined">mic</span>
-                      </div>
-                      <p class="section-label">Vocal</p>
+
+                  <div class="grid gap-6 md:grid-cols-2">
+                    <div class="space-y-4">
+                       <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary px-2 mb-4">Derniers Messages</p>
+                       {#each caseData.messagesByChannel.slice(0, 3).flatMap(c => c.recentMessages.slice(0, 1)) as msg}
+                         <div class="rounded-3xl bg-surface-container-low/60 p-5 border border-outline-variant/5 transition-all hover:border-primary/20">
+                            <div class="flex items-center justify-between mb-2">
+                               <span class="text-[10px] font-bold text-primary">#{msg.channelName}</span>
+                               <span class="text-[10px] font-bold text-on-surface-variant/40">{formatRelative(msg.dateIso)}</span>
+                            </div>
+                            <p class="text-sm text-on-surface line-clamp-2 leading-relaxed italic">"{msg.content || 'Contenu vide'}"</p>
+                         </div>
+                       {/each}
+                       {#if caseData.messagesByChannel.length === 0}
+                         <p class="text-xs text-on-surface-variant/40 px-2">Aucun message récent détecté.</p>
+                       {/if}
                     </div>
-                    <p class="text-3xl font-black text-on-surface tracking-tight">{formatDurationFromSeconds(caseData.profile?.voiceTimeSeconds)}</p>
-                    <p class="mt-1 text-xs text-on-surface-variant/75">{caseData.profile?.voiceSessionCount ?? 0} session(s)</p>
-                  </div>
-                  <div class="stat-kpi">
-                    <div class="flex items-center gap-3 mb-3">
-                      <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
-                        <span class="material-symbols-outlined">gavel</span>
-                      </div>
-                      <p class="section-label">Sanctions</p>
+
+                    <div class="space-y-4">
+                       <p class="text-[10px] font-black uppercase tracking-[0.25em] text-secondary px-2 mb-4">Derniers Logs</p>
+                       <div class="space-y-3 relative pl-4 border-l border-outline-variant/20 ml-2">
+                         {#each caseData.logs.slice(0, 3) as log}
+                           <div class="relative pb-6">
+                              <div class="absolute -left-[calc(1rem+4.5px)] top-1 h-2 w-2 rounded-full bg-secondary border border-surface"></div>
+                              <p class="text-xs font-black text-on-surface">{log.action}</p>
+                              <p class="text-[10px] font-bold text-on-surface-variant/40 mt-0.5">{log.module} · {formatRelative(log.dateIso)}</p>
+                           </div>
+                         {/each}
+                       </div>
                     </div>
-                    <p class="text-3xl font-black text-on-surface tracking-tight">{caseData.sanctions.length}</p>
-                    <p class="mt-1 text-xs text-on-surface-variant">{caseData.sanctions.filter(s => s.status === 'ACTIVE').length} active(s)</p>
-                  </div>
-                  <div class="stat-kpi">
-                    <div class="flex items-center gap-3 mb-3">
-                      <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600">
-                        <span class="material-symbols-outlined">calendar_month</span>
-                      </div>
-                      <p class="section-label">Ancienneté</p>
-                    </div>
-                    <p class="text-lg font-black text-on-surface tracking-tight">{formatDateShort(caseData.profile?.guildJoinedAt)}</p>
-                    <p class="mt-1 text-xs text-on-surface-variant/75">Compte créé le {formatDateShort(caseData.profile?.accountCreatedAt)}</p>
                   </div>
                 </div>
 
-                <!-- Timeline summary -->
-                <div class="section-card p-5 space-y-3">
-                  <p class="section-label">Chronologie</p>
-                  <div class="space-y-0">
-                    <dl>
-                      <div class="info-row"><dt>Compte créé</dt><dd>{formatDateTime(caseData.profile?.accountCreatedAt)}</dd></div>
-                      <div class="info-row"><dt>Entrée serveur</dt><dd>{formatDateTime(caseData.profile?.guildJoinedAt)}</dd></div>
-                      <div class="info-row"><dt>Dernière activité</dt><dd>{formatDateTime(caseData.profile?.lastSeenAt)}</dd></div>
-                      <div class="info-row"><dt>Dernier message</dt><dd>{formatDateTime(caseData.profile?.lastMessageAt)}</dd></div>
-                      <div class="info-row"><dt>Dernier salon msg</dt><dd>{formatChannelLabel(caseData.profile?.lastMessageChannelId)}</dd></div>
-                      <div class="info-row"><dt>Dernier salon vocal</dt><dd>{formatChannelLabel(caseData.profile?.voiceLastChannelId)}</dd></div>
+                <!-- Basic Profile Card -->
+                <div class="md:col-span-4 grid gap-6 md:grid-cols-2">
+                  <div class="rounded-[2rem] bg-surface-container-low/50 p-6 border border-outline-variant/10">
+                    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-6">Profil Discord</p>
+                    <dl class="space-y-4">
+                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Nom d'utilisateur</dt><dd class="text-sm font-black text-on-surface">@{caseData.profile?.username ?? 'Inconnu'}</dd></div>
+                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Nom global</dt><dd class="text-sm font-black text-on-surface">{caseData.profile?.globalName ?? 'Inconnu'}</dd></div>
+                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Affichage serveur</dt><dd class="text-sm font-black text-on-surface">{caseData.profile?.displayName ?? 'Inconnu'}</dd></div>
+                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Langue</dt><dd class="text-sm font-black text-on-surface uppercase tracking-widest">{caseData.profile?.locale ?? 'Inconnue'}</dd></div>
+                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Pronoms</dt><dd class="text-sm font-black text-on-surface">{caseData.profile?.pronouns ?? 'Non spécifiés'}</dd></div>
                     </dl>
                   </div>
-                </div>
-
-              {:else if activeTab === 'identite'}
-                <div class="grid gap-4 md:grid-cols-2">
-                  <div class="section-card p-5 space-y-3">
-                    <p class="section-label">Identité Discord</p>
-                    <dl>
-                      <div class="info-row"><dt>Tag</dt><dd>{caseData.profile?.userTag ?? 'Inconnu'}</dd></div>
-                      <div class="info-row"><dt>Username</dt><dd>{caseData.profile?.username ?? 'Inconnu'}</dd></div>
-                      <div class="info-row"><dt>Nom global</dt><dd>{caseData.profile?.globalName ?? 'Inconnu'}</dd></div>
-                      <div class="info-row"><dt>Affichage serveur</dt><dd>{caseData.profile?.displayName ?? 'Inconnu'}</dd></div>
-                      <div class="info-row"><dt>Locale</dt><dd>{caseData.profile?.locale ?? 'Inconnue'}</dd></div>
-                      <div class="info-row"><dt>Bot</dt><dd>{caseData.profile?.isBot ? 'Oui' : 'Non'}</dd></div>
-                      <div class="info-row"><dt>Pronoms</dt><dd>{caseData.profile?.pronouns ?? 'Non disponibles'}</dd></div>
-                      <div class="info-row"><dt>Tuteur</dt><dd>{caseData.profile?.isTutor ? 'Oui' : 'Non'}</dd></div>
-                    </dl>
-                  </div>
-                  <div class="section-card p-5 space-y-4">
-                    <p class="section-label">Visuel</p>
+                  <div class="rounded-[2rem] bg-surface-container-low/50 p-6 border border-outline-variant/10 space-y-6">
+                    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-secondary mb-6">Visuels</p>
                     {#if caseData.profile?.avatarUrl}
                       <div class="flex items-center gap-4">
-                        <img src={caseData.profile.avatarUrl} alt="Avatar large" class="h-16 w-16 rounded-2xl border border-outline-variant object-cover shadow-lg" />
-                        <span class="text-xs font-semibold text-on-surface-variant">Avatar disponible</span>
+                        <img src={caseData.profile.avatarUrl} alt="Avatar" class="h-16 w-16 rounded-2xl object-cover shadow-lg border-2 border-surface" />
+                        <span class="text-xs font-bold text-on-surface-variant/60">Avatar personnalisé</span>
                       </div>
-                    {:else}
-                      <p class="text-xs text-on-surface-variant/70">Aucun avatar personnalisé</p>
                     {/if}
                     {#if caseData.profile?.bannerUrl}
-                      <img src={caseData.profile.bannerUrl} alt="Bannière" class="w-full h-20 rounded-xl object-cover border border-outline-variant" />
-                    {:else}
-                      <p class="text-xs text-on-surface-variant/70">Aucune bannière</p>
+                      <img src={caseData.profile.bannerUrl} alt="Bannière" class="w-full h-24 rounded-2xl object-cover border border-outline-variant/10 shadow-sm" />
                     {/if}
                     {#if caseData.profile?.accentColor}
                       <div class="flex items-center gap-3">
                         <div class="h-8 w-8 rounded-lg shadow-inner" style="background-color: #{caseData.profile.accentColor.toString(16).padStart(6, '0')};"></div>
-                        <span class="text-xs font-semibold text-on-surface-variant">#{caseData.profile.accentColor.toString(16).padStart(6, '0')}</span>
+                        <span class="text-xs font-bold text-on-surface-variant/60">Couleur d'accent: #{caseData.profile.accentColor.toString(16).padStart(6, '0')}</span>
                       </div>
                     {/if}
-                    <div class="info-row"><dt>Compte créé</dt><dd>{formatDateTime(caseData.profile?.accountCreatedAt)}</dd></div>
                   </div>
                 </div>
-
-                <!-- Roles & Permissions -->
-                <div class="section-card p-5 space-y-4">
-                  <div class="flex items-center justify-between gap-3">
-                    <p class="section-label">Rôles & Permissions</p>
-                    <span class="text-[10px] font-bold text-on-surface-variant">{caseData.roles.length} rôle(s)</span>
-                  </div>
-                  <div class="flex flex-wrap gap-2">
-                    {#each caseData.roles as role}
-                      <span class="badge badge-neutral">{role.name}</span>
-                    {/each}
-                    {#if caseData.roles.length === 0}
-                      <span class="text-xs text-on-surface-variant">Aucun rôle visible.</span>
-                    {/if}
-                  </div>
-                  {#if caseData.effectivePermissions.length > 0}
-                    <div class="border-t border-outline-variant/50 pt-3">
-                      <p class="section-label mb-2">Permissions calculées</p>
-                      <div class="flex flex-wrap gap-1.5">
-                        {#each caseData.effectivePermissions as perm}
-                          <span class="badge badge-info">{perm}</span>
-                        {/each}
-                      </div>
-                    </div>
-                  {/if}
-                </div>
+              </div>
 
               {:else if activeTab === 'activite'}
-                <div class="grid gap-4 md:grid-cols-3">
-                  <div class="stat-kpi text-center">
-                    <span class="material-symbols-outlined text-3xl text-primary/60">chat</span>
-                    <p class="mt-2 text-3xl font-black text-on-surface">{caseData.profile?.messageCount ?? 0}</p>
-                    <p class="mt-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70">Messages</p>
-                    <p class="mt-1 text-xs text-on-surface-variant/75">Dernier : {formatDateShort(caseData.profile?.lastMessageAt)}</p>
+                <div class="space-y-8">
+                  <div class="grid gap-6 md:grid-cols-3">
+                    <div class="rounded-[2rem] bg-primary/5 p-6 border border-primary/10 text-center">
+                      <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary mx-auto mb-4">
+                        <Papicon icon="message-square" size={20} />
+                      </div>
+                      <p class="text-2xl font-black text-on-surface">{caseData.profile?.messageCount ?? 0}</p>
+                      <p class="text-[9px] font-black uppercase tracking-widest text-primary/60 mt-1">Messages</p>
+                    </div>
+                    <div class="rounded-[2rem] bg-secondary/5 p-6 border border-secondary/10 text-center">
+                      <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary/10 text-secondary mx-auto mb-4">
+                        <Papicon icon="mic" size={20} />
+                      </div>
+                      <p class="text-2xl font-black text-on-surface">{formatDurationFromSeconds(caseData.profile?.voiceTimeSeconds)}</p>
+                      <p class="text-[9px] font-black uppercase tracking-widest text-secondary/60 mt-1">Temps vocal</p>
+                    </div>
+                    <div class="rounded-[2rem] bg-emerald-500/5 p-6 border border-emerald-500/10 text-center">
+                      <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 mx-auto mb-4">
+                        <Papicon icon="eye" size={20} />
+                      </div>
+                      <p class="text-lg font-black text-on-surface">{formatDateShort(caseData.profile?.lastSeenAt)}</p>
+                      <p class="text-[9px] font-black uppercase tracking-widest text-emerald-500/60 mt-1">Dernière activité</p>
+                    </div>
                   </div>
-                  <div class="stat-kpi text-center">
-                    <span class="material-symbols-outlined text-3xl text-secondary/60">mic</span>
-                    <p class="mt-2 text-3xl font-black text-on-surface">{formatDurationFromSeconds(caseData.profile?.voiceTimeSeconds)}</p>
-                    <p class="mt-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Temps vocal</p>
-                    <p class="mt-1 text-xs text-on-surface-variant">Dernier salon : {formatChannelLabel(caseData.profile?.voiceLastChannelId)}</p>
-                  </div>
-                  <div class="stat-kpi text-center">
-                    <span class="material-symbols-outlined text-3xl text-emerald-500/60">visibility</span>
-                    <p class="mt-2 text-lg font-black text-on-surface">{formatDateShort(caseData.profile?.lastSeenAt)}</p>
-                    <p class="mt-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Dernière activité</p>
-                    <p class="mt-1 text-xs text-on-surface-variant">Première vue : {formatDateShort(caseData.profile?.firstSeenAt)}</p>
+
+                  <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10">
+                    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-8 px-2">Répartition par salon</p>
+                    <div class="space-y-6">
+                      {#each caseData.messagesByChannel as channel}
+                        {@const max = Math.max(...caseData.messagesByChannel.map(c => c.count), 1)}
+                        <div class="space-y-2">
+                          <div class="flex items-center justify-between px-1">
+                            <span class="text-sm font-black text-on-surface">#{channel.channelName}</span>
+                            <span class="text-xs font-bold text-on-surface-variant/60">{channel.count} messages</span>
+                          </div>
+                          <div class="h-2 w-full rounded-full bg-surface-container-high overflow-hidden">
+                            <div class="h-full bg-linear-to-r from-primary to-secondary transition-all duration-1000" style="width: {(channel.count / max) * 100}%"></div>
+                          </div>
+                        </div>
+                      {/each}
+                    </div>
                   </div>
                 </div>
 
-                <!-- Messages by channel with progress bars -->
-                <div class="section-card p-5 space-y-4">
-                  <div class="flex items-center justify-between gap-3">
-                    <p class="section-label">Messages par salon</p>
-                    <span class="text-[10px] font-bold text-on-surface-variant">{caseData.recentMessageCount} total</span>
-                  </div>
-                  {#each caseData.messagesByChannel as channelSummary}
-                    {@const maxCount = Math.max(...caseData.messagesByChannel.map(c => c.count), 1)}
-                    <div class="space-y-1.5">
-                      <div class="flex items-center justify-between text-sm">
-                        <span class="font-bold text-on-surface">{channelSummary.channelName}</span>
-                        <span class="text-xs font-black text-primary/80">{channelSummary.count}</span>
-                      </div>
-                      <div class="h-2 w-full rounded-full bg-surface-container-highest overflow-hidden">
-
-                        <div class="h-full rounded-full bg-linear-to-r from-primary to-secondary transition-all duration-700" style="width: {(channelSummary.count / maxCount) * 100}%"></div>
-                      </div>
+              {:else if activeTab === 'analytics'}
+                <div class="space-y-8">
+                  {#if analyticsLoading}
+                    <div class="flex flex-col items-center justify-center py-20 bg-surface-container-low/30 rounded-[2.5rem]">
+                      <Papicon icon="loader" size={40} class="animate-spin text-primary/40 mb-4" />
+                      <p class="text-xs font-black uppercase tracking-widest text-on-surface-variant/40">Analyse des données...</p>
                     </div>
-                  {/each}
-                  {#if caseData.messagesByChannel.length === 0}
-                    <p class="text-xs text-on-surface-variant">Aucun message enregistré.</p>
+                  {:else if analyticsData}
+                    <div class="grid gap-6 lg:grid-cols-2">
+                       <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10">
+                         <div class="flex items-center justify-between mb-8">
+                            <h4 class="text-sm font-black uppercase tracking-widest text-primary">Volume Messages</h4>
+                            <span class="text-xs font-bold text-on-surface-variant/40">30 derniers jours</span>
+                         </div>
+                          <Chart 
+                            data={{
+                              labels: analyticsData.dailyTrend.map(d => d.dateKey.slice(5)),
+                              datasets: [{
+                                label: 'Messages',
+                                data: analyticsData.dailyTrend.map(d => d.messages),
+                                borderColor: '#6366f1',
+                                backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                                fill: true,
+                                tension: 0.4,
+                                pointRadius: 0,
+                                gradient: {
+                                  backgroundColor: {
+                                    axis: 'y',
+                                    colors: { 0: 'rgba(99, 102, 241, 0)', 100: 'rgba(99, 102, 241, 0.2)' }
+                                  }
+                                }
+                              }]
+                            }} 
+                            height={180} 
+                          />
+                       </div>
+                       <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10">
+                         <div class="flex items-center justify-between mb-8">
+                            <h4 class="text-sm font-black uppercase tracking-widest text-secondary">Activité Vocal</h4>
+                            <span class="text-xs font-bold text-on-surface-variant/40">Minutes / jour</span>
+                         </div>
+                          <Chart 
+                            data={{
+                              labels: analyticsData.dailyTrend.map(d => d.dateKey.slice(5)),
+                              datasets: [{
+                                label: 'Vocal (min)',
+                                data: analyticsData.dailyTrend.map(d => d.voiceMinutes),
+                                borderColor: '#ec4899',
+                                backgroundColor: 'rgba(236, 72, 153, 0.1)',
+                                fill: true,
+                                tension: 0.4,
+                                pointRadius: 0,
+                                gradient: {
+                                  backgroundColor: {
+                                    axis: 'y',
+                                    colors: { 0: 'rgba(236, 72, 153, 0)', 100: 'rgba(236, 72, 153, 0.2)' }
+                                  }
+                                }
+                              }]
+                            }} 
+                            height={180} 
+                          />
+                       </div>
+                    </div>
                   {/if}
                 </div>
 
               {:else if activeTab === 'messages'}
-                <div class="section-card p-5 space-y-4">
-                  <div class="flex items-center justify-between gap-3">
-                    <p class="section-label">Historique des messages</p>
-                    <span class="text-[10px] font-bold text-on-surface-variant">{caseData.recentMessageCount} message(s)</span>
-                  </div>
-                  {#each caseData.messagesByChannel as channelSummary}
-                    <div class="rounded-xl border border-outline-variant p-4 space-y-3">
-                      <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-2">
-                          <span class="material-symbols-outlined text-base text-primary">tag</span>
-                          <span class="font-bold text-on-surface">{channelSummary.channelName}</span>
+                <div class="space-y-6">
+                  {#each caseData.messagesByChannel as channel}
+                    <div class="rounded-[2rem] bg-surface-container-low/50 p-6 border border-outline-variant/10">
+                      <div class="flex items-center gap-3 mb-6 border-b border-outline-variant/10 pb-4">
+                        <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                          <Papicon icon="tag" size={16} />
                         </div>
-                        <span class="badge badge-neutral">{channelSummary.count}</span>
+                        <h4 class="text-sm font-black text-on-surface">#{channel.channelName}</h4>
+                        <span class="ml-auto text-[10px] font-black bg-primary/5 text-primary px-3 py-1 rounded-full uppercase tracking-widest">{channel.count} msg</span>
                       </div>
-                      <div class="space-y-2 pl-4 border-l-2 border-primary/20">
-                        {#each channelSummary.recentMessages as message}
-                          <div class="rounded-xl bg-surface-container-low p-3">
-                            <div class="flex items-center justify-between gap-2 text-[10px] font-bold text-on-surface-variant">
-                              <span>{formatDateShort(message.dateIso)} · {formatTimeShort(message.dateIso)}</span>
-                              <span>{formatChannelLabel(message.channelId)}</span>
+                      <div class="space-y-3">
+                        {#each channel.recentMessages as msg}
+                          <div class="rounded-2xl bg-surface-container-high/30 p-4 border border-outline-variant/5">
+                            <div class="flex items-center justify-between mb-2">
+                               <span class="text-[10px] font-bold text-on-surface-variant/40">{formatDateTime(msg.dateIso)}</span>
                             </div>
-                            <p class="mt-1.5 text-sm text-on-surface leading-relaxed">{message.content || 'Contenu vide'}</p>
+                            <p class="text-sm text-on-surface leading-relaxed">{msg.content || 'Contenu vide'}</p>
                           </div>
                         {/each}
                       </div>
                     </div>
                   {/each}
-                  {#if caseData.messagesByChannel.length === 0}
-                    <div class="flex flex-col items-center py-8 text-on-surface-variant/70">
-                      <span class="material-symbols-outlined text-4xl">chat_bubble_outline</span>
-                      <p class="mt-2 text-sm font-semibold">Aucun message observé</p>
-                    </div>
-                  {/if}
                 </div>
 
               {:else if activeTab === 'logs'}
-                <div class="section-card p-5 space-y-4">
-                  <div class="flex items-center justify-between gap-3">
-                    <p class="section-label">Logs associés</p>
-                    <span class="text-[10px] font-bold text-on-surface-variant">{caseData.recentLogCount} log(s)</span>
-                  </div>
-                  <div class="space-y-0 pl-4 border-l-2 border-outline-variant">
+                <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10">
+                  <div class="space-y-8 relative pl-6 border-l-2 border-outline-variant/20 ml-4">
                     {#each caseData.logs as log}
-                      <div class="relative pl-5 pb-5">
-                        <div class="absolute -left-[calc(0.25rem+5px)] top-1.5 h-2.5 w-2.5 rounded-full bg-primary border-2 border-surface-container-lowest"></div>
-                        <div class="flex items-start justify-between gap-3">
+                      <div class="relative">
+                        <div class="absolute -left-[calc(1.5rem+5px)] top-1.5 h-3 w-3 rounded-full bg-primary border-2 border-surface shadow-sm"></div>
+                        <div class="flex items-start justify-between gap-4 mb-2">
                           <div>
-                            <p class="text-sm font-bold text-on-surface">{log.action}</p>
-                            <p class="text-[10px] uppercase tracking-widest text-on-surface-variant/75">{log.module} · {log.eventType} · {log.source}</p>
+                            <p class="text-sm font-black text-on-surface tracking-tight">{log.action}</p>
+                            <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 mt-1">{log.module} · {log.source}</p>
                           </div>
-                          <span class="shrink-0 text-[10px] font-bold text-on-surface-variant whitespace-nowrap">{formatDateShort(log.dateIso)} {formatTimeShort(log.dateIso)}</span>
+                          <span class="text-[10px] font-black text-on-surface-variant/30 uppercase tracking-widest">{formatDateTime(log.dateIso)}</span>
                         </div>
-                        <p class="mt-1 text-xs text-on-surface-variant/75 leading-relaxed">{sanitizeLogSnippet(log.details)}</p>
+                        <div class="rounded-2xl bg-surface-container-high/30 p-4 text-xs text-on-surface-variant/80 italic leading-relaxed">
+                          {sanitizeLogSnippet(log.details)}
+                        </div>
                       </div>
                     {/each}
                   </div>
-                  {#if caseData.logs.length === 0}
-                    <div class="flex flex-col items-center py-8 text-on-surface-variant/40">
-                      <span class="material-symbols-outlined text-4xl">history</span>
-                      <p class="mt-2 text-sm font-semibold">Aucun log associé</p>
-                    </div>
-                  {/if}
                 </div>
 
               {:else if activeTab === 'sanctions'}
-                <div class="section-card-flush">
-                  <table class="data-table">
+                <div class="rounded-[2.5rem] bg-surface-container-low/50 overflow-hidden border border-outline-variant/10 shadow-sm">
+                  <table class="w-full text-left border-collapse">
                     <thead>
-                      <tr>
-                        <th class="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">Date</th>
-                        <th class="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">Type</th>
-                        <th class="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">Statut</th>
-                        <th class="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">Modérateur</th>
-                        <th class="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">Raison</th>
+                      <tr class="bg-surface-container-high/30">
+                        <th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Date</th>
+                        <th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Action</th>
+                        <th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Statut</th>
+                        <th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Raison</th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody class="divide-y divide-outline-variant/10">
                       {#each sanctions as sanction}
-                        <tr>
-                          <td class="text-xs text-on-surface-variant whitespace-nowrap">{formatDateShort(sanction.createdAt)}</td>
-                          <td class="text-xs font-bold text-primary">{sanction.type}</td>
-                          <td><span class={getSanctionBadgeClass(sanction.status)}>{getSanctionStatusLabel(sanction.status)}</span></td>
-                          <td class="text-xs text-on-surface-variant">{sanction.moderatorTag}</td>
-                          <td class="text-xs text-on-surface-variant max-w-xs truncate">{sanction.reason}</td>
+                        <tr class="hover:bg-surface-container-high/20 transition-colors">
+                          <td class="px-6 py-4 text-xs font-bold text-on-surface-variant/60">{formatDateShort(sanction.createdAt)}</td>
+                          <td class="px-6 py-4">
+                            <span class="text-xs font-black text-primary uppercase tracking-widest">{sanction.type}</span>
+                            <p class="text-[10px] font-bold text-on-surface-variant/40 mt-0.5">par @{sanction.moderatorTag}</p>
+                          </td>
+                          <td class="px-6 py-4">
+                            <span class="px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest {sanction.status === 'ACTIVE' ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}">
+                              {getSanctionStatusLabel(sanction.status)}
+                            </span>
+                          </td>
+                          <td class="px-6 py-4 text-xs text-on-surface-variant max-w-xs truncate">{sanction.reason}</td>
                         </tr>
                       {/each}
                     </tbody>
                   </table>
                   {#if sanctions.length === 0}
-                    <div class="flex flex-col items-center py-12 text-on-surface-variant/40">
-                      <span class="material-symbols-outlined text-4xl">check_circle</span>
-                      <p class="mt-2 text-sm font-semibold">Aucune sanction</p>
+                    <div class="flex flex-col items-center py-20 text-on-surface-variant/30">
+                      <Papicon icon="check-circle" size={48} />
+                      <p class="mt-4 text-sm font-black uppercase tracking-widest">Dossier vierge</p>
                     </div>
                   {/if}
                 </div>
 
               {:else if activeTab === 'invites'}
-                <div class="grid gap-4 md:grid-cols-2">
-                  <div class="section-card p-5 space-y-3">
-                    <div class="flex items-center gap-2 mb-2">
-                      <span class="material-symbols-outlined text-primary">mail</span>
-                      <p class="section-label">Invitation d'arrivée</p>
-                    </div>
-                    <dl>
-                      <div class="info-row"><dt>Code</dt><dd>{caseData.invite?.code ?? 'Inconnue'}</dd></div>
-                      <div class="info-row"><dt>Créateur</dt><dd>{caseData.invite?.inviterTag ?? 'Inconnu'}</dd></div>
-                      <div class="info-row"><dt>Date de join</dt><dd>{formatDateTime(caseData.invite?.joinedAt ?? caseData.profile?.guildJoinedAt)}</dd></div>
-                    </dl>
-                  </div>
-                  <div class="section-card p-5 space-y-3">
-                    <div class="flex items-center gap-2 mb-2">
-                      <span class="material-symbols-outlined text-secondary">groups</span>
-                      <p class="section-label">Profil serveur</p>
-                    </div>
-                    <dl>
-                      <div class="info-row">
-                        <dt>Statut</dt>
-                        <dd>
-                          <span class="badge {caseData.profile?.guildLeftAt ? 'badge-danger' : 'badge-success'}">
-                            {caseData.profile?.guildLeftAt ? 'Sorti' : 'Présent'}
-                          </span>
-                        </dd>
-                      </div>
-                      <div class="info-row"><dt>Entrée</dt><dd>{formatDateTime(caseData.profile?.guildJoinedAt)}</dd></div>
-                      <div class="info-row"><dt>Sortie</dt><dd>{formatDateTime(caseData.profile?.guildLeftAt)}</dd></div>
-                      <div class="info-row"><dt>Première vue</dt><dd>{formatDateTime(caseData.profile?.firstSeenAt)}</dd></div>
-                    </dl>
-                  </div>
+                <div class="grid gap-6 md:grid-cols-2">
+                   <div class="rounded-[2rem] bg-surface-container-low/50 p-6 border border-outline-variant/10">
+                     <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-6">Source d'invitation</p>
+                     <dl class="space-y-4">
+                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Code utilisé</dt><dd class="text-sm font-black text-on-surface font-mono">{caseData.invite?.code ?? 'Inconnu'}</dd></div>
+                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Créateur</dt><dd class="text-sm font-black text-on-surface">@{caseData.invite?.inviterTag ?? 'Inconnu'}</dd></div>
+                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Date d'utilisation</dt><dd class="text-sm font-black text-on-surface">{formatDateTime(caseData.invite?.joinedAt ?? caseData.profile?.guildJoinedAt)}</dd></div>
+                     </dl>
+                   </div>
+                   <div class="rounded-[2rem] bg-surface-container-low/50 p-6 border border-outline-variant/10">
+                     <p class="text-[10px] font-black uppercase tracking-[0.2em] text-secondary mb-6">Mouvements Serveur</p>
+                     <dl class="space-y-4">
+                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Dernière arrivée</dt><dd class="text-sm font-black text-on-surface">{formatDateTime(caseData.profile?.guildJoinedAt)}</dd></div>
+                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Dernier départ</dt><dd class="text-sm font-black text-on-surface">{formatDateTime(caseData.profile?.guildLeftAt)}</dd></div>
+                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Première observation</dt><dd class="text-sm font-black text-on-surface">{formatDateTime(caseData.profile?.firstSeenAt)}</dd></div>
+                     </dl>
+                   </div>
                 </div>
 
               {:else if activeTab === 'connexions'}
-                <div class="section-card p-5 space-y-4">
-                  <p class="section-label">Connexions tierces</p>
-                  <p class="text-xs text-on-surface-variant">{caseData.connectionsNote}</p>
-                  <div class="grid gap-3 md:grid-cols-2">
-                    {#each caseData.connections as connection}
-                      <div class="flex items-center gap-3 rounded-xl bg-surface-container-low p-3 border border-outline-variant/50 transition-all hover:border-primary/30 hover:shadow-sm">
-                        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                          <span class="material-symbols-outlined">{getConnectionIcon(connection.type)}</span>
-                        </div>
-                        <div class="min-w-0">
-                          <p class="font-bold text-sm text-on-surface truncate">{connection.name}</p>
-                          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant">{connection.type} · {connection.visible ? 'Visible' : 'Masquée'}</p>
-                        </div>
-                      </div>
-                    {/each}
-                    {#if caseData.connections.length === 0}
-                      <div class="md:col-span-2 flex flex-col items-center py-8 text-on-surface-variant/40">
-                        <span class="material-symbols-outlined text-4xl">link_off</span>
-                        <p class="mt-2 text-sm font-semibold">Aucune connexion exposée</p>
-                      </div>
-                    {/if}
-                  </div>
+                <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                   {#each caseData.connections as connection}
+                     <div class="flex items-center gap-4 rounded-[1.5rem] bg-surface-container-low/50 p-4 border border-outline-variant/10 hover:border-primary/30 transition-all group">
+                       <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary group-hover:scale-110 transition-transform">
+                         <Papicon icon={getConnectionIcon(connection.type)} size={20} />
+                       </div>
+                       <div class="min-w-0">
+                         <p class="text-sm font-black text-on-surface truncate">{connection.name}</p>
+                         <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 mt-0.5">{connection.type}</p>
+                       </div>
+                     </div>
+                   {/each}
+                   {#if caseData.connections.length === 0}
+                     <div class="md:col-span-2 lg:col-span-3 flex flex-col items-center py-20 text-on-surface-variant/30 bg-surface-container-low/30 rounded-[2.5rem]">
+                       <Papicon icon="link-2" size={48} />
+                       <p class="mt-4 text-sm font-black uppercase tracking-widest">Aucun lien externe</p>
+                     </div>
+                   {/if}
                 </div>
 
               {:else if activeTab === 'candidatures'}
-                <div class="section-card p-5 space-y-4">
-                  <div class="flex items-center justify-between gap-3">
-                    <p class="section-label">Historique des candidatures</p>
-                    <span class="text-[10px] font-bold text-on-surface-variant">{(caseData.candidatures || []).length} candidature(s)</span>
-                  </div>
-                  <div class="space-y-4">
-                    {#each (caseData.candidatures || []) as candidature}
-                      <div class="rounded-2xl border border-outline-variant/30 p-4 space-y-3 bg-surface-container-low transition-all">
-                        <div class="flex items-start justify-between">
-                          <div>
-                            <span class="text-xs font-bold uppercase tracking-widest text-primary mb-1 block">
-                              {formatDateShort(candidature.createdAt)}
+                <div class="space-y-6">
+                  {#each (caseData.candidatures || []) as cand}
+                    <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 space-y-6">
+                      <div class="flex items-start justify-between">
+                         <div>
+                            <span class="text-[10px] font-black uppercase tracking-widest text-primary mb-2 block">{formatDateShort(cand.createdAt)}</span>
+                            <span class="px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest {cand.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}">
+                              {cand.status}
                             </span>
-                            <span class="badge {candidature.status === 'APPROVED' ? 'badge-success' : candidature.status === 'REJECTED' || candidature.status === 'AUTO_REJECTED' ? 'badge-danger' : 'badge-warning'}">
-                              {candidature.status}
-                            </span>
-                          </div>
-                          {#if candidature.oralResult}
-                            <div class="text-[10px] font-bold uppercase text-on-surface-variant/80 border border-outline-variant/50 px-2 py-1 rounded-sm">
-                              Oral: {candidature.oralResult}
-                            </div>
-                          {/if}
+                         </div>
+                         {#if cand.oralResult}
+                           <div class="flex flex-col items-end">
+                              <span class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-1">Résultat Oral</span>
+                              <span class="text-sm font-black text-on-surface">{cand.oralResult}</span>
+                           </div>
+                         {/if}
+                      </div>
+                      {#if cand.notes}
+                        <div class="rounded-2xl bg-surface-container-high/30 p-5 border-l-4 border-primary italic text-sm text-on-surface-variant leading-relaxed">
+                          "{cand.notes}"
                         </div>
-                        
-                        {#if candidature.autoRejected}
-                           <div class="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-400">
-                             <span class="material-symbols-outlined text-sm align-middle mr-1">robot_2</span> Auto-refus: {candidature.autoRejectReason}
-                           </div>
-                        {/if}
-                        
-                        {#if candidature.rejectionReason}
-                           <div class="rounded-xl border border-rose-500/20 px-3 py-2 text-xs font-medium text-rose-400 bg-surface-container-lowest">
-                             <span class="material-symbols-outlined text-sm align-middle mr-1">cancel</span> Motif: {candidature.rejectionReason}
-                           </div>
-                        {/if}
-                        
-                        {#if candidature.notes}
-                           <div class="text-xs text-on-surface-variant/80 bg-surface-container rounded-xl p-3 border-l-2 border-primary/40 italic">
-                             {candidature.notes}
-                           </div>
-                        {/if}
-                      </div>
-                    {/each}
-                    {#if (caseData.candidatures || []).length === 0}
-                      <div class="flex flex-col items-center py-8 text-on-surface-variant/40">
-                        <span class="material-symbols-outlined text-4xl">person_search</span>
-                        <p class="mt-2 text-sm font-semibold">Aucune candidature enregistrée</p>
-                      </div>
-                    {/if}
-                  </div>
+                      {/if}
+                    </div>
+                  {/each}
                 </div>
               {/if}
-            </div>
-
-            <!-- ── Right Column (Sidebar) ─────── -->
-            <div class="min-w-0 space-y-5">
-              <div class="section-card p-5 space-y-3">
-                <p class="section-label">Résumé condensé</p>
-                <dl>
-                  <div class="info-row"><dt>Messages</dt><dd class="font-black text-on-surface">{caseData.profile?.messageCount ?? 0}</dd></div>
-                  <div class="info-row"><dt>Temps vocal</dt><dd class="font-black text-on-surface">{formatDurationFromSeconds(caseData.profile?.voiceTimeSeconds)}</dd></div>
-                  <div class="info-row"><dt>Dernier salon</dt><dd>{formatChannelLabel(caseData.profile?.lastMessageChannelId)}</dd></div>
-                  <div class="info-row"><dt>Rôles</dt><dd class="font-black text-on-surface">{caseData.roles.length}</dd></div>
-                  <div class="info-row"><dt>Permissions</dt><dd class="font-black text-on-surface">{caseData.effectivePermissions.length}</dd></div>
-                  <div class="info-row"><dt>Logs</dt><dd class="font-black text-on-surface">{caseData.recentLogCount}</dd></div>
-                </dl>
-              </div>
-
-              <div class="section-card p-5 space-y-3">
-                <p class="section-label">Rôles observés</p>
-                <div class="flex flex-wrap gap-1.5">
-                  {#each caseData.roles as role}
-                    <span class="badge badge-neutral">{role.name}</span>
-                  {/each}
-                  {#if caseData.roles.length === 0}
-                    <span class="text-xs text-on-surface-variant">Aucun rôle observé.</span>
-                  {/if}
-                </div>
-              </div>
-
-              <div class="section-card p-5 space-y-3">
-                <p class="section-label">Permissions</p>
-                <div class="flex flex-wrap gap-1.5">
-                  {#each caseData.effectivePermissions as permission}
-                    <span class="badge badge-info">{permission}</span>
-                  {/each}
-                  {#if caseData.effectivePermissions.length === 0}
-                    <span class="text-xs text-on-surface-variant">Aucune permission calculée.</span>
-                  {/if}
-                </div>
-              </div>
-            </div>
-
           </div>
         {/if}
       </div>

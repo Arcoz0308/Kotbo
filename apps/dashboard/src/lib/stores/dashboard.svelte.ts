@@ -1,4 +1,5 @@
 import { fetchGuildState } from '../api';
+import { authStore } from './auth.svelte';
 
 class DashboardStore {
   state = $state({
@@ -108,6 +109,7 @@ class DashboardStore {
         this.state.regulationRules = data.regulationRules || [];
         this.state.messageTemplate = data.messageTemplate;
         this.state.analytics = data.analytics;
+        authStore.member = data.member;
         this.state.error = null;
       }
     } catch (err) {

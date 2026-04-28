@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import type { SortDirection, SortField } from '../../sanctions/filterSort';
+  import Papicon from '../Papicon.svelte';
 
   export type ColumnFilterOption = {
     value: string;
@@ -98,11 +99,11 @@
         disabled={disabled}
       >
         {#if sortDirection === 'asc'}
-          ↑
+          <Papicon icon="arrow-up" size={12} />
         {:else if sortDirection === 'desc'}
-          ↓
+          <Papicon icon="arrow-down" size={12} />
         {:else}
-          ↕
+          <Papicon icon="chevrons-up-down" size={12} />
         {/if}
       </button>
     {/if}
@@ -115,7 +116,7 @@
         title={selectedCount > 0 ? `${selectedCount} filtre(s) actif(s)` : 'Filtrer cette colonne'}
         disabled={disabled}
       >
-        ⛃
+        <Papicon icon="filter" size={12} />
       </button>
     {/if}
   </div>

@@ -3,6 +3,7 @@
   import { refreshDashboardOnMount } from '../lib/dashboardLifecycle';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
+  import Papicon from '../lib/components/Papicon.svelte';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
   import ColumnSortFilter, { type ColumnFilterOption } from '../lib/components/sanctions/ColumnSortFilter.svelte';
   import { fetchMemberCase, runMemberCaseAction } from '../lib/api';
@@ -458,7 +459,7 @@
     <div class="space-y-2 w-full md:max-w-2xl">
       <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="search">Recherche</label>
       <div class="relative">
-        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+        <Papicon icon="search" size={18} class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
         <FormInput
           id="search"
           type="text"
@@ -600,7 +601,7 @@
         {#if filteredLogs.length === 0}
           <tr>
             <td colspan="7" class="px-6 py-20 text-center text-on-surface-variant opacity-50">
-              <span class="material-symbols-outlined text-4xl mb-2">history</span>
+              <Papicon icon="history" size={40} class="mb-2 mx-auto" />
               <p class="text-sm font-medium">Aucun événement Discord ne correspond à votre recherche</p>
             </td>
           </tr>

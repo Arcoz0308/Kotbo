@@ -3,6 +3,7 @@
   import { API_BASE_URL, deleteManagerNote } from '../api';
   import type { StaffManagerNote } from '../types';
   import { onMount } from 'svelte';
+  import Papicon from './Papicon.svelte';
 
   interface Props {
     userId: string;
@@ -76,7 +77,7 @@
   <div class="premium-card rounded-3xl p-6 bg-surface-container-low/40 border-outline-variant/10">
     <div class="flex items-center gap-3 mb-4">
       <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-        <span class="material-symbols-outlined">edit_note</span>
+        <Papicon icon="edit_note" size={24} />
       </div>
       <div>
         <h4 class="text-sm font-black uppercase tracking-widest text-on-surface">Ajouter une note</h4>
@@ -102,7 +103,7 @@
         disabled={isSaving || !newNote.trim()}
         class="inline-flex items-center gap-2 px-6 py-2.5 bg-primary text-on-primary rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-primary/20 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:scale-100 transition-all font-headline"
       >
-        <span class="material-symbols-outlined text-sm">{isSaving ? 'progress_activity' : 'send'}</span>
+        <Papicon icon={isSaving ? 'progress_activity' : 'send'} size={14} class={isSaving ? 'animate-spin' : ''} />
         {isSaving ? 'Envoi...' : 'Enregistrer'}
       </button>
     </div>
@@ -131,7 +132,7 @@
                class="opacity-0 group-hover:opacity-100 text-on-surface-variant/20 hover:text-rose-500 transition-all"
                title="Supprimer la note"
             >
-              <span class="material-symbols-outlined text-lg">delete</span>
+              <Papicon icon="delete" size={18} />
             </button>
           </div>
 
@@ -146,7 +147,7 @@
     {:else}
       <div class="flex flex-col items-center justify-center p-12 text-center border-2 border-dashed border-outline-variant/15 rounded-[2.5rem]">
         <div class="w-16 h-16 rounded-3xl bg-surface-container text-on-surface-variant/20 flex items-center justify-center">
-          <span class="material-symbols-outlined text-3xl">notes</span>
+          <Papicon icon="notes" size={30} />
         </div>
         <h4 class="mt-4 text-sm font-black text-on-surface/40 uppercase tracking-widest">Aucune note</h4>
         <p class="mt-2 text-xs text-on-surface-variant/30 max-w-[200px]">Utilisez le formulaire ci-dessus pour ajouter le premier suivi.</p>

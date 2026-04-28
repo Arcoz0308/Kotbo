@@ -5,6 +5,7 @@
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import DailyAlgoMiniIDE from '../lib/components/DailyAlgoMiniIDE.svelte';
   import { detectIdeLanguageFromCode, normalizeIdeLanguage, type IdeLanguage } from '../lib/dailyAlgoIde';
+  import Papicon from '../lib/components/Papicon.svelte';
 
   type SubmissionStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
@@ -172,6 +173,7 @@
     try {
       const ok = await reviewDailyAlgoSubmission(submissionId, {
         action: 'reject',
+        feedback: reviewFeedback.trim(),
       });
 
       if (!ok) {
@@ -278,7 +280,19 @@
         </section>
 
         <aside class="daily-ide-panel section-card">
-          <h2>Notation rapide</h2>
+          {#if status !== 'PENDING' && reviewFeedback}
+            <div class="corrected-feedback-card {status === 'APPROVED' ? 'approved' : 'rejected'} animate-in fade-in slide-in-from-top-2 duration-500">
+              <div class="feedback-header">
+                <Papicon icon="message-square" size={16} />
+                <span>Commentaire du correcteur</span>
+              </div>
+              <p class="feedback-body">
+                "{reviewFeedback}"
+              </p>
+            </div>
+          {/if}
+
+          <h2>{status === 'PENDING' ? 'Notation rapide' : 'Détails de la correction'}</h2>
 
           {#if !canModerateContent}
             <div class="alert alert-warn">
@@ -289,23 +303,23 @@
           <div class="scores-grid">
             <label class="score-field" for="score-correctness">
               Correctitude
-              <input id="score-correctness" class="score-input" type="number" min="1" max="5" step="1" bind:value={scoreCorrectness} />
+              <input id="score-correctness" class="score-input" type="number" min="1" max="5" step="1" bind:value={scoreCorrectness} disabled={!canModerateContent || (status !== 'PENDING' && !canModerateContent)} />
             </label>
             <label class="score-field" for="score-comments">
               Commentaires
-              <input id="score-comments" class="score-input" type="number" min="1" max="5" step="1" bind:value={scoreComments} />
+              <input id="score-comments" class="score-input" type="number" min="1" max="5" step="1" bind:value={scoreComments} disabled={!canModerateContent || (status !== 'PENDING' && !canModerateContent)} />
             </label>
             <label class="score-field" for="score-compactness">
               Compacite
-              <input id="score-compactness" class="score-input" type="number" min="1" max="5" step="1" bind:value={scoreCompactness} />
+              <input id="score-compactness" class="score-input" type="number" min="1" max="5" step="1" bind:value={scoreCompactness} disabled={!canModerateContent || (status !== 'PENDING' && !canModerateContent)} />
             </label>
             <label class="score-field" for="score-optimization">
               Optimisation
-              <input id="score-optimization" class="score-input" type="number" min="1" max="5" step="1" bind:value={scoreOptimization} />
+              <input id="score-optimization" class="score-input" type="number" min="1" max="5" step="1" bind:value={scoreOptimization} disabled={!canModerateContent || (status !== 'PENDING' && !canModerateContent)} />
             </label>
             <label class="score-field score-field-full" for="score-readability">
               Lisibilite
-              <input id="score-readability" class="score-input" type="number" min="1" max="5" step="1" bind:value={scoreReadability} />
+              <input id="score-readability" class="score-input" type="number" min="1" max="5" step="1" bind:value={scoreReadability} disabled={!canModerateContent || (status !== 'PENDING' && !canModerateContent)} />
             </label>
           </div>
 
@@ -316,7 +330,8 @@
               rows="5"
               maxlength="1000"
               bind:value={reviewFeedback}
-              placeholder="Obligatoire si une note est inferieure a 5/5."
+              placeholder={status === 'PENDING' ? "Obligatoire si une note est inferieure a 5/5." : ""}
+              disabled={!canModerateContent || (status !== 'PENDING' && !canModerateContent)}
               class="review-textarea"
             ></textarea>
             {#if hasLowScore}
@@ -477,6 +492,48 @@
   .daily-ide-panel {
     border-radius: 1rem;
     padding: 0.75rem;
+  }
+
+  .corrected-feedback-card {
+    border-radius: 1.25rem;
+    padding: 1.25rem;
+    margin-bottom: 0.5rem;
+    border: 1px solid var(--outline-variant);
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .corrected-feedback-card.approved {
+    background: rgba(16, 185, 129, 0.05);
+    border-color: rgba(16, 185, 129, 0.2);
+  }
+
+  .corrected-feedback-card.rejected {
+    background: rgba(220, 38, 38, 0.05);
+    border-color: rgba(220, 38, 38, 0.2);
+  }
+
+  .feedback-header {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+
+  .approved .feedback-header { color: #059669; }
+  .rejected .feedback-header { color: #dc2626; }
+
+  .feedback-body {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--on-surface);
+    font-style: italic;
+    font-weight: 500;
   }
 
   .daily-ide-panel {

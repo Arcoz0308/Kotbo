@@ -87,6 +87,12 @@ model Guild {
   staffPolls StaffPoll[]
   staffProcedures StaffProcedure[]
   candidatures RecruitmentCandidature[]
+  notifications Notification[]
+  guildDailyStats GuildDailyStat[]
+  guildHourlyStats GuildHourlyStat[]
+  channelDailyStats ChannelDailyStat[]
+  memberDailyStats MemberDailyStat[]
+  memberInvites MemberInvite[]
 
   @@map("guilds")
 }
@@ -1086,4 +1092,155 @@ model RecruitmentCandidature {
   @@index([guildId, status])
   @@index([guildId, discordId])
   @@map("recruitment_candidatures")
+}
+
+model Notification {
+  id String @id @default(cuid())
+  guildId String
+  userId String // Utilisateur cible (Discord ID)
+
+  title String
+  message String
+  type String @default("INFO") // INFO, SUCCESS, WARNING, ERROR
+  link String? // Lien vers la page concernée (ex: /absences)
+  isRead Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, userId, isRead])
+  @@map("notifications")
+}
+
+// ============================================================================
+// ANALYTICS — STATISTIQUES SERVEUR
+// ============================================================================
+
+model GuildDailyStat {
+  id String @id @default(cuid())
+
+  guildId String
+  dateKey String // YYYY-MM-DD
+
+  totalMembers     Int @default(0)
+  onlineMembers    Int @default(0)
+  idleMembers      Int @default(0)
+  dndMembers       Int @default(0)
+  offlineMembers   Int @default(0)
+  totalBots        Int @default(0)
+  totalHumans      Int @default(0)
+
+  messagesCount    Int @default(0)
+  voiceMinutes     Int @default(0)
+  voiceSessionsCount Int @default(0)
+
+  membersJoined    Int @default(0)
+  membersLeft      Int @default(0)
+
+  sanctionsCount   Int @default(0)
+  warnsCount       Int @default(0)
+  kicksCount       Int @default(0)
+  timeoutsCount    Int @default(0)
+  bansCount        Int @default(0)
+
+  activeMembers    Int @default(0) // Membres ayant envoyé >= 1 message
+  activeVoiceMembers Int @default(0) // Membres ayant rejoint >= 1 vocal
+
+  peakOnline       Int @default(0) // Pic de membres en ligne dans la journée
+  peakVoice        Int @default(0) // Pic de membres en vocal simultanément
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, dateKey])
+  @@index([guildId, dateKey])
+  @@map("guild_daily_stats")
+}
+
+model ChannelDailyStat {
+  id String @id @default(cuid())
+
+  guildId   String
+  channelId String
+  dateKey   String // YYYY-MM-DD
+
+  messagesCount Int @default(0)
+  uniqueAuthors Int @default(0)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, channelId, dateKey])
+  @@index([guildId, dateKey])
+  @@index([guildId, channelId])
+  @@map("channel_daily_stats")
+}
+
+model MemberInvite {
+  id String @id @default(cuid())
+
+  guildId String
+  userId  String // L'utilisateur qui a rejoint
+
+  inviteCode  String?
+  inviterId   String? // L'utilisateur qui a invité
+  inviterTag  String?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  joinedAt DateTime @default(now())
+
+  @@index([guildId, inviterId])
+  @@index([guildId, joinedAt])
+  @@map("member_invites")
+}
+
+model GuildHourlyStat {
+  id       String @id @default(cuid())
+
+  guildId  String
+  dateKey  String // YYYY-MM-DD
+  hour     Int    // 0-23
+
+  messagesCount Int @default(0)
+  voiceMinutes  Int @default(0)
+  activeMembers Int @default(0)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, dateKey, hour])
+  @@index([guildId, dateKey])
+  @@map("guild_hourly_stats")
+}
+
+model MemberDailyStat {
+  id       String @id @default(cuid())
+
+  guildId  String
+  userId   String
+  dateKey  String // YYYY-MM-DD
+
+  messagesCount    Int @default(0)
+  voiceMinutes     Int @default(0)
+  reactionsCount   Int @default(0)
+  threadsCreated   Int @default(0)
+  repliesCount     Int @default(0)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, userId, dateKey])
+  @@index([guildId, dateKey])
+  @@index([guildId, userId])
+  @@map("member_daily_stats")
 }

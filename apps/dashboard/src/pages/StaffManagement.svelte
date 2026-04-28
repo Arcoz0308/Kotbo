@@ -9,6 +9,7 @@
   import Skeleton from '../lib/components/Skeleton.svelte';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
 import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
+import Papicon from '../lib/components/Papicon.svelte';
 
 
   let guildId = $state<string | null>(null);
@@ -124,6 +125,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
   let isSavingAbsence = $state(false);
   let showAbsenceDecision = $state<string | null>(null);
   let absenceDecisionNote = $state('');
+  let decisionStatus = $state<'APPROVED' | 'REJECTED'>('APPROVED');
 
   // Meetings
   let showMeetingForm = $state(false);
@@ -1150,7 +1152,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
       label: "Membres",
       value: staffMembers.length.toString(),
       note: "dans l'équipe",
-      icon: "groups",
+      icon: "users",
       color: "bg-primary/10 text-primary",
       loading: loadingStates.members
     },
@@ -1158,7 +1160,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
       label: "Rôles Staff",
       value: staffRoles.length.toString(),
       note: "niveaux configurés",
-      icon: "admin_panel_settings",
+      icon: "shield",
       color: "bg-emerald-500/10 text-emerald-700",
       loading: loadingStates.roles
     },
@@ -1166,7 +1168,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
       label: "Avertissements",
       value: staffMembers.reduce((acc, member) => acc + (member.warnings?.length || 0), 0).toString(),
       note: "actifs actuellement",
-      icon: "warning",
+      icon: "alert-triangle",
       color: "bg-amber-500/10 text-amber-700",
       loading: loadingStates.members // Dépend de staffMembers
     },
@@ -1174,7 +1176,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
       label: "Périodes de Test",
       value: testingPeriods.length.toString(),
       note: "en cours d'évaluation",
-      icon: "pending_actions",
+      icon: "clock",
       color: "bg-slate-500/10 text-slate-600",
       loading: loadingStates.testing
     },
@@ -1204,7 +1206,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
       <div class="flex flex-col gap-8 xl:flex-row xl:items-end xl:justify-between">
         <div class="max-w-3xl space-y-4">
           <div class="inline-flex items-center gap-2 rounded-full border border-outline-variant/20 bg-white/60 px-4 py-2 text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant/60">
-            <span class="material-symbols-outlined text-base text-primary">manage_accounts</span>
+            <Papicon icon="user" size={14} class="text-primary" />
             Administration
           </div>
           <h2 class="text-4xl font-black text-on-surface tracking-tighter font-headline leading-tight md:text-5xl">
@@ -1234,15 +1236,15 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
     <!-- TABS -->
     <div class="flex flex-wrap items-center gap-3">
       {#each [
-        { id: 'members', label: 'Membres', icon: 'groups' },
-        { id: 'roles', label: 'Rôles Staff', icon: 'badge' },
-        { id: 'testing', label: 'Début Test', icon: 'timelapse' },
-        { id: 'warnings', label: 'Avertir', icon: 'warning' },
-        { id: 'blacklist', label: 'Blacklist', icon: 'block' },
-        { id: 'polls', label: 'Sondages', icon: 'how_to_vote' },
-        { id: 'leadership', label: 'Leadership', icon: 'leaderboard' },
-        { id: 'absences', label: 'Absences', icon: 'event_busy' },
-        { id: 'meetings', label: 'Réunions', icon: 'groups' }
+        { id: 'members', label: 'Membres', icon: 'users' },
+        { id: 'roles', label: 'Rôles Staff', icon: 'shield' },
+        { id: 'testing', label: 'Début Test', icon: 'clock' },
+        { id: 'warnings', label: 'Avertir', icon: 'alert-triangle' },
+        { id: 'blacklist', label: 'Blacklist', icon: 'slash' },
+        { id: 'polls', label: 'Sondages', icon: 'check-square' },
+        { id: 'leadership', label: 'Leadership', icon: 'bar-chart' },
+        { id: 'absences', label: 'Absences', icon: 'calendar' },
+        { id: 'meetings', label: 'Réunions', icon: 'users' }
       ] as tab}
         <button
           onclick={() => switchTab(tab.id as StaffTab)}
@@ -1250,7 +1252,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
             ? 'bg-primary text-white shadow-xl shadow-primary/20 scale-[1.02]'
             : 'border border-outline-variant/20 bg-surface-container-low/50 text-on-surface-variant/70 hover:bg-surface-container-low hover:text-on-surface'}"
         >
-          <span class="material-symbols-outlined text-base shrink-0">{tab.icon}</span>
+        <Papicon icon={tab.icon} size={16} class="shrink-0" />
           {tab.label}
         </button>
       {/each}
@@ -1268,7 +1270,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
             onclick={openAddMemberForm}
             class="inline-flex items-center gap-2 whitespace-nowrap rounded-2xl border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
           >
-            <span class="material-symbols-outlined text-sm">{showAddMemberForm ? 'close' : 'add'}</span>
+            <Papicon icon={showAddMemberForm ? 'x' : 'plus'} size={14} />
             {showAddMemberForm ? 'Annuler' : 'Ajouter un membre'}
           </button>
         </div>
@@ -1341,7 +1343,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
                       {#if member.avatarUrl}
                         <img src={member.avatarUrl} alt="" class="h-full w-full object-cover" />
                       {:else}
-                        <span class="material-symbols-outlined text-2xl">person</span>
+                        <Papicon icon="user" size={24} />
                       {/if}
                     </div>
                     <div>
@@ -1354,7 +1356,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
                         </span>
                         {#if member.isTutor}
                           <span class="inline-flex items-center gap-1 item rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.15em] text-indigo-600 shadow-sm shadow-indigo-500/5 transition-all animate-in zoom-in-95 duration-300">
-                            <span class="material-symbols-outlined text-[12px]">verified_user</span>
+                            <Papicon icon="shield" size={12} />
                             Tuteur
                           </span>
                         {/if}
@@ -1363,7 +1365,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
                         </span>
                         {#if (member.warnings?.length || 0) > 0}
                           <span class="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.15em] text-amber-700">
-                            <span class="material-symbols-outlined text-[12px]">warning</span>
+                            <Papicon icon="alert-triangle" size={12} />
                             {member.warnings.length} avert.{member.warnings.length > 1 ? 's' : ''}
                           </span>
                         {/if}
@@ -1372,15 +1374,15 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
                       {#if member.stats}
                         <div class="flex items-center gap-3 mt-2 text-xs text-on-surface-variant/60">
                            <div class="flex items-center gap-1">
-                             <span class="material-symbols-outlined text-sm">chat</span>
+                             <Papicon icon="message-square" size={14} />
                              <span>{member.stats.totalMessages} msg</span>
                            </div>
                            <div class="flex items-center gap-1">
-                             <span class="material-symbols-outlined text-sm">mic</span>
+                             <Papicon icon="mic" size={14} />
                              <span>{member.stats.totalVoiceMinutes} min</span>
                            </div>
                            <div class="flex items-center gap-1">
-                             <span class="material-symbols-outlined text-sm">gavel</span>
+                             <Papicon icon="gavel" size={14} />
                              <span>{member.stats.sanctionsIssued} sanctions</span>
                            </div>
                         </div>
@@ -1394,7 +1396,11 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
                       class="group/tutor relative inline-flex items-center justify-center rounded-xl p-2.5 transition-all {member.isTutor ? 'text-indigo-600 bg-indigo-500/15 border border-indigo-500/30 shadow-lg shadow-indigo-500/10 ring-2 ring-indigo-500/20' : 'text-on-surface-variant/40 hover:text-indigo-600 hover:bg-indigo-500/10 border border-outline-variant/20 bg-surface-container-low/50 hover:border-indigo-500/30'}"
                       title={member.isTutor ? 'Retirer le statut de tuteur' : 'Désigner comme Tuteur'}
                     >
-                      <span class="material-symbols-outlined text-xl transition-transform group-hover/tutor:scale-110 group-active/tutor:scale-90">{member.isTutor ? 'person_check' : 'person_add'}</span>
+                      <Papicon 
+                        icon={member.isTutor ? 'user-check' : 'user-plus'} 
+                        size={20} 
+                        class="transition-transform group-hover/tutor:scale-110 group-active/tutor:scale-90" 
+                      />
                       {#if member.isTutor}
                          <span class="absolute -top-1 -right-1 flex h-3 w-3">
                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
@@ -1412,7 +1418,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
                       class="inline-flex items-center justify-center rounded-xl p-2.5 transition-colors disabled:opacity-40 {(orderedStaffRoles.findIndex((r) => r.name === member.grade) >= orderedStaffRoles.length - 1) ? 'text-on-surface-variant/30' : 'text-emerald-600 hover:bg-emerald-500/15 border border-emerald-500/20 bg-emerald-500/5'}"
                       title="Promouvoir"
                     >
-                      <span class="material-symbols-outlined text-xl">keyboard_double_arrow_up</span>
+                      <Papicon icon="chevrons-up" size={20} />
                     </button>
                     <button
                       onclick={() => demoteStaff(member.userId)}
@@ -1423,7 +1429,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
                       class="inline-flex items-center justify-center rounded-xl p-2.5 transition-colors disabled:opacity-40 {(orderedStaffRoles.findIndex((r) => r.name === member.grade) <= 0) ? 'text-on-surface-variant/30' : 'text-amber-600 hover:bg-amber-500/15 border border-amber-500/20 bg-amber-500/5'}"
                       title="Rétrograder"
                     >
-                      <span class="material-symbols-outlined text-xl">keyboard_double_arrow_down</span>
+                      <Papicon icon="chevrons-down" size={20} />
                     </button>
                     <div class="w-px h-6 bg-outline-variant/20 mx-1"></div>
                     <button
@@ -1431,7 +1437,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
                       class="inline-flex items-center justify-center rounded-xl p-2.5 text-rose-600 transition-colors hover:bg-rose-500/15 border border-rose-500/20 bg-rose-500/5"
                       title="Démettre"
                     >
-                      <span class="material-symbols-outlined text-xl">person_remove</span>
+                      <Papicon icon="user-minus" size={20} />
                     </button>
                   </div>
                 </div>
@@ -1441,7 +1447,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
         {:else}
           <div class="flex flex-col items-center justify-center p-16 text-center">
             <div class="w-20 h-20 rounded-4xl bg-primary/8 text-primary flex items-center justify-center shadow-inner">
-              <span class="material-symbols-outlined text-4xl">groups</span>
+              <Papicon icon="users" size={40} />
             </div>
             <h3 class="mt-6 text-2xl font-black tracking-tighter text-on-surface">
               Aucun membre dans le staff
@@ -1462,7 +1468,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
             onclick={() => showAddRoleForm = !showAddRoleForm}
             class="inline-flex items-center gap-2 whitespace-nowrap rounded-2xl border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
           >
-            <span class="material-symbols-outlined text-sm">{showAddRoleForm ? 'close' : 'add'}</span>
+            <Papicon icon={showAddRoleForm ? 'x' : 'plus'} size={14} />
             {showAddRoleForm ? 'Fermer' : 'Nouveau Rôle'}
           </button>
         </div>
@@ -1528,7 +1534,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
               <div class="flex-1 relative">
                 <label for="staff-role-search" class="block text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant/70 mb-2">Rechercher un rôle Discord</label>
                 <div class="relative">
-                  <span class="material-symbols-outlined pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/40 text-xl">search</span>
+                  <Papicon icon="search" size={20} class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/40" />
                   <input
                     id="staff-role-search"
                     type="text"
@@ -1568,7 +1574,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
 
         {#if isSavingRoleOrder}
           <div class="bg-blue-500/10 border-b border-blue-500/20 px-6 py-2.5 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-[0.15em] text-blue-700">
-             <span class="material-symbols-outlined text-sm animate-spin">refresh</span>
+             <Papicon icon="refresh-cw" size={14} class="animate-spin" />
              Sauvegarde de l'ordre...
           </div>
         {/if}
@@ -1612,7 +1618,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
                       ondragend={clearRoleDragState}
                       aria-label={`Déplacer ${role.name}`}
                     >
-                      <span class="material-symbols-outlined">drag_indicator</span>
+                      <Papicon icon="menu" size={20} />
                     </button>
                     <div class="min-w-0 flex-1">
                       <h4 class="text-base font-black text-on-surface flex items-center gap-2">
@@ -1632,9 +1638,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
                   </div>
                   
                   <div class="flex items-center shrink-0">
-                    <span class="material-symbols-outlined text-on-surface-variant/20 opacity-0 group-hover:opacity-100 transition-opacity">
-                      swap_vert
-                    </span>
+                    <Papicon icon="repeat" size={20} class="text-on-surface-variant/20 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                 </div>
               {/each}
@@ -1643,7 +1647,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
         {:else}
           <div class="flex flex-col items-center justify-center p-16 text-center">
             <div class="w-20 h-20 rounded-4xl bg-primary/8 text-primary flex items-center justify-center shadow-inner">
-              <span class="material-symbols-outlined text-4xl">badge</span>
+              <Papicon icon="shield" size={40} />
             </div>
             <h3 class="mt-6 text-2xl font-black tracking-tighter text-on-surface">
               Aucun rôle staff configuré
@@ -1666,7 +1670,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
                     onclick={() => (showCreateTestDialog = true)}
                     class="flex items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-3.5 text-xs font-black uppercase tracking-widest text-on-primary shadow-lg shadow-primary/20 transition hover:bg-primary/90 focus:ring-4 focus:ring-primary/20 active:scale-95"
                   >
-                    <span class="material-symbols-outlined text-lg">add_circle</span>
+                    <Papicon icon="plus-circle" size={18} />
                     Lancer un test
                   </button>
                 </div>
@@ -1722,7 +1726,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
                             {period.staffMember?.displayName || period.staffMember?.username}
                           </h3>
                           <p class="text-[11px] font-bold text-on-surface-variant/75 flex items-center gap-1.5 mt-1">
-                            <span class="material-symbols-outlined text-[14px] text-primary">calendar_today</span>
+                            <Papicon icon="calendar" size={14} class="text-primary" />
                             Depuis le {new Date(period.startDate).toLocaleDateString('fr-FR')}
                           </p>
                         </div>
@@ -1806,7 +1810,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
                             class="h-9 w-9 flex items-center justify-center rounded-xl bg-primary/10 text-primary transition hover:bg-primary/20 active:scale-90"
                             title="Ajouter un rapport"
                           >
-                            <span class="material-symbols-outlined text-lg">add_comment</span>
+                            <Papicon icon="message-square" size={18} />
                           </button>
                         </div>
 
@@ -1815,14 +1819,14 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
                             onclick={() => endTesting(period, 'PASSED')}
                             class="group/btn w-full flex items-center justify-center gap-1.5 rounded-2xl bg-green-500/10 py-3 text-[10px] font-black uppercase tracking-widest text-green-600 transition hover:bg-green-500 hover:text-white"
                           >
-                            <span class="material-symbols-outlined text-sm group-hover/btn:rotate-12 transition-transform">verified</span>
+                            <Papicon icon="check-circle" size={14} class="group-hover/btn:rotate-12 transition-transform" />
                             Valider
                           </button>
                           <button 
                             onclick={() => endTesting(period, 'FAILED')}
                             class="group/btn w-full flex items-center justify-center gap-1.5 rounded-2xl bg-red-500/10 py-3 text-[10px] font-black uppercase tracking-widest text-red-600 transition hover:bg-red-500 hover:text-white"
                           >
-                            <span class="material-symbols-outlined text-sm group-hover/btn:-rotate-12 transition-transform">close</span>
+                            <Papicon icon="x" size={14} class="group-hover/btn:-rotate-12 transition-transform" />
                             Échouer
                           </button>
                         </div>
@@ -1831,7 +1835,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
                   {:else}
                     <div class="col-span-full py-20 flex flex-col items-center justify-center rounded-[40px] border-4 border-dashed border-outline-variant/10 bg-surface-container-low/20">
                       <div class="h-24 w-24 rounded-[32px] bg-surface-container-high flex items-center justify-center mb-6 text-on-surface-variant/20 shadow-inner">
-                        <span class="material-symbols-outlined text-5xl">person_search</span>
+                        <Papicon icon="search" size={48} />
                       </div>
                       <h4 class="text-xl font-black text-on-surface tracking-tight">Aucun test en cours</h4>
                       <p class="text-sm font-medium text-on-surface-variant/50 mt-2">Prêt à évaluer de nouveaux talents ?</p>
@@ -1850,7 +1854,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
                       onclick={() => (showHistory = !showHistory)}
                       class="flex items-center gap-3 px-6 py-3 rounded-2xl bg-surface-container/50 border border-outline-variant/10 text-xs font-black uppercase tracking-widest text-on-surface-variant hover:text-primary hover:border-primary/20 transition group"
                     >
-                      <span class="material-symbols-outlined transition-transform duration-300 {showHistory ? 'rotate-90' : ''} group-hover:scale-110">chevron_right</span>
+                      <Papicon icon="chevron-right" size={16} class="transition-transform duration-300 {showHistory ? 'rotate-90' : ''} group-hover:scale-110" />
                       Historique des Tests ({testingPeriods.filter(p => p.status !== 'ONGOING').length})
                     </button>
                     
@@ -1900,7 +1904,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
                                 </td>
                                 <td class="px-8 py-5 text-right">
                                   <button class="p-2.5 rounded-xl text-on-surface-variant hover:bg-primary/10 hover:text-primary transition">
-                                    <span class="material-symbols-outlined text-xl">description</span>
+                                    <Papicon icon="file-text" size={20} />
                                   </button>
                                 </td>
                               </tr>
@@ -1924,7 +1928,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
             onclick={openWarnForm}
             class="inline-flex items-center gap-2 whitespace-nowrap rounded-2xl border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
           >
-            <span class="material-symbols-outlined text-sm">{showWarnForm ? 'close' : 'add'}</span>
+            <Papicon icon={showWarnForm ? 'x' : 'plus'} size={14} />
             {showWarnForm ? 'Annuler' : 'Nouvel Avertisss.'}
           </button>
         </div>
@@ -1969,7 +1973,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
                 </div>
                 <div class="flex justify-end mt-4">
                   <button onclick={issueWarning} class="inline-flex items-center justify-center gap-2 rounded-2xl bg-amber-500 px-8 py-3 text-xs font-black uppercase tracking-[0.18em] text-white shadow-lg shadow-amber-500/20 transition-all hover:scale-[1.02] hover:bg-amber-600 active:scale-[0.98]">
-                    <span class="material-symbols-outlined text-sm">gavel</span>
+                    <Papicon icon="gavel" size={14} />
                     Sanctionner
                   </button>
                 </div>
@@ -1980,7 +1984,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
 
         <div class="p-16 flex flex-col items-center justify-center text-center">
             <div class="w-20 h-20 rounded-4xl bg-amber-500/10 text-amber-500 flex items-center justify-center shadow-inner">
-              <span class="material-symbols-outlined text-4xl">warning</span>
+              <Papicon icon="alert-triangle" size={40} />
             </div>
             <h3 class="mt-6 text-2xl font-black tracking-tighter text-on-surface">
               Aperçu des avertissements
@@ -2000,7 +2004,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
             onclick={openBlacklistForm}
             class="inline-flex items-center gap-2 whitespace-nowrap rounded-2xl border border-rose-500/20 bg-rose-500/10 px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-rose-700 transition-colors hover:bg-rose-500 hover:text-white"
           >
-            <span class="material-symbols-outlined text-sm">{showBlacklistForm ? 'close' : 'block'}</span>
+            <Papicon icon={showBlacklistForm ? 'x' : 'slash'} size={14} />
             {showBlacklistForm ? 'Annuler' : 'Blacklister'}
           </button>
         </div>
@@ -2045,7 +2049,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
                 </div>
                 <div class="flex justify-end mt-4">
                   <button onclick={blacklistStaff} class="inline-flex items-center justify-center gap-2 rounded-2xl bg-rose-600 px-8 py-3 text-xs font-black uppercase tracking-[0.18em] text-white shadow-lg shadow-rose-500/20 transition-all hover:scale-[1.02] hover:bg-rose-700 active:scale-[0.98]">
-                    <span class="material-symbols-outlined text-sm">block</span>
+                    <Papicon icon="slash" size={14} />
                     Appliquer Blacklist
                   </button>
                 </div>
@@ -2056,7 +2060,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
 
         <div class="p-16 flex flex-col items-center justify-center text-center">
             <div class="w-20 h-20 rounded-4xl bg-rose-500/10 text-rose-500 flex items-center justify-center shadow-inner">
-              <span class="material-symbols-outlined text-4xl">remove_moderator</span>
+              <Papicon icon="user-x" size={40} />
             </div>
             <h3 class="mt-6 text-2xl font-black tracking-tighter text-on-surface">
               Section Blacklist
@@ -2077,7 +2081,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
             onclick={() => showPollForm = !showPollForm}
             class="inline-flex items-center gap-2 whitespace-nowrap rounded-2xl border border-primary/20 bg-primary/10 px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
           >
-            <span class="material-symbols-outlined text-sm">{showPollForm ? 'close' : 'add'}</span>
+            <Papicon icon={showPollForm ? 'x' : 'plus'} size={14} />
             {showPollForm ? 'Annuler' : 'Nouveau Sondage'}
           </button>
         </div>
@@ -2104,19 +2108,19 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
                       <input bind:value={newPollOptions[i]} class="flex-1 rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" placeholder="Option {i+1}" />
                       {#if newPollOptions.length > 2}
                         <button onclick={() => removePollOptionInput(i)} class="p-2 text-rose-500 hover:bg-rose-500/10 rounded-xl transition-colors">
-                          <span class="material-symbols-outlined text-xl">delete</span>
+                          <Papicon icon="trash-2" size={20} />
                         </button>
                       {/if}
                     </div>
                   {/each}
                 </div>
                 <button onclick={addPollOptionInput} class="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-primary/70 hover:text-primary transition-colors mt-2">
-                  <span class="material-symbols-outlined text-lg">add_circle</span>
+                  <Papicon icon="plus-circle" size={18} />
                   Ajouter une option
                 </button>
                 <div class="pt-6 border-t border-outline-variant/10">
                    <button onclick={createPoll} disabled={isSavingPoll} class="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-8 py-4 text-xs font-black uppercase tracking-[0.18em] text-white shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50">
-                    <span class="material-symbols-outlined text-sm">{isSavingPoll ? 'sync' : 'how_to_vote'}</span>
+                    <Papicon icon={isSavingPoll ? 'refresh-cw' : 'check-square'} size={14} class={isSavingPoll ? 'animate-spin' : ''} />
                     Publier le sondage
                   </button>
                 </div>
@@ -2150,7 +2154,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
             </div>
           {:else if polls.length === 0}
             <div class="p-16 flex flex-col items-center justify-center text-center opacity-40">
-              <span class="material-symbols-outlined text-6xl">ballot</span>
+              <Papicon icon="list" size={60} />
               <p class="mt-4 text-sm font-bold uppercase tracking-widest">Aucun sondage actif</p>
             </div>
           {:else}
@@ -2177,7 +2181,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
                     </div>
                     {#if !isClosed && accessLevel === 'admin'}
                        <button onclick={() => closePoll(poll.id)} class="p-2 text-on-surface-variant/40 hover:text-rose-500 transition-colors" title="Clôturer maintenant">
-                         <span class="material-symbols-outlined text-xl">close</span>
+                         <Papicon icon="x" size={20} />
                        </button>
                     {/if}
                   </div>
@@ -2201,7 +2205,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
                         >
                           <span class="relative z-10 text-xs font-black {isSelected ? 'text-primary' : 'text-on-surface-variant group-hover/opt:text-on-surface'}">{option.text}</span>
                           {#if isSelected}
-                             <span class="material-symbols-outlined text-sm relative z-10 text-primary">check_circle</span>
+                             <Papicon icon="check-circle" size={14} class="relative z-10 text-primary" />
                           {/if}
                           {#if isClosed || userVote}
                             <div class="absolute inset-y-0 left-0 bg-primary/10 transition-all duration-1000" style="width: {percent}%"></div>
@@ -2225,7 +2229,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
                     <span class="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest">{totalWeight.toFixed(1)} points de vote</span>
                     {#if poll.closesAt && !isClosed}
                       <span class="text-[10px] font-medium text-amber-600/70 italic flex items-center gap-1">
-                        <span class="material-symbols-outlined text-xs">timer</span>
+                        <Papicon icon="clock" size={12} />
                         Finit le {new Date(poll.closesAt).toLocaleDateString()}
                       </span>
                     {/if}
@@ -2306,12 +2310,12 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
                     <td class="px-8 py-5 text-right">
                        {#if metric.hasInactivityAlert}
                          <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 px-3 py-1 text-[10px] font-black text-amber-600 animate-pulse">
-                           <span class="material-symbols-outlined text-[14px]">warning</span>
+                           <Papicon icon="alert-triangle" size={14} />
                            INACTIVITÉ DÉTECTÉE
                          </span>
                        {:else}
                          <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 text-[10px] font-black text-emerald-600">
-                           <span class="material-symbols-outlined text-[14px]">check_circle</span>
+                           <Papicon icon="check-circle" size={14} />
                            ACTIF
                          </span>
                        {/if}
@@ -2338,7 +2342,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
               }}
               class="inline-flex items-center gap-2 rounded-2xl bg-primary px-6 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all"
             >
-              <span class="material-symbols-outlined text-sm">{showAbsenceForm ? 'close' : 'add'}</span>
+              <Papicon icon={showAbsenceForm ? 'x' : 'plus'} size={14} />
               {showAbsenceForm ? 'Fermer' : 'Nouvelle absence'}
             </button>
           </div>
@@ -2437,7 +2441,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
               <div class="bg-surface-container px-6 py-6 rounded-3xl border border-outline-variant/10 flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div class="flex items-center gap-4">
                   <div class="h-12 w-12 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant/40 border border-outline-variant/10">
-                    <span class="material-symbols-outlined text-2xl">event_busy</span>
+                    <Papicon icon="calendar" size={24} />
                   </div>
                   <div>
                     <div class="flex items-center gap-2 mb-1">
@@ -2455,6 +2459,12 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
                       Du {new Date(absence.startDate).toLocaleDateString()} au {absence.endDate ? new Date(absence.endDate).toLocaleDateString() : 'indéterminé'}
                     </p>
                     <p class="mt-2 text-xs text-on-surface-variant/70 italic">"{absence.reason}"</p>
+                    {#if absence.note}
+                      <p class="mt-2 text-xs font-bold text-primary flex items-center gap-1.5">
+                        <Papicon icon="message-square" size={14} />
+                        Correction: <span class="italic font-medium text-on-surface-variant/80">"{absence.note}"</span>
+                      </p>
+                    {/if}
                     <div class="mt-2 flex flex-wrap gap-2">
                       <span class="inline-flex items-center rounded-full bg-slate-500/10 border border-slate-500/20 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-slate-600">{absence.type || 'Autre'}</span>
                       {#if absence.superiorUserId}
@@ -2476,13 +2486,13 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
                       {#if absence.status === 'PENDING'}
                         <button onclick={() => updateAbsence(absence.id, 'ACKNOWLEDGED')} class="rounded-xl px-4 py-2 text-xs font-black uppercase tracking-widest bg-indigo-600 text-white shadow-lg shadow-indigo-500/20 hover:scale-105 transition-all">Notifier supérieur</button>
                       {/if}
-                      <button onclick={() => updateAbsence(absence.id, 'APPROVED')} class="rounded-xl px-4 py-2 text-xs font-black uppercase tracking-widest bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 hover:scale-105 transition-all">Approuver</button>
-                      <button onclick={() => { showAbsenceDecision = absence.id; absenceDecisionNote = ''; }} class="rounded-xl px-4 py-2 text-xs font-black uppercase tracking-widest bg-rose-500/10 text-rose-600 border border-rose-500/20 hover:bg-rose-500 hover:text-white transition-all">Refuser</button>
+                      <button onclick={() => { showAbsenceDecision = absence.id; absenceDecisionNote = ''; decisionStatus = 'APPROVED'; }} class="rounded-xl px-4 py-2 text-xs font-black uppercase tracking-widest bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 hover:scale-105 transition-all">Approuver</button>
+                      <button onclick={() => { showAbsenceDecision = absence.id; absenceDecisionNote = ''; decisionStatus = 'REJECTED'; }} class="rounded-xl px-4 py-2 text-xs font-black uppercase tracking-widest bg-rose-500/10 text-rose-600 border border-rose-500/20 hover:bg-rose-500 hover:text-white transition-all">Refuser</button>
                       <button onclick={() => updateAbsence(absence.id, 'CANCELED')} class="rounded-xl px-4 py-2 text-xs font-black uppercase tracking-widest bg-amber-500/10 text-amber-700 border border-amber-500/20 hover:bg-amber-500 hover:text-white transition-all">Annuler</button>
                     </div>
                   {:else}
                     <span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest {getAbsenceStatusClass(absence.status)}">
-                       <span class="material-symbols-outlined text-xs">{absence.status === 'REJECTED' ? 'cancel' : 'check_circle'}</span>
+                       <Papicon icon={absence.status === 'REJECTED' ? 'x-circle' : 'check-circle'} size={12} />
                        {getAbsenceStatusLabel(absence.status)}
                     </span>
                   {/if}
@@ -2494,11 +2504,15 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
               </div>
 
               {#if showAbsenceDecision === absence.id}
-                <div class="mt-2 p-4 bg-rose-500/5 border border-rose-500/10 rounded-2xl animate-in slide-in-from-top-2 duration-300">
-                  <textarea bind:value={absenceDecisionNote} placeholder="Motif du refus..." class="w-full bg-white/50 border border-outline-variant/30 rounded-xl p-3 text-sm outline-none mb-3"></textarea>
+                <div class="mt-2 p-4 {decisionStatus === 'APPROVED' ? 'bg-emerald-500/5 border-emerald-500/10' : 'bg-rose-500/5 border-rose-500/10'} border rounded-2xl animate-in slide-in-from-top-2 duration-300">
+                  <textarea bind:value={absenceDecisionNote} placeholder={decisionStatus === 'APPROVED' ? "Petit message d'encouragement (optionnel)..." : "Motif du refus..."} class="w-full bg-white/50 border border-outline-variant/30 rounded-xl p-3 text-sm outline-none mb-3"></textarea>
                   <div class="flex justify-end gap-2">
                     <button onclick={() => showAbsenceDecision = null} class="px-4 py-2 text-xs font-bold uppercase text-on-surface-variant/60">Annuler</button>
-                    <button onclick={() => updateAbsence(absence.id, 'REJECTED')} class="bg-rose-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-rose-500/20">Confirmer Refus</button>
+                    {#if decisionStatus === 'APPROVED'}
+                      <button onclick={() => updateAbsence(absence.id, 'APPROVED')} class="bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20">Confirmer l'approbation</button>
+                    {:else}
+                      <button onclick={() => updateAbsence(absence.id, 'REJECTED')} class="bg-rose-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-rose-500/20">Confirmer le refus</button>
+                    {/if}
                   </div>
                 </div>
               {/if}
@@ -2515,7 +2529,7 @@ import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
               <p class="text-sm font-medium text-on-surface-variant/60 mt-1">Planifiez des réunions et suivez les présences en temps réel.</p>
             </div>
             <button onclick={() => showMeetingForm = !showMeetingForm} class="inline-flex items-center gap-2 rounded-2xl bg-primary px-6 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all">
-              <span class="material-symbols-outlined text-sm">{showMeetingForm ? 'close' : 'add'}</span>
+              <Papicon icon={showMeetingForm ? 'x' : 'plus'} size={14} />
               Plannifier une réunion
             </button>
           </div>

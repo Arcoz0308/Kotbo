@@ -1,6 +1,7 @@
 <script lang="ts">
   import { API_BASE_URL } from '../api';
   import { authStore } from '../stores/auth.svelte';
+  import Papicon from './Papicon.svelte';
 
   type DiscordMemberSuggestion = {
     id: string;
@@ -192,7 +193,7 @@
                 <img src={suggestion.avatarUrl} alt="" class="h-full w-full object-cover" />
               {:else}
                 <div class="h-full w-full flex items-center justify-center text-gray-500">
-                  <span class="material-symbols-outlined text-sm">person</span>
+                  <Papicon icon="user" size={14} />
                 </div>
               {/if}
             </div>

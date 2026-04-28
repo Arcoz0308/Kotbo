@@ -1,158 +1,210 @@
 <script lang="ts">
-  import { dashboardStore } from '../lib/stores/dashboard.svelte';
-  import { refreshDashboardOnMount } from '../lib/dashboardLifecycle';
-  import MetricCard from '../lib/components/MetricCard.svelte';
-  import RefreshButton from '../lib/components/RefreshButton.svelte';
+import { onMount } from 'svelte';
+import { authStore } from '../lib/stores/auth.svelte';
+import Papicon from '../lib/components/Papicon.svelte';
+import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
+import { fetchAnalytics, fetchMemberCase } from '../lib/api';
+import AnalyticsSkeleton from '../lib/components/analytics/AnalyticsSkeleton.svelte';
+import StatsOverview from '../lib/components/analytics/StatsOverview.svelte';
+import PopulationFlux from '../lib/components/analytics/PopulationFlux.svelte';
+import EngagementMetrics from '../lib/components/analytics/EngagementMetrics.svelte';
+import ModerationAudit from '../lib/components/analytics/ModerationAudit.svelte';
+import StaffAudit from '../lib/components/analytics/StaffAudit.svelte';
 
-  refreshDashboardOnMount();
+  let data: any = $state(null);
+  let loading = $state(true);
+  let error = $state('');
+  let period = $state(30);
+  let activeTab = $state('overview');
 
-  const kpis = $derived([
-    { label: 'Modules Actifs', val: dashboardStore.state.modules.filter(m => m.status === 'active').length, sub: `Sur ${dashboardStore.state.modules.length} au total`, icon: 'extension', toneClass: 'bg-primary/10 text-primary' },
-    { label: 'Flux RSS', val: dashboardStore.state.feeds.length, sub: `${dashboardStore.state.feeds.filter(f => f.lastStatus === 'ok').length} opérationnels`, icon: 'rss_feed', toneClass: 'bg-orange-500/10 text-orange-600' },
-    { label: 'Traductions', val: dashboardStore.state.analytics.translationCount, sub: 'Contenus traduits', icon: 'translate', toneClass: 'bg-blue-500/10 text-blue-600' },
-    { label: 'Automatisations', val: dashboardStore.state.analytics.totalAutomations, sub: 'Total exécuté', icon: 'bolt', toneClass: 'bg-green-600/10 text-green-700' }
-  ]);
+  const tabs = [
+    { id: 'overview', label: 'Aperçu', icon: 'Grid' },
+    { id: 'messages', label: 'Messages', icon: 'ChatCircleDots' },
+    { id: 'voice', label: 'Vocal', icon: 'Microphone' },
+    { id: 'members', label: 'Membres', icon: 'UsersFour' },
+    { id: 'invitations', label: 'Invitations', icon: 'MailOpen' },
+    { id: 'moderation', label: 'Modération', icon: 'Gavel' },
+    { id: 'staff', label: 'Staff', icon: 'Users' },
+  ];
 
-  const trendMax = $derived(Math.max(...dashboardStore.state.analytics.activityTrend, 10));
-  const trendLabels = $derived(Array.from({ length: 7 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (6 - i));
-    return d.toLocaleDateString('fr-FR', { weekday: 'short' }).toUpperCase().replace('.', '');
-  }));
+  let invitesData: any = $state(null);
+  
+  // Member Case Modal state
+  let modalOpen = $state(false);
+  let selectedUserId = $state<string | null>(null);
+  let selectedUserName = $state('');
+  let caseData = $state<any>(null);
+  let loadingCase = $state(false);
+  let caseError = $state('');
+
+  async function openMemberDetails(memberId: string, memberName: string) {
+    selectedUserId = memberId;
+    selectedUserName = memberName || 'Membre';
+    modalOpen = true;
+    loadingCase = true;
+    caseError = '';
+    caseData = null;
+
+    try {
+      caseData = await fetchMemberCase(memberId, authStore.selectedGuildId);
+    } catch (e: any) {
+      console.error(e);
+      caseError = e.message || 'Impossible de charger le dossier';
+    } finally {
+      loadingCase = false;
+    }
+  }
+
+  async function load() {
+    loading = true; error = '';
+    try { 
+      data = await fetchAnalytics(period);
+      invitesData = await authStore.apiClient?.get(`/guilds/${authStore.currentGuildId}/analytics/invites`);
+    }
+    catch (e: any) { error = e.message || 'Erreur'; }
+    finally { loading = false; }
+  }
+
+  onMount(load);
+
+  function changePeriod(p: number) { period = p; load(); }
+
+  function exportToCSV() {
+    if (!data) return;
+    
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Metric,Date,Value\n";
+    
+    data.dailyTrend?.forEach((row: any) => {
+      csvContent += `Messages,${row.dateKey},${row.messages}\n`;
+      csvContent += `VoiceMinutes,${row.dateKey},${row.voiceMinutes}\n`;
+      csvContent += `MembersJoined,${row.dateKey},${row.membersJoined}\n`;
+      csvContent += `MembersLeft,${row.dateKey},${row.membersLeft}\n`;
+    });
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `analytics_kotbo_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  const fmt = (n: number) => n?.toLocaleString('fr-FR') ?? '0';
+  const fmtH = (mins: number) => { 
+    const h = Math.floor((mins || 0) / 60); 
+    const m = Math.round((mins || 0) % 60); 
+    if (h > 0) return `${h}h${m > 0 ? String(m).padStart(2, '0') : ''}`;
+    return `${m}min`;
+  };
+  const chartLabels = $derived(data?.dailyTrend?.map((d: any) => ({ ...d, label: d.dateKey?.slice(5) })) ?? []);
 </script>
 
+<div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20 max-w-7xl mx-auto px-4 md:px-8">
+  <!-- Header -->
+  <div class="relative overflow-hidden bg-surface-container-low/30 p-8 md:p-12 rounded-[3rem] border border-outline-variant/10 group">
+    <div class="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors duration-1000"></div>
+    <div class="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/4 w-64 h-64 bg-secondary/5 rounded-full blur-2xl group-hover:bg-secondary/10 transition-colors duration-1000"></div>
+    
+    <div class="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
+      <div class="space-y-2">
+        <div class="flex items-center gap-3">
+           <div class="bg-primary/10 p-2 rounded-xl text-primary">
+              <Papicon icon="ChartLineUp" size={20} />
+           </div>
+           <span class="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Intelligence & Analytics</span>
+        </div>
+        <h2 class="text-3xl md:text-5xl font-black tracking-tight text-on-surface font-headline leading-tight">
+          Performance <span class="text-primary">Serveur</span>
+        </h2>
+        <p class="text-on-surface-variant/60 text-base max-w-md">Analysez la croissance, l'engagement et l'activité de votre communauté en temps réel.</p>
+      </div>
 
-<div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
-  <div>
-    <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-on-surface-variant mb-2">Tableau de Bord</p>
-    <h2 class="text-4xl font-extrabold text-primary tracking-tight font-headline">Analyse des Performances</h2>
-  </div>
-  <div class="flex items-center gap-3 font-inter">
-    <RefreshButton
-      onClick={() => dashboardStore.refresh()}
-      loading={dashboardStore.state.loading}
-      label="Actualiser"
-    />
-  </div>
-</div>
-
-
-<div class="grid grid-cols-12 gap-6 mb-8 font-inter">
-  
-  <div class="col-span-12 lg:col-span-8 section-card p-8">
-    <div class="flex justify-between items-start mb-8">
-      <div>
-        <h3 class="text-xl font-bold text-slate-800 dark:text-white mb-1 font-headline">Intelligence Opérationnelle</h3>
-        <p class="text-sm text-on-surface-variant">Activité cumulée pour {dashboardStore.state.guildName}</p>
+      <div class="flex flex-col items-end gap-4 w-full md:w-auto">
+        <div class="flex items-center gap-3">
+          <button 
+            onclick={exportToCSV}
+            class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors"
+          >
+            <Papicon icon="DownloadSimple" size={14} /> Export CSV
+          </button>
+          <div class="flex gap-1.5 bg-surface-container-high/40 p-2 rounded-2xl border border-outline-variant/10 backdrop-blur-sm">
+            {#each [7, 30, 90] as p}
+              <button 
+                onclick={() => changePeriod(p)} 
+                class="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 {period === p ? 'bg-on-surface text-surface shadow-xl' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
+              >
+                {p} jours
+              </button>
+            {/each}
+          </div>
+        </div>
+        {#if data?.totals}
+          <div class="flex items-center gap-4 text-xs font-bold text-on-surface-variant/40 bg-surface-container-low/40 px-4 py-2 rounded-xl border border-outline-variant/5">
+             <div class="flex items-center gap-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Live Feed</span>
+             </div>
+             <span class="w-px h-3 bg-outline-variant/20"></span>
+             <span>Dernière mise à jour: {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+          </div>
+        {/if}
       </div>
     </div>
-    
-    
-    <div class="h-64 flex items-end justify-between gap-4 px-2 relative">
-      <div class="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-50">
-        <div class="w-full border-t border-slate-100 dark:border-slate-800"></div>
-        <div class="w-full border-t border-slate-100 dark:border-slate-800"></div>
-        <div class="w-full border-t border-slate-100 dark:border-slate-800"></div>
-        <div class="w-full border-t border-slate-100 dark:border-slate-800"></div>
-      </div>
-      
-      {#each dashboardStore.state.analytics.activityTrend as count, i}
-        {@const h = (count / trendMax) * 70}
-        <div class="relative group flex-1 h-full flex flex-col justify-end gap-1 items-center">
-          <div class="absolute -top-6 bg-slate-800 text-white text-[10px] px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-            {count} actions
+  </div>
+
+  <!-- Navigation -->
+  <div class="sticky top-4 z-40 flex justify-center">
+    <div class="flex gap-1 bg-surface-container-low/60 backdrop-blur-2xl p-1.5 rounded-[2rem] border border-outline-variant/10 shadow-2xl shadow-surface/20 overflow-x-auto no-scrollbar max-w-full">
+      {#each tabs as tab}
+        <button 
+          onclick={() => activeTab = tab.id} 
+          class="flex items-center gap-2.5 px-6 py-3.5 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all duration-400 whitespace-nowrap group {activeTab === tab.id ? 'bg-primary text-on-primary shadow-lg shadow-primary/25 scale-[1.02]' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
+        >
+          <div class="transition-transform group-hover:scale-110 {activeTab === tab.id ? 'text-on-primary' : 'text-primary'}">
+            <Papicon icon={tab.icon} size={16} />
           </div>
-          <div class="w-full bg-primary/10 rounded-t-lg transition-all group-hover:bg-primary/20" style="height: {h + 15}%"></div>
-          <div class="w-full bg-primary rounded-t-lg transition-all" style="height: {h}%"></div>
-          <span class="text-[10px] font-semibold text-slate-400 mt-2">{trendLabels[i]}</span>
-        </div>
+          {tab.label}
+        </button>
       {/each}
     </div>
   </div>
 
-  
-  <div class="col-span-12 lg:col-span-4 section-card p-8">
-    <h3 class="text-xl font-bold text-slate-800 dark:text-white mb-1 font-headline">Sources de Données</h3>
-    <p class="text-sm text-on-surface-variant mb-8">Répartition des flux par statut</p>
-    
-    <div class="space-y-6">
-      {#each dashboardStore.state.analytics.contentStatusDistribution as item}
-        <div class="flex items-center gap-4">
-          <span class="text-[10px] font-bold w-16 text-on-surface-variant leading-tight">{item.label}</span>
-          <div class="flex-1 h-2 bg-surface-container rounded-full overflow-hidden">
-            <div class="h-full bg-primary rounded-full transition-all duration-1000" style="width: {item.value}%"></div>
-          </div>
-          <span class="text-xs font-bold text-slate-700 dark:text-slate-300">{Math.round(item.value)}%</span>
-        </div>
-      {/each}
-      <div class="pt-4 mt-4 border-t border-slate-50 dark:border-slate-800">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-xs font-bold text-on-surface-variant">Score de Santé Global</span>
-          <span class="text-xs font-bold text-primary">{dashboardStore.state.analytics.healthStatus}%</span>
-        </div>
-        <div class="h-3 bg-surface-container rounded-full overflow-hidden">
-          <div class="h-full bg-green-500 rounded-full transition-all duration-1000" style="width: {dashboardStore.state.analytics.healthStatus}%"></div>
-        </div>
-      </div>
-    </div>
-  </div>
 
-  
-  <div class="col-span-12 section-card p-8">
-    <div class="flex justify-between items-center mb-6">
-      <h3 class="text-xl font-bold text-slate-800 dark:text-white font-headline">État des Modules en Temps Réel</h3>
+  {#if loading}
+    <AnalyticsSkeleton />
+  {:else if error}
+
+    <div class="bg-error-container/10 border border-error/20 p-5 rounded-[2rem] text-error text-sm font-bold flex items-center gap-3">
+      <Papicon icon="alert-octagon" size={20} />{error}
     </div>
-    
-    <div class="overflow-x-auto">
-      <table class="w-full text-left border-collapse">
-        <thead>
-          <tr class="border-b border-slate-50 dark:border-slate-800">
-            <th class="pb-4 text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Module</th>
-            <th class="pb-4 text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">État</th>
-            <th class="pb-4 text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Dernière Action</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-50 dark:divide-slate-800">
-          {#each dashboardStore.state.modules as module}
-            <tr class="group hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-              <td class="py-4">
-                <div class="flex items-center gap-3">
-                  <div class="w-8 h-8 rounded-lg bg-surface-container-low flex items-center justify-center text-primary">
-                    <span class="material-symbols-outlined text-lg">extension</span>
-                  </div>
-                  <span class="font-bold text-sm text-slate-800 dark:text-slate-200">{module.name}</span>
-                </div>
-              </td>
-              <td class="py-4">
-                <span class="px-3 py-1 rounded-full text-[10px] font-bold 
-                  {module.status === 'active' ? 'bg-green-100 text-green-700' : 
-                   module.status === 'error' ? 'bg-red-100 text-red-700' : 
-                   'bg-slate-100 text-slate-700'}">
-                  {module.status === 'active' ? 'Actif' : 
-                   module.status === 'error' ? 'Erreur' : 'Inactif'}
-                </span>
-              </td>
-              <td class="py-4 text-xs font-medium text-slate-600 dark:text-slate-400">
-                {dashboardStore.state.auditTrail.find(a => a.module === module.name)?.action || 'Aucune action récente'}
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
-    </div>
-  </div>
+  {:else if data}
+
+    {#if activeTab === 'overview'}
+      <StatsOverview {data} {chartLabels} />
+    {:else if activeTab === 'messages' || activeTab === 'voice'}
+      <EngagementMetrics {data} mode={activeTab} onOpenMember={openMemberDetails} />
+    {:else if activeTab === 'members' || activeTab === 'invitations'}
+
+      <PopulationFlux {data} {chartLabels} {invitesData} />
+    {:else if activeTab === 'moderation'}
+      <ModerationAudit {data} onOpenMember={openMemberDetails} />
+    {:else if activeTab === 'staff'}
+      <StaffAudit {data} onOpenMember={openMemberDetails} {fmt} {fmtH} />
+    {/if}
+  {/if}
+
+  <!-- Member Case Modal -->
+  <MemberCaseModal
+    open={modalOpen}
+    userId={selectedUserId}
+    userName={selectedUserName}
+    {caseData}
+    loading={loadingCase}
+    error={caseError}
+    onClose={() => {
+      modalOpen = false;
+    }}
+  />
 </div>
-
-
-<div class="grid grid-cols-1 md:grid-cols-4 gap-6 font-inter">
-  {#each kpis as widget}
-    <MetricCard
-      label={widget.label}
-      value={widget.val}
-      note={widget.sub}
-      icon={widget.icon}
-      toneClass={widget.toneClass}
-    />
-  {/each}
-</div>
-

@@ -18,12 +18,31 @@ export const generateAPIKey = (): { fullKey: string; displayKey: string } => {
 };
 
 export const getStaffMember = async (guildId: string, userId: string) => {
+  if (guildId === 'any') {
+    return prisma.staffMember.findFirst({
+      where: { userId },
+    });
+  }
   return prisma.staffMember.findUnique({
     where: { guildId_userId: { guildId, userId } },
   });
 };
 
 const resolveStaffMemberId = async (guildId: string, staffIdentifier: string) => {
+  if (guildId === 'any') {
+    const byId = await prisma.staffMember.findFirst({
+      where: { id: staffIdentifier },
+      select: { id: true },
+    });
+    if (byId) return byId.id;
+
+    const byUserId = await prisma.staffMember.findFirst({
+      where: { userId: staffIdentifier },
+      select: { id: true },
+    });
+    return byUserId?.id ?? null;
+  }
+
   const byId = await prisma.staffMember.findFirst({
     where: { id: staffIdentifier, guildId },
     select: { id: true },
@@ -176,7 +195,7 @@ export const issueStaffWarning = async (
     throw new Error('Membre staff introuvable pour cet avertissement');
   }
 
-  return prisma.staffWarning.create({
+  const warning = await prisma.staffWarning.create({
     data: {
       guildId,
       staffUserId: resolvedStaffMemberId,
@@ -185,6 +204,24 @@ export const issueStaffWarning = async (
       expiresAt,
     },
   });
+
+  // Notifier le membre
+  const member = await prisma.staffMember.findUnique({ where: { id: resolvedStaffMemberId } });
+  if (member) {
+    await prisma.notification.create({
+      data: {
+        guildId,
+        userId: member.userId,
+        title: 'Nouvel avertissement',
+        message: `Vous avez reçu un avertissement pour la raison suivante : ${reason}`,
+        type: 'WARNING',
+        link: '/profile',
+        isRead: false
+      }
+    });
+  }
+
+  return warning;
 };
 
 export const blacklistStaff = async (
@@ -199,7 +236,7 @@ export const blacklistStaff = async (
     throw new Error('Membre staff introuvable pour la blacklist');
   }
 
-  return prisma.staffBlacklist.create({
+  const blacklist = await prisma.staffBlacklist.create({
     data: {
       guildId,
       staffUserId: resolvedStaffMemberId,
@@ -208,6 +245,24 @@ export const blacklistStaff = async (
       endDate,
     },
   });
+
+  // Notifier le membre
+  const member = await prisma.staffMember.findUnique({ where: { id: resolvedStaffMemberId } });
+  if (member) {
+    await prisma.notification.create({
+      data: {
+        guildId,
+        userId: member.userId,
+        title: 'Mise en blacklist',
+        message: `Vous avez été ajouté à la blacklist staff. Raison : ${reason}`,
+        type: 'ERROR',
+        link: '/profile',
+        isRead: false
+      }
+    });
+  }
+
+  return blacklist;
 };
 
 export const getActiveBlacklist = async (guildId: string, staffUserId: string) => {
@@ -244,7 +299,7 @@ export const createTestingPeriod = async (
 
   const resolvedMentorId = mentorId ? await resolveStaffMemberId(guildId, mentorId) : null;
 
-  return prisma.testingPeriod.create({
+  const period = await prisma.testingPeriod.create({
     data: {
       guildId,
       staffUserId: resolvedStaffMemberId,
@@ -253,6 +308,42 @@ export const createTestingPeriod = async (
       targetGrade,
     },
   });
+
+  // Notifier le membre et le mentor
+  const [member, mentor] = await Promise.all([
+    prisma.staffMember.findUnique({ where: { id: resolvedStaffMemberId } }),
+    resolvedMentorId ? prisma.staffMember.findUnique({ where: { id: resolvedMentorId } }) : null
+  ]);
+
+  if (member) {
+    await prisma.notification.create({
+      data: {
+        guildId,
+        userId: member.userId,
+        title: 'Nouvelle période de test',
+        message: `Votre période de test pour le grade ${targetGrade || 'Staff'} a commencé !`,
+        type: 'INFO',
+        link: '/profile',
+        isRead: false
+      }
+    });
+  }
+
+  if (mentor) {
+    await prisma.notification.create({
+      data: {
+        guildId,
+        userId: mentor.userId,
+        title: 'Nouveau tutorat',
+        message: `Vous avez été assigné comme mentor pour ${member?.username || 'un nouveau staff'}.`,
+        type: 'INFO',
+        link: '/staff-management',
+        isRead: false
+      }
+    });
+  }
+
+  return period;
 };
 
 export const addMentorReport = async (
@@ -261,7 +352,7 @@ export const addMentorReport = async (
   type: 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL',
   content: string
 ) => {
-  return prisma.mentorReport.create({
+  const report = await prisma.mentorReport.create({
     data: {
       testingPeriodId,
       authorId,
@@ -269,6 +360,28 @@ export const addMentorReport = async (
       content,
     },
   });
+
+  // Notifier le membre en test
+  const period = await prisma.testingPeriod.findUnique({
+    where: { id: testingPeriodId },
+    include: { staffMember: true }
+  });
+
+  if (period?.staffMember) {
+    await prisma.notification.create({
+      data: {
+        guildId: period.guildId,
+        userId: period.staffMember.userId,
+        title: 'Nouveau rapport de tutorat',
+        message: `Un nouveau rapport a été posté sur votre période de test.`,
+        type: type === 'POSITIVE' ? 'SUCCESS' : (type === 'NEGATIVE' ? 'ERROR' : 'INFO'),
+        link: '/profile',
+        isRead: false
+      }
+    });
+  }
+
+  return report;
 };
 
 export const endTestingPeriod = async (
