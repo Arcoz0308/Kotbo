@@ -59,7 +59,10 @@ import { syncOngoingDailyAlgoButtons } from './services/dailyAlgoService.js';
 import { checkTranslationProviderHealth } from './services/translationService.js';
 import { startDashboardApi } from './api/dashboardApi.js';
 import botPackageJson from '../package.json';
-// import * as statsCmd from './commands/stats.js';
+import * as leaderboardCmd from './commands/leaderboard.js';
+import * as serverstatsCmd from './commands/serverstats.js';
+import * as statsCmd from './commands/stats.js';
+import * as invitesCmd from './commands/invites.js';
 
 const client = new Client({
   intents: [
@@ -83,7 +86,7 @@ type SlashCommand = {
 };
 
 const commands = new Collection<string, SlashCommand>();
-[setupCmd, configCmd, feedCmd, newsCmd, newsRecoveryCmd, pingCmd, infoCmd, youtubeCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd, postCmd, dailyAlgoCmd, profileCmd, profilCmd, sanctionCmd, casierCmd, absentCmd, meetingCmd].forEach((cmd) => {
+[setupCmd, configCmd, feedCmd, newsCmd, newsRecoveryCmd, pingCmd, infoCmd, youtubeCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd, postCmd, dailyAlgoCmd, profileCmd, profilCmd, sanctionCmd, casierCmd, absentCmd, meetingCmd, statsCmd, invitesCmd, leaderboardCmd, serverstatsCmd].forEach((cmd) => {
   commands.set(cmd.data.name, cmd as SlashCommand);
 });
 
