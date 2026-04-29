@@ -60,11 +60,11 @@
     <Papicon 
       icon="bell" 
       size={20} 
-      class="text-on-surface-variant {notificationsStore.unreadCount > 0 ? 'animate-pulse text-primary' : ''}" 
+      class="text-on-surface-variant {notificationsStore.unreadCount > 0 ? 'animate-bounce text-primary' : ''}" 
     />
     
     {#if notificationsStore.unreadCount > 0}
-      <div class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-rose-500 rounded-full flex items-center justify-center border-2 border-surface shadow-sm">
+      <div class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-primary rounded-full flex items-center justify-center border-2 border-surface shadow-[0_0_10px_rgba(var(--color-primary),0.4)]">
         <span class="text-[10px] font-black text-white leading-none">
           {notificationsStore.unreadCount > 99 ? '99+' : notificationsStore.unreadCount}
         </span>

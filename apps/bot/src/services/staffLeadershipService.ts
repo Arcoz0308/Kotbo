@@ -86,6 +86,18 @@ export const createAbsence = async (
     }
   });
 
+  // Notifier le responsable (superiorUserId)
+  if (params.superiorUserId) {
+    await createNotification(
+      params.guildId,
+      params.superiorUserId,
+      'Validation d\'absence en attente',
+      `Une absence a été soumise par un de vos subordonnés pour le motif: ${params.reason}.`,
+      'WARNING',
+      '/absences'
+    ).catch(() => null);
+  }
+
   // Notifier tous les managers/admins
   const managers = await prisma.staffMember.findMany({
     where: {
@@ -94,15 +106,17 @@ export const createAbsence = async (
     }
   });
   
-  const notifsData = managers.map(m => ({
-    guildId: params.guildId,
-    userId: m.userId,
-    title: 'Nouvelle absence demandée',
-    message: `Une absence a été soumise pour le motif: ${params.reason}.`,
-    type: 'INFO',
-    link: '/absences',
-    isRead: false
-  }));
+  const notifsData = managers
+    .filter(m => m.userId !== params.superiorUserId) // Éviter les doublons si le manager est aussi le supérieur
+    .map(m => ({
+      guildId: params.guildId,
+      userId: m.userId,
+      title: 'Nouvelle absence demandée',
+      message: `Une absence a été soumise pour le motif: ${params.reason}.`,
+      type: 'INFO',
+      link: '/absences',
+      isRead: false
+    }));
 
   if (notifsData.length > 0) {
     await prisma.notification.createMany({ data: notifsData });
@@ -336,7 +350,7 @@ export const createManagerNote = async (
   authorUserId: string,
   content: string
 ) => {
-  return prisma.staffManagerNote.create({
+  const note = await prisma.staffManagerNote.create({
     data: {
       guildId,
       staffUserId,
@@ -344,6 +358,23 @@ export const createManagerNote = async (
       content
     }
   });
+
+  // Notifier le staff concerné
+  const author = await prisma.staffMember.findUnique({ where: { id: authorUserId } });
+  const target = await prisma.staffMember.findUnique({ where: { id: staffUserId } });
+  
+  if (target) {
+    await createNotification(
+      guildId,
+      target.userId,
+      'Nouvelle note de management',
+      `Une nouvelle note a été ajoutée à votre dossier par ${author?.displayName || 'un manager'}.`,
+      'INFO',
+      `/profile/${target.userId}`
+    ).catch(() => null);
+  }
+
+  return note;
 };
 
 export const deleteManagerNote = async (id: string) => {
@@ -438,9 +469,27 @@ export const upsertProcedure = async (
       data: { title, content, sortOrder }
     });
   } else {
-    return prisma.staffProcedure.create({
+    const procedure = await prisma.staffProcedure.create({
       data: { guildId, title, content, sortOrder }
     });
+
+    // Notifier tout le staff
+    const staff = await prisma.staffMember.findMany({ where: { guildId } });
+    const notifsData = staff.map(m => ({
+      guildId,
+      userId: m.userId,
+      title: 'Nouvelle procédure disponible',
+      message: `Une nouvelle procédure intitulée "${title}" a été ajoutée. Veuillez en prendre connaissance.`,
+      type: 'INFO',
+      link: '/procedures',
+      isRead: false
+    }));
+
+    if (notifsData.length > 0) {
+      await prisma.notification.createMany({ data: notifsData });
+    }
+
+    return procedure;
   }
 };
 

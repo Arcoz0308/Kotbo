@@ -3,6 +3,7 @@ import { Prisma, SanctionStatus, SanctionType } from '@prisma/client';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { notifyDashboardSanctionReportRequired } from '../api/dashboardApi.js';
+import { createNotification } from './staffLeadershipService.js';
 
 const MAX_DISCORD_TIMEOUT_MS = 27 * 24 * 60 * 60 * 1000;
 const RENEWAL_BUFFER_MS = 60 * 1000;
@@ -37,6 +38,36 @@ async function touchSanctionTargetIdentity(params: { guildId: string; userId: st
       userTag: params.userTag,
       lastSeenAt: new Date(),
     },
+  });
+}
+
+function getDateKey(date = new Date()): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+async function incrementModerationStats(guildId: string, type: SanctionType): Promise<void> {
+  const dateKey = getDateKey();
+  const updateData: any = { sanctionsCount: { increment: 1 } };
+
+  if (type === SanctionType.WARN) updateData.warnsCount = { increment: 1 };
+  else if (type === SanctionType.KICK) updateData.kicksCount = { increment: 1 };
+  else if (type === SanctionType.TIMEOUT) updateData.timeoutsCount = { increment: 1 };
+  else if (type === SanctionType.BAN || type === SanctionType.TEMP_BAN) updateData.bansCount = { increment: 1 };
+
+  await prisma.guildDailyStat.upsert({
+    where: { guildId_dateKey: { guildId, dateKey } },
+    create: {
+      guildId,
+      dateKey,
+      sanctionsCount: 1,
+      warnsCount: type === SanctionType.WARN ? 1 : 0,
+      kicksCount: type === SanctionType.KICK ? 1 : 0,
+      timeoutsCount: type === SanctionType.TIMEOUT ? 1 : 0,
+      bansCount: (type === SanctionType.BAN || type === SanctionType.TEMP_BAN) ? 1 : 0,
+    },
+    update: updateData,
+  }).catch((error) => {
+    logger.debug('Analytics', `Guild moderation stat error: ${String(error)}`);
   });
 }
 
@@ -176,6 +207,7 @@ async function emitSanctionReportReminder(params: {
   moderatorUserId: string;
 }) {
   try {
+    // Notification temps réel (WS)
     await notifyDashboardSanctionReportRequired({
       guildId: params.guildId,
       sanctionId: params.sanctionId,
@@ -183,11 +215,49 @@ async function emitSanctionReportReminder(params: {
       targetTag: params.targetTag ?? `Utilisateur ${params.targetUserId}`,
       moderatorTag: params.moderatorTag ?? `Modérateur ${params.moderatorUserId}`,
     });
+
+    // Notification persistante (Inbox)
+    await createNotification(
+      params.guildId,
+      params.moderatorUserId,
+      'Rapport de sanction requis',
+      `Vous devez remplir un rapport pour la sanction appliquée à ${params.targetTag || params.targetUserId}.`,
+      'WARNING',
+      '/sanctions'
+    ).catch(() => null);
+
   } catch (error) {
     logger.warn(
       'Sanctions',
       `Notification dashboard impossible pour la sanction ${params.sanctionId}: ${error instanceof Error ? error.message : 'erreur inconnue'}`,
     );
+  }
+}
+
+async function notifyStaffOfSanction(guildId: string, sanction: any) {
+  const staff = await prisma.staffMember.findMany({
+    where: { guildId }
+  });
+
+  const typeLabel = {
+    WARN: 'Avertissement',
+    KICK: 'Exclusion',
+    TIMEOUT: 'Timeout',
+    TEMP_BAN: 'Bannissement temporaire',
+    BAN: 'Bannissement définitif'
+  }[sanction.type as string] || 'Sanction';
+
+  for (const member of staff) {
+    if (member.userId === sanction.moderatorUserId) continue; // Don't notify the moderator themselves
+
+    await createNotification(
+      guildId,
+      member.userId,
+      `${typeLabel} : ${sanction.targetTag}`,
+      `${sanction.moderatorTag} a appliqué un ${typeLabel.toLowerCase()} à ${sanction.targetTag} pour : ${sanction.reason}`,
+      sanction.type === 'BAN' || sanction.type === 'TEMP_BAN' ? 'ERROR' : 'WARNING',
+      `/members/${sanction.targetUserId}`
+    ).catch(() => null);
   }
 }
 
@@ -212,11 +282,25 @@ export async function registerWarnSanction(params: {
     }
   });
 
+  void incrementModerationStats(params.guildId, SanctionType.WARN).catch(() => null);
+
   void touchSanctionTargetIdentity({
     guildId: params.guildId,
     userId: params.target.id,
     userTag: params.target.tag,
   }).catch(() => null);
+
+  void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
+
+  // Notifier l'utilisateur concerné (si profil existant)
+  await createNotification(
+    params.guildId,
+    params.target.id,
+    'Avertissement reçu',
+    `Vous avez reçu un avertissement pour la raison suivante : ${params.reason}`,
+    'WARNING',
+    '/profile'
+  ).catch(() => null);
 
   return sanction;
 }
@@ -251,6 +335,8 @@ export async function registerKickSanction(params: {
     }
   });
 
+  void incrementModerationStats(params.guildId, SanctionType.KICK).catch(() => null);
+
   void touchSanctionTargetIdentity({
     guildId: params.guildId,
     userId: params.target.id,
@@ -266,6 +352,8 @@ export async function registerKickSanction(params: {
     moderatorTag: sanction.moderatorTag,
     moderatorUserId: sanction.moderatorUserId,
   });
+
+  void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
 
   return sanction;
 }
@@ -309,6 +397,8 @@ export async function registerBanSanction(params: {
     }
   });
 
+  void incrementModerationStats(params.guildId, sanctionType).catch(() => null);
+
   void touchSanctionTargetIdentity({
     guildId: params.guildId,
     userId: params.target.id,
@@ -324,6 +414,8 @@ export async function registerBanSanction(params: {
     moderatorTag: sanction.moderatorTag,
     moderatorUserId: sanction.moderatorUserId,
   });
+
+  void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
 
   return sanction;
 }
@@ -368,6 +460,8 @@ export async function registerTimeoutSanction(params: {
     }
   });
 
+  void incrementModerationStats(params.guildId, SanctionType.TIMEOUT).catch(() => null);
+
   void touchSanctionTargetIdentity({
     guildId: params.guildId,
     userId: params.target.id,
@@ -383,6 +477,8 @@ export async function registerTimeoutSanction(params: {
     moderatorTag: sanction.moderatorTag,
     moderatorUserId: sanction.moderatorUserId,
   });
+
+  void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
 
   return sanction;
 }
@@ -420,15 +516,11 @@ export async function registerObservedTimeoutSanction(params: {
       durationSeconds: Math.floor(remainingMs / 1000),
       expiresAt: params.expiresAt,
       nextActionAt: nextRenewalAt(now, chunkMs),
-      resolutionNote: 'Timeout détecté via le journal d\'audit Discord.'
+      resolutionNote: 'Timeout observé et synchronisé.'
     }
   });
 
-  void touchSanctionTargetIdentity({
-    guildId: params.guildId,
-    userId: params.target.id,
-    userTag: params.target.tag,
-  }).catch(() => null);
+  void incrementModerationStats(params.guildId, SanctionType.TIMEOUT).catch(() => null);
 
   await emitSanctionReportReminder({
     guildId: sanction.guildId,
@@ -740,4 +832,61 @@ export async function createSanctionReport(params: {
 
 export async function runGuildBan(guild: Guild, userId: string, reason: string): Promise<void> {
   await guild.members.ban(userId, { reason, deleteMessageSeconds: 0 });
+}
+
+export async function checkMissingReports() {
+  const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+  
+  // Trouver les sanctions sans rapport (SanctionReport) créées il y a plus de 3 jours
+  // On filtre les sanctions qui nécessitent un rapport (BAN, KICK, TIMEOUT)
+  const sanctions = await prisma.sanction.findMany({
+    where: {
+      createdAt: { lte: threeDaysAgo },
+      type: { in: [SanctionType.BAN, SanctionType.TEMP_BAN, SanctionType.KICK, SanctionType.TIMEOUT] },
+      reports: { none: {} }
+    },
+    include: {
+      reports: true
+    }
+  });
+
+  for (const sanction of sanctions) {
+    // Notifier le modérateur à nouveau
+    await createNotification(
+      sanction.guildId,
+      sanction.moderatorUserId,
+      'RAPPEL : Rapport manquant (3 jours+)',
+      `Le rapport pour la sanction sur ${sanction.targetTag} est toujours manquant après 3 jours.`,
+      'ERROR',
+      '/sanctions'
+    ).catch(() => null);
+
+    // Notifier le supérieur du modérateur
+    const moderator = await prisma.staffMember.findUnique({
+      where: { guildId_userId: { guildId: sanction.guildId, userId: sanction.moderatorUserId } }
+    });
+
+    if (moderator && moderator.grade !== 'Staff') {
+      // On cherche les managers/admins pour les alerter
+      const managers = await prisma.staffMember.findMany({
+        where: {
+          guildId: sanction.guildId,
+          grade: { in: ['Manager', 'Admin', 'Administrateur', 'Direction', 'Fondateur'] }
+        }
+      });
+
+      for (const manager of managers) {
+        if (manager.userId === sanction.moderatorUserId) continue;
+
+        await createNotification(
+          sanction.guildId,
+          manager.userId,
+          'Alerte : Rapport non rempli par un staff',
+          `Le modérateur ${sanction.moderatorTag} n'a pas rempli le rapport pour sa sanction sur ${sanction.targetTag} depuis 3 jours.`,
+          'ERROR',
+          `/members/${sanction.targetUserId}`
+        ).catch(() => null);
+      }
+    }
+  }
 }

@@ -2231,29 +2231,45 @@ export const startDashboardApi = (client: Client) => {
                 BAN: sanctions.filter(s => s.type === 'BAN').length,
               };
 
-              // Top moderators
+              // Top moderators with avatars
               const modCounts = new Map<string, { count: number; tag: string }>();
               for (const s of sanctions) {
                 const existing = modCounts.get(s.moderatorUserId) ?? { count: 0, tag: s.moderatorTag ?? 'Inconnu' };
                 existing.count++;
                 modCounts.set(s.moderatorUserId, existing);
               }
-              const topModerators = [...modCounts.entries()]
-                .sort((a, b) => b[1].count - a[1].count)
-                .slice(0, 10)
-                .map(([userId, data]) => ({ userId, tag: data.tag, count: data.count }));
+              const topModerators = await Promise.all(
+                [...modCounts.entries()]
+                  .sort((a, b) => b[1].count - a[1].count)
+                  .slice(0, 10)
+                  .map(async ([userId, data]) => {
+                    const profile = await prisma.memberProfile.findUnique({
+                      where: { guildId_userId: { guildId, userId } },
+                      select: { avatarUrl: true },
+                    });
+                    return { userId, moderatorTag: data.tag, count: data.count, avatarUrl: profile?.avatarUrl };
+                  })
+              );
 
-              // Most sanctioned members
+              // Most sanctioned members with avatars
               const targetCounts = new Map<string, { count: number; tag: string }>();
               for (const s of sanctions) {
                 const existing = targetCounts.get(s.targetUserId) ?? { count: 0, tag: s.targetTag ?? 'Inconnu' };
                 existing.count++;
                 targetCounts.set(s.targetUserId, existing);
               }
-              const mostSanctioned = [...targetCounts.entries()]
-                .sort((a, b) => b[1].count - a[1].count)
-                .slice(0, 10)
-                .map(([userId, data]) => ({ userId, tag: data.tag, count: data.count }));
+              const mostSanctioned = await Promise.all(
+                [...targetCounts.entries()]
+                  .sort((a, b) => b[1].count - a[1].count)
+                  .slice(0, 10)
+                  .map(async ([userId, data]) => {
+                    const profile = await prisma.memberProfile.findUnique({
+                      where: { guildId_userId: { guildId, userId } },
+                      select: { avatarUrl: true },
+                    });
+                    return { userId, tag: data.tag, count: data.count, avatarUrl: profile?.avatarUrl };
+                  })
+              );
 
               const activeSanctions = await prisma.sanction.count({ where: { guildId, status: 'ACTIVE' } });
 
@@ -2397,6 +2413,59 @@ export const startDashboardApi = (client: Client) => {
                 },
               });
 
+              // 18. Recent sanctions with avatars
+              const recentSanctionsList = await prisma.sanction.findMany({
+                where: { guildId },
+                orderBy: { createdAt: 'desc' },
+                take: 20,
+              });
+
+              const recentSanctions = await Promise.all(recentSanctionsList.map(async s => {
+                const [targetProfile, modProfile] = await Promise.all([
+                  prisma.memberProfile.findUnique({
+                    where: { guildId_userId: { guildId, userId: s.targetUserId } },
+                    select: { avatarUrl: true }
+                  }),
+                  prisma.memberProfile.findUnique({
+                    where: { guildId_userId: { guildId, userId: s.moderatorUserId } },
+                    select: { avatarUrl: true }
+                  })
+                ]);
+                return {
+                  id: s.id,
+                  type: s.type,
+                  targetUserId: s.targetUserId,
+                  targetTag: s.targetTag ?? 'Inconnu',
+                  targetAvatarUrl: targetProfile?.avatarUrl,
+                  moderatorUserId: s.moderatorUserId,
+                  moderatorTag: s.moderatorTag ?? 'Inconnu',
+                  moderatorAvatarUrl: modProfile?.avatarUrl,
+                  reason: s.reason,
+                  createdAt: s.createdAt.toISOString(),
+                };
+              }));
+
+              // 19. Retention rate calculation
+              const sevenDaysAgo = new Date();
+              sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+              const joinedInRange = await prisma.memberProfile.count({
+                where: {
+                  guildId,
+                  isBot: false,
+                  guildJoinedAt: { gte: startDate, lte: sevenDaysAgo }
+                }
+              });
+              const stayedInRange = await prisma.memberProfile.count({
+                where: {
+                  guildId,
+                  isBot: false,
+                  guildJoinedAt: { gte: startDate, lte: sevenDaysAgo },
+                  guildLeftAt: null
+                }
+              });
+              const retentionRate = joinedInRange > 0 ? Math.round((stayedInRange / joinedInRange) * 100) : 0;
+
+
               // Aggregate totals from daily stats
               const totalMessages = dailyStats.reduce((sum, d) => sum + d.messagesCount, 0);
               const totalVoiceMinutes = dailyStats.reduce((sum, d) => sum + d.voiceMinutes, 0);
@@ -2427,15 +2496,20 @@ export const startDashboardApi = (client: Client) => {
                   botsCount,
                   humansCount: totalMembers - botsCount,
                 },
-                // Summary KPIs
-                summary: {
-                  totalMessages,
-                  totalVoiceMinutes,
-                  totalJoins,
-                  totalLeaves,
+                // Summary KPIs (renamed to totals for frontend)
+                totals: {
+                  messages: totalMessages,
+                  voiceMinutes: totalVoiceMinutes,
+                  joins: totalJoins,
+                  leaves: totalLeaves,
                   netGrowth: totalJoins - totalLeaves,
-                  activeSanctions,
-                  totalSanctions: sanctions.length,
+                  activeDays: dailyStats.length,
+                  sanctions: sanctions.length,
+                  warns: sanctionsByType.WARN,
+                  kicks: sanctionsByType.KICK,
+                  bans: sanctionsByType.BAN + sanctionsByType.TEMP_BAN,
+                  timeouts: sanctionsByType.TIMEOUT,
+                  retentionRate,
                   activeAbsences,
                   totalStaff,
                   inactiveMembers,
@@ -2446,6 +2520,14 @@ export const startDashboardApi = (client: Client) => {
                   feedItemsRejected,
                   feedItemsPending,
                   translatedCount,
+                  messagesTrend,
+                },
+                // Legacy support for summary
+                summary: {
+                  totalMessages,
+                  totalVoiceMinutes,
+                  totalJoins,
+                  totalLeaves,
                   messagesTrend,
                 },
                 // Daily trend data
@@ -2479,11 +2561,32 @@ export const startDashboardApi = (client: Client) => {
                   voiceSessionCount: m.voiceSessionCount,
                 })),
                 topInviters,
-                // Moderation
+                // Flattened Moderation for frontend
+                topModerators,
+                topSanctionedMembers: mostSanctioned.map(s => ({
+                  userId: s.userId,
+                  targetUserId: s.userId, // Duplicate for compatibility
+                  targetTag: s.tag,
+                  count: s.count,
+                })),
+                recentSanctions,
+                // Moderation object for deeper components
                 moderation: {
-                  sanctionsByType,
-                  topModerators,
-                  mostSanctioned,
+                  totals: {
+                    warns: sanctionsByType.WARN,
+                    kicks: sanctionsByType.KICK,
+                    bans: sanctionsByType.BAN + sanctionsByType.TEMP_BAN,
+                    timeouts: sanctionsByType.TIMEOUT,
+                  },
+                  topModerators: topModerators,
+                  topSanctionedMembers: mostSanctioned.map(s => ({
+                    userId: s.userId,
+                    targetUserId: s.userId,
+                    targetTag: s.tag,
+                    count: s.count,
+                    avatarUrl: s.avatarUrl,
+                  })),
+                  recentSanctions,
                   activeSanctions,
                 },
                 // Staff
@@ -2498,6 +2601,43 @@ export const startDashboardApi = (client: Client) => {
                 recruitmentPipeline,
                 // Roles
                 roleDistribution,
+                // Recent Joins \u0026 Leaves
+                recentJoins: await prisma.memberProfile.findMany({
+                  where: { guildId, guildJoinedAt: { not: null } },
+                  orderBy: { guildJoinedAt: 'desc' },
+                  take: 20,
+                  select: {
+                    userId: true,
+                    displayName: true,
+                    username: true,
+                    globalName: true,
+                    avatarUrl: true,
+                    guildJoinedAt: true,
+                  }
+                }).then(list => list.map(m => ({
+                  userId: m.userId,
+                  name: m.displayName ?? m.globalName ?? m.username ?? 'Inconnu',
+                  avatarUrl: m.avatarUrl,
+                  date: m.guildJoinedAt?.toISOString()
+                }))),
+                recentLeaves: await prisma.memberProfile.findMany({
+                  where: { guildId, guildLeftAt: { not: null } },
+                  orderBy: { guildLeftAt: 'desc' },
+                  take: 20,
+                  select: {
+                    userId: true,
+                    displayName: true,
+                    username: true,
+                    globalName: true,
+                    avatarUrl: true,
+                    guildLeftAt: true,
+                  }
+                }).then(list => list.map(m => ({
+                  userId: m.userId,
+                  name: m.displayName ?? m.globalName ?? m.username ?? 'Inconnu',
+                  avatarUrl: m.avatarUrl,
+                  date: m.guildLeftAt?.toISOString()
+                }))),
               };
 
               json(res, 200, analyticsPayload);
@@ -2802,7 +2942,7 @@ export const startDashboardApi = (client: Client) => {
               const page = Math.max(Number(url.searchParams.get('page') ?? '1'), 1);
               const sortBy = url.searchParams.get('sortBy') ?? 'lastSeenAt';
               const sortOrder = url.searchParams.get('sortOrder') ?? 'desc';
-              const showLeftMembers = url.searchParams.get('showLeftMembers') === 'true';
+              const serverStatus = url.searchParams.get('serverStatus') ?? 'on_server';
               const botFilter = url.searchParams.get('botFilter') ?? 'human';
 
               // Validate sortBy to prevent injection
@@ -2847,7 +2987,7 @@ export const startDashboardApi = (client: Client) => {
               // Create map for quick lookup
               const dbMemberMap = new Map(allDbMembers.map(m => [m.userId, m]));
 
-              // Build list of members from Discord + DB
+              // Build FULL list of members (both on server and left)
               let allMembers: any[] = [];
 
               // Add Discord members
@@ -2862,34 +3002,43 @@ export const startDashboardApi = (client: Client) => {
                   lastSeenAt: dbMember?.lastSeenAt?.toISOString() ?? null,
                   messageCount: dbMember?.messageCount || 0,
                   guildJoinedAt: discordMember.joinedAt?.toISOString() ?? dbMember?.guildJoinedAt?.toISOString() ?? null,
-                  guildLeftAt: null, // They're on the server
+                  guildLeftAt: null,
                   isOnServer: true,
-                  _sortKey: finalSortBy === 'lastSeenAt' ? (dbMember?.lastSeenAt?.getTime() ?? 0) : (finalSortBy === 'messageCount' ? (dbMember?.messageCount ?? 0) : (discordMember.joinedAt?.getTime() ?? 0)),
                 });
               }
 
-              // If showLeftMembers, add members from DB that are not on Discord
-              if (showLeftMembers) {
-                for (const dbMember of allDbMembers) {
-                  if (!discordMembers.has(dbMember.userId)) {
-                    allMembers.push({
-                      id: dbMember.userId,
-                      username: dbMember.username || 'Utilisateur inconnu',
-                      displayName: dbMember.displayName || dbMember.globalName || dbMember.userTag || dbMember.username || 'Utilisateur inconnu',
-                      avatarUrl: dbMember.avatarUrl,
-                      isBot: dbMember.isBot || false,
-                      lastSeenAt: dbMember.lastSeenAt?.toISOString() ?? null,
-                      messageCount: dbMember.messageCount || 0,
-                      guildJoinedAt: dbMember.guildJoinedAt?.toISOString() ?? null,
-                      guildLeftAt: dbMember.guildLeftAt?.toISOString() ?? null,
-                      isOnServer: false,
-                      _sortKey: finalSortBy === 'lastSeenAt' ? (dbMember.lastSeenAt?.getTime() ?? 0) : (finalSortBy === 'messageCount' ? (dbMember.messageCount ?? 0) : (dbMember.guildJoinedAt?.getTime() ?? 0)),
-                    });
-                  }
+              // Add Left members (from DB but not on Discord)
+              for (const dbMember of allDbMembers) {
+                if (!discordMembers.has(dbMember.userId)) {
+                  allMembers.push({
+                    id: dbMember.userId,
+                    username: dbMember.username || 'Utilisateur inconnu',
+                    displayName: dbMember.displayName || dbMember.globalName || dbMember.userTag || dbMember.username || 'Utilisateur inconnu',
+                    avatarUrl: dbMember.avatarUrl,
+                    isBot: dbMember.isBot || false,
+                    lastSeenAt: dbMember.lastSeenAt?.toISOString() ?? null,
+                    messageCount: dbMember.messageCount || 0,
+                    guildJoinedAt: dbMember.guildJoinedAt?.toISOString() ?? null,
+                    guildLeftAt: dbMember.guildLeftAt?.toISOString() ?? null,
+                    isOnServer: false,
+                  });
                 }
               }
 
-              // Filter by search query
+              // Calculate Global Stats (before filtering, but after building full list)
+              const onServerCount = allMembers.filter(m => m.isOnServer).length;
+              const leftCount = allMembers.filter(m => !m.isOnServer).length;
+              const botCount = allMembers.filter(m => m.isBot).length;
+
+              // Apply Filters
+              // 1. Filter by server status
+              if (serverStatus === 'on_server') {
+                allMembers = allMembers.filter(m => m.isOnServer);
+              } else if (serverStatus === 'left') {
+                allMembers = allMembers.filter(m => !m.isOnServer);
+              }
+
+              // 2. Filter by search query
               if (searchQuery) {
                 allMembers = allMembers.filter(member =>
                   member.username?.toLowerCase().includes(searchQuery) ||
@@ -2898,7 +3047,7 @@ export const startDashboardApi = (client: Client) => {
                 );
               }
 
-              // Filter by bot status
+              // 3. Filter by bot status
               if (botFilter === 'human') {
                 allMembers = allMembers.filter(m => !m.isBot);
               } else if (botFilter === 'bot') {
@@ -2923,12 +3072,7 @@ export const startDashboardApi = (client: Client) => {
                   return (dateA - dateB) * finalSortOrder;
                 });
               }
-
-              // Calculate global stats for the whole result set (before pagination)
-              const onServerCount = allMembers.filter(m => m.isOnServer).length;
-              const leftCount = allMembers.filter(m => !m.isOnServer).length;
-              const botCount = allMembers.filter(m => m.isBot).length;
-
+              
               // Paginate
               const totalFound = allMembers.length;
               const totalPages = Math.ceil(totalFound / limit);

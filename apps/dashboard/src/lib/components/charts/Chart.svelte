@@ -85,7 +85,7 @@
           duration: 800,
           easing: 'easeOutQuart'
         },
-        scales: {
+        scales: (type === 'doughnut' || type === 'pie') ? undefined : {
           x: {
             grid: {
               display: false

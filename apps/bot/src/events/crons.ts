@@ -6,7 +6,7 @@ import { pollAllYouTubeChannels } from '../services/youtubeService.js';
 import { runDigestForAllGuilds, runDailyAlgoForAllGuilds } from '../services/digestService.js';
 import { runDailyAlgoSummariesForAllGuilds } from '../services/dailyAlgoService.js';
 import { runWeeklyRecapForAllGuilds } from '../services/recapService.js';
-import { processScheduledSanctions } from '../services/sanctionService.js';
+import { processScheduledSanctions, checkMissingReports } from '../services/sanctionService.js';
 import { logger } from '../utils/logger.js';
 import { runHourlyAnalyticsSnapshot } from './advancedLogs.js';
 
@@ -219,6 +219,14 @@ export async function registerCrons(client: Client): Promise<void> {
           logger.debug('Analytics', `Guild peak update error: ${String(error)}`);
         });
       }
+    }, 2000);
+  });
+
+  // 🛡️ Sanctions: Vérification des rapports manquants (toutes les heures)
+  cron.schedule('30 * * * *', async () => {
+    await runCronJob('missing-reports-check', async () => {
+      logger.info('Cron', 'Vérification des rapports de sanction manquants...');
+      await checkMissingReports();
     }, 2000);
   });
 

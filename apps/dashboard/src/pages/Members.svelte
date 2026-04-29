@@ -53,7 +53,7 @@
   let sortBy = $state<'lastSeenAt' | 'messageCount' | 'guildJoinedAt'>('lastSeenAt');
   let sortOrder = $state<'asc' | 'desc'>('desc');
   let botFilter = $state<'human' | 'bot' | 'all'>('human');
-  let showLeftMembers = $state(false);
+  let serverStatus = $state<'on_server' | 'left' | 'all'>('on_server');
   let searchRequestId = 0;
 
   let modalOpen = $state(false);
@@ -120,7 +120,7 @@
         sortBy,
         sortOrder,
         botFilter,
-        showLeftMembers: String(showLeftMembers),
+        serverStatus,
       });
 
       const response = await fetch(
@@ -187,7 +187,7 @@
     sortBy = 'lastSeenAt';
     sortOrder = 'desc';
     botFilter = 'human';
-    showLeftMembers = false;
+    serverStatus = 'on_server';
     limit = 24;
     page = 1;
     void search(true);
@@ -309,15 +309,34 @@
           >
             Bots
           </button>
+          <button
+            onclick={() => { botFilter = 'all'; void search(true); }}
+            class={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${botFilter === 'all' ? 'bg-surface text-primary shadow-xs' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
+          >
+            Tous
+          </button>
         </div>
 
-        <button
-          onclick={() => { showLeftMembers = !showLeftMembers; void search(true); }}
-          class={`inline-flex h-[46px] items-center gap-2 rounded-2xl border px-4 text-xs font-bold transition-all ${showLeftMembers ? 'border-primary/30 bg-primary/5 text-primary' : 'border-outline-variant/10 bg-surface-container-low/70 text-on-surface-variant hover:bg-surface-container'}`}
-        >
-          <Papicon icon="log-out" size={14} />
-          Membres partis
-        </button>
+        <div class="flex rounded-2xl border border-outline-variant/10 bg-surface-container-low/70 p-1">
+          <button
+            onclick={() => { serverStatus = 'on_server'; void search(true); }}
+            class={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${serverStatus === 'on_server' ? 'bg-surface text-primary shadow-xs' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
+          >
+            Présents
+          </button>
+          <button
+            onclick={() => { serverStatus = 'left'; void search(true); }}
+            class={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${serverStatus === 'left' ? 'bg-surface text-primary shadow-xs' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
+          >
+            Partis
+          </button>
+          <button
+            onclick={() => { serverStatus = 'all'; void search(true); }}
+            class={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${serverStatus === 'all' ? 'bg-surface text-primary shadow-xs' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
+          >
+            Tous
+          </button>
+        </div>
 
         <button
           onclick={resetSearch}

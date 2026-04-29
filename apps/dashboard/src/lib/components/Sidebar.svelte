@@ -2,10 +2,12 @@
   import { router } from 'tinro';
   import Papicon from './Papicon.svelte';
   import { authStore } from '../stores/auth.svelte';
+  import { notificationsStore } from '../stores/notifications.svelte';
 
   const dashboardItems = $derived([
     { name: "Vue d'ensemble", icon: "grid", href: "/" },
     { name: "Mon Profil", icon: "user", href: "/profile/" + (authStore.user?.id || "") },
+    { name: "Inbox", icon: "inbox", href: "/inbox" },
     { name: "Analytics", icon: "pie-chart", href: "/analytics" },
   ]);
 
@@ -102,6 +104,12 @@
             class="transition-all duration-300 {isActiveNavItem(item.href) ? 'scale-110' : 'opacity-60 group-hover:opacity-100 group-hover:scale-110'}" 
           />
           <span class="text-[13px] tracking-tight">{item.name}</span>
+          
+          {#if item.name === 'Inbox' && notificationsStore.unreadCount > 0}
+            <div class="ml-auto min-w-[18px] h-[18px] px-1 bg-primary text-white text-[10px] font-black rounded-full flex items-center justify-center shadow-[0_0_10px_rgba(var(--color-primary),0.3)] animate-in zoom-in duration-300">
+              {notificationsStore.unreadCount > 99 ? '99+' : notificationsStore.unreadCount}
+            </div>
+          {/if}
         </a>
       {/each}
     {/each}

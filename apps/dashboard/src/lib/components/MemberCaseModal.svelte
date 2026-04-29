@@ -932,7 +932,7 @@
                         {@const max = Math.max(...caseData.messagesByChannel.map(c => c.count), 1)}
                         <div class="space-y-2">
                           <div class="flex items-center justify-between px-1">
-                            <span class="text-sm font-black text-on-surface">#{channel.channelName}</span>
+                            <span class="text-sm font-black text-on-surface">{channel.channelName}</span>
                             <span class="text-xs font-bold text-on-surface-variant/60">{channel.count} messages</span>
                           </div>
                           <div class="h-2 w-full rounded-full bg-surface-container-high overflow-hidden">
@@ -1038,7 +1038,7 @@
                         <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
                           <Papicon icon="tag" size={16} />
                         </div>
-                        <h4 class="text-sm font-black text-on-surface">#{channel.channelName}</h4>
+                        <h4 class="text-sm font-black text-on-surface">{channel.channelName}</h4>
                         <span class="ml-auto text-[10px] font-black bg-primary/5 text-primary px-3 py-1 rounded-full uppercase tracking-widest">{channel.count} msg</span>
                       </div>
                       <div class="space-y-3">

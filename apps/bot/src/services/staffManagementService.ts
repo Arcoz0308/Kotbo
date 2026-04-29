@@ -1,6 +1,7 @@
 import prisma from '../utils/db.js';
 import type { StaffMember, TestingPeriod, APIKey } from '@prisma/client';
 import crypto from 'node:crypto';
+import { createNotification } from './staffLeadershipService.js';
 
 /**
  * Service de gestion du personnel staff
@@ -96,13 +97,53 @@ export const updateStaffGrade = async (
   userId: string,
   newGrade: string
 ) => {
-  return prisma.staffMember.update({
+  const oldMember = await prisma.staffMember.findUnique({
+    where: { guildId_userId: { guildId, userId } }
+  });
+
+  const updated = await prisma.staffMember.update({
     where: { guildId_userId: { guildId, userId } },
     data: {
       grade: newGrade,
       currentRoleStartedAt: new Date(),
     },
   });
+
+  if (oldMember && oldMember.grade !== newGrade) {
+    // Essayer de déterminer si c'est une promotion ou un downgrade
+    // On peut se baser sur les rôles configurés si besoin, mais ici on va faire simple par défaut
+    // ou comparer avec une liste de grades connus.
+    const gradesHierarchy = ['Staff', 'Modérateur', 'Responsable', 'Manager', 'Admin', 'Administrateur', 'Direction', 'Fondateur'];
+    const oldIndex = gradesHierarchy.indexOf(oldMember.grade);
+    const newIndex = gradesHierarchy.indexOf(newGrade);
+
+    let title = 'Changement de grade';
+    let message = `Votre grade a été mis à jour : **${newGrade}**.`;
+    let type = 'INFO';
+
+    if (oldIndex !== -1 && newIndex !== -1) {
+      if (newIndex > oldIndex) {
+        title = 'Félicitations pour votre promotion !';
+        message = `Vous avez été promu au grade de **${newGrade}**. Félicitations pour votre travail !`;
+        type = 'SUCCESS';
+      } else if (newIndex < oldIndex) {
+        title = 'Rétrogradation de grade';
+        message = `Votre grade a été changé pour **${newGrade}**.`;
+        type = 'WARNING';
+      }
+    }
+
+    await createNotification(
+      guildId,
+      userId,
+      title,
+      message,
+      type,
+      '/profile'
+    ).catch(() => null);
+  }
+
+  return updated;
 };
 
 export const toggleTutorStatus = async (
@@ -389,7 +430,7 @@ export const endTestingPeriod = async (
   status: 'PASSED' | 'FAILED',
   notes?: string
 ) => {
-  return prisma.testingPeriod.update({
+  const updated = await prisma.testingPeriod.update({
     where: { id: testingPeriodId },
     data: {
       status,
@@ -398,6 +439,22 @@ export const endTestingPeriod = async (
     },
     include: { reports: true, staffMember: true },
   });
+
+  if (updated.staffMember) {
+    const isPassed = status === 'PASSED';
+    await createNotification(
+      updated.guildId,
+      updated.staffMember.userId,
+      isPassed ? 'Période de test validée !' : 'Période de test terminée',
+      isPassed 
+        ? `Félicitations ! Vous avez validé votre période de test. Bienvenue officiellement dans l'équipe !`
+        : `Votre période de test s'est terminée. Un manager reviendra vers vous pour plus de détails.`,
+      isPassed ? 'SUCCESS' : 'WARNING',
+      '/profile'
+    ).catch(() => null);
+  }
+
+  return updated;
 };
 
 export const getStaffRoles = async (guildId: string) => {

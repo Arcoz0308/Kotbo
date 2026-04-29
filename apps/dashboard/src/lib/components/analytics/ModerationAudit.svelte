@@ -10,7 +10,8 @@
   const stats = $derived([
     { label: 'Avertissements', value: data?.totals?.warns || 0, color: '#f59e0b' },
     { label: 'Exclusions', value: data?.totals?.kicks || 0, color: '#f97316' },
-    { label: 'Bannissements', value: data?.totals?.bans || 0, color: '#f43f5e' }
+    { label: 'Bannissements', value: data?.totals?.bans || 0, color: '#f43f5e' },
+    { label: 'Timeouts', value: data?.totals?.timeouts || 0, color: '#8b5cf6' }
   ]);
 
   const distributionData = $derived({
@@ -35,12 +36,22 @@
 
   let showAllMods = $state(false);
   let showAllSanctioned = $state(false);
+
+  const getSanctionColor = (type: string) => {
+    switch (type) {
+      case 'BAN': case 'TEMP_BAN': return '#f43f5e';
+      case 'KICK': return '#f97316';
+      case 'TIMEOUT': return '#8b5cf6';
+      case 'WARN': return '#f59e0b';
+      default: return '#64748b';
+    }
+  };
 </script>
 
 <div class="space-y-6">
   <!-- Moderation Stats -->
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <div class="lg:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
       {#each stats as stat}
         <div class="premium-card p-6 rounded-[2rem] flex flex-col items-center text-center gap-2 group hover:scale-[1.02] transition-all">
           <div class="p-3 rounded-2xl mb-2" style="background: {stat.color}15; color: {stat.color}">
@@ -169,7 +180,7 @@
             <div>
               <div class="flex items-center gap-2">
                 <p class="text-sm font-black text-on-surface">@{sanction.targetTag}</p>
-                <span class="px-2 py-0.5 rounded-lg text-[9px] font-black tracking-widest uppercase" style="background: {sanction.type === 'BAN' ? '#f43f5e20' : '#f59e0b20'}; color: {sanction.type === 'BAN' ? '#f43f5e' : '#f59e0b'}">{sanction.type}</span>
+                <span class="px-2 py-0.5 rounded-lg text-[9px] font-black tracking-widest uppercase" style="background: {getSanctionColor(sanction.type)}20; color: {getSanctionColor(sanction.type)}">{sanction.type}</span>
               </div>
               <p class="text-xs font-medium text-on-surface-variant/60 mt-0.5 line-clamp-1">{sanction.reason || 'Aucune raison spécifiée'}</p>
             </div>

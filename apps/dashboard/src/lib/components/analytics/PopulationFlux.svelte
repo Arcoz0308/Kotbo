@@ -2,7 +2,12 @@
   import Papicon from '../Papicon.svelte';
   import Chart from '../charts/Chart.svelte';
 
-  let { data, chartLabels, invitesData } = $props<{ data: any; chartLabels: any[]; invitesData: any }>();
+  let { data, chartLabels, invitesData, onOpenMember } = $props<{ 
+    data: any; 
+    chartLabels: any[]; 
+    invitesData: any;
+    onOpenMember?: (userId: string, name: string) => void;
+  }>();
 
   let showAllInvites = $state(false);
   const invites = $derived(invitesData || []);
@@ -156,6 +161,80 @@
       <p class="text-xs font-medium text-on-surface-variant/60 max-w-[200px] leading-relaxed">
         Proportion des nouveaux membres restés sur le serveur après 7 jours.
       </p>
+    </div>
+  </div>
+  <!-- Joins & Leaves -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <!-- Joins -->
+    <div class="premium-card p-8 rounded-[2.5rem] space-y-6">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+          <Papicon icon="UserPlus" size={20} />
+        </div>
+        <h3 class="text-lg font-black text-on-surface">Nouveaux Membres</h3>
+      </div>
+      
+      <div class="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+        {#each (data?.recentJoins || []) as member}
+          <div class="flex items-center justify-between group p-2 hover:bg-emerald-500/5 rounded-2xl transition-all">
+            <div class="flex items-center gap-3">
+              <img src={getAvatar(member.avatarUrl)} alt="" class="w-10 h-10 rounded-xl shadow-sm" />
+              <div>
+                <p class="text-sm font-black text-on-surface">@{member.name}</p>
+                <p class="text-[10px] font-bold text-on-surface-variant/60">Rejoint le {new Date(member.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+              </div>
+            </div>
+            {#if onOpenMember}
+              <div class="opacity-0 group-hover:opacity-100 transition-opacity">
+                <button 
+                  onclick={() => onOpenMember(member.userId, member.name)}
+                  class="p-2 rounded-lg bg-surface-container-high text-on-surface-variant hover:text-primary transition-colors"
+                >
+                  <Papicon icon="ArrowSquareOut" size={16} />
+                </button>
+              </div>
+            {/if}
+          </div>
+        {:else}
+          <div class="py-10 text-center text-on-surface-variant/40 font-bold text-sm">Aucun nouveau membre récent</div>
+        {/each}
+      </div>
+    </div>
+
+    <!-- Leaves -->
+    <div class="premium-card p-8 rounded-[2.5rem] space-y-6">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-500">
+          <Papicon icon="UserMinus" size={20} />
+        </div>
+        <h3 class="text-lg font-black text-on-surface">Départs Récents</h3>
+      </div>
+      
+      <div class="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+        {#each (data?.recentLeaves || []) as member}
+          <div class="flex items-center justify-between group p-2 hover:bg-rose-500/5 rounded-2xl transition-all">
+            <div class="flex items-center gap-3">
+              <img src={getAvatar(member.avatarUrl)} alt="" class="w-10 h-10 rounded-xl shadow-sm grayscale opacity-60" />
+              <div>
+                <p class="text-sm font-black text-on-surface">@{member.name}</p>
+                <p class="text-[10px] font-bold text-on-surface-variant/60">Parti le {new Date(member.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+              </div>
+            </div>
+            {#if onOpenMember}
+              <div class="opacity-0 group-hover:opacity-100 transition-opacity">
+                <button 
+                  onclick={() => onOpenMember(member.userId, member.name)}
+                  class="p-2 rounded-lg bg-surface-container-high text-on-surface-variant hover:text-primary transition-colors"
+                >
+                  <Papicon icon="ArrowSquareOut" size={16} />
+                </button>
+              </div>
+            {/if}
+          </div>
+        {:else}
+          <div class="py-10 text-center text-on-surface-variant/40 font-bold text-sm">Aucun départ récent</div>
+        {/each}
+      </div>
     </div>
   </div>
 </div>

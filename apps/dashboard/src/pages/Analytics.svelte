@@ -187,7 +187,7 @@ import StaffAudit from '../lib/components/analytics/StaffAudit.svelte';
       <EngagementMetrics {data} mode={activeTab} onOpenMember={openMemberDetails} />
     {:else if activeTab === 'members' || activeTab === 'invitations'}
 
-      <PopulationFlux {data} {chartLabels} {invitesData} />
+      <PopulationFlux {data} {chartLabels} {invitesData} onOpenMember={openMemberDetails} />
     {:else if activeTab === 'moderation'}
       <ModerationAudit {data} onOpenMember={openMemberDetails} />
     {:else if activeTab === 'staff'}

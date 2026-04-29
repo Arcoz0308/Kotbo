@@ -1,6 +1,7 @@
 import type { CandidatureStatus, OralResult } from '@prisma/client';
 import { ChannelType, PermissionFlagsBits, type Client, type Guild as DiscordGuild, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, type TextChannel } from 'discord.js';
 import prisma from '../utils/db.js';
+import { createNotification } from './staffLeadershipService.js';
 import { logger } from '../utils/logger.js';
 
 // ============================================================================
@@ -198,15 +199,18 @@ export async function createCandidature(
       }
     });
 
-    const notifsData = managers.map(m => ({
-      guildId,
-      userId: m.userId,
-      title: 'Nouvelle candidature',
-      message: `Une nouvelle candidature a été reçue de ${candidature.username}.`,
-      type: 'INFO' as const,
-      link: '/recruitment',
-      isRead: false
-    }));
+    const notifsData = managers.map(m => {
+      const isAdmin = ['Admin', 'Administrateur', 'Fondateur', 'Direction'].includes(m.grade);
+      return {
+        guildId,
+        userId: m.userId,
+        title: isAdmin ? 'ALERTE : Nouveau Formulaire Recrutement' : 'Nouvelle candidature',
+        message: `Une nouvelle candidature a été reçue de ${candidature.username}.`,
+        type: (isAdmin ? 'WARNING' : 'INFO') as 'WARNING' | 'INFO',
+        link: '/recruitment',
+        isRead: false
+      };
+    });
 
     if (notifsData.length > 0) {
       await prisma.notification.createMany({ data: notifsData });
@@ -359,6 +363,18 @@ export async function approveCandidature(
   });
 
   logger.success('Recruitment', `Ticket créé: ${ticketName} pour ${pseudo} (${targetDiscordUserId})`);
+
+  if (targetDiscordUserId) {
+    await createNotification(
+      guildId,
+      targetDiscordUserId,
+      'Candidature validée',
+      `Félicitations ! Votre candidature a été validée pour un entretien oral. Un ticket a été ouvert : #${ticketChannel.name}`,
+      'SUCCESS',
+      '/recruitment'
+    ).catch(() => null);
+  }
+
   return updated;
 }
 
@@ -403,7 +419,7 @@ export async function rejectCandidature(
     }
   }
 
-  return await prisma.recruitmentCandidature.update({
+  const result = await prisma.recruitmentCandidature.update({
     where: { id: candidatureId },
     data: {
       status: 'REJECTED',
@@ -411,6 +427,19 @@ export async function rejectCandidature(
       processedByUserId: processedByUserId || null,
     },
   });
+
+  if (candidature.discordId) {
+    await createNotification(
+      guildId,
+      candidature.discordId,
+      'Candidature refusée',
+      `Votre candidature a été refusée pour la raison suivante : ${reason || 'Aucune raison spécifiée.'}`,
+      'ERROR',
+      '/recruitment'
+    ).catch(() => null);
+  }
+
+  return result;
 }
 
 // ============================================================================
@@ -607,6 +636,18 @@ export async function completeOral(
   });
 
   logger.success('Recruitment', `Candidature ${candidatureId} APPROVED → StaffMember ${staffMember.id} créé (${gradeName})`);
+
+  if (candidature.discordId) {
+    await createNotification(
+      guildId,
+      candidature.discordId,
+      'Promotion Staff !',
+      `Félicitations ! Vous avez réussi votre entretien oral et rejoignez l'équipe en tant que ${gradeName}.`,
+      'SUCCESS',
+      '/'
+    ).catch(() => null);
+  }
+
   return updated;
 }
 
