@@ -16,6 +16,7 @@ class DashboardStore {
     access: {
       level: 'moderator',
       canModerateContent: false,
+      canModerateDailyAlgo: false,
       canManageSettings: false
     },
     modules: [],
@@ -96,6 +97,7 @@ class DashboardStore {
         this.state.access = data.access || {
           level: 'moderator',
           canModerateContent: false,
+          canModerateDailyAlgo: false,
           canManageSettings: false
         };
         this.state.modules = data.modules;

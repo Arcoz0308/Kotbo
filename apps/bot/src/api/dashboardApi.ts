@@ -333,6 +333,7 @@ type DashboardAccess = {
   level: DashboardAccessLevel;
   canViewDashboard: boolean;
   canModerateContent: boolean;
+  canModerateDailyAlgo: boolean;
   canManageSettings: boolean;
 };
 
@@ -385,6 +386,7 @@ type DashboardState = {
   access: {
     level: Exclude<DashboardAccessLevel, 'none'>;
     canModerateContent: boolean;
+    canModerateDailyAlgo: boolean;
     canManageSettings: boolean;
   };
   youtubeReferenceChannelId: string;
@@ -818,6 +820,7 @@ const DASHBOARD_ACCESS_NONE: DashboardAccess = {
   level: 'none',
   canViewDashboard: false,
   canModerateContent: false,
+  canModerateDailyAlgo: false,
   canManageSettings: false,
 };
 
@@ -825,6 +828,15 @@ const DASHBOARD_ACCESS_MODERATOR: DashboardAccess = {
   level: 'moderator',
   canViewDashboard: true,
   canModerateContent: true,
+  canModerateDailyAlgo: true,
+  canManageSettings: false,
+};
+
+const DASHBOARD_ACCESS_DAILY_ALGO_REVIEWER: DashboardAccess = {
+  level: 'moderator',
+  canViewDashboard: true,
+  canModerateContent: false,
+  canModerateDailyAlgo: true,
   canManageSettings: false,
 };
 
@@ -832,6 +844,7 @@ const DASHBOARD_ACCESS_ADMIN: DashboardAccess = {
   level: 'admin',
   canViewDashboard: true,
   canModerateContent: true,
+  canModerateDailyAlgo: true,
   canManageSettings: true,
 };
 
@@ -862,6 +875,10 @@ const resolveDashboardAccess = async (
     return DASHBOARD_ACCESS_ADMIN;
   }
 
+  if (guildConfig.moderatorRoleId && member.roles.cache.has(guildConfig.moderatorRoleId)) {
+    return DASHBOARD_ACCESS_MODERATOR;
+  }
+
   const staffProfile = await prisma.staffMember.findUnique({
     where: { guildId_userId: { guildId, userId } },
     select: { id: true },
@@ -871,11 +888,7 @@ const resolveDashboardAccess = async (
     return DASHBOARD_ACCESS_NONE;
   }
 
-  if (guildConfig.moderatorRoleId && member.roles.cache.has(guildConfig.moderatorRoleId)) {
-    return DASHBOARD_ACCESS_MODERATOR;
-  }
-
-  return DASHBOARD_ACCESS_NONE;
+  return DASHBOARD_ACCESS_DAILY_ALGO_REVIEWER;
 };
 
 
@@ -1599,6 +1612,7 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
     access: {
       level: access.level === 'admin' ? 'admin' : 'moderator',
       canModerateContent: access.canModerateContent,
+      canModerateDailyAlgo: access.canModerateDailyAlgo,
       canManageSettings: access.canManageSettings,
     },
     youtubeReferenceChannelId: guild.nathanYtChannelId ?? '',
@@ -2127,7 +2141,7 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
-          if (isDailyAlgoReviewAction && !access.canModerateContent) {
+          if (isDailyAlgoReviewAction && !access.canModerateDailyAlgo) {
             json(res, 403, { error: 'Action de modération Daily Algo non autorisée.' });
             return;
           }

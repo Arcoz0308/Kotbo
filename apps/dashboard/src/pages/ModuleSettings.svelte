@@ -48,6 +48,9 @@
   const moduleMeta = $derived(getModuleMeta(moduleId));
   const canManageSettings = $derived(!!dashboardStore.state.access?.canManageSettings);
   const canModerateContent = $derived(!!dashboardStore.state.access?.canModerateContent);
+  const canModerateDailyAlgo = $derived(
+    dashboardStore.state.access?.canModerateDailyAlgo ?? canModerateContent,
+  );
   const supportedDailyAlgoLanguages: IdeLanguage[] = ['javascript', 'typescript', 'python', 'c', 'lua', 'sqlite'];
   const dailyAlgoLanguageSuggestions = ['javascript', 'typescript', 'python', 'c', 'lua', 'sqlite', 'rust', 'go', 'java', 'php', 'ruby', 'c#'];
 
@@ -754,7 +757,7 @@
   }
 
   async function rejectSubmission(submissionId: string) {
-    if (!canModerateContent) {
+    if (!canModerateDailyAlgo) {
       formAction.setError('Vous n\'avez pas les droits pour modérer les soumissions Daily Algo.');
       return;
     }
@@ -775,7 +778,7 @@
   }
 
   async function approveSubmission(submissionId: string) {
-    if (!canModerateContent) {
+    if (!canModerateDailyAlgo) {
       formAction.setError('Vous n\'avez pas les droits pour modérer les soumissions Daily Algo.');
       return;
     }
@@ -2046,7 +2049,7 @@
                               {/if}
                             </td>
                             <td>
-                              {#if canModerateContent && (submission.status === 'PENDING' || submission.status === 'APPROVED' || submission.status === 'REJECTED')}
+                              {#if canModerateDailyAlgo && (submission.status === 'PENDING' || submission.status === 'APPROVED' || submission.status === 'REJECTED')}
                                 <div class="flex flex-col gap-2">
                                   <button
                                     type="button"
@@ -2506,7 +2509,7 @@
         <aside class="dailyalgo-ide-score-panel">
           <h4 class="text-[11px] font-black uppercase tracking-[0.14em] text-on-surface-variant">Review Panel</h4>
 
-          {#if canModerateContent && (focusedSubmission.status === 'PENDING' || focusedSubmission.status === 'APPROVED' || focusedSubmission.status === 'REJECTED')}
+          {#if canModerateDailyAlgo && (focusedSubmission.status === 'PENDING' || focusedSubmission.status === 'APPROVED' || focusedSubmission.status === 'REJECTED')}
             <div class="grid grid-cols-2 gap-3">
               <label class="text-[11px] font-bold text-on-surface-variant space-y-1" for={`modal-score-correctness-${focusedSubmission.id}`}>
                 Correctitude
