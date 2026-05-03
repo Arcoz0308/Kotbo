@@ -58,11 +58,16 @@ import { registerMeetingEvents } from './events/meetingEvents.js';
 import { syncOngoingDailyAlgoButtons } from './services/dailyAlgoService.js';
 import { checkTranslationProviderHealth } from './services/translationService.js';
 import { startDashboardApi } from './api/dashboardApi.js';
+import { initBotSentry, captureException } from './observability/sentry.js';
+import { initRedis } from './infra/redis.js';
+import { startBackgroundQueueWorker } from './infra/queues/backgroundQueue.js';
 import botPackageJson from '../package.json';
 import * as leaderboardCmd from './commands/leaderboard.js';
 import * as serverstatsCmd from './commands/serverstats.js';
 import * as statsCmd from './commands/stats.js';
 import * as invitesCmd from './commands/invites.js';
+
+initBotSentry();
 
 const client = new Client({
   intents: [
@@ -129,6 +134,8 @@ client.once(Events.ClientReady, async (c) => {
   logger.success('Bot', `Connecté en tant que ${c.user.tag}`);
   c.user.setActivity(`/help | v${botPackageJson.version}`, { type: ActivityType.Playing });
 
+  await initRedis();
+  await startBackgroundQueueWorker();
   await checkTranslationProviderHealth();
 
   registerCodePoliceListener(client);
@@ -141,6 +148,7 @@ client.once(Events.ClientReady, async (c) => {
     logger.error('DailyAlgo', 'Impossible de synchroniser les boutons des runs en cours:', error),
   );
   await registerCrons(client);
+  logger.success('System', 'Bot opérationnel et synchronisé.');
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
@@ -178,6 +186,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
       await handleModalSubmit(interaction, client);
     }
   } catch (err) {
+    captureException(err, 'interaction-create');
+
     if (err instanceof DiscordAPIError && err.code === 10062) {
       logger.warn('Event', 'InteractionCreate: DiscordAPIError 10062 (Unknown interaction) ignored.');
       return;
@@ -189,6 +199,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await replyOrFollowUp(interaction, { content: '❌ Une erreur est survenue.', flags: [MessageFlags.Ephemeral] });
       }
     } catch (e){
+      captureException(e, 'interaction-create-error-handler');
+
       if (e instanceof DiscordAPIError && e.code === 40060) {
         logger.warn('Event', 'InteractionCreate follow-up: DiscordAPIError 40060 (already acknowledged) ignored.');
         return;

@@ -21,10 +21,19 @@
   ];
 
   const managementItems = [
-    { name: "Recrutement", icon: "user-plus", href: "/recruitment" },
     { name: "Règlement", icon: "book", href: "/regulation" },
+  ];
+
+  const staffManagementItems = [
+    { name: "Recrutement", icon: "user-plus", href: "/recruitment" },
+    { name: "Annuaire Staff", icon: "users", href: "/staff-management?tab=members" },
+    { name: "Hiérarchie & Rôles", icon: "shield", href: "/staff-management?tab=roles" },
+    { name: "Périodes de Test", icon: "clock", href: "/staff-management?tab=testing" },
+    { name: "Tutorat & Formation", icon: "book-open", href: "/tutoring" },
     { name: "Réunions", icon: "calendar", href: "/meetings" },
-    { name: "Personnel", icon: "users", href: "/staff-management" },
+    { name: "Absences", icon: "sun", href: "/absences" },
+    { name: "Sondages", icon: "bar-chart", href: "/staff-management?tab=polls" },
+    { name: "Discipline", icon: "alert-circle", href: "/staff-management?tab=warnings" },
   ];
 
   const configItems = [
@@ -37,25 +46,38 @@
     authStore.guilds.find((guild) => guild.id === authStore.selectedGuildId)?.accessLevel !== 'moderator'
   );
 
+  const isAdmin = $derived(
+    authStore.guilds.find((guild) => guild.id === authStore.selectedGuildId)?.accessLevel === 'admin'
+  );
+
   // Modérateurs ne voient pas Modules, Règlement, Commandes, Paramètres
   const visibleModerationItems = $derived(moderationItems);
   const visibleManagementItems = $derived(
-    canManageSettings ? managementItems : managementItems.filter((item) => item.href !== '/regulation')
+    canManageSettings ? managementItems : []
+  );
+  const visibleStaffItems = $derived(
+    isAdmin ? staffManagementItems : staffManagementItems.filter(item => ['/absences', '/meetings'].includes(item.href))
   );
   const visibleConfigItems = $derived(
     canManageSettings ? configItems : []
   );
 
   function isActiveNavItem(href: string) {
-    if (href === '/') return $router.path === '/';
-    return $router.path === href || $router.path.startsWith(`${href}/`);
+    const r = $router;
+    if (href === '/') return r.path === '/';
+    // Handle query params for tabs
+    const [path, query] = href.split('?');
+    if (query) {
+      return r.path === path && r.url.includes(query);
+    }
+    return r.path === path || r.path.startsWith(`${path}/`);
   }
 
   const LOGO_URL = "/favicon.svg";
 
   type NavGroup = {
     label: string;
-    items: typeof dashboardItems;
+    items: any[];
   };
 
   const navGroups = $derived.by((): NavGroup[] => {
@@ -63,6 +85,9 @@
       { label: 'Tableau de bord', items: dashboardItems },
       { label: 'Modération', items: visibleModerationItems },
     ];
+    if (visibleStaffItems.length > 0) {
+      groups.push({ label: 'Gestion Staff', items: visibleStaffItems });
+    }
     if (visibleManagementItems.length > 0) {
       groups.push({ label: 'Gestion', items: visibleManagementItems });
     }
@@ -114,38 +139,6 @@
       {/each}
     {/each}
 
-    <!-- Mon Profil – en bas du nav -->
-    <div class="pt-4 mt-3 border-t border-outline-variant/30">
-      <div class="px-3 mb-2 text-[10px] font-bold text-on-surface-variant/70 uppercase tracking-[0.2em]">Espace Staff</div>
-      <a 
-        href="/profile"
-        class="flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all duration-300 group relative overflow-hidden {isActiveNavItem('/profile') ? 'text-primary bg-primary/5 font-bold' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-hover/50'}"
-      >
-        {#if isActiveNavItem('/profile')}
-          <div class="absolute left-0 top-3 bottom-3 w-1.5 bg-primary rounded-full animate-in slide-in-from-left-2 duration-300"></div>
-        {/if}
-        <Papicon 
-          icon="shield" 
-          size={20} 
-          class="transition-all duration-300 {isActiveNavItem('/profile') ? 'scale-110' : 'opacity-60 group-hover:opacity-100 group-hover:scale-110'}" 
-        />
-        <span class="text-[13px] tracking-tight">Paramètres Staff</span>
-      </a>
-      <a 
-        href="/absences"
-        class="flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all duration-300 group relative overflow-hidden {isActiveNavItem('/absences') ? 'text-primary bg-primary/5 font-bold' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-hover/50'}"
-      >
-        {#if isActiveNavItem('/absences')}
-          <div class="absolute left-0 top-3 bottom-3 w-1.5 bg-primary rounded-full animate-in slide-in-from-left-2 duration-300"></div>
-        {/if}
-        <Papicon 
-          icon="calendar" 
-          size={20} 
-          class="transition-all duration-300 {isActiveNavItem('/absences') ? 'scale-110' : 'opacity-60 group-hover:opacity-100 group-hover:scale-110'}" 
-        />
-        <span class="text-[13px] tracking-tight">Mes Absences</span>
-      </a>
-    </div>
   </nav>
 </aside>
 

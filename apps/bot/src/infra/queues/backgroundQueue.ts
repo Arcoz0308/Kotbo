@@ -1,0 +1,133 @@
+import { Queue, Worker, type JobsOptions, type Processor } from 'bullmq';
+import type { Redis } from 'ioredis';
+import { createRedisForWorker } from '../redis.js';
+import { logger } from '../../utils/logger.js';
+
+export type BackgroundJobName =
+  | 'rss'
+  | 'youtube'
+  | 'digest'
+  | 'daily-algo'
+  | 'daily-algo-summary'
+  | 'weekly-recap'
+  | 'sanctions'
+  | 'staff-warnings-expiration'
+  | 'staff-blacklist-expiration'
+  | 'analytics-hourly-snapshot'
+  | 'analytics-snapshot'
+  | 'missing-reports-check';
+
+type BackgroundJobPayload = {
+  jitterMs?: number;
+};
+
+const QUEUE_NAME = 'kotbo-background-jobs';
+
+let queue: Queue<BackgroundJobPayload, void, BackgroundJobName> | null = null;
+let worker: Worker<BackgroundJobPayload, void, BackgroundJobName> | null = null;
+let queueConnection: Redis | null = null;
+let workerConnection: Redis | null = null;
+let handlers: Partial<Record<BackgroundJobName, () => Promise<void>>> = {};
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getProcessor(): Processor<BackgroundJobPayload, void, BackgroundJobName> {
+  return async (job) => {
+    const handler = handlers[job.name as BackgroundJobName];
+    if (!handler) {
+      logger.warn('Queue', `Aucun handler enregistré pour ${job.name}.`);
+      return;
+    }
+
+    if (job.data?.jitterMs && job.data.jitterMs > 0) {
+      await delay(Math.floor(Math.random() * job.data.jitterMs));
+    }
+
+    await handler();
+  };
+}
+
+export function registerBackgroundJobHandlers(nextHandlers: Partial<Record<BackgroundJobName, () => Promise<void>>>): void {
+  handlers = { ...handlers, ...nextHandlers };
+}
+
+export async function startBackgroundQueueWorker(): Promise<boolean> {
+  if (queue && worker) return true;
+
+  queueConnection = createRedisForWorker();
+  workerConnection = createRedisForWorker();
+  if (!queueConnection || !workerConnection) {
+    logger.warn('Queue', 'BullMQ désactivé: Redis indisponible.');
+    return false;
+  }
+
+  try {
+    await queueConnection.connect();
+    await workerConnection.connect();
+
+    queue = new Queue<BackgroundJobPayload, void, BackgroundJobName>(QUEUE_NAME, {
+      connection: queueConnection,
+      defaultJobOptions: {
+        removeOnComplete: 50,
+        removeOnFail: 200,
+      },
+    });
+
+    worker = new Worker<BackgroundJobPayload, void, BackgroundJobName>(
+      QUEUE_NAME,
+      getProcessor(),
+      {
+        connection: workerConnection,
+        concurrency: Number.parseInt(process.env.BULLMQ_CONCURRENCY ?? '2', 10) || 2,
+      },
+    );
+
+    worker.on('failed', (job, error) => {
+      logger.error('Queue', `Job échoué: ${job?.name ?? 'inconnu'}`, error);
+    });
+
+    worker.on('completed', (job) => {
+      logger.debug('Queue', `Job terminé: ${job.name}`);
+    });
+
+    logger.success('Queue', 'BullMQ initialisé.');
+    return true;
+  } catch (error) {
+    logger.error('Queue', 'Impossible de démarrer BullMQ:', error);
+    await queue?.close().catch(() => undefined);
+    await worker?.close().catch(() => undefined);
+    queue = null;
+    worker = null;
+    queueConnection?.disconnect();
+    workerConnection?.disconnect();
+    queueConnection = null;
+    workerConnection = null;
+    return false;
+  }
+}
+
+export async function enqueueBackgroundJob(
+  name: BackgroundJobName,
+  payload: BackgroundJobPayload = {},
+  options: JobsOptions = {},
+): Promise<boolean> {
+  if (!queue) return false;
+
+  try {
+    await queue.add(name, payload, {
+      attempts: 2,
+      backoff: { type: 'exponential', delay: 2000 },
+      ...options,
+    });
+    return true;
+  } catch (error) {
+    logger.error('Queue', `Impossible d'enfiler le job ${name}:`, error);
+    return false;
+  }
+}
+
+export function isBackgroundQueueEnabled(): boolean {
+  return Boolean(queue && worker);
+}

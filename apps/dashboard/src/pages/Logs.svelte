@@ -41,6 +41,8 @@
       rolesSnapshot: string[];
       presenceStatus: string | null;
       pronouns: string | null;
+      isTutor: boolean;
+      staffGrade: string | null;
     } | null;
     invite: {
       code: string | null;
@@ -88,6 +90,18 @@
     recentLogCount: number;
     connections: Array<{ name: string; type: string; visible: boolean }>;
     connectionsNote: string;
+    candidatures: Array<{
+      id: string;
+      status: string;
+      notes: string;
+      createdAt: string;
+      data: any;
+      autoRejected: boolean;
+      autoRejectReason: string | null;
+      rejectionReason: string | null;
+      oralResult: string | null;
+      reapplyAfter: string | null;
+    }>;
   };
 
   let searchQuery = $state('');

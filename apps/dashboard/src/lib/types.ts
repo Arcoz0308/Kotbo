@@ -12,6 +12,12 @@ export interface StaffMember {
   isTutor: boolean;
   createdAt: Date | string;
   updatedAt: Date | string;
+  warnings?: { id: string; reason: string; expiresAt?: Date | string | null }[];
+  stats?: {
+    totalMessages: number;
+    totalVoiceMinutes: number;
+    sanctionsIssued: number;
+  } | null;
 }
 
 export interface APIKey {

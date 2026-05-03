@@ -86,7 +86,9 @@ import {
   rejectCandidature,
   completeOral,
   assignTutor,
+  getCandidatureHistory,
 } from '../services/recruitmentService.js';
+import * as tutoringService from '../services/tutoringService.js';
 
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
@@ -302,6 +304,8 @@ type MemberCaseProfile = {
   rolesSnapshot: string[];
   presenceStatus: string | null;
   pronouns: string | null;
+  isTutor: boolean;
+  staffGrade: string | null;
 };
 
 type MemberCaseResponse = {
@@ -316,6 +320,18 @@ type MemberCaseResponse = {
   recentLogCount: number;
   connections: Array<{ name: string; type: string; visible: boolean }>;
   connectionsNote: string;
+  candidatures: Array<{
+    id: string;
+    status: string;
+    notes: string;
+    createdAt: string;
+    data: any;
+    autoRejected: boolean;
+    autoRejectReason: string | null;
+    rejectionReason: string | null;
+    oralResult: string | null;
+    reapplyAfter: string | null;
+  }>;
 };
 
 type CommandRestrictionState = CommandRestrictionRule;
@@ -738,10 +754,15 @@ const json = (res: ServerResponse, statusCode: number, data: unknown) => {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept, Origin, X-Requested-With',
     'Access-Control-Max-Age': '86400'
   });
-  res.end(JSON.stringify(data));
+
+  if (statusCode === 204) {
+    res.end();
+  } else {
+    res.end(JSON.stringify(data));
+  }
 };
 
 type AuthClaims = {
@@ -1143,9 +1164,15 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
   const discordGuild = client.guilds.cache.get(guildId);
   if (!discordGuild) return null;
 
-  const [user, member, profile, sanctions, auditLogs, inviteConnections] = await Promise.all([
-    client.users.fetch(userId).catch(() => null),
-    discordGuild.members.fetch(userId).catch(() => null),
+  const [user, member, profile, sanctions, auditLogs, inviteConnections, staffMember, candidatureHistory] = await Promise.all([
+    Promise.race([
+      client.users.fetch(userId).catch(() => null),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000))
+    ]),
+    Promise.race([
+      discordGuild.members.fetch(userId).catch(() => null),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000))
+    ]),
     prisma.memberProfile.findUnique({
       where: {
         guildId_userId: {
@@ -1160,11 +1187,13 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
       take: 200,
     }),
     prisma.dashboardAuditLog.findMany({
-      where: { guildId },
+      where: { guildId, user: userId },
       orderBy: { dateIso: 'desc' },
       take: 500,
     }),
     fetchMemberConnections(auth.userId === userId ? auth.discordToken : null),
+    getStaffMember(guildId, userId).catch(() => null),
+    getCandidatureHistory(guildId, userId).catch(() => []),
   ]);
 
   const effectivePermissions = member?.permissions.toArray() ?? [];
@@ -1264,6 +1293,8 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
       rolesSnapshot: profile?.rolesSnapshot ?? [],
       presenceStatus: member?.presence?.status ?? null,
       pronouns: null,
+      isTutor: staffMember?.isTutor ?? false,
+      staffGrade: staffMember?.grade ?? null,
     },
     invite: invite
       ? {
@@ -1294,6 +1325,18 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
     recentLogCount: mappedLogs.length,
     connections: inviteConnections.connections,
     connectionsNote: inviteConnections.note,
+    candidatures: candidatureHistory.map((c) => ({
+      id: c.id,
+      status: c.status,
+      notes: c.notes ?? '',
+      createdAt: c.createdAt.toISOString(),
+      data: c.data,
+      autoRejected: c.autoRejected,
+      autoRejectReason: c.autoRejectReason,
+      rejectionReason: c.rejectionReason,
+      oralResult: c.oralResult,
+      reapplyAfter: c.reapplyAfter?.toISOString() ?? null,
+    })),
   };
 }
 
@@ -1748,7 +1791,7 @@ export const startDashboardApi = (client: Client) => {
       }
 
       if (req.method === 'OPTIONS') {
-        json(res, 204, {});
+        json(res, 204, null);
         return;
       }
 
@@ -2126,7 +2169,9 @@ export const startDashboardApi = (client: Client) => {
             && parts[4] === 'absences'
             && req.method === 'POST';
 
-          if (!access.canManageSettings && req.method !== 'GET' && !isContentAction && !isSanctionAction && !isDailyAlgoReviewAction && !isStaffAbsenceAction) {
+          const isNotificationAction = parts[4] === 'notifications';
+
+          if (!access.canManageSettings && req.method !== 'GET' && !isContentAction && !isSanctionAction && !isDailyAlgoReviewAction && !isStaffAbsenceAction && !isNotificationAction) {
             json(res, 403, { error: 'Action réservée aux administrateurs du dashboard.' });
             return;
           }
@@ -2734,43 +2779,29 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
-          // GET /api/dashboard/guilds/:guildId/analytics/invites - Invite retention and stats
+          // GET /api/dashboard/guilds/:guildId/analytics/invites - Active invitation codes
           if (parts.length === 6 && parts[4] === 'analytics' && parts[5] === 'invites' && req.method === 'GET') {
             try {
-              const invites = await prisma.memberInvite.findMany({
-                where: { guildId, inviterId: { not: null } },
-              });
-
               const discordGuild = client.guilds.cache.get(guildId);
-              
-              const inviterStats = new Map<string, { total: number; active: number }>();
-
-              for (const inv of invites) {
-                if (!inv.inviterId) continue;
-                
-                const stats = inviterStats.get(inv.inviterId) ?? { total: 0, active: 0 };
-                stats.total++;
-                
-                const stillHere = discordGuild?.members.cache.has(inv.userId);
-                if (stillHere) stats.active++;
-
-                inviterStats.set(inv.inviterId, stats);
+              if (!discordGuild) {
+                json(res, 404, { error: 'Serveur Discord introuvable' });
+                return;
               }
 
-              const retentionData = [...inviterStats.entries()]
-                .map(([inviterId, stats]) => {
-                  const inviterMember = discordGuild?.members.cache.get(inviterId);
-                  return {
-                    inviterId,
-                    name: inviterMember?.displayName ?? `Utilisateur ${inviterId}`,
-                    total: stats.total,
-                    active: stats.active,
-                    retentionRate: stats.total > 0 ? Math.round((stats.active / stats.total) * 100) : 0,
-                  };
-                })
-                .sort((a, b) => b.total - a.total);
+              // Fetch active invites from Discord
+              const activeInvites = await discordGuild.invites.fetch().catch(() => new Map());
+              
+              const formattedInvites = [...activeInvites.values()].map(inv => ({
+                code: inv.code,
+                inviterTag: inv.inviter?.tag || 'Inconnu',
+                inviterAvatarUrl: inv.inviter?.displayAvatarURL({ size: 64 }) || null,
+                uses: inv.uses || 0,
+                maxUses: inv.maxUses,
+                expiresAt: inv.expiresAt ? inv.expiresAt.toISOString() : null,
+                createdAt: inv.createdAt ? inv.createdAt.toISOString() : null,
+              })).sort((a, b) => (b.uses || 0) - (a.uses || 0));
 
-              json(res, 200, { topInviters: retentionData });
+              json(res, 200, formattedInvites);
             } catch (err) {
               logger.error('AnalyticsAPI', 'Error computing invites analytics:', err);
               json(res, 500, { error: 'Erreur analytics invites' });
@@ -3115,13 +3146,18 @@ export const startDashboardApi = (client: Client) => {
           }
 
           if (parts.length === 6 && parts[4] === 'members' && req.method === 'GET') {
-            const memberCase = await buildMemberCaseData(client, guildId, parts[5], user);
-            if (!memberCase) {
-              json(res, 404, { error: 'Membre introuvable sur ce serveur.' });
-              return;
-            }
+            try {
+              const memberCase = await buildMemberCaseData(client, guildId, parts[5], user);
+              if (!memberCase) {
+                json(res, 404, { error: 'Membre introuvable sur ce serveur.' });
+                return;
+              }
 
-            json(res, 200, memberCase);
+              json(res, 200, memberCase);
+            } catch (err) {
+              logger.error('MembersAPI', `Error building member case for ${parts[5]}:`, err);
+              json(res, 500, { error: 'Erreur lors de la construction du dossier membre', details: String(err) });
+            }
             return;
           }
 
@@ -5000,9 +5036,27 @@ export const startDashboardApi = (client: Client) => {
           }
 
           try {
+            const guildId = url.searchParams.get('guildId');
+            let isDiscordAdmin = false;
+            if (guildId) {
+              const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+              isDiscordAdmin = accessLevel.canManageSettings;
+            }
+
             const staffMember = await getStaffMember('any', userId); // Get profile without guildId restriction
             const apiKeys = staffMember ? await getAPIKeys(staffMember.guildId) : [];
             const blacklist = staffMember ? await getActiveBlacklist(staffMember.guildId, userId) : null;
+
+            const grade = staffMember?.grade?.toLowerCase() || '';
+            const isHighStaff = isDiscordAdmin || grade.includes('admin') || grade.includes('direction') || grade.includes('fondateur') || grade.includes('manager') || grade.includes('responsable');
+            
+            const accessibleTools: string[] = [];
+            if (isHighStaff) {
+              accessibleTools.push('Générateur Daily Algo');
+              accessibleTools.push('Audit Code Police');
+              accessibleTools.push('Management Staff');
+              accessibleTools.push('Éditeur de Règlement');
+            }
 
             json(res, 200, {
               staffMember,
@@ -5016,6 +5070,7 @@ export const startDashboardApi = (client: Client) => {
               isBlacklisted: !!blacklist,
               blacklistReason: blacklist?.reason,
               blacklistEndDate: blacklist?.endDate,
+              accessibleTools,
             });
           } catch (err) {
             logger.error('StaffAPI', 'Error getting user profile:', err);
@@ -6039,6 +6094,193 @@ export const startDashboardApi = (client: Client) => {
             } catch (err) {
               logger.error('StaffAPI', 'Error marking all as read:', err);
               json(res, 500, { error: 'Erreur update notifications' });
+            }
+            return;
+          }
+        }
+
+        // TUTORING ROUTES
+        if (parts[4] === 'tutoring') {
+          const guildId = parts[3] ?? null;
+          if (!guildId) {
+            json(res, 400, { error: 'guildId manquant' });
+            return;
+          }
+
+          // GET /api/dashboard/guilds/:guildId/tutoring/config
+          if (req.method === 'GET' && parts[5] === 'config') {
+            try {
+              const config = await tutoringService.getTutoringConfig(guildId);
+              json(res, 200, { config });
+            } catch (err) {
+              logger.error('TutoringAPI', 'Error getting config:', err);
+              json(res, 500, { error: 'Erreur récupération config tutorat' });
+            }
+            return;
+          }
+
+          // PATCH /api/dashboard/guilds/:guildId/tutoring/config
+          if (req.method === 'PATCH' && parts[5] === 'config') {
+            const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+            if (accessLevel.level !== 'admin') {
+              json(res, 403, { error: 'Accès admin requis' });
+              return;
+            }
+
+            const body = await readJsonBody<any>(req);
+            try {
+              const config = await tutoringService.updateTutoringConfig(guildId, body);
+              
+              await pushAudit(guildId, {
+                user: user.username ?? `User${user.userId}`,
+                action: 'Mise à jour config tutorat',
+                context: getGuildName(client, guildId),
+                module: 'Tutoring',
+                eventType: 'Manuel',
+                details: JSON.stringify(body),
+                channelId: null
+              });
+
+              json(res, 200, { config });
+            } catch (err) {
+              logger.error('TutoringAPI', 'Error updating config:', err);
+              json(res, 500, { error: 'Erreur mise à jour config tutorat' });
+            }
+            return;
+          }
+
+          // GET /api/dashboard/guilds/:guildId/tutoring/items
+          if (req.method === 'GET' && parts[5] === 'items') {
+            try {
+              const items = await tutoringService.getTutoringItems(guildId);
+              json(res, 200, { items });
+            } catch (err) {
+              logger.error('TutoringAPI', 'Error getting items:', err);
+              json(res, 500, { error: 'Erreur récupération items tutorat' });
+            }
+            return;
+          }
+
+          // POST /api/dashboard/guilds/:guildId/tutoring/items
+          if (req.method === 'POST' && parts[5] === 'items') {
+            const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+            if (accessLevel.level !== 'admin') {
+              json(res, 403, { error: 'Accès admin requis' });
+              return;
+            }
+
+            const body = await readJsonBody<any>(req);
+            try {
+              const item = await tutoringService.upsertTutoringItem(guildId, body);
+              
+              await pushAudit(guildId, {
+                user: user.username ?? `User${user.userId}`,
+                action: body.id ? 'Mise à jour item tutorat' : 'Création item tutorat',
+                context: getGuildName(client, guildId),
+                module: 'Tutoring',
+                eventType: 'Manuel',
+                details: `Item: ${body.title}`,
+                channelId: null
+              });
+
+              json(res, 201, { item });
+            } catch (err) {
+              logger.error('TutoringAPI', 'Error upserting item:', err);
+              json(res, 500, { error: 'Erreur sauvegarde item tutorat' });
+            }
+            return;
+          }
+
+          // DELETE /api/dashboard/guilds/:guildId/tutoring/items/:itemId
+          if (req.method === 'DELETE' && parts[5] === 'items' && parts[6]) {
+            const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+            if (accessLevel.level !== 'admin') {
+              json(res, 403, { error: 'Accès admin requis' });
+              return;
+            }
+
+            try {
+              await tutoringService.deleteTutoringItem(parts[6]);
+              json(res, 200, { ok: true });
+            } catch (err) {
+              logger.error('TutoringAPI', 'Error deleting item:', err);
+              json(res, 500, { error: 'Erreur suppression item tutorat' });
+            }
+            return;
+          }
+
+          // GET /api/dashboard/guilds/:guildId/tutoring/tutor-dashboard
+          if (req.method === 'GET' && parts[5] === 'tutor-dashboard') {
+            try {
+              const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+              const fetchAll = accessLevel.level === 'admin';
+              const apprentices = await tutoringService.getTutorDashboard(guildId, user.userId, fetchAll);
+              json(res, 200, { apprentices });
+            } catch (err) {
+              logger.error('TutoringAPI', 'Error getting tutor dashboard:', err);
+              json(res, 500, { error: 'Erreur récupération dashboard tuteur' });
+            }
+            return;
+          }
+
+          // GET /api/dashboard/guilds/:guildId/tutoring/apprentice-progress
+          if (req.method === 'GET' && parts[5] === 'apprentice-progress') {
+            try {
+              const progress = await tutoringService.getApprenticeProgress(guildId, user.userId);
+              json(res, 200, { progress });
+            } catch (err) {
+              logger.error('TutoringAPI', 'Error getting apprentice progress:', err);
+              json(res, 500, { error: 'Erreur récupération progression apprenti' });
+            }
+            return;
+          }
+
+          // PATCH /api/dashboard/guilds/:guildId/tutoring/checklist
+          if (req.method === 'PATCH' && parts[5] === 'checklist') {
+            const body = await readJsonBody<{
+              testingPeriodId: string;
+              itemId: string;
+              completed: boolean;
+            }>(req);
+
+            if (!body?.testingPeriodId || !body?.itemId) {
+              json(res, 400, { error: 'Données manquantes' });
+              return;
+            }
+
+            try {
+              const progress = await tutoringService.updateChecklistProgress(
+                body.testingPeriodId,
+                body.itemId,
+                body.completed,
+                user.userId
+              );
+              json(res, 200, { progress });
+            } catch (err) {
+              logger.error('TutoringAPI', 'Error updating checklist:', err);
+              json(res, 500, { error: 'Erreur mise à jour checklist' });
+            }
+            return;
+          }
+
+          // POST /api/dashboard/guilds/:guildId/tutoring/logs
+          if (req.method === 'POST' && parts[5] === 'logs') {
+            const body = await readJsonBody<{
+              testingPeriodId: string;
+              content: string;
+            }>(req);
+
+            if (!body?.testingPeriodId || !body?.content) {
+              json(res, 400, { error: 'Données manquantes' });
+              return;
+            }
+
+            try {
+              const log = await tutoringService.addApprenticeLog(body.testingPeriodId, body.content);
+              json(res, 201, { log });
+            } catch (err) {
+              logger.error('TutoringAPI', 'Error adding log:', err);
+              json(res, 500, { error: 'Erreur ajout carnet de bord' });
             }
             return;
           }

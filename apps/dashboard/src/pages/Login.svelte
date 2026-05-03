@@ -65,7 +65,6 @@
       } else {
         errorMessage = "Une erreur inattendue est survenue lors de la connexion.";
       }
-
       
       window.history.replaceState({}, document.title, window.location.pathname);
     }
@@ -74,118 +73,172 @@
   const year = new Date().getFullYear();
 </script>
 
-<div class="bg-surface text-on-surface min-h-screen flex flex-col justify-between selection:bg-primary-fixed selection:text-on-primary-fixed relative overflow-hidden transition-colors duration-500">
+<div class="relative min-h-screen w-full overflow-hidden bg-[#020617] text-slate-100 selection:bg-primary/30 selection:text-white flex flex-col font-body">
   
-  <header class="fixed top-0 w-full z-50">
-    <nav class="flex justify-between items-center w-full px-8 py-6 max-w-7xl mx-auto">
-      <div class="text-xl font-bold tracking-tight text-on-surface font-headline uppercase tracking-widest">
-        Kotbo
+  <!-- Background Mesh & FX -->
+  <div class="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+    <div class="absolute -top-[10%] -left-[10%] w-[50%] h-[50%] bg-primary/20 rounded-full blur-[120px] animate-mesh opacity-50"></div>
+    <div class="absolute top-[20%] -right-[10%] w-[40%] h-[40%] bg-blue-600/10 rounded-full blur-[100px] animate-mesh opacity-30" style="animation-delay: -5s"></div>
+    <div class="absolute -bottom-[10%] left-[20%] w-[45%] h-[45%] bg-indigo-500/15 rounded-full blur-[110px] animate-mesh opacity-40" style="animation-delay: -10s"></div>
+    
+    <!-- Pattern Overlay -->
+    <div class="absolute inset-0 opacity-[0.03]" style="background-image: radial-gradient(#fff 1px, transparent 1px); background-size: 40px 40px;"></div>
+    <div class="absolute inset-0 bg-gradient-to-b from-transparent via-[#020617]/50 to-[#020617]"></div>
+  </div>
+
+  <!-- Header -->
+  <header class="relative z-20 w-full px-8 py-8 max-w-7xl mx-auto">
+    <nav class="flex justify-between items-center">
+      <div class="flex items-center gap-4">
+        <div class="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center border border-primary/20 backdrop-blur-md">
+          <img src="/favicon.svg" alt="Kotbo" class="w-6 h-6" />
+        </div>
+        <span class="text-xl font-black tracking-tighter font-headline uppercase text-white/90">
+          Kotbo<span class="text-primary">.io</span>
+        </span>
       </div>
-      <div class="hidden md:flex gap-6 items-center">
-        <span class="text-on-surface-variant/40 font-body text-[10px] font-black uppercase tracking-widest">Maintenance Node: Active</span>
+      
+      <div class="hidden md:flex items-center gap-6">
+        <div class="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-md">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span class="text-[10px] font-black uppercase tracking-widest text-emerald-400">Core v4.2 Status: Online</span>
+        </div>
       </div>
     </nav>
   </header>
 
-  
-  <main class="flex-grow flex items-center justify-center px-6 pt-20 pb-12 relative z-10">
-    <div class="relative w-full max-w-[480px] animate-in fade-in slide-in-from-bottom-4 duration-1000">
+  <!-- Main Content -->
+  <main class="relative z-10 flex-grow flex items-center justify-center px-6 py-12">
+    <div class="w-full max-w-[540px] animate-in fade-in slide-in-from-bottom-8 duration-1000">
       
-      <div class="absolute -top-12 -left-12 w-64 h-64 bg-primary opacity-5 rounded-full blur-3xl animate-pulse"></div>
-      <div class="absolute -bottom-12 -right-12 w-64 h-64 bg-secondary opacity-5 rounded-full blur-3xl animate-pulse" style="animation-delay: -2s"></div>
-      
-      <div class="relative bg-surface-container-lowest ambient-shadow rounded-2xl p-10 md:p-14 overflow-hidden ghost-border backdrop-blur-sm">
+      <!-- Premium Glass Card -->
+      <div class="relative group">
+        <!-- Glow effect -->
+        <div class="absolute -inset-1 bg-gradient-to-r from-primary/50 to-blue-600/50 rounded-[3.2rem] blur opacity-20 group-hover:opacity-40 transition duration-1000 group-hover:duration-200"></div>
         
-        <div class="flex flex-col items-center text-center mb-12">
-          <div class="w-32 h-32 flex items-center justify-center mb-8 group hover:rotate-6 transition-transform duration-500 overflow-visible">
-            <img src="/favicon.svg" alt="Kotbo Logo" class="w-full h-full object-contain drop-shadow-2xl group-hover:scale-110 transition-transform" />
-          </div>
-          <h1 class="font-headline text-3xl font-black tracking-tighter text-on-surface mb-3 leading-tight">
-            Bienvenue sur votre Dashboard
-          </h1>
-          <p class="text-on-surface-variant font-body text-sm leading-relaxed max-w-[320px] opacity-70">
-            L'interface centrale pour la gestion modulaire, le monitoring et l'orchestration de votre bot éditorial.
-          </p>
-        </div>
-
-        
-        <div class="space-y-6">
-          {#if errorMessage}
-            <div class="p-4 rounded-xl bg-error/10 border border-error/20 flex items-center gap-3 animate-in fade-in duration-500">
-              <Papicon icon="warning" size={20} class="text-error" />
-              <p class="text-xs font-bold text-error leading-relaxed">
-                {errorMessage}
+        <div class="relative bg-slate-900/40 backdrop-blur-3xl rounded-[3rem] border border-white/10 p-10 md:p-16 shadow-2xl overflow-hidden">
+          
+          <!-- Content Staggered -->
+          <div class="flex flex-col items-center text-center mb-12">
+            <div class="relative mb-10">
+              <div class="absolute inset-0 bg-primary/20 blur-3xl rounded-full scale-150 animate-pulse"></div>
+              <div class="relative w-32 h-32 flex items-center justify-center group-hover:scale-105 transition-transform duration-700">
+                <img src="/favicon.svg" alt="Kotbo Logo" class="w-full h-full object-contain drop-shadow-[0_0_30px_rgba(51,69,87,0.5)]" />
+              </div>
+            </div>
+            
+            <div class="space-y-4">
+              <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20">
+                 <Papicon icon="chartlineup" size={14} class="text-primary" />
+                 <span class="text-[9px] font-black uppercase tracking-[0.2em] text-primary">Intelligence & Control</span>
+              </div>
+              <h1 class="font-headline text-4xl md:text-5xl font-black tracking-tighter text-white leading-[0.95]">
+                Pilotez votre <br/><span class="text-primary">Espace Editorial</span>
+              </h1>
+              <p class="text-slate-400 font-body text-sm leading-relaxed max-w-[340px] mx-auto opacity-80">
+                Accédez à l'orchestrateur modulaire de Kotbo. Visualisez vos performances et gérez votre communauté avec précision.
               </p>
             </div>
-          {/if}
-
-          <button 
-            onclick={loginWithDiscord}
-            class="w-full bg-primary text-on-primary flex items-center justify-center gap-4 py-4 px-8 rounded-2xl font-black transition-all hover:bg-primary-container active:scale-95 group shadow-xl shadow-primary/20"
-          >
-            <Papicon icon="account_circle" size={20} class="group-hover:rotate-12 transition-transform" />
-            <span class="font-body text-sm tracking-tight uppercase">Se connecter avec Discord</span>
-          </button>
-
-          <div class="pt-6 flex items-center gap-4">
-            <div class="h-px flex-grow bg-outline-variant opacity-10"></div>
-            <span class="text-[9px] font-label font-black uppercase tracking-[0.3em] text-outline opacity-40">Accès Sécurisé</span>
-            <div class="h-px flex-grow bg-outline-variant opacity-10"></div>
           </div>
 
-          <div class="grid grid-cols-2 gap-4 pt-4">
-            <div class="flex items-center gap-3 p-4 rounded-xl bg-surface-container-low border border-outline-variant/10">
-              <Papicon icon="verified_user" size={18} class="text-primary opacity-60" />
-              <span class="text-[10px] font-black font-label text-on-surface-variant uppercase tracking-tighter">OAuth2 Séquentiel</span>
-            </div>
-            <div class="flex items-center gap-3 p-4 rounded-xl bg-surface-container-low border border-outline-variant/10">
-              <Papicon icon="encrypted" size={18} class="text-primary opacity-60" />
-              <span class="text-[10px] font-black font-label text-on-surface-variant uppercase tracking-tighter">Chiffrement AES</span>
+          <!-- Actions -->
+          <div class="space-y-8">
+            {#if errorMessage}
+              <div class="p-4 rounded-[1.5rem] bg-error/10 border border-error/20 flex items-center gap-4 animate-in fade-in duration-500">
+                <div class="bg-error/20 p-2 rounded-xl">
+                  <Papicon icon="warning" size={18} class="text-error" />
+                </div>
+                <p class="text-xs font-bold text-error leading-relaxed flex-grow">
+                  {errorMessage}
+                </p>
+              </div>
+            {/if}
+
+            <button 
+              onclick={loginWithDiscord}
+              class="relative w-full group/btn overflow-hidden"
+            >
+              <div class="absolute inset-0 bg-primary rounded-[1.5rem] transition-all duration-500 group-hover/btn:scale-105 group-hover/btn:shadow-[0_0_40px_rgba(51,69,87,0.4)]"></div>
+              <div class="relative flex items-center justify-center gap-4 py-5 px-8 text-on-primary font-black uppercase tracking-widest text-[11px] transition-transform active:scale-95">
+                <div class="bg-white/10 p-2 rounded-xl group-hover/btn:rotate-12 transition-transform">
+                  <Papicon icon="discord" size={20} />
+                </div>
+                <span>Connexion Authentifiée</span>
+                <Papicon icon="arrow_forward" size={16} class="group-hover/btn:translate-x-1 transition-transform" />
+              </div>
+            </button>
+
+            <!-- Tech Stats Overlay -->
+            <div class="grid grid-cols-3 gap-3 pt-6 border-t border-white/5">
+              <div class="flex flex-col gap-1 text-center">
+                <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest">Protocol</span>
+                <span class="text-[10px] font-bold text-slate-300">OAuth 2.0</span>
+              </div>
+              <div class="flex flex-col gap-1 text-center border-x border-white/5 px-2">
+                <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest">Security</span>
+                <span class="text-[10px] font-bold text-slate-300">AES-256</span>
+              </div>
+              <div class="flex flex-col gap-1 text-center">
+                <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest">Uptime</span>
+                <span class="text-[10px] font-bold text-slate-300">99.98%</span>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      
-      <div class="mt-10 text-center">
-        <p class="text-on-surface-variant text-[11px] font-body opacity-40 italic">
-          Besoin d'assistance ? Contactez l'administrateur système.
+      <!-- Helper text -->
+      <div class="mt-12 text-center">
+        <p class="text-slate-500 text-[10px] font-black uppercase tracking-[0.3em] opacity-40">
+          Système de Contrôle Kotbo &copy; {year}
         </p>
       </div>
     </div>
   </main>
 
-  
-  <footer class="flex flex-col md:flex-row justify-between items-center w-full px-12 py-10 opacity-40 relative z-10 font-body">
-    <div class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant mb-6 md:mb-0">
-      © {year} Kotbo Orchestrator. Sécurisé par OAuth2.
-    </div>
-    <div class="flex gap-8">
-      <a class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:text-primary transition-colors" href="https://github.com/Klaynight-dev/Kotbo" target="_blank" rel="noreferrer">Confidentialité</a>
-      <a class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:text-primary transition-colors" href="https://github.com/Klaynight-dev/Kotbo" target="_blank" rel="noreferrer">Conditions</a>
-      <a class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:text-primary transition-colors" href="https://github.com/Klaynight-dev/Kotbo/blob/main/README.md" target="_blank" rel="noreferrer">Documentation</a>
+  <!-- Footer -->
+  <footer class="relative z-20 px-12 py-10">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8 border-t border-white/5 pt-10">
+      <div class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+        Infrastructure résiliente. Monitoring en temps réel.
+      </div>
+      <div class="flex gap-10">
+        {#each ['Confidentialité', 'Conditions', 'Documentation'] as link}
+          <a href="/" class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 hover:text-primary transition-colors cursor-pointer">{link}</a>
+        {/each}
+      </div>
     </div>
   </footer>
+
 </div>
 
 <style>
   :global(body) {
-    background: radial-gradient(circle at 0% 0%, var(--surface-container-low) 0%, var(--surface) 100%) !important;
+    background: #020617 !important;
+    overflow-x: hidden;
   }
   
-  .ghost-border { 
-    border: 1px solid rgba(197, 197, 212, 0.15); 
+  @keyframes mesh-gradient {
+    0% { transform: scale(1) translate(0, 0) rotate(0deg); }
+    33% { transform: scale(1.2) translate(10%, 5%) rotate(10deg); }
+    66% { transform: scale(1.1) translate(-5%, 15%) rotate(-5deg); }
+    100% { transform: scale(1) translate(0, 0) rotate(0deg); }
   }
   
-  .ambient-shadow { 
-    box-shadow: 0 40px 100px rgba(25, 28, 29, 0.08); 
+  .animate-mesh {
+    animation: mesh-gradient 25s ease-in-out infinite alternate;
   }
 
-  
   @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-  @keyframes slide-up { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  @keyframes slide-up { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
   
   .animate-in {
-    animation: slide-up 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: slide-up 1.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  /* Custom glass effect for the header items if needed */
+  header div.flex.items-center.gap-2 {
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
   }
 </style>
+

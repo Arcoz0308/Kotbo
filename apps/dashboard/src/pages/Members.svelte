@@ -1,9 +1,16 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { router } from 'tinro';
   import { authStore } from '../lib/stores/auth.svelte';
   import { API_BASE_URL, fetchMemberCase } from '../lib/api';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  
+  const userIdFromUrl = $derived.by(() => {
+    const parts = $router.path.split('/');
+    // parts[0] is empty, parts[1] is 'members', parts[2] is the ID
+    return parts[2] || undefined;
+  });
 
   type MemberSearchResult = {
     id: string;
@@ -163,24 +170,40 @@
     }
   }
 
-  async function openMemberCase(member: MemberSearchResult) {
+  async function openMemberCase(member: MemberSearchResult | { id: string, displayName?: string, username?: string }) {
     if (!authStore.selectedGuildId) return;
 
     selectedUserId = member.id;
-    selectedUserName = member.displayName || member.username || 'Membre';
+    selectedUserName = ('displayName' in member ? member.displayName : null) || ('username' in member ? member.username : null) || 'Membre';
     modalOpen = true;
     loadingCase = true;
     caseError = '';
     caseData = null;
 
+    if ($router.path !== `/members/${member.id}`) {
+      router.goto(`/members/${member.id}`);
+    }
+
     try {
       caseData = await fetchMemberCase(member.id, authStore.selectedGuildId);
+      if (caseData?.profile) {
+        selectedUserName = caseData.profile.displayName || caseData.profile.username || selectedUserName;
+      }
     } catch (error) {
       caseError = error instanceof Error ? error.message : 'Impossible de charger le dossier';
     } finally {
       loadingCase = false;
     }
   }
+
+  $effect(() => {
+    if (userIdFromUrl && userIdFromUrl !== selectedUserId && authStore.selectedGuildId) {
+      void openMemberCase({ id: userIdFromUrl });
+    } else if (!userIdFromUrl && modalOpen) {
+      modalOpen = false;
+      selectedUserId = null;
+    }
+  });
 
   function resetSearch() {
     searchQuery = '';
@@ -512,5 +535,8 @@
   error={caseError}
   onClose={() => {
     modalOpen = false;
+    if ($router.path !== '/members') {
+      router.goto('/members');
+    }
   }}
 />

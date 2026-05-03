@@ -7,7 +7,7 @@
 
   let candidatures = $state<any[]>([]);
   let tutors = $state<any[]>([]);
-  let state = $state<any>(null); // from global state if needed, or fetched config
+  let guildState = $state<any>(null); // from global state if needed, or fetched config
   
   let loading = $state(true);
   let error = $state('');
@@ -55,10 +55,10 @@
         headers: { 'Authorization': `Bearer ${authStore.token}` }
       });
       if (resState.ok) {
-        state = await resState.json();
-        recruitmentCategoryId = state.recruitmentCategoryId || '';
-        recruitmentLogChannelId = state.recruitmentLogChannelId || '';
-        recruitmentAutoRejectEnabled = state.recruitmentAutoRejectEnabled !== false;
+        guildState = await resState.json();
+        recruitmentCategoryId = guildState.recruitmentCategoryId || '';
+        recruitmentLogChannelId = guildState.recruitmentLogChannelId || '';
+        recruitmentAutoRejectEnabled = guildState.recruitmentAutoRejectEnabled !== false;
       }
       
       const [resCand, resTutors] = await Promise.all([

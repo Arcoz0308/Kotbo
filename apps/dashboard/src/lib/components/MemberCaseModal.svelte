@@ -4,9 +4,9 @@
   import { authStore } from '../stores/auth.svelte.ts';
   import Papicon from './Papicon.svelte';
   import Chart from './charts/Chart.svelte';
-  import { fetchMemberCase } from '../api';
+  import { fetchMemberCase, fetchMemberDetailedAnalytics } from '../api';
 
-  type MemberCaseTab = 'resume' | 'identite' | 'activite' | 'messages' | 'logs' | 'sanctions' | 'invites' | 'connexions' | 'analytics';
+  type MemberCaseTab = 'resume' | 'identite' | 'activite' | 'messages' | 'logs' | 'sanctions' | 'invites' | 'connexions' | 'analytics' | 'candidatures';
 
   type MemberAnalyticsResponse = {
     totalMessages: number;
@@ -143,7 +143,7 @@
 
   const sanctions = $derived(
     caseData?.sanctions
-      ? [...caseData.sanctions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      ? [...caseData?.sanctions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       : []
   );
 
@@ -240,10 +240,10 @@
 
   function getHeroBackground() {
     if (caseData?.profile?.bannerUrl) {
-      return `background-image: linear-gradient(to bottom, transparent 30%, var(--surface-container-lowest) 100%), url('${caseData.profile.bannerUrl}'); background-size: cover; background-position: center;`;
+      return `background-image: linear-gradient(to bottom, transparent 30%, var(--surface-container-lowest) 100%), url('${caseData?.profile?.bannerUrl}'); background-size: cover; background-position: center;`;
     }
     if (caseData?.profile?.accentColor) {
-      const hex = '#' + caseData.profile.accentColor.toString(16).padStart(6, '0');
+      const hex = '#' + caseData?.profile?.accentColor.toString(16).padStart(6, '0');
       return `background: linear-gradient(135deg, ${hex}40 0%, var(--color-primary) 50%, var(--color-secondary) 100%);`;
     }
     return `background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-container) 50%, var(--color-secondary) 100%);`;
@@ -306,7 +306,7 @@
     if (!userId || !authStore.selectedGuildId) return;
     analyticsLoading = true;
     try {
-      analyticsData = await authStore.apiClient?.get(`/guilds/${authStore.selectedGuildId}/analytics/members?userId=${userId}&period=30`);
+      analyticsData = await fetchMemberDetailedAnalytics(userId, 30);
     } catch (e) {
       console.error('Failed to load member analytics:', e);
     } finally {
@@ -350,7 +350,7 @@
             <div class="absolute -inset-1.5 rounded-3xl bg-white/20 blur-lg animate-pulse"></div>
             {#if caseData?.profile?.avatarUrl}
               <img
-                src={caseData.profile.avatarUrl}
+                src={caseData?.profile?.avatarUrl}
                 alt="Avatar"
                 class="relative h-20 w-20 rounded-2xl border-4 border-(--surface-container-lowest) object-cover shadow-2xl"
               />
@@ -375,7 +375,7 @@
                 <span class="badge badge-info">Bot</span>
               {/if}
               {#if caseData?.profile?.pronouns}
-                <span class="badge badge-neutral">{caseData.profile.pronouns}</span>
+                <span class="badge badge-neutral">{caseData?.profile?.pronouns}</span>
               {/if}
               <span class="badge badge-neutral">
                 <span class="h-2 w-2 rounded-full {getPresenceColor(caseData?.profile?.presenceStatus)}"></span>
@@ -385,6 +385,12 @@
                 <span class="badge bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 shadow-sm animate-in zoom-in-95 duration-500">
                   <Papicon icon="shield" size={12} class="mr-1" />
                   Tuteur
+                </span>
+              {/if}
+              {#if caseData?.profile?.staffGrade}
+                <span class="badge bg-primary/15 text-primary border border-primary/30 shadow-sm animate-in zoom-in-95 duration-500">
+                  <Papicon icon="star" size={12} class="mr-1" />
+                  {caseData?.profile?.staffGrade}
                 </span>
               {/if}
               {#if userId}
@@ -487,22 +493,22 @@
                    <div class="grid grid-cols-2 gap-8">
                      <div class="space-y-1">
                        <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Âge du compte</p>
-                       <p class="text-lg font-black text-on-surface">{getDurationSince(caseData.profile?.accountCreatedAt)}</p>
-                       <p class="text-[10px] font-bold text-on-surface-variant/60">Créé le {formatDateShort(caseData.profile?.accountCreatedAt)}</p>
+                       <p class="text-lg font-black text-on-surface">{getDurationSince(caseData?.profile?.accountCreatedAt)}</p>
+                       <p class="text-[10px] font-bold text-on-surface-variant/60">Créé le {formatDateShort(caseData?.profile?.accountCreatedAt)}</p>
                      </div>
                      <div class="space-y-1">
                        <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Présence Serveur</p>
-                       <p class="text-lg font-black text-on-surface">{getDurationSince(caseData.profile?.guildJoinedAt)}</p>
-                       <p class="text-[10px] font-bold text-on-surface-variant/60">Arrivé le {formatDateShort(caseData.profile?.guildJoinedAt)}</p>
+                       <p class="text-lg font-black text-on-surface">{getDurationSince(caseData?.profile?.guildJoinedAt)}</p>
+                       <p class="text-[10px] font-bold text-on-surface-variant/60">Arrivé le {formatDateShort(caseData?.profile?.guildJoinedAt)}</p>
                      </div>
                      <div class="space-y-1">
                        <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Invité par</p>
-                       {#if caseData.invite?.inviterTag}
+                       {#if caseData?.invite?.inviterTag}
                          <div class="flex items-center gap-2">
                            <div class="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
-                             {caseData.invite.inviterTag.slice(0, 1).toUpperCase()}
+                             {caseData?.invite.inviterTag.slice(0, 1).toUpperCase()}
                            </div>
-                           <p class="text-sm font-black text-on-surface truncate">@{caseData.invite.inviterTag}</p>
+                           <p class="text-sm font-black text-on-surface truncate">@{caseData?.invite.inviterTag}</p>
                          </div>
                        {:else}
                          <p class="text-sm font-bold text-on-surface-variant/40 italic">Origine inconnue</p>
@@ -510,7 +516,7 @@
                      </div>
                      <div class="space-y-1">
                        <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Code d'invitation</p>
-                       <p class="text-sm font-black text-on-surface">{caseData.invite?.code || '—'}</p>
+                       <p class="text-sm font-black text-on-surface">{caseData?.invite?.code || '—'}</p>
                      </div>
                    </div>
                 </div>
@@ -556,15 +562,15 @@
                    <div class="grid grid-cols-1 gap-4">
                      <div class="flex items-center justify-between">
                        <span class="text-xs font-bold text-on-surface-variant/60">Messages</span>
-                       <span class="text-sm font-black text-on-surface">{caseData.profile?.messageCount?.toLocaleString('fr-FR') ?? 0}</span>
+                       <span class="text-sm font-black text-on-surface">{caseData?.profile?.messageCount?.toLocaleString('fr-FR') ?? 0}</span>
                      </div>
                      <div class="flex items-center justify-between">
                        <span class="text-xs font-bold text-on-surface-variant/60">Vocal</span>
-                       <span class="text-sm font-black text-on-surface">{formatDurationFromSeconds(caseData.profile?.voiceTimeSeconds)}</span>
+                       <span class="text-sm font-black text-on-surface">{formatDurationFromSeconds(caseData?.profile?.voiceTimeSeconds)}</span>
                      </div>
                      <div class="flex items-center justify-between">
                        <span class="text-xs font-bold text-on-surface-variant/60">Dernier passage</span>
-                       <span class="text-sm font-black text-on-surface">{formatRelative(caseData.profile?.lastSeenAt)}</span>
+                       <span class="text-sm font-black text-on-surface">{formatRelative(caseData?.profile?.lastSeenAt)}</span>
                      </div>
                    </div>
                 </div>
@@ -652,18 +658,18 @@
                      <div>
                         <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-3">Rôles Principaux</p>
                         <div class="flex flex-wrap gap-2">
-                          {#each caseData.roles.slice(0, 4) as role}
+                          {#each caseData?.roles.slice(0, 4) as role}
                             <span class="px-3 py-1.5 rounded-xl bg-surface-container-high text-[10px] font-bold text-on-surface border border-outline-variant/20">{role.name}</span>
                           {/each}
-                          {#if caseData.roles.length > 4}
-                            <span class="px-3 py-1.5 rounded-xl bg-primary/5 text-[10px] font-black text-primary border border-primary/10">+{caseData.roles.length - 4}</span>
+                          {#if caseData?.roles.length > 4}
+                            <span class="px-3 py-1.5 rounded-xl bg-primary/5 text-[10px] font-black text-primary border border-primary/10">+{caseData?.roles.length - 4}</span>
                           {/if}
                         </div>
                      </div>
                      <div>
                         <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-3">Permissions Clés</p>
                         <div class="flex flex-wrap gap-1.5">
-                          {#each caseData.effectivePermissions.slice(0, 3) as perm}
+                          {#each caseData?.effectivePermissions.slice(0, 3) as perm}
                             <span class="text-[10px] font-black text-emerald-500 uppercase tracking-tighter flex items-center gap-1.5">
                               <Papicon icon="check-circle" size={10} /> {perm}
                             </span>
@@ -733,7 +739,7 @@
                   <div class="grid gap-6 md:grid-cols-2">
                     <div class="space-y-4">
                        <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary px-2 mb-4">Derniers Messages</p>
-                       {#each caseData.messagesByChannel.slice(0, 3).flatMap(c => c.recentMessages.slice(0, 1)) as msg}
+                       {#each caseData?.messagesByChannel.slice(0, 3).flatMap(c => c.recentMessages.slice(0, 1)) as msg}
                          <div class="rounded-3xl bg-surface-container-low/60 p-5 border border-outline-variant/5 transition-all hover:border-primary/20">
                             <div class="flex items-center justify-between mb-2">
                                <span class="text-[10px] font-bold text-primary">#{msg.channelName}</span>
@@ -742,7 +748,7 @@
                             <p class="text-sm text-on-surface line-clamp-2 leading-relaxed italic">"{msg.content || 'Contenu vide'}"</p>
                          </div>
                        {/each}
-                       {#if caseData.messagesByChannel.length === 0}
+                       {#if caseData?.messagesByChannel.length === 0}
                          <p class="text-xs text-on-surface-variant/40 px-2">Aucun message récent détecté.</p>
                        {/if}
                     </div>
@@ -750,7 +756,7 @@
                     <div class="space-y-4">
                        <p class="text-[10px] font-black uppercase tracking-[0.25em] text-secondary px-2 mb-4">Derniers Logs</p>
                        <div class="space-y-3 relative pl-4 border-l border-outline-variant/20 ml-2">
-                         {#each caseData.logs.slice(0, 3) as log}
+                         {#each caseData?.logs.slice(0, 3) as log}
                            <div class="relative pb-6">
                               <div class="absolute -left-[calc(1rem+4.5px)] top-1 h-2 w-2 rounded-full bg-secondary border border-surface"></div>
                               <p class="text-xs font-black text-on-surface">{log.action}</p>
@@ -767,28 +773,28 @@
                   <div class="rounded-[2rem] bg-surface-container-low/50 p-6 border border-outline-variant/10">
                     <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-6">Profil Discord</p>
                     <dl class="space-y-4">
-                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Nom d'utilisateur</dt><dd class="text-sm font-black text-on-surface">@{caseData.profile?.username ?? 'Inconnu'}</dd></div>
-                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Nom global</dt><dd class="text-sm font-black text-on-surface">{caseData.profile?.globalName ?? 'Inconnu'}</dd></div>
-                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Affichage serveur</dt><dd class="text-sm font-black text-on-surface">{caseData.profile?.displayName ?? 'Inconnu'}</dd></div>
-                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Langue</dt><dd class="text-sm font-black text-on-surface uppercase tracking-widest">{caseData.profile?.locale ?? 'Inconnue'}</dd></div>
-                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Pronoms</dt><dd class="text-sm font-black text-on-surface">{caseData.profile?.pronouns ?? 'Non spécifiés'}</dd></div>
+                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Nom d'utilisateur</dt><dd class="text-sm font-black text-on-surface">@{caseData?.profile?.username ?? 'Inconnu'}</dd></div>
+                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Nom global</dt><dd class="text-sm font-black text-on-surface">{caseData?.profile?.globalName ?? 'Inconnu'}</dd></div>
+                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Affichage serveur</dt><dd class="text-sm font-black text-on-surface">{caseData?.profile?.displayName ?? 'Inconnu'}</dd></div>
+                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Langue</dt><dd class="text-sm font-black text-on-surface uppercase tracking-widest">{caseData?.profile?.locale ?? 'Inconnue'}</dd></div>
+                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Pronoms</dt><dd class="text-sm font-black text-on-surface">{caseData?.profile?.pronouns ?? 'Non spécifiés'}</dd></div>
                     </dl>
                   </div>
                   <div class="rounded-[2rem] bg-surface-container-low/50 p-6 border border-outline-variant/10 space-y-6">
                     <p class="text-[10px] font-black uppercase tracking-[0.2em] text-secondary mb-6">Visuels</p>
-                    {#if caseData.profile?.avatarUrl}
+                    {#if caseData?.profile?.avatarUrl}
                       <div class="flex items-center gap-4">
-                        <img src={caseData.profile.avatarUrl} alt="Avatar" class="h-16 w-16 rounded-2xl object-cover shadow-lg border-2 border-surface" />
+                        <img src={caseData?.profile?.avatarUrl} alt="Avatar" class="h-16 w-16 rounded-2xl object-cover shadow-lg border-2 border-surface" />
                         <span class="text-xs font-bold text-on-surface-variant/60">Avatar personnalisé</span>
                       </div>
                     {/if}
-                    {#if caseData.profile?.bannerUrl}
-                      <img src={caseData.profile.bannerUrl} alt="Bannière" class="w-full h-24 rounded-2xl object-cover border border-outline-variant/10 shadow-sm" />
+                    {#if caseData?.profile?.bannerUrl}
+                      <img src={caseData?.profile?.bannerUrl} alt="Bannière" class="w-full h-24 rounded-2xl object-cover border border-outline-variant/10 shadow-sm" />
                     {/if}
-                    {#if caseData.profile?.accentColor}
+                    {#if caseData?.profile?.accentColor}
                       <div class="flex items-center gap-3">
-                        <div class="h-8 w-8 rounded-lg shadow-inner" style="background-color: #{caseData.profile.accentColor.toString(16).padStart(6, '0')};"></div>
-                        <span class="text-xs font-bold text-on-surface-variant/60">Couleur d'accent: #{caseData.profile.accentColor.toString(16).padStart(6, '0')}</span>
+                        <div class="h-8 w-8 rounded-lg shadow-inner" style="background-color: #{caseData?.profile?.accentColor.toString(16).padStart(6, '0')};"></div>
+                        <span class="text-xs font-bold text-on-surface-variant/60">Couleur d'accent: #{caseData?.profile?.accentColor.toString(16).padStart(6, '0')}</span>
                       </div>
                     {/if}
                   </div>
@@ -811,30 +817,57 @@
                    <dl class="space-y-5">
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
                        <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">ID Discord</dt>
-                       <dd class="text-sm font-black text-on-surface select-all">{caseData.profile?.userId ?? userId}</dd>
+                       <dd class="text-sm font-black text-on-surface select-all">{caseData?.profile?.userId ?? userId}</dd>
                      </div>
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
                        <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Nom d'utilisateur</dt>
-                       <dd class="text-sm font-black text-on-surface">@{caseData.profile?.username ?? 'Inconnu'}</dd>
+                       <dd class="text-sm font-black text-on-surface">@{caseData?.profile?.username ?? 'Inconnu'}</dd>
                      </div>
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
                        <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Nom Global</dt>
-                       <dd class="text-sm font-black text-on-surface">{caseData.profile?.globalName ?? 'Inconnu'}</dd>
+                       <dd class="text-sm font-black text-on-surface">{caseData?.profile?.globalName ?? 'Inconnu'}</dd>
                      </div>
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
                        <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Surnom Serveur</dt>
-                       <dd class="text-sm font-black text-on-surface">{caseData.profile?.displayName ?? 'Inconnu'}</dd>
+                       <dd class="text-sm font-black text-on-surface">{caseData?.profile?.displayName ?? 'Inconnu'}</dd>
                      </div>
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
                        <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Pronoms</dt>
-                       <dd class="text-sm font-black text-on-surface">{caseData.profile?.pronouns ?? 'Non spécifiés'}</dd>
+                       <dd class="text-sm font-black text-on-surface">{caseData?.profile?.pronouns ?? 'Non spécifiés'}</dd>
                      </div>
                      <div class="flex items-center justify-between">
                        <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Langue (Locale)</dt>
-                       <dd class="text-sm font-black text-on-surface uppercase tracking-widest">{caseData.profile?.locale ?? 'Inconnue'}</dd>
+                       <dd class="text-sm font-black text-on-surface uppercase tracking-widest">{caseData?.profile?.locale ?? 'Inconnue'}</dd>
                      </div>
                    </dl>
                 </div>
+
+                {#if caseData?.profile?.staffGrade}
+                  <!-- Staff Role Section -->
+                  <div class="rounded-[2.5rem] bg-primary/5 p-8 border border-primary/20 shadow-sm hover:bg-primary/10 transition-all duration-500 group">
+                     <div class="flex items-center gap-3 mb-8">
+                       <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-on-primary group-hover:scale-110 transition-transform shadow-lg shadow-primary/20">
+                         <Papicon icon="star" size={24} />
+                       </div>
+                       <div>
+                         <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Administration</p>
+                         <p class="text-lg font-black text-on-surface">Statut Staff</p>
+                       </div>
+                     </div>
+                     <dl class="space-y-5">
+                       <div class="flex items-center justify-between border-b border-primary/10 pb-2">
+                         <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Grade Actuel</dt>
+                         <dd class="text-sm font-black text-primary">{caseData?.profile?.staffGrade}</dd>
+                       </div>
+                       <div class="flex items-center justify-between">
+                         <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Statut Tuteur</dt>
+                         <dd class="text-sm font-black text-on-surface">
+                           {caseData?.profile?.isTutor ? 'Oui (Actif)' : 'Non'}
+                         </dd>
+                       </div>
+                     </dl>
+                  </div>
+                {/if}
 
                 <!-- Timeline -->
                 <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm hover:bg-surface-container-low transition-all duration-500 group">
@@ -850,25 +883,25 @@
                    <dl class="space-y-5">
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
                        <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Création Compte</dt>
-                       <dd class="text-sm font-black text-on-surface">{formatDateTime(caseData.profile?.accountCreatedAt)}</dd>
+                       <dd class="text-sm font-black text-on-surface">{formatDateTime(caseData?.profile?.accountCreatedAt)}</dd>
                      </div>
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
                        <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Arrivée Serveur</dt>
-                       <dd class="text-sm font-black text-on-surface">{formatDateTime(caseData.profile?.guildJoinedAt)}</dd>
+                       <dd class="text-sm font-black text-on-surface">{formatDateTime(caseData?.profile?.guildJoinedAt)}</dd>
                      </div>
-                     {#if caseData.profile?.guildLeftAt}
+                     {#if caseData?.profile?.guildLeftAt}
                        <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
                          <dt class="text-[10px] font-black uppercase tracking-widest text-rose-500/60">Dernier Départ</dt>
-                         <dd class="text-sm font-black text-rose-500">{formatDateTime(caseData.profile?.guildLeftAt)}</dd>
+                         <dd class="text-sm font-black text-rose-500">{formatDateTime(caseData?.profile?.guildLeftAt)}</dd>
                        </div>
                      {/if}
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
                        <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Première Vue</dt>
-                       <dd class="text-sm font-black text-on-surface">{formatDateTime(caseData.profile?.firstSeenAt)}</dd>
+                       <dd class="text-sm font-black text-on-surface">{formatDateTime(caseData?.profile?.firstSeenAt)}</dd>
                      </div>
                      <div class="flex items-center justify-between">
                        <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Dernière Vue</dt>
-                       <dd class="text-sm font-black text-on-surface">{formatDateTime(caseData.profile?.lastSeenAt)}</dd>
+                       <dd class="text-sm font-black text-on-surface">{formatDateTime(caseData?.profile?.lastSeenAt)}</dd>
                      </div>
                    </dl>
                 </div>
@@ -881,16 +914,16 @@
                      </div>
                      <div>
                        <p class="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500">Autorisations</p>
-                       <p class="text-lg font-black text-on-surface">Rôles ({caseData.roles.length})</p>
+                       <p class="text-lg font-black text-on-surface">Rôles ({caseData?.roles.length})</p>
                      </div>
                    </div>
                    <div class="flex flex-wrap gap-3">
-                     {#each caseData.roles as role}
+                     {#each caseData?.roles as role}
                        <span class="px-5 py-2.5 rounded-2xl bg-surface-container-high text-xs font-black text-on-surface border border-outline-variant/20 shadow-sm transition-all hover:scale-105 hover:bg-surface-container-highest">
                          {role.name}
                        </span>
                      {/each}
-                     {#if caseData.roles.length === 0}
+                     {#if caseData?.roles.length === 0}
                         <div class="w-full py-10 text-center bg-surface-container-low rounded-3xl border border-dashed border-outline-variant/20">
                           <p class="text-sm font-black text-on-surface-variant/40 uppercase tracking-widest">Aucun rôle attribué</p>
                         </div>
@@ -906,21 +939,21 @@
                       <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary mx-auto mb-4">
                         <Papicon icon="message-square" size={20} />
                       </div>
-                      <p class="text-2xl font-black text-on-surface">{caseData.profile?.messageCount ?? 0}</p>
+                      <p class="text-2xl font-black text-on-surface">{caseData?.profile?.messageCount ?? 0}</p>
                       <p class="text-[9px] font-black uppercase tracking-widest text-primary/60 mt-1">Messages</p>
                     </div>
                     <div class="rounded-[2rem] bg-secondary/5 p-6 border border-secondary/10 text-center">
                       <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary/10 text-secondary mx-auto mb-4">
                         <Papicon icon="mic" size={20} />
                       </div>
-                      <p class="text-2xl font-black text-on-surface">{formatDurationFromSeconds(caseData.profile?.voiceTimeSeconds)}</p>
+                      <p class="text-2xl font-black text-on-surface">{formatDurationFromSeconds(caseData?.profile?.voiceTimeSeconds)}</p>
                       <p class="text-[9px] font-black uppercase tracking-widest text-secondary/60 mt-1">Temps vocal</p>
                     </div>
                     <div class="rounded-[2rem] bg-emerald-500/5 p-6 border border-emerald-500/10 text-center">
                       <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 mx-auto mb-4">
                         <Papicon icon="eye" size={20} />
                       </div>
-                      <p class="text-lg font-black text-on-surface">{formatDateShort(caseData.profile?.lastSeenAt)}</p>
+                      <p class="text-lg font-black text-on-surface">{formatDateShort(caseData?.profile?.lastSeenAt)}</p>
                       <p class="text-[9px] font-black uppercase tracking-widest text-emerald-500/60 mt-1">Dernière activité</p>
                     </div>
                   </div>
@@ -928,8 +961,8 @@
                   <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10">
                     <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-8 px-2">Répartition par salon</p>
                     <div class="space-y-6">
-                      {#each caseData.messagesByChannel as channel}
-                        {@const max = Math.max(...caseData.messagesByChannel.map(c => c.count), 1)}
+                      {#each caseData?.messagesByChannel as channel}
+                        {@const max = Math.max(...caseData?.messagesByChannel.map(c => c.count), 1)}
                         <div class="space-y-2">
                           <div class="flex items-center justify-between px-1">
                             <span class="text-sm font-black text-on-surface">{channel.channelName}</span>
@@ -1032,7 +1065,7 @@
 
               {:else if activeTab === 'messages'}
                 <div class="space-y-6">
-                  {#each caseData.messagesByChannel as channel}
+                  {#each caseData?.messagesByChannel as channel}
                     <div class="rounded-[2rem] bg-surface-container-low/50 p-6 border border-outline-variant/10">
                       <div class="flex items-center gap-3 mb-6 border-b border-outline-variant/10 pb-4">
                         <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -1053,7 +1086,7 @@
                       </div>
                     </div>
                   {/each}
-                  {#if caseData.messagesByChannel.length === 0}
+                  {#if caseData?.messagesByChannel.length === 0}
                     <div class="flex flex-col items-center justify-center py-24 text-center bg-surface-container-low/30 rounded-[3rem] border-2 border-dashed border-outline-variant/20">
                       <div class="flex h-20 w-20 items-center justify-center rounded-3xl bg-surface-container-high text-on-surface-variant/20 mb-8">
                         <Papicon icon="message-square" size={40} />
@@ -1069,7 +1102,7 @@
               {:else if activeTab === 'logs'}
                 <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10">
                   <div class="space-y-8 relative pl-6 border-l-2 border-outline-variant/20 ml-4">
-                    {#each caseData.logs as log}
+                    {#each caseData?.logs as log}
                       <div class="relative">
                         <div class="absolute -left-[calc(1.5rem+5px)] top-1.5 h-3 w-3 rounded-full bg-primary border-2 border-surface shadow-sm"></div>
                         <div class="flex items-start justify-between gap-4 mb-2">
@@ -1084,7 +1117,7 @@
                         </div>
                       </div>
                     {/each}
-                    {#if caseData.logs.length === 0}
+                    {#if caseData?.logs.length === 0}
                       <div class="flex flex-col items-center justify-center py-10 text-on-surface-variant/20">
                          <Papicon icon="history" size={48} />
                          <p class="mt-4 text-sm font-black uppercase tracking-widest">Aucun log disponible</p>
@@ -1135,24 +1168,24 @@
                    <div class="rounded-[2rem] bg-surface-container-low/50 p-6 border border-outline-variant/10">
                      <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-6">Source d'invitation</p>
                      <dl class="space-y-4">
-                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Code utilisé</dt><dd class="text-sm font-black text-on-surface font-mono">{caseData.invite?.code ?? 'Inconnu'}</dd></div>
-                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Créateur</dt><dd class="text-sm font-black text-on-surface">@{caseData.invite?.inviterTag ?? 'Inconnu'}</dd></div>
-                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Date d'utilisation</dt><dd class="text-sm font-black text-on-surface">{formatDateTime(caseData.invite?.joinedAt ?? caseData.profile?.guildJoinedAt)}</dd></div>
+                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Code utilisé</dt><dd class="text-sm font-black text-on-surface font-mono">{caseData?.invite?.code ?? 'Inconnu'}</dd></div>
+                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Créateur</dt><dd class="text-sm font-black text-on-surface">@{caseData?.invite?.inviterTag ?? 'Inconnu'}</dd></div>
+                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Date d'utilisation</dt><dd class="text-sm font-black text-on-surface">{formatDateTime(caseData?.invite?.joinedAt ?? caseData?.profile?.guildJoinedAt)}</dd></div>
                      </dl>
                    </div>
                    <div class="rounded-[2rem] bg-surface-container-low/50 p-6 border border-outline-variant/10">
                      <p class="text-[10px] font-black uppercase tracking-[0.2em] text-secondary mb-6">Mouvements Serveur</p>
                      <dl class="space-y-4">
-                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Dernière arrivée</dt><dd class="text-sm font-black text-on-surface">{formatDateTime(caseData.profile?.guildJoinedAt)}</dd></div>
-                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Dernier départ</dt><dd class="text-sm font-black text-on-surface">{formatDateTime(caseData.profile?.guildLeftAt)}</dd></div>
-                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Première observation</dt><dd class="text-sm font-black text-on-surface">{formatDateTime(caseData.profile?.firstSeenAt)}</dd></div>
+                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Dernière arrivée</dt><dd class="text-sm font-black text-on-surface">{formatDateTime(caseData?.profile?.guildJoinedAt)}</dd></div>
+                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Dernier départ</dt><dd class="text-sm font-black text-on-surface">{formatDateTime(caseData?.profile?.guildLeftAt)}</dd></div>
+                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Première observation</dt><dd class="text-sm font-black text-on-surface">{formatDateTime(caseData?.profile?.firstSeenAt)}</dd></div>
                      </dl>
                    </div>
                 </div>
 
               {:else if activeTab === 'connexions'}
                 <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                   {#each caseData.connections as connection}
+                   {#each caseData?.connections as connection}
                      <div class="flex items-center gap-4 rounded-[1.5rem] bg-surface-container-low/50 p-4 border border-outline-variant/10 hover:border-primary/30 transition-all group">
                        <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary group-hover:scale-110 transition-transform">
                          <Papicon icon={getConnectionIcon(connection.type)} size={20} />
@@ -1163,7 +1196,7 @@
                        </div>
                      </div>
                    {/each}
-                   {#if caseData.connections.length === 0}
+                   {#if caseData?.connections.length === 0}
                      <div class="md:col-span-2 lg:col-span-3 flex flex-col items-center py-20 text-on-surface-variant/30 bg-surface-container-low/30 rounded-[2.5rem]">
                        <Papicon icon="link-2" size={48} />
                        <p class="mt-4 text-sm font-black uppercase tracking-widest">Aucun lien externe</p>
@@ -1173,7 +1206,7 @@
 
               {:else if activeTab === 'candidatures'}
                 <div class="space-y-6">
-                  {#each (caseData.candidatures || []) as cand}
+                  {#each (caseData?.candidatures || []) as cand}
                     <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 space-y-6">
                       <div class="flex items-start justify-between">
                          <div>

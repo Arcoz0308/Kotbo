@@ -616,33 +616,47 @@ export async function updateDailyAlgoLeaderboard(client: Client, runId: string):
     },
   });
 
-  if (!run) return;
+  if (!run) {
+    logger.debug('DailyAlgo', `Run ${runId} introuvable pour la mise à jour du leaderboard.`);
+    return;
+  }
 
   const channel = await client.channels.fetch(run.challengeChannelId).catch(() => null) as TextChannel | null;
-  if (!channel) return;
+  if (!channel) {
+    logger.debug('DailyAlgo', `Canal de challenge ${run.challengeChannelId} introuvable pour le leaderboard du run ${runId}.`);
+    return;
+  }
 
   const embed = buildLeaderboardEmbed(run.submissions, run.dateKey, run.createdAt);
 
   if (run.leaderboardMessageId) {
+    logger.debug('DailyAlgo', `Mise à jour du message de classement ${run.leaderboardMessageId} pour le run ${runId}...`);
     const message = await channel.messages.fetch(run.leaderboardMessageId).catch(() => null);
     if (message) {
       await message.edit({
         embeds: [embed],
         components: [getDailyAlgoLeaderboardButtonRow(run.id)],
-      });
+      }).catch((err) => logger.debug('DailyAlgo', `Erreur edit leaderboard message: ${err}`));
       return;
     }
   }
 
   // No existing leaderboard message or it was deleted → send new one
+  logger.debug('DailyAlgo', `Création d'un nouveau message de classement pour le run ${runId}...`);
   const newMessage = await channel.send({
     embeds: [embed],
     components: [getDailyAlgoLeaderboardButtonRow(run.id)],
+  }).catch((err) => {
+    logger.debug('DailyAlgo', `Erreur send leaderboard message: ${err}`);
+    return null;
   });
-  await prisma.dailyAlgoRun.update({
-    where: { id: runId },
-    data: { leaderboardMessageId: newMessage.id },
-  });
+
+  if (newMessage) {
+    await prisma.dailyAlgoRun.update({
+      where: { id: runId },
+      data: { leaderboardMessageId: newMessage.id },
+    }).catch((err) => logger.debug('DailyAlgo', `Erreur update run leaderboardMessageId: ${err}`));
+  }
 }
 
 // ── Queue Submission ───────────────────────────────────────────────────────────
@@ -1612,6 +1626,7 @@ function splitLines(lines: string[], maxLength: number): string[] {
 async function ensureDailyAlgoRunButtons(client: Client, run: DailyAlgoRunMessageData): Promise<void> {
   const challengeChannel = await client.channels.fetch(run.challengeChannelId).catch(() => null) as TextChannel | null;
   if (!challengeChannel) {
+    logger.debug('DailyAlgo', `Canal de challenge ${run.challengeChannelId} introuvable pour le run ${run.id}.`);
     return;
   }
 
@@ -1622,20 +1637,22 @@ async function ensureDailyAlgoRunButtons(client: Client, run: DailyAlgoRunMessag
   });
 
   if (run.challengeMessageId) {
+    logger.debug('DailyAlgo', `Mise à jour des boutons du challenge ${run.challengeMessageId} pour le run ${run.id}...`);
     const challengeMessage = await challengeChannel.messages.fetch(run.challengeMessageId).catch(() => null);
     if (challengeMessage) {
       await challengeMessage.edit({
         components: [getDailyAlgoButtonRow(run.id, !canSubmit)],
-      }).catch(() => null);
+      }).catch((err) => logger.debug('DailyAlgo', `Erreur edit challenge message: ${err}`));
     }
   }
 
   if (run.leaderboardMessageId) {
+    logger.debug('DailyAlgo', `Mise à jour des boutons du classement ${run.leaderboardMessageId} pour le run ${run.id}...`);
     const leaderboardMessage = await challengeChannel.messages.fetch(run.leaderboardMessageId).catch(() => null);
     if (leaderboardMessage) {
       await leaderboardMessage.edit({
         components: [getDailyAlgoLeaderboardButtonRow(run.id)],
-      }).catch(() => null);
+      }).catch((err) => logger.debug('DailyAlgo', `Erreur edit leaderboard message: ${err}`));
     }
   }
 }
@@ -1658,6 +1675,7 @@ export async function syncOngoingDailyAlgoButtons(client: Client): Promise<void>
 
   for (const runRaw of activeRunsRaw) {
     const run = toDailyAlgoRunMessageData(runRaw);
+    logger.debug('DailyAlgo', `Synchronisation du run ${run.id} (${run.dateKey ?? 'sans date'})...`);
     await ensureDailyAlgoRunButtons(client, run);
     if (run.leaderboardMessageId) {
       await updateDailyAlgoLeaderboard(client, run.id).catch((error) =>

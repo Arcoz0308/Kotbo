@@ -93,6 +93,10 @@ model Guild {
   channelDailyStats ChannelDailyStat[]
   memberDailyStats MemberDailyStat[]
   memberInvites MemberInvite[]
+  guildInvites  GuildInvite[]
+
+  tutoringConfig TutoringConfig?
+  tutoringItems TutoringItem[]
 
   @@map("guilds")
 }
@@ -740,6 +744,10 @@ model TestingPeriod {
   mentor StaffMember? @relation("StaffMemberMentor", fields: [mentorId], references: [id], onDelete: SetNull)
   reports MentorReport[]
 
+  lastReportAt DateTime?
+  checklistProgress TutoringChecklistProgress[]
+  logs TutoringLog[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1194,10 +1202,36 @@ model MemberInvite {
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   joinedAt DateTime @default(now())
+  leftAt   DateTime? // Quand l'utilisateur est parti
 
   @@index([guildId, inviterId])
   @@index([guildId, joinedAt])
   @@map("member_invites")
+}
+
+model GuildInvite {
+  id String @id @default(cuid())
+  
+  guildId String
+  code    String @unique
+  
+  inviterId   String?
+  inviterTag  String?
+  
+  uses        Int @default(0)
+  maxUses     Int?
+  expiresAt   DateTime?
+  
+  isTemporary Boolean @default(false)
+  isDeleted   Boolean @default(false)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  
+  @@index([guildId, inviterId])
+  @@map("guild_invites")
 }
 
 model GuildHourlyStat {
@@ -1209,6 +1243,13 @@ model GuildHourlyStat {
 
   messagesCount Int @default(0)
   voiceMinutes  Int @default(0)
+  joinsCount    Int @default(0)
+  leavesCount   Int @default(0)
+  reactionsCount Int @default(0)
+  threadsCount  Int @default(0)
+  
+  onlineMembers Int @default(0)
+  voiceMembers  Int @default(0)
   activeMembers Int @default(0)
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
@@ -1243,4 +1284,67 @@ model MemberDailyStat {
   @@index([guildId, dateKey])
   @@index([guildId, userId])
   @@map("member_daily_stats")
+}
+model TutoringConfig {
+  guildId String @id
+  reportIntervalDays Int @default(14) // Par défaut toutes les 2 semaines
+  reminderDaysBefore Int @default(2) // Rappel 2 jours avant
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("tutoring_configs")
+}
+
+model TutoringItem {
+  id String @id @default(cuid())
+  guildId String
+  category String // e.g., "Outils", "Savoir", "Accès"
+  title String
+  description String?
+  sortOrder Int @default(0)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  progress TutoringChecklistProgress[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, sortOrder])
+  @@map("tutoring_items")
+}
+
+model TutoringChecklistProgress {
+  id String @id @default(cuid())
+  testingPeriodId String
+  itemId String
+  completed Boolean @default(false)
+  completedAt DateTime?
+  completedByUserId String? // Tutor who checked it
+
+  testingPeriod TestingPeriod @relation(fields: [testingPeriodId], references: [id], onDelete: Cascade)
+  item TutoringItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([testingPeriodId, itemId])
+  @@map("tutoring_checklist_progress")
+}
+
+model TutoringLog {
+  id String @id @default(cuid())
+  testingPeriodId String
+  content String
+  date DateTime @default(now())
+
+  testingPeriod TestingPeriod @relation(fields: [testingPeriodId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([testingPeriodId, date])
+  @@map("tutoring_logs")
 }

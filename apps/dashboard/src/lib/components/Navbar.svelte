@@ -10,15 +10,18 @@
   let config = $state({ discordClientId: '' });
   let userMenuOpen = $state(false);
 
-  onMount(async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/config`);
-      if (res.ok) {
-        config = await res.json();
+  onMount(() => {
+    // Fire async fetch without making the onMount callback async
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/config`);
+        if (res.ok) {
+          config = await res.json();
+        }
+      } catch (err) {
+        console.error('Fetch config error:', err);
       }
-    } catch (err) {
-      console.error('Fetch config error:', err);
-    }
+    })();
 
     // Close dropdown on outside click
     const handleClick = (e: MouseEvent) => {

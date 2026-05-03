@@ -82,6 +82,10 @@ class AuthStore {
     get isAuthenticated() {
         return !!this.token;
     }
+
+    get isAdmin() {
+        return this.guilds.find((g: any) => g.id === this.selectedGuildId)?.accessLevel === 'admin';
+    }
 }
 
 export const authStore = new AuthStore();

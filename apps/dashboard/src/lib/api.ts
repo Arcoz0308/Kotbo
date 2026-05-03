@@ -565,3 +565,56 @@ export async function fetchAnalytics(period = 30, guildId = authStore.selectedGu
     errorContext: 'API Error (Analytics):'
   });
 }
+
+export async function fetchInviteAnalytics(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/analytics/invites', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Invite Analytics):'
+  });
+}
+
+export async function fetchMemberDetailedAnalytics(userId, period = 30, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/analytics/members?userId=${userId}&period=${period}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Member Detailed Analytics):'
+  });
+}
+
+// Tutoring
+export async function fetchTutoringConfig(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/tutoring/config', { method: 'GET', guildId });
+}
+
+export async function updateTutoringConfig(config, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/tutoring/config', { method: 'PATCH', payload: config, guildId });
+}
+
+export async function fetchTutoringItems(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/tutoring/items', { method: 'GET', guildId });
+}
+
+export async function upsertTutoringItem(item, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/tutoring/items', { method: 'POST', payload: item, guildId });
+}
+
+export async function deleteTutoringItem(itemId, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/tutoring/items/${itemId}`, { method: 'DELETE', guildId });
+}
+
+export async function fetchTutorDashboard(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/tutoring/tutor-dashboard', { method: 'GET', guildId });
+}
+
+export async function fetchApprenticeProgress(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/tutoring/apprentice-progress', { method: 'GET', guildId });
+}
+
+export async function updateTutoringChecklist(testingPeriodId, itemId, completed, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/tutoring/checklist', { method: 'PATCH', payload: { testingPeriodId, itemId, completed }, guildId });
+}
+
+export async function addTutoringLog(testingPeriodId, content, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/tutoring/logs', { method: 'POST', payload: { testingPeriodId, content }, guildId });
+}

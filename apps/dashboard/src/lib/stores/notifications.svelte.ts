@@ -27,7 +27,8 @@ class NotificationsStore {
     try {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/notifications`, {
         headers: {
-          'Authorization': `Bearer ${authStore.token}`
+          'Authorization': `Bearer ${authStore.token}`,
+          'Accept': 'application/json'
         }
       });
       if (res.ok) {
@@ -54,7 +55,8 @@ class NotificationsStore {
       await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/notifications/${id}/read`, {
         method: 'PATCH',
         headers: {
-          'Authorization': `Bearer ${authStore.token}`
+          'Authorization': `Bearer ${authStore.token}`,
+          'Accept': 'application/json'
         }
       });
     } catch (err) {
@@ -74,7 +76,8 @@ class NotificationsStore {
       await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/notifications/mark-all-read`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${authStore.token}`
+          'Authorization': `Bearer ${authStore.token}`,
+          'Accept': 'application/json'
         }
       });
     } catch (err) {

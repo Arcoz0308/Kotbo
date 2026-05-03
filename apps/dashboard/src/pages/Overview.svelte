@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { router } from 'tinro';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { notificationsStore } from '../lib/stores/notifications.svelte';

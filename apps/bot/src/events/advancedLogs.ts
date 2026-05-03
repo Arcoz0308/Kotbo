@@ -18,6 +18,12 @@ import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { recordStaffActivity } from '../services/staffManagementService.js';
 import {
+  syncGuildInvites,
+  markInviteAsDeleted,
+  recordInvitedMemberLeave,
+  syncAllGuildsInvites,
+} from '../services/inviteService.js';
+import {
   buildMemberCaseActionRow,
   touchMemberJoin,
   touchMemberLeave,
@@ -1079,6 +1085,8 @@ export function registerAdvancedLogsListener(client: Client): void {
     const stayDurationFmt = stayDurationDays !== null 
       ? (stayDurationDays === 0 ? 'Moins d\'un jour' : `${stayDurationDays} jours`) 
       : 'Inconnu';
+    
+    void recordInvitedMemberLeave(member.guild.id, member.id);
 
     const embed = buildMemberEmbed(
       '👋 Membre déconnecté du serveur',
@@ -1130,11 +1138,13 @@ export function registerAdvancedLogsListener(client: Client): void {
 
   client.on(Events.InviteCreate, async (invite) => {
     if (!isFullGuild(invite.guild)) return;
+    await syncGuildInvites(invite.guild);
     await refreshGuildInviteCache(invite.guild);
   });
 
   client.on(Events.InviteDelete, async (invite) => {
     if (!isFullGuild(invite.guild)) return;
+    if (invite.code) await markInviteAsDeleted(invite.code);
     await refreshGuildInviteCache(invite.guild);
   });
 
@@ -1382,6 +1392,7 @@ export function registerAdvancedLogsListener(client: Client): void {
   logger.success('Logs', 'Écouteur de logs avancés enregistré');
 
   for (const guild of client.guilds.cache.values()) {
+    void syncGuildInvites(guild);
     void refreshGuildInviteCache(guild);
   }
 }

@@ -3,7 +3,7 @@ import { onMount } from 'svelte';
 import { authStore } from '../lib/stores/auth.svelte';
 import Papicon from '../lib/components/Papicon.svelte';
 import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
-import { fetchAnalytics, fetchMemberCase } from '../lib/api';
+import { fetchAnalytics, fetchMemberCase, fetchInviteAnalytics } from '../lib/api';
 import AnalyticsSkeleton from '../lib/components/analytics/AnalyticsSkeleton.svelte';
 import StatsOverview from '../lib/components/analytics/StatsOverview.svelte';
 import PopulationFlux from '../lib/components/analytics/PopulationFlux.svelte';
@@ -59,7 +59,7 @@ import StaffAudit from '../lib/components/analytics/StaffAudit.svelte';
     loading = true; error = '';
     try { 
       data = await fetchAnalytics(period);
-      invitesData = await authStore.apiClient?.get(`/guilds/${authStore.currentGuildId}/analytics/invites`);
+      invitesData = await fetchInviteAnalytics();
     }
     catch (e: any) { error = e.message || 'Erreur'; }
     finally { loading = false; }

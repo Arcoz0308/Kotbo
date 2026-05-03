@@ -157,8 +157,10 @@ RSS poll (toutes les 5 min)
 - API Discord: discord.js v14
 - BDD: PostgreSQL
 - ORM: Prisma
+- Cache/Queue: Redis + BullMQ
 - Planification: node-cron
 - Parsing RSS: rss-parser
+- Observabilite: Sentry (bot + dashboard)
 - Traduction: LibreTranslate local (self-hosted via Docker Compose)
 
 ## Installation locale rapide
@@ -192,6 +194,12 @@ Variables principales :
 - `GUILD_ID`: serveur cible pour seed et deploiement local des commandes.
 - `DATABASE_URL`: connexion PostgreSQL Prisma.
 - `LOG_LEVEL`: `info` ou `debug`.
+- `REDIS_URL` ou (`REDIS_HOST` + `REDIS_PORT` + `REDIS_PASSWORD`): connexion Redis pour cache/queue BullMQ.
+- `BULLMQ_CONCURRENCY`: nombre de jobs BullMQ traites en parallele (defaut `2`).
+- `BOT_SENTRY_DSN` (ou `SENTRY_DSN`): DSN Sentry pour le bot.
+- `SENTRY_ENVIRONMENT`, `SENTRY_RELEASE`, `SENTRY_TRACES_SAMPLE_RATE`: telemetry bot Sentry.
+- `VITE_SENTRY_DSN`: DSN Sentry frontend dashboard.
+- `VITE_SENTRY_ENVIRONMENT`, `VITE_SENTRY_RELEASE`, `VITE_SENTRY_TRACES_SAMPLE_RATE`: telemetry dashboard Sentry.
 - `NATHAN_YOUTUBE_CHANNEL_ID`: optionnel, fallback historique YouTube.
 - `LIBRETRANSLATE_URL`: URL de l'instance LibreTranslate (`http://libretranslate:5000` en docker compose).
 - `LIBRETRANSLATE_API_KEY`: optionnel, cle API LibreTranslate si l'instance choisie en exige une.
