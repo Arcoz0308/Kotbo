@@ -55,6 +55,7 @@ import { registerAdvancedLogsListener } from './events/advancedLogs.js';
 import { registerCloseSourceWarningListener } from './events/closeSourceWarning.js';
 import { registerDailyAlgoHandlers } from './handlers/dailyAlgoHandler.js';
 import { registerMeetingEvents } from './events/meetingEvents.js';
+import { registerAnalyticsListeners } from './events/analyticsEvents.js';
 import { syncOngoingDailyAlgoButtons } from './services/dailyAlgoService.js';
 import { checkTranslationProviderHealth } from './services/translationService.js';
 import { startDashboardApi } from './api/dashboardApi.js';
@@ -75,6 +76,7 @@ const client = new Client({
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildModeration,
     GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildPresences,
     GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages,
@@ -144,6 +146,7 @@ client.once(Events.ClientReady, async (c) => {
   registerCloseSourceWarningListener(client);
   registerDailyAlgoHandlers(client);
   registerMeetingEvents(client);
+  registerAnalyticsListeners(client);
   await syncOngoingDailyAlgoButtons(client).catch((error) =>
     logger.error('DailyAlgo', 'Impossible de synchroniser les boutons des runs en cours:', error),
   );

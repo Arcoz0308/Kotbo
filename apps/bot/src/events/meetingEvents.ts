@@ -52,7 +52,7 @@ export function registerMeetingEvents(client: Client) {
 
     try {
       // Pointage automatique
-      await checkInMeeting(meeting.id, staffMember.id, 'PRESENT', 'Pointage automatique (Vocal)');
+      await checkInMeeting(client, meeting.id, staffMember.id, 'PRESENT', 'Pointage automatique (Vocal)');
       logger.info('Meeting', `Pointage automatique réussi pour ${member.user.tag} (${member.id}) - Réunion: ${meeting.title}`);
     } catch (err) {
       logger.error('Meeting', `Erreur lors du pointage automatique pour ${member.user.id}:`, err);

@@ -117,10 +117,6 @@
             <span class="text-base font-black text-primary group-hover:translate-x-1 transition-transform">
               #{data?.topChannels?.[0]?.channelName || 'général'}
             </span>
-            <div class="flex items-center gap-2">
-               <span class="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-               <span class="text-[10px] font-black uppercase tracking-widest text-emerald-500">Live</span>
-            </div>
           </div>
         </div>
         

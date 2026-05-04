@@ -48,6 +48,8 @@ import { normalizeCommaKeywords, requireSingleSelectedValue, validateTimeField }
 import { buildMemberCasePanel, type MemberCaseSection } from '../services/memberCaseService.js';
 import { handleRecruitmentButton } from '../services/recruitmentService.js';
 import { checkInMeeting } from '../services/staffLeadershipService.js';
+import * as altAccountService from '../services/altAccountService.js';
+import { handleDCInteraction } from '../services/dcDetectionService.js';
 
 function canUpdateInteraction(value: unknown): value is { update: (options: unknown) => Promise<unknown> } {
   if (!value || typeof value !== 'object') return false;
@@ -264,19 +266,24 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
-  if (customId.startsWith('meeting_rsvp_')) {
-    const parts = customId.split('_');
-    const statusType = parts[2]; // present, excused, absent
-    const meetingId = parts[3];
+  // ── Double Account Buttons ───────────────────────────────────────────
+  if (customId.startsWith('dc_')) {
+    const member = await resolveGuildMemberByUserId(interaction, user.id);
+    if (!(await canModerate(member, guildId!))) {
+      await interaction.reply({ content: '❌ Tu n’as pas les permissions nécessaires pour gérer les DCs.', flags: [MessageFlags.Ephemeral] });
+      return;
+    }
 
-    const statusMap = {
-      present: 'PRESENT',
-      excused: 'EXCUSED',
-      absent: 'ABSENT',
-    } as const;
+    await handleDCInteraction(interaction);
+    return;
+  }
 
-    const status = statusMap[statusType as keyof typeof statusMap];
-    if (!status) return;
+  if (customId.startsWith('meeting_rsvp:')) {
+    const parts = customId.split(':');
+    const meetingId = parts[1];
+    const status = parts[2]; // PRESENT, EXCUSED, ABSENT
+
+    if (!status || !meetingId) return;
 
     if (!guildId) {
       await interaction.reply({ content: '❌ Action impossible hors serveur.', flags: [MessageFlags.Ephemeral] });
@@ -295,11 +302,42 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       return;
     }
 
+    // Cas "S'excuser" -> On demande une raison via Modal
+    if (status === 'EXCUSED') {
+      const modal = new ModalBuilder()
+        .setCustomId(`meeting_excuse_modal:${meetingId}`)
+        .setTitle('Justification d\'absence');
+
+      const reasonInput = new TextInputBuilder()
+        .setCustomId('excuse_reason')
+        .setLabel('Raison de votre absence')
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder('Expliquez pourquoi vous ne pouvez pas venir...')
+        .setRequired(true)
+        .setMaxLength(500);
+
+      const row = new ActionRowBuilder<TextInputBuilder>().addComponents(reasonInput);
+      modal.addComponents(row);
+
+      await interaction.showModal(modal);
+      return;
+    }
+
     try {
-      await checkInMeeting(meetingId, staffMember.id, status);
-      const labels = { PRESENT: 'Présent ✅', EXCUSED: 'Excusé 📝', ABSENT: 'Absent ❌' };
+      const labels: Record<string, string> = { 
+        PRESENT: 'Présent ✅', 
+        ABSENT: 'Absent ❌' 
+      };
+
+      await checkInMeeting(client, meetingId, staffMember.id, status as any);
+      
+      let response = `✅ Votre statut pour cette réunion est désormais : **${labels[status] || status}**.`;
+      if (status === 'ABSENT') {
+        response += '\n⚠️ **Note :** Une absence automatique a été enregistrée dans votre dossier pour cette réunion.';
+      }
+
       await interaction.reply({
-        content: `✅ Votre statut pour cette réunion est désormais : **${labels[status]}**.`,
+        content: response,
         flags: [MessageFlags.Ephemeral],
       });
     } catch (error) {
@@ -1530,6 +1568,37 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
 export async function handleModalSubmit(interaction: ModalSubmitInteraction, client: Client): Promise<void> {
   const { customId, guildId } = interaction;
   if (!guildId) return;
+
+  if (customId.startsWith('meeting_excuse_modal:')) {
+    const meetingId = customId.split(':')[1];
+    const reason = interaction.fields.getTextInputValue('excuse_reason');
+
+    if (!meetingId) return;
+
+    const staffMember = await prisma.staffMember.findFirst({
+      where: { guildId, userId: interaction.user.id },
+    });
+
+    if (!staffMember) {
+      await interaction.reply({ content: '❌ Membre non trouvé.', flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    try {
+      await checkInMeeting(client, meetingId, staffMember.id, 'EXCUSED', reason);
+      await interaction.reply({
+        content: `✅ Votre excuse a été enregistrée : *${reason}*.`,
+        flags: [MessageFlags.Ephemeral]
+      });
+    } catch (error) {
+      logger.error('Handler', `Error during meeting excuse modal submit: ${error}`);
+      await interaction.reply({
+        content: '❌ Une erreur est survenue lors de l\'enregistrement de votre excuse.',
+        flags: [MessageFlags.Ephemeral]
+      });
+    }
+    return;
+  }
 
   // ── Daily Algo Rating Modal ──────────────────────────────────────────────
   if (customId.startsWith('modal:daily-algo-rate:')) {

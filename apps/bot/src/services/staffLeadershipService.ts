@@ -1,4 +1,15 @@
+import { 
+  Client, 
+  ChannelType, 
+  GuildScheduledEventPrivacyLevel, 
+  GuildScheduledEventEntityType,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  EmbedBuilder,
+} from 'discord.js';
 import prisma from '../utils/db.js';
+import { logger } from '../utils/logger.js';
 import type { 
   StaffAbsence, StaffMeeting, StaffMeetingPresence, 
   StaffManagerNote, StaffPoll, StaffPollOption, StaffPollVote,
@@ -206,53 +217,153 @@ export const closeAbsence = async (
 export const getMeetings = async (guildId: string) => {
   return prisma.staffMeeting.findMany({
     where: { guildId },
-    include: { presences: { include: { staffMember: { select: { username: true, displayName: true } } } } },
+    include: { presences: { include: { staffMember: { select: { username: true, displayName: true, avatarUrl: true, userId: true } } } } },
     orderBy: { scheduledAt: 'desc' },
   });
 };
 
+/**
+ * Crée une réunion staff avec synchronisation Discord (Événement + Annonce).
+ */
 export const createMeeting = async (
+  client: Client,
   guildId: string,
   createdByUserId: string,
   title: string,
   description: string,
   scheduledAt: Date,
-  discordMessageId?: string,
-  discordEventId?: string
 ) => {
-  const meeting = await prisma.staffMeeting.create({
-    data: {
-      guildId,
-      createdByUserId,
-      title,
-      description,
-      scheduledAt,
-      discordMessageId,
-      discordEventId,
-      status: 'SCHEDULED'
+  try {
+    // 1. Récupération de la configuration Discord pour la guilde
+    const guildConfig = await prisma.guild.findUnique({
+      where: { id: guildId },
+      select: {
+        meetingAnnouncementChannelId: true,
+        meetingVoiceChannelId: true,
+      },
+    });
+
+    const announcementChannelId = guildConfig?.meetingAnnouncementChannelId;
+    const voiceChannelId = guildConfig?.meetingVoiceChannelId;
+
+    if (!announcementChannelId || !voiceChannelId) {
+      throw new Error('Configurez les salons de réunion (annonce + vocal/conférence) dans la configuration staff avant de créer une réunion.');
     }
-  });
 
-  // Notifier tout le staff
-  const staff = await prisma.staffMember.findMany({
-    where: { guildId }
-  });
-  
-  const notifsData = staff.map(m => ({
-    guildId,
-    userId: m.userId,
-    title: 'Nouvelle réunion planifiée',
-    message: `La réunion "${title}" a été planifiée pour le ${scheduledAt.toLocaleString('fr-FR')}.`,
-    type: 'INFO',
-    link: '/meetings',
-    isRead: false
-  }));
+    // 2. Récupération de la guilde et des salons Discord
+    const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
+    if (!discordGuild) {
+      throw new Error('Impossible d’accéder au serveur Discord pour créer la réunion.');
+    }
 
-  if (notifsData.length > 0) {
-    await prisma.notification.createMany({ data: notifsData });
+    const announcementChannel = await client.channels.fetch(announcementChannelId).catch(() => null);
+    if (!announcementChannel || (announcementChannel.type !== ChannelType.GuildText && announcementChannel.type !== ChannelType.GuildAnnouncement)) {
+      throw new Error('Le salon d’annonce configuré est introuvable ou n’est pas un salon texte/annonces.');
+    }
+
+    const voiceChannel = await client.channels.fetch(voiceChannelId).catch(() => null);
+    if (!voiceChannel || (voiceChannel.type !== ChannelType.GuildVoice && voiceChannel.type !== ChannelType.GuildStageVoice)) {
+      throw new Error('Le salon vocal/conférence configuré est introuvable ou invalide.');
+    }
+
+    // 3. Création de l'événement programmé Discord
+    const scheduledEvent = await discordGuild.scheduledEvents.create({
+      name: title.trim().slice(0, 100),
+      description: (description?.trim() || 'Réunion staff Kotbo').slice(0, 1000),
+      scheduledStartTime: scheduledAt,
+      scheduledEndTime: new Date(scheduledAt.getTime() + 60 * 60 * 1000), // +1h par défaut
+      privacyLevel: GuildScheduledEventPrivacyLevel.GuildOnly,
+      entityType: GuildScheduledEventEntityType.Voice,
+      channel: voiceChannel.id,
+      reason: `Création via dashboard par ${createdByUserId}`,
+    });
+
+    // 4. Création de l'enregistrement en base de données
+    const meeting = await prisma.staffMeeting.create({
+      data: {
+        guildId,
+        createdByUserId,
+        title,
+        description,
+        scheduledAt,
+        discordEventId: scheduledEvent.id,
+        status: 'SCHEDULED'
+      }
+    });
+
+    // 5. Envoi du message d'annonce avec boutons de présence
+    const embed = new EmbedBuilder()
+      .setTitle(`📅 Nouvelle Réunion : ${title}`)
+      .setDescription(description || 'Aucune description fournie.')
+      .addFields(
+        { name: 'Date & Heure', value: `<t:${Math.floor(scheduledAt.getTime() / 1000)}:F> (<t:${Math.floor(scheduledAt.getTime() / 1000)}:R>)`, inline: false },
+        { name: 'Lieu', value: `<#${voiceChannel.id}>`, inline: true },
+        { name: 'Organisateur', value: `<@${createdByUserId}>`, inline: true }
+      )
+      .setColor('#5865F2')
+      .setTimestamp(scheduledAt);
+
+    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`meeting_rsvp:${meeting.id}:PRESENT`)
+        .setLabel('Présent')
+        .setStyle(ButtonStyle.Success)
+        .setEmoji('✅'),
+      new ButtonBuilder()
+        .setCustomId(`meeting_rsvp:${meeting.id}:EXCUSED`)
+        .setLabel('S\'excuser')
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('⏳'),
+      new ButtonBuilder()
+        .setCustomId(`meeting_rsvp:${meeting.id}:ABSENT`)
+        .setLabel('Absent')
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji('❌')
+    );
+
+    const announcementMessage = await (announcementChannel as any).send({
+      content: '📢 **Nouvelle réunion staff planifiée !** @everyone',
+      embeds: [embed],
+      components: [row]
+    });
+
+    // 6. Mise à jour du meeting avec l'ID du message Discord
+    await prisma.staffMeeting.update({
+      where: { id: meeting.id },
+      data: { discordMessageId: announcementMessage.id }
+    });
+
+    // 7. Synchronisation automatique des absences (ceux déjà en congé sont marqués EXCUSED)
+    await syncMeetingPresencesWithAbsences(client, meeting.id);
+
+    // 8. Notifications internes (Dashboard Inbox)
+    const staff = await prisma.staffMember.findMany({
+      where: { guildId }
+    });
+    
+    const notifsData = staff.map(m => ({
+      guildId,
+      userId: m.userId,
+      title: 'Nouvelle réunion planifiée',
+      message: `La réunion "${title}" a été planifiée pour le ${scheduledAt.toLocaleString('fr-FR')}.`,
+      type: 'INFO' as const,
+      link: '/meetings',
+      isRead: false
+    }));
+
+    if (notifsData.length > 0) {
+      await prisma.notification.createMany({ data: notifsData });
+    }
+
+    // On met à jour l'annonce immédiatement pour afficher les stats initiales (ex: ceux déjà en congé)
+    await updateMeetingAnnouncement(client, meeting.id);
+
+    return { ...meeting, discordMessageId: announcementMessage.id };
+
+  } catch (error) {
+    logger.error('StaffLeadership', `Erreur lors de la création de la réunion: ${error instanceof Error ? error.message : error}`);
+    throw error;
   }
-
-  return meeting;
 };
 
 export const updateMeetingStatus = async (id: string, status: 'SCHEDULED' | 'COMPLETED' | 'CANCELED') => {
@@ -262,7 +373,12 @@ export const updateMeetingStatus = async (id: string, status: 'SCHEDULED' | 'COM
   });
 };
 
+/**
+ * Met à jour une réunion et synchronise les changements sur Discord.
+ */
 export const updateMeeting = async (
+  client: Client,
+  guildId: string,
   id: string,
   data: {
     title?: string;
@@ -273,25 +389,146 @@ export const updateMeeting = async (
     discordEventId?: string;
   }
 ) => {
-  return prisma.staffMeeting.update({
+  const meeting = await prisma.staffMeeting.update({
     where: { id },
     data,
   });
+
+  // Synchronisation Discord si nécessaire
+  if (meeting.discordEventId && (data.title || data.description || data.scheduledAt || data.status)) {
+    try {
+      const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
+      if (discordGuild) {
+        const event = await discordGuild.scheduledEvents.fetch(meeting.discordEventId).catch(() => null);
+        if (event) {
+          await event.edit({
+            name: meeting.title.trim().slice(0, 100),
+            description: (meeting.description?.trim() || '').slice(0, 1000),
+            scheduledStartTime: meeting.scheduledAt,
+            scheduledEndTime: new Date(meeting.scheduledAt.getTime() + 60 * 60 * 1000),
+            status: data.status === 'COMPLETED' ? 3 : (data.status === 'CANCELED' ? 4 : undefined), // 3 = Completed, 4 = Cancelled
+          });
+        }
+      }
+    } catch (err) {
+      logger.warn('StaffLeadership', `Impossible de mettre à jour l'événement Discord ${meeting.discordEventId}: ${err}`);
+    }
+  }
+
+  // Optionnel : Mettre à jour l'embed de l'annonce si le message existe encore
+  if (meeting.discordMessageId && (data.title || data.description || data.scheduledAt)) {
+    try {
+      const guildConfig = await prisma.guild.findUnique({
+        where: { id: guildId },
+        select: { meetingAnnouncementChannelId: true }
+      });
+
+      if (guildConfig?.meetingAnnouncementChannelId) {
+        const channel = await client.channels.fetch(guildConfig.meetingAnnouncementChannelId).catch(() => null);
+        if (channel?.isTextBased()) {
+          const msg = await (channel as any).messages.fetch(meeting.discordMessageId).catch(() => null);
+          if (msg) {
+            const embed = EmbedBuilder.from(msg.embeds[0])
+              .setTitle(`📅 Réunion : ${meeting.title}`)
+              .setDescription(meeting.description || 'Aucune description fournie.')
+              .setFields(
+                { name: 'Date & Heure', value: `<t:${Math.floor(meeting.scheduledAt.getTime() / 1000)}:F> (<t:${Math.floor(meeting.scheduledAt.getTime() / 1000)}:R>)`, inline: false },
+                { name: 'Lieu', value: msg.embeds[0].fields.find((f: any) => f.name === 'Lieu')?.value || 'Inconnu', inline: true },
+                { name: 'Organisateur', value: msg.embeds[0].fields.find((f: any) => f.name === 'Organisateur')?.value || 'Inconnu', inline: true }
+              );
+            await msg.edit({ embeds: [embed] });
+          }
+        }
+      }
+    } catch (err) {
+      logger.warn('StaffLeadership', `Impossible de mettre à jour l'annonce Discord ${meeting.discordMessageId}: ${err}`);
+    }
+  }
+
+  return meeting;
 };
 
-export const deleteMeeting = async (id: string) => {
+/**
+ * Supprime une réunion et annule optionnellement l'événement/message Discord associé.
+ */
+export const deleteMeeting = async (
+  client: Client, 
+  guildId: string, 
+  id: string, 
+  options: { deleteEvent?: boolean; deleteMessage?: boolean; deleteNotifications?: boolean } = { deleteEvent: true, deleteMessage: false, deleteNotifications: false }
+) => {
+  const meeting = await prisma.staffMeeting.findUnique({
+    where: { id },
+    select: { discordEventId: true, discordMessageId: true, title: true }
+  });
+
+  if (!meeting) return;
+
+  // 1. Suppression de l'événement Discord
+  if (options.deleteEvent && meeting.discordEventId) {
+    try {
+      const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
+      if (discordGuild) {
+        const event = await discordGuild.scheduledEvents.fetch(meeting.discordEventId).catch(() => null);
+        if (event) {
+          await event.delete().catch(() => null);
+        }
+      }
+    } catch (err) {
+      logger.warn('StaffLeadership', `Impossible d'annuler l'événement Discord ${meeting.discordEventId}: ${err}`);
+    }
+  }
+
+  // 2. Suppression du message d'annonce
+  if (options.deleteMessage && meeting.discordMessageId) {
+    try {
+      const guildConfig = await prisma.guild.findUnique({
+        where: { id: guildId },
+        select: { meetingAnnouncementChannelId: true }
+      });
+      if (guildConfig?.meetingAnnouncementChannelId) {
+        const channel = await client.channels.fetch(guildConfig.meetingAnnouncementChannelId).catch(() => null);
+        if (channel?.isTextBased()) {
+          const msg = await (channel as any).messages.fetch(meeting.discordMessageId).catch(() => null);
+          if (msg) {
+            await msg.delete().catch(() => null);
+          }
+        }
+      }
+    } catch (err) {
+      logger.warn('StaffLeadership', `Impossible de supprimer le message d'annonce ${meeting.discordMessageId}: ${err}`);
+    }
+  }
+
+  // 3. Suppression des notifications internes
+  if (options.deleteNotifications) {
+    try {
+      await prisma.notification.deleteMany({
+        where: {
+          guildId,
+          title: 'Nouvelle réunion planifiée',
+          message: { contains: `"${meeting.title}"` },
+          link: '/meetings'
+        }
+      });
+    } catch (err) {
+      logger.warn('StaffLeadership', `Impossible de supprimer les notifications pour la réunion ${meeting.title}: ${err}`);
+    }
+  }
+
   return prisma.staffMeeting.delete({
     where: { id }
   });
 };
 
 export const checkInMeeting = async (
+  client: Client,
   meetingId: string,
   staffUserId: string,
   status: 'PRESENT' | 'EXCUSED' | 'ABSENT',
   note?: string
 ) => {
-  return prisma.staffMeetingPresence.upsert({
+  const result = await prisma.staffMeetingPresence.upsert({
     where: { meetingId_staffUserId: { meetingId, staffUserId } },
     update: {
       status,
@@ -304,11 +541,122 @@ export const checkInMeeting = async (
       status,
       checkInAt: status === 'PRESENT' ? new Date() : null,
       note
+    },
+    include: {
+      meeting: true
     }
   });
+
+  // Gérer la création d'une absence automatique si marqué comme ABSENT
+  if (status === 'ABSENT') {
+    await prisma.staffAbsence.create({
+      data: {
+        guildId: result.meeting.guildId,
+        staffUserId: staffUserId,
+        startDate: result.meeting.scheduledAt,
+        endDate: new Date(result.meeting.scheduledAt.getTime() + 60 * 60 * 1000), // 1h par défaut
+        reason: `Absent à la réunion : ${result.meeting.title}`,
+        type: 'Réunion (Absent)',
+        status: 'ACKNOWLEDGED'
+      }
+    });
+  } else {
+    // Si l'utilisateur re-change de statut, on pourrait supprimer l'absence automatique ?
+    // Pour simplifier et éviter les erreurs, on ne supprime que si c'est exactement le même motif
+    await prisma.staffAbsence.deleteMany({
+      where: {
+        staffUserId: staffUserId,
+        type: 'Réunion (Absent)',
+        reason: `Absent à la réunion : ${result.meeting.title}`
+      }
+    });
+  }
+
+  // Mettre à jour le message d'annonce Discord
+  await updateMeetingAnnouncement(client, meetingId).catch(err => 
+    logger.error('Meeting', `Failed to update announcement for ${meetingId}:`, err)
+  );
+
+  return result;
 };
 
-export const syncMeetingPresencesWithAbsences = async (meetingId: string) => {
+export const updateMeetingAnnouncement = async (client: any, meetingId: string) => {
+  const meeting = await prisma.staffMeeting.findUnique({
+    where: { id: meetingId },
+    include: {
+      presences: {
+        include: {
+          staffMember: true
+        }
+      }
+    }
+  });
+
+  if (!meeting || !meeting.discordMessageId) return;
+
+  const guildConfig = await prisma.guild.findUnique({
+    where: { id: meeting.guildId },
+    select: { meetingAnnouncementChannelId: true }
+  });
+
+  if (!guildConfig?.meetingAnnouncementChannelId) return;
+
+  const channel = await client.channels.fetch(guildConfig.meetingAnnouncementChannelId).catch(() => null);
+  if (!channel) return;
+
+  const message = await channel.messages.fetch(meeting.discordMessageId).catch(() => null);
+  if (!message) return;
+
+  const presentCount = meeting.presences.filter(p => p.status === 'PRESENT').length;
+  const excusedCount = meeting.presences.filter(p => p.status === 'EXCUSED').length;
+  const absentCount = meeting.presences.filter(p => p.status === 'ABSENT').length;
+
+  const embed = EmbedBuilder.from(message.embeds[0]);
+  
+  // Mettre à jour ou ajouter le champ de présence
+  const presenceField = {
+    name: '📊 État des présences',
+    value: `✅ **Présents:** ${presentCount}\n⏳ **Excusés:** ${excusedCount}\n❌ **Absents:** ${absentCount}`,
+    inline: false
+  };
+
+  const fields = [...message.embeds[0].fields];
+  const presenceIdx = fields.findIndex(f => f.name === '📊 État des présences');
+  if (presenceIdx !== -1) {
+    fields[presenceIdx] = presenceField;
+  } else {
+    fields.push(presenceField);
+  }
+
+  // Ajouter les raisons d'excuses si présentes
+  const excuses = meeting.presences
+    .filter(p => p.status === 'EXCUSED' && p.note)
+    .map(p => `- <@${p.staffMember.userId}> : *${p.note}*`)
+    .join('\n');
+
+  const excuseField = {
+    name: '📝 Justifications',
+    value: excuses || 'Aucune excuse fournie.',
+    inline: false
+  };
+
+  const excuseIdx = fields.findIndex(f => f.name === '📝 Justifications');
+  if (excuseIdx !== -1) {
+    if (excuses) {
+      fields[excuseIdx] = excuseField;
+    } else {
+      fields.splice(excuseIdx, 1);
+    }
+  } else if (excuses) {
+    fields.push(excuseField);
+  }
+
+  embed.setFields(fields);
+
+  await message.edit({ embeds: [embed] });
+};
+
+export const syncMeetingPresencesWithAbsences = async (client: Client, meetingId: string) => {
   const meeting = await prisma.staffMeeting.findUnique({
     where: { id: meetingId },
     select: { guildId: true, scheduledAt: true }
@@ -334,6 +682,11 @@ export const syncMeetingPresencesWithAbsences = async (meetingId: string) => {
       create: { meetingId, staffUserId: absence.staffUserId, status: 'EXCUSED', note: `Absence automatique (Staff Panel): ${absence.type} - ${absence.reason}` }
     });
   }
+
+  // Mettre à jour le message d'annonce Discord
+  await updateMeetingAnnouncement(client, meetingId).catch(err => 
+    logger.error('Meeting', `Failed to update announcement for ${meetingId}:`, err)
+  );
 };
 
 export const getManagerNotes = async (guildId: string, staffUserId: string) => {

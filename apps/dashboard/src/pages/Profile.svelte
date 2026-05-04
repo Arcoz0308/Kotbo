@@ -282,7 +282,7 @@
             onclick={() => activeTab = tab.id} 
             class="flex items-center gap-2.5 px-6 py-3.5 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all duration-400 whitespace-nowrap group {activeTab === tab.id ? 'bg-primary text-on-primary shadow-lg shadow-primary/25 scale-[1.05]' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
           >
-            <Papicon icon={tab.icon} size={16} class="{activeTab === tab.id ? 'text-on-primary' : 'text-primary'}" />
+            <Papicon icon={tab.icon} size={16} class={activeTab === tab.id ? 'text-on-primary' : 'text-primary'} />
             {tab.label}
           </button>
         {/each}

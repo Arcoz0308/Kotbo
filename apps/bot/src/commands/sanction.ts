@@ -344,7 +344,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     if (subcommand === 'warn') {
       const reason = interaction.options.getString('raison', true).trim();
 
-      const sanction = await registerWarnSanction({ guildId: interaction.guildId, target, moderator, reason });
+      const sanction = await registerWarnSanction({ guildId: interaction.guildId, target, moderator, reason, client: interaction.client });
       const warnCount = await countWarns(interaction.guildId, targetUser.id);
 
       await interaction.reply({
@@ -390,6 +390,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         reason,
         durationMs,
         member: targetMember,
+        client: interaction.client,
       });
 
       await interaction.reply({
@@ -424,7 +425,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       }
 
       await targetMember.kick(`${reason} | Modération: ${interaction.user.tag}`);
-      const sanction = await registerKickSanction({ guildId: interaction.guildId, target, moderator, reason });
+      const sanction = await registerKickSanction({ guildId: interaction.guildId, target, moderator, reason, client: interaction.client });
 
       await interaction.reply({
         embeds: [successEmbed('Kick exécuté', `${targetUser.tag} a été exclu du serveur.`).addFields({ name: 'Raison', value: reason })],
@@ -447,7 +448,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       }
 
       await runGuildBan(interaction.guild, targetUser.id, `${reason} | Modération: ${interaction.user.tag}`);
-      const sanction = await registerBanSanction({ guildId: interaction.guildId, target, moderator, reason });
+      const sanction = await registerBanSanction({ guildId: interaction.guildId, target, moderator, reason, client: interaction.client });
 
       await interaction.reply({
         embeds: [successEmbed('Ban exécuté', `${targetUser.tag} a été banni définitivement.`).addFields({ name: 'Raison', value: reason })],
@@ -483,6 +484,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         moderator,
         reason,
         temporaryDurationMs: durationMs,
+        client: interaction.client,
       });
 
       await interaction.reply({

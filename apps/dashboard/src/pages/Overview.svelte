@@ -7,9 +7,9 @@
   import { refreshDashboardOnMount } from '../lib/dashboardLifecycle';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
-  import LineChart from '../lib/components/LineChart.svelte';
-  import MetricCard from '../lib/components/MetricCard.svelte';
-  import ActionButton from '../lib/components/ActionButton.svelte';
+    import LineChart from '../lib/components/LineChart.svelte';
+    import MetricCard from '../lib/components/MetricCard.svelte';
+    import ActionButton from '../lib/components/ActionButton.svelte';
 
   refreshDashboardOnMount();
 
@@ -67,18 +67,14 @@
         <span class="text-[9px] font-black text-on-surface-variant/30 uppercase tracking-[0.2em]">Dernière synchro</span>
         <span class="text-[11px] font-bold text-on-surface-variant/70">Instantané</span>
       </div>
-      <RefreshButton
-        onClick={() => {
-          dashboardStore.refresh();
-          notificationsStore.fetchNotifications();
-        }}
-        loading={dashboardStore.state.loading}
-        iconOnly={false}
-        ariaLabel="Rafraîchir"
-        className="!rounded-2xl !px-5 !py-2.5 shadow-md shadow-primary/5 hover:shadow-primary/10 transition-all"
-      >
-        <span class="ml-2 font-black uppercase tracking-widest text-[10px]">Actualiser</span>
-      </RefreshButton>
+        <RefreshButton
+          onClick={() => {
+            dashboardStore.refresh();
+            notificationsStore.fetchNotifications();
+          }}
+          ariaLabel="Rafraîchir"
+          className="!rounded-2xl !px-5 !py-2.5 shadow-md shadow-primary/5 hover:shadow-primary/10 transition-all bg-primary text-white"
+        />
     </div>
   </div>
 

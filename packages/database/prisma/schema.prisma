@@ -94,6 +94,7 @@ model Guild {
   memberDailyStats MemberDailyStat[]
   memberInvites MemberInvite[]
   guildInvites  GuildInvite[]
+  linkedAccounts LinkedAccount[]
 
   tutoringConfig TutoringConfig?
   tutoringItems TutoringItem[]
@@ -438,6 +439,43 @@ model DailyAlgoSubmission {
   @@index([authorId])
 }
 
+model LinkedAccount {
+  id String @id @default(cuid())
+  guildId String
+  
+  user1Id String
+  user2Id String
+  
+  type LinkedAccountType @default(MANUAL)
+  status LinkedAccountStatus @default(VALIDATED)
+  
+  reason String?
+  metadata Json? // Pour stocker les preuves de détection
+  
+  linkedByUserId String? // Si manuel, qui l'a fait
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, user1Id, user2Id])
+  @@index([guildId, user1Id])
+  @@index([guildId, user2Id])
+  @@map("linked_accounts")
+}
+
+enum LinkedAccountType {
+  MANUAL
+  AUTOMATIC
+}
+
+enum LinkedAccountStatus {
+  PENDING
+  VALIDATED
+  REJECTED
+}
+
 model Sanction {
   id String @id @default(cuid())
 
@@ -536,6 +574,8 @@ model MemberProfile {
   voiceLastLeftAt DateTime?
 
   rolesSnapshot String[] @default([])
+
+  isSuspectedDC Boolean @default(false)
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
@@ -1289,6 +1329,7 @@ model TutoringConfig {
   guildId String @id
   reportIntervalDays Int @default(14) // Par défaut toutes les 2 semaines
   reminderDaysBefore Int @default(2) // Rappel 2 jours avant
+  minTestDays Int @default(14) // Temps minimum en test avant validation
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 

@@ -76,6 +76,7 @@ import {
   markAllNotificationsRead,
   createNotification
 } from '../services/staffLeadershipService.js';
+import * as tutoringService from '../services/tutoringService.js';
 import {
   getCandidatures,
   createCandidature,
@@ -89,6 +90,7 @@ import {
   getCandidatureHistory,
 } from '../services/recruitmentService.js';
 import * as tutoringService from '../services/tutoringService.js';
+import * as altAccountService from '../services/altAccountService.js';
 
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
@@ -306,6 +308,15 @@ type MemberCaseProfile = {
   pronouns: string | null;
   isTutor: boolean;
   staffGrade: string | null;
+  isSuspectedDC: boolean;
+};
+
+type LinkedAccountItem = {
+  userId: string;
+  userTag: string | null;
+  avatarUrl: string | null;
+  type: string;
+  status: string;
 };
 
 type MemberCaseResponse = {
@@ -332,6 +343,8 @@ type MemberCaseResponse = {
     oralResult: string | null;
     reapplyAfter: string | null;
   }>;
+  linkedAccounts: LinkedAccountItem[];
+  isSuspectedDC: boolean;
 };
 
 type CommandRestrictionState = CommandRestrictionRule;
@@ -750,14 +763,11 @@ const toRuntimeState = (settings: {
 };
 
 const json = (res: ServerResponse, statusCode: number, data: unknown) => {
-  res.writeHead(statusCode, {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept, Origin, X-Requested-With',
-    'Access-Control-Max-Age': '86400'
-  });
+  if (!res.headersSent) {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  }
 
+  res.statusCode = statusCode;
   if (statusCode === 204) {
     res.end();
   } else {
@@ -1164,36 +1174,62 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
   const discordGuild = client.guilds.cache.get(guildId);
   if (!discordGuild) return null;
 
-  const [user, member, profile, sanctions, auditLogs, inviteConnections, staffMember, candidatureHistory] = await Promise.all([
+  let actualUserId = userId;
+  
+  // Si l'ID n'est pas numérique, c'est peut-être un CUID interne (StaffMember.id)
+  // On tente de résoudre le vrai ID Discord
+  if (!/^\d+$/.test(userId)) {
+    const staff = await prisma.staffMember.findUnique({
+      where: { id: userId },
+      select: { userId: true }
+    });
+    if (staff) {
+      actualUserId = staff.userId;
+    } else {
+      // Si ce n'est pas un staff non plus, on tente de voir si c'est un ID de profil membre
+      const profile = await prisma.memberProfile.findUnique({
+        where: { id: userId },
+        select: { userId: true }
+      });
+      if (profile) actualUserId = profile.userId;
+    }
+  }
+
+  const [user, member, profile, sanctions, auditLogs, inviteConnections, staffMember, candidatureHistory, sanctionReports] = await Promise.all([
     Promise.race([
-      client.users.fetch(userId).catch(() => null),
+      client.users.fetch(actualUserId).catch(() => null),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000))
     ]),
     Promise.race([
-      discordGuild.members.fetch(userId).catch(() => null),
+      discordGuild.members.fetch(actualUserId).catch(() => null),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000))
     ]),
     prisma.memberProfile.findUnique({
       where: {
         guildId_userId: {
           guildId,
-          userId,
+          userId: actualUserId,
         },
       },
     }),
     prisma.sanction.findMany({
-      where: { guildId, targetUserId: userId },
+      where: { guildId, targetUserId: actualUserId },
       orderBy: { createdAt: 'desc' },
       take: 200,
     }),
     prisma.dashboardAuditLog.findMany({
-      where: { guildId, user: userId },
+      where: { guildId, user: actualUserId },
       orderBy: { dateIso: 'desc' },
       take: 500,
     }),
-    fetchMemberConnections(auth.userId === userId ? auth.discordToken : null),
-    getStaffMember(guildId, userId).catch(() => null),
-    getCandidatureHistory(guildId, userId).catch(() => []),
+    fetchMemberConnections(auth.userId === actualUserId ? auth.discordToken : null),
+    getStaffMember(guildId, actualUserId).catch(() => null),
+    getCandidatureHistory(guildId, actualUserId).catch(() => []),
+    prisma.sanctionReport.findMany({
+      where: { guildId, memberReference: actualUserId },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    }),
   ]);
 
   const effectivePermissions = member?.permissions.toArray() ?? [];
@@ -1295,6 +1331,7 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
       pronouns: null,
       isTutor: staffMember?.isTutor ?? false,
       staffGrade: staffMember?.grade ?? null,
+      isSuspectedDC: profile?.isSuspectedDC ?? false,
     },
     invite: invite
       ? {
@@ -1337,6 +1374,50 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
       oralResult: c.oralResult,
       reapplyAfter: c.reapplyAfter?.toISOString() ?? null,
     })),
+    sanctionReports: sanctionReports.map((entry) => ({
+      id: entry.id,
+      sanctionId: entry.sanctionId ?? null,
+      staffPseudo: entry.staffPseudo,
+      incidentAt: entry.incidentAt.toISOString(),
+      memberPseudo: entry.memberPseudo,
+      memberReference: entry.memberReference,
+      sanctionType: entry.sanctionType as DashboardSanctionType,
+      sanctionDurationLabel: entry.sanctionDurationLabel ?? null,
+      brokenRules: entry.brokenRules,
+      detailedReason: entry.detailedReason,
+      evidenceLinks: entry.evidenceLinks,
+      additionalNotes: entry.additionalNotes ?? null,
+      createdByUserId: entry.createdByUserId,
+      createdByTag: entry.createdByTag ?? null,
+      createdAt: entry.createdAt.toISOString(),
+    })),
+    linkedAccounts: await Promise.all(
+      (await altAccountService.getAllLinkedUserIds(guildId, userId))
+        .filter(id => id !== userId)
+        .map(async (lid) => {
+          const lProfile = await prisma.memberProfile.findUnique({
+            where: { guildId_userId: { guildId, userId: lid } },
+            select: { userTag: true, username: true, displayName: true, avatarUrl: true }
+          });
+          const lLink = await prisma.linkedAccount.findFirst({
+            where: {
+              guildId,
+              OR: [
+                { user1Id: userId, user2Id: lid },
+                { user1Id: lid, user2Id: userId }
+              ]
+            }
+          });
+          return {
+            userId: lid,
+            userTag: lProfile?.displayName ?? lProfile?.userTag ?? lProfile?.username ?? `Utilisateur ${lid}`,
+            avatarUrl: lProfile?.avatarUrl ?? null,
+            type: lLink?.type ?? 'DC',
+            status: lLink?.status ?? 'UNKNOWN'
+          };
+        })
+    ),
+    isSuspectedDC: profile?.isSuspectedDC ?? false,
   };
 }
 
@@ -1784,6 +1865,18 @@ export const startDashboardApi = (client: Client) => {
   dashboardStateBroadcaster = broadcastDashboardStateChange;
 
   const server = createServer(async (req, res) => {
+    // Standard CORS headers for all responses
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    } else {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, Pragma');
+    res.setHeader('Access-Control-Max-Age', '86400');
+
     try {
       if (!req.url) {
         json(res, 400, { error: 'Requête invalide' });
@@ -1791,7 +1884,8 @@ export const startDashboardApi = (client: Client) => {
       }
 
       if (req.method === 'OPTIONS') {
-        json(res, 204, null);
+        res.statusCode = 204;
+        res.end();
         return;
       }
 
@@ -2169,9 +2263,12 @@ export const startDashboardApi = (client: Client) => {
             && parts[4] === 'absences'
             && req.method === 'POST';
 
+          const isMeetingAction = parts[4] === 'meetings'
+            && (req.method === 'POST' || req.method === 'PATCH' || req.method === 'DELETE');
+
           const isNotificationAction = parts[4] === 'notifications';
 
-          if (!access.canManageSettings && req.method !== 'GET' && !isContentAction && !isSanctionAction && !isDailyAlgoReviewAction && !isStaffAbsenceAction && !isNotificationAction) {
+          if (!access.canManageSettings && req.method !== 'GET' && !isContentAction && !isSanctionAction && !isDailyAlgoReviewAction && !isStaffAbsenceAction && !isNotificationAction && !isMeetingAction) {
             json(res, 403, { error: 'Action réservée aux administrateurs du dashboard.' });
             return;
           }
@@ -3473,119 +3570,21 @@ export const startDashboardApi = (client: Client) => {
               return;
             }
 
+            const scheduledAt = new Date(body.scheduledAt);
+            if (Number.isNaN(scheduledAt.getTime())) {
+              json(res, 400, { error: 'Date de réunion invalide' });
+              return;
+            }
+
             try {
-              const guildConfig = await prisma.guild.findUnique({
-                where: { id: guildId },
-                select: {
-                  meetingAnnouncementChannelId: true,
-                  meetingVoiceChannelId: true,
-                },
-              });
-
-              const announcementChannelId = guildConfig?.meetingAnnouncementChannelId;
-              const voiceChannelId = guildConfig?.meetingVoiceChannelId;
-
-              if (!announcementChannelId || !voiceChannelId) {
-                json(res, 400, {
-                  error: 'Configurez les salons de réunion (annonce + vocal/conférence) dans la configuration staff avant de créer une réunion.',
-                });
-                return;
-              }
-
-              const scheduledAt = new Date(body.scheduledAt);
-              if (Number.isNaN(scheduledAt.getTime())) {
-                json(res, 400, { error: 'Date de réunion invalide' });
-                return;
-              }
-
-              const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
-              if (!discordGuild) {
-                json(res, 500, { error: 'Impossible d’accéder au serveur Discord pour créer la réunion.' });
-                return;
-              }
-
-              const announcementChannel = await client.channels.fetch(announcementChannelId).catch(() => null);
-              if (!announcementChannel || (announcementChannel.type !== ChannelType.GuildText && announcementChannel.type !== ChannelType.GuildAnnouncement)) {
-                json(res, 400, { error: 'Le salon d’annonce configuré est introuvable ou n’est pas un salon texte/annonces.' });
-                return;
-              }
-
-              const voiceChannel = await client.channels.fetch(voiceChannelId).catch(() => null);
-              if (!voiceChannel || (voiceChannel.type !== ChannelType.GuildVoice && voiceChannel.type !== ChannelType.GuildStageVoice)) {
-                json(res, 400, { error: 'Le salon vocal/conférence configuré est introuvable ou invalide.' });
-                return;
-              }
-
-              const scheduledEvent = await discordGuild.scheduledEvents.create({
-                name: body.title.trim().slice(0, 100),
-                description: (body.description?.trim() || 'Réunion staff Kotbo').slice(0, 1000),
-                scheduledStartTime: scheduledAt,
-                scheduledEndTime: new Date(scheduledAt.getTime() + 60 * 60 * 1000),
-                privacyLevel: GuildScheduledEventPrivacyLevel.GuildOnly,
-                entityType: GuildScheduledEventEntityType.Voice,
-                channel: voiceChannel.id,
-                reason: `Création via dashboard par ${user.username ?? user.userId}`,
-              });
-
-              const timestamp = Math.floor(scheduledAt.getTime() / 1000);
-              const announceTextChannel = announcementChannel as TextChannel;
-
               const meeting = await createMeeting(
+                client,
                 guildId,
                 user.userId,
-                body.title.trim(),
-                body.description?.trim() || '',
-                scheduledAt,
-                undefined, // messageId sera mis à jour juste après
-                scheduledEvent.id
+                body.title,
+                body.description || '',
+                scheduledAt
               );
-
-              // RSVP Buttons
-              const row = new ActionRowBuilder<ButtonBuilder>()
-                .addComponents(
-                  new ButtonBuilder()
-                    .setCustomId(`meeting_rsvp_present_${meeting.id}`)
-                    .setLabel('Présent')
-                    .setStyle(ButtonStyle.Success)
-                    .setEmoji('✅'),
-                  new ButtonBuilder()
-                    .setCustomId(`meeting_rsvp_excused_${meeting.id}`)
-                    .setLabel('S\'excuser')
-                    .setStyle(ButtonStyle.Primary)
-                    .setEmoji('📝'),
-                  new ButtonBuilder()
-                    .setCustomId(`meeting_rsvp_absent_${meeting.id}`)
-                    .setLabel('Absent')
-                    .setStyle(ButtonStyle.Danger)
-                    .setEmoji('❌')
-                );
-
-              try {
-                const announcementMessage = await announceTextChannel.send({
-                  content: [
-                    '## 📣 Nouvelle réunion staff',
-                    `**${body.title.trim()}**`,
-                    body.description?.trim() ? `${body.description.trim()}` : null,
-                    '',
-                    `🗓️ Date: <t:${timestamp}:F>`,
-                    `🔊 Salon conférence: <#${voiceChannel.id}>`,
-                    `🎫 Événement Discord: ${scheduledEvent.url}`,
-                    '',
-                    'Merci d\'indiquer votre présence via les boutons ci-dessous.',
-                  ].filter(Boolean).join('\n'),
-                  components: [row],
-                });
-
-                // On met à jour la réunion avec l'ID du message d'annonce
-                await updateMeeting(meeting.id, { discordMessageId: announcementMessage.id });
-                meeting.discordMessageId = announcementMessage.id;
-              } catch (announcementError) {
-                // On garde l'event et la réunion même si l'annonce échoue, mais on log
-                logger.error('StaffAPI', 'Failed to send meeting announcement:', announcementError);
-              }
-
-              // Auto-sync absences
-              await syncMeetingPresencesWithAbsences(meeting.id);
 
               await pushAudit(guildId, {
                 user: auditUser,
@@ -3593,21 +3592,14 @@ export const startDashboardApi = (client: Client) => {
                 context: getGuildName(client, guildId),
                 module: 'Staff Management',
                 eventType: 'Manuel',
-                details: `Réunion créée: ${meeting.title} | Event: ${scheduledEvent.id} | Annonce: <#${announcementChannel.id}> | Conférence: <#${voiceChannel.id}>`,
+                details: `Réunion "${body.title}" planifiée pour le ${scheduledAt.toLocaleString('fr-FR')}`,
                 channelId: null,
               });
 
-              json(res, 201, {
-                meeting,
-                event: {
-                  id: scheduledEvent.id,
-                  url: scheduledEvent.url,
-                  channelId: voiceChannel.id,
-                },
-              });
-            } catch (err) {
+              json(res, 201, { meeting });
+            } catch (err: any) {
               logger.error('StaffAPI', 'Error creating meeting:', err);
-              json(res, 500, { error: 'Erreur lors de la création de la réunion' });
+              json(res, err.message?.includes('Configurez') ? 400 : 500, { error: err.message || 'Erreur lors de la création de la réunion' });
             }
             return;
           }
@@ -3628,7 +3620,7 @@ export const startDashboardApi = (client: Client) => {
               if (body?.scheduledAt) data.scheduledAt = new Date(body.scheduledAt);
               if (body?.status) data.status = body.status;
 
-              const meeting = await updateMeeting(meetingId, data);
+              const meeting = await updateMeeting(client, guildId, meetingId, data);
 
               await pushAudit(guildId, {
                 user: auditUser,
@@ -3650,47 +3642,24 @@ export const startDashboardApi = (client: Client) => {
 
           if (parts.length === 6 && parts[4] === 'meetings' && req.method === 'DELETE') {
             const meetingId = parts[5];
+            const url = new URL(req.url!, `http://${req.headers.host}`);
+            const deleteEvent = url.searchParams.get('deleteEvent') === 'true';
+            const deleteMessage = url.searchParams.get('deleteMessage') === 'true';
+            const deleteNotifications = url.searchParams.get('deleteNotifications') === 'true';
+
             try {
-              const meeting = await prisma.staffMeeting.findUnique({
-                where: { id: meetingId },
+              await deleteMeeting(client, guildId, meetingId, { deleteEvent, deleteMessage, deleteNotifications });
+
+              await pushAudit(guildId, {
+                user: auditUser,
+                action: 'Suppression réunion',
+                context: getGuildName(client, guildId),
+                module: 'Staff Management',
+                eventType: 'Manuel',
+                details: `Réunion ${meetingId} supprimée (Event: ${deleteEvent}, Msg: ${deleteMessage}, Notif: ${deleteNotifications}).`,
+                channelId: null,
               });
 
-              if (meeting) {
-                const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
-
-                if (discordGuild) {
-                  // Suppression du message d'annonce
-                  if (meeting.discordMessageId) {
-                    try {
-                      const guildConfig = await prisma.guild.findUnique({
-                        where: { id: guildId },
-                        select: { meetingAnnouncementChannelId: true },
-                      });
-                      if (guildConfig?.meetingAnnouncementChannelId) {
-                        const channel = await client.channels.fetch(guildConfig.meetingAnnouncementChannelId).catch(() => null);
-                        if (channel?.isTextBased()) {
-                          const msg = await (channel as TextChannel).messages.fetch(meeting.discordMessageId).catch(() => null);
-                          if (msg) await msg.delete().catch(() => null);
-                        }
-                      }
-                    } catch (e) {
-                      logger.error('StaffAPI', `Failed to delete meeting message ${meeting.discordMessageId}:`, e);
-                    }
-                  }
-
-                  // Suppression de l'événement Discord
-                  if (meeting.discordEventId) {
-                    try {
-                      const event = await discordGuild.scheduledEvents.fetch(meeting.discordEventId).catch(() => null);
-                      if (event) await event.delete().catch(() => null);
-                    } catch (e) {
-                      logger.error('StaffAPI', `Failed to delete meeting event ${meeting.discordEventId}:`, e);
-                    }
-                  }
-                }
-              }
-
-              await deleteMeeting(meetingId);
               json(res, 200, { ok: true });
             } catch (err) {
               logger.error('StaffAPI', 'Error deleting meeting:', err);
@@ -4231,6 +4200,81 @@ export const startDashboardApi = (client: Client) => {
             json(res, 201, { ok: true, reportId: report.id });
             return;
           }
+
+          if (parts.length === 7 && parts[4] === 'sanctions' && parts[5] === 'reports' && req.method === 'PATCH') {
+            const reportId = parts[6];
+            const existingReport = await prisma.sanctionReport.findFirst({
+              where: { id: reportId, guildId }
+            });
+
+            if (!existingReport) {
+              json(res, 404, { error: 'Rapport introuvable.' });
+              return;
+            }
+
+            if (existingReport.createdByUserId !== user.userId && access.level !== 'admin') {
+              json(res, 403, { error: 'Seul l\'auteur du rapport ou un administrateur peut le modifier.' });
+              return;
+            }
+
+            const body = await readJsonBody<{
+              brokenRules?: string;
+              detailedReason?: string;
+              evidenceLinks?: unknown;
+              additionalNotes?: string | null;
+            }>(req);
+
+            const updatedBrokenRules = body?.brokenRules !== undefined 
+              ? normalizeBrokenRulesPayload(body.brokenRules.trim()) 
+              : existingReport.brokenRules;
+            
+            const updatedDetailedReason = body?.detailedReason !== undefined
+              ? body.detailedReason.trim()
+              : existingReport.detailedReason;
+
+            const updatedEvidenceLinks = body?.evidenceLinks !== undefined
+              ? parseEvidenceLinks(body.evidenceLinks)
+              : existingReport.evidenceLinks;
+
+            const updatedAdditionalNotes = body?.additionalNotes !== undefined
+              ? body.additionalNotes?.trim() || null
+              : existingReport.additionalNotes;
+
+            if (!updatedBrokenRules || !updatedDetailedReason) {
+              json(res, 400, { error: 'Les champs de contenu du rapport sont obligatoires.' });
+              return;
+            }
+
+            if (Array.isArray(updatedEvidenceLinks) && updatedEvidenceLinks.length === 0) {
+              json(res, 400, { error: 'Au moins un lien de preuve valide est obligatoire.' });
+              return;
+            }
+
+            await prisma.sanctionReport.update({
+              where: { id: reportId },
+              data: {
+                brokenRules: updatedBrokenRules,
+                detailedReason: updatedDetailedReason,
+                evidenceLinks: updatedEvidenceLinks as any,
+                additionalNotes: updatedAdditionalNotes,
+              }
+            });
+
+            await pushAudit(guildId, {
+              user: auditUser,
+              action: 'Modification rapport sanction',
+              context: getGuildName(client, guildId),
+              module: 'Sanctions',
+              eventType: 'Manuel',
+              details: `Rapport ${reportId} modifié par ${user.username ?? user.userId}.`,
+              channelId: null
+            });
+
+            broadcastDashboardStateChange(guildId, 'sanction_report_updated');
+            json(res, 200, { ok: true });
+            return;
+          }
+
 
           if (parts.length === 5 && parts[4] === 'notifications' && req.method === 'PUT') {
             const body = await readJsonBody<NotificationSettings>(req);
@@ -5986,6 +6030,7 @@ export const startDashboardApi = (client: Client) => {
             const body = await readJsonBody<{
               status: 'PASSED' | 'FAILED';
               notes?: string;
+              force?: boolean;
             }>(req);
 
             if (!body?.status) {
@@ -5994,15 +6039,43 @@ export const startDashboardApi = (client: Client) => {
             }
 
             try {
+              // Vérification de la durée minimum si validation
+              if (body.status === 'PASSED') {
+                const period = await prisma.testingPeriod.findUnique({
+                  where: { id: periodId },
+                  select: { startDate: true, guildId: true }
+                });
+
+                if (period) {
+                  const config = await tutoringService.getTutoringConfig(period.guildId);
+                  const minDays = config.minTestDays || 14;
+                  const diffMs = Date.now() - period.startDate.getTime();
+                  const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+                  if (diffDays < minDays && !body.force) {
+                    json(res, 403, { 
+                      error: `La période de test est trop courte (${Math.floor(diffDays)}j / ${minDays}j).`,
+                      canForce: access.level === 'admin'
+                    });
+                    return;
+                  }
+
+                  if (body.force && access.level !== 'admin') {
+                    json(res, 403, { error: 'Seuls les administrateurs peuvent forcer une validation précoce.' });
+                    return;
+                  }
+                }
+              }
+
               const period = await endTestingPeriod(periodId, body.status, body.notes);
 
               await pushAudit(guildId, {
                 user: user.username ?? `User${user.userId}`,
-                action: `Fin période de test (${body.status})`,
+                action: `Fin période de test (${body.status})${body.force ? ' [FORCÉ]' : ''}`,
                 context: getGuildName(client, guildId),
                 module: 'Staff Management',
                 eventType: 'Manuel',
-                details: `Période de test: ${periodId} - ${body.status}`,
+                details: `Période de test: ${periodId} - ${body.status}${body.force ? ' (Bypass durée minimum)' : ''}`,
                 channelId: null
               });
 
@@ -6137,7 +6210,7 @@ export const startDashboardApi = (client: Client) => {
                 context: getGuildName(client, guildId),
                 module: 'Tutoring',
                 eventType: 'Manuel',
-                details: JSON.stringify(body),
+                details: `Intervalle: ${body.reportIntervalDays}j, Rappels: ${body.reminderDaysBefore}j, Min Test: ${body.minTestDays}j`,
                 channelId: null
               });
 
@@ -6205,6 +6278,35 @@ export const startDashboardApi = (client: Client) => {
             } catch (err) {
               logger.error('TutoringAPI', 'Error deleting item:', err);
               json(res, 500, { error: 'Erreur suppression item tutorat' });
+            }
+            return;
+          }
+
+          // DELETE /api/dashboard/guilds/:guildId/tutoring/periods/:periodId
+          if (req.method === 'DELETE' && parts[5] === 'periods' && parts[6]) {
+            const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+            if (accessLevel.level !== 'admin') {
+              json(res, 403, { error: 'Accès admin requis' });
+              return;
+            }
+
+            try {
+              await tutoringService.deleteTestingPeriod(parts[6]);
+              
+              await pushAudit(guildId, {
+                user: user.username ?? `User${user.userId}`,
+                action: 'Suppression tutorat',
+                context: getGuildName(client, guildId),
+                module: 'Tutoring',
+                eventType: 'Manuel',
+                details: `Période de test supprimée: ${parts[6]}`,
+                channelId: null
+              });
+
+              json(res, 200, { ok: true });
+            } catch (err) {
+              logger.error('TutoringAPI', 'Error deleting period:', err);
+              json(res, 500, { error: 'Erreur suppression tutorat' });
             }
             return;
           }
@@ -6281,6 +6383,60 @@ export const startDashboardApi = (client: Client) => {
             } catch (err) {
               logger.error('TutoringAPI', 'Error adding log:', err);
               json(res, 500, { error: 'Erreur ajout carnet de bord' });
+            }
+            return;
+          }
+        }
+        // GET /api/dashboard/guilds/:guildId/analytics
+        if (parts[4] === 'analytics') {
+          if (req.method === 'GET') {
+            try {
+              const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+              if (accessLevel.level === 'none') {
+                json(res, 403, { error: 'Accès refusé' });
+                return;
+              }
+
+              if (parts[5] === 'invites') {
+                json(res, 200, { data: [] }); // TODO: implémenter invite analytics
+                return;
+              }
+
+              if (parts[5] === 'members') {
+                json(res, 200, { data: [] }); // TODO: implémenter member detailed analytics
+                return;
+              }
+
+              const url = new URL(req.url, `http://${req.headers.host}`);
+              const days = parseInt(url.searchParams.get('period') || '30', 10);
+              const data = await import('../services/dashboardAnalyticsService.js').then(m => m.getDashboardAnalytics(guildId, days));
+              
+              const discordGuild = client.guilds.cache.get(guildId);
+              if (discordGuild) {
+                const members = discordGuild.members.cache;
+                const onlineCount = members.filter(m => m.presence?.status && m.presence.status !== 'offline').size;
+                
+                (data as any).live = {
+                  onlineMembers: onlineCount,
+                  totalMembers: discordGuild.memberCount
+                };
+
+                // Enrich popular channels with names
+                if (data.topChannels) {
+                  data.topChannels = data.topChannels.map((tc: any) => {
+                    const channel = discordGuild.channels.cache.get(tc.channelId);
+                    return {
+                      ...tc,
+                      channelName: channel?.name || 'salon-inconnu'
+                    };
+                  });
+                }
+              }
+
+              json(res, 200, data);
+            } catch (err) {
+              logger.error('AnalyticsAPI', 'Error getting analytics:', err);
+              json(res, 500, { error: 'Erreur récupération analytics' });
             }
             return;
           }

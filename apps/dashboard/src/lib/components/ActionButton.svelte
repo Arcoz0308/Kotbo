@@ -24,6 +24,7 @@
     icon?: string;
     label: string;
     className?: string;
+    children?: import('svelte').Snippet;
   } = $props();
 
   const baseClass =

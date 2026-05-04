@@ -1,6 +1,7 @@
 <script lang="ts">
   import Papicon from '../Papicon.svelte';
   import Chart from '../charts/Chart.svelte';
+  import DetailedAnalyticsModal from './DetailedAnalyticsModal.svelte';
 
   let { data, onOpenMember } = $props<{ data: any; onOpenMember: (id: string, name: string) => void }>();
 
@@ -34,8 +35,9 @@
 
   const getAvatar = (url: string | null) => url || 'https://cdn.discordapp.com/embed/avatars/0.png';
 
-  let showAllMods = $state(false);
-  let showAllSanctioned = $state(false);
+  let showModsModal = $state(false);
+  let showSanctionedModal = $state(false);
+  let showRecentModal = $state(false);
 
   const getSanctionColor = (type: string) => {
     switch (type) {
@@ -86,14 +88,14 @@
           <h3 class="text-lg font-black text-on-surface">Top Modérateurs</h3>
         </div>
         <button 
-          onclick={() => showAllMods = !showAllMods}
-          class="p-2 rounded-xl bg-surface-container-high/40 hover:bg-surface-container-high text-on-surface-variant transition-colors"
+          onclick={() => showModsModal = true}
+          class="px-4 py-2 rounded-xl bg-surface-container-high/40 hover:bg-surface-container-high text-xs font-bold text-on-surface transition-colors"
         >
-          <Papicon icon={showAllMods ? 'ArrowsIn' : 'ArrowsOut'} size={18} />
+          Voir plus
         </button>
       </div>
-      <div class="space-y-3 {showAllMods ? 'max-h-[400px] overflow-y-auto custom-scrollbar pr-2' : ''}">
-        {#each (showAllMods ? topModerators : topModerators.slice(0, 5)) as mod}
+      <div class="space-y-3 flex-grow pr-2">
+        {#each topModerators.slice(0, 5) as mod}
           <button 
             onclick={() => onOpenMember(mod.userId, mod.moderatorTag)}
             class="w-full flex items-center justify-between p-3 rounded-2xl bg-surface-container-high/20 hover:bg-surface-container-high/50 transition-all text-left"
@@ -124,14 +126,14 @@
           <h3 class="text-lg font-black text-on-surface">Membres Sanctionnés</h3>
         </div>
         <button 
-          onclick={() => showAllSanctioned = !showAllSanctioned}
-          class="p-2 rounded-xl bg-surface-container-high/40 hover:bg-surface-container-high text-on-surface-variant transition-colors"
+          onclick={() => showSanctionedModal = true}
+          class="px-4 py-2 rounded-xl bg-surface-container-high/40 hover:bg-surface-container-high text-xs font-bold text-on-surface transition-colors"
         >
-          <Papicon icon={showAllSanctioned ? 'ArrowsIn' : 'ArrowsOut'} size={18} />
+          Voir plus
         </button>
       </div>
-      <div class="space-y-3 {showAllSanctioned ? 'max-h-[400px] overflow-y-auto custom-scrollbar pr-2' : ''}">
-        {#each (showAllSanctioned ? topSanctionedMembers : topSanctionedMembers.slice(0, 5)) as m}
+      <div class="space-y-3 flex-grow pr-2">
+        {#each topSanctionedMembers.slice(0, 5) as m}
           <button 
             onclick={() => onOpenMember(m.targetUserId, m.targetTag)}
             class="w-full flex items-center justify-between p-3 rounded-2xl bg-surface-container-high/20 hover:bg-surface-container-high/50 transition-all text-left"
@@ -165,15 +167,21 @@
           <p class="text-xs font-bold text-on-surface-variant/40">Dernières actions enregistrées</p>
         </div>
       </div>
+      <button 
+        onclick={() => showRecentModal = true}
+        class="px-4 py-2 rounded-xl bg-surface-container-high/40 hover:bg-surface-container-high text-xs font-bold text-on-surface transition-colors"
+      >
+        Voir plus
+      </button>
     </div>
 
     <div class="space-y-4">
-      {#each recentSanctions as sanction}
+      {#each recentSanctions.slice(0, 5) as sanction}
         <div class="flex flex-col md:flex-row md:items-center justify-between p-5 rounded-3xl bg-surface-container-high/30 border border-outline-variant/10 hover:bg-surface-container-high/50 transition-all group gap-4">
           <div class="flex items-center gap-4">
             <button 
               onclick={() => onOpenMember(sanction.targetUserId, sanction.targetTag)}
-              class="w-12 h-12 rounded-2xl overflow-hidden bg-on-surface/5 flex items-center justify-center transition-transform group-hover:scale-105"
+              class="w-12 h-12 rounded-2xl overflow-hidden bg-on-surface/5 flex items-center justify-center transition-transform group-hover:scale-105 shrink-0"
             >
               <img src={getAvatar(sanction.targetAvatarUrl)} alt="" class="w-full h-full object-cover" />
             </button>
@@ -185,7 +193,7 @@
               <p class="text-xs font-medium text-on-surface-variant/60 mt-0.5 line-clamp-1">{sanction.reason || 'Aucune raison spécifiée'}</p>
             </div>
           </div>
-          <div class="flex items-center justify-between md:justify-end gap-6 border-t md:border-t-0 border-outline-variant/5 pt-3 md:pt-0">
+          <div class="flex items-center justify-between md:justify-end gap-6 border-t md:border-t-0 border-outline-variant/5 pt-3 md:pt-0 shrink-0">
             <div class="text-right">
               <p class="text-[9px] font-black text-on-surface-variant/40 uppercase tracking-widest">Modérateur</p>
               <div class="flex items-center gap-2 mt-0.5">
@@ -207,23 +215,52 @@
   </div>
 </div>
 
+<DetailedAnalyticsModal
+  open={showModsModal}
+  onClose={() => showModsModal = false}
+  title="Top Modérateurs"
+  subtitle="Classement par nombre d'actions de modération"
+  icon="ShieldCheck"
+  iconBgClass="bg-primary/10"
+  iconColorClass="text-primary"
+  type="moderators"
+  data={topModerators}
+  {onOpenMember}
+/>
+
+<DetailedAnalyticsModal
+  open={showSanctionedModal}
+  onClose={() => showSanctionedModal = false}
+  title="Membres Sanctionnés"
+  subtitle="Classement par récidive"
+  icon="UserFocus"
+  iconBgClass="bg-rose-500/10"
+  iconColorClass="text-rose-500"
+  type="sanctioned"
+  data={topSanctionedMembers}
+  {onOpenMember}
+/>
+
+<DetailedAnalyticsModal
+  open={showRecentModal}
+  onClose={() => showRecentModal = false}
+  title="Historique Récent"
+  subtitle="Dernières actions de modération"
+  icon="Gavel"
+  iconBgClass="bg-rose-500/10"
+  iconColorClass="text-rose-500"
+  type="recent_sanctions"
+  data={recentSanctions}
+  {onOpenMember}
+  {getSanctionColor}
+/>
+
 <style>
   .premium-card {
     background: rgba(var(--color-surface-container-low), 0.4);
     backdrop-filter: blur(24px);
     border: 1px solid rgba(var(--color-outline-variant), 0.1);
     transition: all 0.4s cubic-bezier(0.2, 1, 0.3, 1);
-  }
-
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 4px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(var(--color-outline-variant), 0.2);
-    border-radius: 10px;
   }
 </style>
 

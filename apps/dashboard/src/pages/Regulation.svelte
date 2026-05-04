@@ -5,6 +5,7 @@
   import ActionButton from '../lib/components/ActionButton.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
   import FormTextarea from '../lib/components/FormTextarea.svelte';
+  import Papicon from '../lib/components/Papicon.svelte';
   import {
     createRegulationArticle,
     deleteRegulationArticle,
@@ -357,64 +358,70 @@
   });
 </script>
 
-<div class="flex flex-col gap-6 mb-8 font-inter">
-  <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
-    <div>
-      <p class="text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant">Module de gouvernance</p>
-      <h2 class="text-3xl font-extrabold tracking-tight text-primary font-headline mt-2">Règlement du serveur</h2>
-      <p class="text-on-surface-variant mt-2 max-w-3xl leading-relaxed">
-        Crée, ordonne et publie les articles du règlement. La sélection des rapports de sanction se synchronise directement avec cette liste.
-      </p>
-    </div>
-    <RefreshButton
-      onClick={() => dashboardStore.refresh()}
-      loading={dashboardStore.state.loading}
-      label="Actualiser"
-      className="px-5 py-2.5 font-bold shadow-lg shadow-primary/10"
-      iconClass="text-lg"
-    />
-  </div>
-
-  <section class="grid grid-cols-1 xl:grid-cols-2 gap-4">
-    <div class="section-card p-5 xl:col-span-2">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-        <div>
-          <h3 class="text-lg font-black text-on-surface">Articles du règlement</h3>
-          <p class="text-xs text-on-surface-variant mt-1">{activeRules.length} actif(s) sur {regulationRules.length} article(s)</p>
+<div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20 max-w-7xl mx-auto px-4 md:px-8">
+  <!-- Header -->
+  <div class="relative overflow-hidden bg-surface-container-low/30 p-8 md:p-12 rounded-[3rem] border border-outline-variant/10 group">
+    <div class="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors duration-1000"></div>
+    <div class="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/4 w-64 h-64 bg-secondary/5 rounded-full blur-2xl group-hover:bg-secondary/10 transition-colors duration-1000"></div>
+    
+    <div class="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
+      <div class="space-y-2">
+        <div class="flex items-center gap-3">
+           <div class="bg-primary/10 p-2 rounded-xl text-primary">
+              <Papicon icon="Gavel" size={20} />
+           </div>
+           <span class="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Module de gouvernance</span>
         </div>
-        <div class="flex flex-wrap items-center gap-2">
-          <ActionButton
-            onClick={openCreateModal}
-            disabled={!canManageSettings || reordering}
-            variant="primary"
-            icon="➕"
-            label="Ajouter un article"
-          />
-          <ActionButton
-            onClick={handlePublishRegulation}
-            disabled={!canManageSettings || publishing || reordering || regulationRules.length === 0}
-            variant="success"
-            icon={dashboardStore.state.regulationMessageId ? '♻️' : '📣'}
-            label={publishing ? 'Publication...' : dashboardStore.state.regulationMessageId ? 'Actualiser le message' : 'Publier le règlement'}
-          />
-        </div>
+        <h2 class="text-3xl md:text-5xl font-black tracking-tight text-on-surface font-headline leading-tight">
+          Règlement du <span class="text-primary">Serveur</span>
+        </h2>
+        <p class="text-on-surface-variant/60 text-base max-w-md">Crée, ordonne et publie les articles du règlement. La sélection des rapports de sanction se synchronise directement avec cette liste.</p>
       </div>
 
-      {#if feedbackMessage}
-        <div class="mb-4 rounded-2xl px-4 py-3 text-sm font-semibold {feedbackIsError ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}">
-          {feedbackMessage}
+      <div class="flex flex-col items-end gap-4 w-full md:w-auto">
+        <div class="flex items-center gap-3">
+          <RefreshButton
+            onClick={() => dashboardStore.refresh()}
+            loading={dashboardStore.state.loading}
+            label="Actualiser"
+            className="flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest bg-on-surface text-surface shadow-xl hover:scale-105 transition-all duration-300"
+            iconClass="text-lg"
+          />
         </div>
-      {/if}
+        {#if dashboardStore.state.regulationRules}
+          <div class="flex items-center gap-4 text-xs font-bold text-on-surface-variant/40 bg-surface-container-low/40 px-4 py-2 rounded-xl border border-outline-variant/5">
+             <div class="flex items-center gap-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+                <span>{activeRules.length} actif(s) sur {regulationRules.length} article(s)</span>
+             </div>
+             <span class="w-px h-3 bg-outline-variant/20"></span>
+             <span>Dernière synchro: {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+          </div>
+        {/if}
+      </div>
+    </div>
+  </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
-        <div class="rounded-2xl bg-slate-50 dark:bg-slate-800/40 p-4">
-          <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Salon cible</p>
-          <p class="mt-2 text-sm font-semibold text-on-surface">{regulationChannelLabel}</p>
-          {#if canManageSettings}
-            <label class="mt-3 block text-[11px] font-semibold text-on-surface-variant" for="regulation-channel-select">Modifier via menu déroulant</label>
+  <!-- Config & Stats -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div class="bg-surface-container-low/30 p-6 rounded-[2rem] border border-outline-variant/10 space-y-4">
+      <div class="flex items-center gap-3">
+        <div class="bg-primary/10 p-2 rounded-xl text-primary">
+          <Papicon icon="Hash" size={18} />
+        </div>
+        <h3 class="text-sm font-black uppercase tracking-widest text-on-surface">Salon de publication</h3>
+      </div>
+      <div class="space-y-4">
+        <div class="flex items-center justify-between p-4 bg-surface-container-high/40 rounded-2xl border border-outline-variant/10">
+          <span class="text-sm font-bold text-on-surface-variant">Actuel</span>
+          <span class="text-sm font-black text-primary bg-primary/5 px-3 py-1 rounded-lg">{regulationChannelLabel}</span>
+        </div>
+        {#if canManageSettings}
+          <div class="space-y-2">
+            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60 ml-1" for="regulation-channel-select">Changer le salon</label>
             <select
               id="regulation-channel-select"
-              class="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/60 dark:border-slate-700 dark:bg-slate-900"
+              class="w-full rounded-xl border border-outline-variant/10 bg-surface-container-high/60 px-4 py-3 text-sm font-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all cursor-pointer"
               bind:value={selectedRegulationChannelId}
               onchange={handleRegulationChannelChange}
               disabled={saving || dashboardStore.state.loading || dashboardStore.state.discordChannels.length === 0}
@@ -424,155 +431,258 @@
                 <option value={channel.id}>{channel.name}</option>
               {/each}
             </select>
-          {/if}
+          </div>
+        {/if}
+      </div>
+    </div>
+
+    <div class="bg-surface-container-low/30 p-6 rounded-[2rem] border border-outline-variant/10 space-y-4">
+      <div class="flex items-center gap-3">
+        <div class="bg-secondary/10 p-2 rounded-xl text-secondary">
+          <Papicon icon="PaperPlaneTilt" size={18} />
         </div>
-        <div class="rounded-2xl bg-slate-50 dark:bg-slate-800/40 p-4">
-          <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Message publié</p>
-          <p class="mt-2 text-sm font-semibold text-on-surface">{publicationStatusLabel}</p>
-          <p class="mt-2 text-xs text-on-surface-variant">L’ordre se gère automatiquement. Glisse les cartes pour réorganiser le règlement.</p>
+        <h3 class="text-sm font-black uppercase tracking-widest text-on-surface">État du message</h3>
+      </div>
+      <div class="space-y-4">
+        <div class="p-4 bg-surface-container-high/40 rounded-2xl border border-outline-variant/10">
+          <p class="text-sm font-bold text-on-surface leading-relaxed">{publicationStatusLabel}</p>
+          <p class="mt-1 text-[10px] font-medium text-on-surface-variant/60 uppercase tracking-wider">Synchronisation automatique active</p>
+        </div>
+        <ActionButton
+          onClick={handlePublishRegulation}
+          disabled={!canManageSettings || publishing || reordering || regulationRules.length === 0}
+          variant="primary"
+          className="w-full py-4 rounded-xl shadow-lg shadow-primary/10"
+          icon={dashboardStore.state.regulationMessageId ? 'ArrowsCounterClockwise' : 'Megaphone'}
+          label={publishing ? 'Publication en cours...' : dashboardStore.state.regulationMessageId ? 'Actualiser le message' : 'Publier le règlement'}
+        />
+      </div>
+    </div>
+  </div>
+
+  <!-- Articles List -->
+  <div class="space-y-6">
+    <div class="flex items-center justify-between px-2">
+      <div class="flex items-center gap-3">
+        <div class="bg-primary p-2 rounded-xl text-on-primary shadow-lg shadow-primary/20">
+          <Papicon icon="ListBullets" size={20} />
+        </div>
+        <div>
+          <h3 class="text-xl font-black text-on-surface tracking-tight">Articles du règlement</h3>
+          <p class="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">Gérez la structure de votre serveur</p>
         </div>
       </div>
+      <ActionButton
+        onClick={openCreateModal}
+        disabled={!canManageSettings || reordering}
+        variant="primary"
+        icon="Plus"
+        label="Nouvel Article"
+        className="px-6 py-3 rounded-xl shadow-xl shadow-primary/20"
+      />
+    </div>
 
+    {#if feedbackMessage}
+      <div class="animate-in zoom-in-95 duration-300 rounded-2xl px-6 py-4 text-sm font-bold flex items-center gap-3 {feedbackIsError ? 'bg-error-container/10 text-error border border-error/20' : 'bg-primary/5 text-primary border border-primary/20'}">
+        <Papicon icon={feedbackIsError ? "WarningCircle" : "CheckCircle"} size={20} />
+        {feedbackMessage}
+      </div>
+    {/if}
+
+    <div class="grid grid-cols-1 gap-4">
       {#if dashboardStore.state.loading && regulationRules.length === 0}
-        <div class="space-y-3">
-          {#each Array(4) as _, index (index)}
-            <div class="animate-pulse rounded-2xl border border-slate-200 dark:border-slate-800 p-4">
-              <div class="h-4 w-48 rounded-full bg-slate-200 dark:bg-slate-700"></div>
-              <div class="mt-3 h-3 w-full rounded-full bg-slate-200 dark:bg-slate-700"></div>
-              <div class="mt-2 h-3 w-4/5 rounded-full bg-slate-200 dark:bg-slate-700"></div>
-            </div>
-          {/each}
-        </div>
+        {#each Array(4) as _}
+          <div class="h-32 rounded-[2rem] bg-surface-container-low/30 border border-outline-variant/10 animate-pulse"></div>
+        {/each}
       {:else if regulationRules.length === 0}
-        <div class="rounded-3xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/30 p-8 text-center">
-          <p class="text-lg font-black text-on-surface">Aucun article pour le moment</p>
-          <p class="mt-2 text-sm text-on-surface-variant max-w-xl mx-auto">
-            Ajoute des articles pour construire le règlement du serveur. Ils seront ensuite disponibles dans les rapports de sanction.
-          </p>
-          <div class="mt-4 flex justify-center">
-            <ActionButton onClick={openCreateModal} disabled={!canManageSettings} variant="primary" icon="➕" label="Créer le premier article" />
+        <div class="flex flex-col items-center justify-center py-20 bg-surface-container-low/20 rounded-[3rem] border border-dashed border-outline-variant/20 text-center space-y-4">
+          <div class="bg-surface-container-high p-6 rounded-full text-on-surface-variant/20">
+            <Papicon icon="Files" size={48} />
           </div>
+          <div class="space-y-1">
+            <h4 class="text-xl font-black text-on-surface">Aucun article configuré</h4>
+            <p class="text-on-surface-variant/60 max-w-sm">Commencez par créer le premier article pour définir les règles de votre communauté.</p>
+          </div>
+          <ActionButton onClick={openCreateModal} disabled={!canManageSettings} variant="primary" icon="Plus" label="Créer le premier article" className="px-8 py-3 rounded-xl" />
         </div>
       {:else}
-        <div class="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
-          {#each regulationRules as rule}
-            <article
-              class="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-linear-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-950 p-4 shadow-sm transition-all {draggingRuleId === rule.id ? 'scale-[0.99] opacity-70' : ''} {dragOverRuleId === rule.id ? 'ring-2 ring-primary/35 border-primary/30' : ''} {canManageSettings ? 'cursor-grab active:cursor-grabbing' : ''}"
-              draggable={canManageSettings}
-              ondragstart={(event) => handleRuleDragStart(event, rule.id)}
-              ondragend={handleRuleDragEnd}
-              ondragover={(event) => handleRuleDragOver(event, rule.id)}
-              ondrop={(event) => handleRuleDrop(event, rule.id)}
-            >
-              <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div class="space-y-2">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <span class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] {rule.enabled ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400'}">
-                      {rule.enabled ? 'Activé' : 'Désactivé'}
-                    </span>
-                    <span class="inline-flex items-center rounded-full bg-primary/10 text-primary px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em]">
-                      Ordre #{rule.sortOrder + 1}
-                    </span>
-                    {#if canManageSettings}
-                      <span class="inline-flex items-center rounded-full border border-outline-variant/20 bg-surface-container-low px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/70">
-                        Faire glisser
-                      </span>
-                    {/if}
-                  </div>
-                  <h4 class="text-lg font-black text-on-surface">{rule.emoji ? `${rule.emoji} ` : ''}{rule.title}</h4>
-                  <p class="text-sm leading-relaxed text-on-surface-variant whitespace-pre-wrap">{rule.description}</p>
+        {#each regulationRules as rule}
+          <article
+            class="group relative overflow-hidden bg-surface-container-low/40 hover:bg-surface-container-low/60 rounded-[2.5rem] border border-outline-variant/10 p-6 md:p-8 transition-all duration-500 {draggingRuleId === rule.id ? 'opacity-40 scale-95' : 'hover:scale-[1.01] hover:shadow-2xl hover:shadow-surface-container-high/50'} {dragOverRuleId === rule.id ? 'ring-2 ring-primary border-primary/30' : ''} {canManageSettings ? 'cursor-grab active:cursor-grabbing' : ''}"
+            draggable={canManageSettings}
+            ondragstart={(event) => handleRuleDragStart(event, rule.id)}
+            ondragend={handleRuleDragEnd}
+            ondragover={(event) => handleRuleDragOver(event, rule.id)}
+            ondrop={(event) => handleRuleDrop(event, rule.id)}
+          >
+            <div class="relative flex flex-col md:flex-row gap-8 items-start">
+              <!-- Sort & Status -->
+              <div class="flex md:flex-col items-center gap-3 shrink-0">
+                <div class="w-12 h-12 rounded-2xl bg-surface-container-high flex items-center justify-center text-xl font-black text-primary border border-outline-variant/10 shadow-inner">
+                  {rule.sortOrder + 1}
                 </div>
-
-                {#if canManageSettings}
-                  <div class="flex flex-wrap items-center gap-2 lg:justify-end">
-                    <ActionButton
-                      onClick={() => moveRuleByOffset(rule.id, -1)}
-                      variant="muted"
-                      icon="↑"
-                      label="Monter"
-                      disabled={reordering || rule.sortOrder === 0}
-                      className="md:hidden"
-                    />
-                    <ActionButton
-                      onClick={() => moveRuleByOffset(rule.id, 1)}
-                      variant="muted"
-                      icon="↓"
-                      label="Descendre"
-                      disabled={reordering || rule.sortOrder === regulationRules.length - 1}
-                      className="md:hidden"
-                    />
-                    <ActionButton onClick={() => openEditModal(rule)} variant="neutral" icon="✏️" label="Modifier" />
-                    <ActionButton onClick={() => openDeleteModal(rule)} variant="danger" icon="🗑️" label="Supprimer" />
-                  </div>
-                {/if}
+                <div class="h-px w-4 md:w-px md:h-8 bg-outline-variant/20"></div>
+                <div class="p-2 rounded-xl {rule.enabled ? 'bg-primary/10 text-primary' : 'bg-surface-container-high text-on-surface-variant/40'}">
+                  <Papicon icon={rule.enabled ? "CheckCircle" : "Prohibit"} size={20} />
+                </div>
               </div>
-            </article>
-          {/each}
-        </div>
+
+              <!-- Content -->
+              <div class="flex-1 space-y-4">
+                <div class="space-y-2">
+                  <div class="flex items-center gap-3">
+                    {#if rule.emoji}
+                      <span class="text-2xl drop-shadow-sm">{rule.emoji}</span>
+                    {/if}
+                    <h4 class="text-2xl font-black text-on-surface tracking-tight group-hover:text-primary transition-colors">{rule.title}</h4>
+                  </div>
+                  <p class="text-on-surface-variant/70 text-base leading-relaxed whitespace-pre-wrap max-w-4xl">{rule.description}</p>
+                </div>
+                
+                <div class="flex flex-wrap items-center gap-2">
+                   <span class="px-3 py-1 rounded-lg bg-surface-container-high/60 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60 border border-outline-variant/5">
+                    {rule.enabled ? 'Visible' : 'Masqué'}
+                   </span>
+                   {#if canManageSettings}
+                    <span class="px-3 py-1 rounded-lg bg-primary/5 text-[10px] font-black uppercase tracking-widest text-primary/60 border border-primary/10 animate-pulse">
+                      Glisser pour réorganiser
+                    </span>
+                   {/if}
+                </div>
+              </div>
+
+              <!-- Actions -->
+              {#if canManageSettings}
+                <div class="flex items-center gap-2 self-end md:self-start bg-surface-container-high/40 p-2 rounded-2xl border border-outline-variant/10 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-300 -translate-y-2 group-hover:translate-y-0">
+                  <button 
+                    onclick={() => openEditModal(rule)}
+                    class="p-3 rounded-xl hover:bg-primary/10 hover:text-primary text-on-surface-variant/60 transition-all"
+                    title="Modifier"
+                  >
+                    <Papicon icon="PencilSimple" size={18} />
+                  </button>
+                  <button 
+                    onclick={() => openDeleteModal(rule)}
+                    class="p-3 rounded-xl hover:bg-error-container/20 hover:text-error text-on-surface-variant/60 transition-all"
+                    title="Supprimer"
+                  >
+                    <Papicon icon="Trash" size={18} />
+                  </button>
+                </div>
+              {/if}
+            </div>
+            
+            <!-- Mobile Sort Controls (Fallbacks) -->
+            {#if canManageSettings}
+              <div class="flex md:hidden items-center justify-center gap-4 mt-6 pt-6 border-t border-outline-variant/10">
+                 <button 
+                  onclick={() => moveRuleByOffset(rule.id, -1)}
+                  disabled={reordering || rule.sortOrder === 0}
+                  class="flex-1 py-3 rounded-xl bg-surface-container-high/60 text-xs font-black uppercase tracking-widest disabled:opacity-30"
+                 >
+                  Monter
+                 </button>
+                 <button 
+                  onclick={() => moveRuleByOffset(rule.id, 1)}
+                  disabled={reordering || rule.sortOrder === regulationRules.length - 1}
+                  class="flex-1 py-3 rounded-xl bg-surface-container-high/60 text-xs font-black uppercase tracking-widest disabled:opacity-30"
+                 >
+                  Descendre
+                 </button>
+              </div>
+            {/if}
+          </article>
+        {/each}
       {/if}
     </div>
-  </section>
+  </div>
 </div>
 
 {#if modalOpen}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="regulation-modal-title" tabindex="-1" onclick={closeModal}>
+  <div class="modal-backdrop backdrop-blur-md bg-surface/30" role="dialog" aria-modal="true" aria-labelledby="regulation-modal-title" tabindex="-1" onclick={closeModal}>
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="modal-panel modal-panel-lg space-y-5 font-inter" onclick={(e) => e.stopPropagation()}>
+    <div class="modal-panel modal-panel-lg space-y-6 !rounded-[3rem] border border-outline-variant/10 shadow-2xl !bg-surface-container-low" onclick={(e) => e.stopPropagation()}>
       <div class="flex items-start justify-between gap-4">
-        <div>
-          <p class="text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant">{modalMode === 'create' ? 'Nouvel article' : 'Modifier l’article'}</p>
-          <h3 id="regulation-modal-title" class="text-xl font-black text-on-surface mt-1">{modalMode === 'create' ? 'Créer un article du règlement' : 'Éditer l’article du règlement'}</h3>
+        <div class="flex items-center gap-4">
+          <div class="bg-primary/10 p-3 rounded-2xl text-primary">
+            <Papicon icon={modalMode === 'create' ? "PlusCircle" : "PencilSimple"} size={24} />
+          </div>
+          <div>
+            <p class="text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant/60">{modalMode === 'create' ? 'Configuration' : 'Édition'}</p>
+            <h3 id="regulation-modal-title" class="text-2xl font-black text-on-surface tracking-tight">{modalMode === 'create' ? 'Nouvel Article' : 'Modifier l’Article'}</h3>
+          </div>
         </div>
-        <ActionButton onClick={closeModal} size="sm" variant="neutral" label="Fermer" />
+        <button onclick={closeModal} class="p-2 rounded-xl hover:bg-surface-container-high transition-colors text-on-surface-variant/40">
+          <Papicon icon="X" size={20} />
+        </button>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div>
-          <label for="regulation-title" class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Titre</label>
-          <FormInput id="regulation-title" type="text" bind:value={draftTitle} className="mt-1 w-full rounded-xl px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none text-sm" placeholder="Ex: Respect et courtoisie" />
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="space-y-2">
+          <label for="regulation-title" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60 ml-1">Titre de la règle</label>
+          <FormInput id="regulation-title" type="text" bind:value={draftTitle} className="w-full rounded-2xl px-5 py-4 bg-surface-container-high/60 border border-outline-variant/10 font-bold text-on-surface focus:ring-2 focus:ring-primary/40 transition-all" placeholder="Ex: Respect et courtoisie" />
         </div>
-        <div>
-          <label for="regulation-emoji" class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Emoji</label>
-          <FormInput id="regulation-emoji" type="text" bind:value={draftEmoji} className="mt-1 w-full rounded-xl px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none text-sm" placeholder="Ex: 📌 ou <:emoji:123>" />
+        <div class="space-y-2">
+          <label for="regulation-emoji" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60 ml-1">Emoji (Optionnel)</label>
+          <FormInput id="regulation-emoji" type="text" bind:value={draftEmoji} className="w-full rounded-2xl px-5 py-4 bg-surface-container-high/60 border border-outline-variant/10 font-bold text-on-surface focus:ring-2 focus:ring-primary/40 transition-all" placeholder="📌 ou <:custom:123>" />
         </div>
-        <div class="flex items-end">
-          <label class="inline-flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-3 w-full cursor-pointer select-none">
-            <input type="checkbox" bind:checked={draftEnabled} class="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary" />
-            <span>
-              <span class="block text-sm font-bold text-on-surface">Article actif</span>
-              <span class="block text-xs text-on-surface-variant">Si désactivé, il ne sera plus affiché dans le message publié ni dans les rapports.</span>
-            </span>
+        <div class="md:col-span-2">
+          <label class="group flex items-center gap-4 rounded-[2rem] border border-outline-variant/10 bg-surface-container-high/40 p-6 cursor-pointer hover:bg-surface-container-high/60 transition-all">
+            <div class="relative flex items-center justify-center">
+              <input type="checkbox" bind:checked={draftEnabled} class="peer h-6 w-6 rounded-lg border-2 border-outline-variant/20 text-primary focus:ring-primary/40 transition-all appearance-none checked:bg-primary checked:border-primary" />
+              <div class="absolute pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity text-on-primary">
+                <Papicon icon="Check" size={14} weight="bold" />
+              </div>
+            </div>
+            <div class="flex-1">
+              <span class="block text-sm font-black text-on-surface tracking-tight">Article actif et visible</span>
+              <span class="block text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest mt-0.5">Visibilité publique et synchronisation</span>
+            </div>
           </label>
         </div>
       </div>
 
-      <div>
-        <label for="regulation-description" class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Description</label>
+      <div class="space-y-2">
+        <label for="regulation-description" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60 ml-1">Description détaillée (Markdown supporté)</label>
         <FormTextarea
           id="regulation-description"
           bind:value={draftDescription}
           rows={5}
-          className="mt-1 w-full rounded-xl px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none text-sm"
-          placeholder="Décris précisément la règle en Markdown Discord..."
+          className="w-full rounded-[2rem] px-6 py-5 bg-surface-container-high/60 border border-outline-variant/10 font-medium text-on-surface leading-relaxed focus:ring-2 focus:ring-primary/40 transition-all"
+          placeholder="Décris précisément la règle..."
         />
-        <p class="mt-2 text-[11px] text-on-surface-variant">Tu peux utiliser le Markdown Discord, les listes, le gras, les liens et les mentions d’emoji.</p>
       </div>
 
-      <div class="rounded-2xl bg-slate-50 dark:bg-slate-800/40 p-4">
-        <p class="text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant">Aperçu de l’article</p>
-        <p class="mt-2 text-base font-black text-on-surface">{draftEmoji ? `${draftEmoji} ` : ''}{draftTitle || 'Titre de l’article'}</p>
-        <p class="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-on-surface-variant">{draftDescription || 'La description de l’article apparaîtra ici.'}</p>
+      <!-- Preview -->
+      <div class="relative overflow-hidden rounded-[2rem] bg-primary/5 p-6 border border-primary/10">
+        <div class="absolute top-0 right-0 p-4 opacity-10 text-primary">
+           <Papicon icon="Eye" size={48} />
+        </div>
+        <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary/60 mb-3">Aperçu en temps réel</p>
+        <div class="flex items-center gap-3 mb-2">
+          {#if draftEmoji}
+            <span class="text-xl">{draftEmoji}</span>
+          {/if}
+          <p class="text-lg font-black text-on-surface tracking-tight">{draftTitle || 'Titre de l’article'}</p>
+        </div>
+        <p class="whitespace-pre-wrap text-sm font-medium text-on-surface-variant leading-relaxed">{draftDescription || 'La description apparaîtra ici...'}</p>
       </div>
 
-      <div class="flex flex-wrap items-center justify-end gap-2">
-        <ActionButton onClick={closeModal} variant="neutral" label="Annuler" />
+      <div class="flex items-center justify-end gap-3 pt-2">
+        <button 
+          onclick={closeModal} 
+          class="px-8 py-4 rounded-xl text-xs font-black uppercase tracking-widest text-on-surface-variant hover:bg-surface-container-high transition-all"
+        >
+          Annuler
+        </button>
         <ActionButton
           onClick={saveRule}
           variant="primary"
-          label={saving ? 'Enregistrement...' : modalMode === 'create' ? 'Créer l’article' : 'Enregistrer les modifications'}
+          className="px-10 py-4 rounded-xl shadow-xl shadow-primary/20"
+          label={saving ? 'Enregistrement...' : modalMode === 'create' ? 'Créer l’Article' : 'Sauvegarder'}
           disabled={saving || !canManageSettings}
         />
       </div>
@@ -583,34 +693,39 @@
 {#if deletingRule}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="delete-rule-title" tabindex="-1" onclick={closeDeleteModal}>
+  <div class="modal-backdrop backdrop-blur-sm bg-error/10" role="dialog" aria-modal="true" aria-labelledby="delete-rule-title" tabindex="-1" onclick={closeDeleteModal}>
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="modal-panel max-w-lg space-y-4 font-inter" onclick={(e) => e.stopPropagation()}>
-      <div>
-        <p class="text-[10px] font-black uppercase tracking-[0.25em] text-red-500">Action sensible</p>
-        <h3 id="delete-rule-title" class="mt-1 text-xl font-black text-on-surface">Supprimer l’article</h3>
-        <p class="mt-2 text-sm text-on-surface-variant">
-          Tu es sur le point de supprimer <span class="font-bold text-on-surface">{deletingRule.emoji ? `${deletingRule.emoji} ` : ''}{deletingRule.title}</span>.
-          Cette action retire l’article de la sélection des rapports de sanction.
+    <div class="modal-panel max-w-lg !rounded-[3rem] border border-error/20 shadow-2xl !bg-surface space-y-6 p-8" onclick={(e) => e.stopPropagation()}>
+      <div class="flex flex-col items-center text-center space-y-4">
+        <div class="bg-error/10 p-5 rounded-full text-error">
+          <Papicon icon="Warning" size={40} />
+        </div>
+        <div>
+          <p class="text-[10px] font-black uppercase tracking-[0.25em] text-error/60">Action Irréversible</p>
+          <h3 id="delete-rule-title" class="text-2xl font-black text-on-surface tracking-tight">Supprimer l’Article ?</h3>
+        </div>
+        <p class="text-sm font-bold text-on-surface-variant leading-relaxed">
+          Voulez-vous vraiment supprimer <span class="text-on-surface font-black">{deletingRule.emoji ? `${deletingRule.emoji} ` : ''}{deletingRule.title}</span> ?
+          Cette action retirera l’article de tous les futurs rapports.
         </p>
       </div>
 
-      <div>
-        <label for="delete-rule-confirm" class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Tape SUPPRIMER pour valider</label>
+      <div class="space-y-3">
+        <label for="delete-rule-confirm" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60 ml-1 text-center block w-full">Tapez <span class="text-error">SUPPRIMER</span> pour confirmer</label>
         <FormInput
           id="delete-rule-confirm"
           type="text"
           bind:value={deleteConfirmationText}
           autocomplete="off"
-          className="mt-1 w-full rounded-xl px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-red-400/40 focus:border-red-400 dark:focus:border-red-500 transition-all"
+          className="w-full rounded-2xl px-5 py-4 bg-surface-container-high/60 border border-error/10 font-black text-center text-on-surface focus:ring-2 focus:ring-error/40 transition-all"
           placeholder="SUPPRIMER"
         />
       </div>
 
-      <div class="flex flex-wrap items-center justify-end gap-2">
-        <ActionButton onClick={closeDeleteModal} variant="neutral" label="Annuler" />
-        <ActionButton onClick={confirmDeleteRule} variant="danger" label={saving ? 'Suppression...' : 'Supprimer définitivement'} disabled={saving} />
+      <div class="flex flex-col gap-2">
+        <ActionButton onClick={confirmDeleteRule} variant="danger" label={saving ? 'Suppression...' : 'Confirmer la Suppression'} disabled={saving} className="w-full py-4 rounded-xl shadow-xl shadow-error/20" />
+        <button onclick={closeDeleteModal} class="w-full py-4 rounded-xl text-xs font-black uppercase tracking-widest text-on-surface-variant hover:bg-surface-container-high transition-all">Annuler</button>
       </div>
     </div>
   </div>

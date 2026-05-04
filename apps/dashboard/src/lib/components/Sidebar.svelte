@@ -28,7 +28,6 @@
     { name: "Recrutement", icon: "user-plus", href: "/recruitment" },
     { name: "Annuaire Staff", icon: "users", href: "/staff-management?tab=members" },
     { name: "Hiérarchie & Rôles", icon: "shield", href: "/staff-management?tab=roles" },
-    { name: "Périodes de Test", icon: "clock", href: "/staff-management?tab=testing" },
     { name: "Tutorat & Formation", icon: "book-open", href: "/tutoring" },
     { name: "Réunions", icon: "calendar", href: "/meetings" },
     { name: "Absences", icon: "sun", href: "/absences" },

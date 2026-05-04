@@ -245,6 +245,20 @@
       youtubeReferenceChannelId = dashboardStore.state.youtubeReferenceChannelId || '';
     } else if (moduleId === 'dailyalgo') {
       await Promise.all([loadDailyAlgoProblems(), loadTodayDailyAlgoSubmissions(), loadDailyAlgoHistory(), loadDailyAlgoSchedule(), loadMyApiKeys()]);
+      
+      // Auto-open submission IDE if submissionId is present in URL
+      const params = new URLSearchParams(window.location.search);
+      const submissionId = params.get('submissionId');
+      if (submissionId && dailyAlgoToday?.submissions) {
+        const submission = dailyAlgoToday.submissions.find((s: any) => s.id === submissionId);
+        if (submission) {
+          openSubmissionInIntegratedIde(submission);
+          // Clear query param to avoid re-opening on refresh if user closed it
+          const url = new URL(window.location.href);
+          url.searchParams.delete('submissionId');
+          window.history.replaceState({}, '', url.toString());
+        }
+      }
     }
   });
 

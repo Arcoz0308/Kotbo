@@ -93,6 +93,7 @@ export function registerModerationAuditListener(client: Client): void {
           target,
           moderator,
           reason: entry.reason?.trim() || MANUAL_REASON_BY_ACTION.KICK,
+          client,
         });
         return;
       }
@@ -103,6 +104,7 @@ export function registerModerationAuditListener(client: Client): void {
           target,
           moderator,
           reason: entry.reason?.trim() || MANUAL_REASON_BY_ACTION.BAN,
+          client,
         });
         return;
       }

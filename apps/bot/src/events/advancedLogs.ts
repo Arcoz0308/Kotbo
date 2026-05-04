@@ -33,6 +33,7 @@ import {
   touchMemberVoiceLeave,
   touchSanctionTargetIdentity,
 } from '../services/memberCaseService.js';
+import * as dcDetectionService from '../services/dcDetectionService.js';
 
 type MessageSnapshot = {
   guildId: string;
@@ -1021,6 +1022,10 @@ export function registerAdvancedLogsListener(client: Client): void {
 
     void touchMemberJoin(member).catch((error) => {
       logger.warn('Casier', `Impossible de synchroniser l'arrivée du membre ${member.id}: ${String(error)}`);
+    });
+
+    void dcDetectionService.analyzeMemberJoin(member).catch((error) => {
+      logger.error('DC', `Erreur lors de l'analyse DC de ${member.id}:`, error);
     });
 
     if (usedInvite) {

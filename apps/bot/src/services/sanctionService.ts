@@ -4,6 +4,7 @@ import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { notifyDashboardSanctionReportRequired } from '../api/dashboardApi.js';
 import { createNotification } from './staffLeadershipService.js';
+import * as altAccountService from './altAccountService.js';
 
 const MAX_DISCORD_TIMEOUT_MS = 27 * 24 * 60 * 60 * 1000;
 const RENEWAL_BUFFER_MS = 60 * 1000;
@@ -266,6 +267,8 @@ export async function registerWarnSanction(params: {
   target: Target;
   moderator: Actor;
   reason: string;
+  client?: Client;
+  isSync?: boolean;
 }) {
   const sanction = await prisma.sanction.create({
     data: {
@@ -302,6 +305,17 @@ export async function registerWarnSanction(params: {
     '/profile'
   ).catch(() => null);
 
+  if (params.client && !params.isSync) {
+    void altAccountService.synchronizeSanction({
+      client: params.client,
+      guildId: params.guildId,
+      originalUserId: params.target.id,
+      type: SanctionType.WARN,
+      moderator: params.moderator,
+      reason: params.reason
+    }).catch(() => null);
+  }
+
   return sanction;
 }
 
@@ -310,6 +324,8 @@ export async function registerKickSanction(params: {
   target: Target;
   moderator: Actor;
   reason: string;
+  client?: Client;
+  isSync?: boolean;
 }) {
   const existing = await findRecentSanction({
     guildId: params.guildId,
@@ -355,6 +371,17 @@ export async function registerKickSanction(params: {
 
   void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
 
+  if (params.client && !params.isSync) {
+    void altAccountService.synchronizeSanction({
+      client: params.client,
+      guildId: params.guildId,
+      originalUserId: params.target.id,
+      type: SanctionType.KICK,
+      moderator: params.moderator,
+      reason: params.reason
+    }).catch(() => null);
+  }
+
   return sanction;
 }
 
@@ -364,6 +391,8 @@ export async function registerBanSanction(params: {
   moderator: Actor;
   reason: string;
   temporaryDurationMs?: number;
+  client?: Client;
+  isSync?: boolean;
 }) {
   const isTemporary = Boolean(params.temporaryDurationMs && params.temporaryDurationMs > 0);
   const sanctionType = isTemporary ? SanctionType.TEMP_BAN : SanctionType.BAN;
@@ -417,6 +446,18 @@ export async function registerBanSanction(params: {
 
   void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
 
+  if (params.client && !params.isSync) {
+    void altAccountService.synchronizeSanction({
+      client: params.client,
+      guildId: params.guildId,
+      originalUserId: params.target.id,
+      type: sanctionType,
+      moderator: params.moderator,
+      reason: params.reason,
+      durationMs: params.temporaryDurationMs
+    }).catch(() => null);
+  }
+
   return sanction;
 }
 
@@ -427,6 +468,8 @@ export async function registerTimeoutSanction(params: {
   reason: string;
   durationMs: number;
   member: GuildMember;
+  client?: Client;
+  isSync?: boolean;
 }) {
   const existing = await findRecentSanction({
     guildId: params.guildId,
@@ -479,6 +522,18 @@ export async function registerTimeoutSanction(params: {
   });
 
   void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
+
+  if (params.client && !params.isSync) {
+    void altAccountService.synchronizeSanction({
+      client: params.client,
+      guildId: params.guildId,
+      originalUserId: params.target.id,
+      type: SanctionType.TIMEOUT,
+      moderator: params.moderator,
+      reason: params.reason,
+      durationMs: params.durationMs
+    }).catch(() => null);
+  }
 
   return sanction;
 }

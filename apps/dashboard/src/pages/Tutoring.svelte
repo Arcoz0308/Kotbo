@@ -11,7 +11,10 @@
     updateTutoringChecklist,
     addTutoringLog,
     deleteTutoringItem,
-    upsertTutoringItem
+    upsertTutoringItem,
+    deleteTestingPeriod,
+    addMentorReport,
+    endTestingPeriod
   } from '../lib/api';
   
   let activeTab = $state('dashboard'); // dashboard, progress, config
@@ -20,6 +23,19 @@
   let tutorApprentices = $state<any[]>([]);
   let apprenticeProgress = $state<any>(null);
   let loading = $state(true);
+
+  // Modal states
+  let reportModalOpen = $state(false);
+  let selectedApprentice = $state<any>(null);
+  let reportType = $state('POSITIVE');
+  let reportContent = $state('');
+
+  let endTutoringModalOpen = $state(false);
+  let endTutoringStatus = $state<'PASSED' | 'FAILED'>('PASSED');
+  let endTutoringNotes = $state('');
+  let endTutoringForce = $state(false);
+  let endTutoringError = $state<string | null>(null);
+  let canForce = $state(false);
 
   async function fetchData() {
     loading = true;
@@ -81,6 +97,54 @@
     if (!tutoringItems.length) return 0;
     const completed = progress.filter(p => p.completed).length;
     return Math.round((completed / tutoringItems.length) * 100);
+  }
+
+  async function handleDeleteTutoring(periodId: string) {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce tutorat ? Cette action est irréversible.')) return;
+    try {
+      await deleteTestingPeriod(periodId);
+      fetchData();
+    } catch (err) {
+      console.error('Error deleting tutoring:', err);
+    }
+  }
+
+  async function submitReport() {
+    if (!reportContent.trim() || !selectedApprentice) return;
+    try {
+      await addMentorReport(selectedApprentice.id, reportType, reportContent);
+      reportModalOpen = false;
+      reportContent = '';
+      fetchData();
+    } catch (err) {
+      console.error('Error submitting report:', err);
+    }
+  }
+
+  async function submitEndTutoring() {
+    if (!selectedApprentice) return;
+    endTutoringError = null;
+    try {
+      await endTestingPeriod(selectedApprentice.id, endTutoringStatus, endTutoringNotes, endTutoringForce);
+      endTutoringModalOpen = false;
+      endTutoringNotes = '';
+      endTutoringForce = false;
+      fetchData();
+    } catch (err: any) {
+      if (err.status === 403 && err.message.includes('trop courte')) {
+        endTutoringError = err.message;
+        canForce = true;
+      } else {
+        console.error('Error ending tutoring:', err);
+        endTutoringError = "Une erreur est survenue lors de la validation.";
+      }
+    }
+  }
+
+  function getDaysInTest(startDate: string) {
+    const start = new Date(startDate);
+    const diff = Date.now() - start.getTime();
+    return Math.floor(diff / (1000 * 60 * 60 * 24));
   }
 
   // Visual helper for categories
@@ -187,9 +251,41 @@
                       <Papicon icon="alert-circle" size={16} class="text-primary" />
                       <span class="text-xs font-bold text-primary">Prochain Rapport</span>
                     </div>
-                    <p class="text-sm font-medium text-on-surface-variant">
+                    <p class="text-sm font-medium text-on-surface-variant mb-4">
                       {apprentice.lastReportAt ? 'Dans 12 jours' : 'À faire dès que possible'}
                     </p>
+                    <button 
+                      onclick={() => { selectedApprentice = apprentice; reportModalOpen = true; }}
+                      class="w-full py-2 bg-primary/10 text-primary rounded-xl text-xs font-bold hover:bg-primary/20 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Papicon icon="plus" size={14} />
+                      Faire un Rapport
+                    </button>
+                  </div>
+
+                  <div class="mt-auto flex flex-col gap-2">
+                    <div class="flex gap-2">
+                      <button 
+                        onclick={() => { selectedApprentice = apprentice; endTutoringStatus = 'PASSED'; endTutoringModalOpen = true; endTutoringError = null; canForce = false; }}
+                        class="flex-1 py-3 bg-success/10 text-success rounded-xl text-xs font-black hover:bg-success/20 transition-all"
+                      >
+                        Valider
+                      </button>
+                      <button 
+                         onclick={() => { selectedApprentice = apprentice; endTutoringStatus = 'FAILED'; endTutoringModalOpen = true; endTutoringError = null; canForce = false; }}
+                        class="flex-1 py-3 bg-error/10 text-error rounded-xl text-xs font-black hover:bg-error/20 transition-all"
+                      >
+                        Échec
+                      </button>
+                    </div>
+                    {#if authStore.isAdmin}
+                      <button 
+                        onclick={() => handleDeleteTutoring(apprentice.id)}
+                        class="w-full py-2 text-on-surface-variant/50 hover:text-error text-[10px] font-bold uppercase tracking-widest transition-all"
+                      >
+                        Supprimer le tutorat
+                      </button>
+                    {/if}
                   </div>
                 </div>
 
@@ -378,15 +474,21 @@
         <div class="lg:col-span-1 bg-surface-container-low/60 p-8 rounded-[2rem] border border-outline-variant/30 flex flex-col gap-6">
           <h2 class="text-2xl font-black text-on-surface mb-4">Paramètres</h2>
           
-          <div class="flex flex-col gap-2">
-            <label for="reportIntervalDays" class="text-xs font-black uppercase text-on-surface-variant tracking-widest pl-2">Intervalle des Rapports (jours)</label>
-            <input 
-              id="reportIntervalDays"
-              type="number" 
-              bind:value={config.reportIntervalDays}
-              class="bg-surface-container px-6 py-4 rounded-2xl border border-outline-variant/30 focus:border-primary outline-none transition-all"
-            />
-          </div>
+          {#if !config}
+            <div class="p-6 bg-surface-container rounded-3xl border border-dashed border-outline-variant/50 flex flex-col items-center justify-center text-center">
+              <Papicon icon="alert-circle" size={32} class="text-on-surface-variant/30 mb-2" />
+              <p class="text-xs text-on-surface-variant font-medium">Impossible de charger la configuration.</p>
+            </div>
+          {:else}
+            <div class="flex flex-col gap-2">
+              <label for="reportIntervalDays" class="text-xs font-black uppercase text-on-surface-variant tracking-widest pl-2">Intervalle des Rapports (jours)</label>
+              <input 
+                id="reportIntervalDays"
+                type="number" 
+                bind:value={config.reportIntervalDays}
+                class="bg-surface-container px-6 py-4 rounded-2xl border border-outline-variant/30 focus:border-primary outline-none transition-all"
+              />
+            </div>
 
           <div class="flex flex-col gap-2">
             <label for="reminderDaysBefore" class="text-xs font-black uppercase text-on-surface-variant tracking-widest pl-2">Rappels avant échéance (jours)</label>
@@ -394,6 +496,16 @@
               id="reminderDaysBefore"
               type="number" 
               bind:value={config.reminderDaysBefore}
+              class="bg-surface-container px-6 py-4 rounded-2xl border border-outline-variant/30 focus:border-primary outline-none transition-all"
+            />
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <label for="minTestDays" class="text-xs font-black uppercase text-on-surface-variant tracking-widest pl-2">Temps minimum en test (jours)</label>
+            <input 
+              id="minTestDays"
+              type="number" 
+              bind:value={config.minTestDays}
               class="bg-surface-container px-6 py-4 rounded-2xl border border-outline-variant/30 focus:border-primary outline-none transition-all"
             />
           </div>
@@ -418,6 +530,7 @@
           >
             Sauvegarder
           </button>
+          {/if}
         </div>
 
         <!-- Checklist Items Management -->
@@ -467,6 +580,135 @@
     {/if}
   {/if}
 </div>
+
+{#if reportModalOpen}
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-surface-container-lowest/80 backdrop-blur-md animate-in fade-in duration-300">
+    <div class="w-full max-w-lg bg-surface-container-low rounded-[2rem] border border-outline-variant/30 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+      <div class="p-8">
+        <h2 class="text-2xl font-black text-on-surface mb-2">Nouveau Rapport</h2>
+        <p class="text-on-surface-variant mb-6 font-medium">Postez un rapport sur l'évolution de **{selectedApprentice?.staffMember?.username}**.</p>
+        
+        <div class="flex flex-col gap-6">
+          <div class="flex gap-2 p-1 bg-surface-container rounded-2xl border border-outline-variant/20">
+            {#each ['POSITIVE', 'NEUTRAL', 'NEGATIVE'] as type}
+              <button 
+                onclick={() => reportType = type}
+                class="flex-1 py-2.5 rounded-xl text-xs font-black transition-all {reportType === type ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-surface-hover'}"
+              >
+                {type}
+              </button>
+            {/each}
+          </div>
+
+          <textarea 
+            placeholder="Détails du rapport..." 
+            bind:value={reportContent}
+            rows="6"
+            class="w-full bg-surface-container px-6 py-4 rounded-2xl border border-outline-variant/30 focus:border-primary outline-none transition-all text-on-surface resize-none"
+          ></textarea>
+
+          <div class="flex gap-4">
+            <button 
+              onclick={() => reportModalOpen = false}
+              class="flex-1 py-4 rounded-2xl border-2 border-outline-variant/30 text-on-surface-variant font-black hover:bg-surface-hover transition-all"
+            >
+              Annuler
+            </button>
+            <button 
+              onclick={submitReport}
+              class="flex-1 py-4 bg-primary text-white rounded-2xl font-black shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all"
+            >
+              Publier
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if endTutoringModalOpen}
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-surface-container-lowest/80 backdrop-blur-md animate-in fade-in duration-300">
+    <div class="w-full max-w-lg bg-surface-container-low rounded-[2rem] border border-outline-variant/30 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+      <div class="p-8">
+        <h2 class="text-2xl font-black text-on-surface mb-2">
+          {endTutoringStatus === 'PASSED' ? 'Valider le Tutorat' : 'Échec du Tutorat'}
+        </h2>
+        <p class="text-on-surface-variant mb-6 font-medium text-sm">
+          {endTutoringStatus === 'PASSED' 
+            ? `Vous êtes sur le point de valider officiellement le tutorat de ${selectedApprentice?.staffMember?.username}.`
+            : `Vous allez marquer le tutorat de ${selectedApprentice?.staffMember?.username} comme ayant échoué.`}
+        </p>
+        
+        <div class="flex flex-col gap-6">
+          <div class="p-4 bg-surface-container/50 rounded-2xl border border-outline-variant/20 flex items-center justify-between">
+            <div class="flex flex-col">
+              <span class="text-xs font-black uppercase text-on-surface-variant tracking-widest">Durée actuelle</span>
+              <span class="font-bold text-on-surface">{getDaysInTest(selectedApprentice?.startDate)} jours</span>
+            </div>
+            <div class="flex flex-col items-end">
+              <span class="text-xs font-black uppercase text-on-surface-variant tracking-widest">Requis</span>
+              <span class="font-bold text-on-surface">{config?.minTestDays ?? 14} jours</span>
+            </div>
+          </div>
+
+          {#if endTutoringError}
+            <div class="p-4 bg-error/10 border border-error/20 rounded-2xl flex gap-3 animate-in shake duration-500">
+              <Papicon icon="alert-triangle" size={20} class="text-error mt-0.5" />
+              <div class="flex-1">
+                <p class="text-sm font-bold text-error leading-tight">{endTutoringError}</p>
+                {#if canForce && authStore.isAdmin}
+                  <button 
+                    onclick={() => { endTutoringForce = true; endTutoringError = null; }}
+                    class="mt-2 text-xs font-black uppercase text-error underline underline-offset-4 hover:text-error/80 transition-all"
+                  >
+                    Cliquer ici pour forcer la validation
+                  </button>
+                {/if}
+              </div>
+            </div>
+          {/if}
+
+          <div class="flex flex-col gap-2">
+            <label for="notes" class="text-xs font-black uppercase text-on-surface-variant tracking-widest pl-2">Notes finales (facultatif)</label>
+            <textarea 
+              id="notes"
+              placeholder="Commentaires sur la période..." 
+              bind:value={endTutoringNotes}
+              rows="4"
+              class="w-full bg-surface-container px-6 py-4 rounded-2xl border border-outline-variant/30 focus:border-primary outline-none transition-all text-on-surface resize-none"
+            ></textarea>
+          </div>
+
+          {#if endTutoringForce}
+            <div class="p-4 bg-warning/10 border border-warning/20 rounded-2xl flex items-center justify-between">
+              <div class="flex flex-col">
+                <span class="font-bold text-warning">Validation Forcée</span>
+                <span class="text-[10px] text-on-surface-variant">Bypass du temps minimum</span>
+              </div>
+              <Papicon icon="shield-alert" size={24} class="text-warning" />
+            </div>
+          {/if}
+
+          <div class="flex gap-4">
+            <button 
+              onclick={() => endTutoringModalOpen = false}
+              class="flex-1 py-4 rounded-2xl border-2 border-outline-variant/30 text-on-surface-variant font-black hover:bg-surface-hover transition-all"
+            >
+              Annuler
+            </button>
+            <button 
+              onclick={submitEndTutoring}
+              class="flex-1 py-4 {endTutoringStatus === 'PASSED' ? 'bg-success' : 'bg-error'} text-white rounded-2xl font-black shadow-xl transition-all hover:scale-105 active:scale-95"
+            >
+              Confirmer
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   /* Custom colors if not in tailwind config */

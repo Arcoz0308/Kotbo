@@ -2,12 +2,13 @@
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
-  import { fetchMeetings, createMeeting, deleteMeeting, updateMeeting } from '../lib/api';
+  import { fetchMeetings, createMeeting, deleteMeeting, updateMeeting, fetchMemberCase } from '../lib/api';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import ActionButton from '../lib/components/ActionButton.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
   import FormTextarea from '../lib/components/FormTextarea.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
 
   let meetings = $state<any[]>([]);
   let loading = $state(true);
@@ -16,11 +17,26 @@
   let editMode = $state(false);
   let saving = $state(false);
 
+  // Member Case Modal States
+  let userCaseModalOpen = $state(false);
+  let selectedUserIdForCase = $state<string | null>(null);
+  let selectedUserNameForCase = $state('');
+  let caseData = $state<any>(null);
+  let loadingCase = $state(false);
+  let caseError = $state('');
+
   let meetingTitle = $state('');
   let meetingDesc = $state('');
   let meetingDate = $state(new Date().toISOString().slice(0, 16));
   let currentMeetingId = $state<string | null>(null);
   let selectedMeeting = $state<any>(null);
+  
+  let deleteModalOpen = $state(false);
+  let meetingToDeleteId = $state<string | null>(null);
+  let deleteDiscordEvent = $state(true);
+  let deleteDiscordMessage = $state(false);
+  let deleteDiscordNotification = $state(true);
+  let deleting = $state(false);
 
   const isAdmin = $derived(authStore.guilds.find(g => g.id === authStore.selectedGuildId)?.accessLevel === 'admin');
 
@@ -31,10 +47,34 @@
       meetings = data.meetings || [];
       // Sort by date desc
       meetings.sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime());
+      
+      // Si un modal de détails est ouvert, on met à jour les données de la réunion sélectionnée
+      if (detailModalOpen && selectedMeeting) {
+        const updated = meetings.find(m => m.id === selectedMeeting.id);
+        if (updated) selectedMeeting = updated;
+      }
     } catch (e) {
       console.error('Failed to fetch meetings:', e);
     } finally {
       loading = false;
+    }
+  }
+
+  async function openMemberCase(userId: string, name: string) {
+    if (!authStore.selectedGuildId) return;
+    selectedUserIdForCase = userId;
+    selectedUserNameForCase = name;
+    userCaseModalOpen = true;
+    loadingCase = true;
+    caseError = '';
+    caseData = null;
+
+    try {
+      caseData = await fetchMemberCase(userId, authStore.selectedGuildId);
+    } catch (err) {
+      caseError = err instanceof Error ? err.message : 'Impossible de charger le dossier';
+    } finally {
+      loadingCase = false;
     }
   }
 
@@ -47,7 +87,27 @@
     };
   }
 
-  onMount(loadMeetings);
+  onMount(() => {
+    loadMeetings();
+
+    // Polling toutes les 10 secondes pour le "temps réel" demandé
+    const interval = setInterval(() => {
+      // On ne rafraîchit que si on n'est pas en train d'éditer ou de supprimer
+      if (!modalOpen && !deleteModalOpen && !saving && !deleting) {
+        void fetchMeetings().then(data => {
+          meetings = data.meetings || [];
+          meetings.sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime());
+          
+          if (detailModalOpen && selectedMeeting) {
+            const updated = meetings.find(m => m.id === selectedMeeting.id);
+            if (updated) selectedMeeting = updated;
+          }
+        });
+      }
+    }, 10000);
+
+    return () => clearInterval(interval);
+  });
 
   function openCreate() {
     if (!isAdmin) return;
@@ -92,15 +152,30 @@
     }
   }
 
-  async function remove(id: string) {
+  function openDelete(id: string) {
     if (!isAdmin) return;
-    if (confirm('Êtes-vous sûr de vouloir supprimer cette réunion ? Cette action est irréversible.')) {
-      try {
-        await deleteMeeting(id);
-        await loadMeetings();
-      } catch (e) {
-        console.error('Failed to delete meeting:', e);
-      }
+    meetingToDeleteId = id;
+    deleteDiscordEvent = true;
+    deleteDiscordMessage = false;
+    deleteDiscordNotification = true;
+    deleteModalOpen = true;
+  }
+
+  async function confirmDelete() {
+    if (!meetingToDeleteId) return;
+    deleting = true;
+    try {
+      await deleteMeeting(meetingToDeleteId, {
+        deleteEvent: deleteDiscordEvent,
+        deleteMessage: deleteDiscordMessage,
+        deleteNotifications: deleteDiscordNotification
+      });
+      deleteModalOpen = false;
+      await loadMeetings();
+    } catch (e) {
+      console.error('Failed to delete meeting:', e);
+    } finally {
+      deleting = false;
     }
   }
 
@@ -192,7 +267,7 @@
                   <button onclick={() => openEdit(meeting)} class="p-2 hover:bg-surface-hover rounded-full transition-colors text-on-surface-variant hover:text-primary" title="Modifier">
                     <Papicon icon="edit-2" size={18} />
                   </button>
-                  <button onclick={() => remove(meeting.id)} class="p-2 hover:bg-red-500/10 rounded-full transition-colors text-on-surface-variant hover:text-red-500" title="Supprimer">
+                  <button onclick={() => openDelete(meeting.id)} class="p-2 hover:bg-red-500/10 rounded-full transition-colors text-on-surface-variant hover:text-red-500" title="Supprimer">
                     <Papicon icon="trash-2" size={18} />
                   </button>
                 </div>
@@ -222,9 +297,17 @@
           <div class="px-6 py-4 bg-surface-container-low/50 border-t border-outline-variant/30 flex items-center justify-between">
             <div class="flex -space-x-2">
               {#each meeting.presences.filter(p => p.status === 'PRESENT').slice(0, 5) as p}
-                <div class="w-8 h-8 rounded-full border-2 border-surface-container-lowest bg-primary/10 flex items-center justify-center overflow-hidden" title={p.staffMember?.displayName || p.staffUserId || "U"}>
-                   <span class="text-[10px] font-bold text-primary">{(p.staffMember?.displayName || p.staffUserId || "").slice(-2)}</span>
-                </div>
+                <button 
+                  onclick={() => openMemberCase(p.staffUserId, p.staffMember?.displayName || p.staffMember?.username || 'Membre')}
+                  class="w-8 h-8 rounded-full border-2 border-surface-container-lowest bg-primary/10 flex items-center justify-center overflow-hidden transition-transform hover:scale-110 hover:z-10" 
+                  title={p.staffMember?.displayName || p.staffMember?.username || "Membre"}
+                >
+                  {#if p.staffMember?.avatarUrl}
+                    <img src={p.staffMember.avatarUrl} alt="" class="w-full h-full object-cover" />
+                  {:else}
+                    <span class="text-[10px] font-bold text-primary">{(p.staffMember?.displayName || p.staffMember?.username || "??").slice(0, 2).toUpperCase()}</span>
+                  {/if}
+                </button>
               {/each}
               {#if stats.present > 5}
                 <div class="w-8 h-8 rounded-full border-2 border-surface-container-lowest bg-surface-hover flex items-center justify-center text-[10px] font-bold text-on-surface-variant">
@@ -365,13 +448,25 @@
            <h4 class="text-xs font-black text-on-surface-variant uppercase tracking-widest px-1">Liste des présences</h4>
            <div class="grid grid-cols-1 gap-2">
               {#each selectedMeeting.presences as presence}
-                 <div class="flex items-center justify-between p-4 bg-surface-container-low/50 rounded-2xl border border-outline-variant/10 hover:bg-surface-container-low transition-colors">
+                 <div class="flex items-center justify-between p-4 bg-surface-container-low/50 rounded-2xl border border-outline-variant/10 hover:bg-surface-container-low transition-colors group">
                     <div class="flex items-center gap-3">
-                       <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-xs font-black text-primary">
-                          {presence.staffMember?.displayName?.slice(0, 2).toUpperCase() || (presence.staffUserId || "").slice(-2)}
-                       </div>
+                       <button 
+                          onclick={() => openMemberCase(presence.staffUserId, presence.staffMember?.displayName || presence.staffMember?.username || 'Membre')}
+                          class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-xs font-black text-primary overflow-hidden transition-transform hover:scale-110"
+                       >
+                          {#if presence.staffMember?.avatarUrl}
+                            <img src={presence.staffMember.avatarUrl} alt="" class="w-full h-full object-cover" />
+                          {:else}
+                            {presence.staffMember?.displayName?.slice(0, 2).toUpperCase() || presence.staffMember?.username?.slice(0, 2).toUpperCase() || "??"}
+                          {/if}
+                       </button>
                        <div>
-                          <p class="text-sm font-bold text-on-surface">{presence.staffMember?.displayName || presence.staffUserId}</p>
+                          <button 
+                            onclick={() => openMemberCase(presence.staffUserId, presence.staffMember?.displayName || presence.staffMember?.username || 'Membre')}
+                            class="text-sm font-bold text-on-surface hover:text-primary transition-colors text-left block"
+                          >
+                            {presence.staffMember?.displayName || presence.staffMember?.username || 'Membre'}
+                          </button>
                           {#if presence.note}
                              <p class="text-[11px] text-on-surface-variant leading-tight mt-0.5">{presence.note}</p>
                           {/if}
@@ -390,6 +485,84 @@
     </div>
   </div>
 {/if}
+
+{#if deleteModalOpen}
+  <div class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick={() => deleteModalOpen = false}></div>
+    
+    <div class="relative w-full max-w-md bg-surface-container-lowest rounded-3xl shadow-2xl overflow-hidden border border-outline-variant/30 font-inter">
+      <div class="p-8 border-b border-outline-variant/30 bg-red-500/5 flex items-center justify-between">
+        <div>
+          <h3 class="text-xl font-black text-on-surface">Supprimer la réunion ?</h3>
+          <p class="text-on-surface-variant text-sm">Cette action est irréversible en base de données.</p>
+        </div>
+        <button onclick={() => deleteModalOpen = false} class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-hover transition-colors">
+          <Papicon icon="x" size={24} />
+        </button>
+      </div>
+
+      <div class="p-8 space-y-6">
+        <p class="text-sm text-on-surface-variant leading-relaxed">
+          Voulez-vous également supprimer les éléments associés sur Discord ?
+        </p>
+
+        <div class="space-y-4">
+          <label class="flex items-center gap-3 p-4 bg-surface-container-low rounded-2xl border border-outline-variant/10 cursor-pointer hover:bg-surface-container-low transition-colors">
+            <input type="checkbox" bind:checked={deleteDiscordEvent} class="w-5 h-5 rounded-lg border-outline-variant text-primary focus:ring-primary" />
+            <div>
+              <p class="text-sm font-bold text-on-surface">Supprimer l'événement Discord</p>
+              <p class="text-[11px] text-on-surface-variant">Retire l'événement du calendrier du serveur.</p>
+            </div>
+          </label>
+
+          <label class="flex items-center gap-3 p-4 bg-surface-container-low rounded-2xl border border-outline-variant/10 cursor-pointer hover:bg-surface-container-low transition-colors">
+            <input type="checkbox" bind:checked={deleteDiscordMessage} class="w-5 h-5 rounded-lg border-outline-variant text-primary focus:ring-primary" />
+            <div>
+              <p class="text-sm font-bold text-on-surface">Supprimer le message d'annonce</p>
+              <p class="text-[11px] text-on-surface-variant">Supprime le message @everyone avec les boutons.</p>
+            </div>
+          </label>
+
+          <label class="flex items-center gap-3 p-4 bg-surface-container-low rounded-2xl border border-outline-variant/10 cursor-pointer hover:bg-surface-container-low transition-colors">
+            <input type="checkbox" bind:checked={deleteDiscordNotification} class="w-5 h-5 rounded-lg border-outline-variant text-primary focus:ring-primary" />
+            <div>
+              <p class="text-sm font-bold text-on-surface">Supprimer les notifications internes</p>
+              <p class="text-[11px] text-on-surface-variant">Nettoie l'Inbox du Dashboard pour tous les membres.</p>
+            </div>
+          </label>
+        </div>
+
+        <div class="flex items-center justify-end gap-4 pt-4 border-t border-outline-variant/30">
+          <button onclick={() => deleteModalOpen = false} class="px-6 py-2.5 font-bold text-on-surface-variant hover:bg-surface-hover rounded-xl transition-colors">
+            Annuler
+          </button>
+          <button 
+            onclick={confirmDelete}
+            disabled={deleting}
+            class="px-8 py-2.5 bg-red-500 text-white rounded-xl font-black shadow-lg shadow-red-500/20 hover:shadow-red-500/40 disabled:opacity-50 transition-all flex items-center gap-2"
+          >
+            {#if deleting}
+              <div class="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+            {/if}
+            Supprimer
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<MemberCaseModal
+  open={userCaseModalOpen}
+  userId={selectedUserIdForCase}
+  userName={selectedUserNameForCase}
+  {caseData}
+  loading={loadingCase}
+  error={caseError}
+  onClose={() => {
+    userCaseModalOpen = false;
+  }}
+/>
 
 <style>
   :global(.font-headline) {

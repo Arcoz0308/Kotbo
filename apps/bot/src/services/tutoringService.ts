@@ -67,6 +67,12 @@ export const deleteTutoringItem = async (id: string) => {
   });
 };
 
+export const deleteTestingPeriod = async (id: string) => {
+  return prisma.testingPeriod.delete({
+    where: { id }
+  });
+};
+
 export const getTutorDashboard = async (guildId: string, tutorUserId: string, fetchAll: boolean = false) => {
   const where: any = {
     guildId,

@@ -4,9 +4,12 @@
   import { authStore } from '../stores/auth.svelte.ts';
   import Papicon from './Papicon.svelte';
   import Chart from './charts/Chart.svelte';
-  import { fetchMemberCase, fetchMemberDetailedAnalytics } from '../api';
+  import { fetchMemberCase, fetchMemberDetailedAnalytics, updateSanctionReport } from '../api';
+  import { statusLabel, toDateTimeLocal, typeLabel as formatTypeLabel } from '../sanctions/formatters';
+  import { buildReportRuleOptions, getRulesFromBrokenRules } from '../sanctions/reportRules';
+  import SelectedRuleChips from './sanctions/SelectedRuleChips.svelte';
 
-  type MemberCaseTab = 'resume' | 'identite' | 'activite' | 'messages' | 'logs' | 'sanctions' | 'invites' | 'connexions' | 'analytics' | 'candidatures';
+  type MemberCaseTab = 'resume' | 'identite' | 'activite' | 'messages' | 'logs' | 'sanctions' | 'invites' | 'connexions' | 'analytics' | 'candidatures' | 'linked_accounts';
 
   type MemberAnalyticsResponse = {
     totalMessages: number;
@@ -105,6 +108,31 @@
       oralResult: string | null;
       reapplyAfter: string | null;
     }>;
+    sanctionReports?: Array<{
+      id: string;
+      sanctionId: string | null;
+      staffPseudo: string;
+      incidentAt: string;
+      memberPseudo: string;
+      memberReference: string;
+      sanctionType: string;
+      sanctionDurationLabel: string | null;
+      brokenRules: string;
+      detailedReason: string;
+      evidenceLinks: string[];
+      additionalNotes: string | null;
+      createdByUserId: string;
+      createdByTag: string | null;
+      createdAt: string;
+    }>;
+    linkedAccounts: Array<{
+      userId: string;
+      userTag: string | null;
+      avatarUrl: string | null;
+      type: string;
+      status: string;
+    }>;
+    isSuspectedDC: boolean;
   };
 
   let {
@@ -137,14 +165,82 @@
     onAction?: (action: 'WARN' | 'KICK' | 'TIMEOUT' | 'BAN') => void;
   }>();
 
-  let activeTab = $state<MemberCaseTab | 'candidatures'>('resume');
+  let activeTab = $state<MemberCaseTab>('resume');
   let analyticsData = $state<MemberAnalyticsResponse | null>(null);
   let analyticsLoading = $state(false);
+  let viewingReportSanctionId = $state<string | null>(null);
+  let isEditingReport = $state(false);
+  let updateReportBusy = $state(false);
+  let editReportData = $state({
+    brokenRules: '',
+    detailedReason: '',
+    evidenceLinks: '',
+    additionalNotes: ''
+  });
+
+  function startEditingReport(report: any) {
+    editReportData = {
+      brokenRules: report.brokenRules,
+      detailedReason: report.detailedReason,
+      evidenceLinks: (report.evidenceLinks || []).join('\n'),
+      additionalNotes: report.additionalNotes || ''
+    };
+    isEditingReport = true;
+  }
+
+  async function handleUpdateReport() {
+    if (!viewingReportSanctionId || !selectedReport) return;
+    updateReportBusy = true;
+
+    try {
+      const success = await updateSanctionReport(selectedReport.id, {
+        brokenRules: editReportData.brokenRules,
+        detailedReason: editReportData.detailedReason,
+        evidenceLinks: editReportData.evidenceLinks.split('\n').map(l => l.trim()).filter(l => l),
+        additionalNotes: editReportData.additionalNotes.trim() || null
+      });
+
+      if (success) {
+        // We rely on broadcastDashboardStateChange to refresh the data
+        // But for immediate feedback, we can close the edit mode
+        isEditingReport = false;
+        // Optionally, update the local caseData if we want to be fast
+        if (caseData?.sanctionReports) {
+          const idx = caseData.sanctionReports.findIndex(r => r.id === selectedReport.id);
+          if (idx !== -1) {
+            caseData.sanctionReports[idx] = {
+              ...caseData.sanctionReports[idx],
+              brokenRules: editReportData.brokenRules,
+              detailedReason: editReportData.detailedReason,
+              evidenceLinks: editReportData.evidenceLinks.split('\n').map(l => l.trim()).filter(l => l),
+              additionalNotes: editReportData.additionalNotes.trim() || null
+            };
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to update sanction report:', e);
+    } finally {
+      updateReportBusy = false;
+    }
+  }
+
 
   const sanctions = $derived(
     caseData?.sanctions
       ? [...caseData?.sanctions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       : []
+  );
+
+  const reportRuleOptions = $derived(buildReportRuleOptions(dashboardStore.state.regulationRules || []));
+  const selectedSanctionForReport = $derived(sanctions.find(s => s.id === viewingReportSanctionId) || null);
+  const selectedReport = $derived(
+    viewingReportSanctionId 
+      ? [...(dashboardStore.state.sanctionReports || []), ...(caseData?.sanctionReports || [])].find(r => r.sanctionId === viewingReportSanctionId) || null
+      : null
+  );
+  const selectedReportRules = $derived(
+    selectedReport ? getRulesFromBrokenRules(selectedReport.brokenRules, reportRuleOptions) : []
   );
 
   const tabs: { id: MemberCaseTab; label: string; icon: string; count?: () => number }[] = [
@@ -158,6 +254,7 @@
     { id: 'candidatures', label: 'Candidats', icon: 'user-check', count: () => caseData?.candidatures?.length ?? 0 },
     { id: 'invites', label: 'Invitations', icon: 'mail' },
     { id: 'connexions', label: 'Connexions', icon: 'link' },
+    { id: 'linked_accounts', label: 'Comptes liés', icon: 'link-2', count: () => caseData?.linkedAccounts?.length ?? 0 },
   ];
 
   function formatDateTime(value: string | null | undefined) {
@@ -471,6 +568,23 @@
           </div>
         {:else}
           <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            
+            {#if caseData?.isSuspectedDC}
+              <div class="rounded-[2rem] bg-rose-500/10 border-2 border-rose-500/20 p-6 flex items-center gap-6 animate-in zoom-in-95 duration-500">
+                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-rose-500/20 text-rose-500 shadow-lg shadow-rose-500/20">
+                  <Papicon icon="alert-octagon" size={24} />
+                </div>
+                <div class="min-w-0 flex-1">
+                  <h4 class="text-sm font-black text-rose-600 uppercase tracking-widest">Suspicion de Double Compte</h4>
+                  <p class="text-xs font-bold text-rose-500/70 mt-1">
+                    Ce compte a été identifié comme un potentiel double compte automatique lors de son arrivée.
+                  </p>
+                </div>
+                <div class="flex gap-2">
+                  <span class="badge badge-danger uppercase tracking-widest">Suspect</span>
+                </div>
+              </div>
+            {/if}
 
             {#if activeTab === 'resume'}
               <!-- ── Bento Layout ────────────────── -->
@@ -1135,14 +1249,16 @@
                         <th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Action</th>
                         <th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Statut</th>
                         <th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Raison</th>
+                        <th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Rapport</th>
                       </tr>
                     </thead>
                     <tbody class="divide-y divide-outline-variant/10">
                       {#each sanctions as sanction}
+                        {@const hasReport = [...(dashboardStore.state.sanctionReports || []), ...(caseData?.sanctionReports || [])].some(r => r.sanctionId === sanction.id)}
                         <tr class="hover:bg-surface-container-high/20 transition-colors">
                           <td class="px-6 py-4 text-xs font-bold text-on-surface-variant/60">{formatDateShort(sanction.createdAt)}</td>
                           <td class="px-6 py-4">
-                            <span class="text-xs font-black text-primary uppercase tracking-widest">{sanction.type}</span>
+                            <span class="text-xs font-black text-primary uppercase tracking-widest">{formatTypeLabel(sanction.type)}</span>
                             <p class="text-[10px] font-bold text-on-surface-variant/40 mt-0.5">par @{sanction.moderatorTag}</p>
                           </td>
                           <td class="px-6 py-4">
@@ -1151,10 +1267,179 @@
                             </span>
                           </td>
                           <td class="px-6 py-4 text-xs text-on-surface-variant max-w-xs truncate">{sanction.reason}</td>
+                          <td class="px-6 py-4">
+                            {#if hasReport}
+                              <button
+                                onclick={() => viewingReportSanctionId = sanction.id}
+                                class="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-[10px] font-black text-primary uppercase tracking-widest transition-all hover:bg-primary/20"
+                              >
+                                <Papicon icon="file-text" size={12} />
+                                Voir plus
+                              </button>
+                            {:else}
+                              <span class="text-[10px] font-bold text-on-surface-variant/30 italic">Aucun rapport</span>
+                            {/if}
+                          </td>
                         </tr>
                       {/each}
                     </tbody>
                   </table>
+
+                  {#if viewingReportSanctionId && selectedSanctionForReport}
+                    <div class="absolute inset-0 z-50 flex items-center justify-center bg-surface-container-lowest/90 backdrop-blur-sm animate-in fade-in duration-300">
+                      <div class="w-full max-w-2xl bg-surface-container-low rounded-[2.5rem] border border-outline-variant/10 shadow-2xl p-8 max-h-[90%] overflow-y-auto relative">
+                        <button
+                          onclick={() => viewingReportSanctionId = null}
+                          class="absolute top-6 right-6 h-10 w-10 flex items-center justify-center rounded-xl bg-on-surface/5 text-on-surface-variant transition-all hover:bg-on-surface/10 hover:text-on-surface"
+                        >
+                          <Papicon icon="x" size={20} />
+                        </button>
+
+                        <div class="mb-8">
+                          <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary mb-1">Rapport de sanction</p>
+                          <h4 class="text-2xl font-black text-on-surface font-headline">{formatTypeLabel(selectedSanctionForReport.type)}</h4>
+                          <p class="text-xs text-on-surface-variant/60 mt-1">Appliquée le {formatDateTime(selectedSanctionForReport.createdAt)} par @{selectedSanctionForReport.moderatorTag}</p>
+                        </div>
+
+                        {#if selectedReport}
+                          {#if isEditingReport}
+                            <!-- Edit Form -->
+                            <div class="space-y-6 animate-in fade-in duration-300">
+                               <div class="space-y-1.5">
+                                 <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Règles enfreintes (IDs séparés par des virgules)</p>
+                                 <input 
+                                   type="text" 
+                                   bind:value={editReportData.brokenRules} 
+                                   placeholder="1.1, 2.3..." 
+                                   class="w-full rounded-2xl bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all"
+                                 />
+                               </div>
+                               <div class="space-y-1.5">
+                                 <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Raison détaillée</p>
+                                 <textarea 
+                                   bind:value={editReportData.detailedReason} 
+                                   rows="4"
+                                   placeholder="Description précise des faits..." 
+                                   class="w-full rounded-2xl bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"
+                                 ></textarea>
+                               </div>
+                               <div class="space-y-1.5">
+                                 <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Liens de preuve (un par ligne)</p>
+                                 <textarea 
+                                   bind:value={editReportData.evidenceLinks} 
+                                   rows="3"
+                                   placeholder="https://..." 
+                                   class="w-full rounded-2xl bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"
+                                 ></textarea>
+                               </div>
+                               <div class="space-y-1.5">
+                                 <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Notes complémentaires</p>
+                                 <textarea 
+                                   bind:value={editReportData.additionalNotes} 
+                                   rows="2"
+                                   placeholder="Précisions facultatives..." 
+                                   class="w-full rounded-2xl bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"
+                                 ></textarea>
+                               </div>
+
+                               <div class="flex gap-3 pt-4">
+                                 <button
+                                   onclick={() => isEditingReport = false}
+                                   class="flex-1 py-3 rounded-xl bg-on-surface/5 text-xs font-black uppercase tracking-widest text-on-surface-variant transition-all hover:bg-on-surface/10"
+                                 >
+                                   Annuler
+                                 </button>
+                                 <button
+                                   onclick={handleUpdateReport}
+                                   disabled={updateReportBusy}
+                                   class="flex-1 py-3 rounded-xl bg-primary text-on-primary text-xs font-black uppercase tracking-widest transition-all hover:bg-primary-container hover:text-primary disabled:opacity-50"
+                                 >
+                                   {updateReportBusy ? 'Enregistrement...' : 'Enregistrer'}
+                                 </button>
+                               </div>
+                            </div>
+                          {:else}
+                            <!-- View Mode -->
+                            <div class="space-y-6">
+                              <div class="grid grid-cols-2 gap-4">
+                                <div class="space-y-1">
+                                  <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Incident</p>
+                                  <p class="text-sm font-bold text-on-surface">{formatDateTime(selectedReport.incidentAt)}</p>
+                                </div>
+                                <div class="space-y-1">
+                                  <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Durée</p>
+                                  <p class="text-sm font-bold text-on-surface">{selectedReport.sanctionDurationLabel || 'N/A'}</p>
+                                </div>
+                              </div>
+
+                              <div class="space-y-2">
+                                <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Règles enfreintes</p>
+                                <SelectedRuleChips selectedRules={selectedReportRules} />
+                              </div>
+
+                              <div class="space-y-2">
+                                <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Raison détaillée</p>
+                                <div class="rounded-2xl bg-surface-container-high/30 p-4 text-sm text-on-surface-variant leading-relaxed italic">
+                                  "{selectedReport.detailedReason}"
+                                </div>
+                              </div>
+
+                              {#if selectedReport.evidenceLinks && selectedReport.evidenceLinks.length > 0}
+                                <div class="space-y-2">
+                                  <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Preuves</p>
+                                  <div class="flex flex-wrap gap-2">
+                                    {#each selectedReport.evidenceLinks as link}
+                                      <a href={link} target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 rounded-xl bg-on-surface/5 px-4 py-2 text-xs font-bold text-primary transition-all hover:bg-primary/10">
+                                        <Papicon icon="external-link" size={14} />
+                                        Lien de preuve
+                                      </a>
+                                    {/each}
+                                  </div>
+                                </div>
+                              {/if}
+
+                              {#if selectedReport.additionalNotes}
+                                <div class="space-y-2">
+                                  <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Notes complémentaires</p>
+                                  <p class="text-xs text-on-surface-variant/70 leading-relaxed">{selectedReport.additionalNotes}</p>
+                                </div>
+                              {/if}
+
+                              <div class="pt-4 flex flex-col items-center gap-4 border-t border-outline-variant/10">
+                                <p class="text-[10px] font-bold text-on-surface-variant/30 text-center">Rapport créé par @{selectedReport.createdByTag || selectedReport.createdByUserId}</p>
+                                
+                                {#if selectedReport.createdByUserId === authStore.user?.userId || authStore.isAdmin}
+                                  <button
+                                    onclick={() => startEditingReport(selectedReport)}
+                                    class="inline-flex items-center gap-2 rounded-xl bg-primary/10 px-6 py-2.5 text-[10px] font-black text-primary uppercase tracking-widest transition-all hover:bg-primary/20"
+                                  >
+                                    <Papicon icon="edit-3" size={14} />
+                                    Modifier le rapport
+                                  </button>
+                                {/if}
+                              </div>
+                            </div>
+                          {/if}
+
+                        {:else}
+                          <div class="flex flex-col items-center justify-center py-10 text-center">
+                            <div class="h-16 w-16 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center mb-4">
+                              <Papicon icon="alert-triangle" size={32} />
+                            </div>
+                            <p class="text-sm font-black text-on-surface-variant">Rapport détaillé manquant</p>
+                            <p class="text-xs text-on-surface-variant/40 mt-1 max-w-xs">La sanction a été enregistrée mais le rapport détaillé n'a pas encore été rédigé par le modérateur.</p>
+                          </div>
+                        {/if}
+
+                        <button
+                          onclick={() => viewingReportSanctionId = null}
+                          class="w-full mt-8 py-4 rounded-2xl bg-on-surface/5 text-sm font-black uppercase tracking-widest text-on-surface-variant transition-all hover:bg-on-surface/10 hover:text-on-surface"
+                        >
+                          Fermer les détails
+                        </button>
+                      </div>
+                    </div>
+                  {/if}
                   {#if sanctions.length === 0}
                     <div class="flex flex-col items-center py-20 text-on-surface-variant/30">
                       <Papicon icon="check-circle" size={48} />
@@ -1229,6 +1514,39 @@
                       {/if}
                     </div>
                   {/each}
+                </div>
+
+              {:else if activeTab === 'linked_accounts'}
+                <div class="grid gap-6 md:grid-cols-2">
+                  {#each caseData?.linkedAccounts || [] as link}
+                    <div class="rounded-[2.5rem] bg-surface-container-low/50 p-6 border border-outline-variant/10 shadow-sm hover:bg-surface-container-low transition-all duration-500 group flex items-center gap-4">
+                      {#if link.avatarUrl}
+                        <img src={link.avatarUrl} alt="Avatar" class="h-16 w-16 rounded-2xl object-cover shadow-lg border-2 border-surface" />
+                      {:else}
+                        <div class="flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-container-high text-xl font-black text-primary">
+                          {link.userTag?.slice(0, 1).toUpperCase()}
+                        </div>
+                      {/if}
+                      <div class="min-w-0 flex-1">
+                        <div class="flex items-center justify-between">
+                           <p class="text-sm font-black text-on-surface truncate">{link.userTag}</p>
+                           <span class="px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest {link.status === 'VALIDATED' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}">
+                             {link.status}
+                           </span>
+                        </div>
+                        <p class="text-[10px] font-bold text-on-surface-variant/40 mt-1">ID: {link.userId}</p>
+                        <p class="text-[10px] font-black text-primary uppercase tracking-widest mt-1">{link.type}</p>
+                      </div>
+                    </div>
+                  {/each}
+                  {#if (caseData?.linkedAccounts || []).length === 0}
+                    <div class="md:col-span-2 flex flex-col items-center py-20 text-on-surface-variant/30 bg-surface-container-low/30 rounded-[2.5rem]">
+                      <div class="flex h-16 w-16 items-center justify-center rounded-3xl bg-surface-container-high text-on-surface-variant/20 mb-6">
+                        <Papicon icon="user-plus" size={32} />
+                      </div>
+                      <p class="mt-4 text-sm font-black uppercase tracking-widest">Aucun compte lié</p>
+                    </div>
+                  {/if}
                 </div>
               {/if}
           </div>

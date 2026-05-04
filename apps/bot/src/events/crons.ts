@@ -106,14 +106,14 @@ async function runAnalyticsSnapshot(client: Client): Promise<void> {
 
     const totalMembers = discordGuild.memberCount;
     const members = discordGuild.members.cache;
-    const onlineMembers = members.filter(m => m.presence?.status === 'online').size;
+    const onlineMembers = members.filter(m => m.presence?.status && m.presence.status !== 'offline').size;
     const idleMembers = members.filter(m => m.presence?.status === 'idle').size;
     const dndMembers = members.filter(m => m.presence?.status === 'dnd').size;
-    const offlineMembers = totalMembers - onlineMembers - idleMembers - dndMembers;
+    const offlineMembers = totalMembers - onlineMembers;
     const totalBots = members.filter(m => m.user.bot).size;
     const totalHumans = totalMembers - totalBots;
 
-    const currentOnline = onlineMembers + idleMembers + dndMembers;
+    const currentOnline = onlineMembers;
     const voiceConnected = members.filter(m => !!m.voice?.channelId).size;
 
     await prisma.guildDailyStat.upsert({

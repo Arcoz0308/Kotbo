@@ -10,6 +10,7 @@
     icon?: string; 
     size?: number; 
     class?: string; 
+    children?: import('svelte').Snippet;
   } = $props();
 
   const fallbackIconName = "Grid";

@@ -43,6 +43,7 @@
       pronouns: string | null;
       isTutor: boolean;
       staffGrade: string | null;
+      isSuspectedDC: boolean;
     } | null;
     invite: {
       code: string | null;
@@ -102,6 +103,31 @@
       oralResult: string | null;
       reapplyAfter: string | null;
     }>;
+    sanctionReports?: Array<{
+      id: string;
+      sanctionId: string | null;
+      staffPseudo: string;
+      incidentAt: string;
+      memberPseudo: string;
+      memberReference: string;
+      sanctionType: string;
+      sanctionDurationLabel: string | null;
+      brokenRules: string;
+      detailedReason: string;
+      evidenceLinks: string[];
+      additionalNotes: string | null;
+      createdByUserId: string;
+      createdByTag: string | null;
+      createdAt: string;
+    }>;
+    linkedAccounts: Array<{
+      userId: string;
+      userTag: string | null;
+      avatarUrl: string | null;
+      type: string;
+      status: string;
+    }>;
+    isSuspectedDC: boolean;
   };
 
   let searchQuery = $state('');

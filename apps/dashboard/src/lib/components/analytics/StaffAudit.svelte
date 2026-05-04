@@ -1,5 +1,6 @@
 <script lang="ts">
   import Papicon from '../Papicon.svelte';
+  import DetailedAnalyticsModal from './DetailedAnalyticsModal.svelte';
 
   let { data, onOpenMember, fmt, fmtH } = $props<{ 
     data: any; 
@@ -8,7 +9,7 @@
     fmtH: (mins: number) => string;
   }>();
 
-  let showAll = $state(false);
+  let showStaffModal = $state(false);
   const staffList = $derived(data?.staff?.leaderboard ?? []);
   const getAvatar = (url: string | null) => url || 'https://cdn.discordapp.com/embed/avatars/0.png';
 </script>
@@ -33,7 +34,7 @@
     {/each}
   </div>
 
-  <div class="premium-card p-8 rounded-[2.5rem] space-y-6">
+  <div class="premium-card p-8 rounded-[2.5rem] space-y-6 flex flex-col">
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-4">
         <div class="p-3 rounded-2xl bg-primary/10 text-primary">
@@ -45,15 +46,15 @@
         </div>
       </div>
       <button 
-        onclick={() => showAll = !showAll}
-        class="p-2 rounded-xl bg-surface-container-high/40 hover:bg-surface-container-high text-on-surface-variant transition-colors"
+        onclick={() => showStaffModal = true}
+        class="px-4 py-2 rounded-xl bg-surface-container-high/40 hover:bg-surface-container-high text-xs font-bold text-on-surface transition-colors"
       >
-        <Papicon icon={showAll ? 'ArrowsIn' : 'ArrowsOut'} size={18} />
+        Voir plus
       </button>
     </div>
 
-    <div class="space-y-3 {showAll ? 'max-h-[600px] overflow-y-auto custom-scrollbar pr-2' : ''}">
-      {#each (showAll ? staffList : staffList.slice(0, 10)) as s, i}
+    <div class="space-y-3 flex-grow pr-2">
+      {#each staffList.slice(0, 5) as s, i}
         <button 
           onclick={() => onOpenMember(s.userId, s.name)}
           class="w-full flex items-center gap-4 p-4 rounded-2xl bg-surface-container-high/20 hover:bg-surface-container-high/50 border border-outline-variant/5 transition-all text-left group"
@@ -95,22 +96,26 @@
   </div>
 </div>
 
+<DetailedAnalyticsModal
+  open={showStaffModal}
+  onClose={() => showStaffModal = false}
+  title="Leaderboard Staff"
+  subtitle="Classement détaillé de l'équipe"
+  icon="Crown"
+  iconBgClass="bg-primary/10"
+  iconColorClass="text-primary"
+  type="staff"
+  data={staffList}
+  {onOpenMember}
+  {fmt}
+  {fmtH}
+/>
+
 <style>
   .premium-card {
     background: rgba(var(--color-surface-container-low), 0.4);
     backdrop-filter: blur(24px);
     border: 1px solid rgba(var(--color-outline-variant), 0.1);
     transition: all 0.4s cubic-bezier(0.2, 1, 0.3, 1);
-  }
-
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 4px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(var(--color-outline-variant), 0.2);
-    border-radius: 10px;
   }
 </style>

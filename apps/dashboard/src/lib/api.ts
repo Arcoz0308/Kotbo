@@ -268,6 +268,16 @@ export async function createSanctionReport(report, guildId = authStore.selectedG
   });
 }
 
+export async function updateSanctionReport(reportId, report, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/sanctions/reports/${reportId}`, {
+    method: 'PATCH',
+    payload: report,
+    guildId,
+    errorContext: 'API Error (Update Sanction Report):'
+  });
+}
+
+
 export async function deleteSanction(sanctionId, guildId = authStore.selectedGuildId) {
   return dashboardMutation(`/sanctions/${sanctionId}`, {
     method: 'DELETE',
@@ -502,8 +512,16 @@ export async function createMeeting(title, description, scheduledAt, guildId = a
   return dashboardMutation('/meetings', { method: 'POST', payload: { title, description, scheduledAt }, guildId });
 }
 
-export async function deleteMeeting(meetingId, guildId = authStore.selectedGuildId) {
-  return dashboardMutation(`/meetings/${meetingId}`, { method: 'DELETE', guildId });
+export async function deleteMeeting(meetingId, options = { deleteEvent: true, deleteMessage: false, deleteNotifications: false }, guildId = authStore.selectedGuildId) {
+  const params = new URLSearchParams();
+  if (options.deleteEvent) params.append('deleteEvent', 'true');
+  if (options.deleteMessage) params.append('deleteMessage', 'true');
+  if (options.deleteNotifications) params.append('deleteNotifications', 'true');
+  
+  const queryString = params.toString();
+  const path = `/meetings/${meetingId}${queryString ? '?' + queryString : ''}`;
+  
+  return dashboardMutation(path, { method: 'DELETE', guildId });
 }
 
 export async function updateMeeting(meetingId, data, guildId = authStore.selectedGuildId) {
@@ -617,4 +635,16 @@ export async function updateTutoringChecklist(testingPeriodId, itemId, completed
 
 export async function addTutoringLog(testingPeriodId, content, guildId = authStore.selectedGuildId) {
   return dashboardMutation('/tutoring/logs', { method: 'POST', payload: { testingPeriodId, content }, guildId });
+}
+
+export async function deleteTestingPeriod(periodId, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/tutoring/periods/${periodId}`, { method: 'DELETE', guildId });
+}
+
+export async function addMentorReport(testingPeriodId, type, content, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/mentor-reports', { method: 'POST', payload: { testingPeriodId, type, content }, guildId });
+}
+
+export async function endTestingPeriod(periodId, status, notes = '', force = false, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/testing-periods/${periodId}`, { method: 'PATCH', payload: { status, notes, force }, guildId });
 }

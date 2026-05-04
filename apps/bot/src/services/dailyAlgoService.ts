@@ -292,10 +292,12 @@ export function getDailyAlgoLeaderboardButtonRow(runId: string) {
 }
 
 export function buildDailyAlgoValidationButtons(submissionId: string, disabled = false) {
+  const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://localhost:5173';
+  
   const rate = new ButtonBuilder()
-    .setCustomId(`validate:rate:daily-algo:${submissionId}`)
     .setLabel('📝 Noter')
-    .setStyle(ButtonStyle.Success)
+    .setStyle(ButtonStyle.Link)
+    .setURL(`${DASHBOARD_URL}/module-settings/dailyalgo?submissionId=${submissionId}`)
     .setDisabled(disabled);
 
   const reject = new ButtonBuilder()

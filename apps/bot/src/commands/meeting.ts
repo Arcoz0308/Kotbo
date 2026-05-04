@@ -43,7 +43,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
        return;
     }
 
-    await checkInMeeting(activeMeeting.id, staff.id, 'PRESENT');
+    await checkInMeeting(interaction.client, activeMeeting.id, staff.id, 'PRESENT');
     await interaction.reply({ content: `✅ Présence validée pour: **${activeMeeting.title}**`, flags: [MessageFlags.Ephemeral] });
   }
 
@@ -77,7 +77,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       return;
     }
 
-    await syncMeetingPresencesWithAbsences(nearest.id);
+    await syncMeetingPresencesWithAbsences(interaction.client, nearest.id);
     await interaction.reply({ content: `✅ Synchronisation des absences effectuée pour: **${nearest.title}**.`, flags: [MessageFlags.Ephemeral] });
   }
 
@@ -96,10 +96,9 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       // Note: This won't trigger the dashboard's Discord announcement logic easily without duplication,
       // but we use the service to at least create it in DB.
       // Ideally, the dashboard logic should be moved to service.
-      const meeting = await createMeeting(interaction.guildId, interaction.user.id, title, description, scheduledAt);
-      await syncMeetingPresencesWithAbsences(meeting.id);
+      const meeting = await createMeeting(interaction.client, interaction.guildId, interaction.user.id, title, description, scheduledAt);
       
-      await interaction.reply({ content: `✅ Réunion planifiée: **${title}** pour le <t:${Math.floor(scheduledAt.getTime()/1000)}:F>.\n*Note: L'annonce automatique avec boutons est réservée au Dashboard.*`, flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({ content: `✅ Réunion planifiée: **${title}** pour le <t:${Math.floor(scheduledAt.getTime()/1000)}:F>.\nL'événement Discord a été créé et l'annonce a été postée.`, flags: [MessageFlags.Ephemeral] });
     } catch (err) {
       logger.error('MeetingCmd', 'Error creating meeting:', err);
       await interaction.reply({ content: '❌ Erreur lors de la création de la réunion.', flags: [MessageFlags.Ephemeral] });
