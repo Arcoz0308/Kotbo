@@ -341,9 +341,14 @@
 
 {#if modalOpen}
   <div class="fixed inset-0 z-[100] flex items-center justify-center p-4">
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick={() => modalOpen = false}></div>
+    <div 
+      class="absolute inset-0 bg-black/60 backdrop-blur-sm" 
+      onclick={() => modalOpen = false}
+      onkeydown={(e) => e.key === 'Escape' && (modalOpen = false)}
+      role="button"
+      tabindex="0"
+      aria-label="Fermer la modale"
+    ></div>
     
     <div class="relative w-full max-w-xl bg-surface-container-lowest rounded-3xl shadow-2xl overflow-hidden border border-outline-variant/30 font-inter">
       <div class="p-8 border-b border-outline-variant/30 flex items-center justify-between bg-primary/5">
@@ -419,9 +424,14 @@
 
 {#if detailModalOpen && selectedMeeting}
   <div class="fixed inset-0 z-[100] flex items-center justify-center p-4">
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick={() => detailModalOpen = false}></div>
+    <div 
+      class="absolute inset-0 bg-black/60 backdrop-blur-sm" 
+      onclick={() => detailModalOpen = false}
+      onkeydown={(e) => e.key === 'Escape' && (detailModalOpen = false)}
+      role="button"
+      tabindex="0"
+      aria-label="Fermer la modale"
+    ></div>
     
     <div class="relative w-full max-w-2xl bg-surface-container-lowest rounded-3xl shadow-2xl overflow-hidden border border-outline-variant/30 font-inter">
       <div class="p-8 border-b border-outline-variant/30 bg-primary/5 flex items-center justify-between">
@@ -488,7 +498,14 @@
 
 {#if deleteModalOpen}
   <div class="fixed inset-0 z-[100] flex items-center justify-center p-4">
-    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick={() => deleteModalOpen = false}></div>
+    <div 
+      class="absolute inset-0 bg-black/60 backdrop-blur-sm" 
+      onclick={() => deleteModalOpen = false}
+      onkeydown={(e) => e.key === 'Escape' && (deleteModalOpen = false)}
+      role="button"
+      tabindex="0"
+      aria-label="Fermer la modale"
+    ></div>
     
     <div class="relative w-full max-w-md bg-surface-container-lowest rounded-3xl shadow-2xl overflow-hidden border border-outline-variant/30 font-inter">
       <div class="p-8 border-b border-outline-variant/30 bg-red-500/5 flex items-center justify-between">

@@ -122,8 +122,8 @@
                         <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Paramètres</p>
                         <div class="space-y-4">
                           <div class="space-y-1.5">
-                            <label class="text-[10px] font-bold text-on-surface-variant/60">Salon des alertes</label>
-                            <select bind:value={features[idx].channelId} class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none">
+                            <label for="notify-channel-{feature.featureKey}" class="text-[10px] font-bold text-on-surface-variant/60">Salon des alertes</label>
+                            <select id="notify-channel-{feature.featureKey}" bind:value={features[idx].channelId} class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none">
                               <option value="">Utiliser le salon par défaut</option>
                               {#each availableChannels as channel}
                                 <option value={channel.id}>#{channel.name}</option>
@@ -131,8 +131,8 @@
                             </select>
                           </div>
                           <div class="space-y-1.5">
-                            <label class="text-[10px] font-bold text-on-surface-variant/60">Rôle à mentionner</label>
-                            <select bind:value={features[idx].notificationRoleId} class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none">
+                            <label for="notify-role-{feature.featureKey}" class="text-[10px] font-bold text-on-surface-variant/60">Rôle à mentionner</label>
+                            <select id="notify-role-{feature.featureKey}" bind:value={features[idx].notificationRoleId} class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none">
                               <option value="">Aucune mention</option>
                               {#each availableRoles as role}
                                 <option value={role.id}>{role.name}</option>

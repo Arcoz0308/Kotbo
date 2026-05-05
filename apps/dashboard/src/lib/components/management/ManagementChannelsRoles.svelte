@@ -49,8 +49,8 @@
         <div class="space-y-4">
           {#each globalChannelFields as field}
             <div class="space-y-1.5">
-              <label class="text-[10px] font-bold text-on-surface-variant/60 ml-2">{field.label}</label>
-              <FormSelect bind:value={guildSettings[field.key]} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all">
+              <label for="channel-{field.key}" class="text-[10px] font-bold text-on-surface-variant/60 ml-2">{field.label}</label>
+              <FormSelect id="channel-{field.key}" bind:value={guildSettings[field.key]} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all">
                 <option value="">— Aucun —</option>
                 {#each availableChannels as c}<option value={c.id}>#{c.name}</option>{/each}
               </FormSelect>
@@ -66,8 +66,8 @@
         <div class="space-y-4">
           {#each globalRoleFields as field}
             <div class="space-y-1.5">
-              <label class="text-[10px] font-bold text-on-surface-variant/60 ml-2">{field.label}</label>
-              <FormSelect bind:value={guildSettings[field.key]} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all">
+              <label for="role-{field.key}" class="text-[10px] font-bold text-on-surface-variant/60 ml-2">{field.label}</label>
+              <FormSelect id="role-{field.key}" bind:value={guildSettings[field.key]} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all">
                 <option value="">— Aucun —</option>
                 {#each availableRoles as r}<option value={r.id}>@{r.name}</option>{/each}
               </FormSelect>

@@ -311,6 +311,7 @@ type MemberCaseProfile = {
   isTutor: boolean;
   staffGrade: string | null;
   isSuspectedDC: boolean;
+  moderatorNote: string | null;
 };
 
 type LinkedAccountItem = {
@@ -1172,17 +1173,28 @@ async function fetchMemberConnections(discordToken?: string | null): Promise<{ c
   }
 }
 
+function safeIsoDate(value: any, fallback: string | null = null): string | null {
+  if (!value) return fallback;
+  try {
+    const date = value instanceof Date ? value : new Date(value);
+    if (isNaN(date.getTime())) return fallback;
+    return date.toISOString();
+  } catch {
+    return fallback;
+  }
+}
+
 async function buildMemberCaseData(client: Client, guildId: string, userId: string, auth: AuthClaims): Promise<MemberCaseResponse | null> {
   const discordGuild = client.guilds.cache.get(guildId);
   if (!discordGuild) return null;
 
-  let actualUserId = userId;
+  let actualUserId = userId.startsWith('!') ? userId.substring(1) : userId;
   
   // Si l'ID n'est pas numérique, c'est peut-être un CUID interne (StaffMember.id)
   // On tente de résoudre le vrai ID Discord
-  if (!/^\d+$/.test(userId)) {
+  if (!/^\d+$/.test(actualUserId)) {
     const staff = await prisma.staffMember.findUnique({
-      where: { id: userId },
+      where: { id: actualUserId },
       select: { userId: true }
     });
     if (staff) {
@@ -1190,51 +1202,52 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
     } else {
       // Si ce n'est pas un staff non plus, on tente de voir si c'est un ID de profil membre
       const profile = await prisma.memberProfile.findUnique({
-        where: { id: userId },
+        where: { id: actualUserId },
         select: { userId: true }
       });
       if (profile) actualUserId = profile.userId;
     }
   }
 
-  const [user, member, profile, sanctions, auditLogs, inviteConnections, staffMember, candidatureHistory, sanctionReports] = await Promise.all([
-    Promise.race([
-      client.users.fetch(actualUserId).catch(() => null),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000))
-    ]),
-    Promise.race([
-      discordGuild.members.fetch(actualUserId).catch(() => null),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000))
-    ]),
-    prisma.memberProfile.findUnique({
-      where: {
-        guildId_userId: {
-          guildId,
-          userId: actualUserId,
+  try {
+    const [user, member, profile, sanctions, auditLogs, inviteConnections, staffMember, candidatureHistory, sanctionReports] = await Promise.all([
+      Promise.race([
+        client.users.fetch(actualUserId).catch(() => null),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000))
+      ]),
+      Promise.race([
+        discordGuild.members.fetch(actualUserId).catch(() => null),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000))
+      ]),
+      prisma.memberProfile.findUnique({
+        where: {
+          guildId_userId: {
+            guildId,
+            userId: actualUserId,
+          },
         },
-      },
-    }),
-    prisma.sanction.findMany({
-      where: { guildId, targetUserId: actualUserId },
-      orderBy: { createdAt: 'desc' },
-      take: 200,
-    }),
-    prisma.dashboardAuditLog.findMany({
-      where: { guildId, user: actualUserId },
-      orderBy: { dateIso: 'desc' },
-      take: 500,
-    }),
-    fetchMemberConnections(auth.userId === actualUserId ? auth.discordToken : null),
-    getStaffMember(guildId, actualUserId).catch(() => null),
-    getCandidatureHistory(guildId, actualUserId).catch(() => []),
-    prisma.sanctionReport.findMany({
-      where: { guildId, memberReference: actualUserId },
-      orderBy: { createdAt: 'desc' },
-      take: 200,
-    }),
-  ]);
+      }).catch(() => null),
+      prisma.sanction.findMany({
+        where: { guildId, targetUserId: actualUserId },
+        orderBy: { createdAt: 'desc' },
+        take: 200,
+      }).catch(() => []),
+      prisma.dashboardAuditLog.findMany({
+        where: { guildId, user: actualUserId },
+        orderBy: { dateIso: 'desc' },
+        take: 500,
+      }).catch(() => []),
+      fetchMemberConnections(auth.userId === actualUserId ? auth.discordToken : null).catch(() => ({ connections: [], note: "Erreur lors de la récupération des connexions." })),
+      getStaffMember(guildId, actualUserId).catch(() => null),
+      getCandidatureHistory(guildId, actualUserId).catch(() => []),
+      prisma.sanctionReport.findMany({
+        where: { guildId, memberReference: actualUserId },
+        orderBy: { createdAt: 'desc' },
+        take: 200,
+      }).catch(() => []),
+    ]);
 
-  const effectivePermissions = member?.permissions.toArray() ?? [];
+  const effectivePermissions = member?.permissions?.toArray() ?? [];
   const roles = member
     ? [...member.roles.cache.values()]
         .filter((role) => role.id !== discordGuild.id)
@@ -1246,43 +1259,47 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
         })
     : [];
 
-  const tagCandidates = new Set<string>([user?.tag, profile?.userTag, member?.user.tag].filter((entry): entry is string => !!entry));
+  const tagCandidates = new Set<string>([user?.tag, profile?.userTag, member?.user?.tag].filter((entry): entry is string => !!entry));
 
-  const relevantLogs = auditLogs.filter((entry) => {
-    const haystack = `${entry.user} ${entry.details}`;
-    if (haystack.includes(`<@${userId}>`) || haystack.includes(`<@!${userId}>`)) return true;
-    if ([...tagCandidates].some((candidate) => candidate && haystack.includes(candidate))) return true;
-    if (entry.channelId && entry.module === 'Messages' && entry.user.includes(userId)) return true;
-    return false;
-  });
+    const relevantLogs = (auditLogs || []).filter((entry) => {
+      try {
+        const haystack = `${entry.user || ""} ${entry.details || ""}`;
+        if (haystack.includes(`<@${actualUserId}>`) || haystack.includes(`<@!${actualUserId}>`)) return true;
+        if ([...tagCandidates].some((candidate) => candidate && haystack.includes(candidate))) return true;
+        if (entry.channelId && entry.module === 'Messages' && entry.user?.includes(actualUserId)) return true;
+        return false;
+      } catch (e) {
+        return false;
+      }
+    });
 
-  const mappedLogs: MemberCaseLogEntry[] = relevantLogs.slice(0, 120).map((entry) => ({
-    id: entry.id,
-    user: entry.user,
-    action: entry.action,
-    context: entry.context,
-    module: entry.module,
-    eventType: entry.eventType,
-    source: entry.eventType === 'Discord' ? 'discord' : 'dashboard',
-    details: entry.details,
-    dateIso: entry.dateIso.toISOString(),
-    channelId: entry.channelId,
-  }));
+    const mappedLogs: MemberCaseLogEntry[] = relevantLogs.slice(0, 120).map((entry) => ({
+      id: entry.id,
+      user: entry.user,
+      action: entry.action,
+      context: entry.context,
+      module: entry.module,
+      eventType: entry.eventType,
+      source: entry.eventType === 'Discord' ? 'discord' : 'dashboard',
+      details: entry.details,
+      dateIso: safeIsoDate(entry.dateIso) || new Date().toISOString(),
+      channelId: entry.channelId,
+    }));
 
   const invite = mappedLogs
     .map((entry) => parseInviteFromDetails(entry.details))
     .find((entry): entry is MemberCaseInviteInfo => !!entry) ?? null;
 
-  const messages = relevantLogs
-    .filter((entry) => entry.module === 'Messages' && entry.action === 'Message envoyé')
-    .slice(0, 250)
-    .map((entry) => ({
-      id: entry.id,
-      channelId: entry.channelId ?? 'unknown',
-      channelName: formatChannelName(discordGuild, entry.channelId),
-      content: extractMessagePreview(entry.details) ?? entry.details,
-      dateIso: entry.dateIso.toISOString(),
-    }));
+    const messages = relevantLogs
+      .filter((entry) => entry.module === 'Messages' && entry.action === 'Message envoyé')
+      .slice(0, 250)
+      .map((entry) => ({
+        id: entry.id,
+        channelId: entry.channelId ?? 'unknown',
+        channelName: formatChannelName(discordGuild, entry.channelId),
+        content: extractMessagePreview(entry.details) ?? entry.details,
+        dateIso: safeIsoDate(entry.dateIso) || new Date().toISOString(),
+      }));
 
   const messagesByChannelMap = new Map<string, MemberCaseChannelSummary>();
   for (const message of messages) {
@@ -1302,125 +1319,142 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
     messagesByChannelMap.set(message.channelId, current);
   }
 
-  return {
-    profile: {
-      id: profile?.id ?? `${guildId}:${userId}`,
-      userId,
-      userTag: user?.tag ?? profile?.userTag ?? null,
-      username: user?.username ?? profile?.username ?? null,
-      globalName: user?.globalName ?? profile?.globalName ?? null,
-      displayName: member?.displayName ?? profile?.displayName ?? user?.globalName ?? user?.username ?? null,
-      avatarUrl: profile?.avatarUrl ?? user?.displayAvatarURL({ size: 256 }) ?? null,
-      bannerUrl: profile?.bannerUrl ?? null,
-      accentColor: profile?.accentColor ?? user?.accentColor ?? null,
-      locale: profile?.locale ?? null,
-      isBot: profile?.isBot ?? user?.bot ?? false,
-      accountCreatedAt: profile?.accountCreatedAt?.toISOString() ?? user?.createdAt?.toISOString() ?? null,
-      guildJoinedAt: profile?.guildJoinedAt?.toISOString() ?? member?.joinedAt?.toISOString() ?? null,
-      guildLeftAt: profile?.guildLeftAt?.toISOString() ?? null,
-      firstSeenAt: profile?.firstSeenAt?.toISOString() ?? null,
-      lastSeenAt: profile?.lastSeenAt?.toISOString() ?? null,
-      lastMessageAt: profile?.lastMessageAt?.toISOString() ?? null,
-      lastMessageChannelId: profile?.lastMessageChannelId ?? null,
-      messageCount: profile?.messageCount ?? 0,
-      voiceSessionCount: profile?.voiceSessionCount ?? 0,
-      voiceTimeSeconds: profile?.voiceTimeSeconds ?? 0,
-      voiceLastChannelId: profile?.voiceLastChannelId ?? null,
-      voiceLastJoinedAt: profile?.voiceLastJoinedAt?.toISOString() ?? null,
-      voiceLastLeftAt: profile?.voiceLastLeftAt?.toISOString() ?? null,
-      rolesSnapshot: profile?.rolesSnapshot ?? [],
-      presenceStatus: member?.presence?.status ?? null,
-      pronouns: null,
-      isTutor: staffMember?.isTutor ?? false,
-      staffGrade: staffMember?.grade ?? null,
+    const result: MemberCaseResponse = {
+      profile: {
+        id: profile?.id ?? `${guildId}:${actualUserId}`,
+        userId: actualUserId,
+        userTag: user?.tag ?? profile?.userTag ?? null,
+        username: user?.username ?? profile?.username ?? null,
+        globalName: user?.globalName ?? profile?.globalName ?? null,
+        displayName: member?.displayName ?? profile?.displayName ?? user?.globalName ?? user?.username ?? null,
+        avatarUrl: profile?.avatarUrl ?? user?.displayAvatarURL?.({ size: 256 }) ?? null,
+        bannerUrl: profile?.bannerUrl ?? null,
+        accentColor: profile?.accentColor ?? user?.accentColor ?? null,
+        locale: profile?.locale ?? null,
+        isBot: profile?.isBot ?? user?.bot ?? false,
+        accountCreatedAt: safeIsoDate(profile?.accountCreatedAt ?? user?.createdAt),
+        guildJoinedAt: safeIsoDate(profile?.guildJoinedAt ?? member?.joinedAt),
+        guildLeftAt: safeIsoDate(profile?.guildLeftAt),
+        firstSeenAt: safeIsoDate(profile?.firstSeenAt),
+        lastSeenAt: safeIsoDate(profile?.lastSeenAt),
+        lastMessageAt: safeIsoDate(profile?.lastMessageAt),
+        lastMessageChannelId: profile?.lastMessageChannelId ?? null,
+        messageCount: profile?.messageCount ?? 0,
+        voiceSessionCount: profile?.voiceSessionCount ?? 0,
+        voiceTimeSeconds: profile?.voiceTimeSeconds ?? 0,
+        voiceLastChannelId: profile?.voiceLastChannelId ?? null,
+        voiceLastJoinedAt: safeIsoDate(profile?.voiceLastJoinedAt),
+        voiceLastLeftAt: safeIsoDate(profile?.voiceLastLeftAt),
+        rolesSnapshot: profile?.rolesSnapshot ?? [],
+        presenceStatus: member?.presence?.status ?? null,
+        pronouns: null,
+        isTutor: staffMember?.isTutor ?? false,
+        staffGrade: staffMember?.grade ?? null,
+        isSuspectedDC: profile?.isSuspectedDC ?? false,
+        moderatorNote: (profile as any)?.moderatorNote ?? null,
+      },
+      invite: invite
+        ? {
+            ...invite,
+            joinedAt: invite.joinedAt ?? safeIsoDate(member?.joinedAt ?? profile?.guildJoinedAt),
+          }
+        : null,
+      roles,
+      effectivePermissions,
+      sanctions: (sanctions || []).map((entry) => ({
+        id: entry.id,
+        type: entry.type as DashboardSanctionType,
+        status: entry.status as DashboardSanctionStatus,
+        targetUserId: entry.targetUserId,
+        targetTag: entry.targetTag ?? `Utilisateur ${entry.targetUserId}`,
+        moderatorUserId: entry.moderatorUserId,
+        moderatorTag: entry.moderatorTag ?? `Modérateur ${entry.moderatorUserId}`,
+        reason: entry.reason,
+        durationSeconds: entry.durationSeconds,
+        expiresAt: safeIsoDate(entry.expiresAt),
+        createdAt: safeIsoDate(entry.createdAt) || new Date().toISOString(),
+        resolvedAt: safeIsoDate(entry.resolvedAt),
+        resolutionNote: entry.resolutionNote ?? null,
+      })),
+      logs: mappedLogs,
+      messagesByChannel: [...messagesByChannelMap.values()].sort((left, right) => (right.lastMessageAt ?? '').localeCompare(left.lastMessageAt ?? '')),
+      recentMessageCount: messages.length,
+      recentLogCount: mappedLogs.length,
+      connections: inviteConnections?.connections || [],
+      connectionsNote: inviteConnections?.note || "",
       isSuspectedDC: profile?.isSuspectedDC ?? false,
-    },
-    invite: invite
-      ? {
-          ...invite,
-          joinedAt: invite.joinedAt ?? member?.joinedAt?.toISOString() ?? profile?.guildJoinedAt?.toISOString() ?? null,
-        }
-      : null,
-    roles,
-    effectivePermissions,
-    sanctions: sanctions.map((entry) => ({
-      id: entry.id,
-      type: entry.type as DashboardSanctionType,
-      status: entry.status as DashboardSanctionStatus,
-      targetUserId: entry.targetUserId,
-      targetTag: entry.targetTag ?? `Utilisateur ${entry.targetUserId}`,
-      moderatorUserId: entry.moderatorUserId,
-      moderatorTag: entry.moderatorTag ?? `Modérateur ${entry.moderatorUserId}`,
-      reason: entry.reason,
-      durationSeconds: entry.durationSeconds,
-      expiresAt: entry.expiresAt?.toISOString() ?? null,
-      createdAt: entry.createdAt.toISOString(),
-      resolvedAt: entry.resolvedAt?.toISOString() ?? null,
-      resolutionNote: entry.resolutionNote ?? null,
-    })),
-    logs: mappedLogs,
-    messagesByChannel: [...messagesByChannelMap.values()].sort((left, right) => (right.lastMessageAt ?? '').localeCompare(left.lastMessageAt ?? '')),
-    recentMessageCount: messages.length,
-    recentLogCount: mappedLogs.length,
-    connections: inviteConnections.connections,
-    connectionsNote: inviteConnections.note,
-    candidatures: candidatureHistory.map((c) => ({
-      id: c.id,
-      status: c.status,
-      notes: c.notes ?? '',
-      createdAt: c.createdAt.toISOString(),
-      data: c.data,
-      autoRejected: c.autoRejected,
-      autoRejectReason: c.autoRejectReason,
-      rejectionReason: c.rejectionReason,
-      oralResult: c.oralResult,
-      reapplyAfter: c.reapplyAfter?.toISOString() ?? null,
-    })),
-    sanctionReports: sanctionReports.map((entry) => ({
-      id: entry.id,
-      sanctionId: entry.sanctionId ?? null,
-      staffPseudo: entry.staffPseudo,
-      incidentAt: entry.incidentAt.toISOString(),
-      memberPseudo: entry.memberPseudo,
-      memberReference: entry.memberReference,
-      sanctionType: entry.sanctionType as DashboardSanctionType,
-      sanctionDurationLabel: entry.sanctionDurationLabel ?? null,
-      brokenRules: entry.brokenRules,
-      detailedReason: entry.detailedReason,
-      evidenceLinks: entry.evidenceLinks,
-      additionalNotes: entry.additionalNotes ?? null,
-      createdByUserId: entry.createdByUserId,
-      createdByTag: entry.createdByTag ?? null,
-      createdAt: entry.createdAt.toISOString(),
-    })),
-    linkedAccounts: await Promise.all(
-      (await altAccountService.getAllLinkedUserIds(guildId, userId))
-        .filter(id => id !== userId)
-        .map(async (lid) => {
-          const lProfile = await prisma.memberProfile.findUnique({
-            where: { guildId_userId: { guildId, userId: lid } },
-            select: { userTag: true, username: true, displayName: true, avatarUrl: true }
-          });
-          const lLink = await prisma.linkedAccount.findFirst({
-            where: {
-              guildId,
-              OR: [
-                { user1Id: userId, user2Id: lid },
-                { user1Id: lid, user2Id: userId }
-              ]
+      candidatures: (candidatureHistory || []).map((c) => ({
+        id: c.id,
+        status: c.status,
+        notes: c.notes ?? '',
+        createdAt: safeIsoDate(c.createdAt) || new Date().toISOString(),
+        data: c.data,
+        autoRejected: c.autoRejected,
+        autoRejectReason: c.autoRejectReason,
+        rejectionReason: c.rejectionReason,
+        oralResult: c.oralResult,
+        reapplyAfter: safeIsoDate(c.reapplyAfter),
+      })),
+      sanctionReports: (sanctionReports || []).map((entry) => ({
+        id: entry.id,
+        sanctionId: entry.sanctionId ?? null,
+        staffPseudo: entry.staffPseudo,
+        incidentAt: safeIsoDate(entry.incidentAt) || new Date().toISOString(),
+        memberPseudo: entry.memberPseudo,
+        memberReference: entry.memberReference,
+        sanctionType: entry.sanctionType as DashboardSanctionType,
+        sanctionDurationLabel: entry.sanctionDurationLabel ?? null,
+        brokenRules: entry.brokenRules,
+        detailedReason: entry.detailedReason,
+        evidenceLinks: entry.evidenceLinks,
+        additionalNotes: entry.additionalNotes ?? null,
+        createdByUserId: entry.createdByUserId,
+        createdByTag: entry.createdByTag ?? null,
+        createdAt: safeIsoDate(entry.createdAt) || new Date().toISOString(),
+      })),
+      linkedAccounts: await Promise.all(
+        (await altAccountService.getAllLinkedUserIds(guildId, actualUserId))
+          .filter(id => id !== actualUserId)
+          .map(async (lid) => {
+            try {
+              const lProfile = await prisma.memberProfile.findUnique({
+                where: { guildId_userId: { guildId, userId: lid } },
+                select: { userTag: true, username: true, displayName: true, avatarUrl: true }
+              });
+              const lLink = await prisma.linkedAccount.findFirst({
+                where: {
+                  guildId,
+                  OR: [
+                    { user1Id: actualUserId, user2Id: lid },
+                    { user1Id: lid, user2Id: actualUserId }
+                  ]
+                }
+              });
+              return {
+                userId: lid,
+                userTag: lProfile?.displayName ?? lProfile?.userTag ?? lProfile?.username ?? `Utilisateur ${lid}`,
+                avatarUrl: lProfile?.avatarUrl ?? null,
+                type: lLink?.type ?? 'DC',
+                status: lLink?.status ?? 'UNKNOWN'
+              };
+            } catch (e) {
+              return {
+                userId: lid,
+                userTag: `Utilisateur ${lid}`,
+                avatarUrl: null,
+                type: 'DC',
+                status: 'UNKNOWN'
+              };
             }
-          });
-          return {
-            userId: lid,
-            userTag: lProfile?.displayName ?? lProfile?.userTag ?? lProfile?.username ?? `Utilisateur ${lid}`,
-            avatarUrl: lProfile?.avatarUrl ?? null,
-            type: lLink?.type ?? 'DC',
-            status: lLink?.status ?? 'UNKNOWN'
-          };
-        })
-    ),
-    isSuspectedDC: profile?.isSuspectedDC ?? false,
-  };
+          })
+      )
+    };
+
+    return result;
+  } catch (err) {
+    logger.error('MembersAPI', `Fatal error building member case for ${actualUserId}:`, err);
+    throw err;
+  }
 }
 
 const getGuildName = (client: Client, guildId: string) => client.guilds.cache.get(guildId)?.name ?? `Serveur ${guildId}`;
@@ -3533,7 +3567,7 @@ export const startDashboardApi = (client: Client) => {
 
           if (parts.length === 7 && parts[4] === 'members' && parts[6] === 'link' && req.method === 'POST') {
             try {
-              const u1Id = parts[5];
+              const u1Id = parts[5].startsWith('!') ? parts[5].substring(1) : parts[5];
               const body = await readJsonBody<{ targetAccountId?: string; reason?: string }>(req);
               const u2Id = body?.targetAccountId;
               const reason = body?.reason;
@@ -3605,7 +3639,7 @@ export const startDashboardApi = (client: Client) => {
 
           if (parts.length === 8 && parts[4] === 'members' && parts[6] === 'link' && req.method === 'DELETE') {
             try {
-              const u1Id = parts[5];
+              const u1Id = parts[5].startsWith('!') ? parts[5].substring(1) : parts[5];
               const u2Id = parts[7];
 
               const isStaffDb = await prisma.staffMember.findUnique({ where: { guildId_userId: { guildId: guildId, userId: user.userId } } });
@@ -3650,7 +3684,7 @@ export const startDashboardApi = (client: Client) => {
               return;
             }
 
-            const userId = parts[5];
+            const userId = parts[5].startsWith('!') ? parts[5].substring(1) : parts[5];
             const body = await readJsonBody<{
               type?: MemberCaseQuickAction;
               reason?: string;
@@ -3787,6 +3821,39 @@ export const startDashboardApi = (client: Client) => {
               json(res, 200, { ok: true, sanctionId: sanction.id });
               return;
             }
+          }
+
+          if (parts.length === 7 && parts[4] === 'members' && parts[6] === 'note' && req.method === 'PATCH') {
+            const userId = parts[5].startsWith('!') ? parts[5].substring(1) : parts[5];
+            const body = await readJsonBody<{ note: string }>(req);
+
+            try {
+              const profile = await prisma.memberProfile.upsert({
+                where: { guildId_userId: { guildId, userId } },
+                update: { moderatorNote: body?.note ?? null },
+                create: {
+                  guildId,
+                  userId,
+                  moderatorNote: body?.note ?? null,
+                },
+              });
+
+              await pushAudit(guildId, {
+                user: auditUser,
+                action: 'Mise à jour note modérateur',
+                context: getGuildName(client, guildId),
+                module: 'Members',
+                eventType: 'Manuel',
+                details: `Note mise à jour pour l'utilisateur ${userId}.`,
+                channelId: null,
+              });
+
+              json(res, 200, { ok: true, note: profile.moderatorNote });
+            } catch (err) {
+              logger.error('MembersAPI', `Error updating note for ${userId}:`, err);
+              json(res, 500, { error: 'Erreur lors de la mise à jour de la note' });
+            }
+            return;
           }
 
           if (parts.length === 5 && parts[4] === 'leadership' && req.method === 'GET') {

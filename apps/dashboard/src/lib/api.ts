@@ -328,6 +328,15 @@ export async function unlinkMemberAccount(userId, targetAccountId, guildId = aut
   });
 }
 
+export async function updateMemberNote(userId, note, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/members/${userId}/note`, {
+    method: 'PATCH',
+    payload: { note },
+    guildId,
+    errorContext: 'API Error (Update Member Note):'
+  });
+}
+
 export async function fetchLinkedAccounts(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/linked-accounts', {
     method: 'GET',

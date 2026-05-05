@@ -4,12 +4,12 @@
   import { authStore } from '../stores/auth.svelte.ts';
   import Papicon from './Papicon.svelte';
   import Chart from './charts/Chart.svelte';
-  import { fetchMemberCase, fetchMemberDetailedAnalytics, updateSanctionReport, linkMemberAccount, unlinkMemberAccount } from '../api';
+  import { fetchMemberCase, fetchMemberDetailedAnalytics, updateSanctionReport, linkMemberAccount, unlinkMemberAccount, updateMemberNote } from '../api';
   import { statusLabel, toDateTimeLocal, typeLabel as formatTypeLabel } from '../sanctions/formatters';
   import { buildReportRuleOptions, getRulesFromBrokenRules } from '../sanctions/reportRules';
   import SelectedRuleChips from './sanctions/SelectedRuleChips.svelte';
 
-  type MemberCaseTab = 'resume' | 'identite' | 'activite' | 'messages' | 'logs' | 'sanctions' | 'invites' | 'connexions' | 'analytics' | 'candidatures' | 'linked_accounts';
+  type MemberCaseTab = 'resume' | 'identite' | 'activite' | 'messages' | 'logs' | 'sanctions' | 'invites' | 'connexions' | 'analytics' | 'candidatures' | 'linked_accounts' | 'notes';
 
   type MemberAnalyticsResponse = {
     totalMessages: number;
@@ -49,6 +49,7 @@
       pronouns: string | null;
       isTutor: boolean;
       staffGrade: string | null;
+      moderatorNote: string | null;
     } | null;
     invite: {
       code: string | null;
@@ -245,6 +246,37 @@
     }
   }
 
+  let moderatorNote = $state('');
+  let noteBusy = $state(false);
+  let noteFeedback = $state('');
+
+  $effect(() => {
+    if (caseData?.profile?.moderatorNote !== undefined) {
+      moderatorNote = caseData?.profile?.moderatorNote ?? '';
+    }
+  });
+
+  async function handleSaveNote() {
+    if (!userId) return;
+    noteBusy = true;
+    noteFeedback = '';
+    try {
+      const result = await updateMemberNote(userId, moderatorNote);
+      if (result?.ok) {
+        noteFeedback = 'Note enregistrée.';
+        if (caseData?.profile) {
+          caseData.profile.moderatorNote = moderatorNote;
+        }
+      } else {
+        noteFeedback = 'Erreur lors de l\'enregistrement.';
+      }
+    } catch (e) {
+      noteFeedback = 'Erreur lors de l\'enregistrement.';
+    } finally {
+      noteBusy = false;
+    }
+  }
+
   function startEditingReport(report: any) {
     editReportData = {
       brokenRules: report.brokenRules,
@@ -322,6 +354,7 @@
     { id: 'invites', label: 'Invitations', icon: 'mail' },
     { id: 'connexions', label: 'Connexions', icon: 'link' },
     { id: 'linked_accounts', label: 'Comptes liés', icon: 'link-2', count: () => caseData?.linkedAccounts?.length ?? 0 },
+    { id: 'notes', label: 'Notes', icon: 'edit-3' },
   ];
 
   function formatDateTime(value: string | null | undefined) {
@@ -487,9 +520,14 @@
 </script>
 
 {#if open}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="member-case-title" tabindex="-1" onclick={onClose}>
+  <div 
+    class="modal-backdrop" 
+    role="button" 
+    aria-label="Fermer le dossier"
+    tabindex="0" 
+    onclick={onClose}
+    onkeydown={(e) => e.key === 'Escape' && onClose()}
+  >
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="modal-panel modal-panel-xl space-y-0 p-0 font-body" onclick={(e) => e.stopPropagation()}>
@@ -1674,6 +1712,57 @@
                       <p class="mt-4 text-sm font-black uppercase tracking-widest">Aucun compte lié</p>
                     </div>
                   {/if}
+                </div>
+              {:else if activeTab === 'notes'}
+                <div class="space-y-6">
+                  <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm">
+                    <div class="flex items-center gap-3 mb-6">
+                      <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                        <Papicon icon="edit-3" size={24} />
+                      </div>
+                      <div>
+                        <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Modération</p>
+                        <p class="text-lg font-black text-on-surface">Notes Modérateur</p>
+                      </div>
+                    </div>
+
+                    <p class="text-sm text-on-surface-variant/70 mb-6 leading-relaxed">
+                      Ces notes sont persistantes et visibles uniquement par l'équipe de modération. Utilisez cet espace pour laisser des informations importantes sur le comportement de l'utilisateur.
+                    </p>
+
+                    <div class="relative group">
+                      <label for="moderator-note-textarea" class="sr-only">Notes modérateur</label>
+                      <textarea
+                        id="moderator-note-textarea"
+                        bind:value={moderatorNote}
+                        placeholder="Ajouter une note sur cet utilisateur..."
+                        class="w-full min-h-[300px] rounded-3xl bg-surface-container-high/50 p-6 text-sm text-on-surface placeholder:text-on-surface-variant/30 border-2 border-transparent focus:border-primary/30 focus:bg-surface-container-high transition-all outline-hidden resize-none"
+                      ></textarea>
+                    </div>
+
+                    <div class="mt-6 flex items-center justify-between">
+                      <div class="flex items-center gap-2">
+                        {#if noteFeedback}
+                          <span class="text-xs font-bold {noteFeedback.includes('Erreur') ? 'text-rose-400' : 'text-emerald-400'} animate-in fade-in slide-in-from-left-2">
+                            {noteFeedback}
+                          </span>
+                        {/if}
+                      </div>
+                      <button
+                        onclick={handleSaveNote}
+                        disabled={noteBusy}
+                        class="flex items-center gap-2 px-8 py-3 rounded-2xl bg-primary text-on-primary text-sm font-black uppercase tracking-widest transition-all hover:bg-primary/90 hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/20"
+                      >
+                        {#if noteBusy}
+                          <div class="h-4 w-4 animate-spin rounded-full border-2 border-on-primary border-t-transparent"></div>
+                          <span>Enregistrement...</span>
+                        {:else}
+                          <Papicon icon="save" size={18} />
+                          <span>Sauvegarder</span>
+                        {/if}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               {/if}
           </div>
