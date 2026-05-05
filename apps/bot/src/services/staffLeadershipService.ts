@@ -15,6 +15,7 @@ import type {
   StaffManagerNote, StaffPoll, StaffPollOption, StaffPollVote,
   StaffProcedure, StaffProcedureRead
 } from '@prisma/client';
+import { getClient } from '../utils/client.js';
 
 type AbsenceMutableStatus = 'PENDING' | 'ACKNOWLEDGED' | 'APPROVED' | 'REJECTED' | 'CANCELED' | 'ENDED';
 
@@ -117,20 +118,18 @@ export const createAbsence = async (
     }
   });
   
-  const notifsData = managers
-    .filter(m => m.userId !== params.superiorUserId) // Éviter les doublons si le manager est aussi le supérieur
-    .map(m => ({
-      guildId: params.guildId,
-      userId: m.userId,
-      title: 'Nouvelle absence demandée',
-      message: `Une absence a été soumise pour le motif: ${params.reason}.`,
-      type: 'INFO',
-      link: '/absences',
-      isRead: false
-    }));
-
-  if (notifsData.length > 0) {
-    await prisma.notification.createMany({ data: notifsData });
+  if (managers.length > 0) {
+    await Promise.all(managers
+      .filter(m => m.userId !== params.superiorUserId)
+      .map(m => createNotification(
+        params.guildId,
+        m.userId,
+        'Nouvelle absence demandée',
+        `Une absence a été soumise pour le motif: ${params.reason}.`,
+        'INFO',
+        '/absences'
+      ).catch(() => null))
+    );
   }
 
   return absence;
@@ -180,17 +179,14 @@ export const updateAbsenceStatus = async (
   // Notifier le demandeur
   const absence = await prisma.staffAbsence.findUnique({ where: { id } });
   if (absence && absence.staffUserId !== decisionByUserId) {
-    await prisma.notification.create({
-      data: {
-        guildId: absence.guildId,
-        userId: absence.staffUserId,
-        title: 'Mise à jour de votre absence',
-        message: `Votre absence a été marquée comme: ${status}.`,
-        type: status === 'APPROVED' ? 'SUCCESS' : (status === 'REJECTED' ? 'ERROR' : 'INFO'),
-        link: '/absences',
-        isRead: false
-      }
-    });
+    await createNotification(
+      absence.guildId,
+      absence.staffUserId,
+      'Mise à jour de votre absence',
+      `Votre absence a été marquée comme: ${status}.`,
+      status === 'APPROVED' ? 'SUCCESS' : (status === 'REJECTED' ? 'ERROR' : 'INFO'),
+      '/absences'
+    ).catch(() => null);
   }
 
   return result;
@@ -336,23 +332,20 @@ export const createMeeting = async (
     // 7. Synchronisation automatique des absences (ceux déjà en congé sont marqués EXCUSED)
     await syncMeetingPresencesWithAbsences(client, meeting.id);
 
-    // 8. Notifications internes (Dashboard Inbox)
+    // 8. Notifications internes (Dashboard Inbox + MP Discord)
     const staff = await prisma.staffMember.findMany({
       where: { guildId }
     });
     
-    const notifsData = staff.map(m => ({
-      guildId,
-      userId: m.userId,
-      title: 'Nouvelle réunion planifiée',
-      message: `La réunion "${title}" a été planifiée pour le ${scheduledAt.toLocaleString('fr-FR')}.`,
-      type: 'INFO' as const,
-      link: '/meetings',
-      isRead: false
-    }));
-
-    if (notifsData.length > 0) {
-      await prisma.notification.createMany({ data: notifsData });
+    if (staff.length > 0) {
+      await Promise.all(staff.map(m => createNotification(
+        guildId,
+        m.userId,
+        'Nouvelle réunion planifiée',
+        `La réunion "${title}" a été planifiée pour le ${scheduledAt.toLocaleString('fr-FR')}.`,
+        'INFO',
+        '/meetings'
+      ).catch(() => null)));
     }
 
     // On met à jour l'annonce immédiatement pour afficher les stats initiales (ex: ceux déjà en congé)
@@ -777,6 +770,23 @@ export const createPoll = async (
       }))
     });
   }
+
+  // Notifier tout le staff
+  const staff = await prisma.staffMember.findMany({
+    where: { guildId }
+  });
+
+  if (staff.length > 0) {
+    await Promise.all(staff.map(m => createNotification(
+      guildId,
+      m.userId,
+      'Nouveau sondage staff',
+      `Un nouveau sondage est disponible : "${title}".`,
+      'INFO',
+      '/polls'
+    ).catch(() => null)));
+  }
+
   return poll;
 };
 
@@ -940,18 +950,70 @@ export const createNotification = async (
   userId: string,
   title: string,
   message: string,
-  type: string = 'INFO',
-  link?: string
+  type: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR' | 'CRITICAL' = 'INFO',
+  link?: string,
+  sendDm: boolean = true
 ) => {
-  return prisma.notification.create({
-    data: {
-      guildId,
-      userId,
-      title,
-      message,
-      type,
-      link,
-      isRead: false
-    }
+  // 1. Vérifier si l'utilisateur est un membre du staff pour enregistrer la notification sur le dashboard
+  const staff = await prisma.staffMember.findUnique({
+    where: { guildId_userId: { guildId, userId } }
   });
+
+  let notification = null;
+  if (staff) {
+    notification = await prisma.notification.create({
+      data: {
+        guildId,
+        userId,
+        title,
+        message,
+        type,
+        link,
+        isRead: false
+      }
+    });
+  }
+
+  // 2. Envoi d'un MP automatique (pour tout le monde, staff ou non)
+  if (sendDm) {
+    try {
+      const client = getClient();
+      const user = await client.users.fetch(userId).catch(() => null);
+      if (user) {
+        const typeEmoji = {
+          'SUCCESS': '✅',
+          'WARNING': '⚠️',
+          'ERROR': '❌',
+          'INFO': 'ℹ️',
+          'CRITICAL': '🚨'
+        }[type] || '🔔';
+
+        const embed = new EmbedBuilder()
+          .setTitle(`${typeEmoji} ${title}`)
+          .setDescription(message)
+          .setColor(type === 'ERROR' || type === 'CRITICAL' ? '#ED4245' : (type === 'WARNING' ? '#FEE75C' : (type === 'SUCCESS' ? '#57F287' : '#5865F2')))
+          .setTimestamp();
+
+        if (link && staff) { // Le lien vers le dashboard n'est utile que pour le staff
+          const dashboardUrl = process.env.DASHBOARD_URL || 'http://localhost:5173';
+          const fullLink = link.startsWith('http') ? link : `${dashboardUrl}${link}`;
+          
+          const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder()
+              .setLabel('Voir sur le Dashboard')
+              .setStyle(ButtonStyle.Link)
+              .setURL(fullLink)
+          );
+          
+          await user.send({ embeds: [embed], components: [row] }).catch(() => null);
+        } else {
+          await user.send({ embeds: [embed] }).catch(() => null);
+        }
+      }
+    } catch (error) {
+      logger.debug('Notification', `Impossible d'envoyer le MP à ${userId}: ${error}`);
+    }
+  }
+
+  return notification;
 };

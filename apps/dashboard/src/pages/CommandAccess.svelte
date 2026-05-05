@@ -7,7 +7,6 @@
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
 
-  refreshDashboardOnMount();
 
   const availableChannels = $derived(dashboardStore.state.discordChannels || []);
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);

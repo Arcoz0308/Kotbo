@@ -3,29 +3,60 @@ import { onMount } from 'svelte';
 import { authStore } from '../lib/stores/auth.svelte';
 import Papicon from '../lib/components/Papicon.svelte';
 import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
-import { fetchAnalytics, fetchMemberCase, fetchInviteAnalytics } from '../lib/api';
+import { fetchAnalytics, fetchMemberCase, fetchInviteAnalytics, fetchHourlyHeatmap, fetchWeeklyComparison, fetchDailyAlgoAnalytics } from '../lib/api';
 import AnalyticsSkeleton from '../lib/components/analytics/AnalyticsSkeleton.svelte';
 import StatsOverview from '../lib/components/analytics/StatsOverview.svelte';
-import PopulationFlux from '../lib/components/analytics/PopulationFlux.svelte';
 import EngagementMetrics from '../lib/components/analytics/EngagementMetrics.svelte';
+import MembersStats from '../lib/components/analytics/MembersStats.svelte';
+import InvitationsStats from '../lib/components/analytics/InvitationsStats.svelte';
 import ModerationAudit from '../lib/components/analytics/ModerationAudit.svelte';
 import StaffAudit from '../lib/components/analytics/StaffAudit.svelte';
+import HourlyHeatmap from '../lib/components/analytics/HourlyHeatmap.svelte';
+import WeeklyComparison from '../lib/components/analytics/WeeklyComparison.svelte';
+import DailyAlgoAnalyticsCard from '../lib/components/analytics/DailyAlgoAnalyticsCard.svelte';
 
   let data: any = $state(null);
+  let heatmapData: any = $state(null);
+  let weeklyData: any = $state(null);
+  let algoData: any = $state(null);
   let loading = $state(true);
   let error = $state('');
   let period = $state(30);
+  let activeCategory = $state('overview');
   let activeTab = $state('overview');
 
-  const tabs = [
-    { id: 'overview', label: 'Aperçu', icon: 'Grid' },
-    { id: 'messages', label: 'Messages', icon: 'ChatCircleDots' },
-    { id: 'voice', label: 'Vocal', icon: 'Microphone' },
-    { id: 'members', label: 'Membres', icon: 'UsersFour' },
-    { id: 'invitations', label: 'Invitations', icon: 'MailOpen' },
-    { id: 'moderation', label: 'Modération', icon: 'Gavel' },
-    { id: 'staff', label: 'Staff', icon: 'Users' },
+  const categories = [
+    { id: 'overview', label: 'Aperçu', icon: 'Grid', description: 'Vue générale' },
+    { id: 'engagement', label: 'Engagement', icon: 'ChatBubbles', description: 'Messages, Vocal, Membres' },
+    { id: 'moderation', label: 'Modération', icon: 'Gavel', description: 'Modération et Staff' },
+    { id: 'invitations', label: 'Invitations', icon: 'MailOpen', description: 'Analyse des invites' },
+    { id: 'growth', label: 'Croissance', icon: 'TrendingUp', description: 'Croissance & Rétention' },
   ];
+
+  const tabsByCategory: Record<string, Array<{ id: string; label: string; icon: string }>> = {
+    overview: [
+      { id: 'overview', label: 'Aperçu Global', icon: 'Grid' },
+    ],
+    engagement: [
+      { id: 'messages', label: 'Messages', icon: 'ChatCircleDots' },
+      { id: 'voice', label: 'Vocal', icon: 'Microphone' },
+      { id: 'members', label: 'Membres', icon: 'UsersFour' },
+    ],
+    moderation: [
+      { id: 'moderation', label: 'Modération', icon: 'Gavel' },
+      { id: 'staff', label: 'Staff', icon: 'Users' },
+    ],
+    invitations: [
+      { id: 'invitations', label: 'Invitations', icon: 'MailOpen' },
+    ],
+    growth: [
+      { id: 'heatmap', label: 'Heatmap Horaire', icon: 'Fire' },
+      { id: 'weekly', label: 'Semaine vs Semaine', icon: 'Calendar' },
+      { id: 'algo', label: 'Daily Algo', icon: 'Code' },
+    ],
+  };
+
+  const currentTabs = $derived(tabsByCategory[activeCategory] || []);
 
   let invitesData: any = $state(null);
   
@@ -58,8 +89,18 @@ import StaffAudit from '../lib/components/analytics/StaffAudit.svelte';
   async function load() {
     loading = true; error = '';
     try { 
-      data = await fetchAnalytics(period);
-      invitesData = await fetchInviteAnalytics();
+      const [mainData, invites, heatmap, weekly, algo] = await Promise.all([
+        fetchAnalytics(period),
+        fetchInviteAnalytics(),
+        fetchHourlyHeatmap(period),
+        fetchWeeklyComparison(),
+        fetchDailyAlgoAnalytics(period)
+      ]);
+      data = mainData;
+      invitesData = invites;
+      heatmapData = heatmap;
+      weeklyData = weekly;
+      algoData = algo;
     }
     catch (e: any) { error = e.message || 'Erreur'; }
     finally { loading = false; }
@@ -154,22 +195,42 @@ import StaffAudit from '../lib/components/analytics/StaffAudit.svelte';
     </div>
   </div>
 
-  <!-- Navigation -->
+  <!-- Navigation Catégories -->
   <div class="sticky top-4 z-40 flex justify-center">
     <div class="flex gap-1 bg-surface-container-low/60 backdrop-blur-2xl p-1.5 rounded-[2rem] border border-outline-variant/10 shadow-2xl shadow-surface/20 overflow-x-auto no-scrollbar max-w-full">
-      {#each tabs as tab}
+      {#each categories as cat}
         <button 
-          onclick={() => activeTab = tab.id} 
-          class="flex items-center gap-2.5 px-6 py-3.5 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all duration-400 whitespace-nowrap group {activeTab === tab.id ? 'bg-primary text-on-primary shadow-lg shadow-primary/25 scale-[1.02]' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
+          onclick={() => { activeCategory = cat.id; activeTab = tabsByCategory[cat.id]?.[0]?.id || cat.id; }} 
+          class="flex items-center gap-2.5 px-6 py-3.5 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all duration-400 whitespace-nowrap group {activeCategory === cat.id ? 'bg-primary text-on-primary shadow-lg shadow-primary/25 scale-[1.02]' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
+          title={cat.description}
         >
-          <div class="transition-transform group-hover:scale-110 {activeTab === tab.id ? 'text-on-primary' : 'text-primary'}">
-            <Papicon icon={tab.icon} size={16} />
+          <div class="transition-transform group-hover:scale-110 {activeCategory === cat.id ? 'text-on-primary' : 'text-primary'}">
+            <Papicon icon={cat.icon} size={16} />
           </div>
-          {tab.label}
+          {cat.label}
         </button>
       {/each}
     </div>
   </div>
+
+  <!-- Navigation Onglets (sous-catégories) -->
+  {#if currentTabs.length > 1}
+    <div class="flex justify-center">
+      <div class="flex gap-1 bg-surface-container-low/40 backdrop-blur-lg p-1.5 rounded-[1.5rem] border border-outline-variant/5">
+        {#each currentTabs as tab}
+          <button 
+            onclick={() => activeTab = tab.id} 
+            class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest transition-all duration-300 whitespace-nowrap {activeTab === tab.id ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
+          >
+            <div class="transition-transform {activeTab === tab.id ? 'text-on-primary' : 'text-primary'}">
+              <Papicon icon={tab.icon} size={14} />
+            </div>
+            {tab.label}
+          </button>
+        {/each}
+      </div>
+    </div>
+  {/if}
 
 
   {#if loading}
@@ -185,13 +246,20 @@ import StaffAudit from '../lib/components/analytics/StaffAudit.svelte';
       <StatsOverview {data} {chartLabels} />
     {:else if activeTab === 'messages' || activeTab === 'voice'}
       <EngagementMetrics {data} mode={activeTab} onOpenMember={openMemberDetails} />
-    {:else if activeTab === 'members' || activeTab === 'invitations'}
-
-      <PopulationFlux {data} {chartLabels} {invitesData} onOpenMember={openMemberDetails} />
+    {:else if activeTab === 'members'}
+      <MembersStats {data} {chartLabels} onOpenMember={openMemberDetails} />
+    {:else if activeTab === 'invitations'}
+      <InvitationsStats {invitesData} />
     {:else if activeTab === 'moderation'}
       <ModerationAudit {data} onOpenMember={openMemberDetails} />
     {:else if activeTab === 'staff'}
       <StaffAudit {data} onOpenMember={openMemberDetails} {fmt} {fmtH} />
+    {:else if activeTab === 'heatmap' && heatmapData}
+      <HourlyHeatmap data={heatmapData} />
+    {:else if activeTab === 'weekly' && weeklyData}
+      <WeeklyComparison data={weeklyData} />
+    {:else if activeTab === 'algo' && algoData}
+      <DailyAlgoAnalyticsCard data={algoData} />
     {/if}
   {/if}
 

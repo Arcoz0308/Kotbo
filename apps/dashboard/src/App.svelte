@@ -28,9 +28,11 @@
   import Meetings from './pages/Meetings.svelte';
   import Absences from './pages/Absences.svelte';
   import Inbox from './pages/Inbox.svelte';
-import Tutoring from './pages/Tutoring.svelte';
+  import Tutoring from './pages/Tutoring.svelte';
+import DoubleAccounts from './pages/DoubleAccounts.svelte';
+import ManagementCenter from './pages/ManagementCenter.svelte';
 
-  const adminOnlyPrefixes = ['/modules', '/module-settings', '/settings', '/notifications', '/automations', '/command-access', '/regulation', '/staff-management'];
+  const adminOnlyPrefixes = ['/modules', '/module-settings', '/settings', '/notifications', '/automations', '/command-access', '/regulation', '/staff-management', '/management'];
   const moderatorAllowedModuleSettings = new Set(['/module-settings/dailyalgo']);
 
   const isPublicPage = $derived($router.path.startsWith('/news') || $router.path.startsWith('/profile/'));
@@ -141,6 +143,9 @@ import Tutoring from './pages/Tutoring.svelte';
           <Route path="/automations">
             <ModuleCatalog />
           </Route>
+          <Route path="/management">
+            <ManagementCenter />
+          </Route>
           <Route path="/staff-management">
             <StaffManagement />
           </Route>
@@ -166,6 +171,9 @@ import Tutoring from './pages/Tutoring.svelte';
         </Route>
         <Route path="/tutoring">
           <Tutoring />
+        </Route>
+        <Route path="/double-accounts">
+          <DoubleAccounts />
         </Route>
       </MainLayout>
     {:else if $router.path !== '/login'}

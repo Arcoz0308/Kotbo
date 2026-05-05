@@ -5,7 +5,6 @@
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
   import FormSelect from '../lib/components/FormSelect.svelte';
-  import { refreshDashboardOnMount } from '../lib/dashboardLifecycle';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
 

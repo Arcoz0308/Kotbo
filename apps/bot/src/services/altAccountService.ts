@@ -3,6 +3,7 @@ import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { type Client, type GuildMember } from 'discord.js';
 import * as sanctionService from './sanctionService.js';
+import { createNotification } from './staffLeadershipService.js';
 
 /**
  * Service pour la gestion des comptes liés (Main/Alt)
@@ -77,7 +78,7 @@ export async function linkAccounts(params: {
 
   if (idA === idB) return null;
 
-  return prisma.linkedAccount.upsert({
+  const result = await prisma.linkedAccount.upsert({
     where: {
       guildId_user1Id_user2Id: {
         guildId,
@@ -103,6 +104,16 @@ export async function linkAccounts(params: {
       metadata: metadata || undefined
     }
   });
+
+  // Notifier les deux utilisateurs (uniquement si validé)
+  if (status === LinkedAccountStatus.VALIDATED) {
+    await Promise.all([
+      createNotification(guildId, idA, '🔗 Comptes liés', `Votre compte a été officiellement lié à <@${idB}>.`, 'SUCCESS', '/profile'),
+      createNotification(guildId, idB, '🔗 Comptes liés', `Votre compte a été officiellement lié à <@${idA}>.`, 'SUCCESS', '/profile')
+    ].map(p => p.catch(() => null)));
+  }
+
+  return result;
 }
 
 /**
@@ -111,13 +122,21 @@ export async function linkAccounts(params: {
 export async function unlinkAccounts(guildId: string, user1Id: string, user2Id: string) {
   const [idA, idB] = [user1Id, user2Id].sort();
 
-  return prisma.linkedAccount.deleteMany({
+  const result = await prisma.linkedAccount.deleteMany({
     where: {
       guildId,
       user1Id: idA,
       user2Id: idB
     }
   });
+
+  // Notifier les deux utilisateurs
+  await Promise.all([
+    createNotification(guildId, idA, '🔗 Liaison supprimée', `La liaison avec le compte <@${idB}> a été supprimée.`, 'INFO', '/profile'),
+    createNotification(guildId, idB, '🔗 Liaison supprimée', `La liaison avec le compte <@${idA}> a été supprimée.`, 'INFO', '/profile')
+  ].map(p => p.catch(() => null)));
+
+  return result;
 }
 
 /**

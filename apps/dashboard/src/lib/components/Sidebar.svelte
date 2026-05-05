@@ -4,18 +4,19 @@
   import { authStore } from '../stores/auth.svelte';
   import { notificationsStore } from '../stores/notifications.svelte';
 
-  const dashboardItems = $derived([
+  const dashboardItems = [
     { name: "Vue d'ensemble", icon: "grid", href: "/" },
     { name: "Mon Profil", icon: "user", href: "/profile/" + (authStore.user?.id || "") },
     { name: "Inbox", icon: "inbox", href: "/inbox" },
     { name: "Analytics", icon: "pie-chart", href: "/analytics" },
-  ]);
+  ];
 
   const moderationItems = [
     { name: "Contenu", icon: "file-text", href: "/content" },
     { name: "Daily Algo", icon: "code", href: "/module-settings/dailyalgo" },
     { name: "Membres", icon: "user", href: "/members" },
     { name: "Sanctions", icon: "alert-triangle", href: "/sanctions" },
+    { name: "Doubles Comptes", icon: "users", href: "/double-accounts" },
     { name: "Logs Discord", icon: "file-text", href: "/logs" },
     { name: "Journal d'activité", icon: "history", href: "/activity" },
   ];
@@ -37,6 +38,7 @@
 
   const configItems = [
     { name: "Modules", icon: "package", href: "/modules" },
+    { name: "Gestion Centralisée", icon: "sliders", href: "/management" },
     { name: "Commandes", icon: "terminal", href: "/command-access" },
     { name: "Paramètres", icon: "settings", href: "/settings" },
   ];
@@ -70,6 +72,10 @@
       return r.path === path && r.url.includes(query);
     }
     return r.path === path || r.path.startsWith(`${path}/`);
+  }
+
+  function isGroupActive(items: any[]) {
+    return items.some(item => isActiveNavItem(item.href));
   }
 
   const LOGO_URL = "/favicon.svg";
@@ -113,6 +119,7 @@
       {#if groupIdx > 0}
         <div class="pt-4 mt-3 border-t border-outline-variant/30"></div>
       {/if}
+
       <div class="px-3 mb-2 text-[10px] font-bold text-on-surface-variant/70 uppercase tracking-[0.2em]">{group.label}</div>
       {#each group.items as item}
         <a 
@@ -137,7 +144,6 @@
         </a>
       {/each}
     {/each}
-
   </nav>
 </aside>
 

@@ -17,7 +17,7 @@ export const DASHBOARD_WS_URL = `${wsBaseUrl}/api/dashboard/ws`;
 const BASE_URL = `${API_BASE_URL}/api/dashboard`;
 const JSON_HEADERS = { 'Content-Type': 'application/json' };
 
-async function authorizedFetch(url, options = {}) {
+async function authorizedFetch(url: string, options: RequestInit & { headers?: Record<string, string> } = {}): Promise<Response> {
   const token = authStore.token;
   if (!token) {
     throw new Error('No auth token available');
@@ -59,22 +59,24 @@ function getGuildId(guildId) {
   return authStore.guilds[0]?.id ?? null;
 }
 
-async function dashboardMutation(path, {
-  method = 'PUT',
-  payload,
-  guildId,
-  errorContext = 'API Error'
-} = {}) {
-  const selectedGuildId = getGuildId(guildId);
+async function dashboardMutation(path: string, options: {
+  method?: string;
+  payload?: any;
+  guildId?: string;
+  errorContext?: string;
+} = {}): Promise<boolean> {
+  const selectedGuildId = getGuildId(options.guildId);
   if (!selectedGuildId) return false;
 
-  const hasPayload = payload !== undefined;
+  const method = options.method || 'PUT';
+  const errorContext = options.errorContext || 'API Error';
+  const hasPayload = options.payload !== undefined;
 
   try {
     const response = await authorizedFetch(`${BASE_URL}/guilds/${selectedGuildId}${path}`, {
       method,
       headers: hasPayload ? JSON_HEADERS : undefined,
-      body: hasPayload ? JSON.stringify(payload) : undefined
+      body: hasPayload ? JSON.stringify(options.payload) : undefined
     });
     return response.ok;
   } catch (error) {
@@ -83,22 +85,24 @@ async function dashboardMutation(path, {
   }
 }
 
-async function dashboardRequest(path, {
-  method = 'GET',
-  payload,
-  guildId,
-  errorContext = 'API Error'
-} = {}) {
-  const selectedGuildId = getGuildId(guildId);
+async function dashboardRequest(path: string, options: {
+  method?: string;
+  payload?: any;
+  guildId?: string;
+  errorContext?: string;
+} = {}): Promise<any> {
+  const selectedGuildId = getGuildId(options.guildId);
   if (!selectedGuildId) return null;
 
-  const hasPayload = payload !== undefined;
+  const method = options.method || 'GET';
+  const errorContext = options.errorContext || 'API Error';
+  const hasPayload = options.payload !== undefined;
 
   try {
     const response = await authorizedFetch(`${BASE_URL}/guilds/${selectedGuildId}${path}`, {
       method,
       headers: hasPayload ? JSON_HEADERS : undefined,
-      body: hasPayload ? JSON.stringify(payload) : undefined
+      body: hasPayload ? JSON.stringify(options.payload) : undefined
     });
 
     if (!response.ok) {
@@ -114,7 +118,7 @@ async function dashboardRequest(path, {
         // ignore JSON parsing errors and keep fallback message
       }
       const error = new Error(message);
-      error.status = response.status;
+      (error as any).status = response.status;
       throw error;
     }
 
@@ -136,7 +140,7 @@ export async function fetchGuildState(guildId = authStore.selectedGuildId) {
     const response = await authorizedFetch(`${BASE_URL}/guilds/${selectedGuildId}`);
     if (!response.ok) {
         const error = new Error(`Server error: ${response.status}`);
-        (error).status = response.status;
+        (error as any).status = response.status;
         throw error;
     }
     return await response.json();
@@ -294,7 +298,7 @@ export async function fetchMemberCase(userId, guildId = authStore.selectedGuildI
   });
 }
 
-export async function runMemberCaseAction(userId, action, { reason, durationMs } = {}, guildId = authStore.selectedGuildId) {
+export async function runMemberCaseAction(userId: string, action: string, { reason, durationMs }: { reason?: string; durationMs?: number } = {}, guildId = authStore.selectedGuildId) {
   return dashboardRequest(`/members/${userId}/actions`, {
     method: 'POST',
     payload: {
@@ -304,6 +308,48 @@ export async function runMemberCaseAction(userId, action, { reason, durationMs }
     },
     guildId,
     errorContext: 'API Error (Member Case Action):'
+  });
+}
+
+export async function linkMemberAccount(userId, targetAccountId, reason = '', guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/members/${userId}/link`, {
+    method: 'POST',
+    payload: { targetAccountId, reason },
+    guildId,
+    errorContext: 'API Error (Link Member Account):'
+  });
+}
+
+export async function unlinkMemberAccount(userId, targetAccountId, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/members/${userId}/link/${targetAccountId}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Unlink Member Account):'
+  });
+}
+
+export async function fetchLinkedAccounts(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/linked-accounts', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Linked Accounts):'
+  });
+}
+
+export async function updateLinkedAccountStatus(id: string, status: 'VALIDATED' | 'REJECTED', guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/linked-accounts/${id}`, {
+    method: 'PATCH',
+    payload: { status },
+    guildId,
+    errorContext: 'API Error (Update Linked Account):'
+  });
+}
+
+export async function deleteLinkedAccount(id: string, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/linked-accounts/${id}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Delete Linked Account):'
   });
 }
 
@@ -493,7 +539,11 @@ export async function fetchStaffMembers(guildId = authStore.selectedGuildId) {
 }
 
 export async function fetchStaffRoles(guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/staff/roles', { method: 'GET', guildId });
+  return dashboardRequest('/staff/roles', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Staff Roles):'
+  });
 }
 
 export async function fetchAbsences(guildId = authStore.selectedGuildId) {
@@ -600,6 +650,38 @@ export async function fetchMemberDetailedAnalytics(userId, period = 30, guildId 
   });
 }
 
+export async function fetchHourlyHeatmap(days = 30, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/analytics/heatmap?days=${days}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Hourly Heatmap):'
+  });
+}
+
+export async function fetchWeeklyComparison(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/analytics/weekly-comparison', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Weekly Comparison):'
+  });
+}
+
+export async function fetchGrowthAndRetention(days = 90, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/analytics/growth-retention?days=${days}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Growth & Retention):'
+  });
+}
+
+export async function fetchDailyAlgoAnalytics(days = 30, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/analytics/daily-algo?days=${days}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Daily Algo Analytics):'
+  });
+}
+
 // Tutoring
 export async function fetchTutoringConfig(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/tutoring/config', { method: 'GET', guildId });
@@ -648,3 +730,45 @@ export async function addMentorReport(testingPeriodId, type, content, guildId = 
 export async function endTestingPeriod(periodId, status, notes = '', force = false, guildId = authStore.selectedGuildId) {
   return dashboardRequest(`/testing-periods/${periodId}`, { method: 'PATCH', payload: { status, notes, force }, guildId });
 }
+
+// ==========================================
+// MANAGEMENT CENTER / CENTRALIZED CONFIG APIs
+// ==========================================
+
+export async function fetchFeatureConfigurations(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/management/features', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Feature Configurations):'
+  });
+}
+
+export async function updateFeatureConfiguration(featureKey, config, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/management/features/${featureKey}`, {
+    method: 'PATCH',
+    payload: config,
+    guildId,
+    errorContext: 'API Error (Update Feature Configuration):'
+  });
+}
+
+export async function updateRoleAccess(featureKey, roleAccessConfigs, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/management/features/${featureKey}/role-access`, {
+    method: 'PUT',
+    payload: { roleAccessConfigs },
+    guildId,
+    errorContext: 'API Error (Update Role Access):'
+  });
+}
+
+export async function updateNotificationTargets(featureKey, notificationTargets, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/management/features/${featureKey}/notification-targets`, {
+    method: 'PUT',
+    payload: { notificationTargets },
+    guildId,
+    errorContext: 'API Error (Update Notification Targets):'
+  });
+}
+
+
+

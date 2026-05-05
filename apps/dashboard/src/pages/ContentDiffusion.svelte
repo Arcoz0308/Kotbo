@@ -57,7 +57,6 @@
     return (value || "").toString().toLowerCase();
   }
 
-  refreshDashboardOnMount();
 
   const canModerateContent = $derived(!!dashboardStore.state.access?.canModerateContent);
 

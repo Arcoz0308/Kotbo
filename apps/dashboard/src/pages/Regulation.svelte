@@ -1,6 +1,5 @@
 <script lang="ts">
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
-  import { refreshDashboardOnMount } from '../lib/dashboardLifecycle';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import ActionButton from '../lib/components/ActionButton.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
@@ -15,7 +14,6 @@
     updateRegulationArticle,
   } from '../lib/api';
 
-  refreshDashboardOnMount();
 
   type RegulationRule = {
     id: string;

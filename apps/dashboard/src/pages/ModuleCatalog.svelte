@@ -6,9 +6,6 @@
   import FilterChips from '../lib/components/FilterChips.svelte';
   import { getModuleIcon } from '../lib/moduleMeta';
   import Papicon from '../lib/components/Papicon.svelte';
-  import { refreshDashboardOnMount } from '../lib/dashboardLifecycle';
-
-  refreshDashboardOnMount();
 
   const canManageSettings = $derived(!!dashboardStore.state.access?.canManageSettings);
 

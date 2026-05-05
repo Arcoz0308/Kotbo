@@ -126,6 +126,65 @@ export const trackMemberLeave = async (guildId: string) => {
 };
 
 /**
+ * Track message reactions
+ */
+export const trackReaction = async (guildId: string, userId: string) => {
+  const dateKey = getDateKey();
+  const hour = getHourKey();
+
+  await prisma.guildDailyStat.upsert({
+    where: { guildId_dateKey: { guildId, dateKey } },
+    update: { reactionsCount: { increment: 1 } },
+    create: { guildId, dateKey, reactionsCount: 1 }
+  });
+
+  await prisma.guildHourlyStat.upsert({
+    where: { guildId_dateKey_hour: { guildId, dateKey, hour } },
+    update: { reactionsCount: { increment: 1 } },
+    create: { guildId, dateKey, hour, reactionsCount: 1 }
+  });
+
+  await prisma.memberDailyStat.upsert({
+    where: { guildId_userId_dateKey: { guildId, userId, dateKey } },
+    update: { reactionsCount: { increment: 1 } },
+    create: { guildId, userId, dateKey, reactionsCount: 1 }
+  });
+};
+
+/**
+ * Track thread creation
+ */
+export const trackThreadCreation = async (guildId: string, userId: string) => {
+  const dateKey = getDateKey();
+  const hour = getHourKey();
+
+  await prisma.guildHourlyStat.upsert({
+    where: { guildId_dateKey_hour: { guildId, dateKey, hour } },
+    update: { threadsCount: { increment: 1 } },
+    create: { guildId, dateKey, hour, threadsCount: 1 }
+  });
+
+  await prisma.memberDailyStat.upsert({
+    where: { guildId_userId_dateKey: { guildId, userId, dateKey } },
+    update: { threadsCreated: { increment: 1 } },
+    create: { guildId, userId, dateKey, threadsCreated: 1 }
+  });
+};
+
+/**
+ * Track message reply
+ */
+export const trackReply = async (guildId: string, userId: string) => {
+  const dateKey = getDateKey();
+
+  await prisma.memberDailyStat.upsert({
+    where: { guildId_userId_dateKey: { guildId, userId, dateKey } },
+    update: { repliesCount: { increment: 1 } },
+    create: { guildId, userId, dateKey, repliesCount: 1 }
+  });
+};
+
+/**
  * Snapshot server population (total members, online, offline, bots vs humans)
  */
 export const snapshotServerPopulation = async (

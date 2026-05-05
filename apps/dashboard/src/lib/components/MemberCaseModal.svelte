@@ -4,7 +4,7 @@
   import { authStore } from '../stores/auth.svelte.ts';
   import Papicon from './Papicon.svelte';
   import Chart from './charts/Chart.svelte';
-  import { fetchMemberCase, fetchMemberDetailedAnalytics, updateSanctionReport } from '../api';
+  import { fetchMemberCase, fetchMemberDetailedAnalytics, updateSanctionReport, linkMemberAccount, unlinkMemberAccount } from '../api';
   import { statusLabel, toDateTimeLocal, typeLabel as formatTypeLabel } from '../sanctions/formatters';
   import { buildReportRuleOptions, getRulesFromBrokenRules } from '../sanctions/reportRules';
   import SelectedRuleChips from './sanctions/SelectedRuleChips.svelte';
@@ -177,6 +177,73 @@
     evidenceLinks: '',
     additionalNotes: ''
   });
+
+  let targetAccountId = $state('');
+  let linkReason = $state('');
+  let linkBusy = $state(false);
+  let linkFeedback = $state('');
+  let linkIsError = $state(false);
+
+  async function handleLinkAccount() {
+    if (!targetAccountId.trim()) {
+      linkIsError = true;
+      linkFeedback = 'L\'ID du compte est requis.';
+      return;
+    }
+
+    linkBusy = true;
+    linkFeedback = '';
+    linkIsError = false;
+
+    try {
+      const success = await linkMemberAccount(userId!, targetAccountId, linkReason);
+      if (success) {
+        linkIsError = false;
+        linkFeedback = 'Comptes liés avec succès.';
+        targetAccountId = '';
+        linkReason = '';
+        if (userId) {
+          const updatedCase = await fetchMemberCase(userId);
+          if (updatedCase) {
+            caseData = updatedCase;
+          }
+        }
+      } else {
+        linkIsError = true;
+        linkFeedback = 'Erreur lors de la liaison. Vérifiez l\'ID ou vos permissions.';
+      }
+    } catch (e: any) {
+      linkIsError = true;
+      linkFeedback = e.message || 'Une erreur inattendue est survenue.';
+    } finally {
+      linkBusy = false;
+    }
+  }
+
+  let unlinkingAccountId = $state<string | null>(null);
+
+  async function handleUnlinkAccount(targetId: string) {
+    if (!confirm('Êtes-vous sûr de vouloir séparer ces comptes ?')) return;
+    unlinkingAccountId = targetId;
+
+    try {
+      const success = await unlinkMemberAccount(userId!, targetId);
+      if (success) {
+        if (userId) {
+          const updatedCase = await fetchMemberCase(userId);
+          if (updatedCase) {
+            caseData = updatedCase;
+          }
+        }
+      } else {
+        alert('Erreur lors de la suppression du lien.');
+      }
+    } catch (e: any) {
+      alert(e.message || 'Erreur inattendue.');
+    } finally {
+      unlinkingAccountId = null;
+    }
+  }
 
   function startEditingReport(report: any) {
     editReportData = {
@@ -1517,6 +1584,50 @@
                 </div>
 
               {:else if activeTab === 'linked_accounts'}
+                <div class="mb-8 rounded-3xl bg-surface-container-low/50 p-6 border border-outline-variant/10">
+                  <h3 class="text-sm font-black text-on-surface mb-4 flex items-center gap-2"><Papicon icon="link-2" size={16} /> Lier un compte manuellement</h3>
+                  <div class="grid gap-4 md:grid-cols-2">
+                    <FormInput 
+                      id="targetAccountId" 
+                      label="ID du compte cible" 
+                      bind:value={targetAccountId} 
+                      placeholder="Ex: 123456789012345678" 
+                      icon="user-plus" 
+                      required 
+                    />
+                    <FormInput 
+                      id="linkReason" 
+                      label="Raison (obligatoire pour le Staff)" 
+                      bind:value={linkReason} 
+                      placeholder="Ex: Double compte confirmé par logs" 
+                      icon="file-text" 
+                    />
+                  </div>
+                  
+                  {#if linkFeedback}
+                    <div class="mt-4 p-3 rounded-xl text-sm font-bold {linkIsError ? 'bg-red-500/10 text-red-400' : 'bg-emerald-500/10 text-emerald-400'}">
+                      {linkFeedback}
+                    </div>
+                  {/if}
+                  
+                  <div class="mt-4 flex justify-end">
+                    <button 
+                      class="px-6 py-2 rounded-xl text-sm font-black tracking-widest uppercase transition-all duration-300 {linkBusy || !targetAccountId ? 'bg-surface-container-high text-on-surface-variant/50 cursor-not-allowed' : 'bg-primary text-on-primary hover:bg-primary/90 hover:scale-[1.02] active:scale-95'}"
+                      onclick={handleLinkAccount}
+                      disabled={linkBusy || !targetAccountId}
+                    >
+                      {#if linkBusy}
+                        <div class="flex items-center gap-2">
+                          <div class="h-4 w-4 animate-spin rounded-full border-2 border-on-primary border-t-transparent"></div>
+                          <span>Liaison...</span>
+                        </div>
+                      {:else}
+                        Lier les comptes
+                      {/if}
+                    </button>
+                  </div>
+                </div>
+
                 <div class="grid gap-6 md:grid-cols-2">
                   {#each caseData?.linkedAccounts || [] as link}
                     <div class="rounded-[2.5rem] bg-surface-container-low/50 p-6 border border-outline-variant/10 shadow-sm hover:bg-surface-container-low transition-all duration-500 group flex items-center gap-4">
@@ -1530,9 +1641,25 @@
                       <div class="min-w-0 flex-1">
                         <div class="flex items-center justify-between">
                            <p class="text-sm font-black text-on-surface truncate">{link.userTag}</p>
-                           <span class="px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest {link.status === 'VALIDATED' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}">
-                             {link.status}
-                           </span>
+                           <div class="flex items-center gap-2">
+                             <span class="px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest {link.status === 'VALIDATED' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}">
+                               {link.status}
+                             </span>
+                             {#if dashboardStore.state.accessLevel === 'admin'}
+                               <button 
+                                 class="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer disabled:opacity-50"
+                                 title="Délier le compte"
+                                 onclick={() => handleUnlinkAccount(link.userId)}
+                                 disabled={unlinkingAccountId === link.userId}
+                               >
+                                 {#if unlinkingAccountId === link.userId}
+                                   <div class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-500 border-t-transparent"></div>
+                                 {:else}
+                                   <Papicon icon="trash-2" size={14} />
+                                 {/if}
+                               </button>
+                             {/if}
+                           </div>
                         </div>
                         <p class="text-[10px] font-bold text-on-surface-variant/40 mt-1">ID: {link.userId}</p>
                         <p class="text-[10px] font-black text-primary uppercase tracking-widest mt-1">{link.type}</p>

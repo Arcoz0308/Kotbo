@@ -1,7 +1,6 @@
 <script lang="ts">
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
-  import { refreshDashboardOnMount } from '../lib/dashboardLifecycle';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import ActionButton from '../lib/components/ActionButton.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -20,7 +19,6 @@
   import { durationLabel, statusLabel, toDateTimeLocal, typeLabel } from '../lib/sanctions/formatters';
   import { filterAndSortSanctions, type SanctionFilters, type SortField, type SortOption } from '../lib/sanctions/filterSort';
 
-  refreshDashboardOnMount();
 
   let creatingReport = $state(false);
   let reportMessage = $state('');

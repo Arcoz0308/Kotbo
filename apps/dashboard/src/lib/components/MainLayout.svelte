@@ -1,6 +1,13 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import Sidebar from './Sidebar.svelte';
   import Navbar from './Navbar.svelte';
+  import { dashboardLifecycle } from '../dashboardLifecycle';
+
+  onMount(() => {
+    dashboardLifecycle.init();
+    return () => dashboardLifecycle.destroy();
+  });
 </script>
 
 <div class="flex min-h-screen bg-background text-on-background transition-colors duration-500 relative overflow-hidden">

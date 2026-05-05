@@ -4,6 +4,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ChannelType,
+  EmbedBuilder,
   GuildScheduledEventEntityType,
   GuildScheduledEventPrivacyLevel,
   type Client,
@@ -14,6 +15,7 @@ import jwt from 'jsonwebtoken';
 import WebSocket, { WebSocketServer } from 'ws';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
+import { COLORS } from '../utils/embeds.js';
 import { translate } from '../services/translationService.js';
 import { sendApprovedItem } from '../services/notificationService.js';
 import { applyTopicFeedback, extractInterestTopics } from '../services/interestService.js';
@@ -2309,6 +2311,142 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
+          // Linked Accounts Management
+          if (parts[4] === 'linked-accounts') {
+            const isAdmin = access.level === 'admin';
+            const isStaff = isAdmin || access.level === 'moderator';
+
+            if (!isStaff) {
+              json(res, 403, { error: 'Accès refusé' });
+              return;
+            }
+
+            // GET /api/dashboard/guilds/:guildId/linked-accounts
+            if (req.method === 'GET') {
+              try {
+                const linkedAccounts = await prisma.linkedAccount.findMany({
+                  where: { guildId },
+                  orderBy: { createdAt: 'desc' },
+                });
+
+                // Enrich with member profiles
+                const enriched = await Promise.all(linkedAccounts.map(async (acc) => {
+                  const [p1, p2] = await Promise.all([
+                    prisma.memberProfile.findUnique({ where: { guildId_userId: { guildId, userId: acc.user1Id } } }),
+                    prisma.memberProfile.findUnique({ where: { guildId_userId: { guildId, userId: acc.user2Id } } }),
+                  ]);
+                  return {
+                    ...acc,
+                    user1: p1 ? { tag: p1.username, avatar: p1.avatarUrl } : { tag: acc.user1Id, avatar: null },
+                    user2: p2 ? { tag: p2.username, avatar: p2.avatarUrl } : { tag: acc.user2Id, avatar: null },
+                  };
+                }));
+
+                json(res, 200, enriched);
+              } catch (err) {
+                logger.error('LinkedAccountsAPI', 'Error fetching linked accounts:', err);
+                json(res, 500, { error: 'Erreur lors de la récupération des comptes liés' });
+              }
+              return;
+            }
+
+            // PATCH /api/dashboard/guilds/:guildId/linked-accounts/:id
+            if (parts.length === 6 && req.method === 'PATCH') {
+              try {
+                const id = parts[5];
+                const body = await readJsonBody<{ status: 'VALIDATED' | 'REJECTED' }>(req);
+                
+                if (!body?.status) {
+                  json(res, 400, { error: 'Statut requis' });
+                  return;
+                }
+
+                const link = await prisma.linkedAccount.findUnique({
+                  where: { id }
+                });
+
+                if (!link) {
+                  json(res, 404, { error: 'Lien introuvable' });
+                  return;
+                }
+
+                const updatedLink = await prisma.linkedAccount.update({
+                  where: { id },
+                  data: { status: body.status }
+                });
+
+                // If validated, send DM
+                if (body.status === 'VALIDATED') {
+                  const discordGuild = client.guilds.cache.get(guildId);
+                  const dmEmbed = new EmbedBuilder()
+                    .setColor(COLORS.success)
+                    .setTitle('🔗 Comptes liés officiellement')
+                    .setDescription(`Vos comptes **<@${link.user1Id}>** et **<@${link.user2Id}>** ont été reliés sur **${discordGuild?.name || 'le serveur'}**.`)
+                    .setTimestamp();
+
+                  try {
+                    const member1 = await client.users.fetch(link.user1Id).catch(() => null);
+                    if (member1) await member1.send({ embeds: [dmEmbed] }).catch(() => null);
+                  } catch (e) {}
+
+                  try {
+                    const member2 = await client.users.fetch(link.user2Id).catch(() => null);
+                    if (member2) await member2.send({ embeds: [dmEmbed] }).catch(() => null);
+                  } catch (e) {}
+                }
+
+                json(res, 200, updatedLink);
+              } catch (err) {
+                logger.error('LinkedAccountsAPI', 'Error updating linked account:', err);
+                json(res, 500, { error: 'Erreur lors de la mise à jour du compte lié' });
+              }
+              return;
+            }
+
+            // DELETE /api/dashboard/guilds/:guildId/linked-accounts/:id
+            if (parts.length === 6 && req.method === 'DELETE') {
+              try {
+                const id = parts[5];
+                const link = await prisma.linkedAccount.findUnique({
+                  where: { id }
+                });
+
+                if (!link) {
+                  json(res, 404, { error: 'Lien introuvable' });
+                  return;
+                }
+
+                await prisma.linkedAccount.delete({
+                  where: { id }
+                });
+
+                // Send DM
+                const discordGuild = client.guilds.cache.get(guildId);
+                const dmEmbed = new EmbedBuilder()
+                  .setColor(COLORS.error)
+                  .setTitle('🔗 Comptes déliés')
+                  .setDescription(`Vos comptes **<@${link.user1Id}>** et **<@${link.user2Id}>** ont été séparés sur **${discordGuild?.name || 'le serveur'}**.`)
+                  .setTimestamp();
+
+                try {
+                  const member1 = await client.users.fetch(link.user1Id).catch(() => null);
+                  if (member1) await member1.send({ embeds: [dmEmbed] }).catch(() => null);
+                } catch (e) {}
+
+                try {
+                  const member2 = await client.users.fetch(link.user2Id).catch(() => null);
+                  if (member2) await member2.send({ embeds: [dmEmbed] }).catch(() => null);
+                } catch (e) {}
+
+                json(res, 200, { success: true });
+              } catch (err) {
+                logger.error('LinkedAccountsAPI', 'Error deleting linked account:', err);
+                json(res, 500, { error: 'Erreur lors de la suppression du compte lié' });
+              }
+              return;
+            }
+          }
+
           // GET /api/dashboard/guilds/:guildId/analytics - Full analytics data
           if (parts.length === 5 && parts[4] === 'analytics' && req.method === 'GET') {
             try {
@@ -2887,21 +3025,156 @@ export const startDashboardApi = (client: Client) => {
 
               // Fetch active invites from Discord
               const activeInvites = await discordGuild.invites.fetch().catch(() => new Map());
-              
-              const formattedInvites = [...activeInvites.values()].map(inv => ({
-                code: inv.code,
-                inviterTag: inv.inviter?.tag || 'Inconnu',
-                inviterAvatarUrl: inv.inviter?.displayAvatarURL({ size: 64 }) || null,
-                uses: inv.uses || 0,
-                maxUses: inv.maxUses,
-                expiresAt: inv.expiresAt ? inv.expiresAt.toISOString() : null,
-                createdAt: inv.createdAt ? inv.createdAt.toISOString() : null,
-              })).sort((a, b) => (b.uses || 0) - (a.uses || 0));
+              const invitesArray = [...activeInvites.values()];
+
+              // Determine period for trend (days)
+              const periodDays = parseInt(url.searchParams.get('days') || url.searchParams.get('period') || '30', 10);
+              const startDate = new Date();
+              startDate.setDate(startDate.getDate() - periodDays + 1); // include today
+
+              // Fetch member invite joins from DB for the period and bucket by code
+              const memberJoins = await prisma.memberInvite.findMany({
+                where: {
+                  guildId,
+                  joinedAt: { gte: startDate },
+                  inviteCode: { not: null }
+                },
+                select: { inviteCode: true, joinedAt: true }
+              });
+
+              // Build date labels for the period (ascending)
+              const labels: string[] = [];
+              for (let i = 0; i < periodDays; i++) {
+                const d = new Date(startDate);
+                d.setDate(startDate.getDate() + i);
+                const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                labels.push(key);
+              }
+
+              // map: code -> dateKey -> count
+              const joinMap = new Map<string, Map<string, number>>();
+              for (const j of memberJoins) {
+                const code = j.inviteCode ?? 'unknown';
+                const d = new Date(j.joinedAt as any);
+                const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                if (!joinMap.has(code)) joinMap.set(code, new Map());
+                const dm = joinMap.get(code)!;
+                dm.set(dateKey, (dm.get(dateKey) ?? 0) + 1);
+              }
+
+              const formattedInvites: any[] = [];
+              for (const inv of invitesArray) {
+                const inviterId = inv.inviter?.id ?? null;
+                let createdBy = inv.inviter?.tag || 'Inconnu';
+                // Try to resolve guild member display name for nicer UI
+                if (inviterId) {
+                  const member = discordGuild.members.cache.get(inviterId) ?? await discordGuild.members.fetch(inviterId).catch(() => null);
+                  if (member) createdBy = member.displayName || member.user?.tag || createdBy;
+                }
+
+                const code = inv.code ?? 'unknown';
+                const dm = joinMap.get(code) ?? new Map();
+                const counts = labels.map(l => dm.get(l) ?? 0);
+                const totalJoined = counts.reduce((s, v) => s + v, 0);
+
+                formattedInvites.push({
+                  code: inv.code,
+                  inviterId,
+                  inviterTag: inv.inviter?.tag || 'Inconnu',
+                  inviterAvatarUrl: inv.inviter?.displayAvatarURL ? inv.inviter.displayAvatarURL({ size: 64 }) : null,
+                  createdBy,
+                  uses: inv.uses || 0,
+                  maxUses: inv.maxUses,
+                  expiresAt: inv.expiresAt ? inv.expiresAt.toISOString() : null,
+                  createdAt: inv.createdAt ? inv.createdAt.toISOString() : null,
+                  trend: {
+                    labels,
+                    counts,
+                    totalJoined,
+                  }
+                });
+              }
+
+              // Also include codes that exist in DB but are not active in Discord anymore
+              for (const [code, dm] of joinMap.entries()) {
+                if (formattedInvites.find(f => f.code === code)) continue;
+                const counts = labels.map(l => dm.get(l) ?? 0);
+                const totalJoined = counts.reduce((s, v) => s + v, 0);
+                formattedInvites.push({
+                  code,
+                  inviterId: null,
+                  inviterTag: 'Inconnu',
+                  inviterAvatarUrl: null,
+                  createdBy: 'Inconnu',
+                  uses: 0,
+                  maxUses: null,
+                  expiresAt: null,
+                  createdAt: null,
+                  trend: { labels, counts, totalJoined }
+                });
+              }
+
+              formattedInvites.sort((a, b) => (b.uses || 0) - (a.uses || 0));
 
               json(res, 200, formattedInvites);
             } catch (err) {
               logger.error('AnalyticsAPI', 'Error computing invites analytics:', err);
               json(res, 500, { error: 'Erreur analytics invites' });
+            }
+            return;
+          }
+
+          // GET /api/dashboard/guilds/:guildId/analytics/heatmap - Hourly activity heatmap
+          if (parts.length === 6 && parts[4] === 'analytics' && parts[5] === 'heatmap' && req.method === 'GET') {
+            try {
+              const days = Math.min(90, Math.max(7, parseInt(url.searchParams.get('days') || '30', 10)));
+              const { getHourlyHeatmapData } = await import('../services/dashboardAnalyticsService.js');
+              const heatmapData = await getHourlyHeatmapData(guildId, days);
+              json(res, 200, heatmapData);
+            } catch (err) {
+              logger.error('AnalyticsAPI', 'Error computing heatmap:', err);
+              json(res, 500, { error: 'Erreur heatmap analytics' });
+            }
+            return;
+          }
+
+          // GET /api/dashboard/guilds/:guildId/analytics/weekly-comparison - Week over week comparison
+          if (parts.length === 6 && parts[4] === 'analytics' && parts[5] === 'weekly-comparison' && req.method === 'GET') {
+            try {
+              const { getWeekOverWeekComparison } = await import('../services/dashboardAnalyticsService.js');
+              const comparisonData = await getWeekOverWeekComparison(guildId);
+              json(res, 200, comparisonData);
+            } catch (err) {
+              logger.error('AnalyticsAPI', 'Error computing weekly comparison:', err);
+              json(res, 500, { error: 'Erreur comparaison semaine/semaine' });
+            }
+            return;
+          }
+
+          // GET /api/dashboard/guilds/:guildId/analytics/growth-retention - Growth and retention metrics
+          if (parts.length === 6 && parts[4] === 'analytics' && parts[5] === 'growth-retention' && req.method === 'GET') {
+            try {
+              const days = Math.min(365, Math.max(7, parseInt(url.searchParams.get('days') || '90', 10)));
+              const { getGrowthAndRetention } = await import('../services/dashboardAnalyticsService.js');
+              const growthData = await getGrowthAndRetention(guildId, days);
+              json(res, 200, growthData);
+            } catch (err) {
+              logger.error('AnalyticsAPI', 'Error computing growth/retention:', err);
+              json(res, 500, { error: 'Erreur growth/retention analytics' });
+            }
+            return;
+          }
+
+          // GET /api/dashboard/guilds/:guildId/analytics/daily-algo - Daily Algo analytics
+          if (parts.length === 6 && parts[4] === 'analytics' && parts[5] === 'daily-algo' && req.method === 'GET') {
+            try {
+              const days = Math.min(365, Math.max(7, parseInt(url.searchParams.get('days') || '30', 10)));
+              const { getDailyAlgoAnalytics } = await import('../services/dashboardAnalyticsService.js');
+              const algoData = await getDailyAlgoAnalytics(guildId, days);
+              json(res, 200, algoData);
+            } catch (err) {
+              logger.error('AnalyticsAPI', 'Error computing daily algo analytics:', err);
+              json(res, 500, { error: 'Erreur daily algo analytics' });
             }
             return;
           }
@@ -3254,6 +3527,119 @@ export const startDashboardApi = (client: Client) => {
             } catch (err) {
               logger.error('MembersAPI', `Error building member case for ${parts[5]}:`, err);
               json(res, 500, { error: 'Erreur lors de la construction du dossier membre', details: String(err) });
+            }
+            return;
+          }
+
+          if (parts.length === 7 && parts[4] === 'members' && parts[6] === 'link' && req.method === 'POST') {
+            try {
+              const u1Id = parts[5];
+              const body = await readJsonBody<{ targetAccountId?: string; reason?: string }>(req);
+              const u2Id = body?.targetAccountId;
+              const reason = body?.reason;
+
+              if (!u2Id) {
+                json(res, 400, { error: 'L\'ID du compte cible est requis.' });
+                return;
+              }
+
+              if (u1Id === u2Id) {
+                json(res, 400, { error: 'Impossible de lier un compte à lui-même.' });
+                return;
+              }
+
+              const dbGuild = await prisma.guild.findUnique({ where: { id: guildId } });
+              const isStaffDb = await prisma.staffMember.findUnique({ where: { guildId_userId: { guildId: guildId, userId: user.userId } } });
+              const isAdmin = access.level === 'admin';
+              
+              // Only dashboard users can call this, so they are already staff or admin usually (access.level !== 'none').
+              // But just in case, verify if they are staff via db or mod perms
+              const isStaff = isAdmin || !!isStaffDb || access.level === 'moderator';
+
+              if (!isStaff) {
+                json(res, 403, { error: 'Accès refusé' });
+                return;
+              }
+
+              if (!isAdmin && !reason) {
+                json(res, 400, { error: 'En tant que membre du staff, tu dois obligatoirement fournir une raison pour lier ces comptes.' });
+                return;
+              }
+
+              await altAccountService.linkAccounts({
+                guildId,
+                user1Id: u1Id,
+                user2Id: u2Id,
+                type: 'MANUAL',
+                status: 'VALIDATED',
+                reason: reason || 'Action Administrateur (Dashboard)',
+                linkedByUserId: user.userId,
+                metadata: { linkedBy: user.userId, source: 'dashboard', at: new Date().toISOString() }
+              });
+
+              const discordGuild = client.guilds.cache.get(guildId);
+              const dmEmbed = new EmbedBuilder()
+                .setColor(COLORS.success)
+                .setTitle('🔗 Comptes liés officiellement')
+                .setDescription(`Vos comptes **<@${u1Id}>** et **<@${u2Id}>** ont été reliés sur **${discordGuild?.name || 'le serveur'}**.`)
+                .addFields({ name: 'Raison / Notes', value: reason || 'Liaison validée par le staff.', inline: false })
+                .setTimestamp();
+
+              try {
+                const member1 = await client.users.fetch(u1Id).catch(() => null);
+                if (member1) await member1.send({ embeds: [dmEmbed] }).catch(() => null);
+              } catch (e) {}
+
+              try {
+                const member2 = await client.users.fetch(u2Id).catch(() => null);
+                if (member2) await member2.send({ embeds: [dmEmbed] }).catch(() => null);
+              } catch (e) {}
+
+              json(res, 200, { success: true });
+            } catch (err) {
+              logger.error('MembersAPI', `Error linking accounts for ${parts[5]}:`, err);
+              json(res, 500, { error: 'Erreur lors de la liaison des comptes', details: String(err) });
+            }
+            return;
+          }
+
+          if (parts.length === 8 && parts[4] === 'members' && parts[6] === 'link' && req.method === 'DELETE') {
+            try {
+              const u1Id = parts[5];
+              const u2Id = parts[7];
+
+              const isStaffDb = await prisma.staffMember.findUnique({ where: { guildId_userId: { guildId: guildId, userId: user.userId } } });
+              const isAdmin = access.level === 'admin';
+              const isStaff = isAdmin || !!isStaffDb || access.level === 'moderator';
+
+              if (!isStaff) {
+                json(res, 403, { error: 'Accès refusé' });
+                return;
+              }
+
+              await altAccountService.unlinkAccounts(guildId, u1Id, u2Id);
+              
+              const discordGuild = client.guilds.cache.get(guildId);
+              const dmEmbed = new EmbedBuilder()
+                .setColor(COLORS.error)
+                .setTitle('🔗 Comptes déliés')
+                .setDescription(`Vos comptes **<@${u1Id}>** et **<@${u2Id}>** ont été séparés sur **${discordGuild?.name || 'le serveur'}**.`)
+                .setTimestamp();
+
+              try {
+                const member1 = await client.users.fetch(u1Id).catch(() => null);
+                if (member1) await member1.send({ embeds: [dmEmbed] }).catch(() => null);
+              } catch (e) {}
+
+              try {
+                const member2 = await client.users.fetch(u2Id).catch(() => null);
+                if (member2) await member2.send({ embeds: [dmEmbed] }).catch(() => null);
+              } catch (e) {}
+
+              json(res, 200, { success: true });
+            } catch (err) {
+              logger.error('MembersAPI', `Error unlinking accounts for ${parts[5]}:`, err);
+              json(res, 500, { error: 'Erreur lors de la suppression de la liaison', details: String(err) });
             }
             return;
           }
@@ -5059,6 +5445,205 @@ export const startDashboardApi = (client: Client) => {
             json(res, 200, { ok: true });
             return;
           }
+        }
+      }
+
+      // --- MANAGEMENT CENTER / CENTRALIZED CONFIG ROUTES ---
+      if (parts.length >= 4 && parts[0] === 'api' && parts[1] === 'dashboard' && parts[2] === 'guilds' && parts[4] === 'management') {
+        const user = verifyAuth(req);
+        if (!user) {
+          json(res, 401, { error: 'Non authentifié' });
+          return;
+        }
+
+        const guildId = parts[3];
+        const access = await resolveDashboardAccess(client, guildId, user.userId);
+
+        if (!access.canManageSettings) {
+          json(res, 403, { error: 'Accès refusé. Seuls les administrateurs peuvent accéder à la gestion centralisée.' });
+          return;
+        }
+
+        const auditUser = user.username ?? `User${user.userId}`;
+
+        // Importer le service ici pour éviter les dépendances circulaires
+        const { getOrCreateFeatureConfigs, updateFeatureConfig, updateRoleAccess, updateNotificationTargets } = await import('../services/dashboardManagementService.js');
+
+        // GET /api/dashboard/guilds/:guildId/management/features
+        if (parts.length === 6 && parts[4] === 'management' && parts[5] === 'features' && req.method === 'GET') {
+          try {
+            const features = await getOrCreateFeatureConfigs(guildId);
+            json(res, 200, {
+              features: features.map((feature) => ({
+                id: feature.id,
+                featureKey: feature.featureKey,
+                featureName: feature.featureName,
+                enabled: feature.enabled,
+                channelId: feature.channelId,
+                secondaryChannelId: feature.secondaryChannelId,
+                requiredRoleId: feature.requiredRoleId,
+                notificationRoleId: feature.notificationRoleId,
+                notifyViaDiscordChannel: feature.notifyViaDiscordChannel,
+                notifyViaDM: feature.notifyViaDM,
+                loggingEnabled: feature.loggingEnabled,
+                userActivityTracking: feature.userActivityTracking,
+                roleAccess: feature.roleAccess,
+              })),
+            });
+          } catch (err) {
+            logger.error('ManagementAPI', 'Error fetching feature configs:', err);
+            json(res, 500, { error: 'Erreur lors de la récupération des configurations' });
+          }
+          return;
+        }
+
+        // PATCH /api/dashboard/guilds/:guildId/management/features/:featureKey
+        if (
+          parts.length === 7 &&
+          parts[4] === 'management' &&
+          parts[5] === 'features' &&
+          req.method === 'PATCH'
+        ) {
+          const featureKey = parts[6];
+          const body = await readJsonBody<{
+            enabled?: boolean;
+            channelId?: string | null;
+            secondaryChannelId?: string | null;
+            requiredRoleId?: string | null;
+            notificationRoleId?: string | null;
+            notifyViaDiscordChannel?: boolean;
+            notifyViaDM?: boolean;
+            loggingEnabled?: boolean;
+            userActivityTracking?: boolean;
+          }>(req);
+
+          try {
+            const updated = await updateFeatureConfig(guildId, featureKey, body || {});
+
+            await pushAudit(guildId, {
+              user: auditUser,
+              action: 'Mise à jour configuration feature',
+              context: getGuildName(client, guildId),
+              module: 'Management',
+              eventType: 'Manuel',
+              details: `Feature ${featureKey} mise à jour.`,
+              channelId: null,
+            });
+
+            json(res, 200, { ok: true, feature: updated });
+          } catch (err) {
+            logger.error('ManagementAPI', 'Error updating feature config:', err);
+            json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration' });
+          }
+          return;
+        }
+
+        // PUT /api/dashboard/guilds/:guildId/management/features/:featureKey/role-access
+        if (
+          parts.length === 8 &&
+          parts[4] === 'management' &&
+          parts[5] === 'features' &&
+          parts[7] === 'role-access' &&
+          req.method === 'PUT'
+        ) {
+          const featureKey = parts[6];
+          const body = await readJsonBody<{
+            roleAccessConfigs: Array<{
+              staffRoleLevel: number;
+              canView?: boolean;
+              canModerate?: boolean;
+              canConfigure?: boolean;
+              canDelete?: boolean;
+            }>;
+          }>(req);
+
+          if (!body?.roleAccessConfigs) {
+            json(res, 400, { error: 'roleAccessConfigs manquant' });
+            return;
+          }
+
+          try {
+            // Find the feature config first
+            const featureConfig = await prisma.dashboardFeatureConfig.findUnique({
+              where: { guildId_featureKey: { guildId, featureKey } },
+            });
+
+            if (!featureConfig) {
+              json(res, 404, { error: 'Configuration de feature non trouvée' });
+              return;
+            }
+
+            const updated = await updateRoleAccess(guildId, featureConfig.id, body.roleAccessConfigs);
+
+            await pushAudit(guildId, {
+              user: auditUser,
+              action: 'Mise à jour accès rôles',
+              context: getGuildName(client, guildId),
+              module: 'Management',
+              eventType: 'Manuel',
+              details: `Accès des rôles pour ${featureKey} mis à jour.`,
+              channelId: null,
+            });
+
+            json(res, 200, { ok: true, feature: updated });
+          } catch (err) {
+            logger.error('ManagementAPI', 'Error updating role access:', err);
+            json(res, 500, { error: 'Erreur lors de la mise à jour des accès' });
+          }
+          return;
+        }
+
+        // PUT /api/dashboard/guilds/:guildId/management/features/:featureKey/notification-targets
+        if (
+          parts.length === 8 &&
+          parts[4] === 'management' &&
+          parts[5] === 'features' &&
+          parts[7] === 'notification-targets' &&
+          req.method === 'PUT'
+        ) {
+          const featureKey = parts[6];
+          const body = await readJsonBody<{
+            notificationTargets: Array<{
+              targetType: string;
+              targetId?: string | null;
+              enabled?: boolean;
+            }>;
+          }>(req);
+
+          if (!body?.notificationTargets) {
+            json(res, 400, { error: 'notificationTargets manquant' });
+            return;
+          }
+
+          try {
+            // Find the feature config first
+            const featureConfig = await prisma.dashboardFeatureConfig.findUnique({
+              where: { guildId_featureKey: { guildId, featureKey } },
+            });
+
+            if (!featureConfig) {
+              json(res, 404, { error: 'Configuration de feature non trouvée' });
+              return;
+            }
+
+            const updated = await updateNotificationTargets(guildId, featureConfig.id, body.notificationTargets);
+
+            await pushAudit(guildId, {
+              user: auditUser,
+              action: 'Mise à jour cibles notifications',
+              context: getGuildName(client, guildId),
+              module: 'Management',
+              eventType: 'Manuel',
+              details: `Cibles de notifications pour ${featureKey} mises à jour.`,
+              channelId: null,
+            });
+
+            json(res, 200, { ok: true, feature: updated });
+          } catch (err) {
+            logger.error('ManagementAPI', 'Error updating notification targets:', err);
+            json(res, 500, { error: 'Erreur lors de la mise à jour des cibles de notifications' });
+          }
+          return;
         }
       }
 

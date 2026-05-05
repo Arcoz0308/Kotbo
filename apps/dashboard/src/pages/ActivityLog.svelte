@@ -6,7 +6,6 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import ColumnSortFilter, { type ColumnFilterOption } from '../lib/components/sanctions/ColumnSortFilter.svelte';
 
-  refreshDashboardOnMount();
 
   type ActivitySortField = 'date' | 'user' | 'module' | 'action' | 'type';
 

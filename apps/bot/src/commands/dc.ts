@@ -18,9 +18,10 @@ export const data = new SlashCommandBuilder()
   .addSubcommand((sub) =>
     sub
       .setName('link')
-      .setDescription('Lier manuellement deux comptes (Modérateur uniquement).')
+      .setDescription('Lier deux comptes entre eux.')
       .addUserOption((opt) => opt.setName('compte1').setDescription('Premier compte').setRequired(true))
       .addUserOption((opt) => opt.setName('compte2').setDescription('Deuxième compte').setRequired(true))
+      .addStringOption((opt) => opt.setName('raison').setDescription('Raison (obligatoire si non-admin)').setRequired(false))
   )
   .addSubcommand((sub) =>
     sub
@@ -33,21 +34,95 @@ export const data = new SlashCommandBuilder()
       .setName('report')
       .setDescription('Déclarer que vous avez un autre compte (bonne foi).')
       .addUserOption((opt) => opt.setName('principal').setDescription('Votre compte principal').setRequired(true))
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('unlink')
+      .setDescription('Supprimer le lien entre deux comptes.')
+      .addUserOption((opt) => opt.setName('compte1').setDescription('Premier compte').setRequired(true))
+      .addUserOption((opt) => opt.setName('compte2').setDescription('Deuxième compte').setRequired(true))
   );
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   const subcommand = interaction.options.getSubcommand();
 
   if (subcommand === 'link') {
-    if (!interaction.memberPermissions?.has(PermissionFlagsBits.ModerateMembers)) {
-      return interaction.reply({ content: '❌ Tu n’as pas la permission de modération requise.', flags: [MessageFlags.Ephemeral] });
-    }
-
     const u1 = interaction.options.getUser('compte1', true);
     const u2 = interaction.options.getUser('compte2', true);
+    const reason = interaction.options.getString('raison');
 
     if (u1.id === u2.id) {
       return interaction.reply({ content: '❌ Impossible de lier un compte à lui-même.', flags: [MessageFlags.Ephemeral] });
+    }
+
+    const guild = interaction.guild;
+    if (!guild) return;
+
+    const dbGuild = await prisma.guild.findUnique({ where: { id: guild.id } });
+    const isStaffDb = await prisma.staffMember.findUnique({ where: { guildId_userId: { guildId: guild.id, userId: interaction.user.id } } });
+    
+    const isAdmin = interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) || false;
+    // We consider staff if they are in the staff_members table, or have the mod permission
+    const isStaff = isAdmin || !!isStaffDb || interaction.memberPermissions?.has(PermissionFlagsBits.ModerateMembers);
+
+    if (!isStaff) {
+      // Non-staff: Can only link their own account
+      if (u1.id !== interaction.user.id && u2.id !== interaction.user.id) {
+        return interaction.reply({ content: '❌ Tu ne peux lier que ton propre compte.', flags: [MessageFlags.Ephemeral] });
+      }
+
+      await altAccountService.linkAccounts({
+        guildId: interaction.guildId!,
+        user1Id: u1.id,
+        user2Id: u2.id,
+        type: 'MANUAL',
+        status: 'PENDING',
+        reason: reason || 'Déclaration de bonne foi par l\'utilisateur',
+        linkedByUserId: interaction.user.id,
+        metadata: { linkedBy: interaction.user.id, at: new Date().toISOString() }
+      });
+
+      // Send log to staff
+      const logChannelId = dbGuild?.logChannelId;
+      if (logChannelId) {
+        const logChannel = await guild.channels.fetch(logChannelId).catch(() => null);
+        if (logChannel && logChannel.isTextBased()) {
+          const staffPing = dbGuild.baseStaffRoleId ? `<@&${dbGuild.baseStaffRoleId}>` : 'Staff';
+          const embed = new EmbedBuilder()
+            .setColor(COLORS.info)
+            .setTitle('🛡️ Déclaration de compte secondaire (En attente)')
+            .setDescription(`${staffPing} | <@${interaction.user.id}> a déclaré un lien entre <@${u1.id}> et <@${u2.id}>.\n\n*Cette demande est aussi visible sur le Dashboard dans l'onglet Doubles Comptes.*`)
+            .addFields(
+              { name: 'Compte 1', value: `<@${u1.id}> (${u1.id})`, inline: true },
+              { name: 'Compte 2', value: `<@${u2.id}> (${u2.id})`, inline: true },
+              { name: 'Raison', value: reason || 'Non fournie', inline: false }
+            )
+            .setTimestamp();
+
+          const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`dc_validate_link:${u1.id}:${u2.id}`)
+              .setLabel('Valider la liaison')
+              .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+              .setCustomId(`dc_reject_link:${u1.id}:${u2.id}`)
+              .setLabel('Rejeter')
+              .setStyle(ButtonStyle.Danger)
+          );
+
+          await logChannel.send({ content: `${staffPing} <@${u1.id}> <@${u2.id}>`, embeds: [embed], components: [row] });
+        }
+      }
+
+      return interaction.reply({
+        content: '✅ Ta demande de liaison a été envoyée aux modérateurs pour validation.',
+        flags: [MessageFlags.Ephemeral]
+      });
+    }
+
+    // Staff Logic
+    if (!isAdmin && !reason) {
+      return interaction.reply({ content: '❌ En tant que membre du staff, tu dois obligatoirement fournir une raison pour lier ces comptes.', flags: [MessageFlags.Ephemeral] });
     }
 
     await altAccountService.linkAccounts({
@@ -56,11 +131,27 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       user2Id: u2.id,
       type: 'MANUAL',
       status: 'VALIDATED',
+      reason: reason || 'Action Administrateur',
+      linkedByUserId: interaction.user.id,
       metadata: { linkedBy: interaction.user.id, at: new Date().toISOString() }
     });
 
+    const dmEmbed = new EmbedBuilder()
+      .setColor(COLORS.success)
+      .setTitle('🔗 Comptes liés officiellement')
+      .setDescription(`Vos comptes **<@${u1.id}>** et **<@${u2.id}>** ont été reliés sur **${guild.name}**.`)
+      .addFields({ name: 'Raison / Notes', value: reason || 'Liaison validée par le staff.', inline: false })
+      .setTimestamp();
+
+    try {
+      await u1.send({ embeds: [dmEmbed] }).catch(() => null);
+    } catch (e) {}
+    try {
+      await u2.send({ embeds: [dmEmbed] }).catch(() => null);
+    } catch (e) {}
+
     return interaction.reply({
-      embeds: [successEmbed('Comptes liés', `Les comptes <@${u1.id}> et <@${u2.id}> sont désormais liés et synchronisés.`) ]
+      embeds: [successEmbed('Comptes liés', `Les comptes <@${u1.id}> et <@${u2.id}> sont désormais liés. Les utilisateurs ont été prévenus par MP.`) ]
     });
   }
 
@@ -109,7 +200,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const embed = new EmbedBuilder()
       .setColor(COLORS.info)
       .setTitle('🛡️ Déclaration de compte secondaire (Bonne foi)')
-      .setDescription(`<@${interaction.user.id}> déclare que son compte principal est <@${mainAccount.id}>.`)
+      .setDescription(`<@${interaction.user.id}> déclare que son compte principal est <@${mainAccount.id}>.\n\n*Cette demande est aussi visible sur le Dashboard dans l'onglet Doubles Comptes.*`)
       .addFields(
         { name: 'Compte secondaire', value: `<@${interaction.user.id}> (${interaction.user.id})`, inline: true },
         { name: 'Compte principal', value: `<@${mainAccount.id}> (${mainAccount.id})`, inline: true }
@@ -132,6 +223,34 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     return interaction.reply({
       content: '✅ Ta déclaration a été envoyée aux modérateurs pour validation. Merci de ta bonne foi !',
       flags: [MessageFlags.Ephemeral]
+    });
+  }
+
+  if (subcommand === 'unlink') {
+    if (!interaction.memberPermissions?.has(PermissionFlagsBits.ModerateMembers)) {
+      return interaction.reply({ content: '❌ Tu n’as pas la permission de modération requise.', flags: [MessageFlags.Ephemeral] });
+    }
+
+    const u1 = interaction.options.getUser('compte1', true);
+    const u2 = interaction.options.getUser('compte2', true);
+
+    await altAccountService.unlinkAccounts(interaction.guildId!, u1.id, u2.id);
+
+    const dmEmbed = new EmbedBuilder()
+      .setColor(COLORS.error)
+      .setTitle('🔗 Comptes déliés')
+      .setDescription(`Vos comptes **<@${u1.id}>** et **<@${u2.id}>** ont été séparés sur **${interaction.guild?.name || 'le serveur'}**.`)
+      .setTimestamp();
+
+    try {
+      await u1.send({ embeds: [dmEmbed] }).catch(() => null);
+    } catch (e) {}
+    try {
+      await u2.send({ embeds: [dmEmbed] }).catch(() => null);
+    } catch (e) {}
+
+    return interaction.reply({
+      embeds: [successEmbed('Comptes déliés', `Le lien entre <@${u1.id}> et <@${u2.id}> a été supprimé. Les utilisateurs ont été prévenus par MP.`)]
     });
   }
 }

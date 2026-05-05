@@ -199,21 +199,18 @@ export async function createCandidature(
       }
     });
 
-    const notifsData = managers.map(m => {
-      const isAdmin = ['Admin', 'Administrateur', 'Fondateur', 'Direction'].includes(m.grade);
-      return {
-        guildId,
-        userId: m.userId,
-        title: isAdmin ? 'ALERTE : Nouveau Formulaire Recrutement' : 'Nouvelle candidature',
-        message: `Une nouvelle candidature a été reçue de ${candidature.username}.`,
-        type: (isAdmin ? 'WARNING' : 'INFO') as 'WARNING' | 'INFO',
-        link: '/recruitment',
-        isRead: false
-      };
-    });
-
-    if (notifsData.length > 0) {
-      await prisma.notification.createMany({ data: notifsData });
+    if (managers.length > 0) {
+      await Promise.all(managers.map(m => {
+        const isAdmin = ['Admin', 'Administrateur', 'Fondateur', 'Direction'].includes(m.grade);
+        return createNotification(
+          guildId,
+          m.userId,
+          isAdmin ? 'ALERTE : Nouveau Formulaire Recrutement' : 'Nouvelle candidature',
+          `Une nouvelle candidature a été reçue de ${candidature.username}.`,
+          isAdmin ? 'WARNING' : 'INFO',
+          '/recruitment'
+        ).catch(() => null);
+      }));
     }
   }
 
@@ -715,17 +712,14 @@ export async function assignTutor(candidatureId: string, tutorUserId: string) {
   });
 
   // Notifier le tuteur
-  await prisma.notification.create({
-    data: {
-      guildId: candidature.guildId,
-      userId: tutorUserId,
-      title: 'Nouveau tutoré assigné',
-      message: `Vous avez été assigné comme tuteur pour ${candidature.username}.`,
-      type: 'INFO',
-      link: '/recruitment',
-      isRead: false
-    }
-  });
+  await createNotification(
+    candidature.guildId,
+    tutorUserId,
+    'Nouveau tutoré assigné',
+    `Vous avez été assigné comme tuteur pour ${candidature.username}.`,
+    'INFO',
+    '/recruitment'
+  ).catch(() => null);
 
   return updated;
 }

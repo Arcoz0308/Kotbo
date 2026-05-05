@@ -4,7 +4,8 @@
     disabled = false,
     onToggle = () => {},
     size = 'md',
-    activeClass = 'peer-checked:bg-primary'
+    activeClass = 'peer-checked:bg-primary',
+    id = undefined
   } = $props();
 
   const sizeClasses = {
@@ -27,6 +28,7 @@
 
 <label class="relative inline-flex items-center cursor-pointer">
   <input
+    {id}
     type="checkbox"
     {disabled}
     {checked}

@@ -5,7 +5,7 @@
 
   let {
     id = '',
-    value = $bindable<SelectValue>(''),
+    value = $bindable<SelectValue>(),
     multiple = false,
     disabled = false,
     className = '',

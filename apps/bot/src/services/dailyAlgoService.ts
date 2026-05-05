@@ -10,6 +10,7 @@ import { Prisma } from '@prisma/client';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { COLORS, truncate } from '../utils/embeds.js';
+import { createNotification } from './staffLeadershipService.js';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -1395,6 +1396,18 @@ export async function reviewDailyAlgoSubmission(params: {
     }
 
     await author.send({ embeds: [dmEmbed] }).catch(() => null);
+
+    // Notification Dashboard
+    await createNotification(
+      submission.run.guildId,
+      submission.authorId,
+      `Retour Daily Algo : ${submission.run.problem.title}`,
+      params.action === 'approve' 
+        ? `Votre soumission a été validée avec une note de ${updateData.scoreFinal}/5.`
+        : `Votre soumission a été rejetée. Motif : ${normalizedFeedback || 'Non spécifié'}`,
+      params.action === 'approve' ? 'SUCCESS' : 'ERROR',
+      '/module-settings/dailyalgo'
+    ).catch(() => null);
   }
 
   return true;

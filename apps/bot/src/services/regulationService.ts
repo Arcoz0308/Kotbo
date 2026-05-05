@@ -1,6 +1,7 @@
 import { type Client, EmbedBuilder, type TextChannel } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
+import { createNotification } from './staffLeadershipService.js';
 
 export type RegulationArticle = {
   id: string;
@@ -125,6 +126,22 @@ export async function publishOrUpdateRegulationMessage(client: Client, guildId: 
   });
 
   logger.info('Règlement', `${mode === 'updated' ? 'Mise à jour' : 'Publication'} du règlement pour ${guildId} dans ${targetChannelId}.`);
+
+  // Notifier tout le staff
+  const staff = await prisma.staffMember.findMany({
+    where: { guildId }
+  });
+
+  if (staff.length > 0) {
+    await Promise.all(staff.map(m => createNotification(
+      guildId,
+      m.userId,
+      'Règlement mis à jour',
+      'Le règlement du serveur a été mis à jour. Merci d\'en prendre connaissance.',
+      'INFO',
+      '/regulation'
+    ).catch(() => null)));
+  }
 
   return { mode, messageId, targetChannelId };
 }

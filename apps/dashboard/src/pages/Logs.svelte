@@ -8,7 +8,6 @@
   import ColumnSortFilter, { type ColumnFilterOption } from '../lib/components/sanctions/ColumnSortFilter.svelte';
   import { fetchMemberCase, runMemberCaseAction } from '../lib/api';
 
-  refreshDashboardOnMount();
 
   type LogsSortField = 'date' | 'user' | 'module' | 'action' | 'type';
 

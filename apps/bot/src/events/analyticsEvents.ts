@@ -1,5 +1,5 @@
 import { Events, type Client, type VoiceState, type Message, type GuildMember } from 'discord.js';
-import { trackMessage, trackVoiceSession, trackMemberJoin, trackMemberLeave } from '../services/analyticsService.js';
+import { trackMessage, trackVoiceSession, trackMemberJoin, trackMemberLeave, trackReaction, trackThreadCreation, trackReply } from '../services/analyticsService.js';
 import { logger } from '../utils/logger.js';
 
 // In-memory store for voice sessions
@@ -71,6 +71,50 @@ export function registerAnalyticsListeners(client: Client): void {
       await trackMemberLeave(member.guild.id);
     } catch (error) {
       logger.error('Analytics', `Erreur lors du tracking de leave pour ${member.id}:`, error);
+    }
+  });
+
+  // 5. Message Reactions
+  client.on(Events.MessageReactionAdd, async (reaction) => {
+    try {
+      // Fetch user from reaction if needed
+      const user = reaction.users.cache.last();
+      if (!user || user.bot) return;
+
+      if (reaction.message.inGuild()) {
+        await trackReaction(reaction.message.guildId, user.id);
+      }
+    } catch (error) {
+      logger.error('Analytics', `Erreur lors du tracking de réaction:`, error);
+    }
+  });
+
+  // 6. Thread Creation
+  client.on(Events.ThreadCreate, async (thread) => {
+    if (!thread.guild) return;
+
+    try {
+      // Thread creator is usually available
+      const creatorId = thread.ownerId;
+      if (creatorId) {
+        await trackThreadCreation(thread.guildId, creatorId);
+      }
+    } catch (error) {
+      logger.error('Analytics', `Erreur lors du tracking de thread:`, error);
+    }
+  });
+
+  // 7. Message Reply
+  client.on(Events.MessageCreate, async (message: Message) => {
+    if (!message.inGuild() || message.author.bot) return;
+
+    try {
+      // Check if this message is a reply
+      if (message.reference) {
+        await trackReply(message.guildId, message.author.id);
+      }
+    } catch (error) {
+      logger.error('Analytics', `Erreur lors du tracking de reply:`, error);
     }
   });
 }

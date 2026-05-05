@@ -70,6 +70,8 @@ import * as invitesCmd from './commands/invites.js';
 
 initBotSentry();
 
+import { setClient } from './utils/client.js';
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -82,6 +84,8 @@ const client = new Client({
     GatewayIntentBits.DirectMessages,
   ],
 });
+
+setClient(client);
 
 startDashboardApi(client);
 

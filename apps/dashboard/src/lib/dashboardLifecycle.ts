@@ -1,9 +1,8 @@
-import { onMount } from 'svelte';
 import { DASHBOARD_WS_URL } from './api';
 import { authStore } from './stores/auth.svelte';
 import { dashboardStore } from './stores/dashboard.svelte';
 
-function waitForWindowLoad() {
+function waitForWindowLoad(): Promise<void> {
   if (document.readyState === 'complete') {
     return Promise.resolve();
   }
@@ -18,7 +17,7 @@ function waitForWindowLoad() {
   });
 }
 
-function waitForBrowserIdle() {
+function waitForBrowserIdle(): Promise<void> {
   return new Promise((resolve) => {
     if (typeof window.requestIdleCallback === 'function') {
       window.requestIdleCallback(() => resolve(), { timeout: 300 });
@@ -31,40 +30,66 @@ function waitForBrowserIdle() {
   });
 }
 
-export function refreshDashboardOnMount() {
-  onMount(() => {
-    const handleRefreshRequest = () => {
-      dashboardStore.refresh();
-    };
+class DashboardLifecycleManager {
+  private socket: WebSocket | null = null;
+  private reconnectTimer: any = null;
+  private intentionallyClosed = false;
+  private isConnecting = false;
+  private initialized = false;
 
-    window.addEventListener('kotbo-dashboard-refresh-request', handleRefreshRequest);
+  constructor() {}
 
-    if (authStore.guilds.length > 0) {
+  async init() {
+    if (this.initialized) return;
+    this.initialized = true;
+
+    // Refresh initially
+    if (authStore.guilds.length > 0 || authStore.token) {
       dashboardStore.refresh();
     }
 
-    let socket = null;
-    let reconnectTimer = null;
-    let intentionallyClosed = false;
-    let loadListener = null;
+    // Event listener for manual refresh requests
+    window.addEventListener('kotbo-dashboard-refresh-request', () => {
+      dashboardStore.refresh();
+    });
 
-    const connect = async () => {
-      if (!authStore.token) return;
+    // Start connection
+    this.connect();
+  }
 
+  async connect() {
+    if (!authStore.token) return;
+    if (this.isConnecting) return;
+    
+    // Si déjà ouvert ou en cours, on ne fait rien
+    if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
+
+    this.isConnecting = true;
+    this.intentionallyClosed = false;
+
+    try {
+      // On attend que la page soit stable pour éviter les interruptions mentionnées par l'utilisateur
       await waitForWindowLoad();
       await waitForBrowserIdle();
 
-      if (intentionallyClosed || !authStore.token) return;
-      if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+      if (this.intentionallyClosed || !authStore.token) {
+        this.isConnecting = false;
         return;
       }
 
       const wsUrl = new URL(DASHBOARD_WS_URL);
       wsUrl.searchParams.set('token', authStore.token);
 
-      socket = new WebSocket(wsUrl.toString());
+      this.socket = new WebSocket(wsUrl.toString());
 
-      socket.onmessage = (event) => {
+      this.socket.onopen = () => {
+        console.log('[DashboardWS] Connecté');
+        this.isConnecting = false;
+      };
+
+      this.socket.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
           const shouldRefresh =
@@ -72,40 +97,55 @@ export function refreshDashboardOnMount() {
             payload?.guildId === authStore.selectedGuildId;
 
           if (shouldRefresh) {
+            console.log('[DashboardWS] Changement détecté, actualisation...');
             dashboardStore.refresh();
           }
         } catch (error) {
-          console.error('WS dashboard payload invalide:', error);
+          console.error('[DashboardWS] Payload invalide:', error);
         }
       };
 
-      socket.onclose = () => {
-        if (intentionallyClosed) return;
-        reconnectTimer = setTimeout(connect, 1500);
+      this.socket.onclose = (event) => {
+        this.isConnecting = false;
+        this.socket = null;
+        
+        if (this.intentionallyClosed) {
+          console.log('[DashboardWS] Déconnecté (intentionnel)');
+          return;
+        }
+
+        console.warn(`[DashboardWS] Connexion interrompue (code: ${event.code}). Reconnexion dans 3s...`);
+        if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = setTimeout(() => this.connect(), 3000);
       };
 
-      socket.onerror = () => {
-        socket?.close();
+      this.socket.onerror = (error) => {
+        console.error('[DashboardWS] Erreur:', error);
+        this.socket?.close();
       };
-    };
-
-    if (authStore.token) {
-      if (document.readyState === 'complete') {
-        connect();
-      } else {
-        loadListener = () => {
-          connect();
-        };
-        window.addEventListener('load', loadListener, { once: true });
-      }
+    } catch (err) {
+      this.isConnecting = false;
+      console.error('[DashboardWS] Erreur lors de la tentative de connexion:', err);
+      this.reconnectTimer = setTimeout(() => this.connect(), 5000);
     }
+  }
 
-    return () => {
-      intentionallyClosed = true;
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      if (loadListener) window.removeEventListener('load', loadListener);
-      window.removeEventListener('kotbo-dashboard-refresh-request', handleRefreshRequest);
-      if (socket) socket.close();
-    };
-  });
+  destroy() {
+    this.intentionallyClosed = true;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    if (this.socket) {
+      this.socket.close();
+      this.socket = null;
+    }
+    this.initialized = false;
+  }
+}
+
+export const dashboardLifecycle = new DashboardLifecycleManager();
+
+/**
+ * @deprecated Use dashboardLifecycle.init() in MainLayout instead
+ */
+export function refreshDashboardOnMount() {
+  // Empty to avoid breaking components while refactoring
 }

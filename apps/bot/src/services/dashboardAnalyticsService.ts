@@ -87,10 +87,6 @@ export const getDashboardAnalytics = async (guildId: string, days: number = 30) 
   const topVoiceMembers = [...memberTotalsArray]
     .sort((a, b) => b.voiceTimeSeconds - a.voiceTimeSeconds);
 
-  const popularChannels = Object.entries(channelTotals)
-    .sort((a, b) => b[1] - a[1])
-    .map(([channelId, messagesCount]) => ({ channelId, messagesCount }));
-
   const startISO = startDate.toISOString();
   const endISO = endDate.toISOString();
 
@@ -240,5 +236,294 @@ export const getDashboardAnalytics = async (guildId: string, days: number = 30) 
       bans: sanctions.filter(s => s.type === 'BAN' || s.type === 'TEMP_BAN').length,
       timeouts: sanctions.filter(s => s.type === 'TIMEOUT').length,
     }
+  };
+};
+
+/**
+ * Get hourly heatmap data (for visualization)
+ */
+export const getHourlyHeatmapData = async (guildId: string, days: number = 30) => {
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(endDate.getDate() - days);
+
+  const startKey = startDate.toISOString().split('T')[0];
+  const endKey = endDate.toISOString().split('T')[0];
+
+  const hourlyStats = await prisma.guildHourlyStat.findMany({
+    where: {
+      guildId,
+      dateKey: {
+        gte: startKey,
+        lte: endKey
+      }
+    },
+    orderBy: [{ dateKey: 'asc' }, { hour: 'asc' }]
+  });
+
+  // Group by day of week and hour to create heatmap
+  const heatmapData: Record<number, Record<number, { messages: number; voice: number; active: number }>> = {};
+
+  for (let dow = 0; dow < 7; dow++) {
+    heatmapData[dow] = {};
+    for (let hour = 0; hour < 24; hour++) {
+      heatmapData[dow][hour] = { messages: 0, voice: 0, active: 0 };
+    }
+  }
+
+  const dayOfWeekCounts: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+
+  hourlyStats.forEach(stat => {
+    const date = new Date(stat.dateKey + 'T00:00:00Z');
+    const dow = date.getUTCDay();
+    dayOfWeekCounts[dow]++;
+
+    heatmapData[dow][stat.hour].messages += stat.messagesCount;
+    heatmapData[dow][stat.hour].voice += stat.voiceMinutes;
+    heatmapData[dow][stat.hour].active += stat.activeMembers;
+  });
+
+  // Normalize by number of days in period
+  const normalized: Record<number, Record<number, { messages: number; voice: number; active: number }>> = {};
+  for (let dow = 0; dow < 7; dow++) {
+    normalized[dow] = {};
+    const count = dayOfWeekCounts[dow] || 1;
+    for (let hour = 0; hour < 24; hour++) {
+      normalized[dow][hour] = {
+        messages: Math.round(heatmapData[dow][hour].messages / count),
+        voice: Math.round(heatmapData[dow][hour].voice / count),
+        active: Math.round(heatmapData[dow][hour].active / count)
+      };
+    }
+  }
+
+  return normalized;
+};
+
+/**
+ * Get week-over-week comparison
+ */
+export const getWeekOverWeekComparison = async (guildId: string) => {
+  const now = new Date();
+  const thisWeekStart = new Date(now);
+  thisWeekStart.setDate(now.getDate() - now.getUTCDay());
+  thisWeekStart.setHours(0, 0, 0, 0);
+
+  const lastWeekStart = new Date(thisWeekStart);
+  lastWeekStart.setDate(thisWeekStart.getDate() - 7);
+
+  const thisWeekEnd = new Date(thisWeekStart);
+  thisWeekEnd.setDate(thisWeekStart.getDate() + 6);
+
+  const thisWeekKey = thisWeekStart.toISOString().split('T')[0];
+  const lastWeekKey = lastWeekStart.toISOString().split('T')[0];
+  const thisWeekEndKey = thisWeekEnd.toISOString().split('T')[0];
+
+  const thisWeekStats = await prisma.guildDailyStat.findMany({
+    where: {
+      guildId,
+      dateKey: { gte: thisWeekKey, lte: thisWeekEndKey }
+    }
+  });
+
+  const lastWeekEndKey = new Date(lastWeekStart);
+  lastWeekEndKey.setDate(lastWeekStart.getDate() + 6);
+  const lastWeekEndKeyStr = lastWeekEndKey.toISOString().split('T')[0];
+
+  const lastWeekStats = await prisma.guildDailyStat.findMany({
+    where: {
+      guildId,
+      dateKey: { gte: lastWeekKey, lte: lastWeekEndKeyStr }
+    }
+  });
+
+  const sumStats = (stats: typeof thisWeekStats) => ({
+    messages: stats.reduce((sum, s) => sum + s.messagesCount, 0),
+    voiceMinutes: stats.reduce((sum, s) => sum + s.voiceMinutes, 0),
+    joins: stats.reduce((sum, s) => sum + s.membersJoined, 0),
+    leaves: stats.reduce((sum, s) => sum + s.membersLeft, 0),
+    sanctions: stats.reduce((sum, s) => sum + (s.sanctionsCount || 0), 0)
+  });
+
+  const thisWeek = sumStats(thisWeekStats);
+  const lastWeek = sumStats(lastWeekStats);
+
+  const getChange = (current: number, previous: number) => {
+    if (previous === 0) return current > 0 ? 100 : 0;
+    return Math.round(((current - previous) / previous) * 100);
+  };
+
+  return {
+    thisWeek,
+    lastWeek,
+    changes: {
+      messagesChange: getChange(thisWeek.messages, lastWeek.messages),
+      voiceChange: getChange(thisWeek.voiceMinutes, lastWeek.voiceMinutes),
+      joinsChange: getChange(thisWeek.joins, lastWeek.joins),
+      leavesChange: getChange(thisWeek.leaves, lastWeek.leaves),
+      sanctionsChange: getChange(thisWeek.sanctions, lastWeek.sanctions)
+    }
+  };
+};
+
+/**
+ * Get growth and retention metrics
+ */
+export const getGrowthAndRetention = async (guildId: string, days: number = 90) => {
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(endDate.getDate() - days);
+
+  const startKey = startDate.toISOString().split('T')[0];
+  const endKey = endDate.toISOString().split('T')[0];
+
+  const dailyStats = await prisma.guildDailyStat.findMany({
+    where: {
+      guildId,
+      dateKey: { gte: startKey, lte: endKey }
+    },
+    orderBy: { dateKey: 'asc' }
+  });
+
+  // Calculate cumulative net growth (joins - leaves)
+  let cumulativeMembers = 0;
+  const growthTrend = dailyStats.map(stat => {
+    cumulativeMembers += stat.membersJoined - stat.membersLeft;
+    return {
+      dateKey: stat.dateKey,
+      netGrowth: stat.membersJoined - stat.membersLeft,
+      cumulativeGrowth: cumulativeMembers,
+      activeMembers: stat.activeMembers,
+      totalMembers: stat.totalMembers,
+      retentionRate: stat.totalMembers > 0 ? Math.round((stat.activeMembers / stat.totalMembers) * 100) : 0
+    };
+  });
+
+  // Get overall metrics
+  const totalJoins = dailyStats.reduce((sum, s) => sum + s.membersJoined, 0);
+  const totalLeaves = dailyStats.reduce((sum, s) => sum + s.membersLeft, 0);
+  const avgActiveMembers = Math.round(
+    dailyStats.reduce((sum, s) => sum + s.activeMembers, 0) / (dailyStats.length || 1)
+  );
+  const lastDayStats = dailyStats[dailyStats.length - 1];
+  const currentRetention = lastDayStats 
+    ? Math.round((lastDayStats.activeMembers / (lastDayStats.totalMembers || 1)) * 100)
+    : 0;
+
+  return {
+    growthTrend,
+    metrics: {
+      totalJoins,
+      totalLeaves,
+      netGrowth: totalJoins - totalLeaves,
+      avgActiveMembers,
+      currentRetention
+    }
+  };
+};
+
+/**
+ * Get Daily Algo analytics
+ */
+export const getDailyAlgoAnalytics = async (guildId: string, days: number = 30) => {
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setDate(endDate.getDate() - days);
+
+  const startISO = startDate.toISOString();
+  const endISO = endDate.toISOString();
+
+  // Get recent daily algo runs
+  const runs = await prisma.dailyAlgoRun.findMany({
+    where: {
+      guildId,
+      createdAt: { gte: startISO, lte: endISO }
+    },
+    include: {
+      problem: true,
+      submissions: true
+    },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  // Get submission data
+  const submissions = await prisma.dailyAlgoSubmission.findMany({
+    where: {
+      run: {
+        guildId,
+        createdAt: { gte: startISO, lte: endISO }
+      }
+    },
+    include: {
+      run: true
+    }
+  });
+
+  // Calculate metrics
+  const totalRuns = runs.length;
+  const totalSubmissions = submissions.length;
+  const completedSubmissions = submissions.filter(s => s.status === 'VALIDATED').length;
+  const avgSubmissionsPerRun = totalRuns > 0 ? Math.round(totalSubmissions / totalRuns) : 0;
+  const completionRate = totalSubmissions > 0 ? Math.round((completedSubmissions / totalSubmissions) * 100) : 0;
+
+  // Get top performers
+  const performerMap: Record<string, any> = {};
+  submissions.forEach(sub => {
+    if (!performerMap[sub.authorId]) {
+      performerMap[sub.authorId] = {
+        userId: sub.authorId,
+        name: sub.authorName,
+        submissions: 0,
+        validated: 0,
+        avgScore: 0,
+        scores: []
+      };
+    }
+    performerMap[sub.authorId].submissions++;
+    if (sub.status === 'VALIDATED') {
+      performerMap[sub.authorId].validated++;
+      if (sub.scoreFinal !== null) {
+        performerMap[sub.authorId].scores.push(sub.scoreFinal);
+      }
+    }
+  });
+
+  const topPerformers = Object.values(performerMap)
+    .map(p => ({
+      ...p,
+      avgScore: p.scores.length > 0 ? Math.round((p.scores.reduce((a, b) => a + b, 0) / p.scores.length) * 100) / 100 : 0
+    }))
+    .sort((a, b) => (b.avgScore || 0) - (a.avgScore || 0))
+    .slice(0, 10);
+
+  // Get difficulty distribution
+  const difficultyMap: Record<string, number> = {};
+  runs.forEach(run => {
+    const diff = run.problem?.difficulty || 'inconnu';
+    difficultyMap[diff] = (difficultyMap[diff] || 0) + 1;
+  });
+
+  // Get trend (runs per day)
+  const trendMap: Record<string, number> = {};
+  runs.forEach(run => {
+    const dateKey = run.createdAt.toISOString().split('T')[0];
+    trendMap[dateKey] = (trendMap[dateKey] || 0) + 1;
+  });
+
+  const trend = Object.entries(trendMap)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([dateKey, count]) => ({ dateKey, count }));
+
+  return {
+    metrics: {
+      totalRuns,
+      totalSubmissions,
+      completedSubmissions,
+      avgSubmissionsPerRun,
+      completionRate
+    },
+    topPerformers,
+    difficultyDistribution: Object.entries(difficultyMap).map(([difficulty, count]) => ({ difficulty, count })),
+    trend
   };
 };

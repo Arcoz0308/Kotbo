@@ -98,6 +98,7 @@ model Guild {
 
   tutoringConfig TutoringConfig?
   tutoringItems TutoringItem[]
+  dashboardFeatureConfigs DashboardFeatureConfig[]
 
   @@map("guilds")
 }
@@ -1388,4 +1389,96 @@ model TutoringLog {
 
   @@index([testingPeriodId, date])
   @@map("tutoring_logs")
+}
+
+// ============================================================================
+// GESTION CENTRALISÉE DU DASHBOARD
+// ============================================================================
+
+model DashboardFeatureConfig {
+  id String @id @default(cuid())
+
+  guildId String
+  featureKey String // ex: "daily_algo", "youtube", "digest", "sanctions", etc.
+  featureName String // Nom lisible
+
+  enabled Boolean @default(true)
+  
+  // Configuration Discord
+  channelId String? // Salon principal pour la feature
+  secondaryChannelId String? // Salon secondaire si nécessaire
+  requiredRoleId String? // Rôle requis pour accéder
+  notificationRoleId String? // Rôle à mentionner pour les notifications
+
+  // Configuration notifications
+  notifyViaDiscordChannel Boolean @default(true) // Notifier sur Discord
+  notifyViaDM Boolean @default(false) // Notifier en MP
+  notifyOnlyStaffRoles Boolean @default(false) // Notifier seulement les rôles staff spécifiés
+
+  // Logging et suivi
+  loggingEnabled Boolean @default(true)
+  userActivityTracking Boolean @default(true) // Suivre les activités des utilisateurs
+
+  // Configuration supplémentaire (JSON pour flexibilité)
+  metadata Json? // Pour stocker des config spécifiques à chaque feature
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  roleAccess DashboardRoleAccess[]
+  notificationTargets NotificationTarget[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, featureKey])
+  @@index([guildId, enabled])
+  @@map("dashboard_feature_configs")
+}
+
+model DashboardRoleAccess {
+  id String @id @default(cuid())
+
+  guildId String
+  featureConfigId String
+  staffRoleLevel Int // Niveau du rôle staff (0 = Helper, 1 = Mod, 2 = Admin, etc.)
+  
+  canView Boolean @default(false)
+  canModerate Boolean @default(false)
+  canConfigure Boolean @default(false)
+  canDelete Boolean @default(false)
+
+  featureConfig DashboardFeatureConfig @relation(fields: [featureConfigId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([featureConfigId, staffRoleLevel])
+  @@index([guildId, featureConfigId])
+  @@map("dashboard_role_accesses")
+}
+
+model NotificationTarget {
+  id String @id @default(cuid())
+
+  guildId String
+  featureConfigId String
+  
+  targetType NotificationTargetType // DISCORD_CHANNEL, DISCORD_ROLE, DM_STAFF_ROLE, EMAIL
+  targetId String? // ID du rôle, channel, ou autre selon le type
+  
+  enabled Boolean @default(true)
+
+  featureConfig DashboardFeatureConfig @relation(fields: [featureConfigId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, featureConfigId])
+  @@map("notification_targets")
+}
+
+enum NotificationTargetType {
+  DISCORD_CHANNEL
+  DISCORD_ROLE
+  DM_STAFF_ROLE
+  EMAIL
 }

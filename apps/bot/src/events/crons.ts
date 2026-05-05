@@ -18,7 +18,7 @@ function delay(ms: number): Promise<void> {
 }
 
 async function runCronJob(name: string, task: () => Promise<void>, jitterMs = 0): Promise<void> {
-  const enqueued = await enqueueBackgroundJob(name as BackgroundJobName, { jitterMs }, { jobId: `cron:${name}` });
+  const enqueued = await enqueueBackgroundJob(name as BackgroundJobName, { jitterMs }, { jobId: `cron-${name}` });
   if (enqueued) {
     logger.debug('Cron', `Job mis en file: ${name}`);
     return;

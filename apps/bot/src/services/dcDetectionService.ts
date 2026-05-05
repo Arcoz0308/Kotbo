@@ -3,6 +3,7 @@ import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { LinkedAccountType, LinkedAccountStatus } from '@prisma/client';
 import * as altAccountService from './altAccountService.js';
+import { createNotification } from './staffLeadershipService.js';
 
 /**
  * Service de détection des Double Comptes (DC)
@@ -113,6 +114,26 @@ export async function analyzeMemberJoin(member: GuildMember): Promise<void> {
 
     // Signaler au staff
     await reportSuspectedDC(member, Array.from(suspectedAlts), reasons);
+
+    // Notification Dashboard pour le staff (sans MP)
+    const managers = await prisma.staffMember.findMany({
+      where: {
+        guildId,
+        grade: { in: ['Manager', 'Admin', 'Administrateur', 'Fondateur', 'Direction'] }
+      }
+    });
+
+    if (managers.length > 0) {
+      await Promise.all(managers.map(m => createNotification(
+        guildId,
+        m.userId,
+        '⚠️ Alerte DC suspect',
+        `Un double compte potentiel a été détecté : ${member.user.tag}.`,
+        'WARNING',
+        `/members/${member.id}`,
+        false // Pas de notification MP pour les alertes DC (à la demande de l'utilisateur)
+      ).catch(() => null)));
+    }
   }
 }
 
@@ -206,6 +227,23 @@ export async function handleDCInteraction(interaction: any): Promise<void> {
       where: { userId: { in: [userId, altId] }, guildId: interaction.guildId! },
       data: { isSuspectedDC: false }
     }).catch(() => null);
+
+    // PM Users
+    const dmEmbed = new EmbedBuilder()
+      .setColor('#57F287')
+      .setTitle('🔗 Comptes liés officiellement')
+      .setDescription(`Vos comptes **<@${userId}>** et **<@${altId}>** ont été reliés sur **${interaction.guild?.name || 'le serveur'}**.`)
+      .setTimestamp();
+
+    try {
+      const u1 = await interaction.client.users.fetch(userId).catch(() => null);
+      if (u1) await u1.send({ embeds: [dmEmbed] }).catch(() => null);
+    } catch (e) {}
+
+    try {
+      const u2 = await interaction.client.users.fetch(altId!).catch(() => null);
+      if (u2) await u2.send({ embeds: [dmEmbed] }).catch(() => null);
+    } catch (e) {}
 
     await interaction.update({
       content: `✅ Le compte <@${userId}> a été lié à <@${altId}> par <@${interaction.user.id}>.`,

@@ -43,10 +43,13 @@
     const textColor = isDark ? '#94a3b8' : '#64748b';
     const gridColor = isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)';
 
+    // Snap the data to avoid proxy issues with Chart.js
+    const snappedData = $state.snapshot(data);
+
     // Pre-process data to resolve CSS variables for gradients
     const processedData = {
-      ...data,
-      datasets: data.datasets.map((dataset: any) => {
+      ...snappedData,
+      datasets: (snappedData.datasets || []).map((dataset: any) => {
         const d = { ...dataset };
         if (d.gradient && d.gradient.backgroundColor && d.gradient.backgroundColor.colors) {
           const colors = { ...d.gradient.backgroundColor.colors };
@@ -173,7 +176,7 @@
 
   $effect(() => {
     if (data && chart) {
-      chart.data = data;
+      chart.data = $state.snapshot(data);
       chart.update();
     }
   });

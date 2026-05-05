@@ -4,14 +4,12 @@
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { notificationsStore } from '../lib/stores/notifications.svelte';
   import { staffStore } from '../lib/stores/staff.svelte';
-  import { refreshDashboardOnMount } from '../lib/dashboardLifecycle';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
     import LineChart from '../lib/components/LineChart.svelte';
     import MetricCard from '../lib/components/MetricCard.svelte';
     import ActionButton from '../lib/components/ActionButton.svelte';
 
-  refreshDashboardOnMount();
 
   // Trigger notifications and staff fetch
   $effect(() => {
