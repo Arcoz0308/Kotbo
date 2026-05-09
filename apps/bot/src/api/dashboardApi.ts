@@ -367,6 +367,7 @@ type DashboardAccess = {
   canModerateContent: boolean;
   canModerateDailyAlgo: boolean;
   canManageSettings: boolean;
+  canManageTutoring: boolean;
 };
 
 function resolveDailyAlgoFinalScore(submission: {
@@ -856,6 +857,7 @@ const DASHBOARD_ACCESS_NONE: DashboardAccess = {
   canModerateContent: false,
   canModerateDailyAlgo: false,
   canManageSettings: false,
+  canManageTutoring: false,
 };
 
 const DASHBOARD_ACCESS_MODERATOR: DashboardAccess = {
@@ -864,6 +866,7 @@ const DASHBOARD_ACCESS_MODERATOR: DashboardAccess = {
   canModerateContent: true,
   canModerateDailyAlgo: true,
   canManageSettings: false,
+  canManageTutoring: false,
 };
 
 const DASHBOARD_ACCESS_DAILY_ALGO_REVIEWER: DashboardAccess = {
@@ -872,6 +875,7 @@ const DASHBOARD_ACCESS_DAILY_ALGO_REVIEWER: DashboardAccess = {
   canModerateContent: false,
   canModerateDailyAlgo: true,
   canManageSettings: false,
+  canManageTutoring: false,
 };
 
 const DASHBOARD_ACCESS_ADMIN: DashboardAccess = {
@@ -880,6 +884,7 @@ const DASHBOARD_ACCESS_ADMIN: DashboardAccess = {
   canModerateContent: true,
   canModerateDailyAlgo: true,
   canManageSettings: true,
+  canManageTutoring: true,
 };
 
 const resolveDashboardAccess = async (
@@ -915,11 +920,19 @@ const resolveDashboardAccess = async (
 
   const staffProfile = await prisma.staffMember.findUnique({
     where: { guildId_userId: { guildId, userId } },
-    select: { id: true },
+    select: { id: true, isTutor: true },
   });
 
   if (!staffProfile) {
     return DASHBOARD_ACCESS_NONE;
+  }
+
+  // Si c'est un tuteur, on lui donne accès au management du tutorat
+  if (staffProfile.isTutor) {
+    return {
+      ...DASHBOARD_ACCESS_MODERATOR, // Base de modérateur
+      canManageTutoring: true,
+    };
   }
 
   return DASHBOARD_ACCESS_DAILY_ALGO_REVIEWER;
@@ -6929,8 +6942,8 @@ export const startDashboardApi = (client: Client) => {
           // PATCH /api/dashboard/guilds/:guildId/tutoring/config
           if (req.method === 'PATCH' && parts[5] === 'config') {
             const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
-            if (accessLevel.level !== 'admin') {
-              json(res, 403, { error: 'Accès admin requis' });
+            if (!accessLevel.canManageTutoring) {
+              json(res, 403, { error: 'Accès tutorat requis' });
               return;
             }
 
@@ -6971,8 +6984,8 @@ export const startDashboardApi = (client: Client) => {
           // POST /api/dashboard/guilds/:guildId/tutoring/items
           if (req.method === 'POST' && parts[5] === 'items') {
             const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
-            if (accessLevel.level !== 'admin') {
-              json(res, 403, { error: 'Accès admin requis' });
+            if (!accessLevel.canManageTutoring) {
+              json(res, 403, { error: 'Accès tutorat requis' });
               return;
             }
 
@@ -7001,8 +7014,8 @@ export const startDashboardApi = (client: Client) => {
           // DELETE /api/dashboard/guilds/:guildId/tutoring/items/:itemId
           if (req.method === 'DELETE' && parts[5] === 'items' && parts[6]) {
             const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
-            if (accessLevel.level !== 'admin') {
-              json(res, 403, { error: 'Accès admin requis' });
+            if (!accessLevel.canManageTutoring) {
+              json(res, 403, { error: 'Accès tutorat requis' });
               return;
             }
 

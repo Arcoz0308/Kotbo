@@ -26,9 +26,20 @@
 
   // Modal states
   let reportModalOpen = $state(false);
+  let itemModalOpen = $state(false);
   let selectedApprentice = $state<any>(null);
+  let selectedItem = $state<any>(null);
   let reportType = $state('POSITIVE');
   let reportContent = $state('');
+
+  // Item Modal form states
+  let itemForm = $state({
+    id: '',
+    title: '',
+    description: '',
+    category: 'TOOLS',
+    sortOrder: 0
+  });
 
   let endTutoringModalOpen = $state(false);
   let endTutoringStatus = $state<'PASSED' | 'FAILED'>('PASSED');
@@ -55,7 +66,7 @@
       // Default tab based on role
       if (tutorApprentices.length > 0) activeTab = 'dashboard';
       else if (apprenticeProgress) activeTab = 'progress';
-      else if (authStore.isAdmin) activeTab = 'config';
+      else if (authStore.isAdmin || tutorApprentices.length > 0) activeTab = 'config';
 
     } catch (err) {
       console.error('Error fetching tutoring data:', err);
@@ -154,6 +165,50 @@
     { id: 'ACCESS', label: 'Accès', icon: 'key', color: 'tertiary' }
   ];
 
+  function openItemModal(item = null) {
+    if (item) {
+      itemForm = {
+        id: item.id,
+        title: item.title,
+        description: item.description,
+        category: item.category,
+        sortOrder: item.sortOrder || 0
+      };
+      selectedItem = item;
+    } else {
+      itemForm = {
+        id: '',
+        title: '',
+        description: '',
+        category: 'TOOLS',
+        sortOrder: tutoringItems.length
+      };
+      selectedItem = null;
+    }
+    itemModalOpen = true;
+  }
+
+  async function saveItem() {
+    if (!itemForm.title.trim()) return;
+    try {
+      await upsertTutoringItem(itemForm);
+      itemModalOpen = false;
+      fetchData();
+    } catch (err) {
+      console.error('Error saving tutoring item:', err);
+    }
+  }
+
+  async function deleteItem(itemId: string) {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer cet item ?')) return;
+    try {
+      await deleteTutoringItem(itemId);
+      fetchData();
+    } catch (err) {
+      console.error('Error deleting tutoring item:', err);
+    }
+  }
+
 </script>
 
 <div class="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -187,7 +242,7 @@
         <Papicon icon="trending-up" size={18} />
         <span class="text-sm font-bold">Ma Progression</span>
       </button>
-      {#if authStore.isAdmin}
+      {#if authStore.isAdmin || tutorApprentices.length > 0}
         <button 
           onclick={() => activeTab = 'config'}
           class="flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-300 {activeTab === 'config' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-surface-hover hover:text-on-surface'}"
@@ -221,8 +276,12 @@
                 <!-- Apprentice Sidebar -->
                 <div class="w-full md:w-64 flex flex-col gap-4">
                   <div class="flex flex-col items-center gap-4 p-6 bg-surface-container rounded-3xl">
-                    <div class="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center border-2 border-primary/20 overflow-hidden">
-                      <Papicon icon="user" size={40} class="text-primary" />
+                    <div class="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center border-2 border-primary/20 overflow-hidden shadow-inner">
+                      {#if apprentice.staffMember.avatarUrl}
+                        <img src={apprentice.staffMember.avatarUrl} alt={apprentice.staffMember.username} class="w-full h-full object-cover" />
+                      {:else}
+                        <Papicon icon="user" size={40} class="text-primary" />
+                      {/if}
                     </div>
                     <div class="text-center">
                       <h3 class="font-black text-on-surface">{apprentice.staffMember.username}</h3>
@@ -638,7 +697,10 @@
         <div class="lg:col-span-2 bg-surface-container-low/60 p-8 rounded-[2rem] border border-outline-variant/30">
           <div class="flex items-center justify-between mb-8">
             <h2 class="text-2xl font-black text-on-surface">Checklist de Formation</h2>
-            <button class="bg-primary/10 text-primary px-6 py-2.5 rounded-xl font-bold hover:bg-primary/20 transition-all flex items-center gap-2">
+            <button 
+              onclick={() => openItemModal()}
+              class="bg-primary/10 text-primary px-6 py-2.5 rounded-xl font-bold hover:bg-primary/20 transition-all flex items-center gap-2"
+            >
               <Papicon icon="plus" size={18} />
               Nouvel Item
             </button>
@@ -661,12 +723,14 @@
                 </div>
                 <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
                   <button 
+                    onclick={() => openItemModal(item)}
                     class="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center text-on-surface-variant hover:text-primary transition-all"
                     aria-label="Modifier l'item"
                   >
                     <Papicon icon="edit-2" size={18} />
                   </button>
                   <button 
+                    onclick={() => deleteItem(item.id)}
                     class="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center text-on-surface-variant hover:text-error transition-all"
                     aria-label="Supprimer l'item"
                   >
@@ -810,6 +874,70 @@
     </div>
   </div>
 {/if}
+
+{#if itemModalOpen}
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-surface-container-lowest/80 backdrop-blur-md animate-in fade-in duration-300">
+    <div class="w-full max-w-lg bg-surface-container-low rounded-[2rem] border border-outline-variant/30 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+      <div class="p-8">
+        <h2 class="text-2xl font-black text-on-surface mb-2">{selectedItem ? 'Modifier' : 'Nouvel'} Item de Checklist</h2>
+        <p class="text-on-surface-variant mb-6 font-medium text-sm">Définissez un objectif de formation pour les apprentis.</p>
+        
+        <div class="flex flex-col gap-6">
+          <div class="flex flex-col gap-2">
+            <label for="item-title" class="text-xs font-black uppercase text-on-surface-variant tracking-widest pl-2">Titre de l'objectif</label>
+            <input 
+              id="item-title"
+              type="text" 
+              placeholder="Ex: Utilisation de la console admin" 
+              bind:value={itemForm.title}
+              class="bg-surface-container px-6 py-4 rounded-2xl border border-outline-variant/30 focus:border-primary outline-none transition-all text-on-surface"
+            />
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <label for="item-category" class="text-xs font-black uppercase text-on-surface-variant tracking-widest pl-2">Catégorie</label>
+            <select 
+              id="item-category"
+              bind:value={itemForm.category}
+              class="bg-surface-container px-6 py-4 rounded-2xl border border-outline-variant/30 focus:border-primary outline-none transition-all text-on-surface"
+            >
+              {#each categories as cat}
+                <option value={cat.id}>{cat.label}</option>
+              {/each}
+            </select>
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <label for="item-desc" class="text-xs font-black uppercase text-on-surface-variant tracking-widest pl-2">Description détaillée</label>
+            <textarea 
+              id="item-desc"
+              placeholder="Expliquez ce que l'apprenti doit savoir faire..." 
+              bind:value={itemForm.description}
+              rows="4"
+              class="w-full bg-surface-container px-6 py-4 rounded-2xl border border-outline-variant/30 focus:border-primary outline-none transition-all text-on-surface resize-none"
+            ></textarea>
+          </div>
+
+          <div class="flex gap-4">
+            <button 
+              onclick={() => itemModalOpen = false}
+              class="flex-1 py-4 rounded-2xl border-2 border-outline-variant/30 text-on-surface-variant font-black hover:bg-surface-hover transition-all"
+            >
+              Annuler
+            </button>
+            <button 
+              onclick={saveItem}
+              class="flex-1 py-4 bg-primary text-white rounded-2xl font-black shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all"
+            >
+              Enregistrer
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
 
 <style>
   /* Custom colors if not in tailwind config */
