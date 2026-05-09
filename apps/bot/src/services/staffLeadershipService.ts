@@ -228,6 +228,7 @@ export const createMeeting = async (
   title: string,
   description: string,
   scheduledAt: Date,
+  endedAt?: Date
 ) => {
   try {
     // 1. Récupération de la configuration Discord pour la guilde
@@ -267,7 +268,7 @@ export const createMeeting = async (
       name: title.trim().slice(0, 100),
       description: (description?.trim() || 'Réunion staff Kotbo').slice(0, 1000),
       scheduledStartTime: scheduledAt,
-      scheduledEndTime: new Date(scheduledAt.getTime() + 60 * 60 * 1000), // +1h par défaut
+      scheduledEndTime: endedAt || new Date(scheduledAt.getTime() + 60 * 60 * 1000), // +1h par défaut
       privacyLevel: GuildScheduledEventPrivacyLevel.GuildOnly,
       entityType: GuildScheduledEventEntityType.Voice,
       channel: voiceChannel.id,
@@ -282,6 +283,7 @@ export const createMeeting = async (
         title,
         description,
         scheduledAt,
+        endedAt: endedAt || new Date(scheduledAt.getTime() + 60 * 60 * 1000),
         discordEventId: scheduledEvent.id,
         status: 'SCHEDULED'
       }
@@ -398,7 +400,7 @@ export const updateMeeting = async (
             name: meeting.title.trim().slice(0, 100),
             description: (meeting.description?.trim() || '').slice(0, 1000),
             scheduledStartTime: meeting.scheduledAt,
-            scheduledEndTime: new Date(meeting.scheduledAt.getTime() + 60 * 60 * 1000),
+            scheduledEndTime: meeting.endedAt || new Date(meeting.scheduledAt.getTime() + 60 * 60 * 1000),
             status: data.status === 'COMPLETED' ? 3 : (data.status === 'CANCELED' ? 4 : undefined), // 3 = Completed, 4 = Cancelled
           });
         }
@@ -1016,4 +1018,128 @@ export const createNotification = async (
   }
 
   return notification;
+};
+
+/**
+ * Enregistre une session vocale pour un membre du staff
+ */
+export const logStaffVoiceSession = async (
+  guildId: string,
+  userId: string,
+  channelId: string,
+  channelName: string | null,
+  joinedAt: Date,
+  leftAt?: Date
+) => {
+  try {
+    // Vérifier si c'est bien un membre du staff
+    const staff = await prisma.staffMember.findUnique({
+      where: { guildId_userId: { guildId, userId } }
+    });
+
+    if (!staff) return;
+
+    const durationSeconds = leftAt 
+      ? Math.floor((leftAt.getTime() - joinedAt.getTime()) / 1000) 
+      : null;
+
+    if (leftAt) {
+      // Session terminée : on essaie de mettre à jour la session en cours ou d'en créer une nouvelle
+      const lastSession = await prisma.staffVoiceSession.findFirst({
+        where: {
+          guildId,
+          staffUserId: staff.id,
+          channelId,
+          leftAt: null
+        },
+        orderBy: { joinedAt: 'desc' }
+      });
+
+      if (lastSession) {
+        return prisma.staffVoiceSession.update({
+          where: { id: lastSession.id },
+          data: {
+            leftAt,
+            durationSeconds
+          }
+        });
+      }
+    }
+
+    // Création d'une nouvelle session (ouverte ou fermée)
+    return prisma.staffVoiceSession.create({
+      data: {
+        guildId,
+        staffUserId: staff.id,
+        channelId,
+        channelName,
+        joinedAt,
+        leftAt,
+        durationSeconds
+      }
+    });
+  } catch (error) {
+    logger.error('StaffLeadership', `Erreur lors du logging de la session vocale staff: ${error}`);
+  }
+};
+
+/**
+ * Récupère les données du calendrier pour le staff (absences + vocal)
+ */
+export const getStaffCalendarData = async (guildId: string, start: Date, end: Date, staffUserIds?: string[]) => {
+  let absences: any[] = [];
+  let voiceSessions: any[] = [];
+
+  try {
+    absences = await prisma.staffAbsence.findMany({
+      where: {
+        guildId,
+        status: { in: ['APPROVED', 'ACKNOWLEDGED', 'PENDING'] },
+        OR: [
+          { startDate: { gte: start, lte: end } },
+          { endDate: { gte: start, lte: end } },
+          { isIndefinite: true, startDate: { lte: end } }
+        ],
+        ...(staffUserIds ? { staffUserId: { in: staffUserIds } } : {})
+      },
+      include: { staffMember: true }
+    });
+  } catch (err: any) {
+    logger.error('StaffLeadership', `Error fetching absences: ${err.message}`);
+    // Non-fatal, just return empty absences
+  }
+
+  try {
+    voiceSessions = await prisma.staffVoiceSession.findMany({
+      where: {
+        guildId,
+        joinedAt: { gte: start, lte: end },
+        ...(staffUserIds ? { staffUserId: { in: staffUserIds } } : {})
+      },
+      include: { staffMember: true }
+    });
+  } catch (err: any) {
+    logger.error('StaffLeadership', `Error fetching voice sessions: ${err.message}`);
+  }
+
+  let meetings: any[] = [];
+  try {
+    meetings = await prisma.staffMeeting.findMany({
+      where: {
+        guildId,
+        scheduledAt: { gte: start, lte: end }
+      },
+      include: {
+        presences: {
+          include: {
+            staffMember: true
+          }
+        }
+      }
+    });
+  } catch (err: any) {
+    logger.error('StaffLeadership', `Error fetching meetings: ${err.message}`);
+  }
+
+  return { absences, voiceSessions, meetings };
 };

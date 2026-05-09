@@ -559,6 +559,22 @@ export async function fetchAbsences(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/absences', { method: 'GET', guildId });
 }
 
+export async function fetchStaffCalendarData(start: Date, end: Date, staffIds?: string[], guildId = authStore.selectedGuildId) {
+  let path = `/absences/calendar-data?start=${start.toISOString()}&end=${end.toISOString()}`;
+  if (staffIds && staffIds.length > 0) {
+    path += `&staffIds=${staffIds.join(',')}`;
+  }
+  return dashboardRequest(path, { method: 'GET', guildId });
+}
+
+export async function fetchAbsenceConfig(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/absences/config', { method: 'GET', guildId });
+}
+
+export async function updateAbsenceConfig(managerRoleLevels: number[], guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/absences/config', { method: 'POST', payload: { managerRoleLevels }, guildId });
+}
+
 export async function updateAbsenceStatus(absenceId, status, note, guildId = authStore.selectedGuildId) {
   return dashboardMutation(`/absences/${absenceId}`, { method: 'PATCH', payload: { status, note }, guildId });
 }
@@ -567,8 +583,8 @@ export async function fetchMeetings(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/meetings', { method: 'GET', guildId });
 }
 
-export async function createMeeting(title, description, scheduledAt, guildId = authStore.selectedGuildId) {
-  return dashboardMutation('/meetings', { method: 'POST', payload: { title, description, scheduledAt }, guildId });
+export async function createMeeting(title, description, scheduledAt, endedAt?, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/meetings', { method: 'POST', payload: { title, description, scheduledAt, endedAt }, guildId });
 }
 
 export async function deleteMeeting(meetingId, options = { deleteEvent: true, deleteMessage: false, deleteNotifications: false }, guildId = authStore.selectedGuildId) {

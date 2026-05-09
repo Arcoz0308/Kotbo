@@ -1,5 +1,6 @@
 import { Events, type Client, type VoiceState, type Message, type GuildMember } from 'discord.js';
 import { trackMessage, trackVoiceSession, trackMemberJoin, trackMemberLeave, trackReaction, trackThreadCreation, trackReply } from '../services/analyticsService.js';
+import { logStaffVoiceSession } from '../services/staffLeadershipService.js';
 import { logger } from '../utils/logger.js';
 
 // In-memory store for voice sessions
@@ -32,8 +33,13 @@ export function registerAnalyticsListeners(client: Client): void {
 
     if (joinedVoice) {
       voiceSessions.set(sessionKey, Date.now());
+      // Log staff session start
+      await logStaffVoiceSession(guildId, userId, newState.channelId!, newState.channel?.name || null, new Date());
     } else if (leftVoice) {
       const joinTime = voiceSessions.get(sessionKey);
+      // Log staff session end
+      await logStaffVoiceSession(guildId, userId, oldState.channelId!, oldState.channel?.name || null, joinTime ? new Date(joinTime) : new Date(), new Date());
+      
       if (joinTime) {
         const durationMs = Date.now() - joinTime;
         const durationMinutes = Math.floor(durationMs / 60000); // Convert to minutes
@@ -48,8 +54,16 @@ export function registerAnalyticsListeners(client: Client): void {
 
         voiceSessions.delete(sessionKey);
       }
+    } else if (movedVoice) {
+      // Log end of previous channel session and start of new one for staff
+      const joinTime = voiceSessions.get(sessionKey);
+      const now = new Date();
+      await logStaffVoiceSession(guildId, userId, oldState.channelId!, oldState.channel?.name || null, joinTime ? new Date(joinTime) : now, now);
+      await logStaffVoiceSession(guildId, userId, newState.channelId!, newState.channel?.name || null, now);
+      
+      // Update join time for the new channel to track total duration correctly for analytics
+      voiceSessions.set(sessionKey, now.getTime());
     }
-    // Note: If movedVoice, we keep the original join time running.
   });
 
   // 3. Member Joins

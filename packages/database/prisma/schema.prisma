@@ -686,6 +686,7 @@ model StaffMember {
   pollsCreated StaffPoll[]
   pollVotes StaffPollVote[]
   procedureReads StaffProcedureRead[]
+  voiceSessions StaffVoiceSession[]
 
   isTutor Boolean @default(false)
 
@@ -908,6 +909,23 @@ model StaffAbsence {
   @@map("staff_absences")
 }
 
+model StaffVoiceSession {
+  id String @id @default(cuid())
+  guildId String
+  staffUserId String
+  channelId String
+  channelName String?
+  joinedAt DateTime
+  leftAt DateTime?
+  durationSeconds Int?
+
+  staffMember StaffMember @relation(fields: [staffUserId], references: [id], onDelete: Cascade)
+  
+  @@index([guildId, staffUserId])
+  @@index([joinedAt])
+  @@map("staff_voice_sessions")
+}
+
 enum AbsenceStatus {
   PENDING
   ACKNOWLEDGED
@@ -924,6 +942,7 @@ model StaffMeeting {
   title String
   description String?
   scheduledAt DateTime
+  endedAt     DateTime?
   status MeetingStatus @default(SCHEDULED)
   createdByUserId String
   

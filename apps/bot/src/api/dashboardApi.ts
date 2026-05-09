@@ -76,7 +76,8 @@ import {
   getNotifications,
   markNotificationRead,
   markAllNotificationsRead,
-  createNotification
+  createNotification,
+  getStaffCalendarData,
 } from '../services/staffLeadershipService.js';
 import * as tutoringService from '../services/tutoringService.js';
 import {
@@ -91,7 +92,6 @@ import {
   assignTutor,
   getCandidatureHistory,
 } from '../services/recruitmentService.js';
-import * as tutoringService from '../services/tutoringService.js';
 import * as altAccountService from '../services/altAccountService.js';
 
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
@@ -3874,6 +3874,86 @@ export const startDashboardApi = (client: Client) => {
             } catch (err) {
               logger.error('StaffAPI', 'Error getting absences:', err);
               json(res, 500, { error: 'Erreur lors de la récupération des absences' });
+            }
+            return;
+          }
+
+          if (parts.length === 6 && parts[4] === 'absences' && parts[5] === 'calendar-data' && req.method === 'GET') {
+            const startStr = url.searchParams.get('start');
+            const endStr = url.searchParams.get('end');
+            const staffIdsStr = url.searchParams.get('staffIds');
+
+            if (!startStr || !endStr) {
+              json(res, 400, { error: 'start et end sont obligatoires' });
+              return;
+            }
+
+            try {
+              const start = new Date(startStr);
+              const end = new Date(endStr);
+              const staffIds = staffIdsStr ? staffIdsStr.split(',') : undefined;
+
+              const data = await getStaffCalendarData(guildId, start, end, staffIds);
+              json(res, 200, data);
+            } catch (err) {
+              logger.error('StaffAPI', `Error getting calendar data for guild ${guildId}:`, err);
+              json(res, 500, { error: 'Erreur lors de la récupération des données du calendrier' });
+            }
+            return;
+          }
+
+          if (parts.length === 6 && parts[4] === 'absences' && parts[5] === 'config' && req.method === 'GET') {
+            try {
+              const config = await prisma.dashboardFeatureConfig.findUnique({
+                where: { guildId_featureKey: { guildId, featureKey: 'absences' } },
+                include: { roleAccess: true }
+              });
+              json(res, 200, { config });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error getting absence config:', err);
+              json(res, 500, { error: 'Erreur lors de la récupération de la configuration' });
+            }
+            return;
+          }
+
+          if (parts.length === 6 && parts[4] === 'absences' && parts[5] === 'config' && req.method === 'POST') {
+            if (!access.canManageSettings) {
+              json(res, 403, { error: 'Accès refusé' });
+              return;
+            }
+
+            const body = await readJsonBody<{
+              managerRoleLevels: number[];
+            }>(req);
+
+            try {
+              const config = await prisma.dashboardFeatureConfig.upsert({
+                where: { guildId_featureKey: { guildId, featureKey: 'absences' } },
+                update: { featureName: 'Absences Staff' },
+                create: { guildId, featureKey: 'absences', featureName: 'Absences Staff' }
+              });
+
+              // Update role access
+              await prisma.dashboardRoleAccess.deleteMany({
+                where: { featureConfigId: config.id }
+              });
+
+              if (body.managerRoleLevels && body.managerRoleLevels.length > 0) {
+                await prisma.dashboardRoleAccess.createMany({
+                  data: body.managerRoleLevels.map(level => ({
+                    guildId,
+                    featureConfigId: config.id,
+                    staffRoleLevel: level,
+                    canModerate: true,
+                    canView: true
+                  }))
+                });
+              }
+
+              json(res, 200, { ok: true });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error updating absence config:', err);
+              json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration' });
             }
             return;
           }
