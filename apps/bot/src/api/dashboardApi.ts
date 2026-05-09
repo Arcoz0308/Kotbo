@@ -899,7 +899,7 @@ const resolveDashboardAccess = async (
     return DASHBOARD_ACCESS_ADMIN;
   }
 
-  const discordGuild = client.guilds.cache.get(guildId);
+  const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
   if (!discordGuild) return DASHBOARD_ACCESS_NONE;
 
   const member = await discordGuild.members.fetch(userId).catch(() => null);
@@ -4143,7 +4143,8 @@ export const startDashboardApi = (client: Client) => {
               title?: string;
               description?: string;
               scheduledAt?: string;
-              status?: 'SCHEDULED' | 'COMPLETED' | 'CANCELED';
+              endedAt?: string;
+              status?: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELED';
             }>(req);
 
             try {
@@ -4151,6 +4152,7 @@ export const startDashboardApi = (client: Client) => {
               if (body?.title) data.title = body.title;
               if (body?.description !== undefined) data.description = body.description;
               if (body?.scheduledAt) data.scheduledAt = new Date(body.scheduledAt);
+              if (body?.endedAt) data.endedAt = new Date(body.endedAt);
               if (body?.status) data.status = body.status;
 
               const meeting = await updateMeeting(client, guildId, meetingId, data);
@@ -4166,9 +4168,9 @@ export const startDashboardApi = (client: Client) => {
               });
 
               json(res, 200, { meeting });
-            } catch (err) {
-              logger.error('StaffAPI', 'Error updating meeting:', err);
-              json(res, 500, { error: 'Erreur lors de la mise à jour de la réunion' });
+            } catch (err: any) {
+              logger.error('StaffAPI', `Error updating meeting ${meetingId}: ${err.message}`, err.stack);
+              json(res, 500, { error: 'Erreur lors de la mise à jour de la réunion', details: err.message });
             }
             return;
           }

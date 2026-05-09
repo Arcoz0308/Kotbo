@@ -28,6 +28,7 @@
   let meetingTitle = $state('');
   let meetingDesc = $state('');
   let meetingDate = $state(new Date().toISOString().slice(0, 16));
+  let meetingEndDate = $state(new Date(Date.now() + 7200000).toISOString().slice(0, 16)); // +2h
   let currentMeetingId = $state<string | null>(null);
   let selectedMeeting = $state<any>(null);
   
@@ -115,6 +116,7 @@
     meetingTitle = '';
     meetingDesc = '';
     meetingDate = new Date(Date.now() + 3600000).toISOString().slice(0, 16); // +1h
+    meetingEndDate = new Date(Date.now() + 7200000).toISOString().slice(0, 16); // +2h
     modalOpen = true;
   }
 
@@ -125,6 +127,7 @@
     meetingTitle = meeting.title;
     meetingDesc = meeting.description || '';
     meetingDate = new Date(meeting.scheduledAt).toISOString().slice(0, 16);
+    meetingEndDate = meeting.endedAt ? new Date(meeting.endedAt).toISOString().slice(0, 16) : new Date(new Date(meeting.scheduledAt).getTime() + 3600000).toISOString().slice(0, 16);
     modalOpen = true;
   }
 
@@ -132,10 +135,11 @@
     if (!meetingTitle || !meetingDate) return;
     saving = true;
     try {
-      const payload = {
+      const payload: any = {
         title: meetingTitle,
         description: meetingDesc,
-        scheduledAt: new Date(meetingDate).toISOString()
+        scheduledAt: new Date(meetingDate).toISOString(),
+        endedAt: new Date(meetingEndDate).toISOString()
       };
 
       if (editMode && currentMeetingId) {
@@ -373,11 +377,21 @@
         </div>
 
         <div>
-          <label for="meeting-date" class="block text-xs font-black text-on-surface-variant uppercase tracking-[0.2em] mb-2">Date et Heure prévue</label>
+          <label for="meeting-date" class="block text-xs font-black text-on-surface-variant uppercase tracking-[0.2em] mb-2">Début prévu</label>
           <FormInput 
             id="meeting-date"
             type="datetime-local"
             bind:value={meetingDate}
+            className="w-full"
+          />
+        </div>
+
+        <div>
+          <label for="meeting-end-date" class="block text-xs font-black text-on-surface-variant uppercase tracking-[0.2em] mb-2">Fin prévue</label>
+          <FormInput 
+            id="meeting-end-date"
+            type="datetime-local"
+            bind:value={meetingEndDate}
             className="w-full"
           />
         </div>

@@ -379,7 +379,8 @@ export const updateMeeting = async (
     title?: string;
     description?: string;
     scheduledAt?: Date;
-    status?: 'SCHEDULED' | 'COMPLETED' | 'CANCELED';
+    endedAt?: Date;
+    status?: 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELED';
     discordMessageId?: string;
     discordEventId?: string;
   }
@@ -401,12 +402,14 @@ export const updateMeeting = async (
             description: (meeting.description?.trim() || '').slice(0, 1000),
             scheduledStartTime: meeting.scheduledAt,
             scheduledEndTime: meeting.endedAt || new Date(meeting.scheduledAt.getTime() + 60 * 60 * 1000),
-            status: data.status === 'COMPLETED' ? 3 : (data.status === 'CANCELED' ? 4 : undefined), // 3 = Completed, 4 = Cancelled
+            status: data.status === 'COMPLETED' ? 3 : (data.status === 'CANCELED' ? 4 : (data.status === 'IN_PROGRESS' ? 2 : undefined)), // 3=Completed, 4=Canceled, 2=Active
           });
+        } else {
+          logger.warn('StaffLeadership', `Discord event ${meeting.discordEventId} not found for meeting ${meeting.id}`);
         }
       }
-    } catch (err) {
-      logger.warn('StaffLeadership', `Impossible de mettre à jour l'événement Discord ${meeting.discordEventId}: ${err}`);
+    } catch (err: any) {
+      logger.error('StaffLeadership', `Failed to update Discord event ${meeting.discordEventId}: ${err.message}`, err.stack);
     }
   }
 
