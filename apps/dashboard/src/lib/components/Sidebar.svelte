@@ -2,6 +2,7 @@
   import { router } from 'tinro';
   import Papicon from './Papicon.svelte';
   import { authStore } from '../stores/auth.svelte';
+  import { dashboardStore } from '../stores/dashboard.svelte';
   import { notificationsStore } from '../stores/notifications.svelte';
 
   const dashboardItems = [
@@ -51,14 +52,26 @@
     authStore.guilds.find((guild) => guild.id === authStore.selectedGuildId)?.accessLevel === 'admin'
   );
 
+  const isTutor = $derived(dashboardStore.state.isTutor);
+  const isApprentice = $derived(!!dashboardStore.state.apprenticeProgress);
+  const isStaff = $derived(!!authStore.member);
+  const isModerator = $derived(
+    authStore.guilds.find((guild) => guild.id === authStore.selectedGuildId)?.accessLevel === 'moderator'
+  );
+
   // Modérateurs ne voient pas Modules, Règlement, Commandes, Paramètres
-  const visibleModerationItems = $derived(moderationItems);
+  const visibleModerationItems = $derived(moderationItems.filter(() => isStaff || isModerator || isAdmin));
   const visibleManagementItems = $derived(
     canManageSettings ? managementItems : []
   );
-  const visibleStaffItems = $derived(
-    isAdmin ? staffManagementItems : staffManagementItems.filter(item => ['/absences', '/meetings'].includes(item.href))
-  );
+  const visibleStaffItems = $derived.by(() => {
+    if (isAdmin) return staffManagementItems;
+    return staffManagementItems.filter(item => {
+      if (item.href === '/tutoring') return isTutor || isApprentice || isModerator;
+      if (['/absences', '/meetings'].includes(item.href)) return isStaff || isModerator;
+      return false;
+    });
+  });
   const visibleConfigItems = $derived(
     canManageSettings ? configItems : []
   );

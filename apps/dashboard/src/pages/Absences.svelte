@@ -26,6 +26,7 @@
   
   // Selection states
   let selectedStaffIds = $state<string[]>([]);
+  let visibleTypes = $state<string[]>(['absence', 'vocal', 'meeting']);
 
   // Modal states
   let modalOpen = $state(false);
@@ -48,16 +49,23 @@
 
   const myStaffRecord = $derived(allStaff.find(s => s.userId === authStore.user?.id));
   
-  const eligibleSuperiors = $derived(() => {
+  const eligibleSuperiors = $derived.by(() => {
     if (!myStaffRecord || allRoles.length === 0) return [];
     
     const myRole = allRoles.find(r => r.name === myStaffRecord.grade);
     if (!myRole) return allStaff; 
     
     return allStaff.filter(s => {
+      // Ne pas s'inclure soi-même
       if (s.userId === authStore.user?.id) return false;
+      
+      // Ne pas inclure les personnes en tutorat (période de test en cours)
+      if (s.testingPeriods && s.testingPeriods.length > 0) return false;
+
       const sRole = allRoles.find(r => r.name === s.grade);
       if (!sRole) return false;
+      
+      // Supérieur ou égal dans la hiérarchie
       return (sRole.sortOrder ?? 0) >= (myRole.sortOrder ?? 0);
     }).sort((a, b) => {
        const roleA = allRoles.find(r => r.name === a.grade);
@@ -112,48 +120,60 @@
 
   onMount(loadInitialData);
 
+  function toggleType(type: string) {
+    if (visibleTypes.includes(type)) {
+      visibleTypes = visibleTypes.filter(t => t !== type);
+    } else {
+      visibleTypes = [...visibleTypes, type];
+    }
+  }
+
   const calendarEvents = $derived.by(() => {
     const events: any[] = [];
 
     // Map absences
-    calendarData.absences.forEach(abs => {
-      const start = new Date(abs.startDate);
-      const end = abs.endDate ? new Date(abs.endDate) : (abs.isIndefinite ? new Date(2100, 0, 1) : start);
-      const durationHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-      
-      events.push({
-        id: abs.id,
-        title: `${abs.type}: ${abs.reason}`,
-        start,
-        end,
-        type: 'absence',
-        // If it's indefinite or longer than 12h, consider it all-day
-        isAllDay: abs.isIndefinite || durationHours >= 12,
-        staffName: abs.staffMember?.username || abs.staffMember?.displayName,
-        avatarUrl: abs.staffMember?.avatarUrl,
-        status: abs.status,
-        originalData: abs,
-        raw: abs
+    if (visibleTypes.includes('absence')) {
+      calendarData.absences.forEach(abs => {
+        const start = new Date(abs.startDate);
+        const end = abs.endDate ? new Date(abs.endDate) : (abs.isIndefinite ? new Date(2100, 0, 1) : start);
+        const durationHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+        
+        events.push({
+          id: abs.id,
+          title: `${abs.type}: ${abs.reason}`,
+          start,
+          end,
+          type: 'absence',
+          // If it's indefinite or longer than 12h, consider it all-day
+          isAllDay: abs.isIndefinite || durationHours >= 12,
+          staffName: abs.staffMember?.username || abs.staffMember?.displayName,
+          avatarUrl: abs.staffMember?.avatarUrl,
+          status: abs.status,
+          originalData: abs,
+          raw: abs
+        });
       });
-    });
+    }
 
     // Map voice sessions
-    calendarData.voiceSessions.forEach(vs => {
-      events.push({
-        id: vs.id,
-        title: `Vocal: ${vs.channelName || 'Salon inconnu'}`,
-        start: new Date(vs.joinedAt),
-        end: vs.leftAt ? new Date(vs.leftAt) : new Date(),
-        type: 'vocal',
-        staffName: vs.staffMember?.username || vs.staffMember?.displayName,
-        avatarUrl: vs.staffMember?.avatarUrl,
-        details: `${Math.floor((vs.durationSeconds || 0) / 60)} min`,
-        raw: vs
+    if (visibleTypes.includes('vocal')) {
+      calendarData.voiceSessions.forEach(vs => {
+        events.push({
+          id: vs.id,
+          title: `Vocal: ${vs.channelName || 'Salon inconnu'}`,
+          start: new Date(vs.joinedAt),
+          end: vs.leftAt ? new Date(vs.leftAt) : new Date(),
+          type: 'vocal',
+          staffName: vs.staffMember?.username || vs.staffMember?.displayName,
+          avatarUrl: vs.staffMember?.avatarUrl,
+          details: `${Math.floor((vs.durationSeconds || 0) / 60)} min`,
+          raw: vs
+        });
       });
-    });
+    }
 
     // Map meetings
-    if (calendarData.meetings) {
+    if (visibleTypes.includes('meeting') && calendarData.meetings) {
       calendarData.meetings.forEach(m => {
         events.push({
           id: m.id,
@@ -340,22 +360,46 @@
           </div>
         </div>
 
-        <div class="bg-amber-500/5 p-6 rounded-[2rem] border border-amber-500/20">
-          <div class="flex items-center gap-3 mb-3">
+        <div class="bg-surface-container-low p-6 rounded-[2rem] border border-outline-variant/30 flex flex-col gap-4">
+          <div class="flex items-center gap-3 mb-1">
             <div class="w-8 h-8 bg-amber-500/10 rounded-lg flex items-center justify-center">
               <Papicon icon="info" size={18} class="text-amber-600" />
             </div>
-            <span class="text-xs font-black text-amber-700 uppercase">Légende</span>
+            <span class="text-xs font-black text-on-surface-variant uppercase tracking-widest">Affichage</span>
           </div>
-          <div class="space-y-2">
-            <div class="flex items-center gap-2">
-              <div class="w-3 h-3 rounded bg-amber-500/20 border border-amber-500/30"></div>
-              <span class="text-[10px] font-bold text-on-surface-variant">Absence / Congé</span>
-            </div>
-            <div class="flex items-center gap-2">
-              <div class="w-3 h-3 rounded bg-primary/20 border border-primary/30"></div>
-              <span class="text-[10px] font-bold text-on-surface-variant">Activité Vocale</span>
-            </div>
+          <div class="flex flex-col gap-2">
+            <button 
+              onclick={() => toggleType('absence')}
+              class="flex items-center justify-between p-2 rounded-xl transition-all hover:bg-surface-hover {visibleTypes.includes('absence') ? 'bg-amber-500/5 border border-amber-500/20' : 'opacity-50'}"
+            >
+              <div class="flex items-center gap-3">
+                <div class="w-3 h-3 rounded bg-amber-500 border border-amber-600/30"></div>
+                <span class="text-[10px] font-bold text-on-surface">Absences</span>
+              </div>
+              <Papicon icon={visibleTypes.includes('absence') ? 'eye' : 'eye-off'} size={14} class="text-on-surface-variant/50" />
+            </button>
+
+            <button 
+              onclick={() => toggleType('vocal')}
+              class="flex items-center justify-between p-2 rounded-xl transition-all hover:bg-surface-hover {visibleTypes.includes('vocal') ? 'bg-primary/5 border border-primary/20' : 'opacity-50'}"
+            >
+              <div class="flex items-center gap-3">
+                <div class="w-3 h-3 rounded bg-primary border border-primary/30"></div>
+                <span class="text-[10px] font-bold text-on-surface">Vocal</span>
+              </div>
+              <Papicon icon={visibleTypes.includes('vocal') ? 'eye' : 'eye-off'} size={14} class="text-on-surface-variant/50" />
+            </button>
+
+            <button 
+              onclick={() => toggleType('meeting')}
+              class="flex items-center justify-between p-2 rounded-xl transition-all hover:bg-surface-hover {visibleTypes.includes('meeting') ? 'bg-emerald-500/5 border border-emerald-500/20' : 'opacity-50'}"
+            >
+              <div class="flex items-center gap-3">
+                <div class="w-3 h-3 rounded bg-emerald-500 border border-emerald-600/30"></div>
+                <span class="text-[10px] font-bold text-on-surface">Réunions</span>
+              </div>
+              <Papicon icon={visibleTypes.includes('meeting') ? 'eye' : 'eye-off'} size={14} class="text-on-surface-variant/50" />
+            </button>
           </div>
         </div>
       </aside>

@@ -291,6 +291,43 @@
 
                 <!-- Main Content -->
                 <div class="flex-1 flex flex-col gap-6">
+                  {#if (config?.showVocalActivity || config?.showAbsences) && (apprentice.vocalStats || (apprentice.absences && apprentice.absences.length > 0))}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {#if config?.showVocalActivity && apprentice.vocalStats}
+                        <div class="p-4 bg-primary/5 rounded-2xl border border-primary/10 flex items-center gap-4">
+                          <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                            <Papicon icon="mic" size={20} />
+                          </div>
+                          <div>
+                            <div class="text-[10px] font-black uppercase text-primary tracking-widest">Activité Vocale</div>
+                            <div class="text-lg font-black text-on-surface">
+                              {Math.round(apprentice.vocalStats.voiceTimeSeconds / 3600)}h {Math.round((apprentice.vocalStats.voiceTimeSeconds % 3600) / 60)}m
+                            </div>
+                            <div class="text-[9px] text-on-surface-variant">{apprentice.vocalStats.voiceSessionCount} sessions au total</div>
+                          </div>
+                        </div>
+                      {/if}
+
+                      {#if config?.showAbsences && apprentice.absences && apprentice.absences.length > 0}
+                        <div class="p-4 bg-warning/5 rounded-2xl border border-warning/10 flex items-center gap-4">
+                          <div class="w-10 h-10 rounded-xl bg-warning/10 flex items-center justify-center text-warning">
+                            <Papicon icon="calendar-off" size={20} />
+                          </div>
+                          <div class="flex-1 overflow-hidden">
+                            <div class="text-[10px] font-black uppercase text-warning tracking-widest">Absences à venir</div>
+                            <div class="flex flex-col gap-0.5">
+                              {#each apprentice.absences as absence}
+                                <div class="text-[10px] font-bold text-on-surface truncate">
+                                  {new Date(absence.startDate).toLocaleDateString()} - {new Date(absence.endDate).toLocaleDateString()}
+                                </div>
+                              {/each}
+                            </div>
+                          </div>
+                        </div>
+                      {/if}
+                    </div>
+                  {/if}
+
                   <div class="flex items-center justify-between border-b border-outline-variant/30 pb-4">
                     <h2 class="text-xl font-black text-on-surface">Checklist de Transmission</h2>
                     <div class="flex gap-2">
@@ -396,6 +433,42 @@
             </div>
 
             <!-- Logbook -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {#if config?.showVocalActivity && apprenticeProgress.vocalStats}
+                <div class="bg-surface-container-low/60 p-8 rounded-[2rem] border border-outline-variant/30 flex items-center gap-6">
+                  <div class="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-lg shadow-primary/5">
+                    <Papicon icon="mic" size={32} />
+                  </div>
+                  <div>
+                    <h3 class="text-xs font-black uppercase text-primary tracking-widest mb-1">Mon Activité Vocale</h3>
+                    <div class="text-3xl font-black text-on-surface leading-none mb-1">
+                      {Math.round(apprenticeProgress.vocalStats.voiceTimeSeconds / 3600)}h {Math.round((apprenticeProgress.vocalStats.voiceTimeSeconds % 3600) / 60)}m
+                    </div>
+                    <p class="text-[10px] font-medium text-on-surface-variant uppercase tracking-wider">{apprenticeProgress.vocalStats.voiceSessionCount} sessions enregistrées</p>
+                  </div>
+                </div>
+              {/if}
+
+              {#if config?.showAbsences && apprenticeProgress.absences && apprenticeProgress.absences.length > 0}
+                <div class="bg-surface-container-low/60 p-8 rounded-[2rem] border border-outline-variant/30 flex items-center gap-6">
+                  <div class="w-16 h-16 rounded-2xl bg-warning/10 flex items-center justify-center text-warning shadow-lg shadow-warning/5">
+                    <Papicon icon="calendar-off" size={32} />
+                  </div>
+                  <div class="flex-1 overflow-hidden">
+                    <h3 class="text-xs font-black uppercase text-warning tracking-widest mb-1">Mes Absences</h3>
+                    <div class="flex flex-col gap-1">
+                      {#each apprenticeProgress.absences.slice(0, 2) as absence}
+                        <div class="flex items-center justify-between">
+                          <span class="text-sm font-bold text-on-surface">{new Date(absence.startDate).toLocaleDateString()}</span>
+                          <span class="text-[10px] font-medium text-on-surface-variant">→ {new Date(absence.endDate).toLocaleDateString()}</span>
+                        </div>
+                      {/each}
+                    </div>
+                  </div>
+                </div>
+              {/if}
+            </div>
+
             <div class="bg-surface-container-low/60 p-8 rounded-[2rem] border border-outline-variant/30">
               <h2 class="text-2xl font-black text-on-surface mb-6">Carnet de Bord</h2>
               
@@ -510,19 +583,47 @@
             />
           </div>
 
-          <div class="flex items-center justify-between p-4 bg-surface-container/50 rounded-2xl border border-outline-variant/20 mt-4">
-            <div class="flex flex-col">
-              <span class="font-bold text-on-surface">Notifications DM</span>
-              <span class="text-[10px] text-on-surface-variant">Rappels automatiques aux tuteurs</span>
+            <div class="flex items-center justify-between p-4 bg-surface-container/50 rounded-2xl border border-outline-variant/20">
+              <div class="flex flex-col">
+                <span class="font-bold text-on-surface text-sm">Activité Vocale</span>
+                <span class="text-[10px] text-on-surface-variant">Afficher les stats vocales</span>
+              </div>
+              <button 
+                onclick={() => config.showVocalActivity = !config.showVocalActivity}
+                class="w-10 h-5 rounded-full transition-all relative {config.showVocalActivity ? 'bg-primary' : 'bg-outline-variant'}"
+                aria-label="Toggle vocal activity"
+              >
+                <div class="absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-all {config.showVocalActivity ? 'translate-x-5' : ''}"></div>
+              </button>
             </div>
-            <button 
-              onclick={() => config.remindersEnabled = !config.remindersEnabled}
-              class="w-12 h-6 rounded-full transition-all relative {config.remindersEnabled ? 'bg-primary' : 'bg-outline-variant'}"
-              aria-label="Toggle DM notifications"
-            >
-              <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-all {config.remindersEnabled ? 'translate-x-6' : ''}"></div>
-            </button>
-          </div>
+
+            <div class="flex items-center justify-between p-4 bg-surface-container/50 rounded-2xl border border-outline-variant/20">
+              <div class="flex flex-col">
+                <span class="font-bold text-on-surface text-sm">Absences</span>
+                <span class="text-[10px] text-on-surface-variant">Afficher les absences</span>
+              </div>
+              <button 
+                onclick={() => config.showAbsences = !config.showAbsences}
+                class="w-10 h-5 rounded-full transition-all relative {config.showAbsences ? 'bg-primary' : 'bg-outline-variant'}"
+                aria-label="Toggle absences"
+              >
+                <div class="absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-all {config.showAbsences ? 'translate-x-5' : ''}"></div>
+              </button>
+            </div>
+
+            <div class="flex items-center justify-between p-4 bg-surface-container/50 rounded-2xl border border-outline-variant/20 mt-2">
+              <div class="flex flex-col">
+                <span class="font-bold text-on-surface text-sm">Notifications DM</span>
+                <span class="text-[10px] text-on-surface-variant">Rappels automatiques aux tuteurs</span>
+              </div>
+              <button 
+                onclick={() => config.remindersEnabled = !config.remindersEnabled}
+                class="w-10 h-5 rounded-full transition-all relative {config.remindersEnabled ? 'bg-primary' : 'bg-outline-variant'}"
+                aria-label="Toggle DM notifications"
+              >
+                <div class="absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-all {config.remindersEnabled ? 'translate-x-5' : ''}"></div>
+              </button>
+            </div>
 
           <button 
             class="w-full py-4 mt-4 bg-primary text-white rounded-2xl font-black shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all"

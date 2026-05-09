@@ -1353,6 +1353,8 @@ model TutoringConfig {
   reportIntervalDays Int @default(14) // Par défaut toutes les 2 semaines
   reminderDaysBefore Int @default(2) // Rappel 2 jours avant
   minTestDays Int @default(14) // Temps minimum en test avant validation
+  showVocalActivity Boolean @default(true)
+  showAbsences Boolean @default(true)
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 

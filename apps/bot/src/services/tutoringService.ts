@@ -89,7 +89,7 @@ export const getTutorDashboard = async (guildId: string, tutorUserId: string, fe
     where.mentorId = tutor.id;
   }
 
-  return prisma.testingPeriod.findMany({
+  const apprentices = await prisma.testingPeriod.findMany({
     where,
     include: {
       staffMember: true,
@@ -103,6 +103,31 @@ export const getTutorDashboard = async (guildId: string, tutorUserId: string, fe
       }
     }
   });
+
+  // Enrich with stats and absences
+  return Promise.all(apprentices.map(async (apprentice) => {
+    const [vocalStats, absences] = await Promise.all([
+      prisma.memberProfile.findUnique({
+        where: { guildId_userId: { guildId, userId: apprentice.staffMember.userId } },
+        select: { voiceTimeSeconds: true, voiceSessionCount: true }
+      }),
+      prisma.staffAbsence.findMany({
+        where: { 
+          guildId, 
+          staffUserId: apprentice.staffMember.id,
+          endDate: { gte: new Date() }
+        },
+        orderBy: { startDate: 'asc' },
+        take: 3
+      })
+    ]);
+
+    return {
+      ...apprentice,
+      vocalStats,
+      absences
+    };
+  }));
 };
 
 export const getApprenticeProgress = async (guildId: string, userId: string) => {
@@ -112,7 +137,7 @@ export const getApprenticeProgress = async (guildId: string, userId: string) => 
 
   if (!apprentice) return null;
 
-  return prisma.testingPeriod.findFirst({
+  const period = await prisma.testingPeriod.findFirst({
     where: {
       guildId,
       staffUserId: apprentice.id,
@@ -131,6 +156,30 @@ export const getApprenticeProgress = async (guildId: string, userId: string) => 
       }
     }
   });
+
+  if (!period) return null;
+
+  const [vocalStats, absences] = await Promise.all([
+    prisma.memberProfile.findUnique({
+      where: { guildId_userId: { guildId, userId } },
+      select: { voiceTimeSeconds: true, voiceSessionCount: true }
+    }),
+    prisma.staffAbsence.findMany({
+      where: { 
+        guildId, 
+        staffUserId: apprentice.id,
+        endDate: { gte: new Date() }
+      },
+      orderBy: { startDate: 'asc' },
+      take: 5
+    })
+  ]);
+
+  return {
+    ...period,
+    vocalStats,
+    absences
+  };
 };
 
 export const updateChecklistProgress = async (

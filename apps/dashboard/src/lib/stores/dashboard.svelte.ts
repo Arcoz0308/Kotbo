@@ -1,4 +1,4 @@
-import { fetchGuildState } from '../api';
+import { fetchGuildState, API_BASE_URL, fetchApprenticeProgress } from '../api';
 import { authStore } from './auth.svelte';
 
 class DashboardStore {
@@ -44,6 +44,8 @@ class DashboardStore {
       translationCount: 0,
       healthStatus: 100
     },
+    apprenticeProgress: null,
+    isTutor: false,
     loading: true,
     error: null
   });
@@ -81,7 +83,10 @@ class DashboardStore {
     this.state.loading = true;
 
     try {
-      const data = await fetchGuildState();
+      const [data, apprenticeData] = await Promise.all([
+        fetchGuildState(),
+        fetchApprenticeProgress().catch(() => ({ progress: null }))
+      ]);
       
       if (data) {
         this.state.guildName = data.guildName;
@@ -111,6 +116,8 @@ class DashboardStore {
         this.state.regulationRules = data.regulationRules || [];
         this.state.messageTemplate = data.messageTemplate;
         this.state.analytics = data.analytics;
+        this.state.apprenticeProgress = apprenticeData?.progress;
+        this.state.isTutor = !!data.member?.isTutor;
         authStore.member = data.member;
         this.state.error = null;
       }
