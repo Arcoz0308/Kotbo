@@ -18,22 +18,18 @@ export type CommandCatalogEntry = {
 export const COMMAND_CATALOG: CommandCatalogEntry[] = [
   { name: 'setup', label: 'Installation', description: 'Assistant de mise en route du serveur.', defaultAccess: 'administration' },
   { name: 'config', label: 'Configuration', description: 'Panneau de configuration principal du bot.', defaultAccess: 'administration' },
-  { name: 'feed', label: 'Flux RSS', description: 'Gestion des flux et des sources de contenu.', defaultAccess: 'administration' },
-  { name: 'news', label: 'News', description: 'Gestion et consultation des contenus validés.', defaultAccess: 'modération' },
-  { name: 'news-rattrapage', label: 'News rattrapage', description: 'Publication de rattrapage des contenus filtrés.', defaultAccess: 'modération' },
   { name: 'ping', label: 'Ping', description: 'Vérification de la latence du bot.', defaultAccess: 'tout_le_monde' },
   { name: 'info', label: 'Infos serveur', description: 'Résumé de l’état et des métriques du serveur.', defaultAccess: 'tout_le_monde' },
-  { name: 'youtube', label: 'YouTube', description: 'Gestion de la diffusion YouTube.', defaultAccess: 'modération' },
   { name: 'excuse', label: 'Excuse dev', description: 'Affiche une excuse de développeur aléatoire.', defaultAccess: 'tout_le_monde' },
   { name: 'epoch', label: 'Epoch', description: 'Convertit les dates et les timestamps.', defaultAccess: 'tout_le_monde' },
   { name: 'devutils', label: 'Outils dev', description: 'Utilitaires de développement.', defaultAccess: 'tout_le_monde' },
   { name: 'status', label: 'Statut', description: 'Affichage d’un statut synthétique.', defaultAccess: 'tout_le_monde' },
   { name: 'admin', label: 'Admin', description: 'Commandes administrateur du serveur.', defaultAccess: 'administration' },
   { name: 'help', label: 'Aide', description: 'Aide générale et documentation des commandes.', defaultAccess: 'tout_le_monde' },
-  { name: 'post', label: 'Publication', description: 'Publication manuelle de contenus.', defaultAccess: 'modération' },
   { name: 'dailyAlgo', label: 'Daily Algo', description: 'Gestion du défi d’algorithmique quotidien.', defaultAccess: 'administration' },
   { name: 'profile', label: 'Profil', description: 'Affiche le profil utilisateur et la progression Daily Algo.', defaultAccess: 'tout_le_monde' },
   { name: 'sanction', label: 'Sanctions', description: 'Gestion des sanctions et des rapports.', defaultAccess: 'modération' },
+  { name: 'journal', label: 'Journal', description: 'Publication manuelle d’articles de presse.', defaultAccess: 'modération' },
 ];
 
 const normalizeIdList = (value: unknown): string[] => {

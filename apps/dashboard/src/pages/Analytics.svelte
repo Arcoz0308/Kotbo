@@ -22,6 +22,95 @@ import DailyAlgoAnalyticsCard from '../lib/components/analytics/DailyAlgoAnalyti
   let loading = $state(true);
   let error = $state('');
   let period = $state(30);
+  let startDate = $state('');
+  let endDate = $state('');
+  let isCustomPeriod = $state(false);
+
+  const periodPresets = [
+    { label: '24 heures', value: 1 },
+    { label: '7 jours', value: 7 },
+    { label: '30 jours', value: 30 },
+    { label: '90 jours', value: 90 },
+    { label: '365 jours', value: 365 },
+    { label: 'Personnalisé', value: 'custom' }
+  ];
+
+  async function load() {
+    loading = true; error = '';
+    const options = isCustomPeriod 
+      ? { startDate, endDate } 
+      : { period };
+
+    try { 
+      const [mainData, invites, heatmap, weekly, algo] = await Promise.all([
+        fetchAnalytics(options),
+        fetchInviteAnalytics(),
+        fetchHourlyHeatmap(isCustomPeriod ? { startDate, endDate } : { days: period }),
+        fetchWeeklyComparison(),
+        fetchDailyAlgoAnalytics(isCustomPeriod ? { startDate, endDate } : { days: period })
+      ]);
+      data = mainData;
+      invitesData = invites;
+      heatmapData = heatmap;
+      weeklyData = weekly;
+      algoData = algo;
+    }
+    catch (e: any) { error = e.message || 'Erreur'; }
+    finally { loading = false; }
+  }
+
+  onMount(() => {
+    // Default to local time for datetime-local
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    endDate = now.toISOString().slice(0, 16);
+    
+    const start = new Date();
+    start.setDate(start.getDate() - 30);
+    start.setMinutes(start.getMinutes() - start.getTimezoneOffset());
+    startDate = start.toISOString().slice(0, 16);
+    
+    load();
+  });
+
+  function changePeriod(p: number | 'custom') { 
+    if (p === 'custom') {
+      isCustomPeriod = true;
+    } else {
+      isCustomPeriod = false;
+      period = p; 
+      load(); 
+    }
+  }
+
+  function applyCustomRange() {
+    if (startDate && endDate) {
+      load();
+    }
+  }
+
+  function exportToCSV() {
+    if (!data) return;
+    
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Metric,Date,Value\n";
+    
+    data.dailyTrend?.forEach((row: any) => {
+      csvContent += `Messages,${row.dateKey},${row.messages}\n`;
+      csvContent += `VoiceMinutes,${row.dateKey},${row.voiceMinutes}\n`;
+      csvContent += `MembersJoined,${row.dateKey},${row.membersJoined}\n`;
+      csvContent += `MembersLeft,${row.dateKey},${row.membersLeft}\n`;
+    });
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `analytics_kotbo_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
   let activeCategory = $state('overview');
   let activeTab = $state('overview');
 
@@ -86,52 +175,6 @@ import DailyAlgoAnalyticsCard from '../lib/components/analytics/DailyAlgoAnalyti
     }
   }
 
-  async function load() {
-    loading = true; error = '';
-    try { 
-      const [mainData, invites, heatmap, weekly, algo] = await Promise.all([
-        fetchAnalytics(period),
-        fetchInviteAnalytics(),
-        fetchHourlyHeatmap(period),
-        fetchWeeklyComparison(),
-        fetchDailyAlgoAnalytics(period)
-      ]);
-      data = mainData;
-      invitesData = invites;
-      heatmapData = heatmap;
-      weeklyData = weekly;
-      algoData = algo;
-    }
-    catch (e: any) { error = e.message || 'Erreur'; }
-    finally { loading = false; }
-  }
-
-  onMount(load);
-
-  function changePeriod(p: number) { period = p; load(); }
-
-  function exportToCSV() {
-    if (!data) return;
-    
-    let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Metric,Date,Value\n";
-    
-    data.dailyTrend?.forEach((row: any) => {
-      csvContent += `Messages,${row.dateKey},${row.messages}\n`;
-      csvContent += `VoiceMinutes,${row.dateKey},${row.voiceMinutes}\n`;
-      csvContent += `MembersJoined,${row.dateKey},${row.membersJoined}\n`;
-      csvContent += `MembersLeft,${row.dateKey},${row.membersLeft}\n`;
-    });
-    
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `analytics_kotbo_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }
-
   const fmt = (n: number) => n?.toLocaleString('fr-FR') ?? '0';
   const fmtH = (mins: number) => { 
     const h = Math.floor((mins || 0) / 60); 
@@ -163,22 +206,47 @@ import DailyAlgoAnalyticsCard from '../lib/components/analytics/DailyAlgoAnalyti
       </div>
 
       <div class="flex flex-col items-end gap-4 w-full md:w-auto">
-        <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-center justify-end gap-3">
           <button 
             onclick={exportToCSV}
             class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors"
           >
             <Papicon icon="DownloadSimple" size={14} /> Export CSV
           </button>
-          <div class="flex gap-1.5 bg-surface-container-high/40 p-2 rounded-2xl border border-outline-variant/10 backdrop-blur-sm">
-            {#each [7, 30, 90] as p}
-              <button 
-                onclick={() => changePeriod(p)} 
-                class="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 {period === p ? 'bg-on-surface text-surface shadow-xl' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
-              >
-                {p} jours
-              </button>
-            {/each}
+          
+          <div class="flex flex-col gap-2">
+            <div class="flex gap-1.5 bg-surface-container-high/40 p-2 rounded-2xl border border-outline-variant/10 backdrop-blur-sm overflow-x-auto no-scrollbar">
+              {#each periodPresets as p}
+                <button 
+                  onclick={() => changePeriod(p.value as any)} 
+                  class="px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap { (isCustomPeriod ? p.value === 'custom' : period === p.value) ? 'bg-on-surface text-surface shadow-xl' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
+                >
+                  {p.label}
+                </button>
+              {/each}
+            </div>
+
+            {#if isCustomPeriod}
+              <div class="flex items-center gap-2 animate-in fade-in zoom-in-95 duration-300">
+                <input 
+                  type="datetime-local" 
+                  bind:value={startDate}
+                  class="bg-surface-container-low border border-outline-variant/10 rounded-xl px-3 py-1.5 text-xs text-on-surface focus:outline-none focus:border-primary transition-colors"
+                />
+                <span class="text-[10px] font-bold text-on-surface-variant/40">au</span>
+                <input 
+                  type="datetime-local" 
+                  bind:value={endDate}
+                  class="bg-surface-container-low border border-outline-variant/10 rounded-xl px-3 py-1.5 text-xs text-on-surface focus:outline-none focus:border-primary transition-colors"
+                />
+                <button 
+                  onclick={applyCustomRange}
+                  class="bg-primary text-on-primary px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:brightness-110 transition-all"
+                >
+                  Appliquer
+                </button>
+              </div>
+            {/if}
           </div>
         </div>
         {#if data?.totals}
@@ -197,7 +265,7 @@ import DailyAlgoAnalyticsCard from '../lib/components/analytics/DailyAlgoAnalyti
 
   <!-- Navigation Catégories -->
   <div class="sticky top-4 z-40 flex justify-center">
-    <div class="flex gap-1 bg-surface-container-low/60 backdrop-blur-2xl p-1.5 rounded-[2rem] border border-outline-variant/10 shadow-2xl shadow-surface/20 overflow-x-auto no-scrollbar max-w-full">
+    <div class="flex gap-1 bg-surface-container-low/60 backdrop-blur-2xl p-1.5 rounded-4xl border border-outline-variant/10 shadow-2xl shadow-surface/20 overflow-x-auto no-scrollbar max-w-full">
       {#each categories as cat}
         <button 
           onclick={() => { activeCategory = cat.id; activeTab = tabsByCategory[cat.id]?.[0]?.id || cat.id; }} 
@@ -237,7 +305,7 @@ import DailyAlgoAnalyticsCard from '../lib/components/analytics/DailyAlgoAnalyti
     <AnalyticsSkeleton />
   {:else if error}
 
-    <div class="bg-error-container/10 border border-error/20 p-5 rounded-[2rem] text-error text-sm font-bold flex items-center gap-3">
+    <div class="bg-error-container/10 border border-error/20 p-5 rounded-4xl text-error text-sm font-bold flex items-center gap-3">
       <Papicon icon="alert-octagon" size={20} />{error}
     </div>
   {:else if data}
@@ -276,3 +344,4 @@ import DailyAlgoAnalyticsCard from '../lib/components/analytics/DailyAlgoAnalyti
     }}
   />
 </div>
+

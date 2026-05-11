@@ -209,24 +209,16 @@
     }
   }
 
+  import ModulePage from '../lib/components/ModulePage.svelte';
 </script>
 
-<div class="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-  <!-- Header Section -->
-  <header class="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-surface-container-low/40 backdrop-blur-3xl p-8 rounded-[2rem] border border-outline-variant/30 relative overflow-hidden group">
-    <div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-[80px] group-hover:bg-primary/20 transition-all duration-700"></div>
-    <div class="absolute -bottom-24 -left-24 w-64 h-64 bg-secondary/10 rounded-full blur-[80px] group-hover:bg-secondary/20 transition-all duration-700"></div>
-
-    <div class="flex items-center gap-6 relative">
-      <div class="w-16 h-16 bg-gradient-to-br from-primary to-primary-container rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20">
-        <Papicon icon="book-open" size={32} class="text-white" />
-      </div>
-      <div>
-        <h1 class="text-3xl font-black tracking-tight text-on-surface font-headline leading-tight">Système de Tutorat</h1>
-        <p class="text-on-surface-variant/80 font-medium tracking-wide">Accompagnement, transmission et suivi des nouveaux arrivants.</p>
-      </div>
-    </div>
-
+<ModulePage 
+  title="Système de Tutorat" 
+  description="Accompagnement, transmission et suivi des nouveaux arrivants." 
+  icon="book"
+  featureKey="tutoring"
+>
+  {#snippet actions()}
     <div class="flex items-center gap-2 p-1 bg-surface-container-high/50 rounded-2xl border border-outline-variant/20 relative backdrop-blur-xl">
       <button 
         onclick={() => activeTab = 'dashboard'}
@@ -252,12 +244,12 @@
         </button>
       {/if}
     </div>
-  </header>
+  {/snippet}
 
   {#if loading}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {#each Array(3) as _}
-        <div class="h-64 bg-surface-container rounded-[2rem] animate-pulse"></div>
+        <div class="h-64 bg-surface-container rounded-4xl animate-pulse"></div>
       {/each}
     </div>
   {:else}
@@ -265,13 +257,13 @@
     {#if activeTab === 'dashboard'}
       <div class="grid grid-cols-1 gap-8">
         {#if tutorApprentices.length === 0}
-          <div class="flex flex-col items-center justify-center py-20 bg-surface-container-low/40 rounded-[2rem] border border-dashed border-outline-variant/50">
+          <div class="flex flex-col items-center justify-center py-20 bg-surface-container-low/40 rounded-4xl border border-dashed border-outline-variant/50">
             <Papicon icon="user-plus" size={48} class="text-on-surface-variant/30 mb-4" />
             <p class="text-on-surface-variant font-medium">Vous n'avez pas d'apprentis sous votre tutorat actuellement.</p>
           </div>
         {:else}
           {#each tutorApprentices as apprentice}
-            <div class="bg-surface-container-low/60 rounded-[2rem] border border-outline-variant/30 overflow-hidden">
+            <div class="bg-surface-container-low/60 rounded-4xl border border-outline-variant/30 overflow-hidden">
               <div class="p-8 flex flex-col md:flex-row gap-8">
                 <!-- Apprentice Sidebar -->
                 <div class="w-full md:w-64 flex flex-col gap-4">
@@ -299,7 +291,7 @@
                     </div>
                     <div class="h-3 bg-surface-container-high rounded-full overflow-hidden border border-outline-variant/20 p-0.5">
                       <div 
-                        class="h-full bg-gradient-to-r from-primary to-primary-container rounded-full transition-all duration-1000" 
+                        class="h-full bg-linear-to-r from-primary to-primary-container rounded-full transition-all duration-1000" 
                         style="width: {getProgressPercentage(apprentice.checklistProgress)}%"
                       ></div>
                     </div>
@@ -437,7 +429,7 @@
       </div>
     {:else if activeTab === 'progress'}
       {#if !apprenticeProgress}
-        <div class="flex flex-col items-center justify-center py-20 bg-surface-container-low/40 rounded-[2rem] border border-dashed border-outline-variant/50">
+        <div class="flex flex-col items-center justify-center py-20 bg-surface-container-low/40 rounded-4xl border border-dashed border-outline-variant/50">
           <Papicon icon="award" size={48} class="text-on-surface-variant/30 mb-4" />
           <p class="text-on-surface-variant font-medium">Vous n'êtes pas en période de tutorat actuellement.</p>
         </div>
@@ -445,9 +437,9 @@
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <!-- Progress Stats -->
           <div class="lg:col-span-2 flex flex-col gap-8">
-            <div class="bg-surface-container-low/60 p-8 rounded-[2rem] border border-outline-variant/30 relative overflow-hidden">
+            <div class="bg-surface-container-low/60 p-8 rounded-4xl border border-outline-variant/30 relative overflow-hidden">
                <div class="absolute top-0 right-0 p-8">
-                <div class="w-32 h-32 rounded-full border-[10px] border-surface-container-high relative flex items-center justify-center">
+                <div class="w-32 h-32 rounded-full border-10 border-surface-container-high relative flex items-center justify-center">
                   <svg class="w-full h-full -rotate-90">
                     <circle 
                       cx="64" cy="64" r="54" fill="none" 
@@ -494,7 +486,7 @@
             <!-- Logbook -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               {#if config?.showVocalActivity && apprenticeProgress.vocalStats}
-                <div class="bg-surface-container-low/60 p-8 rounded-[2rem] border border-outline-variant/30 flex items-center gap-6">
+                <div class="bg-surface-container-low/60 p-8 rounded-4xl border border-outline-variant/30 flex items-center gap-6">
                   <div class="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-lg shadow-primary/5">
                     <Papicon icon="mic" size={32} />
                   </div>
@@ -509,7 +501,7 @@
               {/if}
 
               {#if config?.showAbsences && apprenticeProgress.absences && apprenticeProgress.absences.length > 0}
-                <div class="bg-surface-container-low/60 p-8 rounded-[2rem] border border-outline-variant/30 flex items-center gap-6">
+                <div class="bg-surface-container-low/60 p-8 rounded-4xl border border-outline-variant/30 flex items-center gap-6">
                   <div class="w-16 h-16 rounded-2xl bg-warning/10 flex items-center justify-center text-warning shadow-lg shadow-warning/5">
                     <Papicon icon="calendar-off" size={32} />
                   </div>
@@ -528,7 +520,7 @@
               {/if}
             </div>
 
-            <div class="bg-surface-container-low/60 p-8 rounded-[2rem] border border-outline-variant/30">
+            <div class="bg-surface-container-low/60 p-8 rounded-4xl border border-outline-variant/30">
               <h2 class="text-2xl font-black text-on-surface mb-6">Carnet de Bord</h2>
               
               <div class="flex flex-col gap-6">
@@ -568,8 +560,8 @@
 
           <!-- Mentor Sidebar -->
           <div class="flex flex-col gap-6">
-            <div class="bg-surface-container-low/60 p-8 rounded-[2rem] border border-outline-variant/30 text-center">
-              <div class="w-24 h-24 mx-auto bg-gradient-to-br from-primary to-primary-container rounded-[2rem] flex items-center justify-center shadow-xl shadow-primary/20 mb-6">
+            <div class="bg-surface-container-low/60 p-8 rounded-4xl border border-outline-variant/30 text-center">
+              <div class="w-24 h-24 mx-auto bg-linear-to-br from-primary to-primary-container rounded-4xl flex items-center justify-center shadow-xl shadow-primary/20 mb-6">
                 <Papicon icon="user-check" size={40} class="text-white" />
               </div>
               <h3 class="text-xl font-black text-on-surface mb-1">Mon Tuteur</h3>
@@ -582,7 +574,7 @@
               </div>
             </div>
 
-            <div class="bg-surface-container-low/60 p-8 rounded-[2rem] border border-outline-variant/30">
+            <div class="bg-surface-container-low/60 p-8 rounded-4xl border border-outline-variant/30">
               <h3 class="font-black text-on-surface mb-4">Dernier Retour</h3>
               {#if apprenticeProgress.reports.length > 0}
                 {@const lastReport = apprenticeProgress.reports[0]}
@@ -603,7 +595,7 @@
     {:else if activeTab === 'config'}
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <!-- Parameters -->
-        <div class="lg:col-span-1 bg-surface-container-low/60 p-8 rounded-[2rem] border border-outline-variant/30 flex flex-col gap-6">
+        <div class="lg:col-span-1 bg-surface-container-low/60 p-8 rounded-4xl border border-outline-variant/30 flex flex-col gap-6">
           <h2 class="text-2xl font-black text-on-surface mb-4">Paramètres</h2>
           
           {#if !config}
@@ -694,7 +686,7 @@
         </div>
 
         <!-- Checklist Items Management -->
-        <div class="lg:col-span-2 bg-surface-container-low/60 p-8 rounded-[2rem] border border-outline-variant/30">
+        <div class="lg:col-span-2 bg-surface-container-low/60 p-8 rounded-4xl border border-outline-variant/30">
           <div class="flex items-center justify-between mb-8">
             <h2 class="text-2xl font-black text-on-surface">Checklist de Formation</h2>
             <button 
@@ -744,11 +736,10 @@
       </div>
     {/if}
   {/if}
-</div>
 
 {#if reportModalOpen}
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-surface-container-lowest/80 backdrop-blur-md animate-in fade-in duration-300">
-    <div class="w-full max-w-lg bg-surface-container-low rounded-[2rem] border border-outline-variant/30 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+    <div class="w-full max-w-lg bg-surface-container-low rounded-[31px] border border-outline-variant/30 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
       <div class="p-8">
         <h2 class="text-2xl font-black text-on-surface mb-2">Nouveau Rapport</h2>
         <p class="text-on-surface-variant mb-6 font-medium">Postez un rapport sur l'évolution de **{selectedApprentice?.staffMember?.username}**.</p>
@@ -794,7 +785,7 @@
 
 {#if endTutoringModalOpen}
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-surface-container-lowest/80 backdrop-blur-md animate-in fade-in duration-300">
-    <div class="w-full max-w-lg bg-surface-container-low rounded-[2rem] border border-outline-variant/30 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+    <div class="w-full max-w-lg bg-surface-container-low rounded-[31px] border border-outline-variant/30 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
       <div class="p-8">
         <h2 class="text-2xl font-black text-on-surface mb-2">
           {endTutoringStatus === 'PASSED' ? 'Valider le Tutorat' : 'Échec du Tutorat'}
@@ -877,7 +868,7 @@
 
 {#if itemModalOpen}
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-surface-container-lowest/80 backdrop-blur-md animate-in fade-in duration-300">
-    <div class="w-full max-w-lg bg-surface-container-low rounded-[2rem] border border-outline-variant/30 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+    <div class="w-full max-w-lg bg-surface-container-low rounded-[31px] border border-outline-variant/30 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
       <div class="p-8">
         <h2 class="text-2xl font-black text-on-surface mb-2">{selectedItem ? 'Modifier' : 'Nouvel'} Item de Checklist</h2>
         <p class="text-on-surface-variant mb-6 font-medium text-sm">Définissez un objectif de formation pour les apprentis.</p>
@@ -949,3 +940,7 @@
   :global(.bg-tertiary) { background-color: rgb(var(--color-tertiary, 114 9 183)); }
   :global(.text-tertiary) { color: rgb(var(--color-tertiary, 114 9 183)); }
 </style>
+
+</ModulePage>
+ 
+ 

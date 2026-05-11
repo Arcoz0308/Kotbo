@@ -7,6 +7,7 @@
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
   import ColumnSortFilter, { type ColumnFilterOption } from '../lib/components/sanctions/ColumnSortFilter.svelte';
   import { fetchMemberCase, runMemberCaseAction } from '../lib/api';
+  import { authStore } from '../lib/stores/auth.svelte';
 
 
   type LogsSortField = 'date' | 'user' | 'module' | 'action' | 'type';
@@ -177,11 +178,13 @@
     return value
       .replace(/<#(\d{15,25})>/g, (_, channelId: string) => {
         const channel = dashboardStore.state.discordChannels.find((entry) => entry.id === channelId);
-        return channel ? `#${channel.name}` : '#salon-inconnu';
+        const name = channel ? channel.name : 'salon-inconnu';
+        return `<a href="https://discord.com/channels/${authStore.selectedGuildId}/${channelId}" target="_blank" class="mention-link">#${name}</a>`;
       })
       .replace(/<@&(\d{15,25})>/g, (_, roleId: string) => {
         const role = dashboardStore.state.discordRoles.find((entry) => entry.id === roleId);
-        return role ? `@${role.name}` : '@role-inconnu';
+        const name = role ? role.name : 'role-inconnu';
+        return `<span class="mention">@${name}</span>`;
       });
   }
 
@@ -625,7 +628,7 @@
             </td>
             <td class="px-6 py-6 max-w-xs">
               <p class="text-xs text-on-surface-variant line-clamp-2 leading-relaxed">
-                {parseDetailsMetadata(entry.details, entry.user).cleanDetails}
+                {@html parseDetailsMetadata(entry.details, entry.user).cleanDetails}
               </p>
             </td>
             <td class="px-6 py-6 text-center">

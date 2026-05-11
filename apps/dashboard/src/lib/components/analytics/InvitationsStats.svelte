@@ -8,6 +8,10 @@
 
   let showAllInvites = $state(false);
   const invites = $derived(invitesData || []);
+  
+  // Svelte 5: Avoid in-place mutation of derived state in template
+  const sortedInvites = $derived([...invites].sort((a: any, b: any) => (b.uses || 0) - (a.uses || 0)));
+  const displayedInvites = $derived(showAllInvites ? sortedInvites : sortedInvites.slice(0, 5));
 
   let inviteModalOpen = $state(false);
   let selectedInvite = $state<any>(null);
@@ -107,9 +111,9 @@
       </button>
     </div>
 
-    <div class="overflow-x-auto {showAllInvites ? 'max-h-[500px] overflow-y-auto custom-scrollbar pr-2' : ''}">
+    <div class="overflow-x-auto {showAllInvites ? 'max-h-125 overflow-y-auto custom-scrollbar pr-2' : ''}">
       <div class="space-y-2">
-        {#each (showAllInvites ? invites : invites.slice(0, 5)).sort((a: any, b: any) => (b.uses || 0) - (a.uses || 0)) as invite}
+        {#each displayedInvites as invite}
           <div class="p-4 rounded-2xl bg-surface-container-high/20 border border-outline-variant/5 hover:border-primary/20 transition-all">
               <div class="flex items-center justify-between gap-4" role="button" tabindex="0" onclick={() => { selectedInvite = invite; inviteModalOpen = true }} onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && (selectedInvite = invite, inviteModalOpen = true)}>
               <div class="flex-1">
@@ -175,10 +179,11 @@
   {/if}
 
   {#if inviteModalOpen && selectedInvite}
-    <div class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div class="fixed inset-0 z-100 flex items-center justify-center p-4">
       <div 
         class="absolute inset-0 bg-black/60 backdrop-blur-sm" 
         onclick={() => { inviteModalOpen = false; selectedInvite = null }}
+        onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && (inviteModalOpen = false, selectedInvite = null)}
         role="button"
         tabindex="-1"
         aria-label="Fermer le modal"

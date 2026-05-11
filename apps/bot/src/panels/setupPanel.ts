@@ -10,9 +10,6 @@ import {
   type Client,
   type TextChannel,
   StringSelectMenuBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-  ModalBuilder,
 } from 'discord.js';
 import prisma from '../utils/db.js';
 import { COLORS } from '../utils/embeds.js';
@@ -28,13 +25,11 @@ export async function sendSetupWelcome(
     .setColor(COLORS.primary)
     .setTitle('🚀 Bienvenue sur Kotbo !')
     .setDescription(
-      "Merci d'avoir choisi Kotbo pour gérer vos news. Ce guide va vous aider à configurer le bot étape par étape.\n\n" +
+      "Merci d'avoir choisi Kotbo. Ce guide va vous aider à configurer le bot étape par étape.\n\n" +
       "**Au programme :**\n" +
       "1️⃣ Salons de base (Config & Public)\n" +
       "2️⃣ Rôle Modérateur (Optionnel)\n" +
-      "3️⃣ Flux YouTube (Optionnel)\n" +
-      "4️⃣ Digest de news (Optionnel)\n" +
-      "5️⃣ Auto-traduction (Optionnel)\n\n" +
+      "3️⃣ Auto-traduction (Optionnel)\n\n" +
       "Cliquez sur le bouton ci-dessous pour commencer."
     )
     .setTimestamp();
@@ -62,9 +57,9 @@ export async function sendSetupStep1(
     .setColor(COLORS.primary)
     .setTitle('Étape 1 : Salons de base')
     .setDescription(
-      "Nous avons besoin de deux salons principaux :\n\n" +
-      "**1. Salon de Config/Modération :** Où les news arrivent pour être validées.\n" +
-      "**2. Salon Public :** Où les news validées sont publiées.\n\n" +
+      "Nous avons besoin de deux salons principaux pour le fonctionnement global :\n\n" +
+      "**1. Salon de Config/Modération :** Où les alertes de gestion arrivent.\n" +
+      "**2. Salon Public :** Le salon principal pour les annonces automatiques.\n\n" +
       (guild?.configChannelId && guild?.publicChannelId 
         ? `✅ Actuellement configuré :\n- Config : <#${guild.configChannelId}>\n- Public : <#${guild.publicChannelId}>` 
         : "Veuillez sélectionner les salons ci-dessous.")
@@ -72,7 +67,7 @@ export async function sendSetupStep1(
 
   const configSelect = new ChannelSelectMenuBuilder()
     .setCustomId('setup:select_config_channel')
-    .setPlaceholder('Sélectionner le salon de MODÉRATION...')
+    .setPlaceholder('Sélectionner le salon de CONFIG...')
     .addChannelTypes(ChannelType.GuildText);
 
   const publicSelect = new ChannelSelectMenuBuilder()
@@ -105,8 +100,8 @@ export async function sendSetupStep2(
     .setColor(COLORS.primary)
     .setTitle('Étape 2 : Rôle Modérateur')
     .setDescription(
-      "Par défaut, seuls les administrateurs peuvent valider les news.\n" +
-      "Vous pouvez définir un rôle spécifique dont les membres pourront aussi modérer.\n\n" +
+      "Par défaut, seuls les administrateurs peuvent configurer le bot.\n" +
+      "Vous pouvez définir un rôle spécifique dont les membres pourront aussi accéder aux commandes staff.\n\n" +
       (guild?.moderatorRoleId 
         ? `✅ Rôle actuel : <@&${guild.moderatorRoleId}>` 
         : "Aucun rôle configuré (Admin uniquement).")
@@ -136,134 +131,9 @@ export async function sendSetupStep3(
 
   const embed = new EmbedBuilder()
     .setColor(COLORS.primary)
-    .setTitle('Étape 3 : Flux YouTube')
+    .setTitle('Étape 3 : Auto-traduction')
     .setDescription(
-      "Voulez-vous activer la gestion des vidéos YouTube ?\n" +
-      "Cela permet de suivre des chaînes et de notifier les nouvelles vidéos.\n\n" +
-      `Statut actuel : **${guild?.youtubeEnabled ? '🟢 Activé' : '🔴 Désactivé'}**`
-    );
-
-  const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId('setup:yt_toggle')
-      .setLabel(guild?.youtubeEnabled ? 'Désactiver YouTube' : 'Activer YouTube')
-      .setStyle(guild?.youtubeEnabled ? ButtonStyle.Danger : ButtonStyle.Success)
-  );
-
-  if (guild?.youtubeEnabled) {
-    embed.addFields(
-      { name: 'Salon YouTube', value: guild.youtubeChannelId ? `<#${guild.youtubeChannelId}>` : '❌ Par défaut (Public)', inline: true },
-      { name: 'Rôle Vidéos', value: guild.youtubeVideoRoleId ? `<@&${guild.youtubeVideoRoleId}>` : '❌ Aucun', inline: true }
-    );
-    
-    // Add specific settings for YT if enabled
-    const chanSelect = new ChannelSelectMenuBuilder()
-      .setCustomId('setup:yt_channel')
-      .setPlaceholder('Salon pour les vidéos (optionnel)...')
-      .addChannelTypes(ChannelType.GuildText);
-
-    const shortRoleSelect = new RoleSelectMenuBuilder()
-      .setCustomId('setup:select_yt_short_role')
-      .setPlaceholder('Rôle pour les SHORTS (optionnel)...');
-
-    const videoRoleSelect = new RoleSelectMenuBuilder()
-      .setCustomId('setup:select_yt_video_role')
-      .setPlaceholder('Rôle pour les VIDÉOS (optionnel)...');
-
-    const rowChan = new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(chanSelect);
-    const rowShort = new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(shortRoleSelect);
-    const rowVideo = new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(videoRoleSelect);
-    
-    const rowNav = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId('setup:step2').setLabel('Précédent').setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId('setup:step4').setLabel('Suivant').setStyle(ButtonStyle.Primary)
-    );
-
-    await renderPanelTarget(target, { embeds: [embed], components: [row1, rowChan, rowShort, rowVideo, rowNav] });
-  } else {
-    const rowNav = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId('setup:step2').setLabel('Précédent').setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId('setup:step4').setLabel('Suivant').setStyle(ButtonStyle.Primary)
-    );
-    await renderPanelTarget(target, { embeds: [embed], components: [row1, rowNav] });
-  }
-}
-
-export async function sendSetupStep4(
-  client: Client,
-  guildId: string,
-  target: TextChannel | BaseInteraction,
-): Promise<void> {
-  await acknowledgeInteraction(target);
-  const guild = await prisma.guild.findUnique({ where: { id: guildId } });
-
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.primary)
-    .setTitle('Étape 4 : Digest de News')
-    .setDescription(
-      "Le Digest envoie un récapitulatif périodique des news validées.\n\n" +
-      `Statut actuel : **${guild?.digestEnabled ? '🟢 Activé' : '🔴 Désactivé'}**`
-    );
-
-  const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId('setup:digest_toggle')
-      .setLabel(guild?.digestEnabled ? 'Désactiver le Digest' : 'Activer le Digest')
-      .setStyle(guild?.digestEnabled ? ButtonStyle.Danger : ButtonStyle.Success)
-  );
-
-  if (guild?.digestEnabled) {
-    embed.addFields(
-      { name: 'Fréquence', value: guild.digestFrequency === 'WEEKLY' ? 'Hebdomadaire' : 'Quotidienne', inline: true },
-      { name: 'Heure', value: guild.digestTime, inline: true }
-    );
-
-    const freqSelect = new StringSelectMenuBuilder()
-      .setCustomId('setup:digest_freq')
-      .setPlaceholder('Fréquence du digest...')
-      .addOptions([
-        { label: 'Quotidien', value: 'DAILY', emoji: '📆' },
-        { label: 'Hebdomadaire', value: 'WEEKLY', emoji: '📅' },
-      ]);
-
-    const roleSelect = new RoleSelectMenuBuilder()
-      .setCustomId('setup:select_digest_role')
-      .setPlaceholder('Rôle à mentionner (optionnel)...');
-
-    const rowFreq = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(freqSelect);
-    const rowRole = new ActionRowBuilder<RoleSelectMenuBuilder>().addComponents(roleSelect);
-    const rowTime = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId('setup:digest_time_btn').setLabel("Heure d'envoi").setStyle(ButtonStyle.Secondary).setEmoji('⌚'),
-      new ButtonBuilder().setCustomId('setup:digest_clear_role').setLabel('SANS rôle mention').setStyle(ButtonStyle.Danger)
-    );
-    const rowNav = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId('setup:step3').setLabel('Précédent').setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId('setup:step5').setLabel('Suivant').setStyle(ButtonStyle.Primary)
-    );
-
-    await renderPanelTarget(target, { embeds: [embed], components: [row1, rowFreq, rowRole, rowTime, rowNav] });
-  } else {
-    const rowNav = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId('setup:step3').setLabel('Précédent').setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId('setup:step5').setLabel('Suivant').setStyle(ButtonStyle.Primary)
-    );
-    await renderPanelTarget(target, { embeds: [embed], components: [row1, rowNav] });
-  }
-}
-
-export async function sendSetupStep5(
-  client: Client,
-  guildId: string,
-  target: TextChannel | BaseInteraction,
-): Promise<void> {
-  await acknowledgeInteraction(target);
-  const guild = await prisma.guild.findUnique({ where: { id: guildId } });
-
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.primary)
-    .setTitle('Étape 5 : Auto-traduction')
-    .setDescription(
-      "Kotbo peut traduire automatiquement les news étrangères vers une langue cible.\n\n" +
+      "Kotbo peut traduire automatiquement les contenus étrangers vers une langue cible.\n\n" +
       `Statut actuel : **${guild?.translationEnabled ? '🟢 Activé' : '🔴 Désactivé'}**\n` +
       `Langue cible : **${guild?.defaultTranslateTo ?? 'FR'}**`
     );
@@ -287,7 +157,7 @@ export async function sendSetupStep5(
 
   const rowLang = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(langSelect);
   const rowNav = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId('setup:step4').setLabel('Précédent').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('setup:step2').setLabel('Précédent').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('setup:finish').setLabel('Terminer').setStyle(ButtonStyle.Success)
   );
 
@@ -308,38 +178,19 @@ export async function sendSetupFinish(
     .setDescription(
       "Votre bot Kotbo est maintenant prêt à l'emploi !\n\n" +
       "**Résumé de votre configuration :**\n" +
-      `📡 **Salons :** Mod : <#${guild?.configChannelId}> | Public : <#${guild?.publicChannelId}>\n` +
+      `📡 **Salons :** Config : <#${guild?.configChannelId}> | Public : <#${guild?.publicChannelId}>\n` +
       `🛡️ **Rôle Mod :** ${guild?.moderatorRoleId ? `<@&${guild.moderatorRoleId}>` : 'Admin uniquement'}\n` +
-      `▶️ **YouTube :** ${guild?.youtubeEnabled ? 'Activé' : 'Désactivé'}\n` +
-      `📅 **Digest :** ${guild?.digestEnabled ? 'Activé' : 'Désactivé'}\n` +
       `🌐 **Traduction :** ${guild?.translationEnabled ? `Activé (${guild.defaultTranslateTo})` : 'Désactivée'}\n\n` +
-      "*Vous pouvez modifier ces paramètres à tout moment via le panneau de configuration.*"
+      "*Vous pouvez modifier ces paramètres à tout moment via le tableau de bord.*"
     )
     .setTimestamp();
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId('config:refresh')
-      .setLabel('Ouvrir le Panneau Complet')
+      .setLabel('Ouvrir le Tableau de Bord')
       .setStyle(ButtonStyle.Primary)
   );
 
   await renderPanelTarget(target, { embeds: [embed], components: [row] });
-}
-
-export function buildSetupDigestModal(guild?: { digestTime?: string | null } | null): ModalBuilder {
-  return new ModalBuilder()
-    .setCustomId('modal:setup:digest_time')
-    .setTitle("⌚ Heure du Digest")
-    .addComponents(
-      new ActionRowBuilder<TextInputBuilder>().addComponents(
-        new TextInputBuilder()
-          .setCustomId('digest_time')
-          .setLabel("Heure d'envoi (HH:MM)")
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true)
-          .setMaxLength(5)
-          .setValue(guild?.digestTime ?? '08:00'),
-      ),
-    );
 }

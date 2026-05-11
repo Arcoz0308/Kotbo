@@ -13,7 +13,7 @@
   ];
 
   const moderationItems = [
-    { name: "Contenu", icon: "file-text", href: "/content" },
+
     { name: "Daily Algo", icon: "code", href: "/module-settings/dailyalgo" },
     { name: "Membres", icon: "user", href: "/members" },
     { name: "Sanctions", icon: "alert-triangle", href: "/sanctions" },
@@ -39,9 +39,12 @@
 
   const configItems = [
     { name: "Modules", icon: "package", href: "/modules" },
-    { name: "Gestion Centralisée", icon: "sliders", href: "/management" },
     { name: "Commandes", icon: "terminal", href: "/command-access" },
     { name: "Paramètres", icon: "settings", href: "/settings" },
+  ];
+
+  const adminItems = [
+    { name: "Global Admin", icon: "lock", href: "/admin" },
   ];
 
   const canManageSettings = $derived(
@@ -101,17 +104,13 @@
   const navGroups = $derived.by((): NavGroup[] => {
     const groups: NavGroup[] = [
       { label: 'Tableau de bord', items: dashboardItems },
-      { label: 'Modération', items: visibleModerationItems },
     ];
-    if (visibleStaffItems.length > 0) {
-      groups.push({ label: 'Gestion Staff', items: visibleStaffItems });
-    }
-    if (visibleManagementItems.length > 0) {
-      groups.push({ label: 'Gestion', items: visibleManagementItems });
-    }
-    if (visibleConfigItems.length > 0) {
-      groups.push({ label: 'Configuration', items: visibleConfigItems });
-    }
+    if (visibleModerationItems.length > 0) groups.push({ label: "Modération", items: visibleModerationItems });
+    if (visibleManagementItems.length > 0) groups.push({ label: "Gestion", items: visibleManagementItems });
+    if (visibleStaffItems.length > 0) groups.push({ label: "Staff", items: visibleStaffItems });
+    if (visibleConfigItems.length > 0) groups.push({ label: "Configuration", items: visibleConfigItems });
+    if (authStore.isBotAdmin) groups.push({ label: "Administration", items: adminItems });
+
     return groups;
   });
 </script>

@@ -145,8 +145,15 @@
     if (isNaN(start.getTime())) return { top: 0, height: 0, width: 0, left: 0 };
 
     const startMinutes = start.getHours() * 60 + start.getMinutes();
-    const endMinutes = end.getHours() * 60 + end.getMinutes();
-    const duration = Math.max(endMinutes - startMinutes, 30);
+    
+    // Handle events that end on a different day or have no end date
+    const isSameDay = end.toDateString() === start.toDateString();
+    const endMinutes = isSameDay 
+      ? end.getHours() * 60 + end.getMinutes()
+      : 24 * 60; // Extend to end of day if it's a multi-day event
+      
+    const duration = Math.max(endMinutes - startMinutes, 20); // Minimum 20 minutes for visibility
+
 
     // Better overlap handling
     const timedEvents = dayEvents
@@ -292,7 +299,7 @@
   });
 </script>
 
-<div class="calendar-container h-[700px] flex flex-col bg-surface-container-low rounded-[2rem] border border-outline-variant/30 overflow-hidden shadow-xl">
+<div class="calendar-container h-175 flex flex-col bg-surface-container-low rounded-4xl border border-outline-variant/30 overflow-hidden shadow-xl">
   <!-- Header -->
   <header class="p-6 border-b border-outline-variant/30 flex items-center justify-between bg-surface-container-lowest">
     <div class="flex items-center gap-4">
@@ -530,3 +537,4 @@
     user-select: none;
   }
 </style>
+

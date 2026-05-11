@@ -55,7 +55,7 @@
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <div class="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
       {#each stats as stat}
-        <div class="premium-card p-6 rounded-[2rem] flex flex-col items-center text-center gap-2 group hover:scale-[1.02] transition-all">
+        <div class="premium-card p-6 rounded-4xl flex flex-col items-center text-center gap-2 group hover:scale-[1.02] transition-all">
           <div class="p-3 rounded-2xl mb-2" style="background: {stat.color}15; color: {stat.color}">
              <Papicon icon="Hammer" size={20} />
           </div>
@@ -66,7 +66,7 @@
     </div>
 
     <!-- Distribution Chart -->
-    <div class="premium-card p-6 rounded-[2rem] flex flex-col items-center justify-center relative overflow-hidden group">
+    <div class="premium-card p-6 rounded-4xl flex flex-col items-center justify-center relative overflow-hidden group">
       <div class="h-32 w-32 relative z-10">
         <Chart data={distributionData} type="doughnut" height={128} options={doughnutOptions} />
         <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
@@ -263,6 +263,7 @@
     transition: all 0.4s cubic-bezier(0.2, 1, 0.3, 1);
   }
 </style>
+
 
 
 

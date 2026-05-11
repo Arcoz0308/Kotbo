@@ -20,9 +20,6 @@ class DashboardStore {
       canManageSettings: false
     },
     modules: [],
-    feeds: [],
-    contentItems: [],
-    youtubeReferenceChannelId: '',
     notifications: {
       discordChannel: '#alertes-redaction',
       email: '',
@@ -40,8 +37,6 @@ class DashboardStore {
     analytics: {
       activityTrend: [0, 0, 0, 0, 0, 0, 0],
       totalAutomations: 0,
-      contentStatusDistribution: [],
-      translationCount: 0,
       healthStatus: 100
     },
     apprenticeProgress: null,
@@ -106,9 +101,6 @@ class DashboardStore {
           canManageSettings: false
         };
         this.state.modules = data.modules;
-        this.state.feeds = data.feeds;
-        this.state.contentItems = data.contentItems;
-        this.state.youtubeReferenceChannelId = data.youtubeReferenceChannelId || '';
         this.state.notifications = data.notifications;
         this.state.auditTrail = this.mergeAuditTrail(this.state.auditTrail, data.auditTrail);
         this.state.sanctions = data.sanctions || [];

@@ -13,9 +13,13 @@ export type BackgroundJobName =
   | 'sanctions'
   | 'staff-warnings-expiration'
   | 'staff-blacklist-expiration'
+  | 'activity-minute-snapshot'
   | 'analytics-hourly-snapshot'
   | 'analytics-snapshot'
-  | 'missing-reports-check';
+  | 'missing-reports-check'
+  | 'meeting-notifications';
+
+
 
 type BackgroundJobPayload = {
   jitterMs?: number;

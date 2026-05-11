@@ -5,6 +5,7 @@
   import FormInput from '../lib/components/FormInput.svelte';
   import FormTextarea from '../lib/components/FormTextarea.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
   import {
     createRegulationArticle,
     deleteRegulationArticle,
@@ -356,53 +357,38 @@
   });
 </script>
 
-<div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20 max-w-7xl mx-auto px-4 md:px-8">
-  <!-- Header -->
-  <div class="relative overflow-hidden bg-surface-container-low/30 p-8 md:p-12 rounded-[3rem] border border-outline-variant/10 group">
-    <div class="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors duration-1000"></div>
-    <div class="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/4 w-64 h-64 bg-secondary/5 rounded-full blur-2xl group-hover:bg-secondary/10 transition-colors duration-1000"></div>
-    
-    <div class="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
-      <div class="space-y-2">
-        <div class="flex items-center gap-3">
-           <div class="bg-primary/10 p-2 rounded-xl text-primary">
-              <Papicon icon="Gavel" size={20} />
-           </div>
-           <span class="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Module de gouvernance</span>
-        </div>
-        <h2 class="text-3xl md:text-5xl font-black tracking-tight text-on-surface font-headline leading-tight">
-          Règlement du <span class="text-primary">Serveur</span>
-        </h2>
-        <p class="text-on-surface-variant/60 text-base max-w-md">Crée, ordonne et publie les articles du règlement. La sélection des rapports de sanction se synchronise directement avec cette liste.</p>
-      </div>
-
-      <div class="flex flex-col items-end gap-4 w-full md:w-auto">
-        <div class="flex items-center gap-3">
-          <RefreshButton
-            onClick={() => dashboardStore.refresh()}
-            loading={dashboardStore.state.loading}
-            label="Actualiser"
-            className="flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest bg-on-surface text-surface shadow-xl hover:scale-105 transition-all duration-300"
-            iconClass="text-lg"
-          />
-        </div>
-        {#if dashboardStore.state.regulationRules}
-          <div class="flex items-center gap-4 text-xs font-bold text-on-surface-variant/40 bg-surface-container-low/40 px-4 py-2 rounded-xl border border-outline-variant/5">
-             <div class="flex items-center gap-2">
-                <span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
-                <span>{activeRules.length} actif(s) sur {regulationRules.length} article(s)</span>
-             </div>
-             <span class="w-px h-3 bg-outline-variant/20"></span>
-             <span>Dernière synchro: {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
-          </div>
-        {/if}
-      </div>
+<ModulePage 
+  title="Règlement du Serveur" 
+  description="Crée, ordonne et publie les articles du règlement. La sélection des rapports de sanction se synchronise directement avec cette liste." 
+  icon="gavel"
+  featureKey="regulation"
+>
+  {#snippet actions()}
+    <div class="flex items-center gap-3">
+      <RefreshButton
+        onClick={() => dashboardStore.refresh()}
+        loading={dashboardStore.state.loading}
+        label="Actualiser"
+        className="flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest bg-on-surface text-surface shadow-xl hover:scale-105 transition-all duration-300"
+        iconClass="text-lg"
+      />
     </div>
-  </div>
+  {/snippet}
+
+  {#if dashboardStore.state.regulationRules}
+    <div class="flex items-center gap-4 text-xs font-bold text-on-surface-variant/40 bg-surface-container-low/40 px-4 py-2 rounded-xl border border-outline-variant/5 mb-8">
+       <div class="flex items-center gap-2">
+          <span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+          <span>{activeRules.length} actif(s) sur {regulationRules.length} article(s)</span>
+       </div>
+       <span class="w-px h-3 bg-outline-variant/20"></span>
+       <span>Dernière synchro: {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+    </div>
+  {/if}
 
   <!-- Config & Stats -->
   <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-    <div class="bg-surface-container-low/30 p-6 rounded-[2rem] border border-outline-variant/10 space-y-4">
+    <div class="bg-surface-container-low/30 p-6 rounded-4xl border border-outline-variant/10 space-y-4">
       <div class="flex items-center gap-3">
         <div class="bg-primary/10 p-2 rounded-xl text-primary">
           <Papicon icon="Hash" size={18} />
@@ -434,7 +420,7 @@
       </div>
     </div>
 
-    <div class="bg-surface-container-low/30 p-6 rounded-[2rem] border border-outline-variant/10 space-y-4">
+    <div class="bg-surface-container-low/30 p-6 rounded-4xl border border-outline-variant/10 space-y-4">
       <div class="flex items-center gap-3">
         <div class="bg-secondary/10 p-2 rounded-xl text-secondary">
           <Papicon icon="PaperPlaneTilt" size={18} />
@@ -490,7 +476,7 @@
     <div class="grid grid-cols-1 gap-4">
       {#if dashboardStore.state.loading && regulationRules.length === 0}
         {#each Array(4) as _}
-          <div class="h-32 rounded-[2rem] bg-surface-container-low/30 border border-outline-variant/10 animate-pulse"></div>
+          <div class="h-32 rounded-4xl bg-surface-container-low/30 border border-outline-variant/10 animate-pulse"></div>
         {/each}
       {:else if regulationRules.length === 0}
         <div class="flex flex-col items-center justify-center py-20 bg-surface-container-low/20 rounded-[3rem] border border-dashed border-outline-variant/20 text-center space-y-4">
@@ -594,7 +580,6 @@
       {/if}
     </div>
   </div>
-</div>
 
 {#if modalOpen}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -602,7 +587,7 @@
   <div class="modal-backdrop backdrop-blur-md bg-surface/30" role="dialog" aria-modal="true" aria-labelledby="regulation-modal-title" tabindex="-1" onclick={closeModal}>
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="modal-panel modal-panel-lg space-y-6 !rounded-[3rem] border border-outline-variant/10 shadow-2xl !bg-surface-container-low" onclick={(e) => e.stopPropagation()}>
+    <div class="modal-panel modal-panel-lg space-y-6 rounded-[3rem]! border border-outline-variant/10 shadow-2xl bg-surface-container-low!" onclick={(e) => e.stopPropagation()}>
       <div class="flex items-start justify-between gap-4">
         <div class="flex items-center gap-4">
           <div class="bg-primary/10 p-3 rounded-2xl text-primary">
@@ -628,7 +613,7 @@
           <FormInput id="regulation-emoji" type="text" bind:value={draftEmoji} className="w-full rounded-2xl px-5 py-4 bg-surface-container-high/60 border border-outline-variant/10 font-bold text-on-surface focus:ring-2 focus:ring-primary/40 transition-all" placeholder="📌 ou <:custom:123>" />
         </div>
         <div class="md:col-span-2">
-          <label class="group flex items-center gap-4 rounded-[2rem] border border-outline-variant/10 bg-surface-container-high/40 p-6 cursor-pointer hover:bg-surface-container-high/60 transition-all">
+          <label class="group flex items-center gap-4 rounded-4xl border border-outline-variant/10 bg-surface-container-high/40 p-6 cursor-pointer hover:bg-surface-container-high/60 transition-all">
             <div class="relative flex items-center justify-center">
               <input type="checkbox" bind:checked={draftEnabled} class="peer h-6 w-6 rounded-lg border-2 border-outline-variant/20 text-primary focus:ring-primary/40 transition-all appearance-none checked:bg-primary checked:border-primary" />
               <div class="absolute pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity text-on-primary">
@@ -649,13 +634,13 @@
           id="regulation-description"
           bind:value={draftDescription}
           rows={5}
-          className="w-full rounded-[2rem] px-6 py-5 bg-surface-container-high/60 border border-outline-variant/10 font-medium text-on-surface leading-relaxed focus:ring-2 focus:ring-primary/40 transition-all"
+          className="w-full rounded-4xl px-6 py-5 bg-surface-container-high/60 border border-outline-variant/10 font-medium text-on-surface leading-relaxed focus:ring-2 focus:ring-primary/40 transition-all"
           placeholder="Décris précisément la règle..."
         />
       </div>
 
       <!-- Preview -->
-      <div class="relative overflow-hidden rounded-[2rem] bg-primary/5 p-6 border border-primary/10">
+      <div class="relative overflow-hidden rounded-4xl bg-primary/5 p-6 border border-primary/10">
         <div class="absolute top-0 right-0 p-4 opacity-10 text-primary">
            <Papicon icon="Eye" size={48} />
         </div>
@@ -694,7 +679,7 @@
   <div class="modal-backdrop backdrop-blur-sm bg-error/10" role="dialog" aria-modal="true" aria-labelledby="delete-rule-title" tabindex="-1" onclick={closeDeleteModal}>
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="modal-panel max-w-lg !rounded-[3rem] border border-error/20 shadow-2xl !bg-surface space-y-6 p-8" onclick={(e) => e.stopPropagation()}>
+    <div class="modal-panel max-w-lg rounded-[3rem]! border border-error/20 shadow-2xl bg-surface! space-y-6 p-8" onclick={(e) => e.stopPropagation()}>
       <div class="flex flex-col items-center text-center space-y-4">
         <div class="bg-error/10 p-5 rounded-full text-error">
           <Papicon icon="Warning" size={40} />
@@ -728,3 +713,4 @@
     </div>
   </div>
 {/if}
+</ModulePage>

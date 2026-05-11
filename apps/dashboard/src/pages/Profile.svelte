@@ -276,7 +276,7 @@
 
     <!-- ── Navigation ────────────────────────────────────── -->
     <div class="sticky top-6 z-40 flex justify-center">
-      <div class="flex gap-1 bg-surface-container-lowest/80 backdrop-blur-2xl p-1.5 rounded-[2rem] border border-outline-variant/10 shadow-2xl shadow-surface/10 overflow-x-auto no-scrollbar">
+      <div class="flex gap-1 bg-surface-container-lowest/80 backdrop-blur-2xl p-1.5 rounded-4xl border border-outline-variant/10 shadow-2xl shadow-surface/10 overflow-x-auto no-scrollbar">
         {#each tabs as tab}
           <button 
             onclick={() => activeTab = tab.id} 
@@ -605,4 +605,5 @@
     </div>
   {/if}
 </div>
+
 

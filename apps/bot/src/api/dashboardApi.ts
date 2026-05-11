@@ -17,9 +17,6 @@ import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { COLORS } from '../utils/embeds.js';
 import { translate } from '../services/translationService.js';
-import { sendApprovedItem } from '../services/notificationService.js';
-import { applyTopicFeedback, extractInterestTopics } from '../services/interestService.js';
-import { publishOrUpdateRegulationMessage } from '../services/regulationService.js';
 import {
   registerBanSanction,
   registerKickSanction,
@@ -93,6 +90,7 @@ import {
   getCandidatureHistory,
 } from '../services/recruitmentService.js';
 import * as altAccountService from '../services/altAccountService.js';
+import { env } from 'node:process';
 
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
@@ -100,11 +98,9 @@ const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI;
 const JWT_SECRET = process.env.JWT_SECRET || 'kotbo-secret-key-123';
 const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://localhost:5173';
 const DEFAULT_TRANSLATION_TARGET_LANG = 'FR';
-
+const DISCORD_CLIENT_OWNER_ID = process.env.DISCORD_CLIENT_OWNER_ID;
 
 type ModuleStatus = 'active' | 'inactive' | 'error';
-type FeedStatus = 'ok' | 'warning' | 'error';
-type ContentStatus = 'planifie' | 'envoye' | 'erreur';
 type SeverityLevel = 'off' | 'info' | 'attention' | 'critique';
 
 type ModuleItem = {
@@ -115,38 +111,6 @@ type ModuleItem = {
   uptime: number;
   interactions: number;
   lastSync: string;
-  errorMessage?: string;
-};
-
-type FeedItem = {
-  id: string;
-  name: string;
-  url: string;
-  category: string;
-  targetChannel: string;
-  scanMinutes: number;
-  enabled: boolean;
-  includeKeywords: string[];
-  excludeKeywords: string[];
-  lastCheck: string;
-  lastStatus: FeedStatus;
-};
-
-type ContentItem = {
-  id: string;
-  source: string;
-  url: string;
-  titleOriginal: string;
-  title: string;
-  excerptOriginal: string;
-  excerpt: string;
-  author: string;
-  targetChannel: string;
-  status: ContentStatus;
-  filteredOut: boolean;
-  scheduleAt: string;
-  createdAt: string;
-  filterReason?: string;
   errorMessage?: string;
 };
 
@@ -224,8 +188,6 @@ type RegulationRuleItem = {
 type AnalyticsData = {
   activityTrend: number[];
   totalAutomations: number;
-  contentStatusDistribution: { label: string; value: number }[];
-  translationCount: number;
   healthStatus: number;
 };
 
@@ -408,8 +370,6 @@ type DashboardState = {
   recruitmentLogChannelId: string;
   recruitmentAutoRejectEnabled: boolean;
   modules: ModuleItem[];
-  feeds: FeedItem[];
-  contentItems: ContentItem[];
   discordChannels: DashboardChannel[];
   discordVoiceChannels: DashboardChannel[];
   discordRoles: DashboardRole[];
@@ -422,7 +382,6 @@ type DashboardState = {
     canModerateDailyAlgo: boolean;
     canManageSettings: boolean;
   };
-  youtubeReferenceChannelId: string;
   notifications: NotificationSettings;
   auditTrail: AuditEntry[];
   sanctions: SanctionItem[];
@@ -444,18 +403,13 @@ type RuntimeState = {
 };
 
 const MODULE_DESCRIPTIONS: Record<string, string> = {
-  rss: 'Synchronisation automatique des articles depuis vos sources externes.',
-  youtube: 'Surveillance des chaînes et publication automatique.',
   codepolice: 'Vérification de la syntaxe et bonnes pratiques sur les snippets.',
   dailyalgo: "Génération quotidienne d'un défi d'algorithmique.",
   traduction: 'Traduction instantanée vers la langue configurée.',
-  personnalise: 'Agrégateur multi-sources avec filtrage par mots-clés.'
 };
 
 const DEFAULT_SEVERITY_BY_MODULE: Array<{ module: string; level: SeverityLevel }> = [
   { module: 'Auto-Modération', level: 'attention' },
-  { module: 'Flux RSS / Contenu', level: 'critique' },
-  { module: 'YouTube', level: 'attention' },
   { module: 'Daily Algo', level: 'info' }
 ];
 
@@ -571,63 +525,60 @@ async function ensureDailyAlgoScheduleRuns(guildId: string, daysForward: number)
           dateKey,
         },
       },
-      select: {
-        id: true,
-      },
     });
 
     if (existingRun) {
       continue;
     }
 
-    const problemCandidate = await prisma.dailyAlgoProblem.findFirst({
-      where: {
-        language: 'fr',
-        usedAt: null,
-      },
-      orderBy: [
-        { createdAt: 'asc' },
-        { id: 'asc' },
-      ],
-      select: {
-        id: true,
-      },
+    // Tenter de trouver un problème déjà assigné à cette date par une autre guilde (SYNCHRONISATION)
+    const existingRunForDate = await prisma.dailyAlgoRun.findFirst({
+      where: { dateKey },
+      select: { problemId: true }
     });
 
-    if (!problemCandidate) {
-      break;
-    }
+    let problemId = existingRunForDate?.problemId;
 
-    await prisma.$transaction(async (tx) => {
-      await tx.dailyAlgoRun.create({
-        data: {
-          guildId,
-          dateKey,
-          problemId: problemCandidate.id,
-          challengeChannelId: guild.dailyAlgoChannelId!,
-          validationChannelId: guild.dailyAlgoValidationChannelId ?? null,
+    if (!problemId) {
+      // Aucun problème pour cette date, on en choisit un nouveau
+      const problemCandidate = await prisma.dailyAlgoProblem.findFirst({
+        where: {
+          language: 'fr',
+          usedAt: null,
         },
+        orderBy: [
+          { createdAt: 'asc' },
+          { id: 'asc' },
+        ],
         select: {
           id: true,
         },
       });
 
-      const reservedProblem = await tx.dailyAlgoProblem.updateMany({
-        where: {
-          id: problemCandidate.id,
-          usedAt: null,
-        },
-        data: {
-          usedAt: new Date(),
-        },
-      });
-
-      if (reservedProblem.count === 0) {
-        throw new Error('Le problème Daily Algo a déjà été réservé.');
+      if (!problemCandidate) {
+        break;
       }
+      problemId = problemCandidate.id;
 
-      createdDateKeys.push(dateKey);
+      // On le marque comme utilisé
+      await prisma.dailyAlgoProblem.update({
+        where: { id: problemId },
+        data: { usedAt: new Date() }
+      });
+    }
+
+    // Créer le run pour cette guilde
+    await prisma.dailyAlgoRun.create({
+      data: {
+        guildId,
+        dateKey,
+        problemId: problemId,
+        challengeChannelId: guild.dailyAlgoChannelId!,
+        validationChannelId: guild.dailyAlgoValidationChannelId ?? null,
+      },
     });
+
+    createdDateKeys.push(dateKey);
   }
 
   return {
@@ -938,6 +889,16 @@ const resolveDashboardAccess = async (
   return DASHBOARD_ACCESS_DAILY_ALGO_REVIEWER;
 };
 
+async function resolveAdminAccess(client: Client, userId: string): Promise<boolean> {
+  if (userId === DISCORD_CLIENT_OWNER_ID) return true;
+
+  const admin = await prisma.globalAdmin.findUnique({
+    where: { userId }
+  });
+  
+  return !!admin;
+}
+
 
 
 const readJsonBody = async <T>(req: IncomingMessage): Promise<T | null> => {
@@ -962,19 +923,6 @@ const prepareDescriptionForTranslation = (value?: string | null) => {
   return truncate(value.trim(), DASHBOARD_CONTENT_EXCERPT_LENGTH);
 };
 
-const mapFeedStatus = (value?: string | null, hasError = false): FeedStatus => {
-  if (hasError) return 'error';
-  if (!value) return 'ok';
-  if (value.toLowerCase().includes('error')) return 'error';
-  if (value.toLowerCase().includes('warn')) return 'warning';
-  return 'ok';
-};
-
-const mapContentStatus = (value: 'PENDING' | 'APPROVED' | 'REJECTED'): ContentStatus => {
-  if (value === 'APPROVED') return 'envoye';
-  if (value === 'REJECTED') return 'erreur';
-  return 'planifie';
-};
 
 const deleteValidationQueueMessage = async (client: Client, guildId: string, queueMessageId: string | null) => {
   if (!queueMessageId) return;
@@ -992,67 +940,6 @@ const deleteValidationQueueMessage = async (client: Client, guildId: string, que
   await channel.messages.delete(queueMessageId).catch(() => null);
 };
 
-const approveContentFromDashboard = async (client: Client, guildId: string, contentId: string, userId: string) => {
-  const item = await prisma.feedItem.findUnique({
-    where: { id: contentId },
-    include: { feed: true }
-  });
-
-  if (!item || item.feed.guildId !== guildId) {
-    throw new Error('Contenu introuvable pour ce serveur.');
-  }
-
-  await sendApprovedItem(client, item.id, 'rss');
-  await deleteValidationQueueMessage(client, guildId, item.queueMessageId);
-
-  await prisma.feedItem.update({
-    where: { id: item.id },
-    data: { queueMessageId: null }
-  });
-
-  const topics = item.topics.length > 0 ? item.topics : extractInterestTopics(item.title, item.description);
-  await applyTopicFeedback({
-    guildId,
-    userId,
-    topics,
-    source: 'STAFF_APPROVE',
-    isPositive: true,
-    feedItemId: item.id,
-    applyToGuildProfile: true,
-  });
-};
-
-const rejectContentFromDashboard = async (client: Client, guildId: string, contentId: string, userId: string) => {
-  const item = await prisma.feedItem.findUnique({
-    where: { id: contentId },
-    include: { feed: true }
-  });
-
-  if (!item || item.feed.guildId !== guildId) {
-    throw new Error('Contenu introuvable pour ce serveur.');
-  }
-
-  await prisma.feedItem.update({
-    where: { id: item.id },
-    data: {
-      status: 'REJECTED',
-      queueMessageId: null,
-    }
-  });
-
-  await deleteValidationQueueMessage(client, guildId, item.queueMessageId);
-
-  const topics = item.topics.length > 0 ? item.topics : extractInterestTopics(item.title, item.description);
-  await applyTopicFeedback({
-    guildId,
-    userId,
-    topics,
-    source: 'STAFF_REJECT',
-    isPositive: false,
-    feedItemId: item.id,
-    applyToGuildProfile: true,
-  });
-};
 
 const getOrCreateRuntime = async (guildId: string): Promise<RuntimeState> => {
   const settings = await prisma.dashboardSettings.upsert({
@@ -1094,6 +981,45 @@ function formatChannelName(guild: { channels: { cache: Map<string, { id: string;
   if (!channelId) return 'Aucun';
   const channel = guild?.channels.cache.get(channelId);
   return channel?.name ? `#${channel.name}` : `Salon ${channelId}`;
+}
+
+function interpretMentions(guild: any | null, content: string): string {
+  if (!content) return content;
+  
+  // Escape HTML characters to prevent XSS
+  let escaped = content
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
+  // Interpréter les mentions d'utilisateurs <@ID> ou <@!ID>
+  let processed = escaped.replace(/&lt;@!?(\d+)&gt;/g, (match, id) => {
+    const member = guild?.members.cache.get(id);
+    const name = member ? (member.displayName || member.user.username) : id;
+    return `<span class="mention">@${name}</span>`;
+  });
+
+  // Interpréter les mentions de salons <#ID>
+  processed = processed.replace(/&lt;#(\d+)&gt;/g, (match, id) => {
+    const channel = guild?.channels.cache.get(id);
+    const name = channel?.name || id;
+    return `<a href="https://discord.com/channels/${guild?.id || '@me'}/${id}" target="_blank" class="mention-link">#${name}</a>`;
+  });
+
+  // Interpréter les mentions de rôles <@&ID>
+  processed = processed.replace(/&lt;@&amp;(\d+)&gt;/g, (match, id) => {
+    const role = guild?.roles.cache.get(id);
+    const name = role?.name || id;
+    return `<span class="mention">@${name}</span>`;
+  });
+
+  return processed;
+}
+
+function extractMessageId(details: string): string | null {
+  return parseCaseField(details, 'ID');
 }
 
 function extractDiscordSnowflake(value: string | null | undefined): string | null {
@@ -1246,7 +1172,13 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
         take: 200,
       }).catch(() => []),
       prisma.dashboardAuditLog.findMany({
-        where: { guildId, user: actualUserId },
+        where: {
+          guildId,
+          OR: [
+            { user: actualUserId },
+            { details: { contains: actualUserId } }
+          ]
+        },
         orderBy: { dateIso: 'desc' },
         take: 500,
       }).catch(() => []),
@@ -1277,9 +1209,15 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
     const relevantLogs = (auditLogs || []).filter((entry) => {
       try {
         const haystack = `${entry.user || ""} ${entry.details || ""}`;
-        if (haystack.includes(`<@${actualUserId}>`) || haystack.includes(`<@!${actualUserId}>`)) return true;
+        // Inclure si l'utilisateur est mentionné (format Discord ou ID brut)
+        if (haystack.includes(actualUserId)) return true;
+        
+        // Inclure si les tags connus sont présents
         if ([...tagCandidates].some((candidate) => candidate && haystack.includes(candidate))) return true;
-        if (entry.channelId && entry.module === 'Messages' && entry.user?.includes(actualUserId)) return true;
+        
+        // Inclure si c'est l'auteur du log
+        if (entry.user === actualUserId) return true;
+        
         return false;
       } catch (e) {
         return false;
@@ -1294,7 +1232,7 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
       module: entry.module,
       eventType: entry.eventType,
       source: entry.eventType === 'Discord' ? 'discord' : 'dashboard',
-      details: entry.details,
+      details: interpretMentions(discordGuild, entry.details),
       dateIso: safeIsoDate(entry.dateIso) || new Date().toISOString(),
       channelId: entry.channelId,
     }));
@@ -1303,16 +1241,20 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
     .map((entry) => parseInviteFromDetails(entry.details))
     .find((entry): entry is MemberCaseInviteInfo => !!entry) ?? null;
 
-    const messages = relevantLogs
-      .filter((entry) => entry.module === 'Messages' && entry.action === 'Message envoyé')
+    const messages = (auditLogs || [])
+      .filter((entry) => entry.module === 'Messages' && entry.action === 'Message envoyé' && entry.user.includes(actualUserId))
       .slice(0, 250)
-      .map((entry) => ({
-        id: entry.id,
-        channelId: entry.channelId ?? 'unknown',
-        channelName: formatChannelName(discordGuild, entry.channelId),
-        content: extractMessagePreview(entry.details) ?? entry.details,
-        dateIso: safeIsoDate(entry.dateIso) || new Date().toISOString(),
-      }));
+      .map((entry) => {
+        const msgId = extractMessageId(entry.details);
+        return {
+          id: entry.id,
+          channelId: entry.channelId ?? 'unknown',
+          channelName: formatChannelName(discordGuild, entry.channelId),
+          content: interpretMentions(discordGuild, extractMessagePreview(entry.details) ?? entry.details),
+          dateIso: safeIsoDate(entry.dateIso) || new Date().toISOString(),
+          discordUrl: msgId ? `https://discord.com/channels/${guildId}/${entry.channelId}/${msgId}` : null,
+        };
+      });
 
   const messagesByChannelMap = new Map<string, MemberCaseChannelSummary>();
   for (const message of messages) {
@@ -1477,50 +1419,14 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
   if (!guild) return null;
 
   const [
-    feeds,
-    feedItems,
-    youtubeItemsCount,
-    youtubeApprovedCount,
-    youtubePendingCount,
-    codePoliceRulesCount,
     dailyAlgoSubmissionCount,
-    translatedCount,
-    userFeedSubCount,
-    lastWeekItems,
-    lastWeekYt,
-    lastWeekAlgos,
     runtime,
     persistedAudit,
     sanctions,
     sanctionReports,
     regulationRules,
   ] = await Promise.all([
-    prisma.feed.findMany({ where: { guildId }, orderBy: { createdAt: 'desc' } }),
-    prisma.feedItem.findMany({
-      where: { feed: { guildId } },
-      include: { feed: { select: { name: true } } },
-      orderBy: { createdAt: 'desc' },
-      take: 80
-    }),
-    prisma.youTubeItem.count({ where: { guildId } }),
-    prisma.youTubeItem.count({ where: { guildId, status: 'APPROVED' } }),
-    prisma.youTubeItem.count({ where: { guildId, status: 'PENDING' } }),
-    prisma.codePoliceRule.count({ where: { OR: [{ guildId }, { guildId: null }], enabled: true } }),
     prisma.dailyAlgoSubmission.count({ where: { run: { guildId } } }),
-    prisma.feedItem.count({ where: { feed: { guildId }, OR: [{ titleTranslated: { not: null } }, { descriptionTranslated: { not: null } }] } }),
-    prisma.userFeedSub.count({ where: { feed: { guildId } } }),
-    prisma.feedItem.findMany({
-      where: { feed: { guildId }, createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
-      select: { createdAt: true }
-    }),
-    prisma.youTubeItem.findMany({
-      where: { guildId, createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
-      select: { createdAt: true }
-    }),
-    prisma.dailyAlgoSubmission.findMany({
-      where: { run: { guildId }, createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
-      select: { createdAt: true }
-    }),
     getOrCreateRuntime(guildId),
     prisma.dashboardAuditLog.findMany({
       where: { guildId },
@@ -1551,7 +1457,7 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
     module: entry.module,
     eventType: entry.eventType,
     source: entry.eventType === 'Discord' ? 'discord' : 'dashboard',
-    details: entry.details,
+    details: interpretMentions(client.guilds.cache.get(guildId) || null, entry.details),
     dateIso: entry.dateIso.toISOString(),
     channelId: entry.channelId
   }));
@@ -1601,69 +1507,17 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
     updatedAt: entry.updatedAt.toISOString(),
   }));
 
-  const feedMapped: FeedItem[] = feeds.map((feed) => ({
-    id: feed.id,
-    name: feed.name,
-    url: feed.url,
-    category: feed.category,
-    targetChannel: guild.publicChannelId ? `<#${guild.publicChannelId}>` : '#actualites-generales',
-    scanMinutes: 10,
-    enabled: feed.enabled,
-    includeKeywords: feed.includeKeywords,
-    excludeKeywords: feed.excludeKeywords,
-    lastCheck: (feed.lastPolledAt ?? feed.updatedAt).toISOString(),
-    lastStatus: mapFeedStatus(feed.lastPollStatus, !!feed.lastPollError)
-  }));
 
-  const contentItems: ContentItem[] = feedItems.map((item) => ({
-    id: item.id,
-    source: item.feed.name,
-    url: item.url,
-    titleOriginal: item.title,
-    title: item.titleTranslated ?? item.title,
-    excerptOriginal: truncate(item.description),
-    excerpt: truncate(item.descriptionTranslated ?? item.description),
-    author: item.author ?? 'Inconnu',
-    targetChannel: guild.publicChannelId ? `<#${guild.publicChannelId}>` : '#actualites-generales',
-    status: mapContentStatus(item.status),
-    filteredOut: item.interestDecision === 'FILTERED_OUT',
-    scheduleAt: (item.publishedAt ?? item.updatedAt).toISOString(),
-    createdAt: item.createdAt.toISOString(),
-    filterReason: item.interestDecision === 'FILTERED_OUT' ? item.interestReason ?? 'Filtrée par préférences' : undefined,
-    errorMessage: item.status === 'REJECTED' ? 'Contenu rejeté en modération.' : undefined
-  }));
 
-  const feedErrorCount = feedMapped.filter((feed) => feed.lastStatus === 'error').length;
-  const feedWarningCount = feedMapped.filter((feed) => feed.lastStatus === 'warning').length;
 
   const modules: ModuleItem[] = [
-    {
-      id: 'rss',
-      name: 'Flux RSS',
-      description: MODULE_DESCRIPTIONS.rss,
-      status: feedErrorCount > 0 ? 'error' : feedMapped.some((feed) => feed.enabled) ? 'active' : 'inactive',
-      uptime: feedErrorCount > 0 ? 92.4 : 99.3,
-      interactions: contentItems.length,
-      lastSync: guild.updatedAt.toISOString(),
-      errorMessage: feedErrorCount > 0 ? `${feedErrorCount} flux en erreur` : feedWarningCount > 0 ? `${feedWarningCount} flux en avertissement` : undefined
-    },
-    {
-      id: 'youtube',
-      name: 'YouTube Monitor',
-      description: MODULE_DESCRIPTIONS.youtube,
-      status: guild.youtubeEnabled ? (guild.nathanYtChannelId ? 'active' : 'error') : 'inactive',
-      uptime: guild.youtubeEnabled ? (guild.nathanYtChannelId ? 98.1 : 87.3) : 100,
-      interactions: youtubeItemsCount,
-      lastSync: guild.updatedAt.toISOString(),
-      errorMessage: guild.youtubeEnabled && !guild.nathanYtChannelId ? 'Canal YouTube de référence non configuré.' : undefined
-    },
     {
       id: 'codepolice',
       name: 'Code Police',
       description: MODULE_DESCRIPTIONS.codepolice,
       status: guild.codePoliceEnabled ? 'active' : 'inactive',
       uptime: 99.9,
-      interactions: codePoliceRulesCount * 8,
+      interactions: 0,
       lastSync: guild.updatedAt.toISOString()
     },
     {
@@ -1681,46 +1535,11 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
       description: MODULE_DESCRIPTIONS.traduction,
       status: guild.translationEnabled ? 'active' : 'inactive',
       uptime: guild.translationEnabled ? 97.1 : 100,
-      interactions: translatedCount,
-      lastSync: guild.updatedAt.toISOString()
-    },
-    {
-      id: 'personnalise',
-      name: 'Feed Personnalisé',
-      description: MODULE_DESCRIPTIONS.personnalise,
-      status: userFeedSubCount > 0 ? 'active' : 'inactive',
-      uptime: 99.5,
-      interactions: userFeedSubCount,
+      interactions: 0,
       lastSync: guild.updatedAt.toISOString()
     }
   ];
 
-  const inferredAudit: AuditEntry[] = [
-    {
-      id: makeId(),
-      user: 'Système',
-      action: 'Analyse de configuration',
-      context: getGuildName(client, guildId),
-      module: 'Dashboard',
-      eventType: 'Automatique',
-      source: 'dashboard',
-      details: `${feedMapped.length} flux, ${contentItems.length} contenus suivis.`,
-      dateIso: nowIso(),
-      channelId: null,
-    },
-    {
-      id: makeId(),
-      user: 'Système',
-      action: 'État YouTube synchronisé',
-      context: getGuildName(client, guildId),
-      module: 'YouTube',
-      eventType: 'Automatique',
-      source: 'dashboard',
-      details: `${youtubeApprovedCount} approuvés, ${youtubePendingCount} en attente.`,
-      dateIso: guild.updatedAt.toISOString(),
-      channelId: null,
-    }
-  ];
 
   const discordGuild = client.guilds.cache.get(guildId);
   const currentMember = userId && discordGuild ? await discordGuild.members.fetch(userId).catch(() => null) : null;
@@ -1774,8 +1593,6 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
     recruitmentLogChannelId: guild.recruitmentLogChannelId ?? '',
     recruitmentAutoRejectEnabled: isRecruitmentAutoRejectEnabled(guildId),
     modules,
-    feeds: feedMapped,
-    contentItems,
     discordChannels,
     discordVoiceChannels,
     discordRoles,
@@ -1788,7 +1605,6 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
       canModerateDailyAlgo: access.canModerateDailyAlgo,
       canManageSettings: access.canManageSettings,
     },
-    youtubeReferenceChannelId: guild.nathanYtChannelId ?? '',
     notifications: {
       discordChannel: guild.statusCheckChannelId ? `<#${guild.statusCheckChannelId}>` : '#alertes-redaction',
       email: runtime.email,
@@ -1798,33 +1614,15 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
       killSwitchEnabled: runtime.killSwitchEnabled,
       severityByModule: runtime.severityByModule
     },
-    auditTrail: [...auditTrailFromDb, ...inferredAudit].slice(0, 180),
+    auditTrail: auditTrailFromDb.slice(0, 180),
     sanctions: mappedSanctions,
     sanctionReports: mappedSanctionReports,
     regulationRules: mappedRegulationRules,
     messageTemplate: runtime.messageTemplate,
     analytics: {
-      activityTrend: Array.from({ length: 7 }, (_, i) => {
-        const d = new Date();
-        d.setDate(d.getDate() - (6 - i));
-        d.setHours(0, 0, 0, 0);
-        const nextD = new Date(d);
-        nextD.setDate(d.getDate() + 1);
-
-        const countItems = lastWeekItems.filter((it) => it.createdAt >= d && it.createdAt < nextD).length;
-        const countYt = lastWeekYt.filter((it) => it.createdAt >= d && it.createdAt < nextD).length;
-        const countAlgos = lastWeekAlgos.filter((it) => it.createdAt >= d && it.createdAt < nextD).length;
-        return countItems + countYt + countAlgos;
-      }),
+      activityTrend: [0, 0, 0, 0, 0, 0, 0],
       totalAutomations: modules.reduce((acc, m) => acc + m.interactions, 0),
-      contentStatusDistribution: [
-        { label: 'Flux RSS OK', value: feeds.length > 0 ? (feeds.filter(f => !f.lastPollError).length / feeds.length) * 100 : 100 },
-        { label: 'Auto-Publi', value: feeds.filter(f => f.autoPublish).length > 0 ? (feeds.filter(f => f.autoPublish && !f.lastPollError).length / feeds.filter(f => f.autoPublish && !f.lastPollError).length) * 100 : 85 },
-        { label: 'Surcharge', value: 5 }, // Inferred logic for surcharge
-        { label: 'Santé API', value: 100 }
-      ],
-      translationCount: translatedCount,
-      healthStatus: Math.max(0, 100 - (feedErrorCount * 10))
+      healthStatus: 100
     },
     member: currentMember ? {
       id: currentMember.id,
@@ -2098,7 +1896,8 @@ export const startDashboardApi = (client: Client) => {
           const authHeader = req.headers.authorization;
           const token = authHeader!.split(' ')[1];
           const decoded = jwt.decode(token) as any;
-          json(res, 200, { id: decoded.userId, username: decoded.username, avatar: decoded.avatar });
+          const isBotAdmin = await resolveAdminAccess(client, decoded.userId);
+          json(res, 200, { id: decoded.userId, username: decoded.username, avatar: decoded.avatar, isBotAdmin });
           return;
         }
 
@@ -2210,6 +2009,265 @@ export const startDashboardApi = (client: Client) => {
       }
 
 
+      if (parts.length >= 2 && parts[0] === 'api' && parts[1] === 'admin') {
+        const user = verifyAuth(req);
+        if (!user) {
+          json(res, 401, { error: 'Non authentifié' });
+          return;
+        }
+
+        const isBotAdmin = await resolveAdminAccess(client, user.userId);
+        if (!isBotAdmin) {
+          json(res, 403, { error: 'Accès administrateur requis' });
+          return;
+        }
+
+        if (parts[2] === 'stats') {
+          const guildCount = client.guilds.cache.size;
+          const userCount = client.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0);
+          const activeSanctions = await prisma.sanction.count({ where: { status: 'ACTIVE' } });
+          const dailyAlgoSubmissions = await prisma.dailyAlgoSubmission.count();
+
+          json(res, 200, {
+            guildCount,
+            userCount,
+            activeSanctions,
+            dailyAlgoSubmissions,
+            uptime: Math.floor(process.uptime()),
+            memoryUsage: process.memoryUsage(),
+          });
+          return;
+        }
+
+        if (parts[2] === 'guilds' && parts.length === 3) {
+          const guilds = client.guilds.cache.map(g => ({
+            id: g.id,
+            name: g.name,
+            icon: g.iconURL(),
+            memberCount: g.memberCount,
+            joinedAt: g.joinedAt,
+          }));
+
+          json(res, 200, { guilds });
+          return;
+        }
+
+        if (parts[2] === 'guilds' && parts.length === 5) {
+          const guildId = parts[3];
+          const guild = client.guilds.cache.get(guildId);
+          if (!guild) {
+            json(res, 404, { error: 'Serveur introuvable' });
+            return;
+          }
+
+          if (parts[4] === 'invite' && req.method === 'POST') {
+            const channel = guild.channels.cache.find(c => c.type === 0 && c.permissionsFor(guild.members.me!)?.has('CreateInstantInvite'));
+            if (!channel) {
+              json(res, 400, { error: 'Impossible de créer une invitation (pas de salon textuel ou pas la permission)' });
+              return;
+            }
+            try {
+              const invite = await (channel as TextChannel).createInvite({ maxAge: 86400, maxUses: 1 });
+              json(res, 200, { url: invite.url });
+            } catch (err) {
+              json(res, 500, { error: 'Erreur lors de la création de l\'invitation' });
+            }
+            return;
+          }
+
+          if (parts[4] === 'leave' && req.method === 'POST') {
+            try {
+              await guild.leave();
+              json(res, 200, { success: true });
+            } catch (err) {
+              json(res, 500, { error: 'Impossible de quitter le serveur' });
+            }
+            return;
+          }
+        }
+
+        if (parts[2] === 'admins') {
+          if (req.method === 'GET' && parts.length === 3) {
+            const admins = await prisma.globalAdmin.findMany({
+              orderBy: { createdAt: 'desc' }
+            });
+            const enrichedAdmins = await Promise.all(admins.map(async (admin) => {
+              try {
+                const discordUser = await client.users.fetch(admin.userId);
+                return { ...admin, username: discordUser.username, avatarUrl: discordUser.displayAvatarURL() };
+              } catch {
+                return { ...admin, username: 'Inconnu', avatarUrl: null };
+              }
+            }));
+            json(res, 200, { admins: enrichedAdmins });
+            return;
+          }
+
+          if (req.method === 'POST' && parts.length === 3) {
+             const body = await readJsonBody<{userId: string}>(req);
+             if (!body || !body.userId) {
+               json(res, 400, { error: 'ID Discord requis' }); 
+               return;
+             }
+             try {
+                const discordUser = await client.users.fetch(body.userId);
+                if (!discordUser) throw new Error();
+                await prisma.globalAdmin.upsert({
+                  where: { userId: body.userId },
+                  update: {},
+                  create: { userId: body.userId, addedBy: user.userId }
+                });
+                json(res, 201, { success: true });
+             } catch {
+                json(res, 400, { error: 'Utilisateur Discord introuvable' });
+             }
+             return;
+          }
+
+          if (req.method === 'DELETE' && parts.length === 4) {
+             const targetId = parts[3];
+             if (targetId === '457275321171968000') {
+               json(res, 403, { error: 'Impossible de supprimer le créateur' }); 
+               return;
+             }
+             await prisma.globalAdmin.delete({ where: { userId: targetId } }).catch(() => {});
+             json(res, 200, { success: true });
+             return;
+          }
+        }
+
+        if (parts[2] === 'blacklist') {
+          if (req.method === 'GET') {
+            const blacklist = await prisma.globalBlacklist.findMany({
+              orderBy: { createdAt: 'desc' }
+            });
+            const enriched = await Promise.all(blacklist.map(async (entry) => {
+              try {
+                const discordUser = await client.users.fetch(entry.userId);
+                return { ...entry, username: discordUser.username, avatarUrl: discordUser.displayAvatarURL() };
+              } catch {
+                return { ...entry, username: 'Inconnu', avatarUrl: null };
+              }
+            }));
+            json(res, 200, { blacklist: enriched });
+            return;
+          }
+
+          if (req.method === 'POST') {
+             const body = await readJsonBody<{userId: string, reason?: string}>(req);
+             if (!body || !body.userId) {
+               json(res, 400, { error: 'ID Discord requis' }); return;
+             }
+             try {
+                const discordUser = await client.users.fetch(body.userId);
+                if (!discordUser) throw new Error();
+                await prisma.globalBlacklist.upsert({
+                  where: { userId: body.userId },
+                  update: { reason: body.reason },
+                  create: { userId: body.userId, reason: body.reason, addedBy: user.userId }
+                });
+                json(res, 201, { success: true });
+             } catch {
+                json(res, 400, { error: 'Utilisateur Discord introuvable' });
+             }
+             return;
+          }
+
+          if (req.method === 'DELETE' && parts.length === 4) {
+             const targetId = parts[3];
+             await prisma.globalBlacklist.delete({ where: { userId: targetId } }).catch(() => {});
+             json(res, 200, { success: true });
+             return;
+          }
+        }
+
+        if (parts[2] === 'config') {
+          if (req.method === 'GET') {
+             const config = await prisma.botGlobalConfig.findUnique({ where: { key: 'MAINTENANCE_MODE' } });
+             json(res, 200, { maintenance: config?.value === 'true' });
+             return;
+          }
+
+          if (req.method === 'POST') {
+             const body = await readJsonBody<{maintenance: boolean}>(req);
+             if (!body || typeof body.maintenance !== 'boolean') {
+               json(res, 400, { error: 'Valeur maintenance (boolean) requise' }); return;
+             }
+             await prisma.botGlobalConfig.upsert({
+               where: { key: 'MAINTENANCE_MODE' },
+               update: { value: body.maintenance ? 'true' : 'false' },
+               create: { key: 'MAINTENANCE_MODE', value: body.maintenance ? 'true' : 'false' }
+             });
+             // Mettre à jour en mémoire globale
+             (global as any).KOTBO_MAINTENANCE_MODE = body.maintenance;
+             json(res, 200, { success: true });
+             return;
+          }
+        }
+
+        if (parts[2] === 'errors') {
+          if (req.method === 'GET') {
+             const errors = await prisma.botErrorLog.findMany({
+               orderBy: { createdAt: 'desc' },
+               take: 50
+             });
+             json(res, 200, { errors });
+             return;
+          }
+
+          if (req.method === 'DELETE') {
+             await prisma.botErrorLog.deleteMany({});
+             json(res, 200, { success: true });
+             return;
+          }
+        }
+
+        if (parts[2] === 'broadcast' && req.method === 'POST') {
+          const body = await readJsonBody<{message: string}>(req);
+          if (!body || !body.message) {
+            json(res, 400, { error: 'Message requis' }); return;
+          }
+          
+          let successCount = 0;
+          let failCount = 0;
+          
+          const guilds = client.guilds.cache;
+          for (const [id, guild] of guilds) {
+            try {
+              const dbGuild = await prisma.guild.findUnique({ where: { id } });
+              let targetChannelId = dbGuild?.newsChannelId || dbGuild?.publicChannelId;
+              
+              let channel;
+              if (targetChannelId) {
+                channel = guild.channels.cache.get(targetChannelId);
+              }
+              
+              if (!channel || channel.type !== 0) {
+                channel = guild.channels.cache.find(c => c.type === 0 && c.permissionsFor(client.user!)?.has('SendMessages'));
+              }
+              
+              if (channel && channel.isTextBased()) {
+                const embed = new EmbedBuilder()
+                  .setTitle('📢 Annonce Globale Kotbo')
+                  .setDescription(body.message)
+                  .setColor(COLORS.primary)
+                  .setFooter({ text: 'Système d\'annonce globale' })
+                  .setTimestamp();
+                await channel.send({ embeds: [embed] });
+                successCount++;
+              } else {
+                failCount++;
+              }
+            } catch {
+              failCount++;
+            }
+          }
+          
+          json(res, 200, { success: true, successCount, failCount });
+          return;
+        }
+      }
+
       if (parts.length >= 2 && parts[0] === 'api' && parts[1] === 'dashboard') {
         if (parts.length === 6 && parts[2] === 'guilds' && parts[4] === 'recruitment' && parts[5] === 'candidatures' && req.method === 'POST') {
           const guildId = parts[3];
@@ -2294,10 +2352,6 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
-          const isContentAction = parts.length === 7
-            && parts[4] === 'content'
-            && req.method === 'POST'
-            && ['force-send', 'mark-error', 'translate', 'translate-title', 'translate-description'].includes(parts[6]);
 
           const isSanctionAction = parts.length === 6
             && parts[4] === 'sanctions'
@@ -2317,15 +2371,11 @@ export const startDashboardApi = (client: Client) => {
 
           const isNotificationAction = parts[4] === 'notifications';
 
-          if (!access.canManageSettings && req.method !== 'GET' && !isContentAction && !isSanctionAction && !isDailyAlgoReviewAction && !isStaffAbsenceAction && !isNotificationAction && !isMeetingAction) {
+          if (!access.canManageSettings && req.method !== 'GET' && !isSanctionAction && !isDailyAlgoReviewAction && !isStaffAbsenceAction && !isNotificationAction && !isMeetingAction) {
             json(res, 403, { error: 'Action réservée aux administrateurs du dashboard.' });
             return;
           }
 
-          if (isContentAction && !access.canModerateContent) {
-            json(res, 403, { error: 'Action de modération non autorisée.' });
-            return;
-          }
 
           if (isSanctionAction && !access.canModerateContent) {
             json(res, 403, { error: 'Action de rapport de sanction non autorisée.' });
@@ -2734,25 +2784,7 @@ export const startDashboardApi = (client: Client) => {
                   }, 0) / memberWithJoinDates.length)
                 : 0;
 
-              // 16. Feed item stats
-              const feedItemsPublished = await prisma.feedItem.count({
-                where: { feed: { guildId }, status: 'APPROVED', createdAt: { gte: startDate } },
-              });
-              const feedItemsRejected = await prisma.feedItem.count({
-                where: { feed: { guildId }, status: 'REJECTED', createdAt: { gte: startDate } },
-              });
-              const feedItemsPending = await prisma.feedItem.count({
-                where: { feed: { guildId }, status: 'PENDING', createdAt: { gte: startDate } },
-              });
 
-              // 17. Translations count
-              const translatedCount = await prisma.feedItem.count({
-                where: {
-                  feed: { guildId },
-                  titleTranslated: { not: null },
-                  createdAt: { gte: startDate },
-                },
-              });
 
               // 18. Recent sanctions with avatars
               const recentSanctionsList = await prisma.sanction.findMany({
@@ -2857,10 +2889,6 @@ export const startDashboardApi = (client: Client) => {
                   avgTenureDays,
                   algoAvgParticipation,
                   avgMeetingAttendance,
-                  feedItemsPublished,
-                  feedItemsRejected,
-                  feedItemsPending,
-                  translatedCount,
                   messagesTrend,
                 },
                 // Legacy support for summary
@@ -3175,8 +3203,10 @@ export const startDashboardApi = (client: Client) => {
           if (parts.length === 6 && parts[4] === 'analytics' && parts[5] === 'heatmap' && req.method === 'GET') {
             try {
               const days = Math.min(90, Math.max(7, parseInt(url.searchParams.get('days') || '30', 10)));
+              const startDate = url.searchParams.get('startDate');
+              const endDate = url.searchParams.get('endDate');
               const { getHourlyHeatmapData } = await import('../services/dashboardAnalyticsService.js');
-              const heatmapData = await getHourlyHeatmapData(guildId, days);
+              const heatmapData = await getHourlyHeatmapData(guildId, { days, startDate, endDate });
               json(res, 200, heatmapData);
             } catch (err) {
               logger.error('AnalyticsAPI', 'Error computing heatmap:', err);
@@ -3202,8 +3232,10 @@ export const startDashboardApi = (client: Client) => {
           if (parts.length === 6 && parts[4] === 'analytics' && parts[5] === 'growth-retention' && req.method === 'GET') {
             try {
               const days = Math.min(365, Math.max(7, parseInt(url.searchParams.get('days') || '90', 10)));
+              const startDate = url.searchParams.get('startDate');
+              const endDate = url.searchParams.get('endDate');
               const { getGrowthAndRetention } = await import('../services/dashboardAnalyticsService.js');
-              const growthData = await getGrowthAndRetention(guildId, days);
+              const growthData = await getGrowthAndRetention(guildId, { days, startDate, endDate });
               json(res, 200, growthData);
             } catch (err) {
               logger.error('AnalyticsAPI', 'Error computing growth/retention:', err);
@@ -3216,8 +3248,10 @@ export const startDashboardApi = (client: Client) => {
           if (parts.length === 6 && parts[4] === 'analytics' && parts[5] === 'daily-algo' && req.method === 'GET') {
             try {
               const days = Math.min(365, Math.max(7, parseInt(url.searchParams.get('days') || '30', 10)));
+              const startDate = url.searchParams.get('startDate');
+              const endDate = url.searchParams.get('endDate');
               const { getDailyAlgoAnalytics } = await import('../services/dashboardAnalyticsService.js');
-              const algoData = await getDailyAlgoAnalytics(guildId, days);
+              const algoData = await getDailyAlgoAnalytics(guildId, { days, startDate, endDate });
               json(res, 200, algoData);
             } catch (err) {
               logger.error('AnalyticsAPI', 'Error computing daily algo analytics:', err);
@@ -4221,13 +4255,9 @@ export const startDashboardApi = (client: Client) => {
             const body = (await readJsonBody<{ status: ModuleStatus }> (req)) ?? { status: 'inactive' };
 
             const updates: Record<string, unknown> = {};
-            if (moduleId === 'youtube') updates.youtubeEnabled = body.status === 'active';
             if (moduleId === 'codepolice') updates.codePoliceEnabled = body.status === 'active';
             if (moduleId === 'dailyalgo') updates.dailyAlgoEnabled = body.status === 'active';
             if (moduleId === 'traduction') updates.translationEnabled = body.status === 'active';
-            if (moduleId === 'rss' && body.status !== 'active') {
-              await prisma.feed.updateMany({ where: { guildId }, data: { enabled: false } });
-            }
 
             if (Object.keys(updates).length > 0) {
               await prisma.guild.update({ where: { id: guildId }, data: updates });
@@ -4247,368 +4277,7 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
-          if (parts.length === 5 && parts[4] === 'feeds' && req.method === 'POST') {
-            const body = await readJsonBody<{
-              name: string;
-              url: string;
-              category: string;
-              targetChannel: string;
-              scanMinutes: number;
-              enabled: boolean;
-              includeKeywords: string[];
-              excludeKeywords: string[];
-            }>(req);
 
-            if (!body?.name || !body.url) {
-              json(res, 400, { error: 'Nom et URL requis' });
-              return;
-            }
-
-            await prisma.feed.create({
-              data: {
-                guildId,
-                name: body.name,
-                url: body.url,
-                category: body.category || 'Général',
-                enabled: body.enabled,
-                includeKeywords: body.includeKeywords ?? [],
-                excludeKeywords: body.excludeKeywords ?? []
-              }
-            });
-
-            await pushAudit(guildId, {
-              user: auditUser,
-              action: 'Création flux RSS',
-              context: getGuildName(client, guildId),
-              module: 'RSS',
-              eventType: 'Manuel',
-              details: `Flux ${body.name} ajouté.`,
-              channelId: body.targetChannel?.replace(/[^0-9]/g, '') || null
-            });
-
-            json(res, 201, { ok: true });
-            return;
-          }
-
-          if (parts.length === 6 && parts[4] === 'feeds' && req.method === 'PUT') {
-            const feedId = parts[5];
-            const body = await readJsonBody<{
-              name: string;
-              url: string;
-              category: string;
-              scanMinutes: number;
-              enabled: boolean;
-              includeKeywords: string[];
-              excludeKeywords: string[];
-            }>(req);
-
-            if (!body?.name || !body.url) {
-              json(res, 400, { error: 'Nom et URL requis' });
-              return;
-            }
-
-            await prisma.feed.update({
-              where: { id: feedId },
-              data: {
-                name: body.name,
-                url: body.url,
-                category: body.category || 'Général',
-                enabled: body.enabled,
-                includeKeywords: body.includeKeywords ?? [],
-                excludeKeywords: body.excludeKeywords ?? []
-              }
-            });
-
-            await pushAudit(guildId, {
-              user: auditUser,
-              action: 'Modification flux RSS',
-              context: getGuildName(client, guildId),
-              module: 'RSS',
-              eventType: 'Manuel',
-              details: `Flux ${body.name} mis à jour.`,
-              channelId: null
-            });
-
-            json(res, 200, { ok: true });
-            return;
-          }
-
-          if (parts.length === 6 && parts[4] === 'feeds' && req.method === 'DELETE') {
-            const feedId = parts[5];
-            await prisma.feed.delete({ where: { id: feedId } });
-
-            await pushAudit(guildId, {
-              user: auditUser,
-              action: 'Suppression flux RSS',
-              context: getGuildName(client, guildId),
-              module: 'RSS',
-              eventType: 'Manuel',
-              details: `Flux ${feedId} supprimé.`,
-              channelId: null
-            });
-
-            json(res, 200, { ok: true });
-            return;
-          }
-
-          if (parts.length === 5 && parts[4] === 'youtube' && req.method === 'PUT') {
-            const body = await readJsonBody<{ youtubeReferenceChannelId?: string }>(req);
-            const youtubeReferenceChannelId = body?.youtubeReferenceChannelId?.trim() || null;
-
-            await prisma.guild.update({
-              where: { id: guildId },
-              data: {
-                nathanYtChannelId: youtubeReferenceChannelId
-              }
-            });
-
-            await pushAudit(guildId, {
-              user: auditUser,
-              action: 'Mise à jour YouTube',
-              context: getGuildName(client, guildId),
-              module: 'YouTube',
-              eventType: 'Manuel',
-              details: youtubeReferenceChannelId
-                ? `Canal de référence défini: ${youtubeReferenceChannelId}.`
-                : 'Canal de référence YouTube vidé.',
-              channelId: null
-            });
-
-            json(res, 200, { ok: true });
-            return;
-          }
-
-          if (parts.length === 7 && parts[4] === 'content' && req.method === 'POST') {
-            const contentId = parts[5];
-            const operation = parts[6];
-
-            if (operation === 'translate' || operation === 'translate-title' || operation === 'translate-description') {
-              const guild = await prisma.guild.findUnique({
-                where: { id: guildId },
-                select: { defaultTranslateTo: true }
-              });
-
-              const item = await prisma.feedItem.findFirst({
-                where: { id: contentId, feed: { guildId } },
-                include: {
-                  feed: {
-                    select: {
-                      name: true,
-                      translateTo: true
-                    }
-                  }
-                }
-              });
-
-              if (!guild || !item) {
-                json(res, 404, { error: 'Contenu introuvable' });
-                return;
-              }
-
-              const targetLang =
-                normalizeLangCode(item.feed.translateTo) ??
-                normalizeLangCode(guild.defaultTranslateTo) ??
-                DEFAULT_TRANSLATION_TARGET_LANG;
-
-              const shouldTranslateTitle = operation !== 'translate-description';
-              const descriptionForTranslation = prepareDescriptionForTranslation(item.description);
-              const shouldTranslateDescription = operation !== 'translate-title' && Boolean(descriptionForTranslation);
-
-              let translatedTitle: string | null = null;
-              let translatedDescription: string | null = null;
-
-              if (shouldTranslateTitle) {
-                translatedTitle = await translate(item.title, targetLang);
-                if (translatedTitle) {
-                  await prisma.feedItem.update({
-                    where: { id: contentId },
-                    data: { titleTranslated: translatedTitle }
-                  });
-                }
-              }
-
-              if (shouldTranslateDescription) {
-                translatedDescription = await translate(descriptionForTranslation, targetLang);
-                if (translatedDescription) {
-                  await prisma.feedItem.update({
-                    where: { id: contentId },
-                    data: { descriptionTranslated: translatedDescription }
-                  });
-                }
-              }
-
-              if (!translatedTitle && !translatedDescription) {
-                json(res, 502, { error: 'Traduction indisponible' });
-                return;
-              }
-
-              await pushAudit(guildId, {
-                user: auditUser,
-                action: 'Traduction contenu',
-                context: getGuildName(client, guildId),
-                module: 'Contenu',
-                eventType: 'Manuel',
-                details: `Contenu ${contentId} traduit en ${targetLang} via le dashboard.`,
-                channelId: null
-              });
-
-              json(res, 200, {
-                ok: true,
-                targetLang,
-                translatedTitle: Boolean(translatedTitle),
-                translatedDescription: Boolean(translatedDescription)
-              });
-              return;
-            }
-
-            if (operation === 'translate') {
-              const guild = await prisma.guild.findUnique({
-                where: { id: guildId },
-                select: { defaultTranslateTo: true }
-              });
-
-              const item = await prisma.feedItem.findFirst({
-                where: { id: contentId, feed: { guildId } },
-                include: {
-                  feed: {
-                    select: {
-                      name: true,
-                      translateTo: true
-                    }
-                  }
-                }
-              });
-
-              if (!guild || !item) {
-                json(res, 404, { error: 'Contenu introuvable' });
-                return;
-              }
-
-              const targetLang =
-                normalizeLangCode(item.feed.translateTo) ??
-                normalizeLangCode(guild.defaultTranslateTo) ??
-                DEFAULT_TRANSLATION_TARGET_LANG;
-
-              const translatedTitle = await translate(item.title, targetLang);
-              if (translatedTitle) {
-                await prisma.feedItem.update({
-                  where: { id: contentId },
-                  data: { titleTranslated: translatedTitle }
-                });
-              }
-
-              let translatedDescription: string | null = null;
-              const descriptionForTranslation = prepareDescriptionForTranslation(item.description);
-              if (descriptionForTranslation) {
-                translatedDescription = await translate(descriptionForTranslation, targetLang);
-                if (translatedDescription) {
-                  await prisma.feedItem.update({
-                    where: { id: contentId },
-                    data: { descriptionTranslated: translatedDescription }
-                  });
-                }
-              }
-
-              if (!translatedTitle && !translatedDescription) {
-                json(res, 502, { error: 'Traduction indisponible' });
-                return;
-              }
-            }
-
-            if (operation === 'force-send') {
-              try {
-                await approveContentFromDashboard(client, guildId, contentId, user.userId);
-                await pushAudit(guildId, {
-                  user: auditUser,
-                  action: 'Validation contenu',
-                  context: getGuildName(client, guildId),
-                  module: 'Contenu',
-                  eventType: 'Manuel',
-                  details: `Contenu ${contentId} validé, publié et retiré de la file de validation.`,
-                  channelId: null
-                });
-                broadcastDashboardStateChange(guildId, 'content_force_send');
-                json(res, 200, { ok: true });
-                return;
-              } catch (error) {
-                await pushAudit(guildId, {
-                  user: auditUser,
-                  action: 'Échec validation contenu',
-                  context: getGuildName(client, guildId),
-                  module: 'Contenu',
-                  eventType: 'Manuel',
-                  details: `Impossible de valider le contenu ${contentId}: ${error instanceof Error ? error.message : 'erreur inconnue'}.`,
-                  channelId: null
-                });
-                throw error;
-              }
-            }
-
-            if (operation === 'mark-error') {
-              try {
-                await rejectContentFromDashboard(client, guildId, contentId, user.userId);
-                await pushAudit(guildId, {
-                  user: auditUser,
-                  action: 'Rejet contenu',
-                  context: getGuildName(client, guildId),
-                  module: 'Contenu',
-                  eventType: 'Manuel',
-                  details: `Contenu ${contentId} rejeté et retiré de la file de validation.`,
-                  channelId: null
-                });
-                broadcastDashboardStateChange(guildId, 'content_mark_error');
-                json(res, 200, { ok: true });
-                return;
-              } catch (error) {
-                await pushAudit(guildId, {
-                  user: auditUser,
-                  action: 'Échec rejet contenu',
-                  context: getGuildName(client, guildId),
-                  module: 'Contenu',
-                  eventType: 'Manuel',
-                  details: `Impossible de rejeter le contenu ${contentId}: ${error instanceof Error ? error.message : 'erreur inconnue'}.`,
-                  channelId: null
-                });
-                throw error;
-              }
-            }
-          }
-
-          if (parts.length === 5 && parts[4] === 'content' && req.method === 'POST') {
-            const body = await readJsonBody<{ title?: string }>(req);
-            const firstFeed = await prisma.feed.findFirst({ where: { guildId }, orderBy: { createdAt: 'asc' } });
-            if (!firstFeed) {
-              json(res, 400, { error: 'Aucun flux disponible pour créer un brouillon.' });
-              return;
-            }
-
-            const draftTitle = body?.title?.trim() || 'Brouillon: nouvelle publication';
-            await prisma.feedItem.create({
-              data: {
-                feedId: firstFeed.id,
-                guid: `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-                title: draftTitle,
-                url: `${firstFeed.url}#draft-${Date.now()}`,
-                description: 'Brouillon créé depuis le dashboard.',
-                author: 'Dashboard',
-                publishedAt: new Date(),
-                status: 'PENDING'
-              }
-            });
-
-            await pushAudit(guildId, {
-              user: auditUser,
-              action: 'Création brouillon',
-              context: getGuildName(client, guildId),
-              module: 'Contenu',
-              eventType: 'Manuel',
-              details: `Brouillon créé sur le flux ${firstFeed.name}.`,
-              channelId: null
-            });
-
-            json(res, 201, { ok: true });
-            return;
-          }
 
           if (parts.length === 6 && parts[4] === 'sanctions' && req.method === 'DELETE' && parts[5] !== 'reports') {
             if (access.level !== 'admin') {
@@ -4872,6 +4541,7 @@ export const startDashboardApi = (client: Client) => {
               logChannelId?: string | null;
               moderatorRoleId?: string | null;
               regulationChannelId?: string | null;
+              propagateSanctions?: boolean;
               messageTemplate?: string;
             }>(req);
 
@@ -4885,6 +4555,7 @@ export const startDashboardApi = (client: Client) => {
               logChannelId?: string | null;
               moderatorRoleId?: string | null;
               regulationChannelId?: string | null;
+              propagateSanctions?: boolean;
             } = {};
             if (Object.prototype.hasOwnProperty.call(body, 'discordChannel')) {
               data.statusCheckChannelId = body.discordChannel?.replace(/[^0-9]/g, '') || null;
@@ -4909,6 +4580,10 @@ export const startDashboardApi = (client: Client) => {
               if (typeof rawRegulationChannelId === 'string' || rawRegulationChannelId === null) {
                 data.regulationChannelId = rawRegulationChannelId?.replace(/[^0-9]/g, '') || null;
               }
+            }
+
+            if (Object.prototype.hasOwnProperty.call(body, 'propagateSanctions')) {
+              data.propagateSanctions = !!body.propagateSanctions;
             }
 
             if (Object.keys(data).length > 0) {
@@ -5251,6 +4926,52 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
+          if (parts.length === 6 && parts[4] === 'daily-algo-submissions' && parts[5] === 'global-leaderboard' && req.method === 'GET') {
+            const dateKey = getLocalDateKey();
+            const runs = await prisma.dailyAlgoRun.findMany({
+              where: { dateKey },
+              select: { id: true, guildId: true }
+            });
+
+            const runIds = runs.map(r => r.id);
+            const rawSubmissions = await prisma.dailyAlgoSubmission.findMany({
+              where: { runId: { in: runIds }, status: 'APPROVED' },
+              include: {
+                run: {
+                  select: { guildId: true }
+                }
+              }
+            });
+
+            const submissions = rawSubmissions.map(submission => {
+              const finalScore = resolveDailyAlgoFinalScore(submission);
+              const totalPoints = finalScore !== null
+                ? Math.round((finalScore + (submission.speedBonusPoints ?? 0)) * 10) / 10
+                : null;
+
+              return {
+                id: submission.id,
+                authorId: submission.authorId,
+                authorName: submission.authorName,
+                guildId: submission.run.guildId,
+                guildName: getGuildName(client, submission.run.guildId),
+                scoreFinal: finalScore,
+                speedBonusPoints: submission.speedBonusPoints,
+                totalPoints,
+                submittedAt: submission.submittedAt.toISOString(),
+              };
+            });
+
+            // Sort by totalPoints desc, then speedRank or submittedAt
+            submissions.sort((a, b) => {
+              if ((b.totalPoints ?? 0) !== (a.totalPoints ?? 0)) return (b.totalPoints ?? 0) - (a.totalPoints ?? 0);
+              return new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime();
+            });
+
+            json(res, 200, { dateKey, submissions });
+            return;
+          }
+
           if (parts.length === 6 && parts[4] === 'daily-algo-submissions' && parts[5] === 'today' && req.method === 'GET') {
             const dateKey = getLocalDateKey();
             const run = await prisma.dailyAlgoRun.findUnique({
@@ -5516,6 +5237,15 @@ export const startDashboardApi = (client: Client) => {
           }
 
           if (parts.length === 5 && parts[4] === 'daily-algo-problems' && req.method === 'POST') {
+            const MAIN_GUILD_ID = '1477350874740424986';
+            const isBotAdmin = await resolveAdminAccess(client, user.userId);
+            
+            // On vérifie si c'est le serveur principal OU si c'est l'admin du bot
+            if (guildId !== MAIN_GUILD_ID && !isBotAdmin) {
+              json(res, 403, { error: 'Seul le serveur principal peut ajouter des exercices.' });
+              return;
+            }
+
             const body = await readJsonBody<{ title: string; description: string; solution: string; difficulty: string; language: string }>(req);
             if (!body || !body.title || !body.description || !body.solution) {
               json(res, 400, { error: 'Payload invalide : champs manquants' });
@@ -6013,8 +5743,15 @@ export const startDashboardApi = (client: Client) => {
           }
 
           const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
-          if (accessLevel.level !== 'admin') {
+          const isModerator = accessLevel.level === 'admin' || accessLevel.level === 'moderator';
+
+          if (req.method !== 'GET' && accessLevel.level !== 'admin') {
             json(res, 403, { error: 'Accès admin requis' });
+            return;
+          }
+
+          if (!isModerator) {
+            json(res, 403, { error: 'Accès modérateur requis' });
             return;
           }
 
@@ -7032,8 +6769,8 @@ export const startDashboardApi = (client: Client) => {
           // DELETE /api/dashboard/guilds/:guildId/tutoring/periods/:periodId
           if (req.method === 'DELETE' && parts[5] === 'periods' && parts[6]) {
             const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
-            if (accessLevel.level !== 'admin') {
-              json(res, 403, { error: 'Accès admin requis' });
+            if (accessLevel.level !== 'admin' && !accessLevel.canManageTutoring) {
+              json(res, 403, { error: 'Accès admin ou tutorat requis' });
               return;
             }
 
@@ -7156,7 +6893,10 @@ export const startDashboardApi = (client: Client) => {
 
               const url = new URL(req.url, `http://${req.headers.host}`);
               const days = parseInt(url.searchParams.get('period') || '30', 10);
-              const data = await import('../services/dashboardAnalyticsService.js').then(m => m.getDashboardAnalytics(guildId, days));
+              const startDate = url.searchParams.get('startDate');
+              const endDate = url.searchParams.get('endDate');
+              
+              const data = await import('../services/dashboardAnalyticsService.js').then(m => m.getDashboardAnalytics(guildId, { days, startDate, endDate }));
               
               const discordGuild = client.guilds.cache.get(guildId);
               if (discordGuild) {

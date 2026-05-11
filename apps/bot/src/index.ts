@@ -23,12 +23,8 @@ import {
 } from './handlers/interactionHandler.js';
 import * as setupCmd from './commands/setup.js';
 import * as configCmd from './commands/config.js';
-import * as feedCmd from './commands/feed.js';
-import * as newsCmd from './commands/news.js';
-import * as newsRecoveryCmd from './commands/news-rattrapage.js';
 import * as pingCmd from './commands/ping.js';
 import * as infoCmd from './commands/info.js';
-import * as youtubeCmd from './commands/youtube.js';
 import * as excuseCmd from './commands/excuse.js';
 import * as epochCmd from './commands/epoch.js';
 import * as devutilsCmd from './commands/devutils.js';
@@ -97,7 +93,7 @@ type SlashCommand = {
 };
 
 const commands = new Collection<string, SlashCommand>();
-[setupCmd, configCmd, feedCmd, newsCmd, newsRecoveryCmd, pingCmd, infoCmd, youtubeCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd, postCmd, dailyAlgoCmd, profileCmd, profilCmd, sanctionCmd, casierCmd, absentCmd, meetingCmd, statsCmd, invitesCmd, leaderboardCmd, serverstatsCmd].forEach((cmd) => {
+[setupCmd, configCmd, pingCmd, infoCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd, postCmd, dailyAlgoCmd, profileCmd, profilCmd, sanctionCmd, casierCmd, absentCmd, meetingCmd, statsCmd, invitesCmd, leaderboardCmd, serverstatsCmd].forEach((cmd) => {
   commands.set(cmd.data.name, cmd as SlashCommand);
 });
 
@@ -144,6 +140,19 @@ client.once(Events.ClientReady, async (c) => {
   await startBackgroundQueueWorker();
   await checkTranslationProviderHealth();
 
+  // Load global config & blacklist into memory
+  try {
+    const config = await prisma.botGlobalConfig.findUnique({ where: { key: 'MAINTENANCE_MODE' } });
+    (global as any).KOTBO_MAINTENANCE_MODE = config?.value === 'true';
+
+    const blacklist = await prisma.globalBlacklist.findMany({ select: { userId: true } });
+    (global as any).KOTBO_BLACKLIST = new Set(blacklist.map(b => b.userId));
+  } catch (err) {
+    logger.error('System', 'Erreur lors du chargement de la config globale', err);
+    (global as any).KOTBO_MAINTENANCE_MODE = false;
+    (global as any).KOTBO_BLACKLIST = new Set();
+  }
+
   registerCodePoliceListener(client);
   registerModerationAuditListener(client);
   registerAdvancedLogsListener(client);
@@ -160,6 +169,33 @@ client.once(Events.ClientReady, async (c) => {
 
 client.on(Events.InteractionCreate, async (interaction) => {
   try {
+    // 1. Vérification de la blacklist globale
+    const blacklist: Set<string> = (global as any).KOTBO_BLACKLIST || new Set();
+    if (blacklist.has(interaction.user.id)) {
+      if (interaction.isRepliable()) {
+        await interaction.reply({
+          content: '❌ Vous avez été banni globalement de l\'utilisation de ce bot.',
+          flags: [MessageFlags.Ephemeral]
+        });
+      }
+      return;
+    }
+
+    // 2. Vérification du mode maintenance (sauf pour créateur et admins globaux)
+    if ((global as any).KOTBO_MAINTENANCE_MODE && interaction.user.id !== process.env.DISCORD_CLIENT_OWNER_ID) {
+      // Allow global admins bypass
+      const admin = await prisma.globalAdmin.findUnique({ where: { userId: interaction.user.id } });
+      if (!admin) {
+        if (interaction.isRepliable()) {
+          await interaction.reply({
+            content: '⚠️ **Mode Maintenance**\nKotbo est actuellement en cours de maintenance globale. Réessayez plus tard.',
+            flags: [MessageFlags.Ephemeral]
+          });
+        }
+        return;
+      }
+    }
+
     if (interaction.isChatInputCommand()) {
       if (!(await enforceCommandAccess(interaction))) {
         return;
@@ -226,5 +262,30 @@ if (!token) {
   logger.error('Bot', 'DISCORD_TOKEN non défini dans .env !');
   process.exit(1);
 }
+
+// Global Error Logging for Dashboard
+async function logErrorToDb(error: Error, source: string) {
+  try {
+    await prisma.botErrorLog.create({
+      data: {
+        message: error.message || 'Erreur inconnue',
+        stack: error.stack?.substring(0, 4000) || null,
+        source
+      }
+    });
+  } catch (e) {
+    logger.error('System', 'Impossible de sauvegarder l\'erreur en BDD', e);
+  }
+}
+
+process.on('uncaughtException', (error) => {
+  logger.error('System', 'Uncaught Exception:', error);
+  logErrorToDb(error, 'uncaughtException');
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('System', 'Unhandled Rejection at:', promise, 'reason:', reason);
+  logErrorToDb(reason instanceof Error ? reason : new Error(String(reason)), 'unhandledRejection');
+});
 
 client.login(token);

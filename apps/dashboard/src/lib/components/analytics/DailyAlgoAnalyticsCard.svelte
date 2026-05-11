@@ -79,7 +79,7 @@
 <div class="space-y-6">
   <!-- Key Metrics -->
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-    <div class="premium-card p-6 rounded-[2rem] space-y-3">
+    <div class="premium-card p-6 rounded-4xl space-y-3">
       <div class="flex items-center justify-between">
         <Papicon icon="Code" size={20} class="text-primary" />
         <span class="text-[9px] font-bold text-on-surface-variant/40 uppercase">Challenges</span>
@@ -88,7 +88,7 @@
       <p class="text-[9px] font-bold text-on-surface-variant/60">lancés</p>
     </div>
 
-    <div class="premium-card p-6 rounded-[2rem] space-y-3">
+    <div class="premium-card p-6 rounded-4xl space-y-3">
       <div class="flex items-center justify-between">
         <Papicon icon="FileText" size={20} class="text-secondary" />
         <span class="text-[9px] font-bold text-on-surface-variant/40 uppercase">Submissions</span>
@@ -97,7 +97,7 @@
       <p class="text-[9px] font-bold text-on-surface-variant/60">soumises</p>
     </div>
 
-    <div class="premium-card p-6 rounded-[2rem] space-y-3">
+    <div class="premium-card p-6 rounded-4xl space-y-3">
       <div class="flex items-center justify-between">
         <Papicon icon="CheckCircle" size={20} class="text-emerald-500" />
         <span class="text-[9px] font-bold text-on-surface-variant/40 uppercase">Complétées</span>
@@ -106,7 +106,7 @@
       <p class="text-[9px] font-bold text-on-surface-variant/60">validées</p>
     </div>
 
-    <div class="premium-card p-6 rounded-[2rem] space-y-3">
+    <div class="premium-card p-6 rounded-4xl space-y-3">
       <div class="flex items-center justify-between">
         <Papicon icon="BarChart2" size={20} class="text-blue-500" />
         <span class="text-[9px] font-bold text-on-surface-variant/40 uppercase">Moyenne</span>
@@ -115,7 +115,7 @@
       <p class="text-[9px] font-bold text-on-surface-variant/60">par challenge</p>
     </div>
 
-    <div class="premium-card p-6 rounded-[2rem] space-y-3 bg-emerald-500/5 border-emerald-500/20">
+    <div class="premium-card p-6 rounded-4xl space-y-3 bg-emerald-500/5 border-emerald-500/20">
       <div class="flex items-center justify-between">
         <Papicon icon="Target" size={20} class="text-emerald-500" />
         <span class="text-[9px] font-bold text-on-surface-variant/40 uppercase">Taux</span>
@@ -202,3 +202,4 @@
     </div>
   </div>
 </div>
+

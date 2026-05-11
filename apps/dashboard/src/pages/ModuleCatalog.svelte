@@ -127,7 +127,7 @@
   <div class="bg-primary/5 dark:bg-primary/10 rounded-3xl p-8 flex flex-col justify-between border border-primary/10">
     <Papicon icon="bolt" size={32} class="text-primary" />
     <div>
-      <p class="text-3xl font-extrabold text-primary font-headline">{dashboardStore.state.contentItems.length}</p>
+      <p class="text-3xl font-extrabold text-primary font-headline">{dashboardStore.state.analytics.totalAutomations}</p>
       <p class="text-xs font-bold text-primary/70 uppercase tracking-widest mt-1">Interactions Totales</p>
     </div>
   </div>

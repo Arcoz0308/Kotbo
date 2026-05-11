@@ -114,7 +114,7 @@
       <!-- Premium Glass Card -->
       <div class="relative group">
         <!-- Glow effect -->
-        <div class="absolute -inset-1 bg-gradient-to-r from-primary/50 to-blue-600/50 rounded-[3.2rem] blur opacity-20 group-hover:opacity-40 transition duration-1000 group-hover:duration-200"></div>
+        <div class="absolute -inset-1 bg-linear-to-r from-primary/50 to-blue-600/50 rounded-[3.2rem] blur opacity-20 group-hover:opacity-40 transition duration-1000 group-hover:duration-200"></div>
         
         <div class="relative bg-slate-900/40 backdrop-blur-3xl rounded-[3rem] border border-white/10 p-10 md:p-16 shadow-2xl overflow-hidden">
           
@@ -241,4 +241,5 @@
     box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
   }
 </style>
+
 

@@ -79,7 +79,7 @@
         <!-- Toggles globaux -->
         <div class="mt-6 space-y-4">
           <h4 class="text-[10px] font-black uppercase tracking-widest text-tertiary flex items-center gap-2"><Papicon icon="ToggleRight" size={14} /> Intégrations</h4>
-          <div class="bg-surface-container-high/20 rounded-[2rem] border border-outline-variant/5 p-5 space-y-3">
+          <div class="bg-surface-container-high/20 rounded-4xl border border-outline-variant/5 p-5 space-y-3">
             {#each [
               { key: 'youtubeEnabled', label: 'YouTube', desc: 'Vidéos & shorts' },
               { key: 'digestEnabled', label: 'Digest RSS', desc: 'News périodiques' },
@@ -104,7 +104,7 @@
     <h3 class="text-xl font-black">Par Fonctionnalité</h3>
     <p class="text-xs text-on-surface-variant/50">Salon et rôle spécifiques assignés à chaque module.</p>
 
-    <div class="overflow-hidden rounded-[2rem] border border-outline-variant/5">
+    <div class="overflow-hidden rounded-4xl border border-outline-variant/5">
       <table class="w-full text-left border-collapse">
         <thead class="bg-surface-container-high/40 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60">
           <tr>
@@ -149,3 +149,4 @@
     </div>
   </div>
 </div>
+

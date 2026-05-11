@@ -121,7 +121,7 @@
 <div class="space-y-6">
   <!-- Key Metrics -->
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-    <div class="premium-card p-6 rounded-[2rem] space-y-3">
+    <div class="premium-card p-6 rounded-4xl space-y-3">
       <div class="flex items-center justify-between">
         <Papicon icon="LogIn" size={20} class="text-emerald-500" />
         <span class="text-[9px] font-bold text-on-surface-variant/40 uppercase">Arrivées</span>
@@ -130,7 +130,7 @@
       <p class="text-[9px] font-bold text-on-surface-variant/60">membres rejoints</p>
     </div>
 
-    <div class="premium-card p-6 rounded-[2rem] space-y-3">
+    <div class="premium-card p-6 rounded-4xl space-y-3">
       <div class="flex items-center justify-between">
         <Papicon icon="LogOut" size={20} class="text-red-500" />
         <span class="text-[9px] font-bold text-on-surface-variant/40 uppercase">Départs</span>
@@ -139,7 +139,7 @@
       <p class="text-[9px] font-bold text-on-surface-variant/60">membres partis</p>
     </div>
 
-    <div class="premium-card p-6 rounded-[2rem] space-y-3 {data.metrics.netGrowth > 0 ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-red-500/5 border-red-500/20'}">
+    <div class="premium-card p-6 rounded-4xl space-y-3 {data.metrics.netGrowth > 0 ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-red-500/5 border-red-500/20'}">
       <div class="flex items-center justify-between">
         <Papicon icon={data.metrics.netGrowth > 0 ? 'TrendingUp' : 'TrendingDown'} size={20} class={data.metrics.netGrowth > 0 ? 'text-emerald-500' : 'text-red-500'} />
         <span class="text-[9px] font-bold text-on-surface-variant/40 uppercase">Croissance</span>
@@ -148,7 +148,7 @@
       <p class="text-[9px] font-bold text-on-surface-variant/60">croissance nette</p>
     </div>
 
-    <div class="premium-card p-6 rounded-[2rem] space-y-3">
+    <div class="premium-card p-6 rounded-4xl space-y-3">
       <div class="flex items-center justify-between">
         <Papicon icon="Users" size={20} class="text-blue-500" />
         <span class="text-[9px] font-bold text-on-surface-variant/40 uppercase">Moyenne</span>
@@ -157,7 +157,7 @@
       <p class="text-[9px] font-bold text-on-surface-variant/60">membres actifs/jour</p>
     </div>
 
-    <div class="premium-card p-6 rounded-[2rem] space-y-3">
+    <div class="premium-card p-6 rounded-4xl space-y-3">
       <div class="flex items-center justify-between">
         <Papicon icon="percent" size={20} class="text-purple-500" />
         <span class="text-[9px] font-bold text-on-surface-variant/40 uppercase">Actuellement</span>
@@ -218,3 +218,4 @@
     </div>
   </div>
 </div>
+

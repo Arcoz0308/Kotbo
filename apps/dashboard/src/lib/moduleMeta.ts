@@ -1,12 +1,4 @@
 const MODULE_META = {
-  rss: {
-    icon: 'rss_feed',
-    headerToneClasses: 'bg-amber-500/10 text-amber-600 border-amber-500/20'
-  },
-  youtube: {
-    icon: 'video_library',
-    headerToneClasses: 'bg-red-500/10 text-red-600 border-red-500/20'
-  },
   codepolice: {
     icon: 'policy',
     headerToneClasses: 'bg-indigo-500/10 text-indigo-600 border-indigo-500/20'

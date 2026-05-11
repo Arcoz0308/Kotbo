@@ -34,9 +34,3 @@ export async function validateTimeField(
   return false;
 }
 
-export function normalizeCommaKeywords(rawInput: string): string[] {
-  return rawInput
-    .split(',')
-    .map((word) => word.trim().toLowerCase())
-    .filter((word) => word.length > 0);
-}

@@ -10,11 +10,8 @@ import {
 import { COLORS } from '../utils/embeds.js';
 import * as setupCmd from './setup.js';
 import * as configCmd from './config.js';
-import * as feedCmd from './feed.js';
-import * as newsCmd from './news.js';
 import * as pingCmd from './ping.js';
 import * as infoCmd from './info.js';
-import * as youtubeCmd from './youtube.js';
 import * as excuseCmd from './excuse.js';
 import * as epochCmd from './epoch.js';
 import * as devutilsCmd from './devutils.js';
@@ -23,7 +20,6 @@ import * as adminCmd from './admin.js';
 import * as postCmd from './post.js';
 import * as dailyAlgoCmd from './dailyAlgo.js';
 import * as profileCmd from './profile.js';
-import * as newsRecoveryCmd from './news-rattrapage.js';
 import * as sanctionCmd from './sanction.js';
 import * as casierCmd from './casier.js';
 
@@ -65,30 +61,6 @@ const COMMANDS: HelpCommand[] = [
     icon: '🏓',
     category: 'Mise en route',
     summary: 'Mesure la latence du bot et de l’API Discord',
-  },
-  {
-    command: feedCmd,
-    icon: '📡',
-    category: 'Flux & actualités',
-    summary: 'Gère les flux RSS du serveur, leurs filtres et leurs rôles',
-  },
-  {
-    command: newsCmd,
-    icon: '📰',
-    category: 'Flux & actualités',
-    summary: 'Soumet une news, consulte le rattrapage et reçoit un fil personnalisé',
-  },
-  {
-    command: newsRecoveryCmd,
-    icon: '🧠',
-    category: 'Flux & actualités',
-    summary: 'Reclasse les news filtrées du jour pour les remettre en avant',
-  },
-  {
-    command: youtubeCmd,
-    icon: '▶️',
-    category: 'Flux & actualités',
-    summary: 'Suit les chaînes YouTube et publie leurs nouvelles vidéos',
   },
   {
     command: postCmd,

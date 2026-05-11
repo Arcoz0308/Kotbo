@@ -18,7 +18,7 @@
   <!-- Stats Grid -->
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
     {#each stats as stat}
-      <div class="premium-card p-6 rounded-[2rem] group transition-all hover:scale-[1.02] relative overflow-hidden">
+      <div class="premium-card p-6 rounded-4xl group transition-all hover:scale-[1.02] relative overflow-hidden">
         <div class="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
           <Papicon icon={stat.icon} size={80} />
         </div>
@@ -162,3 +162,4 @@
     transition: all 0.4s cubic-bezier(0.2, 1, 0.3, 1);
   }
 </style>
+

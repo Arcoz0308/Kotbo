@@ -83,7 +83,8 @@ const MAX_BULK_AUTHOR_PREVIEW = 8;
 const advancedLogsRegisteredClients = new WeakSet<Client>();
 
 function getDateKey(date = new Date()): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  // Use UTC to be consistent with dashboard analytics which uses .toISOString().split('T')[0]
+  return date.toISOString().split('T')[0];
 }
 
 async function incrementChannelDailyStat(guildId: string, channelId: string, authorId: string): Promise<void> {
@@ -187,32 +188,127 @@ async function incrementGuildHourlyStat(guildId: string, type: 'message' | 'voic
   });
 }
 
-export async function runHourlyAnalyticsSnapshot(client: Client): Promise<void> {
-  const dateKey = getDateKey();
-  const hour = new Date().getHours();
+export async function runActivitySnapshot(client: Client): Promise<void> {
+  const now = new Date();
+  const dateKey = getDateKey(now);
+  const hour = now.getHours();
 
   for (const guild of client.guilds.cache.values()) {
-    const onlineMembers = guild.members.cache.filter(m => m.presence?.status && m.presence.status !== 'offline').size;
-    const voiceMembers = guild.members.cache.filter(m => m.voice.channelId).size;
+    try {
+      // Ensure the guild exists in our database before recording stats
+      await prisma.guild.upsert({
+        where: { id: guild.id },
+        update: {},
+        create: { id: guild.id }
+      });
 
-    await prisma.guildHourlyStat.upsert({
-      where: { guildId_dateKey_hour: { guildId: guild.id, dateKey, hour } },
-      update: {
-        onlineMembers,
-        voiceMembers,
-      },
-      create: {
-        guildId: guild.id,
-        dateKey,
-        hour,
-        onlineMembers,
-        voiceMembers,
-      },
-    }).catch((error) => {
-      logger.debug('Analytics', `Hourly snapshot error for guild ${guild.id}: ${String(error)}`);
-    });
+      // 1. Gather counts
+      const totalMembers = guild.memberCount;
+      
+      // Attempt to get more accurate counts via fetch if the cache seems incomplete
+      // GuildPresences intent should keep cache updated, but for large guilds or on startup it might be off.
+      let onlineMembers = guild.members.cache.filter(m => m.presence?.status && m.presence.status !== 'offline').size;
+      let voiceMembers = guild.voiceStates.cache.size;
+
+      // If we have 0 online members in cache but the guild has many members, something is likely wrong with the cache
+      if (onlineMembers === 0 && totalMembers > 1) {
+        try {
+          const fetchedGuild = await guild.fetch();
+          // approximatePresenceCount is only available if the bot has specific permissions or if fetched correctly
+          // In d.js v14, it might be null if not available.
+          if (fetchedGuild.approximatePresenceCount !== null && fetchedGuild.approximatePresenceCount !== undefined) {
+            onlineMembers = fetchedGuild.approximatePresenceCount;
+          }
+        } catch (e) {
+          logger.debug('Analytics', `Failed to fetch approximate counts for ${guild.id}: ${String(e)}`);
+        }
+      }
+      
+      const idleMembers = guild.members.cache.filter(m => m.presence?.status === 'idle').size;
+      const dndMembers = guild.members.cache.filter(m => m.presence?.status === 'dnd').size;
+      const offlineMembers = totalMembers - onlineMembers;
+      
+      const totalBots = guild.members.cache.filter(m => m.user.bot).size;
+      const totalHumans = totalMembers - totalBots;
+
+      logger.info('Analytics', `Snapshot [${guild.name}]: ${onlineMembers} online (cache: ${guild.members.cache.size}/${totalMembers}), ${voiceMembers} vocal`);
+
+      // Calculate active members for today (people who sent messages or were in voice)
+      const activeMembersCount = await prisma.memberDailyStat.count({
+        where: { guildId: guild.id, dateKey }
+      });
+      const activeVoiceMembersCount = await prisma.memberDailyStat.count({
+        where: { guildId: guild.id, dateKey, voiceMinutes: { gt: 0 } }
+      });
+
+      // 2. Update Daily Stats (for overview charts and peaks)
+      await prisma.guildDailyStat.upsert({
+        where: { guildId_dateKey: { guildId: guild.id, dateKey } },
+        create: {
+          guildId: guild.id,
+          dateKey,
+          totalMembers,
+          onlineMembers,
+          idleMembers,
+          dndMembers,
+          offlineMembers,
+          totalBots,
+          totalHumans,
+          activeMembers: activeMembersCount,
+          activeVoiceMembers: activeVoiceMembersCount,
+          peakOnline: onlineMembers,
+          peakVoice: voiceMembers,
+        },
+        update: {
+          totalMembers,
+          onlineMembers,
+          idleMembers,
+          dndMembers,
+          offlineMembers,
+          totalBots,
+          totalHumans,
+          activeMembers: activeMembersCount,
+          activeVoiceMembers: activeVoiceMembersCount,
+        },
+      });
+
+      // Update peaks using GREATEST to ensure we keep the highest value seen today
+      // Important: quotes are needed for camelCase column names in Postgres
+      await prisma.$executeRawUnsafe(
+        `UPDATE guild_daily_stats SET "peakOnline" = GREATEST("peakOnline", $1), "peakVoice" = GREATEST("peakVoice", $2) WHERE "guildId" = $3 AND "dateKey" = $4`,
+        onlineMembers, voiceMembers, guild.id, dateKey
+      );
+
+      // 3. Update Hourly Stats (specifically for the heatmap)
+      // activeMembers is used by the heatmap to show "Activity" intensity
+      await prisma.guildHourlyStat.upsert({
+        where: { guildId_dateKey_hour: { guildId: guild.id, dateKey, hour } },
+        update: {
+          onlineMembers,
+          voiceMembers,
+        },
+        create: {
+          guildId: guild.id,
+          dateKey,
+          hour,
+          onlineMembers,
+          voiceMembers,
+          activeMembers: onlineMembers,
+        },
+      });
+
+      // Update activeMembers (peak within the hour) using GREATEST
+      await prisma.$executeRawUnsafe(
+        `UPDATE guild_hourly_stats SET "activeMembers" = GREATEST("activeMembers", $1) WHERE "guildId" = $2 AND "dateKey" = $3 AND "hour" = $4`,
+        onlineMembers, guild.id, dateKey, hour
+      );
+
+    } catch (error) {
+      logger.debug('Analytics', `Activity snapshot error for guild ${guild.id}: ${String(error)}`);
+    }
   }
 }
+
 
 // 📊 Per-member daily stats
 async function incrementMemberDailyMessages(guildId: string, userId: string): Promise<void> {
@@ -442,8 +538,9 @@ async function recordMessageAudit(message: Message | PartialMessage): Promise<vo
       module: 'Messages',
       eventType: 'Discord',
       details: truncate([
-        message.content?.trim() ? `Contenu: ${message.content.trim()}` : 'Contenu: _vide_',
-        message.attachments.size > 0 ? `Pièces jointes: ${[...message.attachments.values()].slice(0, 5).map((attachment) => attachment.url).join(' | ')}` : null,
+        `ID: ${message.id}`,
+        `Contenu: ${message.content?.trim() || '_vide_'}`,
+        message.attachments.size > 0 ? `Pièces jointes: ${[...message.attachments.values()].slice(0, 5).map((a) => a.url).join(' | ')}` : null,
       ].filter(Boolean).join(' | '), 900),
       dateIso: new Date(),
     },

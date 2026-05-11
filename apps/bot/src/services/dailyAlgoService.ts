@@ -1891,3 +1891,43 @@ export async function sendDailyAlgo(client: Client, guildId: string): Promise<Da
     dateKey,
   };
 }
+export async function runDailyAlgoForAllGuilds(client: Client): Promise<void> {
+  const now = new Date();
+  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+  const allGuilds = await prisma.guild.findMany({
+    where: { dailyAlgoEnabled: true },
+  });
+
+  logger.debug('DailyAlgo', `${allGuilds.length} guilds avec daily algo activé`);
+
+  const matchingGuilds = allGuilds.filter((guild) => {
+    const normalizedTime = normalizeTime(guild.dailyAlgoTime);
+    return normalizedTime === currentTime;
+  });
+
+  if (matchingGuilds.length > 0) {
+    logger.info('DailyAlgo', `${matchingGuilds.length} guild(s) à ${currentTime}`);
+  }
+
+  for (const guild of matchingGuilds) {
+    await sendDailyAlgo(client, guild.id).catch((e) =>
+      logger.error('DailyAlgo', `Error for guild ${guild.id}:`, e),
+    );
+  }
+}
+
+function normalizeTime(time: string): string {
+  if (/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/.test(time)) {
+    return time;
+  }
+  
+  if (/^[0-9]:[0-5][0-9]$/.test(time)) {
+    return '0' + time;
+  }
+  
+  logger.warn('DailyAlgo', `Format d'heure invalide: "${time}", utilisant la valeur par défaut "09:00"`);
+  return '09:00';
+}
+
+

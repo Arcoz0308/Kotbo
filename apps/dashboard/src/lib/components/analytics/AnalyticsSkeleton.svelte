@@ -6,7 +6,7 @@
   <!-- Top Stats Grid -->
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
     {#each Array(4) as _}
-      <div class="premium-card p-6 rounded-[2rem] flex flex-col gap-4">
+      <div class="premium-card p-6 rounded-4xl flex flex-col gap-4">
         <div class="flex justify-between items-start">
           <Skeleton width="w-10" height="h-10" rounded="rounded-xl" />
           <Skeleton width="w-16" height="h-3" />
@@ -78,3 +78,4 @@
     border: 1px solid rgba(255, 255, 255, 0.03);
   }
 </style>
+

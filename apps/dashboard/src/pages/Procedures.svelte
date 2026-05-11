@@ -207,7 +207,7 @@
 </div>
 
 {#if showEditModal}
-  <div class="fixed inset-0 z-[100] flex items-center justify-center p-6 backdrop-blur-md bg-black/40 animate-in fade-in duration-300">
+  <div class="fixed inset-0 z-100 flex items-center justify-center p-6 backdrop-blur-md bg-black/40 animate-in fade-in duration-300">
     <div class="w-full max-w-2xl bg-surface-container rounded-[3rem] border border-outline-variant/30 shadow-2xl overflow-hidden p-8 space-y-6">
        <h3 class="text-2xl font-black tracking-tighter">Édition / Création</h3>
        <div class="space-y-4">
@@ -237,3 +237,4 @@
   .scrollbar-hide::-webkit-scrollbar { display: none; }
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 </style>
+

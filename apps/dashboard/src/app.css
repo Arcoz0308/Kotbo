@@ -346,3 +346,41 @@
   color: var(--on-surface-variant);
 }
 
+/* Discord Mentions */
+.mention {
+  background: rgba(51, 69, 87, 0.1);
+  color: var(--color-primary);
+  font-weight: 700;
+  padding: 0 4px;
+  border-radius: 4px;
+}
+
+.mention-link {
+  color: var(--color-primary);
+  font-weight: 700;
+  text-decoration: none;
+  background: rgba(51, 69, 87, 0.05);
+  padding: 0 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.mention-link:hover {
+  background: rgba(51, 69, 87, 0.15);
+  text-decoration: underline;
+}
+
+.dark .mention {
+  background: rgba(147, 197, 253, 0.1);
+  color: #93c5fd;
+}
+
+.dark .mention-link {
+  background: rgba(147, 197, 253, 0.05);
+  color: #93c5fd;
+}
+
+.dark .mention-link:hover {
+  background: rgba(147, 197, 253, 0.15);
+}
+

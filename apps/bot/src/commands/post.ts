@@ -1,5 +1,4 @@
 import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
-import { sendDigest } from '../services/digestService.js';
 import { sendDailyAlgo } from '../services/dailyAlgoService.js';
 import { formatDailyAlgoDate } from '../services/dailyAlgoService.js';
 import { successEmbed, errorEmbed, infoEmbed } from '../utils/embeds.js';
@@ -15,16 +14,11 @@ function formatPostError(error: unknown): string {
 
 export const data = new SlashCommandBuilder()
   .setName('post')
-  .setDescription('🚀 Poster le digest et/ou le daily algo')
-  .addSubcommand(subcommand =>
-    subcommand
-      .setName('digest')
-      .setDescription('📰 Poster le digest du serveur')
-  )
+  .setDescription('🚀 Poster le contenu interactif du serveur')
   .addSubcommand(subcommand =>
     subcommand
       .setName('daily-algo')
-      .setDescription('💻 Poster le daily algo du serveur')
+      .setDescription('💻 Poster le daily algo du jour')
   );
 
 export async function execute(interaction: ChatInputCommandInteraction) {
@@ -42,12 +36,7 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
   try {
-    if (subcommand === 'digest') {
-      await sendDigest(interaction.client, guildId);
-      await interaction.editReply({
-        embeds: [successEmbed('✅ Digest envoyé', 'Le digest a été posté dans le salon configuré.')],
-      });
-    } else if (subcommand === 'daily-algo') {
+    if (subcommand === 'daily-algo') {
       const result = await sendDailyAlgo(interaction.client, guildId);
 
       if (result.status === 'exists') {

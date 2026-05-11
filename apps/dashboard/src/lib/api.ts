@@ -158,67 +158,7 @@ export async function updateModuleStatus(moduleId, status, guildId = authStore.s
   });
 }
 
-export async function updateFeed(feedId, feedData, guildId = authStore.selectedGuildId) {
-  return dashboardMutation(`/feeds/${feedId}`, {
-    method: 'PUT',
-    payload: feedData,
-    guildId
-  });
-}
 
-export async function updateYouTubeSettings(youtubeReferenceChannelId, guildId = authStore.selectedGuildId) {
-  return dashboardMutation('/youtube', {
-    method: 'PUT',
-    payload: { youtubeReferenceChannelId },
-    guildId,
-    errorContext: 'API Error (YouTube Settings):'
-  });
-}
-
-export async function deleteFeed(feedId, guildId = authStore.selectedGuildId) {
-  return dashboardMutation(`/feeds/${feedId}`, {
-    method: 'DELETE',
-    guildId
-  });
-}
-
-export async function forceSendContent(contentId, guildId = authStore.selectedGuildId) {
-  return dashboardMutation(`/content/${contentId}/force-send`, {
-    method: 'POST',
-    guildId
-  });
-}
-
-export async function markContentError(contentId, guildId = authStore.selectedGuildId) {
-  return dashboardMutation(`/content/${contentId}/mark-error`, {
-    method: 'POST',
-    guildId
-  });
-}
-
-export async function translateContent(contentId, guildId = authStore.selectedGuildId) {
-  return dashboardMutation(`/content/${contentId}/translate`, {
-    method: 'POST',
-    guildId,
-    errorContext: 'API Error (Traduction contenu):'
-  });
-}
-
-export async function translateContentTitle(contentId, guildId = authStore.selectedGuildId) {
-  return dashboardMutation(`/content/${contentId}/translate-title`, {
-    method: 'POST',
-    guildId,
-    errorContext: 'API Error (Traduction du titre):'
-  });
-}
-
-export async function translateContentDescription(contentId, guildId = authStore.selectedGuildId) {
-  return dashboardMutation(`/content/${contentId}/translate-description`, {
-    method: 'POST',
-    guildId,
-    errorContext: 'API Error (Traduction de la description):'
-  });
-}
 
 export async function translateText(text, targetLang = 'fr') {
   try {
@@ -651,8 +591,13 @@ export async function toggleTutorStatus(userId, guildId = authStore.selectedGuil
   return dashboardMutation(`/staff/members/${userId}/tutor`, { method: 'POST', guildId });
 }
 
-export async function fetchAnalytics(period = 30, guildId = authStore.selectedGuildId) {
-  return dashboardRequest(`/analytics?period=${period}`, {
+export async function fetchAnalytics(options: { period?: number, startDate?: string, endDate?: string } = {}, guildId = authStore.selectedGuildId) {
+  const params = new URLSearchParams();
+  if (options.period) params.append('period', options.period.toString());
+  if (options.startDate) params.append('startDate', options.startDate);
+  if (options.endDate) params.append('endDate', options.endDate);
+  
+  return dashboardRequest(`/analytics?${params.toString()}`, {
     method: 'GET',
     guildId,
     errorContext: 'API Error (Analytics):'
@@ -675,8 +620,13 @@ export async function fetchMemberDetailedAnalytics(userId, period = 30, guildId 
   });
 }
 
-export async function fetchHourlyHeatmap(days = 30, guildId = authStore.selectedGuildId) {
-  return dashboardRequest(`/analytics/heatmap?days=${days}`, {
+export async function fetchHourlyHeatmap(options: { days?: number, startDate?: string, endDate?: string } = {}, guildId = authStore.selectedGuildId) {
+  const params = new URLSearchParams();
+  if (options.days) params.append('days', options.days.toString());
+  if (options.startDate) params.append('startDate', options.startDate);
+  if (options.endDate) params.append('endDate', options.endDate);
+
+  return dashboardRequest(`/analytics/heatmap?${params.toString()}`, {
     method: 'GET',
     guildId,
     errorContext: 'API Error (Hourly Heatmap):'
@@ -691,16 +641,26 @@ export async function fetchWeeklyComparison(guildId = authStore.selectedGuildId)
   });
 }
 
-export async function fetchGrowthAndRetention(days = 90, guildId = authStore.selectedGuildId) {
-  return dashboardRequest(`/analytics/growth-retention?days=${days}`, {
+export async function fetchGrowthAndRetention(options: { days?: number, startDate?: string, endDate?: string } = {}, guildId = authStore.selectedGuildId) {
+  const params = new URLSearchParams();
+  if (options.days) params.append('days', options.days.toString());
+  if (options.startDate) params.append('startDate', options.startDate);
+  if (options.endDate) params.append('endDate', options.endDate);
+
+  return dashboardRequest(`/analytics/growth-retention?${params.toString()}`, {
     method: 'GET',
     guildId,
     errorContext: 'API Error (Growth & Retention):'
   });
 }
 
-export async function fetchDailyAlgoAnalytics(days = 30, guildId = authStore.selectedGuildId) {
-  return dashboardRequest(`/analytics/daily-algo?days=${days}`, {
+export async function fetchDailyAlgoAnalytics(options: { days?: number, startDate?: string, endDate?: string } = {}, guildId = authStore.selectedGuildId) {
+  const params = new URLSearchParams();
+  if (options.days) params.append('days', options.days.toString());
+  if (options.startDate) params.append('startDate', options.startDate);
+  if (options.endDate) params.append('endDate', options.endDate);
+
+  return dashboardRequest(`/analytics/daily-algo?${params.toString()}`, {
     method: 'GET',
     guildId,
     errorContext: 'API Error (Daily Algo Analytics):'
@@ -797,3 +757,125 @@ export async function updateNotificationTargets(featureKey, notificationTargets,
 
 
 
+export async function fetchAdminStats() {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/stats`);
+  if (!response.ok) throw new Error('Erreur lors du chargement des statistiques admin');
+  return response.json();
+}
+
+export async function fetchAdminGuilds() {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/guilds`);
+  if (!response.ok) throw new Error('Erreur lors du chargement des serveurs');
+  return response.json();
+}
+
+export async function fetchGlobalDailyAlgoLeaderboard() {
+  const guildId = getGuildId();
+  if (!guildId) return null;
+  const response = await authorizedFetch(`${BASE_URL}/guilds/${guildId}/daily-algo-submissions/global-leaderboard`);
+  if (!response.ok) return null;
+  return response.json();
+}
+
+export async function fetchAdminGuildInvite(guildId: string) {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/guilds/${guildId}/invite`, { method: 'POST' });
+  if (!response.ok) throw new Error('Erreur lors de la création de l\'invitation');
+  return response.json();
+}
+
+export async function leaveAdminGuild(guildId: string) {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/guilds/${guildId}/leave`, { method: 'POST' });
+  if (!response.ok) throw new Error('Erreur lors du départ du serveur');
+  return response.json();
+}
+
+export async function fetchGlobalAdmins() {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/admins`, { method: 'GET' });
+  if (!response.ok) throw new Error('Erreur lors du chargement des admins globaux');
+  return response.json();
+}
+
+export async function addGlobalAdmin(userId: string) {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/admins`, { 
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId })
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || 'Erreur lors de l\'ajout de l\'admin global');
+  }
+  return response.json();
+}
+
+export async function removeGlobalAdmin(userId: string) {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/admins/${userId}`, { method: 'DELETE' });
+  if (!response.ok) throw new Error('Erreur lors de la suppression de l\'admin global');
+  return response.json();
+}
+
+export async function fetchGlobalBlacklist() {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/blacklist`, { method: 'GET' });
+  if (!response.ok) throw new Error('Erreur chargement blacklist');
+  return response.json();
+}
+
+export async function addGlobalBlacklist(userId: string, reason: string) {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/blacklist`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId, reason })
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || 'Erreur d\'ajout blacklist');
+  }
+  return response.json();
+}
+
+export async function removeGlobalBlacklist(userId: string) {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/blacklist/${userId}`, { method: 'DELETE' });
+  if (!response.ok) throw new Error('Erreur suppression blacklist');
+  return response.json();
+}
+
+export async function fetchMaintenanceConfig() {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/config`, { method: 'GET' });
+  if (!response.ok) throw new Error('Erreur chargement config');
+  return response.json();
+}
+
+export async function updateMaintenanceConfig(maintenance: boolean) {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/config`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ maintenance })
+  });
+  if (!response.ok) throw new Error('Erreur maj maintenance');
+  return response.json();
+}
+
+export async function fetchBotErrors() {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/errors`, { method: 'GET' });
+  if (!response.ok) throw new Error('Erreur chargement erreurs');
+  return response.json();
+}
+
+export async function clearBotErrors() {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/errors`, { method: 'DELETE' });
+  if (!response.ok) throw new Error('Erreur suppression erreurs');
+  return response.json();
+}
+
+export async function sendGlobalBroadcast(message: string) {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/broadcast`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message })
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || 'Erreur broadcast');
+  }
+  return response.json();
+}

@@ -78,7 +78,7 @@
 
   <!-- Intelligence UI: Alertes épurées -->
   {#if errorModulesCount > 0}
-    <div class="bg-error-container/10 border border-error/20 p-5 rounded-[2rem] text-error flex items-center justify-between gap-6">
+    <div class="bg-error-container/10 border border-error/20 p-5 rounded-4xl text-error flex items-center justify-between gap-6">
       <div class="flex items-center gap-4">
         <div class="w-10 h-10 rounded-xl bg-error/10 flex items-center justify-center text-error">
           <Papicon icon="alert-octagon" size={22} />
@@ -256,7 +256,7 @@
                      <span class="text-[8px] font-black text-primary/70 uppercase tracking-widest truncate">{entry.module}</span>
                      <span class="text-[8px] font-medium text-on-surface-variant/30 italic">{entry.time || '10m'}</span>
                   </div>
-                  <p class="text-[13px] font-bold text-on-surface truncate">{entry.action}</p>
+                  <p class="text-[13px] font-bold text-on-surface truncate">{@html entry.action}</p>
                </div>
             </div>
           {/each}
@@ -362,4 +362,5 @@
     border-color: rgba(var(--color-primary), 0.2);
   }
 </style>
+
 

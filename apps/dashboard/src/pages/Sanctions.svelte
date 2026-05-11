@@ -406,21 +406,24 @@
       deletingSanctionId = null;
     }
   }
+  import ModulePage from '../lib/components/ModulePage.svelte';
 </script>
 
-<div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10 font-inter">
-  <div>
-    <h2 class="text-3xl font-extrabold text-primary tracking-tight font-headline">Sanctions & Rapports</h2>
-    <p class="text-on-surface-variant mt-1 leading-relaxed">Suivi des sanctions, de leur auteur, de la cible et gestion des rapports via modal.</p>
-  </div>
-  <RefreshButton
-    onClick={() => dashboardStore.refresh()}
-    loading={dashboardStore.state.loading}
-    label="Actualiser"
-    className="px-5 py-2.5 font-bold shadow-lg shadow-primary/10"
-    iconClass="text-lg"
-  />
-</div>
+<ModulePage 
+  title="Sanctions & Rapports" 
+  description="Suivi des sanctions, de leur auteur, de la cible et gestion des rapports via modal." 
+  icon="alert-triangle"
+  featureKey="sanctions"
+>
+  {#snippet actions()}
+    <RefreshButton
+      onClick={() => dashboardStore.refresh()}
+      loading={dashboardStore.state.loading}
+      label="Actualiser"
+      className="px-5 py-2.5 font-bold shadow-lg shadow-primary/10"
+      iconClass="text-lg"
+    />
+  {/snippet}
 
 <section class="section-card-flush font-inter">
   <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
@@ -800,3 +803,4 @@
     </div>
   </div>
 {/if}
+</ModulePage>

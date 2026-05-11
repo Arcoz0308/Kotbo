@@ -6,12 +6,8 @@ import { REST, Routes } from 'discord.js';
 import { logger } from './utils/logger.js';
 import * as setupCmd from './commands/setup.js';
 import * as configCmd from './commands/config.js';
-import * as feedCmd from './commands/feed.js';
-import * as newsCmd from './commands/news.js';
-import * as newsRecoveryCmd from './commands/news-rattrapage.js';
 import * as pingCmd from './commands/ping.js';
 import * as infoCmd from './commands/info.js';
-import * as youtubeCmd from './commands/youtube.js';
 import * as excuseCmd from './commands/excuse.js';
 import * as epochCmd from './commands/epoch.js';
 import * as devutilsCmd from './commands/devutils.js';
@@ -31,12 +27,8 @@ import * as invitesCmd from './commands/invites.js';
 const commands = [
   setupCmd,
   configCmd,
-  feedCmd,
-  newsCmd,
-  newsRecoveryCmd,
   pingCmd,
   infoCmd,
-  youtubeCmd,
   excuseCmd,
   epochCmd,
   devutilsCmd,

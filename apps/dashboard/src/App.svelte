@@ -11,7 +11,7 @@
   import Overview from './pages/Overview.svelte';
   import Analytics from './pages/Analytics.svelte';
   import ModuleCatalog from './pages/ModuleCatalog.svelte';
-  import ContentDiffusion from './pages/ContentDiffusion.svelte';
+
   import ActivityLog from './pages/ActivityLog.svelte';
   import Logs from './pages/Logs.svelte';
   import NotificationsSettings from './pages/NotificationsSettings.svelte';
@@ -19,10 +19,10 @@
   import ModuleSettings from './pages/ModuleSettings.svelte';
   import Sanctions from './pages/Sanctions.svelte';
   import Regulation from './pages/Regulation.svelte';
+  import AdminOverview from './pages/AdminOverview.svelte';
   import Profile from './pages/Profile.svelte';
   import PublicProfile from './pages/PublicProfile.svelte';
   import StaffManagement from './pages/StaffManagement.svelte';
-  import News from './pages/News.svelte';
   import Members from './pages/Members.svelte';
   import Recruitment from './pages/Recruitment.svelte';
   import Meetings from './pages/Meetings.svelte';
@@ -30,12 +30,12 @@
   import Inbox from './pages/Inbox.svelte';
   import Tutoring from './pages/Tutoring.svelte';
 import DoubleAccounts from './pages/DoubleAccounts.svelte';
-import ManagementCenter from './pages/ManagementCenter.svelte';
+import GeneralSettings from './pages/GeneralSettings.svelte';
 
-  const adminOnlyPrefixes = ['/modules', '/module-settings', '/settings', '/notifications', '/automations', '/command-access', '/regulation', '/staff-management', '/management'];
+  const adminOnlyPrefixes = ['/modules', '/module-settings', '/settings', '/notifications', '/automations', '/command-access', '/regulation', '/staff-management'];
   const moderatorAllowedModuleSettings = new Set(['/module-settings/dailyalgo']);
 
-  const isPublicPage = $derived($router.path.startsWith('/news') || $router.path.startsWith('/profile/'));
+  const isPublicPage = $derived($router.path.startsWith('/profile/'));
 
   function isAdminOnlyRoute(path: string) {
     if (moderatorAllowedModuleSettings.has(path)) return false;
@@ -85,10 +85,6 @@ import ManagementCenter from './pages/ManagementCenter.svelte';
   <Route path="/profile/:userId" let:meta>
     <PublicProfile userId={meta.params.userId} />
   </Route>
-
-  <Route path="/news">
-    <News />
-  </Route>
 {:else}
   <Route path="/login">
     <Login />
@@ -100,18 +96,18 @@ import ManagementCenter from './pages/ManagementCenter.svelte';
         <Route path="/">
           <Overview />
         </Route>
-        <Route path="/content/filtered">
-          <ContentDiffusion initialFilter="Filtrées" />
-        </Route>
-        <Route path="/content">
-          <ContentDiffusion />
-        </Route>
+
         <Route path="/analytics">
           <Analytics />
         </Route>
         <Route path="/activity">
           <ActivityLog />
         </Route>
+        {#if authStore.isBotAdmin}
+          <Route path="/admin">
+            <AdminOverview />
+          </Route>
+        {/if}
         <Route path="/logs">
           <Logs />
         </Route>
@@ -138,13 +134,10 @@ import ManagementCenter from './pages/ManagementCenter.svelte';
             <CommandAccess />
           </Route>
           <Route path="/settings">
-            <NotificationsSettings />
+            <GeneralSettings />
           </Route>
           <Route path="/automations">
             <ModuleCatalog />
-          </Route>
-          <Route path="/management">
-            <ManagementCenter />
           </Route>
           <Route path="/staff-management">
             <StaffManagement />

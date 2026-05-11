@@ -1,30 +1,81 @@
 import prisma from '../utils/db.js';
 
-export const getDashboardAnalytics = async (guildId: string, days: number = 30) => {
-  const endDate = new Date();
-  const startDate = new Date();
-  startDate.setDate(endDate.getDate() - days);
+export const getDashboardAnalytics = async (guildId: string, options: { days?: number, startDate?: string, endDate?: string } = {}) => {
+  const days = options.days || 30;
+  const endKey = options.endDate || new Date().toISOString().split('T')[0];
+  let startKey = options.startDate;
 
-  const startKey = startDate.toISOString().split('T')[0];
-  const endKey = endDate.toISOString().split('T')[0];
+  if (!startKey) {
+    const startDate = new Date(endKey);
+    startDate.setDate(startDate.getDate() - days);
+    startKey = startDate.toISOString().split('T')[0];
+  }
 
-  const dailyStats = await prisma.guildDailyStat.findMany({
-    where: {
-      guildId,
-      dateKey: {
-        gte: startKey,
-        lte: endKey
-      }
-    },
-    orderBy: { dateKey: 'asc' }
-  });
+  const finalEndKey = endKey.split('T')[0];
+  const finalStartKey = startKey.split('T')[0];
+
+  let dailyStats: any[] = [];
+  
+  // Check if we should use hourly resolution (days=1 OR custom range < 72h)
+  let useHourly = days === 1 && !options.startDate;
+  if (options.startDate && options.endDate) {
+    const start = new Date(options.startDate);
+    const end = new Date(options.endDate);
+    const diffHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+    if (diffHours > 0 && diffHours <= 72) {
+      useHourly = true;
+    }
+  }
+
+  if (useHourly) {
+    // Hourly resolution
+    const hourlyWhere: any = { guildId };
+    
+    if (options.startDate && options.endDate) {
+      const sDate = options.startDate.split('T')[0];
+      const eDate = options.endDate.split('T')[0];
+      hourlyWhere.dateKey = { gte: sDate, lte: eDate };
+    }
+
+    const hourlyStats = await prisma.guildHourlyStat.findMany({
+      where: hourlyWhere,
+      orderBy: [
+        { dateKey: 'asc' },
+        { hour: 'asc' }
+      ],
+      take: options.startDate ? 200 : 24 
+    });
+    
+    dailyStats = hourlyStats.map(h => ({
+      dateKey: `${h.dateKey} ${h.hour}h`,
+      messagesCount: h.messagesCount,
+      voiceMinutes: h.voiceMinutes,
+      membersJoined: h.joinsCount,
+      membersLeft: h.leavesCount,
+      activeMembers: h.activeMembers,
+      totalMembers: 0, 
+      onlineMembers: h.onlineMembers,
+    }));
+  } else {
+    // Daily resolution
+    dailyStats = await prisma.guildDailyStat.findMany({
+      where: {
+        guildId,
+        dateKey: {
+          gte: finalStartKey,
+          lte: finalEndKey
+        }
+      },
+      orderBy: { dateKey: 'asc' }
+    });
+  }
 
   const channelStats = await prisma.channelDailyStat.findMany({
     where: {
       guildId,
       dateKey: {
-        gte: startKey,
-        lte: endKey
+        gte: finalStartKey,
+        lte: finalEndKey
       }
     }
   });
@@ -87,8 +138,8 @@ export const getDashboardAnalytics = async (guildId: string, days: number = 30) 
   const topVoiceMembers = [...memberTotalsArray]
     .sort((a, b) => b.voiceTimeSeconds - a.voiceTimeSeconds);
 
-  const startISO = startDate.toISOString();
-  const endISO = endDate.toISOString();
+  const startISO = new Date(startKey).toISOString();
+  const endISO = new Date(endKey + 'T23:59:59.999Z').toISOString();
 
   const sanctions = await prisma.sanction.findMany({
     where: {
@@ -242,13 +293,16 @@ export const getDashboardAnalytics = async (guildId: string, days: number = 30) 
 /**
  * Get hourly heatmap data (for visualization)
  */
-export const getHourlyHeatmapData = async (guildId: string, days: number = 30) => {
-  const endDate = new Date();
-  const startDate = new Date();
-  startDate.setDate(endDate.getDate() - days);
+export const getHourlyHeatmapData = async (guildId: string, options: { days?: number, startDate?: string, endDate?: string } = {}) => {
+  const days = options.days || 30;
+  const endKey = options.endDate || new Date().toISOString().split('T')[0];
+  let startKey = options.startDate;
 
-  const startKey = startDate.toISOString().split('T')[0];
-  const endKey = endDate.toISOString().split('T')[0];
+  if (!startKey) {
+    const startDate = new Date(endKey);
+    startDate.setDate(startDate.getDate() - days);
+    startKey = startDate.toISOString().split('T')[0];
+  }
 
   const hourlyStats = await prisma.guildHourlyStat.findMany({
     where: {
@@ -369,13 +423,16 @@ export const getWeekOverWeekComparison = async (guildId: string) => {
 /**
  * Get growth and retention metrics
  */
-export const getGrowthAndRetention = async (guildId: string, days: number = 90) => {
-  const endDate = new Date();
-  const startDate = new Date();
-  startDate.setDate(endDate.getDate() - days);
+export const getGrowthAndRetention = async (guildId: string, options: { days?: number, startDate?: string, endDate?: string } = {}) => {
+  const days = options.days || 90;
+  const endKey = options.endDate || new Date().toISOString().split('T')[0];
+  let startKey = options.startDate;
 
-  const startKey = startDate.toISOString().split('T')[0];
-  const endKey = endDate.toISOString().split('T')[0];
+  if (!startKey) {
+    const startDate = new Date(endKey);
+    startDate.setDate(startDate.getDate() - days);
+    startKey = startDate.toISOString().split('T')[0];
+  }
 
   const dailyStats = await prisma.guildDailyStat.findMany({
     where: {
@@ -425,13 +482,19 @@ export const getGrowthAndRetention = async (guildId: string, days: number = 90) 
 /**
  * Get Daily Algo analytics
  */
-export const getDailyAlgoAnalytics = async (guildId: string, days: number = 30) => {
-  const endDate = new Date();
-  const startDate = new Date();
-  startDate.setDate(endDate.getDate() - days);
+export const getDailyAlgoAnalytics = async (guildId: string, options: { days?: number, startDate?: string, endDate?: string } = {}) => {
+  const days = options.days || 30;
+  const endKey = options.endDate || new Date().toISOString().split('T')[0];
+  let startKey = options.startDate;
 
-  const startISO = startDate.toISOString();
-  const endISO = endDate.toISOString();
+  if (!startKey) {
+    const startDate = new Date(endKey);
+    startDate.setDate(startDate.getDate() - days);
+    startKey = startDate.toISOString().split('T')[0];
+  }
+
+  const startISO = new Date(startKey).toISOString();
+  const endISO = new Date(endKey + 'T23:59:59.999Z').toISOString();
 
   // Get recent daily algo runs
   const runs = await prisma.dailyAlgoRun.findMany({

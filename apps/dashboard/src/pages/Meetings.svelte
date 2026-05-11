@@ -217,134 +217,137 @@
     selectedMeeting = meeting;
     detailModalOpen = true;
   }
+
+  import ModulePage from '../lib/components/ModulePage.svelte';
 </script>
 
-<div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10 font-inter">
-  <div>
-    <h2 class="text-3xl font-extrabold text-primary tracking-tight font-headline">Réunions Staff</h2>
-    <p class="text-on-surface-variant mt-1 leading-relaxed">Planification, présence automatisée et comptes-rendus des réunions d'équipe.</p>
-  </div>
-  <div class="flex items-center gap-3">
+<ModulePage 
+  title="Réunions Staff" 
+  description="Planification, présence automatisée et comptes-rendus des réunions d'équipe." 
+  icon="calendar"
+  featureKey="meetings"
+>
+  {#snippet actions()}
     <RefreshButton onClick={loadMeetings} loading={loading} label="Actualiser" />
     {#if isAdmin}
       <ActionButton onClick={openCreate} variant="primary" icon="plus" label="Nouvelle Réunion" />
     {/if}
-  </div>
-</div>
+  {/snippet}
 
-<div class="grid grid-cols-1 gap-6">
-  {#if loading && meetings.length === 0}
-    <div class="flex flex-col items-center justify-center py-20 bg-surface-container-lowest rounded-3xl border border-outline-variant/30">
-      <div class="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
-      <p class="mt-4 text-on-surface-variant font-medium">Chargement des réunions...</p>
-    </div>
-  {:else if meetings.length === 0}
-    <div class="flex flex-col items-center justify-center py-20 bg-surface-container-lowest rounded-3xl border border-outline-variant/30">
-      <Papicon icon="calendar" size={60} class="text-on-surface-variant/20 mb-4" />
-      <h3 class="text-xl font-bold text-on-surface">Aucune réunion prévue</h3>
-      <p class="text-on-surface-variant mt-1">Planifiez votre première réunion pour commencer le suivi.</p>
-      {#if isAdmin}
-        <button onclick={openCreate} class="mt-6 px-6 py-2.5 bg-primary text-on-primary rounded-xl font-bold hover:bg-primary-hover transition-colors">
-          Créer une réunion
-        </button>
-      {/if}
-    </div>
-  {:else}
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {#each meetings as meeting}
-        {@const stats = getAttendanceStats(meeting)}
-        <div class="bg-surface-container-lowest rounded-3xl border border-outline-variant/30 overflow-hidden hover:shadow-xl hover:shadow-primary/5 transition-all group">
-          <div class="p-6">
-            <div class="flex justify-between items-start gap-4 mb-4">
-              <div>
-                <span class="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider mb-2 {getStatusColor(meeting.status)}">
-                  {formatStatus(meeting.status)}
-                </span>
-                <h4 class="text-xl font-bold text-on-surface leading-tight">{meeting.title}</h4>
-                <div class="flex items-center gap-2 mt-1 text-on-surface-variant text-sm font-medium">
-                  <Papicon icon="calendar" size={18} />
-                  {new Date(meeting.scheduledAt).toLocaleString('fr-FR', { dateStyle: 'full', timeStyle: 'short' })}
+  <div class="grid grid-cols-1 gap-6">
+    {#if loading && meetings.length === 0}
+      <div class="flex flex-col items-center justify-center py-20 bg-surface-container-lowest rounded-3xl border border-outline-variant/30">
+        <div class="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+        <p class="mt-4 text-on-surface-variant font-medium">Chargement des réunions...</p>
+      </div>
+    {:else if meetings.length === 0}
+      <div class="flex flex-col items-center justify-center py-20 bg-surface-container-lowest rounded-3xl border border-outline-variant/30">
+        <Papicon icon="calendar" size={60} class="text-on-surface-variant/20 mb-4" />
+        <h3 class="text-xl font-bold text-on-surface">Aucune réunion prévue</h3>
+        <p class="text-on-surface-variant mt-1">Planifiez votre première réunion pour commencer le suivi.</p>
+        {#if isAdmin}
+          <button onclick={openCreate} class="mt-6 px-6 py-2.5 bg-primary text-on-primary rounded-xl font-bold hover:bg-primary-hover transition-colors">
+            Créer une réunion
+          </button>
+        {/if}
+      </div>
+    {:else}
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {#each meetings as meeting}
+          {@const stats = getAttendanceStats(meeting)}
+          <div class="bg-surface-container-lowest rounded-3xl border border-outline-variant/30 overflow-hidden hover:shadow-xl hover:shadow-primary/5 transition-all group">
+            <div class="p-6">
+              <div class="flex justify-between items-start gap-4 mb-4">
+                <div>
+                  <span class="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider mb-2 {getStatusColor(meeting.status)}">
+                    {formatStatus(meeting.status)}
+                  </span>
+                  <h4 class="text-xl font-bold text-on-surface leading-tight">{meeting.title}</h4>
+                  <div class="flex items-center gap-2 mt-1 text-on-surface-variant text-sm font-medium">
+                    <Papicon icon="calendar" size={18} />
+                    {new Date(meeting.scheduledAt).toLocaleString('fr-FR', { dateStyle: 'full', timeStyle: 'short' })}
+                  </div>
+                </div>
+                {#if isAdmin}
+                  <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onclick={() => openEdit(meeting)} class="p-2 hover:bg-surface-hover rounded-full transition-colors text-on-surface-variant hover:text-primary" title="Modifier">
+                      <Papicon icon="edit-2" size={18} />
+                    </button>
+                    <button onclick={() => openDelete(meeting.id)} class="p-2 hover:bg-red-500/10 rounded-full transition-colors text-on-surface-variant hover:text-red-500" title="Supprimer">
+                      <Papicon icon="trash-2" size={18} />
+                    </button>
+                  </div>
+                {/if}
+              </div>
+
+              <p class="text-on-surface-variant text-sm line-clamp-3 mb-6 min-h-12">
+                {meeting.description || 'Aucune description fournie.'}
+              </p>
+
+              <div class="grid grid-cols-3 gap-2 p-3 bg-surface-container-low rounded-2xl">
+                <div class="text-center">
+                  <p class="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">Présents</p>
+                  <p class="text-xl font-bold text-emerald-500">{stats.present}</p>
+                </div>
+                <div class="text-center border-x border-outline-variant/30">
+                  <p class="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">Excusés</p>
+                  <p class="text-xl font-bold text-amber-500">{stats.excused}</p>
+                </div>
+                <div class="text-center">
+                  <p class="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">Absents</p>
+                  <p class="text-xl font-bold text-red-500">{stats.absent}</p>
                 </div>
               </div>
-              {#if isAdmin}
-                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onclick={() => openEdit(meeting)} class="p-2 hover:bg-surface-hover rounded-full transition-colors text-on-surface-variant hover:text-primary" title="Modifier">
-                    <Papicon icon="edit-2" size={18} />
-                  </button>
-                  <button onclick={() => openDelete(meeting.id)} class="p-2 hover:bg-red-500/10 rounded-full transition-colors text-on-surface-variant hover:text-red-500" title="Supprimer">
-                    <Papicon icon="trash-2" size={18} />
-                  </button>
-                </div>
-              {/if}
             </div>
 
-            <p class="text-on-surface-variant text-sm line-clamp-3 mb-6 min-h-[3rem]">
-              {meeting.description || 'Aucune description fournie.'}
-            </p>
+            <div class="px-6 py-4 bg-surface-container-low/50 border-t border-outline-variant/30 flex items-center justify-between">
+              <div class="flex -space-x-2">
+                {#each meeting.presences.filter(p => p.status === 'PRESENT').slice(0, 5) as p}
+                  <button 
+                    onclick={() => openMemberCase(p.staffUserId, p.staffMember?.displayName || p.staffMember?.username || 'Membre')}
+                    class="w-8 h-8 rounded-full border-2 border-surface-container-lowest bg-primary/10 flex items-center justify-center overflow-hidden transition-transform hover:scale-110 hover:z-10" 
+                    title={p.staffMember?.displayName || p.staffMember?.username || "Membre"}
+                  >
+                    {#if p.staffMember?.avatarUrl}
+                      <img src={p.staffMember.avatarUrl} alt="" class="w-full h-full object-cover" />
+                    {:else}
+                      <span class="text-[10px] font-bold text-primary">{(p.staffMember?.displayName || p.staffMember?.username || "??").slice(0, 2).toUpperCase()}</span>
+                    {/if}
+                  </button>
+                {/each}
+                {#if stats.present > 5}
+                  <div class="w-8 h-8 rounded-full border-2 border-surface-container-lowest bg-surface-hover flex items-center justify-center text-[10px] font-bold text-on-surface-variant">
+                    +{stats.present - 5}
+                  </div>
+                {/if}
+              </div>
 
-            <div class="grid grid-cols-3 gap-2 p-3 bg-surface-container-low rounded-2xl">
-              <div class="text-center">
-                <p class="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">Présents</p>
-                <p class="text-xl font-bold text-emerald-500">{stats.present}</p>
-              </div>
-              <div class="text-center border-x border-outline-variant/30">
-                <p class="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">Excusés</p>
-                <p class="text-xl font-bold text-amber-500">{stats.excused}</p>
-              </div>
-              <div class="text-center">
-                <p class="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">Absents</p>
-                <p class="text-xl font-bold text-red-500">{stats.absent}</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="px-6 py-4 bg-surface-container-low/50 border-t border-outline-variant/30 flex items-center justify-between">
-            <div class="flex -space-x-2">
-              {#each meeting.presences.filter(p => p.status === 'PRESENT').slice(0, 5) as p}
-                <button 
-                  onclick={() => openMemberCase(p.staffUserId, p.staffMember?.displayName || p.staffMember?.username || 'Membre')}
-                  class="w-8 h-8 rounded-full border-2 border-surface-container-lowest bg-primary/10 flex items-center justify-center overflow-hidden transition-transform hover:scale-110 hover:z-10" 
-                  title={p.staffMember?.displayName || p.staffMember?.username || "Membre"}
-                >
-                  {#if p.staffMember?.avatarUrl}
-                    <img src={p.staffMember.avatarUrl} alt="" class="w-full h-full object-cover" />
-                  {:else}
-                    <span class="text-[10px] font-bold text-primary">{(p.staffMember?.displayName || p.staffMember?.username || "??").slice(0, 2).toUpperCase()}</span>
-                  {/if}
+              <div class="flex items-center gap-2">
+                {#if isAdmin}
+                   {#if meeting.status === 'SCHEDULED'}
+                      <button onclick={() => updateStatus(meeting.id, 'IN_PROGRESS')} class="text-xs font-bold text-primary px-3 py-1.5 hover:bg-primary/10 rounded-lg transition-colors">
+                        Démarrer
+                      </button>
+                   {:else if meeting.status === 'IN_PROGRESS'}
+                      <button onclick={() => updateStatus(meeting.id, 'COMPLETED')} class="text-xs font-bold text-emerald-500 px-3 py-1.5 hover:bg-emerald-500/10 rounded-lg transition-colors">
+                        Terminer
+                      </button>
+                   {/if}
+                {/if}
+                <button onclick={() => openDetails(meeting)} class="text-xs font-bold text-on-surface-variant px-3 py-1.5 hover:bg-surface-hover rounded-lg transition-colors">
+                  Détails
                 </button>
-              {/each}
-              {#if stats.present > 5}
-                <div class="w-8 h-8 rounded-full border-2 border-surface-container-lowest bg-surface-hover flex items-center justify-center text-[10px] font-bold text-on-surface-variant">
-                  +{stats.present - 5}
-                </div>
-              {/if}
-            </div>
-
-            <div class="flex items-center gap-2">
-              {#if isAdmin}
-                 {#if meeting.status === 'SCHEDULED'}
-                    <button onclick={() => updateStatus(meeting.id, 'IN_PROGRESS')} class="text-xs font-bold text-primary px-3 py-1.5 hover:bg-primary/10 rounded-lg transition-colors">
-                      Démarrer
-                    </button>
-                 {:else if meeting.status === 'IN_PROGRESS'}
-                    <button onclick={() => updateStatus(meeting.id, 'COMPLETED')} class="text-xs font-bold text-emerald-500 px-3 py-1.5 hover:bg-emerald-500/10 rounded-lg transition-colors">
-                      Terminer
-                    </button>
-                 {/if}
-              {/if}
-              <button onclick={() => openDetails(meeting)} class="text-xs font-bold text-on-surface-variant px-3 py-1.5 hover:bg-surface-hover rounded-lg transition-colors">
-                Détails
-              </button>
+              </div>
             </div>
           </div>
-        </div>
-      {/each}
-    </div>
-  {/if}
-</div>
+        {/each}
+      </div>
+    {/if}
+  </div>
+</ModulePage>
 
 {#if modalOpen}
-  <div class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+  <div class="fixed inset-0 z-100 flex items-center justify-center p-4">
     <div 
       class="absolute inset-0 bg-black/60 backdrop-blur-sm" 
       onclick={() => modalOpen = false}
@@ -437,7 +440,7 @@
 {/if}
 
 {#if detailModalOpen && selectedMeeting}
-  <div class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+  <div class="fixed inset-0 z-100 flex items-center justify-center p-4">
     <div 
       class="absolute inset-0 bg-black/60 backdrop-blur-sm" 
       onclick={() => detailModalOpen = false}
@@ -511,7 +514,7 @@
 {/if}
 
 {#if deleteModalOpen}
-  <div class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+  <div class="fixed inset-0 z-100 flex items-center justify-center p-4">
     <div 
       class="absolute inset-0 bg-black/60 backdrop-blur-sm" 
       onclick={() => deleteModalOpen = false}

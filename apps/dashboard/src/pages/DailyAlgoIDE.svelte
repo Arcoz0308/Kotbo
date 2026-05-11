@@ -265,7 +265,49 @@
     </header>
 
     {#if loading}
-      <div class="state-panel section-card">Chargement de l'IDE...</div>
+      <div class="daily-ide-grid animate-pulse">
+        <section class="daily-ide-main section-card" style="height: {editorHeight + 16}px;">
+          <div class="flex flex-col gap-4 h-full">
+            <div class="flex items-center justify-between">
+              <div class="flex gap-2">
+                <div class="h-6 w-24 rounded-lg bg-on-surface/5"></div>
+                <div class="h-6 w-16 rounded-lg bg-on-surface/5"></div>
+              </div>
+              <div class="h-6 w-32 rounded-lg bg-on-surface/5"></div>
+            </div>
+            <div class="flex-1 rounded-xl bg-on-surface/[0.03]"></div>
+            <div class="h-10 w-full rounded-xl bg-on-surface/5"></div>
+          </div>
+        </section>
+
+        <aside class="daily-ide-panel section-card">
+          <div class="space-y-6">
+            <div class="space-y-2">
+              <div class="h-3 w-32 rounded-full bg-on-surface/10"></div>
+              <div class="h-24 w-full rounded-2xl bg-on-surface/5"></div>
+            </div>
+            
+            <div class="space-y-4">
+              <div class="h-3 w-40 rounded-full bg-on-surface/10"></div>
+              <div class="grid grid-cols-2 gap-4">
+                {#each Array(5) as _}
+                  <div class="space-y-2">
+                    <div class="h-2 w-20 rounded-full bg-on-surface/5"></div>
+                    <div class="h-10 w-full rounded-xl bg-on-surface/5"></div>
+                  </div>
+                {/each}
+              </div>
+            </div>
+
+            <div class="space-y-2 pt-4">
+              <div class="h-2 w-32 rounded-full bg-on-surface/5"></div>
+              <div class="h-32 w-full rounded-2xl bg-on-surface/5"></div>
+            </div>
+
+            <div class="h-12 w-full rounded-xl bg-primary/10"></div>
+          </div>
+        </aside>
+      </div>
     {:else if pageError}
       <div class="state-panel section-card state-error">{pageError}</div>
     {:else}

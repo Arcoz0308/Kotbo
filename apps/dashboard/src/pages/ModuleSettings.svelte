@@ -3,9 +3,6 @@
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import {
     API_BASE_URL,
-    deleteFeed,
-    updateFeed,
-    updateYouTubeSettings,
     updateModuleStatus,
     fetchDailyAlgoProblems,
     createDailyAlgoProblem,
@@ -20,6 +17,7 @@
     fetchTodayDailyAlgoSubmissions,
     fetchDailyAlgoSubmissionHistory,
     reviewDailyAlgoSubmission,
+    fetchGlobalDailyAlgoLeaderboard,
   } from '../lib/api';
   import { authStore } from '../lib/stores/auth.svelte';
   import { router } from 'tinro';
@@ -37,10 +35,11 @@
     type IdeLanguage,
   } from '../lib/dailyAlgoIde';
   import Papicon from '../lib/components/Papicon.svelte';
+  import Skeleton from '../lib/components/Skeleton.svelte';
 
   let { moduleId } = $props();
 
-  const module = $derived(dashboardStore.state.modules.find(m => m.id === moduleId) || { 
+  const module = $derived((dashboardStore.state.modules as Array<{ id: string; name: string; description: string; status: string }>).find((m) => m.id === moduleId) || { 
     name: 'Chargement...', 
     description: 'Veuillez patienter...', 
     status: 'inactive' 
@@ -78,6 +77,22 @@
     expectedValue: string;
   };
 
+  type DailyAlgoSubmission = {
+    id: string;
+    status: 'PENDING' | 'APPROVED' | 'REJECTED' | string;
+    submittedAt: string | number | Date;
+    validatedAt?: string | number | Date | null;
+    reviewFeedback?: string | null;
+    authorName?: string | null;
+    authorId?: string | null;
+    speedRank?: number | null;
+    speedBonusPoints?: number | null;
+    scoreFinal?: number | null;
+    totalPoints?: number | null;
+    validatedByName?: string | null;
+    solution?: string;
+  };
+
   type DailyAlgoChallengeTypeKey =
     | 'time-complexity'
     | 'space-complexity'
@@ -100,6 +115,18 @@
     } catch {
       return 'null';
     }
+  }
+
+  function formatDate(value: string | number | Date | null | undefined): string {
+    if (value === null || value === undefined || value === '') return 'Date inconnue';
+
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Date inconnue';
+
+    return new Intl.DateTimeFormat('fr-FR', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(date);
   }
 
   function createFunctionArgDraft(name = 'input', type = 'string'): DailyAlgoFunctionArgDraft {
@@ -188,12 +215,9 @@
     dailyAlgoApiModalOpen = false;
   }
 
-  let youtubeReferenceChannelId = $state('');
   let desiredModuleStatus = $state('inactive');
-  let deleteFeedModalOpen = $state(false);
   let createDailyAlgoProblemModalOpen = $state(false);
   let editingDailyAlgoProblemId = $state<string | null>(null);
-  let pendingFeedDeletion = $state<{ id: string; name: string } | null>(null);
   const formAction = createAsyncActionState();
   const apiKeyAction = createAsyncActionState();
 
@@ -204,9 +228,11 @@
   let isFetchingAlgoSubmissions = $state(false);
   let isFetchingAlgoHistory = $state(false);
   let isFetchingAlgoSchedule = $state(false);
+  let isFetchingGlobalLeaderboard = $state(false);
   let isEnsuringAlgoSchedule = $state(false);
   let dailyAlgoHistory = $state<any[]>([]);
   let dailyAlgoSchedule = $state<any[]>([]);
+  let globalLeaderboard = $state<any | null>(null);
   let myApiKeys = $state<any[]>([]);
   let dailyAlgoApiKeyName = $state('Kotbo Daily Algo');
   let latestIssuedApiKey = $state('');
@@ -241,10 +267,15 @@
 
   onMount(async () => {
     await dashboardStore.refresh();
-    if (moduleId === 'youtube') {
-      youtubeReferenceChannelId = dashboardStore.state.youtubeReferenceChannelId || '';
-    } else if (moduleId === 'dailyalgo') {
-      await Promise.all([loadDailyAlgoProblems(), loadTodayDailyAlgoSubmissions(), loadDailyAlgoHistory(), loadDailyAlgoSchedule(), loadMyApiKeys()]);
+    if (moduleId === 'dailyalgo') {
+      await Promise.all([
+        loadDailyAlgoProblems(), 
+        loadTodayDailyAlgoSubmissions(), 
+        loadDailyAlgoHistory(), 
+        loadDailyAlgoSchedule(), 
+        loadMyApiKeys(),
+        loadGlobalLeaderboard()
+      ]);
       
       // Auto-open submission IDE if submissionId is present in URL
       const params = new URLSearchParams(window.location.search);
@@ -283,6 +314,17 @@
       formAction.setError('Erreur lors du chargement des soumissions du jour.');
     } finally {
       isFetchingAlgoSubmissions = false;
+    }
+  }
+
+  async function loadGlobalLeaderboard() {
+    isFetchingGlobalLeaderboard = true;
+    try {
+      globalLeaderboard = await fetchGlobalDailyAlgoLeaderboard();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      isFetchingGlobalLeaderboard = false;
     }
   }
 
@@ -408,8 +450,8 @@
     }
 
     const functionArgs = Array.isArray(problem?.functionArgs)
-      ? problem.functionArgs
-        .map((entry) => {
+      ? (problem.functionArgs as unknown[])
+        .map((entry: unknown) => {
           if (!entry || typeof entry !== 'object') return null;
           const candidate = entry as { name?: unknown; type?: unknown };
           const name = typeof candidate.name === 'string' ? candidate.name.trim() : '';
@@ -422,8 +464,8 @@
 
     const argsCount = functionArgs.length;
     const unitTests = Array.isArray(problem?.unitTests)
-      ? problem.unitTests
-        .map((entry, index) => {
+      ? (problem.unitTests as unknown[])
+        .map((entry: unknown, index: number) => {
           if (!entry || typeof entry !== 'object') return null;
           const candidate = entry as { name?: unknown; args?: unknown[]; expected?: unknown };
           const args = Array.isArray(candidate.args) ? candidate.args : [];
@@ -806,7 +848,7 @@
       return;
     }
 
-    const currentSubmission = (dailyAlgoToday?.submissions ?? []).find((submission) => submission.id === submissionId);
+    const currentSubmission = getDailyAlgoSubmissions().find((submission) => submission.id === submissionId);
     const isEdition = currentSubmission?.status !== 'PENDING';
 
     await formAction.run(
@@ -928,7 +970,7 @@
   }
 
   const todaySubmissionStats = $derived.by(() => {
-    const submissions = dailyAlgoToday?.submissions ?? [];
+    const submissions = getDailyAlgoSubmissions();
     return {
       total: submissions.length,
       pending: submissions.filter((submission) => submission.status === 'PENDING').length,
@@ -938,7 +980,7 @@
   });
 
   const filteredTodaySubmissions = $derived.by(() => {
-    const submissions = dailyAlgoToday?.submissions ?? [];
+    const submissions = getDailyAlgoSubmissions();
     if (dailyAlgoSubmissionStatusFilter === 'ALL') {
       return submissions;
     }
@@ -962,7 +1004,7 @@
 
   const focusedSubmission = $derived.by(() => {
     if (!ideModalOpen || !ideFocusedSubmissionId) return null;
-    return (dailyAlgoToday?.submissions ?? []).find((submission) => submission.id === ideFocusedSubmissionId) ?? null;
+    return getDailyAlgoSubmissions().find((submission) => submission.id === ideFocusedSubmissionId) ?? null;
   });
 
   $effect(() => {
@@ -1053,21 +1095,25 @@
     return 'Classique';
   }
 
-  function dailyAlgoProblemFunctionSignature(problem: any) {
+  function dailyAlgoProblemFunctionSignature(problem: { functionName?: unknown; functionArgs?: unknown } | null | undefined) {
     const functionName = typeof problem?.functionName === 'string' && problem.functionName.trim()
       ? problem.functionName.trim()
       : 'solve';
 
     const args = Array.isArray(problem?.functionArgs)
-      ? problem.functionArgs
-        .filter((entry) => entry && typeof entry === 'object' && typeof (entry as { name?: unknown }).name === 'string')
-        .map((entry) => {
+      ? (problem.functionArgs as unknown[])
+        .filter((entry: unknown) => entry && typeof entry === 'object' && typeof (entry as { name?: unknown }).name === 'string')
+        .map((entry: unknown) => {
           const candidate = entry as { name?: string; type?: string };
           return `${candidate.name}${candidate.type ? `: ${candidate.type}` : ''}`;
         })
       : [];
 
     return `${functionName}(${args.join(', ')})`;
+  }
+
+  function getDailyAlgoSubmissions(): DailyAlgoSubmission[] {
+    return Array.isArray(dailyAlgoToday?.submissions) ? (dailyAlgoToday.submissions as DailyAlgoSubmission[]) : [];
   }
 
   function toKnownIdeLanguage(input: string): IdeLanguage | null {
@@ -1213,40 +1259,7 @@
     desiredModuleStatus = module.status === 'active' ? 'active' : 'inactive';
   });
 
-  function openDeleteFeedModal(feed: { id: string; name: string }) {
-    if (!canManageSettings) {
-      formAction.setError('Seuls les administrateurs peuvent modifier ce module.');
-      return;
-    }
 
-    pendingFeedDeletion = { id: feed.id, name: feed.name };
-    deleteFeedModalOpen = true;
-  }
-
-  function closeDeleteFeedModal() {
-    deleteFeedModalOpen = false;
-    pendingFeedDeletion = null;
-  }
-
-  async function confirmDeleteFeed() {
-    if (!pendingFeedDeletion) return;
-
-    const feedId = pendingFeedDeletion.id;
-    closeDeleteFeedModal();
-
-    await formAction.run(
-      async () => {
-        const success = await deleteFeed(feedId);
-        if (!success) return false;
-        await dashboardStore.refresh();
-        return true;
-      },
-      {
-        successMessage: 'Flux RSS supprimé.',
-        failureMessage: 'Impossible de supprimer ce flux.'
-      }
-    );
-  }
 
   async function handleSave() {
     formAction.clearFeedback();
@@ -1256,26 +1269,7 @@
       return;
     }
 
-    if (moduleId === 'youtube') {
-      await formAction.run(
-        async () => {
-          const success = await updateYouTubeSettings(youtubeReferenceChannelId.trim());
-          if (!success) return false;
-          await dashboardStore.refresh();
-          return true;
-        },
-        {
-          successMessage: 'Canal YouTube de référence enregistré avec succès.',
-          failureMessage: 'Impossible d\'enregistrer le canal YouTube de référence.'
-        }
-      );
-      return;
-    }
 
-    if (moduleId === 'rss') {
-      formAction.setMessage('Les flux RSS se configurent directement dans la liste ci-dessous.');
-      return;
-    }
 
     await formAction.run(
       async () => {
@@ -1291,225 +1285,7 @@
     );
   }
 
-  const activeFeeds = $derived(dashboardStore.state.feeds);
 
-  type FeedSortField = 'name' | 'category' | 'lastCheck' | 'status';
-  let feedSearchQuery = $state('');
-  let feedFilters = $state({
-    statuses: [] as string[],
-    categories: [] as string[],
-  });
-  let feedSortField = $state<FeedSortField>('lastCheck');
-  let feedSortDirection = $state<'asc' | 'desc'>('desc');
-
-  const feedStatusOptions = $derived<ColumnFilterOption[]>([
-    { value: 'ok', label: 'Synchronisé' },
-    { value: 'warning', label: 'Avertissement' },
-    { value: 'error', label: 'Échec' },
-  ]);
-  const feedCategoryOptions = $derived<ColumnFilterOption[]>(
-    [...new Set(activeFeeds.map((feed) => feed.category || 'Général'))]
-      .sort((a, b) => a.localeCompare(b, 'fr'))
-      .map((category) => ({ value: category, label: category }))
-  );
-
-  const hasActiveFeedFiltersOrSort = $derived(
-    feedSearchQuery.trim().length > 0
-      || feedFilters.statuses.length > 0
-      || feedFilters.categories.length > 0
-      || feedSortField !== 'lastCheck'
-      || feedSortDirection !== 'desc'
-  );
-
-  const filteredFeeds = $derived.by(() => {
-    const query = feedSearchQuery.trim().toLowerCase();
-    return [...activeFeeds]
-      .filter((feed) => {
-        const category = feed.category || 'Général';
-        const matchesQuery = !query
-          || (feed.name || '').toLowerCase().includes(query)
-          || (feed.url || '').toLowerCase().includes(query)
-          || category.toLowerCase().includes(query);
-        const matchesStatus = feedFilters.statuses.length === 0 || feedFilters.statuses.includes(feed.lastStatus);
-        const matchesCategory = feedFilters.categories.length === 0 || feedFilters.categories.includes(category);
-        return matchesQuery && matchesStatus && matchesCategory;
-      })
-      .sort((left, right) => {
-        let result = 0;
-        switch (feedSortField) {
-          case 'name':
-            result = (left.name || '').localeCompare((right.name || ''), 'fr');
-            break;
-          case 'category':
-            result = (left.category || 'Général').localeCompare((right.category || 'Général'), 'fr');
-            break;
-          case 'lastCheck': {
-            const leftDate = left.lastCheck ? new Date(left.lastCheck).getTime() : 0;
-            const rightDate = right.lastCheck ? new Date(right.lastCheck).getTime() : 0;
-            result = leftDate - rightDate;
-            break;
-          }
-          case 'status':
-            result = (left.lastStatus || '').localeCompare((right.lastStatus || ''), 'fr');
-            break;
-        }
-        return feedSortDirection === 'asc' ? result : -result;
-      });
-  });
-
-  function toggleFeedFilter(filterType: keyof typeof feedFilters, value: string) {
-    const list = feedFilters[filterType];
-    if (list.includes(value)) {
-      feedFilters[filterType] = list.filter((entry) => entry !== value);
-      return;
-    }
-    feedFilters[filterType] = [...list, value];
-  }
-
-  function toggleFeedSort(field: FeedSortField) {
-    if (feedSortField === field) {
-      feedSortDirection = feedSortDirection === 'asc' ? 'desc' : 'asc';
-      return;
-    }
-    feedSortField = field;
-    feedSortDirection = 'asc';
-  }
-
-  function feedSortDirectionFor(field: FeedSortField) {
-    return feedSortField === field ? feedSortDirection : null;
-  }
-
-  function resetFeedFiltersAndSort() {
-    feedSearchQuery = '';
-    feedFilters = {
-      statuses: [],
-      categories: [],
-    };
-    feedSortField = 'lastCheck';
-    feedSortDirection = 'desc';
-  }
-
-  let editingFeedId = $state(null);
-  let feedDraft = $state({
-    name: '',
-    url: '',
-    category: 'Général',
-    includeKeywords: '',
-    excludeKeywords: '',
-    enabled: true,
-    scanMinutes: 10
-  });
-
-  const rssStats = $derived.by(() => {
-    const feeds = dashboardStore.state.feeds;
-    const total = feeds.length;
-    const active = feeds.filter((f) => f.enabled).length;
-    const inError = feeds.filter((f) => f.lastStatus === 'error').length;
-    const inWarning = feeds.filter((f) => f.lastStatus === 'warning').length;
-
-    return { total, active, inError, inWarning };
-  });
-
-  function formatDate(isoDate) {
-    if (!isoDate) return 'Jamais';
-    return new Date(isoDate).toLocaleString('fr-FR', {
-      dateStyle: 'medium',
-      timeStyle: 'short'
-    });
-  }
-
-  function startEditFeed(feed) {
-    if (!canManageSettings) {
-      formAction.setError('Seuls les administrateurs peuvent modifier les flux RSS.');
-      return;
-    }
-
-    editingFeedId = feed.id;
-    feedDraft = {
-      name: feed.name,
-      url: feed.url,
-      category: feed.category || 'Général',
-      includeKeywords: (feed.includeKeywords || []).join(', '),
-      excludeKeywords: (feed.excludeKeywords || []).join(', '),
-      enabled: !!feed.enabled,
-      scanMinutes: feed.scanMinutes || 10
-    };
-  }
-
-  function cancelEditFeed() {
-    editingFeedId = null;
-  }
-
-  function splitKeywords(value) {
-    if (!value) return [];
-    return value
-      .split(',')
-      .map((entry) => entry.trim())
-      .filter(Boolean);
-  }
-
-  function buildFeedPayload(feed, overrides: Record<string, any> = {}) {
-    return {
-      name: (overrides.name ?? feed.name ?? '').trim(),
-      url: (overrides.url ?? feed.url ?? '').trim(),
-      category: (overrides.category ?? feed.category ?? 'Général').trim() || 'Général',
-      enabled: overrides.enabled ?? !!feed.enabled,
-      scanMinutes: Number(overrides.scanMinutes ?? feed.scanMinutes ?? 10) || 10,
-      includeKeywords: overrides.includeKeywords ?? feed.includeKeywords ?? [],
-      excludeKeywords: overrides.excludeKeywords ?? feed.excludeKeywords ?? []
-    };
-  }
-
-  async function saveFeed(feedId) {
-    if (!canManageSettings) {
-      formAction.setError('Seuls les administrateurs peuvent modifier les flux RSS.');
-      return;
-    }
-
-    const payload = buildFeedPayload(feedDraft, {
-      includeKeywords: splitKeywords(feedDraft.includeKeywords),
-      excludeKeywords: splitKeywords(feedDraft.excludeKeywords)
-    });
-
-    if (!payload.name || !payload.url) {
-      formAction.setError('Le nom et l\'URL du flux sont requis.');
-      return;
-    }
-
-    await formAction.run(
-      async () => {
-        const success = await updateFeed(feedId, payload);
-        if (!success) return false;
-        editingFeedId = null;
-        await dashboardStore.refresh();
-        return true;
-      },
-      {
-        successMessage: 'Flux RSS mis à jour.',
-        failureMessage: 'Impossible de mettre à jour ce flux.'
-      }
-    );
-  }
-
-  async function toggleFeedEnabled(feed) {
-    if (!canManageSettings) {
-      formAction.setError('Seuls les administrateurs peuvent modifier les flux RSS.');
-      return;
-    }
-
-    await formAction.run(
-      async () => {
-        const success = await updateFeed(feed.id, buildFeedPayload(feed, { enabled: !feed.enabled }));
-        if (!success) return false;
-        await dashboardStore.refresh();
-        return true;
-      },
-      {
-        successMessage: `Flux ${feed.enabled ? 'désactivé' : 'activé'} avec succès.`,
-        failureMessage: 'Impossible de changer l\'état du flux.'
-      }
-    );
-  }
 </script>
 
 <div class="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -1557,7 +1333,7 @@
 
   <InlineFeedback message={formAction.state.message} error={formAction.state.error} />
 
-  {#if !canManageSettings}
+  {#if moduleId !== 'dailyalgo'}
     <div class="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700">
       Accès modérateur: cette page est en lecture seule.
     </div>
@@ -1567,306 +1343,19 @@
     
     <div class="col-span-12 space-y-12 pb-24">
       
-      <section class="space-y-8">
-        <h3 class="text-xl font-black tracking-tight flex items-center gap-4">
-          <div class="w-1.5 h-8 bg-primary rounded-full"></div>
-          Configuration Générale
-        </h3>
-        <div class="premium-card p-10 rounded-[3rem] space-y-10 group">
-          <div class="space-y-4">
-            <label class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.25em] ml-2 block" for="name">Description du module</label>
-            <p class="px-6 py-4 bg-surface-container-low border border-outline-variant/5 rounded-2xl text-sm italic opacity-70">
-              {module.description}
-            </p>
-          </div>
-          
-          {#if moduleId === 'rss'}
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div class="rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-5">
-                <p class="text-[10px] uppercase tracking-[0.2em] font-black text-emerald-700/80">Flux actifs</p>
-                <p class="text-3xl font-black text-emerald-700 mt-2">{rssStats.active}</p>
-              </div>
-              <div class="rounded-2xl bg-slate-500/10 border border-slate-500/20 p-5">
-                <p class="text-[10px] uppercase tracking-[0.2em] font-black text-slate-700/80">Total flux</p>
-                <p class="text-3xl font-black text-slate-700 mt-2">{rssStats.total}</p>
-              </div>
-              <div class="rounded-2xl bg-amber-500/10 border border-amber-500/20 p-5">
-                <p class="text-[10px] uppercase tracking-[0.2em] font-black text-amber-700/80">Avertissements</p>
-                <p class="text-3xl font-black text-amber-700 mt-2">{rssStats.inWarning}</p>
-              </div>
-              <div class="rounded-2xl bg-red-500/10 border border-red-500/20 p-5">
-                <p class="text-[10px] uppercase tracking-[0.2em] font-black text-red-700/80">Erreurs</p>
-                <p class="text-3xl font-black text-red-700 mt-2">{rssStats.inError}</p>
-              </div>
-            </div>
-          {/if}
-        </div>
-      </section>
-
-      {#if moduleId === 'rss'}
-        
-        <section class="space-y-8">
-          <div class="flex items-center justify-between px-2">
-            <h3 class="text-xl font-black tracking-tight flex items-center gap-4">
-              <div class="w-1.5 h-8 bg-primary rounded-full"></div>
-              Flux RSS Connectés
-            </h3>
-          </div>
-
-          <div class="rounded-3xl border border-outline-variant/15 bg-surface-container/60 p-4 md:p-5">
-            <div class="flex flex-col gap-4">
-              <div class="flex flex-col md:flex-row md:items-center gap-3 justify-between">
-                <label class="relative w-full md:max-w-xl">
-                  <Papicon icon="search" size={18} class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/40" />
-                  <FormInput
-                    bind:value={feedSearchQuery}
-                    type="search"
-                    placeholder="Rechercher un flux, une URL, une catégorie..."
-                    className="w-full rounded-full border border-outline-variant/20 bg-surface-container-low px-11 py-2.5 text-sm text-on-surface placeholder:text-on-surface-variant/40 outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
-                  />
-                </label>
-
-                <div class="flex items-center gap-3">
-                  <span class="text-xs font-bold text-on-surface-variant">{filteredFeeds.length} / {activeFeeds.length} flux</span>
-                  {#if hasActiveFeedFiltersOrSort}
-                    <button
-                      type="button"
-                      onclick={resetFeedFiltersAndSort}
-                      class="text-xs font-bold text-primary hover:text-primary/80 transition"
-                    >
-                      Réinitialiser
-                    </button>
-                  {/if}
-                </div>
-              </div>
-
-              <div class="flex flex-wrap items-center gap-3">
-                <ColumnSortFilter
-                  label="Nom"
-                  sortDirection={feedSortDirectionFor('name')}
-                  onToggleSort={() => toggleFeedSort('name')}
-                />
-                <ColumnSortFilter
-                  label="Catégorie"
-                  sortDirection={feedSortDirectionFor('category')}
-                  onToggleSort={() => toggleFeedSort('category')}
-                  options={feedCategoryOptions}
-                  selectedValues={feedFilters.categories}
-                  onToggleValue={(value) => toggleFeedFilter('categories', value)}
-                />
-                <ColumnSortFilter
-                  label="Dernier check"
-                  sortDirection={feedSortDirectionFor('lastCheck')}
-                  onToggleSort={() => toggleFeedSort('lastCheck')}
-                />
-                <ColumnSortFilter
-                  label="État"
-                  sortDirection={feedSortDirectionFor('status')}
-                  onToggleSort={() => toggleFeedSort('status')}
-                  options={feedStatusOptions}
-                  selectedValues={feedFilters.statuses}
-                  onToggleValue={(value) => toggleFeedFilter('statuses', value)}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div class="space-y-4">
-            {#each filteredFeeds as feed}
-              <div class="premium-card p-6 rounded-3xl space-y-6 hover:border-primary/40 transition-all">
-                <div class="flex flex-wrap items-start justify-between gap-4">
-                  <div class="flex items-center gap-5 min-w-0">
-                    <div class="w-12 h-12 {feed.enabled ? 'bg-orange-500/10 text-orange-600' : 'bg-slate-500/10 text-slate-400'} rounded-2xl flex items-center justify-center border border-current opacity-20">
-                      <Papicon icon="rss_feed" size={24} />
-                    </div>
-                    <div class="min-w-0">
-                      <p class="font-black text-on-surface tracking-tight leading-none mb-1.5">{feed.name}</p>
-                      <p class="text-[10px] text-on-surface-variant/40 font-bold font-mono truncate">{feed.url}</p>
-                    </div>
-                  </div>
-
-                  <div class="flex items-center gap-2">
-                    <button
-                      onclick={() => toggleFeedEnabled(feed)}
-                      disabled={!canManageSettings}
-                      class="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-[0.15em] border transition-all {feed.enabled
-                        ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500 hover:text-white'
-                        : 'bg-slate-500/10 text-slate-600 border-slate-500/20 hover:bg-slate-700 hover:text-white'}"
-                    >
-                      {feed.enabled ? 'Actif' : 'Inactif'}
-                    </button>
-                    <button
-                      onclick={() => startEditFeed(feed)}
-                      disabled={!canManageSettings}
-                      class="p-3 text-on-surface-variant/40 hover:text-primary hover:bg-primary/10 rounded-xl transition-all"
-                      title="Modifier le flux"
-                    >
-                      <Papicon icon="edit" size={18} />
-                    </button>
-                    <button 
-                      onclick={() => openDeleteFeedModal(feed)}
-                      disabled={!canManageSettings}
-                      class="p-3 text-on-surface-variant/20 hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
-                      title="Supprimer le flux"
-                    >
-                      <Papicon icon="delete" size={18} />
-                    </button>
-                  </div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div class="rounded-2xl bg-surface-container-low p-4 border border-outline-variant/10">
-                    <p class="text-[9px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em] mb-1">Dernier état</p>
-                    <div class="flex items-center gap-2">
-                      <span class="w-2 h-2 rounded-full {feed.lastStatus === 'ok' ? 'bg-emerald-500' : feed.lastStatus === 'warning' ? 'bg-amber-500' : 'bg-red-500'}"></span>
-                      <span class="text-xs font-black {feed.lastStatus === 'ok' ? 'text-emerald-600' : feed.lastStatus === 'warning' ? 'text-amber-600' : 'text-red-600'} uppercase tracking-[0.08em]">
-                        {feed.lastStatus === 'ok' ? 'Synchronisé' : feed.lastStatus === 'warning' ? 'Avertissement' : 'Échec'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div class="rounded-2xl bg-surface-container-low p-4 border border-outline-variant/10">
-                    <p class="text-[9px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em] mb-1">Dernière vérification</p>
-                    <p class="text-xs font-bold text-on-surface">{formatDate(feed.lastCheck)}</p>
-                  </div>
-
-                  <div class="rounded-2xl bg-surface-container-low p-4 border border-outline-variant/10">
-                    <p class="text-[9px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em] mb-1">Catégorie</p>
-                    <p class="text-xs font-bold text-on-surface">{feed.category || 'Général'}</p>
-                  </div>
-                </div>
-
-                <div class="flex flex-wrap gap-2">
-                  <span class="text-[9px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em] self-center">Inclusions</span>
-                  {#if feed.includeKeywords?.length}
-                    {#each feed.includeKeywords as keyword}
-                      <span class="px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-bold text-emerald-700">{keyword}</span>
-                    {/each}
-                  {:else}
-                    <span class="text-[10px] font-medium text-on-surface-variant/60">Aucun mot-clé</span>
-                  {/if}
-                </div>
-
-                <div class="flex flex-wrap gap-2">
-                  <span class="text-[9px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em] self-center">Exclusions</span>
-                  {#if feed.excludeKeywords?.length}
-                    {#each feed.excludeKeywords as keyword}
-                      <span class="px-2.5 py-1 rounded-lg bg-red-500/10 border border-red-500/20 text-[10px] font-bold text-red-700">{keyword}</span>
-                    {/each}
-                  {:else}
-                    <span class="text-[10px] font-medium text-on-surface-variant/60">Aucun mot-clé</span>
-                  {/if}
-                </div>
-
-                {#if editingFeedId === feed.id}
-                  <div class="border-t border-outline-variant/15 pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="space-y-2">
-                      <label for="feed-name" class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Nom du flux</label>
-                      <FormInput
-                        id="feed-name"
-                        bind:value={feedDraft.name}
-                        disabled={!canManageSettings}
-                        className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-semibold outline-none focus:border-primary/40"
-                        placeholder="Nom lisible"
-                      />
-                    </div>
-
-                    <div class="space-y-2">
-                      <label for="feed-category" class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Catégorie</label>
-                      <FormInput
-                        id="feed-category"
-                        bind:value={feedDraft.category}
-                        disabled={!canManageSettings}
-                        className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-semibold outline-none focus:border-primary/40"
-                        placeholder="Catégorie"
-                      />
-                    </div>
-
-                    <div class="space-y-2 md:col-span-2">
-                      <label for="feed-url" class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">URL du flux</label>
-                      <FormInput
-                        id="feed-url"
-                        bind:value={feedDraft.url}
-                        disabled={!canManageSettings}
-                        className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-semibold outline-none focus:border-primary/40"
-                        placeholder="https://..."
-                      />
-                    </div>
-
-                    <div class="space-y-2">
-                      <label for="feed-include-keywords" class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Mots-clés inclus (séparés par virgule)</label>
-                      <FormInput
-                        id="feed-include-keywords"
-                        bind:value={feedDraft.includeKeywords}
-                        disabled={!canManageSettings}
-                        className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-semibold outline-none focus:border-primary/40"
-                        placeholder="ia, open-source, release"
-                      />
-                    </div>
-
-                    <div class="space-y-2">
-                      <label for="feed-exclude-keywords" class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Mots-clés exclus (séparés par virgule)</label>
-                      <FormInput
-                        id="feed-exclude-keywords"
-                        bind:value={feedDraft.excludeKeywords}
-                        disabled={!canManageSettings}
-                        className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-xl text-sm font-semibold outline-none focus:border-primary/40"
-                        placeholder="sponsorisé, promo"
-                      />
-                    </div>
-
-                    <div class="md:col-span-2 flex items-center justify-end gap-3 pt-2">
-                      <button
-                        onclick={cancelEditFeed}
-                        class="px-5 py-2.5 rounded-xl border border-outline-variant/30 text-xs font-black uppercase tracking-[0.12em] text-on-surface-variant/70 hover:text-on-surface hover:bg-surface-container-low"
-                      >
-                        Annuler
-                      </button>
-                      <button
-                        onclick={() => saveFeed(feed.id)}
-                        disabled={!canManageSettings}
-                        class="px-6 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-black uppercase tracking-[0.12em] shadow-lg shadow-primary/20 hover:scale-[1.01] transition-transform"
-                      >
-                        Enregistrer le flux
-                      </button>
-                    </div>
-                  </div>
-                {/if}
-              </div>
-            {/each}
-
-            {#if activeFeeds.length === 0}
-              <div class="p-20 text-center premium-card rounded-[3rem] border-dashed border-2 opacity-30 flex flex-col items-center">
-                <Papicon icon="rss_feed" size={60} class="mb-6" />
-                <p class="text-[10px] font-black uppercase tracking-[0.3em]">Aucun flux n'est encore lié à cette instance</p>
-              </div>
-            {:else if filteredFeeds.length === 0}
-              <div class="p-14 text-center premium-card rounded-[3rem] border-dashed border-2 opacity-55 flex flex-col items-center">
-                <Papicon icon="filter_alt_off" size={50} class="mb-4" />
-                <p class="text-[10px] font-black uppercase tracking-[0.3em]">Aucun flux ne correspond aux filtres</p>
-              </div>
-            {/if}
-          </div>
-        </section>
-      {:else if moduleId === 'youtube'}
+      {#if moduleId !== 'dailyalgo'}
         <section class="space-y-8">
           <h3 class="text-xl font-black tracking-tight flex items-center gap-4">
-            <div class="w-1.5 h-8 bg-red-500 rounded-full"></div>
-            Configuration YouTube
+            <div class="w-1.5 h-8 bg-primary rounded-full"></div>
+            Configuration Générale
           </h3>
           <div class="premium-card p-10 rounded-[3rem] space-y-10 group">
-             <div class="space-y-4">
-                <label class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.25em] ml-2 block" for="yt-id">ID de la chaîne de référence</label>
-                <FormInput
-                  id="yt-id"
-                  type="text"
-                  bind:value={youtubeReferenceChannelId}
-                  disabled={!canManageSettings}
-                  className="w-full px-6 py-4 bg-surface-container-low border border-outline-variant/10 focus:border-red-500/30 focus:shadow-xl focus:shadow-red-500/5 transition-all rounded-2xl text-sm font-bold outline-none"
-                  placeholder="UCxxxxxxxxxxxxxxxxx"
-                />
-                <p class="text-[10px] text-slate-400 ml-2">L'ID de la chaîne YouTube dont les nouvelles vidéos seront automatiquement publiées.</p>
-             </div>
+            <div class="space-y-4">
+              <label class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.25em] ml-2 block" for="name">Description du module</label>
+              <p class="px-6 py-4 bg-surface-container-low border border-outline-variant/5 rounded-2xl text-sm italic opacity-70">
+                {module.description}
+              </p>
+            </div>
           </div>
         </section>
       {:else if moduleId === 'dailyalgo'}
@@ -1909,7 +1398,7 @@
             </div>
           </div>
 
-          <div class="premium-card rounded-[2.5rem] p-6 md:p-7 bg-gradient-to-br from-emerald-500/10 via-surface to-sky-500/10 border border-emerald-500/15">
+          <div class="premium-card rounded-[2.5rem] p-6 md:p-7 bg-linear-to-br from-emerald-500/10 via-surface to-sky-500/10 border border-emerald-500/15">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div class="rounded-2xl bg-slate-500/10 border border-slate-500/20 p-4">
                 <p class="text-[9px] uppercase tracking-[0.2em] font-black text-slate-700/80">Soumissions</p>
@@ -1943,8 +1432,20 @@
             </div>
 
             {#if isFetchingAlgoSubmissions}
-              <div class="p-8 text-center text-sm font-bold text-on-surface-variant/50 animate-pulse">
-                Chargement des soumissions du jour...
+              <div class="space-y-2">
+                {#each Array(3) as _}
+                  <div class="p-4 rounded-2xl border border-outline-variant/20 bg-surface-container-low space-y-3">
+                    <div class="flex items-center justify-between gap-2">
+                      <Skeleton width="w-32" height="h-4" />
+                      <Skeleton width="w-20" height="h-4" />
+                    </div>
+                    <Skeleton width="w-full" height="h-3" />
+                    <div class="flex gap-2">
+                      <Skeleton width="w-24" height="h-3" />
+                      <Skeleton width="w-24" height="h-3" />
+                    </div>
+                  </div>
+                {/each}
               </div>
             {:else if !dailyAlgoToday?.run}
               <div class="p-8 rounded-2xl border border-outline-variant/20 bg-surface-container-low text-sm text-on-surface-variant">
@@ -2096,6 +1597,66 @@
             {/if}
           </div>
 
+          {#if globalLeaderboard?.submissions?.length > 0}
+            <div class="premium-card p-8 rounded-[2.5rem] border-sky-500/10 bg-sky-500/5 space-y-6">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                  <div class="w-12 h-12 rounded-2xl bg-sky-500/10 flex items-center justify-center text-sky-600 shadow-inner">
+                    <Papicon icon="Globe" size={24} />
+                  </div>
+                  <div>
+                    <h4 class="text-lg font-black text-on-surface">Leaderboard Global</h4>
+                    <p class="text-xs text-on-surface-variant">Top scores agrégés sur tous les serveurs Kotbo</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-500/10 border border-sky-500/20">
+                  <Papicon icon="Server" size={14} class="text-sky-600" />
+                  <span class="text-[10px] font-black uppercase tracking-widest text-sky-700">{globalLeaderboard.guildsCount} serveurs synchronisés</span>
+                </div>
+              </div>
+
+              <div class="overflow-x-auto rounded-2xl border border-sky-500/15 bg-surface/60 backdrop-blur-md">
+                <table class="w-full text-left">
+                  <thead class="bg-sky-500/5 text-sky-800 text-[10px] font-black uppercase tracking-widest">
+                    <tr>
+                      <th class="px-6 py-4">Rang</th>
+                      <th class="px-6 py-4">Utilisateur</th>
+                      <th class="px-6 py-4">Serveur</th>
+                      <th class="px-6 py-4 text-center">Moyenne</th>
+                      <th class="px-6 py-4 text-right">Points</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-sky-500/5">
+                    {#each globalLeaderboard.submissions.slice(0, 10) as sub, i}
+                      <tr class="hover:bg-sky-500/5 transition-colors">
+                        <td class="px-6 py-4">
+                          <span class="w-6 h-6 flex items-center justify-center rounded-lg font-black text-xs {i === 0 ? 'bg-amber-400 text-amber-900' : i === 1 ? 'bg-slate-300 text-slate-800' : i === 2 ? 'bg-amber-700/30 text-amber-900' : 'text-on-surface-variant'}">
+                            {i + 1}
+                          </span>
+                        </td>
+                        <td class="px-6 py-4">
+                          <div class="flex items-center gap-3">
+                            <img src={sub.avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" class="w-8 h-8 rounded-full border border-sky-500/20" />
+                            <span class="font-bold text-on-surface">{sub.displayName}</span>
+                          </div>
+                        </td>
+                        <td class="px-6 py-4">
+                          <span class="text-xs font-medium text-on-surface-variant">{sub.guildName}</span>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                          <span class="text-xs font-black text-sky-700">{sub.scoreFinal}/5</span>
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                          <span class="text-sm font-black text-sky-900">{sub.totalPoints} pts</span>
+                        </td>
+                      </tr>
+                    {/each}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          {/if}
+
           <div class="premium-card p-8 rounded-[2.5rem] space-y-6">
             <h4 class="text-lg font-black text-on-surface">2) + 3) Calendrier réel & banque d'exercices fusionnés</h4>
 
@@ -2106,8 +1667,21 @@
                   <span class="text-[10px] font-bold text-on-surface-variant">{dailyAlgoUpcomingRuns.length} date(s) affichée(s)</span>
                 </div>
                 {#if isFetchingAlgoSchedule || isEnsuringAlgoSchedule}
-                  <div class="rounded-xl border border-outline-variant/20 bg-surface px-3 py-3 text-xs text-on-surface-variant animate-pulse">
-                    Chargement du planning confirmé...
+                  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {#each Array(6) as _}
+                      <article class="rounded-xl border border-outline-variant/25 bg-surface px-3 py-3 space-y-2">
+                        <div class="flex items-center justify-between gap-2">
+                          <Skeleton width="w-24" height="h-3" rounded="rounded-md" />
+                          <Skeleton width="w-16" height="h-3" rounded="rounded-md" />
+                        </div>
+                        <Skeleton width="w-full" height="h-4" rounded="rounded-lg" />
+                        <div class="flex flex-wrap items-center gap-1.5">
+                          <Skeleton width="w-16" height="h-3" rounded="rounded-md" />
+                          <Skeleton width="w-20" height="h-3" rounded="rounded-md" />
+                          <Skeleton width="w-12" height="h-3" rounded="rounded-md" />
+                        </div>
+                      </article>
+                    {/each}
                   </div>
                 {:else if dailyAlgoUpcomingRuns.length === 0}
                   <div class="rounded-xl border border-outline-variant/20 bg-surface px-3 py-3 text-xs text-on-surface-variant">
@@ -2147,7 +1721,17 @@
 
               <div class="rounded-2xl border border-outline-variant/20 bg-surface-container-low p-4 space-y-3">
                 <p class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/60">Historique récent</p>
-                {#if dailyAlgoHistory.length === 0}
+                {#if isFetchingAlgoHistory}
+                  <div class="space-y-2 max-h-72 overflow-auto pr-1">
+                    {#each Array(5) as _}
+                      <div class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 space-y-2">
+                        <Skeleton width="w-20" height="h-3" />
+                        <Skeleton width="w-full" height="h-3" />
+                        <Skeleton width="w-32" height="h-2" />
+                      </div>
+                    {/each}
+                  </div>
+                {:else if dailyAlgoHistory.length === 0}
                   <p class="text-xs text-on-surface-variant">Aucun run historique pour le moment.</p>
                 {:else}
                   <div class="space-y-2 max-h-72 overflow-auto pr-1">
@@ -2506,7 +2090,7 @@
           </div>
           <div class="dailyalgo-ide-host">
             <DailyAlgoMiniIDE
-              initialCode={focusedSubmission.solution}
+              initialCode={focusedSubmission?.solution ?? undefined}
               initialLanguage={ideLanguageForSubmission(focusedSubmission)}
               allowedLanguages={dailyAlgoProblemAllowedIdeLanguages(dailyAlgoToday?.run?.problem)}
               functionName={typeof dailyAlgoToday?.run?.problem?.functionName === 'string' ? dailyAlgoToday.run.problem.functionName : ''}
@@ -2642,37 +2226,7 @@
   </div>
 {/if}
 
-{#if deleteFeedModalOpen && pendingFeedDeletion}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="delete-feed-title" tabindex="-1" onclick={closeDeleteFeedModal}>
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="modal-panel max-w-md space-y-4" onclick={(e) => e.stopPropagation()}>
-      <div>
-        <p class="text-[10px] font-black uppercase tracking-[0.2em] text-red-500">Confirmation</p>
-        <h3 id="delete-feed-title" class="mt-1 text-lg font-black text-on-surface">Supprimer ce flux RSS ?</h3>
-        <p class="mt-2 text-sm text-on-surface-variant">
-          Le flux <span class="font-bold text-on-surface">{pendingFeedDeletion.name}</span> sera supprimé de cette instance.
-        </p>
-      </div>
-      <div class="flex items-center justify-end gap-2">
-        <button
-          onclick={closeDeleteFeedModal}
-          class="px-4 py-2 rounded-xl border border-outline-variant/30 text-xs font-black uppercase tracking-[0.12em] text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
-        >
-          Annuler
-        </button>
-        <button
-          onclick={confirmDeleteFeed}
-          class="px-4 py-2 rounded-xl bg-red-600 text-white text-xs font-black uppercase tracking-[0.12em] hover:bg-red-700 transition-colors"
-        >
-          Supprimer
-        </button>
-      </div>
-    </div>
-  </div>
-{/if}
+
 
 {#if createDailyAlgoProblemModalOpen}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -2788,7 +2342,7 @@
                 <button
                   type="button"
                   onclick={() => addSuggestedLanguage(suggestion)}
-                  class="px-2.5 py-1 rounded-lg border border-outline-variant/25 bg-surface text-[10px] font-black uppercase tracking-[0.1em] text-on-surface-variant hover:text-on-surface"
+                  class="px-2.5 py-1 rounded-lg border border-outline-variant/25 bg-surface text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:text-on-surface"
                 >
                   {suggestion}
                 </button>
@@ -2874,7 +2428,7 @@
                       type="text"
                       value={test.name}
                       oninput={(event) => updateUnitTestName(testIndex, (event.currentTarget as HTMLInputElement).value)}
-                      class="flex-1 min-w-[220px] px-3 py-2 rounded-xl border border-outline-variant/20 bg-surface-container-low text-sm text-on-surface outline-none focus:border-emerald-500/40"
+                      class="flex-1 min-w-55 px-3 py-2 rounded-xl border border-outline-variant/20 bg-surface-container-low text-sm text-on-surface outline-none focus:border-emerald-500/40"
                       placeholder={`Cas ${testIndex + 1}`}
                     />
                     <button

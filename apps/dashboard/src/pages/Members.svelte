@@ -229,26 +229,21 @@
   onMount(() => {
     void search();
   });
+
+  import ModulePage from '../lib/components/ModulePage.svelte';
 </script>
 
 <svelte:head>
   <title>Annuaire des membres</title>
 </svelte:head>
 
-<div class="space-y-10 animate-in fade-in duration-700">
-  <!-- Section Titre et Stats Minimaliste -->
-  <header class="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-    <div class="space-y-2">
-      <div class="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.25em] text-primary">
-        <Papicon icon="users" size={14} />
-        Annuaire des membres
-      </div>
-      <h1 class="text-4xl font-black tracking-tight text-on-surface font-headline">Gestion des membres</h1>
-      <p class="max-w-2xl text-sm text-on-surface-variant/60">
-        Recherchez, filtrez et consultez les dossiers détaillés des membres de votre communauté.
-      </p>
-    </div>
-
+<ModulePage 
+  title="Gestion des membres" 
+  description="Recherchez, filtrez et consultez les dossiers détaillés des membres de votre communauté." 
+  icon="users"
+  featureKey="members"
+>
+  {#snippet actions()}
     <div class="flex items-center gap-4">
       <div class="flex -space-x-3">
         {#each members.slice(0, 5) as member}
@@ -270,10 +265,10 @@
         <div class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40">Total membres</div>
       </div>
     </div>
-  </header>
+  {/snippet}
 
   <!-- Barre d'Action Ergonomique -->
-  <section class="sticky top-0 z-10 -mx-4 space-y-4 rounded-b-[2rem] bg-surface/80 px-4 pb-6 pt-2 backdrop-blur-xl md:top-4 md:mx-0 md:rounded-[2rem] md:pt-4">
+  <section class="sticky top-0 z-10 -mx-4 space-y-4 rounded-b-4xl bg-surface/80 px-4 pb-6 pt-2 backdrop-blur-xl md:top-4 md:mx-0 md:rounded-4xl md:pt-4">
     <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
       <div class="relative flex-1">
         <span class="pointer-events-none absolute inset-y-0 left-4 flex items-center text-on-surface-variant/40">
@@ -311,7 +306,7 @@
 
         <button
           onclick={() => changeFilter((value) => { sortOrder = value; }, sortOrder === 'asc' ? 'desc' : 'asc')}
-          class="inline-flex h-[46px] w-[46px] items-center justify-center rounded-2xl border border-outline-variant/10 bg-surface-container-low/70 text-on-surface-variant transition-colors hover:bg-surface-container"
+          class="inline-flex h-11.5 w-11.5 items-center justify-center rounded-2xl border border-outline-variant/10 bg-surface-container-low/70 text-on-surface-variant transition-colors hover:bg-surface-container"
           title={sortOrder === 'asc' ? 'Tri croissant' : 'Tri décroissant'}
         >
           <Papicon icon={sortOrder === 'asc' ? 'sort-asc' : 'sort-desc'} size={18} />
@@ -363,7 +358,7 @@
 
         <button
           onclick={resetSearch}
-          class="inline-flex h-[46px] w-[46px] items-center justify-center rounded-2xl border border-outline-variant/10 bg-surface-container-low/70 text-on-surface-variant transition-colors hover:bg-surface-container hover:text-rose-500"
+          class="inline-flex h-11.5 w-11.5 items-center justify-center rounded-2xl border border-outline-variant/10 bg-surface-container-low/70 text-on-surface-variant transition-colors hover:bg-surface-container hover:text-rose-500"
           title="Réinitialiser les filtres"
         >
           <Papicon icon="rotate-ccw" size={18} />
@@ -484,7 +479,7 @@
 
             <div class="mt-4 flex items-center justify-between border-t border-outline-variant/5 pt-3">
               <span class="text-[9px] font-bold text-on-surface-variant/30">{member.id.slice(0, 14)}…</span>
-              <span class="text-[9px] font-black uppercase tracking-widest text-primary/0 transition-all group-hover:text-primary/100">
+              <span class="text-[9px] font-black uppercase tracking-widest text-primary/0 transition-all group-hover:text-primary">
                 Dossier <Papicon icon="arrow-right" size={10} />
               </span>
             </div>
@@ -524,7 +519,6 @@
       </div>
     </footer>
   {/if}
-</div>
 
 <MemberCaseModal
   open={modalOpen}
@@ -540,3 +534,7 @@
     }
   }}
 />
+
+</ModulePage>
+ 
+ 

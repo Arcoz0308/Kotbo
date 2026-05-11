@@ -1,14 +1,11 @@
 import { type Client, Events } from 'discord.js';
 import cron from 'node-cron';
 import prisma from '../utils/db.js';
-import { pollAllFeeds } from '../services/rssService.js';
-import { pollAllYouTubeChannels } from '../services/youtubeService.js';
-import { runDigestForAllGuilds, runDailyAlgoForAllGuilds } from '../services/digestService.js';
-import { runDailyAlgoSummariesForAllGuilds } from '../services/dailyAlgoService.js';
-import { runWeeklyRecapForAllGuilds } from '../services/recapService.js';
+import { runDailyAlgoForAllGuilds, runDailyAlgoSummariesForAllGuilds } from '../services/dailyAlgoService.js';
 import { processScheduledSanctions, checkMissingReports } from '../services/sanctionService.js';
+import { processMeetingNotifications } from '../services/staffLeadershipService.js';
 import { logger } from '../utils/logger.js';
-import { runHourlyAnalyticsSnapshot } from './advancedLogs.js';
+import { runActivitySnapshot } from './advancedLogs.js';
 import { enqueueBackgroundJob, registerBackgroundJobHandlers, type BackgroundJobName } from '../infra/queues/backgroundQueue.js';
 
 const runningJobs = new Set<string>();
@@ -93,82 +90,8 @@ async function expireStaffBlacklist(): Promise<void> {
   }
 }
 
-async function runAnalyticsSnapshot(client: Client): Promise<void> {
-  logger.debug('Cron', 'Snapshot analytics serveur...');
-  const guilds = await prisma.guild.findMany({ select: { id: true } });
-
-  for (const guild of guilds) {
-    const discordGuild = client.guilds.cache.get(guild.id);
-    if (!discordGuild) continue;
-
-    const now = new Date();
-    const dateKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-
-    const totalMembers = discordGuild.memberCount;
-    const members = discordGuild.members.cache;
-    const onlineMembers = members.filter(m => m.presence?.status && m.presence.status !== 'offline').size;
-    const idleMembers = members.filter(m => m.presence?.status === 'idle').size;
-    const dndMembers = members.filter(m => m.presence?.status === 'dnd').size;
-    const offlineMembers = totalMembers - onlineMembers;
-    const totalBots = members.filter(m => m.user.bot).size;
-    const totalHumans = totalMembers - totalBots;
-
-    const currentOnline = onlineMembers;
-    const voiceConnected = members.filter(m => !!m.voice?.channelId).size;
-
-    await prisma.guildDailyStat.upsert({
-      where: { guildId_dateKey: { guildId: guild.id, dateKey } },
-      create: {
-        guildId: guild.id,
-        dateKey,
-        totalMembers,
-        onlineMembers,
-        idleMembers,
-        dndMembers,
-        offlineMembers,
-        totalBots,
-        totalHumans,
-        peakOnline: currentOnline,
-        peakVoice: voiceConnected,
-      },
-      update: {
-        totalMembers,
-        onlineMembers,
-        idleMembers,
-        dndMembers,
-        offlineMembers,
-        totalBots,
-        totalHumans,
-      },
-    }).catch((error) => {
-      logger.debug('Analytics', `Guild stats snapshot error: ${String(error)}`);
-    });
-
-    await prisma.$executeRawUnsafe(
-      `UPDATE guild_daily_stats SET "peakOnline" = GREATEST("peakOnline", $1), "peakVoice" = GREATEST("peakVoice", $2) WHERE "guildId" = $3 AND "dateKey" = $4`,
-      currentOnline, voiceConnected, guild.id, dateKey,
-    ).catch((error) => {
-      logger.debug('Analytics', `Guild peak update error: ${String(error)}`);
-    });
-  }
-}
-
 export async function registerCrons(client: Client): Promise<void> {
   registerBackgroundJobHandlers({
-    rss: async () => {
-      logger.debug('Cron', 'Polling RSS en cours...');
-      await pollAllFeeds(client);
-    },
-    youtube: async () => {
-      logger.debug('Cron', 'Polling YouTube en cours...');
-      await pollAllYouTubeChannels(client);
-    },
-    digest: async () => {
-      const now = new Date();
-      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      logger.debug('Cron', `Vérification du digest à ${currentTime}...`);
-      await runDigestForAllGuilds(client);
-    },
     'daily-algo': async () => {
       const now = new Date();
       const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -179,118 +102,76 @@ export async function registerCrons(client: Client): Promise<void> {
       logger.debug('Cron', 'Génération du bilan quotidien Daily Algo...');
       await runDailyAlgoSummariesForAllGuilds(client);
     },
-    'weekly-recap': async () => {
-      logger.info('Cron', 'Démarrage du recap hebdomadaire pour toutes les guildes...');
-      await runWeeklyRecapForAllGuilds(client);
-    },
     sanctions: async () => {
       logger.debug('Cron', 'Traitement des sanctions planifiées...');
       await processScheduledSanctions(client);
     },
     'staff-warnings-expiration': expireStaffWarnings,
     'staff-blacklist-expiration': expireStaffBlacklist,
-    'analytics-hourly-snapshot': async () => {
-      logger.info('Cron', 'Exécution du snapshot analytique horaire...');
-      await runHourlyAnalyticsSnapshot(client);
-    },
-    'analytics-snapshot': async () => {
-      await runAnalyticsSnapshot(client);
+    'activity-minute-snapshot': async () => {
+      await runActivitySnapshot(client);
     },
     'missing-reports-check': async () => {
       logger.info('Cron', 'Vérification des rapports de sanction manquants...');
       await checkMissingReports();
     },
+    'meeting-notifications': async () => {
+      await processMeetingNotifications();
+    },
   });
 
-  // RSS polling every 5 minutes
-  cron.schedule('*/5 * * * *', async () => {
-    await runCronJob('rss', async () => {
-      logger.debug('Cron', 'Polling RSS en cours...');
-      await pollAllFeeds(client);
-    }, 4000);
-  });
 
-  // YouTube polling every 15 minutes
-  cron.schedule('*/15 * * * *', async () => {
-    await runCronJob('youtube', async () => {
-      logger.debug('Cron', 'Polling YouTube en cours...');
-      await pollAllYouTubeChannels(client);
-    }, 5000);
-  });
-
-  // Digest: check every minute (sends only at matching HH:MM)
-  cron.schedule('* * * * *', async () => {
-    await runCronJob('digest', async () => {
-      const now = new Date();
-      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      logger.debug('Cron', `Vérification du digest à ${currentTime}...`);
-      await runDigestForAllGuilds(client);
-    }, 3000);
-  });
-
+  // 📊 Daily Algo: Toutes les minutes (vérification de l'heure configurée)
   cron.schedule('* * * * *', async () => {
     await runCronJob('daily-algo', async () => {
-      const now = new Date();
-      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      logger.debug('Cron', `Vérification du daily algo à ${currentTime}...`);
       await runDailyAlgoForAllGuilds(client);
     }, 3000);
   });
 
+  // 📊 Daily Algo: Bilan à 23:59 UTC
   cron.schedule('59 23 * * *', async () => {
     await runCronJob('daily-algo-summary', async () => {
-      logger.debug('Cron', 'Génération du bilan quotidien Daily Algo...');
       await runDailyAlgoSummariesForAllGuilds(client);
     }, 2000);
   }, { timezone: 'UTC' });
 
-  // 🌟 Recap Hebdomadaire: Chaque dimanche à 19:00 UTC
-  cron.schedule('0 19 * * 0', async () => {
-    await runCronJob('weekly-recap', async () => {
-      logger.info('Cron', 'Démarrage du recap hebdomadaire pour toutes les guildes...');
-      await runWeeklyRecapForAllGuilds(client);
-    }, 5000);
-  });
-
+  // 🛡️ Sanctions: Toutes les minutes (expiration des mutes/bans)
   cron.schedule('* * * * *', async () => {
     await runCronJob('sanctions', async () => {
-      logger.debug('Cron', 'Traitement des sanctions planifiées...');
       await processScheduledSanctions(client);
     }, 1000);
   });
 
-  // 📊 Staff Management: Expiration des avertissements à minuit
+  // 📊 Activity & Heatmap: Toutes les minutes (Snapshot présences)
+  cron.schedule('* * * * *', async () => {
+    await runCronJob('activity-minute-snapshot', async () => {
+      await runActivitySnapshot(client);
+    }, 1000);
+  });
+
+  // 🛡️ Staff Management: Expirations à minuit
   cron.schedule('0 0 * * *', async () => {
     await runCronJob('staff-warnings-expiration', expireStaffWarnings, 1000);
   });
 
-  // 📊 Staff Management: Expiration de la blacklist à 01:00 UTC
   cron.schedule('0 1 * * *', async () => {
     await runCronJob('staff-blacklist-expiration', expireStaffBlacklist, 1000);
   });
 
-  // 📊 Analytics: Snapshot horaire à HH:00
-  cron.schedule('0 * * * *', async () => {
-    await runCronJob('analytics-hourly-snapshot', async () => {
-      logger.info('Cron', 'Exécution du snapshot analytique horaire...');
-      await runHourlyAnalyticsSnapshot(client);
-    }, 2000);
-  });
-
-  // 📊 Analytics: Snapshot des stats serveur toutes les 15 minutes
-  cron.schedule('*/15 * * * *', async () => {
-    await runCronJob('analytics-snapshot', async () => {
-      await runAnalyticsSnapshot(client);
-    }, 2000);
-  });
-
-  // 🛡️ Sanctions: Vérification des rapports manquants (toutes les heures)
+  // 🛡️ Sanctions: Rapports manquants (toutes les heures)
   cron.schedule('30 * * * *', async () => {
     await runCronJob('missing-reports-check', async () => {
-      logger.info('Cron', 'Vérification des rapports de sanction manquants...');
       await checkMissingReports();
     }, 2000);
   });
 
-  logger.success('Cron', 'Tous les jobs cron sont enregistrés');
+  // 📅 Réunions: Notifications (toutes les minutes)
+  cron.schedule('* * * * *', async () => {
+    await runCronJob('meeting-notifications', async () => {
+      await processMeetingNotifications();
+    }, 3000);
+
+  });
+
+  logger.success('Cron', 'Tous les jobs cron sont enregistrés (Suivi d\'activité minute activé)');
 }

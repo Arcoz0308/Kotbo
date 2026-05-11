@@ -80,6 +80,26 @@ export const createAbsence = async (
     superiorUserId: string;
   }
 ) => {
+  const [requester, superior, allRoles] = await Promise.all([
+    prisma.staffMember.findUnique({ where: { id: params.staffMemberId } }),
+    prisma.staffMember.findUnique({ where: { userId: params.superiorUserId, guildId: params.guildId } }),
+    prisma.staffRole.findMany({ where: { guildId: params.guildId, enabled: true } })
+  ]);
+
+  if (requester && superior && allRoles.length > 0) {
+    const myRole = allRoles.find(r => r.name === requester.grade);
+    const sRole = allRoles.find(r => r.name === superior.grade);
+    
+    if (myRole && sRole) {
+      const isAdmin = myRole.level >= 100 || requester.grade === 'Admin'; // Fallback simplistic check
+      const isSuperior = isAdmin ? (sRole.sortOrder <= myRole.sortOrder) : (sRole.sortOrder < myRole.sortOrder);
+      
+      if (!isSuperior) {
+        throw new Error('Le responsable sélectionné doit avoir un grade supérieur ou égal au vôtre.');
+      }
+    }
+  }
+
   const isIndefinite = !params.endDate;
 
   const absence = await prisma.staffAbsence.create({
@@ -1021,6 +1041,120 @@ export const createNotification = async (
   }
 
   return notification;
+};
+
+/**
+ * Notifie les participants d'une réunion au début et à la fin
+ */
+export const processMeetingNotifications = async () => {
+  try {
+    const now = new Date();
+    const notificationWindow = 2 * 60 * 1000; // 2 minutes de fenêtre
+
+    // 1. Vérifier les réunions qui commencent (dans les 2 minutes)
+    const meetingsStarting = await prisma.staffMeeting.findMany({
+      where: {
+        status: 'SCHEDULED',
+        scheduledAt: {
+          gte: new Date(now.getTime() - 1 * 60 * 1000), // 1 minute avant
+          lte: new Date(now.getTime() + notificationWindow), // 2 minutes après
+        },
+      },
+      include: {
+        presences: {
+          include: {
+            staffMember: true
+          }
+        },
+        guild: { select: { id: true, name: true } }
+      }
+    });
+
+    for (const meeting of meetingsStarting) {
+      // Vérifier si la notification de début a déjà été envoyée
+      const hasStartNotification = meeting.notificationSentAt 
+        && meeting.notificationSentAt.getTime() > new Date(now.getTime() - 5 * 60 * 1000).getTime();
+      
+      if (!hasStartNotification) {
+        // Envoyer les notifications de début
+        const participants = meeting.presences.map(p => p.staffMember);
+        const notificationTasks = participants.map((member) =>
+          createNotification(
+            meeting.guildId,
+            member.userId,
+            '📅 Réunion en cours',
+            `La réunion ${meeting.title} commence maintenant!`,
+            'INFO',
+            `/meetings?id=${meeting.id}`,
+            true
+          )
+        );
+        
+        await Promise.all(notificationTasks);
+        
+        // Mettre à jour la notification date
+        await prisma.staffMeeting.update({
+          where: { id: meeting.id },
+          data: { notificationSentAt: now }
+        });
+      }
+    }
+
+    // 2. Vérifier les réunions qui se terminent (30 min après + 2 min fenêtre)
+    const meetingsEnding = await prisma.staffMeeting.findMany({
+      where: {
+        status: 'SCHEDULED',
+        scheduledAt: {
+          gte: new Date(now.getTime() - 32 * 60 * 1000), // 32 minutes avant (30min + 2min)
+          lte: new Date(now.getTime() - 30 * 60 * 1000 + notificationWindow), // 30min + 2min après
+        },
+      },
+      include: {
+        presences: {
+          include: {
+            staffMember: true
+          }
+        },
+        guild: { select: { id: true, name: true } }
+      }
+    });
+
+    for (const meeting of meetingsEnding) {
+      // Vérifier si la notification de fin a déjà été envoyée (30min après le début)
+      const endNotificationTime = new Date(meeting.scheduledAt.getTime() + 30 * 60 * 1000);
+      const hasEndNotification = meeting.notificationEndSentAt 
+        && meeting.notificationEndSentAt.getTime() > endNotificationTime.getTime() - 5 * 60 * 1000;
+      
+      if (!hasEndNotification && meeting.status === 'SCHEDULED') {
+        // Envoyer les notifications de fin
+        const participants = meeting.presences.map(p => p.staffMember);
+        const notificationTasks = participants.map((member) =>
+          createNotification(
+            meeting.guildId,
+            member.userId,
+            '📅 Réunion terminée',
+            `La réunion ${meeting.title} est terminée.`,
+            'INFO',
+            `/meetings?id=${meeting.id}`,
+            true
+          )
+        );
+        
+        await Promise.all(notificationTasks);
+        
+        // Mettre à jour la notification end date et marquer comme complétée
+        await prisma.staffMeeting.update({
+          where: { id: meeting.id },
+          data: {
+            notificationEndSentAt: now,
+            status: 'COMPLETED'
+          }
+        });
+      }
+    }
+  } catch (error) {
+    logger.error('Meeting Notifications', 'Erreur lors du traitement des notifications de réunion:', error);
+  }
 };
 
 /**

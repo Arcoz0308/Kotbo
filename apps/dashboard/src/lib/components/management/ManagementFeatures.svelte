@@ -68,7 +68,7 @@
 
         <!-- Category items table -->
         {#if isCatExpanded}
-          <div class="overflow-hidden rounded-[2rem] border border-outline-variant/5 animate-in fade-in slide-in-from-top-1 duration-300">
+          <div class="overflow-hidden rounded-4xl border border-outline-variant/5 animate-in fade-in slide-in-from-top-1 duration-300">
             <table class="w-full text-left border-collapse">
               <thead class="bg-surface-container-high/40 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60">
                 <tr>
@@ -115,3 +115,4 @@
     {/each}
   </div>
 </div>
+

@@ -91,7 +91,7 @@
       channelName: string;
       count: number;
       lastMessageAt: string | null;
-      recentMessages: Array<{ id: string; channelId: string; channelName: string; content: string; dateIso: string }>;
+      recentMessages: Array<{ id: string; channelId: string; channelName: string; content: string; dateIso: string; discordUrl?: string | null }>;
     }>;
     recentMessageCount: number;
     recentLogCount: number;
@@ -647,11 +647,11 @@
           </div>
         {:else if loading}
           <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3 animate-pulse">
-            <div class="h-48 bg-surface-container-high/30 rounded-[2rem]"></div>
-            <div class="h-48 bg-surface-container-high/30 rounded-[2rem]"></div>
-            <div class="h-48 bg-surface-container-high/30 rounded-[2rem]"></div>
-            <div class="md:col-span-2 h-80 bg-surface-container-high/30 rounded-[2rem]"></div>
-            <div class="h-80 bg-surface-container-high/30 rounded-[2rem]"></div>
+            <div class="h-48 bg-surface-container-high/30 rounded-4xl"></div>
+            <div class="h-48 bg-surface-container-high/30 rounded-4xl"></div>
+            <div class="h-48 bg-surface-container-high/30 rounded-4xl"></div>
+            <div class="md:col-span-2 h-80 bg-surface-container-high/30 rounded-4xl"></div>
+            <div class="h-80 bg-surface-container-high/30 rounded-4xl"></div>
           </div>
         {:else if error}
           <div class="flex flex-col items-center justify-center py-20 text-center bg-rose-500/5 rounded-[2.5rem] border-2 border-dashed border-rose-500/20">
@@ -675,7 +675,7 @@
           <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
             
             {#if caseData?.isSuspectedDC}
-              <div class="rounded-[2rem] bg-rose-500/10 border-2 border-rose-500/20 p-6 flex items-center gap-6 animate-in zoom-in-95 duration-500">
+              <div class="rounded-4xl bg-rose-500/10 border-2 border-rose-500/20 p-6 flex items-center gap-6 animate-in zoom-in-95 duration-500">
                 <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-rose-500/20 text-rose-500 shadow-lg shadow-rose-500/20">
                   <Papicon icon="alert-octagon" size={24} />
                 </div>
@@ -989,7 +989,7 @@
 
                 <!-- Basic Profile Card -->
                 <div class="md:col-span-4 grid gap-6 md:grid-cols-2">
-                  <div class="rounded-[2rem] bg-surface-container-low/50 p-6 border border-outline-variant/10">
+                  <div class="rounded-4xl bg-surface-container-low/50 p-6 border border-outline-variant/10">
                     <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-6">Profil Discord</p>
                     <dl class="space-y-4">
                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Nom d'utilisateur</dt><dd class="text-sm font-black text-on-surface">@{caseData?.profile?.username ?? 'Inconnu'}</dd></div>
@@ -999,7 +999,7 @@
                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Pronoms</dt><dd class="text-sm font-black text-on-surface">{caseData?.profile?.pronouns ?? 'Non spécifiés'}</dd></div>
                     </dl>
                   </div>
-                  <div class="rounded-[2rem] bg-surface-container-low/50 p-6 border border-outline-variant/10 space-y-6">
+                  <div class="rounded-4xl bg-surface-container-low/50 p-6 border border-outline-variant/10 space-y-6">
                     <p class="text-[10px] font-black uppercase tracking-[0.2em] text-secondary mb-6">Visuels</p>
                     {#if caseData?.profile?.avatarUrl}
                       <div class="flex items-center gap-4">
@@ -1154,21 +1154,21 @@
             {:else if activeTab === 'activite'}
                 <div class="space-y-8">
                   <div class="grid gap-6 md:grid-cols-3">
-                    <div class="rounded-[2rem] bg-primary/5 p-6 border border-primary/10 text-center">
+                    <div class="rounded-4xl bg-primary/5 p-6 border border-primary/10 text-center">
                       <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary mx-auto mb-4">
                         <Papicon icon="message-square" size={20} />
                       </div>
                       <p class="text-2xl font-black text-on-surface">{caseData?.profile?.messageCount ?? 0}</p>
                       <p class="text-[9px] font-black uppercase tracking-widest text-primary/60 mt-1">Messages</p>
                     </div>
-                    <div class="rounded-[2rem] bg-secondary/5 p-6 border border-secondary/10 text-center">
+                    <div class="rounded-4xl bg-secondary/5 p-6 border border-secondary/10 text-center">
                       <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary/10 text-secondary mx-auto mb-4">
                         <Papicon icon="mic" size={20} />
                       </div>
                       <p class="text-2xl font-black text-on-surface">{formatDurationFromSeconds(caseData?.profile?.voiceTimeSeconds)}</p>
                       <p class="text-[9px] font-black uppercase tracking-widest text-secondary/60 mt-1">Temps vocal</p>
                     </div>
-                    <div class="rounded-[2rem] bg-emerald-500/5 p-6 border border-emerald-500/10 text-center">
+                    <div class="rounded-4xl bg-emerald-500/5 p-6 border border-emerald-500/10 text-center">
                       <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 mx-auto mb-4">
                         <Papicon icon="eye" size={20} />
                       </div>
@@ -1285,12 +1285,19 @@
               {:else if activeTab === 'messages'}
                 <div class="space-y-6">
                   {#each caseData?.messagesByChannel as channel}
-                    <div class="rounded-[2rem] bg-surface-container-low/50 p-6 border border-outline-variant/10">
+                    <div class="rounded-4xl bg-surface-container-low/50 p-6 border border-outline-variant/10">
                       <div class="flex items-center gap-3 mb-6 border-b border-outline-variant/10 pb-4">
                         <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
                           <Papicon icon="tag" size={16} />
                         </div>
-                        <h4 class="text-sm font-black text-on-surface">{channel.channelName}</h4>
+                        <a 
+                          href="https://discord.com/channels/{authStore.selectedGuildId}/{channel.channelId}" 
+                          target="_blank"
+                          class="text-sm font-black text-on-surface hover:text-primary transition-colors flex items-center gap-1.5"
+                        >
+                          {channel.channelName}
+                          <Papicon icon="external-link" size={12} class="opacity-30" />
+                        </a>
                         <span class="ml-auto text-[10px] font-black bg-primary/5 text-primary px-3 py-1 rounded-full uppercase tracking-widest">{channel.count} msg</span>
                       </div>
                       <div class="space-y-3">
@@ -1298,8 +1305,14 @@
                           <div class="rounded-2xl bg-surface-container-high/30 p-4 border border-outline-variant/5">
                             <div class="flex items-center justify-between mb-2">
                                <span class="text-[10px] font-bold text-on-surface-variant/40">{formatDateTime(msg.dateIso)}</span>
+                               {#if msg.discordUrl}
+                                 <a href={msg.discordUrl} target="_blank" class="text-[9px] font-black text-primary hover:underline uppercase tracking-widest flex items-center gap-1">
+                                   Voir sur Discord
+                                   <Papicon icon="arrow-up-right" size={10} />
+                                 </a>
+                               {/if}
                             </div>
-                            <p class="text-sm text-on-surface leading-relaxed">{msg.content || 'Contenu vide'}</p>
+                            <p class="text-sm text-on-surface leading-relaxed">{@html msg.content || 'Contenu vide'}</p>
                           </div>
                         {/each}
                       </div>
@@ -1332,7 +1345,7 @@
                           <span class="text-[10px] font-black text-on-surface-variant/30 uppercase tracking-widest">{formatDateTime(log.dateIso)}</span>
                         </div>
                         <div class="rounded-2xl bg-surface-container-high/30 p-4 text-xs text-on-surface-variant/80 italic leading-relaxed">
-                          {sanitizeLogSnippet(log.details)}
+                          {@html sanitizeLogSnippet(log.details)}
                         </div>
                       </div>
                     {/each}
@@ -1555,7 +1568,7 @@
 
               {:else if activeTab === 'invites'}
                 <div class="grid gap-6 md:grid-cols-2">
-                   <div class="rounded-[2rem] bg-surface-container-low/50 p-6 border border-outline-variant/10">
+                   <div class="rounded-4xl bg-surface-container-low/50 p-6 border border-outline-variant/10">
                      <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-6">Source d'invitation</p>
                      <dl class="space-y-4">
                        <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Code utilisé</dt><dd class="text-sm font-black text-on-surface font-mono">{caseData?.invite?.code ?? 'Inconnu'}</dd></div>
@@ -1563,7 +1576,7 @@
                        <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Date d'utilisation</dt><dd class="text-sm font-black text-on-surface">{formatDateTime(caseData?.invite?.joinedAt ?? caseData?.profile?.guildJoinedAt)}</dd></div>
                      </dl>
                    </div>
-                   <div class="rounded-[2rem] bg-surface-container-low/50 p-6 border border-outline-variant/10">
+                   <div class="rounded-4xl bg-surface-container-low/50 p-6 border border-outline-variant/10">
                      <p class="text-[10px] font-black uppercase tracking-[0.2em] text-secondary mb-6">Mouvements Serveur</p>
                      <dl class="space-y-4">
                        <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Dernière arrivée</dt><dd class="text-sm font-black text-on-surface">{formatDateTime(caseData?.profile?.guildJoinedAt)}</dd></div>
@@ -1772,3 +1785,4 @@
     </div>
   </div>
 {/if}
+

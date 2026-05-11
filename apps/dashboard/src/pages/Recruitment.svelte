@@ -4,6 +4,7 @@
   import { API_BASE_URL } from '../lib/api';
   import { themeStore } from '../lib/stores/theme.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import RefreshButton from '../lib/components/RefreshButton.svelte';
 
   let candidatures = $state<any[]>([]);
   let tutors = $state<any[]>([]);
@@ -200,25 +201,25 @@
     oralFailModalTarget = c;
     oralFailReason = '';
   }
+
+  import ModulePage from '../lib/components/ModulePage.svelte';
 </script>
 
-<div class="space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-1000 pb-20">
-  
-  <!-- Header -->
-  <div class="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
-    <div>
-      <h2 class="text-4xl font-black text-on-surface tracking-tighter font-headline flex items-center gap-4">
-        Gestion du Recrutement
-        <button onclick={() => configVisible = true} class="w-10 h-10 rounded-full bg-surface-container hover:bg-surface-container-high border-outline-variant/20 border flex items-center justify-center transition-colors">
-          <Papicon icon="settings" size={18} class="text-on-surface-variant" />
-        </button>
-      </h2>
-      <p class="text-sm text-on-surface-variant/75 font-medium mt-1">Suivi des candidatures et intégration du personnel</p>
+<ModulePage 
+  title="Recrutement" 
+  description="Suivi des candidatures et intégration du personnel." 
+  icon="person-add"
+  featureKey="recruitment"
+>
+  {#snippet actions()}
+    <div class="flex items-center gap-3">
+      <RefreshButton onClick={fetchInitialData} loading={loading} label="Actualiser" />
     </div>
+  {/snippet}
 
-    <!-- Stats summary -->
-    <div class="flex flex-wrap gap-4">
-      <div class="px-6 py-4 rounded-[2rem] bg-surface-container-low/50 border border-outline-variant/10 flex items-center gap-4 hover:shadow-2xl hover:shadow-primary/5 transition-all">
+  <div class="space-y-10">
+    <div class="flex flex-wrap gap-4 mb-8">
+      <div class="px-6 py-4 rounded-4xl bg-surface-container-low/50 border border-outline-variant/10 flex items-center gap-4 hover:shadow-2xl hover:shadow-primary/5 transition-all">
         <div class="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
             <Papicon icon="pending_actions" size={18} />
         </div>
@@ -227,7 +228,7 @@
             <p class="text-[9px] uppercase tracking-widest text-on-surface-variant/70 font-bold mt-1">En attente</p>
         </div>
       </div>
-      <div class="px-6 py-4 rounded-[2rem] bg-surface-container-low/50 border border-outline-variant/10 flex items-center gap-4 hover:shadow-2xl hover:shadow-primary/5 transition-all">
+      <div class="px-6 py-4 rounded-4xl bg-surface-container-low/50 border border-outline-variant/10 flex items-center gap-4 hover:shadow-2xl hover:shadow-primary/5 transition-all">
         <div class="w-10 h-10 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center">
             <Papicon icon="forum" size={18} />
         </div>
@@ -236,7 +237,7 @@
             <p class="text-[9px] uppercase tracking-widest text-on-surface-variant/70 font-bold mt-1">Oraux</p>
         </div>
       </div>
-      <div class="px-6 py-4 rounded-[2rem] bg-rose-500/10 border border-rose-500/20 flex items-center gap-4 hover:shadow-2xl hover:shadow-rose-500/20 transition-all">
+      <div class="px-6 py-4 rounded-4xl bg-rose-500/10 border border-rose-500/20 flex items-center gap-4 hover:shadow-2xl hover:shadow-rose-500/20 transition-all">
         <div class="w-10 h-10 rounded-2xl bg-background text-rose-500 flex items-center justify-center shadow-lg shadow-rose-500/20">
             <Papicon icon="block" size={18} />
         </div>
@@ -246,7 +247,6 @@
         </div>
       </div>
     </div>
-  </div>
 
   <!-- Filters -->
   <div class="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
@@ -292,8 +292,8 @@
   {:else}
     <div class="grid grid-cols-1 gap-6">
       {#each filteredCandidatures as candidature (candidature.id)}
-         <div class="relative group bg-surface-container-low/40 border border-outline-variant/10 rounded-[3rem] p-8 hover:bg-surface-container-low transition-all duration-500 {candidature.status === 'AUTO_REJECTED' ? 'opacity-80 grayscale-[30%]' : ''}">
-            <div class="absolute -inset-1 bg-linear-to-r from-primary/10 to-secondary/10 rounded-[3.1rem] blur-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+        <div class="relative group bg-surface-container-low/40 border border-outline-variant/10 rounded-[3rem] p-8 hover:bg-surface-container-low transition-all duration-500 {candidature.status === 'AUTO_REJECTED' ? 'opacity-80 grayscale-30' : ''}">
+          <div class="absolute -inset-1 bg-linear-to-r from-primary/10 to-secondary/10 rounded-[3.1rem] blur-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
 
             <div class="relative flex flex-col xl:flex-row gap-8">
                 <!-- Main Info -->
@@ -417,7 +417,7 @@
 
 <!-- Config Modal -->
 {#if configVisible}
-<div class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+  <div class="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
     <div class="bg-surface border border-outline-variant/30 rounded-[3rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95 duration-300">
         <h3 class="text-2xl font-black mb-2">Configuration Recrutement</h3>
         <p class="text-sm text-on-surface-variant/80 mb-6">Personnalisez les dossiers Discord utilisés par le bot.</p>
@@ -453,7 +453,7 @@
 
 <!-- Validate Modal -->
 {#if validateModalTarget}
-<div class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+  <div class="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
     <div class="bg-surface border border-outline-variant/30 rounded-[3rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95 duration-300">
         <div class="flex items-center gap-4 mb-2 text-blue-500">
            <Papicon icon="check_circle" size={36} />
@@ -482,7 +482,7 @@
 
 <!-- Reject Modal -->
 {#if rejectModalTarget}
-<div class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+  <div class="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
     <div class="bg-surface border border-outline-variant/30 rounded-[3rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95 duration-300">
         <div class="flex items-center gap-4 mb-2 text-rose-500">
            <Papicon icon="cancel" size={36} />
@@ -509,7 +509,7 @@
 
 <!-- Oral Pass Modal -->
 {#if oralPassModalTarget}
-<div class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+  <div class="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
     <div class="bg-surface border border-outline-variant/30 rounded-[3rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95 duration-300">
         <div class="flex items-center gap-4 mb-2 text-emerald-500">
            <Papicon icon="how_to_reg" size={36} />
@@ -554,7 +554,7 @@
 
 <!-- Oral Fail Modal -->
 {#if oralFailModalTarget}
-<div class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+  <div class="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
     <div class="bg-surface border border-outline-variant/30 rounded-[3rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95 duration-300">
         <div class="flex items-center gap-4 mb-2 text-rose-500">
            <Papicon icon="thumb_down" size={36} />
@@ -582,3 +582,7 @@
 <style>
     .scrollbar-hide::-webkit-scrollbar { display: none; }
 </style>
+
+</ModulePage>
+ 
+ 

@@ -1,7 +1,8 @@
-import { Guild, GuildMember, type Client } from 'discord.js';
+import { EmbedBuilder, Guild, GuildMember, type Client } from 'discord.js';
 import { Prisma, SanctionStatus, SanctionType } from '@prisma/client';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
+import { COLORS } from '../utils/embeds.js';
 import { notifyDashboardSanctionReportRequired } from '../api/dashboardApi.js';
 import { createNotification } from './staffLeadershipService.js';
 import * as altAccountService from './altAccountService.js';
@@ -262,6 +263,57 @@ async function notifyStaffOfSanction(guildId: string, sanction: any) {
   }
 }
 
+async function propagateSanction(client: Client, originalGuildId: string, sanction: any) {
+  const originalGuild = await prisma.guild.findUnique({
+    where: { id: originalGuildId },
+    select: { propagateSanctions: true }
+  });
+
+  if (!originalGuild?.propagateSanctions) return;
+
+  const otherGuilds = await prisma.guild.findMany({
+    where: {
+      id: { not: originalGuildId },
+      sanctionSyncEnabled: true,
+      sanctionAlertChannelId: { not: null }
+    }
+  });
+
+  for (const guildConfig of otherGuilds) {
+    try {
+      const guild = client.guilds.cache.get(guildConfig.id) || await client.guilds.fetch(guildConfig.id).catch(() => null);
+      if (!guild) continue;
+
+      const channel = guild.channels.cache.get(guildConfig.sanctionAlertChannelId!) || await guild.channels.fetch(guildConfig.sanctionAlertChannelId!).catch(() => null);
+      if (!channel || !('send' in channel)) continue;
+
+      const typeLabel = {
+        WARN: 'Avertissement',
+        KICK: 'Exclusion',
+        TIMEOUT: 'Timeout',
+        TEMP_BAN: 'Bannissement temporaire',
+        BAN: 'Bannissement définitif'
+      }[sanction.type as string] || 'Sanction';
+
+      const embed = new EmbedBuilder()
+        .setColor(COLORS.warning)
+        .setTitle('⚠️ Propagation de Sanction')
+        .setDescription(`Un utilisateur a été sanctionné sur un autre serveur Kotbo.`)
+        .addFields(
+          { name: 'Utilisateur', value: `${sanction.targetTag} (<@${sanction.targetUserId}>)`, inline: true },
+          { name: 'Type', value: typeLabel, inline: true },
+          { name: 'Raison', value: sanction.reason || 'Aucune raison fournie', inline: false },
+          { name: 'Source', value: guild.name, inline: true }
+        )
+        .setTimestamp();
+
+      await (channel as any).send({ embeds: [embed] }).catch(() => null);
+    } catch (err) {
+      logger.debug('Sanctions', `Error propagating sanction to guild ${guildConfig.id}: ${String(err)}`);
+    }
+  }
+}
+
 export async function registerWarnSanction(params: {
   guildId: string;
   target: Target;
@@ -306,6 +358,7 @@ export async function registerWarnSanction(params: {
   ).catch(() => null);
 
   if (params.client && !params.isSync) {
+    void propagateSanction(params.client, params.guildId, sanction).catch(() => null);
     void altAccountService.synchronizeSanction({
       client: params.client,
       guildId: params.guildId,
@@ -372,6 +425,7 @@ export async function registerKickSanction(params: {
   void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
 
   if (params.client && !params.isSync) {
+    void propagateSanction(params.client, params.guildId, sanction).catch(() => null);
     void altAccountService.synchronizeSanction({
       client: params.client,
       guildId: params.guildId,
@@ -447,6 +501,7 @@ export async function registerBanSanction(params: {
   void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
 
   if (params.client && !params.isSync) {
+    void propagateSanction(params.client, params.guildId, sanction).catch(() => null);
     void altAccountService.synchronizeSanction({
       client: params.client,
       guildId: params.guildId,
@@ -524,6 +579,7 @@ export async function registerTimeoutSanction(params: {
   void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
 
   if (params.client && !params.isSync) {
+    void propagateSanction(params.client, params.guildId, sanction).catch(() => null);
     void altAccountService.synchronizeSanction({
       client: params.client,
       guildId: params.guildId,

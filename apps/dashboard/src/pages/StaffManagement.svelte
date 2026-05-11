@@ -913,7 +913,7 @@ import Papicon from '../lib/components/Papicon.svelte';
             <div class="flex flex-col gap-4 md:flex-row md:items-end">
               <div class="flex-1">
                 <label>
-                  <span class="block text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant/70 mb-2">Utilisateur Discord</span>
+                  <span class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Utilisateur Discord</span>
                   <div class="min-w-0">
                     <DiscordMemberLookup
                       {guildId}
@@ -929,7 +929,7 @@ import Papicon from '../lib/components/Papicon.svelte';
               </div>
               <div class="md:w-64 shrink-0">
                 <label>
-                  <span class="block text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant/70 mb-2">Grade</span>
+                  <span class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Grade</span>
                   <select bind:value={newMemberGrade} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
                     {#each orderedStaffRoles as role}
                       <option value={role.name}>{role.name}</option>
@@ -1165,7 +1165,7 @@ import Papicon from '../lib/components/Papicon.svelte';
           <div class="p-6 md:p-8 border-b border-primary/10 bg-primary/5 animate-in slide-in-from-top-4 fade-in duration-300">
             <div class="flex flex-col gap-4 md:flex-row md:items-end">
               <div class="flex-1 relative">
-                <label for="staff-role-search" class="block text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant/70 mb-2">Rechercher un rôle Discord</label>
+                <label for="staff-role-search" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Rechercher un rôle Discord</label>
                 <div class="relative">
                   <Papicon icon="search" size={20} class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/40" />
                   <input
@@ -1311,7 +1311,7 @@ import Papicon from '../lib/components/Papicon.svelte';
           <div class="p-6 md:p-8 border-b border-primary/10 bg-primary/5 animate-in slide-in-from-top-4 fade-in duration-300">
             <div class="grid gap-6 md:grid-cols-2">
               <div class="space-y-4 md:col-span-2">
-                <label class="block text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant/70 mb-2">
+                <label class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">
                   Membre visé
                   <DiscordMemberLookup
                     {guildId}
@@ -1325,7 +1325,7 @@ import Papicon from '../lib/components/Papicon.svelte';
 
               <div class="space-y-4">
                 <label>
-                  <span class="block text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant/70 mb-2">Raison de l'avertissement</span>
+                  <span class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Raison de l'avertissement</span>
                   <textarea
                     bind:value={warnReason}
                     placeholder="Décrivez précisément le manquement constaté..."
@@ -1337,7 +1337,7 @@ import Papicon from '../lib/components/Papicon.svelte';
 
               <div class="space-y-4 flex flex-col justify-between">
                 <div>
-                   <label for="warn-expires-at" class="block text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant/70 mb-2">Expire le (Optionnel)</label>
+                   <label for="warn-expires-at" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Expire le (Optionnel)</label>
                    <input
                      id="warn-expires-at"
                      type="datetime-local"
@@ -1388,7 +1388,7 @@ import Papicon from '../lib/components/Papicon.svelte';
             <div class="grid gap-6 md:grid-cols-2">
               <div class="space-y-4 md:col-span-2">
                 <label>
-                  <span class="block text-xs font-bold uppercase tracking-[0.1em] text-rose-700/80 mb-2">Membre à blacklister</span>
+                  <span class="block text-xs font-bold uppercase tracking-widest text-rose-700/80 mb-2">Membre à blacklister</span>
                   <DiscordMemberLookup
                     {guildId}
                     bind:query={blacklistLookupQuery}
@@ -1401,7 +1401,7 @@ import Papicon from '../lib/components/Papicon.svelte';
 
               <div class="space-y-4">
                 <label>
-                  <span class="block text-xs font-bold uppercase tracking-[0.1em] text-rose-700/80 mb-2">Raison de l'exclusion</span>
+                  <span class="block text-xs font-bold uppercase tracking-widest text-rose-700/80 mb-2">Raison de l'exclusion</span>
                   <textarea
                     bind:value={blacklistReason}
                     placeholder="Décrivez précisément ce qui a mené à cette blacklist..."
@@ -1413,7 +1413,7 @@ import Papicon from '../lib/components/Papicon.svelte';
 
               <div class="space-y-4 flex flex-col justify-between">
                 <div>
-                   <label for="blacklist-end-date" class="block text-xs font-bold uppercase tracking-[0.1em] text-rose-700/80 mb-2">Fin de blacklist (vide = permanent)</label>
+                   <label for="blacklist-end-date" class="block text-xs font-bold uppercase tracking-widest text-rose-700/80 mb-2">Fin de blacklist (vide = permanent)</label>
                    <input
                      id="blacklist-end-date"
                      type="date"
@@ -1466,16 +1466,16 @@ import Papicon from '../lib/components/Papicon.svelte';
               <div class="space-y-4">
                 <FormInput label="Titre du sondage" bind:value={newPollTitle} placeholder="Ex: Nouveau règlement du salon général" />
                 <div>
-                  <label for="poll-description" class="block text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant/70 mb-2">Description</label>
+                  <label for="poll-description" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Description</label>
                   <textarea id="poll-description" bind:value={newPollDescription} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 h-32 resize-none" placeholder="Détaillez le sujet du vote..."></textarea>
                 </div>
                 <div>
-                  <label for="poll-closes-at" class="block text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant/70 mb-2">Date de clôture automatique (optionnelle)</label>
+                  <label for="poll-closes-at" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Date de clôture automatique (optionnelle)</label>
                   <input id="poll-closes-at" type="datetime-local" bind:value={newPollClosesAt} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
                 </div>
               </div>
               <div class="space-y-4">
-                <div class="block text-xs font-bold uppercase tracking-[0.1em] text-on-surface-variant/70 mb-2">Options de réponse</div>
+                <div class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Options de réponse</div>
                 <div class="space-y-3">
                   {#each newPollOptions as option, i}
                     <div class="flex items-center gap-2">
@@ -1620,7 +1620,7 @@ import Papicon from '../lib/components/Papicon.svelte';
             <p class="text-sm font-medium text-on-surface-variant/60 mt-1">Analyse des performances, scores de progression et alertes d'inactivité.</p>
           </div>
 
-          <div class="overflow-x-auto rounded-[2rem] border border-outline-variant/10 bg-surface-container-low/50">
+          <div class="overflow-x-auto rounded-4xl border border-outline-variant/10 bg-surface-container-low/50">
             <table class="w-full text-left border-collapse">
               <thead>
                 <tr class="border-b border-outline-variant/10 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">
@@ -1717,4 +1717,5 @@ import Papicon from '../lib/components/Papicon.svelte';
   error={caseError}
   onClose={() => caseModalOpen = false}
 />
+
 

@@ -111,7 +111,7 @@
         </div>
       </div>
       
-      <div class="overflow-x-auto {showAllInvites ? 'max-h-[500px] overflow-y-auto custom-scrollbar pr-2' : ''}">
+      <div class="overflow-x-auto {showAllInvites ? 'max-h-125 overflow-y-auto custom-scrollbar pr-2' : ''}">
         <table class="w-full text-left">
           <thead>
             <tr class="border-b border-outline-variant/10">
@@ -258,4 +258,5 @@
     border-radius: 10px;
   }
 </style>
+
 

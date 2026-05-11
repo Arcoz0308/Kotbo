@@ -82,7 +82,7 @@
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" onclick={onClose}>
+  <div class="fixed inset-0 z-100 flex items-center justify-center p-4 sm:p-6" onclick={onClose}>
     <div class="absolute inset-0 bg-surface/80 backdrop-blur-md"></div>
     
     <div 
@@ -348,3 +348,4 @@
     border-radius: 10px;
   }
 </style>
+

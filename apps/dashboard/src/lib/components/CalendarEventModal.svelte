@@ -53,7 +53,7 @@
 </script>
 
 {#if show && event}
-  <div class="fixed inset-0 z-[110] flex items-center justify-center p-4">
+  <div class="fixed inset-0 z-110 flex items-center justify-center p-4">
     <div 
       class="absolute inset-0 bg-black/60 backdrop-blur-sm" 
       onclick={onClose}
@@ -111,12 +111,12 @@
                 <Papicon icon="volume-2" size={20} />
              </div>
              <div>
-                <p class="text-[10px] font-black uppercase tracking-[0.1em] text-on-surface-variant">Salon Vocal</p>
+                <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Salon Vocal</p>
                 <p class="text-sm font-bold text-on-surface">{event.details}</p>
              </div>
              {#if event.raw?.durationSeconds}
                <div class="ml-auto text-right">
-                  <p class="text-[10px] font-black uppercase tracking-[0.1em] text-on-surface-variant">Durée</p>
+                  <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Durée</p>
                   <p class="text-sm font-black text-primary">{formatDuration(event.raw.durationSeconds)}</p>
                </div>
              {/if}
@@ -127,11 +127,11 @@
           <div class="space-y-4">
             <div class="grid grid-cols-2 gap-4">
                <div class="p-3 bg-surface-container rounded-xl border border-outline-variant/20">
-                  <p class="text-[10px] font-black uppercase tracking-[0.1em] text-on-surface-variant">Type</p>
+                  <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Type</p>
                   <p class="text-xs font-bold text-amber-600">{event.raw?.type || 'Autre'}</p>
                </div>
                <div class="p-3 bg-surface-container rounded-xl border border-outline-variant/20">
-                  <p class="text-[10px] font-black uppercase tracking-[0.1em] text-on-surface-variant">Statut</p>
+                  <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Statut</p>
                   <p class="text-xs font-bold {event.raw?.status === 'APPROVED' ? 'text-emerald-600' : 'text-amber-600'}">
                     {event.raw?.status === 'APPROVED' ? 'Approuvé' : event.raw?.status === 'PENDING' ? 'En attente' : 'Validé'}
                   </p>
@@ -220,3 +220,4 @@
     </div>
   </div>
 {/if}
+

@@ -11,6 +11,8 @@ datasource db {
 
 model Guild {
   id String @id
+  propagateSanctions Boolean @default(false)
+
 
   configChannelId String?
   regulationChannelId String?
@@ -20,12 +22,7 @@ model Guild {
   meetingAnnouncementChannelId String?
   meetingVoiceChannelId String?
 
-  youtubeEnabled    Boolean @default(false)
-  nathanYtChannelId String?
-  nathanChannelId   String? 
-  youtubeChannelId  String? 
-  youtubeShortRoleId String?
-  youtubeVideoRoleId String?
+
 
   moderatorRoleId   String?
   baseStaffRoleId   String?
@@ -64,15 +61,15 @@ model Guild {
   statusCheckChannelId     String?
   logChannelId             String?
 
+  sanctionSyncEnabled      Boolean @default(false)
+  sanctionAlertChannelId   String?
+  newsChannelId            String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  feeds        Feed[]
-  youtubeItems YouTubeItem[]
-  youtubeSubscriptions YouTubeSubscription[]
+  newsArticles NewsArticle[]
   dailyAlgoRuns DailyAlgoRun[]
-  interestTopics InterestTopicScore[]
-  interestFeedback NewsInterestFeedback[]
   dashboardSettings DashboardSettings?
   dashboardAuditLogs DashboardAuditLog[]
   sanctions Sanction[]
@@ -189,163 +186,29 @@ model CodePoliceRule {
   @@index([language])
 }
 
-model Feed {
-  id      String @id @default(cuid())
-  guildId String
-
-  name        String
-  url         String
-  category    String  @default("Général")
-  enabled     Boolean @default(true)
-  autoPublish Boolean @default(false)
-
-  includeKeywords String[] @default([])
-  excludeKeywords String[] @default([])
-  ignoredKeywords String[] @default([])
-
-  language    String?
-  translateTo String?
-
-  roleId   String?
-  autoRole Boolean @default(false)
-
-  guild       Guild         @relation(fields: [guildId], references: [id], onDelete: Cascade)
-  items       FeedItem[]
-  subscribers UserFeedSub[]
-
-  lastPolledAt DateTime?
-  lastPollError String?
-  lastPollStatus String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  @@unique([guildId, url])
-  @@map("feeds")
-}
-
-model FeedItem {
-  id     String @id @default(cuid())
-  feedId String
-
-  guid        String
-  title       String
-  url         String
-  description String?
-  imageUrl    String?
-  author      String?
-  publishedAt DateTime
-
-  titleTranslated       String?
-  descriptionTranslated String?
-
-  status          ItemStatus @default(PENDING)
-  interestDecision InterestDecision @default(ALLOWED)
-  interestScore Float?
-  interestReason String?
-  topics String[] @default([])
-  queueMessageId  String?
-  publicMessageId String?
-  pinned          Boolean    @default(false)
-
-  feed Feed @relation(fields: [feedId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([feedId, guid])
-  @@index([interestDecision, createdAt])
-  @@map("feed_items")
-}
-
-model InterestTopicScore {
+model NewsArticle {
   id String @id @default(cuid())
 
   guildId String
-  userId String @default("__guild__")
-  topic String
-  score Float @default(0)
-  positiveCount Int @default(0)
-  negativeCount Int @default(0)
-  lastInteractedAt DateTime @default(now())
+  title String
+  content String
+  summary String?
+  imageUrl String?
+
+  authorId String
+  authorName String
+  authorAvatar String?
+
+  isGlobal Boolean @default(true)
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
+  publishedAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([guildId, userId, topic])
-  @@index([guildId, userId])
-  @@index([topic])
-  @@map("interest_topic_scores")
-}
-
-model NewsInterestFeedback {
-  id String @id @default(cuid())
-
-  guildId String
-  userId String?
-  feedItemId String?
-  topic String
-  value Int
-  source FeedbackSource
-
-  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-
-  @@index([guildId, createdAt])
-  @@index([userId, createdAt])
-  @@index([feedItemId])
-  @@map("news_interest_feedback")
-}
-
-model YouTubeItem {
-  id      String @id @default(cuid())
-  guildId String
-
-  videoId      String   @unique
-  title        String
-  description  String?
-  channelName  String
-  channelId    String
-  thumbnailUrl String?
-  isShort      Boolean  @default(false)
-  publishedAt  DateTime
-
-  status          ItemStatus @default(PENDING)
-  queueMessageId  String?
-  publicMessageId String?
-
-  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("youtube_items")
-}
-
-model YouTubeSubscription {
-  id         String   @id @default(cuid())
-  guildId    String
-  channelId  String
-  guild      Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
-  createdAt  DateTime @default(now())
-
-  @@unique([guildId, channelId])
-  @@map("youtube_subscriptions")
-}
-
-model UserFeedSub {
-  id     String @id @default(cuid())
-  userId String
-  feedId String
-
-  feed Feed @relation(fields: [feedId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-
-  @@unique([userId, feedId])
-  @@map("user_feed_subs")
+  @@index([guildId, publishedAt])
+  @@index([isGlobal, publishedAt])
+  @@map("news_articles")
 }
 
 model DeveloperExcuse {
@@ -949,6 +812,10 @@ model StaffMeeting {
   discordMessageId String?
   discordEventId   String?
   
+  // Champs pour les notifications de réunion
+  notificationSentAt DateTime?      // Quand la notification de début a été envoyée
+  notificationEndSentAt DateTime?  // Quand la notification de fin a été envoyée
+  
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
   presences StaffMeetingPresence[]
 
@@ -1505,4 +1372,43 @@ enum NotificationTargetType {
   DISCORD_ROLE
   DM_STAFF_ROLE
   EMAIL
+}
+
+// ============================================================================
+// SYSTEME D'ADMINISTRATION GLOBALE
+// ============================================================================
+
+model GlobalAdmin {
+  userId String @id
+  addedBy String
+  createdAt DateTime @default(now())
+
+  @@map("global_admins")
+}
+
+model GlobalBlacklist {
+  userId String @id
+  reason String?
+  addedBy String
+  createdAt DateTime @default(now())
+
+  @@map("global_blacklist")
+}
+
+model BotErrorLog {
+  id String @id @default(cuid())
+  message String
+  stack String?
+  source String? // ex: "Command /algo", "Event messageCreate"
+  createdAt DateTime @default(now())
+
+  @@map("bot_error_logs")
+}
+
+model BotGlobalConfig {
+  key String @id // ex: "MAINTENANCE_MODE"
+  value String // JSON stringified value
+  updatedAt DateTime @updatedAt
+
+  @@map("bot_global_config")
 }

@@ -257,7 +257,7 @@
             </td>
             <td class="px-6 py-6 max-w-xs">
               <p class="text-xs text-on-surface-variant line-clamp-2 leading-relaxed">
-                {entry.details}
+                {@html entry.details}
               </p>
             </td>
             <td class="px-6 py-6 text-center">

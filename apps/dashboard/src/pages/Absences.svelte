@@ -65,8 +65,13 @@
       const sRole = allRoles.find(r => r.name === s.grade);
       if (!sRole) return false;
       
-      // Supérieur ou égal dans la hiérarchie
-      return (sRole.sortOrder ?? 0) >= (myRole.sortOrder ?? 0);
+      // Pour les admins: supérieur ou égal (plus petit ou égal sortOrder)
+      // Pour les non-admins: strictement supérieur uniquement (strictement plus petit sortOrder)
+      if (isAdmin) {
+        return (sRole.sortOrder ?? 0) <= (myRole.sortOrder ?? 0);
+      } else {
+        return (sRole.sortOrder ?? 0) < (myRole.sortOrder ?? 0);
+      }
     }).sort((a, b) => {
        const roleA = allRoles.find(r => r.name === a.grade);
        const roleB = allRoles.find(r => r.name === b.grade);
@@ -160,13 +165,13 @@
       calendarData.voiceSessions.forEach(vs => {
         events.push({
           id: vs.id,
-          title: `Vocal: ${vs.channelName || 'Salon inconnu'}`,
+          title: `${vs.staffMember?.displayName || vs.staffMember?.username || 'Staff'}: ${vs.channelName || 'Vocal'}`,
           start: new Date(vs.joinedAt),
           end: vs.leftAt ? new Date(vs.leftAt) : new Date(),
           type: 'vocal',
-          staffName: vs.staffMember?.username || vs.staffMember?.displayName,
+          staffName: vs.staffMember?.displayName || vs.staffMember?.username,
           avatarUrl: vs.staffMember?.avatarUrl,
-          details: `${Math.floor((vs.durationSeconds || 0) / 60)} min`,
+          details: vs.channelName || 'Salon inconnu',
           raw: vs
         });
       });
@@ -203,12 +208,13 @@
         const end = data.endDate ? new Date(data.endDate + 'T' + data.endTime).toISOString() : undefined;
         await createMeeting(data.reason, '', start, end);
       } else {
-        await createStaffAbsence({
+        await createAbsence({
           ...data,
           staffMemberId: data.staffUserId || myStaffRecord.id,
           startDate: new Date(data.startDate + 'T' + data.startTime),
           endDate: data.endDate ? new Date(data.endDate + 'T' + data.endTime) : undefined,
         });
+
       }
       modalOpen = false;
       await refreshCalendar();
@@ -255,23 +261,25 @@
     refreshCalendar();
   }
 
+  import ModulePage from '../lib/components/ModulePage.svelte';
 </script>
 
-<div class="flex flex-col gap-8">
+<ModulePage 
+  title="Absences & Planning" 
+  description="Gérez vos congés et visualisez l'activité de l'équipe." 
+  icon="calendar"
+  featureKey="absences"
+>
+  {#snippet actions()}
+    <RefreshButton onClick={refreshCalendar} loading={loading} label="Actualiser" />
+    <ActionButton onClick={() => modalOpen = true} variant="primary" icon="plus" label="Déclarer une Absence" />
+  {/snippet}
+
   {#if loading}
     <div class="space-y-8 animate-in fade-in duration-500">
-      <!-- Header Skeleton -->
-      <div class="h-32 w-full bg-surface-container-low/40 backdrop-blur-3xl rounded-[2rem] border border-outline-variant/20 animate-pulse flex items-center px-8 gap-6">
-        <div class="w-16 h-16 bg-outline-variant/20 rounded-2xl"></div>
-        <div class="space-y-3">
-          <div class="h-8 w-64 bg-outline-variant/20 rounded-lg"></div>
-          <div class="h-4 w-48 bg-outline-variant/10 rounded-md"></div>
-        </div>
-      </div>
-
       <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <!-- Sidebar Skeleton -->
-        <div class="lg:col-span-1 h-[700px] bg-surface-container-low/40 backdrop-blur-3xl rounded-[2rem] border border-outline-variant/20 animate-pulse p-6 space-y-6">
+        <div class="lg:col-span-1 h-175 bg-surface-container-low/40 backdrop-blur-3xl rounded-4xl border border-outline-variant/20 animate-pulse p-6 space-y-6">
           <div class="h-6 w-3/4 bg-outline-variant/20 rounded-md"></div>
           <div class="space-y-3">
             {#each Array(8) as _}
@@ -284,7 +292,7 @@
         </div>
 
         <!-- Calendar Skeleton -->
-        <div class="lg:col-span-3 h-[700px] bg-surface-container-low/40 backdrop-blur-3xl rounded-[2.5rem] border border-outline-variant/20 animate-pulse flex flex-col p-8 space-y-6">
+        <div class="lg:col-span-3 h-175 bg-surface-container-low/40 backdrop-blur-3xl rounded-[2.5rem] border border-outline-variant/20 animate-pulse flex flex-col p-8 space-y-6">
           <div class="flex justify-between items-center">
             <div class="h-10 w-48 bg-outline-variant/20 rounded-xl"></div>
             <div class="flex gap-2">
@@ -301,166 +309,145 @@
       </div>
     </div>
   {:else}
-    <div class="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-  <!-- Header -->
-  <header class="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-surface-container-low/40 backdrop-blur-3xl p-8 rounded-[2rem] border border-outline-variant/30 relative overflow-hidden group">
-    <div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-[80px] group-hover:bg-primary/20 transition-all duration-700"></div>
-    
-    <div class="flex items-center gap-6 relative">
-      <div class="w-16 h-16 bg-gradient-to-br from-primary to-primary-container rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20">
-        <Papicon icon="calendar" size={32} class="text-white" />
-      </div>
-      <div>
-        <h1 class="text-3xl font-black tracking-tight text-on-surface font-headline leading-tight">Absences & Planning</h1>
-        <p class="text-on-surface-variant/80 font-medium tracking-wide">Gérez vos congés et visualisez l'activité de l'équipe.</p>
-      </div>
-    </div>
+    <div class="flex flex-col lg:flex-row gap-8">
+      <!-- Sidebar: Team Filtering -->
 
-    <div class="flex items-center gap-3 relative">
-      <RefreshButton onClick={refreshCalendar} loading={loading} label="Actualiser" />
-      <ActionButton onClick={() => modalOpen = true} variant="primary" icon="plus" label="Déclarer une Absence" />
-    </div>
-  </header>
-
-  <div class="flex flex-col lg:flex-row gap-8">
-    <!-- Sidebar: Team Filtering (Managers only) -->
-    {#if isManager}
-      <aside class="w-full lg:w-72 flex flex-col gap-6">
-        <div class="bg-surface-container-low p-6 rounded-[2rem] border border-outline-variant/30 flex flex-col gap-4">
-          <div class="flex items-center justify-between mb-2">
-            <h3 class="text-sm font-black uppercase tracking-widest text-on-surface-variant">Équipe</h3>
-            <button 
-              onclick={toggleEveryone}
-              class="text-[10px] font-black uppercase px-2 py-1 rounded-md transition-all {selectedStaffIds.length === allStaff.length ? 'bg-primary text-white' : 'bg-surface-container-high text-on-surface-variant'}"
-            >
-              {selectedStaffIds.length === allStaff.length ? 'Tout décocher' : 'Tout cocher'}
-            </button>
-          </div>
-          
-          <div class="flex flex-col gap-1 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-            {#each allStaff as staff}
+        <aside class="w-full lg:w-72 flex flex-col gap-6">
+          <div class="bg-surface-container-low p-6 rounded-4xl border border-outline-variant/30 flex flex-col gap-4">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-sm font-black uppercase tracking-widest text-on-surface-variant">Équipe</h3>
               <button 
-                onclick={() => toggleStaff(staff.id)}
-                class="flex items-center gap-3 p-2 rounded-xl transition-all hover:bg-surface-hover group {selectedStaffIds.includes(staff.id) ? 'bg-primary/5' : ''}"
+                onclick={toggleEveryone}
+                class="text-[10px] font-black uppercase px-2 py-1 rounded-md transition-all {selectedStaffIds.length === allStaff.length ? 'bg-primary text-white' : 'bg-surface-container-high text-on-surface-variant'}"
               >
-                <div class="relative">
-                  <img src={staff.avatarUrl || `https://ui-avatars.com/api/?name=${staff.username}`} alt="" class="w-8 h-8 rounded-full border border-outline-variant/20" />
-                  {#if selectedStaffIds.includes(staff.id)}
-                    <div class="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full border-2 border-surface-container-low flex items-center justify-center">
-                      <div class="w-1 h-1 bg-white rounded-full"></div>
-                    </div>
-                  {/if}
-                </div>
-                <div class="flex-1 text-left">
-                  <div class="text-xs font-bold text-on-surface line-clamp-1">{staff.displayName || staff.username}</div>
-                  <div class="text-[10px] text-on-surface-variant uppercase tracking-wider font-medium">{staff.grade}</div>
-                </div>
+                {selectedStaffIds.length === allStaff.length ? 'Tout décocher' : 'Tout cocher'}
               </button>
-            {/each}
-          </div>
-        </div>
-
-        <div class="bg-surface-container-low p-6 rounded-[2rem] border border-outline-variant/30 flex flex-col gap-4">
-          <div class="flex items-center gap-3 mb-1">
-            <div class="w-8 h-8 bg-amber-500/10 rounded-lg flex items-center justify-center">
-              <Papicon icon="info" size={18} class="text-amber-600" />
             </div>
-            <span class="text-xs font-black text-on-surface-variant uppercase tracking-widest">Affichage</span>
+            
+            <div class="flex flex-col gap-1 max-h-125 overflow-y-auto pr-2 custom-scrollbar">
+              {#each allStaff as staff}
+                <button 
+                  onclick={() => toggleStaff(staff.id)}
+                  class="flex items-center gap-3 p-2 rounded-xl transition-all hover:bg-surface-hover group {selectedStaffIds.includes(staff.id) ? 'bg-primary/5' : ''}"
+                >
+                  <div class="relative">
+                    <img src={staff.avatarUrl || `https://ui-avatars.com/api/?name=${staff.username}`} alt="" class="w-8 h-8 rounded-full border border-outline-variant/20" />
+                    {#if selectedStaffIds.includes(staff.id)}
+                      <div class="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full border-2 border-surface-container-low flex items-center justify-center">
+                        <div class="w-1 h-1 bg-white rounded-full"></div>
+                      </div>
+                    {/if}
+                  </div>
+                  <div class="flex-1 text-left">
+                    <div class="text-xs font-bold text-on-surface line-clamp-1">{staff.displayName || staff.username}</div>
+                    <div class="text-[10px] text-on-surface-variant uppercase tracking-wider font-medium">{staff.grade}</div>
+                  </div>
+                </button>
+              {/each}
+            </div>
           </div>
-          <div class="flex flex-col gap-2">
-            <button 
-              onclick={() => toggleType('absence')}
-              class="flex items-center justify-between p-2 rounded-xl transition-all hover:bg-surface-hover {visibleTypes.includes('absence') ? 'bg-amber-500/5 border border-amber-500/20' : 'opacity-50'}"
-            >
-              <div class="flex items-center gap-3">
-                <div class="w-3 h-3 rounded bg-amber-500 border border-amber-600/30"></div>
-                <span class="text-[10px] font-bold text-on-surface">Absences</span>
-              </div>
-              <Papicon icon={visibleTypes.includes('absence') ? 'eye' : 'eye-off'} size={14} class="text-on-surface-variant/50" />
-            </button>
 
-            <button 
-              onclick={() => toggleType('vocal')}
-              class="flex items-center justify-between p-2 rounded-xl transition-all hover:bg-surface-hover {visibleTypes.includes('vocal') ? 'bg-primary/5 border border-primary/20' : 'opacity-50'}"
-            >
-              <div class="flex items-center gap-3">
-                <div class="w-3 h-3 rounded bg-primary border border-primary/30"></div>
-                <span class="text-[10px] font-bold text-on-surface">Vocal</span>
+          <div class="bg-surface-container-low p-6 rounded-4xl border border-outline-variant/30 flex flex-col gap-4">
+            <div class="flex items-center gap-3 mb-1">
+              <div class="w-8 h-8 bg-amber-500/10 rounded-lg flex items-center justify-center">
+                <Papicon icon="info" size={18} class="text-amber-600" />
               </div>
-              <Papicon icon={visibleTypes.includes('vocal') ? 'eye' : 'eye-off'} size={14} class="text-on-surface-variant/50" />
-            </button>
+              <span class="text-xs font-black text-on-surface-variant uppercase tracking-widest">Affichage</span>
+            </div>
+            <div class="flex flex-col gap-2">
+              <button 
+                onclick={() => toggleType('absence')}
+                class="flex items-center justify-between p-2 rounded-xl transition-all hover:bg-surface-hover {visibleTypes.includes('absence') ? 'bg-amber-500/5 border border-amber-500/20' : 'opacity-50'}"
+              >
+                <div class="flex items-center gap-3">
+                  <div class="w-3 h-3 rounded bg-amber-500 border border-amber-600/30"></div>
+                  <span class="text-[10px] font-bold text-on-surface">Absences</span>
+                </div>
+                <Papicon icon={visibleTypes.includes('absence') ? 'eye' : 'eye-off'} size={14} class="text-on-surface-variant/50" />
+              </button>
 
-            <button 
-              onclick={() => toggleType('meeting')}
-              class="flex items-center justify-between p-2 rounded-xl transition-all hover:bg-surface-hover {visibleTypes.includes('meeting') ? 'bg-emerald-500/5 border border-emerald-500/20' : 'opacity-50'}"
-            >
-              <div class="flex items-center gap-3">
-                <div class="w-3 h-3 rounded bg-emerald-500 border border-emerald-600/30"></div>
-                <span class="text-[10px] font-bold text-on-surface">Réunions</span>
-              </div>
-              <Papicon icon={visibleTypes.includes('meeting') ? 'eye' : 'eye-off'} size={14} class="text-on-surface-variant/50" />
-            </button>
+              <button 
+                onclick={() => toggleType('vocal')}
+                class="flex items-center justify-between p-2 rounded-xl transition-all hover:bg-surface-hover {visibleTypes.includes('vocal') ? 'bg-primary/5 border border-primary/20' : 'opacity-50'}"
+              >
+                <div class="flex items-center gap-3">
+                  <div class="w-3 h-3 rounded bg-primary border border-primary/30"></div>
+                  <span class="text-[10px] font-bold text-on-surface">Vocal</span>
+                </div>
+                <Papicon icon={visibleTypes.includes('vocal') ? 'eye' : 'eye-off'} size={14} class="text-on-surface-variant/50" />
+              </button>
+
+              <button 
+                onclick={() => toggleType('meeting')}
+                class="flex items-center justify-between p-2 rounded-xl transition-all hover:bg-surface-hover {visibleTypes.includes('meeting') ? 'bg-emerald-500/5 border border-emerald-500/20' : 'opacity-50'}"
+              >
+                <div class="flex items-center gap-3">
+                  <div class="w-3 h-3 rounded bg-emerald-500 border border-emerald-600/30"></div>
+                  <span class="text-[10px] font-bold text-on-surface">Réunions</span>
+                </div>
+                <Papicon icon={visibleTypes.includes('meeting') ? 'eye' : 'eye-off'} size={14} class="text-on-surface-variant/50" />
+              </button>
+            </div>
           </div>
-        </div>
-      </aside>
-    {/if}
+        </aside>
 
-    <!-- Main Content: Calendar -->
-    <main class="flex-1">
-      <Calendar 
-        events={calendarEvents} 
-        onRangeChange={handleRangeChange}
-        onEventClick={handleEventClick}
-        onDateClick={(start, end) => {
-          selectedDate = start;
-          selectedEndDate = end || new Date(start.getTime() + 3600000);
-          modalOpen = true;
-        }}
-      />
 
-      <!-- Modals -->
-      <AbsenceModal 
-        show={modalOpen} 
-        onClose={() => modalOpen = false} 
-        onSave={handleSaveAbsence}
-        staffMembers={allStaff}
-        eligibleSuperiors={eligibleSuperiors}
-        isAdmin={isAdmin}
-        initialDate={selectedDate}
-        initialEndDate={selectedEndDate}
-      />
+      <!-- Main Content: Calendar -->
+      <main class="flex-1">
+        <Calendar 
+          events={calendarEvents} 
+          onRangeChange={handleRangeChange}
+          onEventClick={handleEventClick}
+          onDateClick={(start, end) => {
+            selectedDate = start;
+            selectedEndDate = end || new Date(start.getTime() + 3600000);
+            modalOpen = true;
+          }}
+        />
 
-      <CalendarEventModal
-        show={detailModalOpen}
-        event={selectedEvent}
-        onClose={() => detailModalOpen = false}
-        extraActions={modalActions}
-      />
+        <!-- Modals -->
+        <AbsenceModal 
+          show={modalOpen} 
+          onClose={() => modalOpen = false} 
+          onSave={handleSaveAbsence}
+          staffMembers={allStaff}
+          eligibleSuperiors={eligibleSuperiors}
+          isAdmin={isAdmin}
+          initialDate={selectedDate}
+          initialEndDate={selectedEndDate}
+        />
 
-      {#snippet modalActions()}
-        {#if selectedEvent?.type === 'absence' && isManager && selectedEvent.status === 'PENDING'}
-          <ActionButton 
-            variant="primary" 
-            onClick={() => {
-              selectedAbsenceForDecision = selectedEvent.originalData;
-              decisionStatus = 'APPROVED';
-              decisionNote = '';
-              decisionModalOpen = true;
-              detailModalOpen = false;
-            }} 
-            label="Prendre une décision" 
-            icon="check-circle"
-          />
-        {/if}
-      {/snippet}
+        <CalendarEventModal
+          show={detailModalOpen}
+          event={selectedEvent}
+          onClose={() => detailModalOpen = false}
+          extraActions={modalActions}
+        />
+
+        {#snippet modalActions()}
+          {#if selectedEvent?.type === 'absence' && isManager && selectedEvent.status === 'PENDING'}
+            <ActionButton 
+              variant="primary" 
+              onClick={() => {
+                selectedAbsenceForDecision = selectedEvent.originalData;
+                decisionStatus = 'APPROVED';
+                decisionNote = '';
+                decisionModalOpen = true;
+                detailModalOpen = false;
+              }} 
+              label="Prendre une décision" 
+              icon="check-circle"
+            />
+          {/if}
+        {/snippet}
       </main>
-    </div> <!-- Closes Div (flex-row) -->
-  </div> <!-- Closes Div (content wrapper) -->
-{/if} <!-- Closes If (loading) -->
+    </div>
+  {/if}
+</ModulePage>
 
   <!-- Decision Modal (kept for complexity) -->
   {#if decisionModalOpen}
-    <div class="fixed inset-0 z-[110] flex items-center justify-center p-4">
+    <div class="fixed inset-0 z-110 flex items-center justify-center p-4">
       <div 
         class="absolute inset-0 bg-black/60 backdrop-blur-sm" 
         onclick={() => decisionModalOpen = false}
@@ -523,7 +510,6 @@
       </div>
     </div>
   {/if}
-</div> <!-- Closes Div 1 -->
 
 <style>
   .custom-scrollbar::-webkit-scrollbar {
