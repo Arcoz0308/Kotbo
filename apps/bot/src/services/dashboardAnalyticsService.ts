@@ -287,8 +287,109 @@ export const getDashboardAnalytics = async (guildId: string, options: { days?: n
       kicks: sanctions.filter(s => s.type === 'KICK').length,
       bans: sanctions.filter(s => s.type === 'BAN' || s.type === 'TEMP_BAN').length,
       timeouts: sanctions.filter(s => s.type === 'TIMEOUT').length,
-    }
+    },
+    commandUsage: await getCommandUsageAnalytics(guildId, { startDate: startISO, endDate: endISO }),
+    staffPerformance: await getStaffPerformanceAnalytics(guildId, { startDate: startISO, endDate: endISO }),
+    channelCategoryActivity: await getChannelCategoryActivity(guildId, { startDate: finalStartKey, endDate: finalEndKey })
   };
+};
+
+/**
+ * Get command usage analytics
+ */
+export const getCommandUsageAnalytics = async (guildId: string, options: { startDate?: string, endDate?: string } = {}) => {
+  const usages = await prisma.dashboardCommandUsage.findMany({
+    where: {
+      guildId,
+      lastUsedAt: {
+        gte: options.startDate,
+        lte: options.endDate
+      }
+    },
+    orderBy: { count: 'desc' }
+  });
+
+  // Aggregate by command name
+  const totals: Record<string, number> = {};
+  usages.forEach(u => {
+    totals[u.commandName] = (totals[u.commandName] || 0) + u.count;
+  });
+
+  return Object.entries(totals)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count);
+};
+
+/**
+ * Get detailed staff performance metrics
+ */
+export const getStaffPerformanceAnalytics = async (guildId: string, options: { startDate?: string, endDate?: string } = {}) => {
+  const staffMembers = await prisma.staffMember.findMany({
+    where: { guildId }
+  });
+
+  const sanctions = await prisma.sanction.findMany({
+    where: {
+      guildId,
+      createdAt: {
+        gte: options.startDate,
+        lte: options.endDate
+      }
+    }
+  });
+
+  const reports = await prisma.sanctionReport.findMany({
+    where: {
+      guildId,
+      createdAt: {
+        gte: options.startDate,
+        lte: options.endDate
+      }
+    }
+  });
+
+  const performance = staffMembers.map(staff => {
+    const staffSanctions = sanctions.filter(s => s.moderatorUserId === staff.userId);
+    const staffReports = reports.filter(r => r.createdByUserId === staff.userId);
+    
+    return {
+      userId: staff.userId,
+      username: staff.username,
+      displayName: staff.displayName,
+      avatarUrl: staff.avatarUrl,
+      sanctionsCount: staffSanctions.length,
+      reportsCount: staffReports.length,
+      reportRate: staffSanctions.length > 0 ? Math.round((staffReports.length / staffSanctions.length) * 100) : 0,
+      warns: staffSanctions.filter(s => s.type === 'WARN').length,
+      bans: staffSanctions.filter(s => s.type === 'BAN' || s.type === 'TEMP_BAN').length
+    };
+  }).sort((a, b) => (b.sanctionsCount + b.reportsCount) - (a.sanctionsCount + a.reportsCount));
+
+  return performance;
+};
+
+/**
+ * Get activity grouped by channel categories
+ */
+export const getChannelCategoryActivity = async (guildId: string, options: { startDate?: string, endDate?: string } = {}) => {
+  const channelStats = await prisma.channelDailyStat.findMany({
+    where: {
+      guildId,
+      dateKey: {
+        gte: options.startDate,
+        lte: options.endDate
+      }
+    }
+  });
+
+  // This would ideally require category information from Discord or a mapping
+  // For now, we aggregate by channel and the caller can enrich with categories if they have the guild object
+  const channelTotals: Record<string, number> = {};
+  channelStats.forEach(s => {
+    channelTotals[s.channelId] = (channelTotals[s.channelId] || 0) + s.messagesCount;
+  });
+
+  return Object.entries(channelTotals).map(([channelId, messages]) => ({ channelId, messages }));
 };
 
 /**

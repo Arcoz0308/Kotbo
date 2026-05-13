@@ -19,6 +19,7 @@ class DashboardStore {
       canModerateDailyAlgo: false,
       canManageSettings: false
     },
+    featureAccess: {},
     modules: [],
     notifications: {
       discordChannel: '#alertes-redaction',
@@ -100,6 +101,7 @@ class DashboardStore {
           canModerateDailyAlgo: false,
           canManageSettings: false
         };
+        this.state.featureAccess = data.featureAccess || {};
         this.state.modules = data.modules;
         this.state.notifications = data.notifications;
         this.state.auditTrail = this.mergeAuditTrail(this.state.auditTrail, data.auditTrail);

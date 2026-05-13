@@ -11,6 +11,10 @@
 
   const saveAction = createAsyncActionState();
   let loading = $state(false);
+  const canManageSettings = $derived(
+    !!dashboardStore.state.featureAccess?.settings?.canConfigure
+      || !!dashboardStore.state.access?.canManageSettings
+  );
 
   const availableChannels = $derived(dashboardStore.state.discordChannels || []);
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
@@ -60,6 +64,10 @@
   });
 
   async function handleSave() {
+    if (!canManageSettings) {
+      saveAction.setError('Accès refusé: permissions insuffisantes.');
+      return;
+    }
     await saveAction.run(async () => {
       const ok = await updateGlobalSettings(guildSettings);
       if (!ok) throw new Error('Erreur API');
@@ -107,7 +115,7 @@
     </div>
     <button 
       onclick={handleSave}
-      disabled={saveAction.loading || loading}
+      disabled={saveAction.loading || loading || !canManageSettings}
       class="px-8 py-3 bg-primary text-on-primary font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-primary/20 hover:scale-105 transition-all disabled:opacity-50"
     >
       Enregistrer les modifications

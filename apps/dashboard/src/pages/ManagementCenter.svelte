@@ -12,9 +12,7 @@
     updateRoleAccess,
     updateNotificationTargets,
     updateGlobalSettings,
-    fetchStaffRoles,
   } from '../lib/api';
-  import type { StaffRole } from '../lib/types';
 
   import ManagementOverview from '../lib/components/management/ManagementOverview.svelte';
   import ManagementFeatures from '../lib/components/management/ManagementFeatures.svelte';
@@ -23,7 +21,10 @@
   import ManagementNotifications from '../lib/components/management/ManagementNotifications.svelte';
   import ManagementAudit from '../lib/components/management/ManagementAudit.svelte';
 
-  const canManageSettings = $derived(!!dashboardStore.state.access?.canManageSettings);
+  const canManageSettings = $derived(
+    !!dashboardStore.state.featureAccess?.centralized_config?.canConfigure
+      || !!dashboardStore.state.access?.canManageSettings
+  );
   const availableChannels = $derived(dashboardStore.state.discordChannels || []);
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
   const auditLogs = $derived(dashboardStore.state.auditTrail || []);
@@ -55,11 +56,12 @@
     loggingEnabled: boolean;
     userActivityTracking: boolean;
     roleAccess: any[];
+    roleAccessByRole: any[];
     notificationTargets: any[];
   };
 
   let features = $state<FeatureConfig[]>([]);
-  let staffRoles = $state<StaffRole[]>([]);
+  let availableRoles = $state<Array<{ id: string; name: string; position?: number }>>([]);
 
   let guildSettings = $state({
     configChannelId: '',
@@ -84,17 +86,18 @@
     if (!canManageSettings) return;
     loading = true;
     try {
-      const [featureResult, rolesResult] = await Promise.all([
+      const [featureResult] = await Promise.all([
         fetchFeatureConfigurations(),
-        fetchStaffRoles().catch(() => ({ roles: [] })),
       ]);
 
       if (featureResult?.features) {
         features = featureResult.features;
       }
-      if (rolesResult?.roles) {
-        staffRoles = rolesResult.roles;
-      }
+      availableRoles = (dashboardStore.state.discordRoles || []).map((role) => ({
+        id: role.id,
+        name: role.name,
+        position: role.position,
+      }));
 
       const s = dashboardStore.state as any;
       guildSettings = {
@@ -158,12 +161,12 @@
     );
   }
 
-  async function handleUpdateRoleAccess(featureId: string, roleAccess: any[]) {
+  async function handleUpdateRoleAccess(featureKey: string, roleAccess: any[]) {
     await saveAction.run(
       async () => {
-        const result = await updateRoleAccess(featureId, roleAccess);
+        const result = await updateRoleAccess(featureKey, roleAccess);
         if (!result) throw new Error('Erreur API');
-        const idx = features.findIndex(f => f.id === featureId);
+        const idx = features.findIndex(f => f.featureKey === featureKey);
         if (idx !== -1) features[idx] = result.config;
         return true;
       },
@@ -181,6 +184,25 @@
         return true;
       },
       { successMessage: 'Cibles notifiées.' }
+    );
+  }
+
+  async function handleApplyPreset(presetKey: string) {
+    if (!confirm(`Voulez-vous réinitialiser les accès avec le preset "${presetKey}" ? Cela écrasera les réglages actuels.`)) return;
+    
+    await saveAction.run(
+      async () => {
+        const ok = await applyGuildPreset(presetKey);
+        if (!ok) throw new Error('Erreur API');
+        
+        // Refresh local data
+        const featureResult = await fetchFeatureConfigurations();
+        if (featureResult?.features) {
+          features = featureResult.features;
+        }
+        return true;
+      },
+      { successMessage: `Preset ${presetKey} appliqué avec succès.` }
     );
   }
 </script>
@@ -275,8 +297,9 @@
           {:else if activeCategory === 'access'}
             <ManagementAccess 
               {features} 
-              {staffRoles}
+              {availableRoles}
               onUpdateAccess={handleUpdateRoleAccess}
+              onApplyPreset={handleApplyPreset}
             />
           {:else if activeCategory === 'notifications'}
             <ManagementNotifications 

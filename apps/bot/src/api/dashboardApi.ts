@@ -7,6 +7,7 @@ import {
   EmbedBuilder,
   GuildScheduledEventEntityType,
   GuildScheduledEventPrivacyLevel,
+  PermissionFlagsBits,
   type Client,
   type TextChannel,
 } from 'discord.js';
@@ -103,6 +104,8 @@ const DISCORD_CLIENT_OWNER_ID = process.env.DISCORD_CLIENT_OWNER_ID;
 
 type ModuleStatus = 'active' | 'inactive' | 'error';
 type SeverityLevel = 'off' | 'info' | 'attention' | 'critique';
+type DashboardPresetKey = 'general' | 'gaming' | 'dev';
+type CommandAccessLevel = 'tout_le_monde' | 'modération' | 'administration';
 
 type ModuleItem = {
   id: string;
@@ -113,6 +116,7 @@ type ModuleItem = {
   interactions: number;
   lastSync: string;
   errorMessage?: string;
+  isFixed?: boolean;
 };
 
 type NotificationSettings = {
@@ -136,6 +140,75 @@ type AuditEntry = {
   details: string;
   dateIso: string;
   channelId: string | null;
+};
+
+const PRESET_LABELS: Record<DashboardPresetKey, string> = {
+  general: 'Communauté générale',
+  gaming: 'Gaming/Esport',
+  dev: 'Dev/Tech',
+};
+
+const PRESET_COMMAND_OVERRIDES: Record<DashboardPresetKey, Partial<Record<string, CommandAccessLevel>>> = {
+  general: {},
+  gaming: {},
+  dev: { dailyAlgo: 'tout_le_monde' },
+};
+
+const buildModuleUpdatesForPreset = (presetKey: DashboardPresetKey) => {
+  if (presetKey === 'dev') {
+    return {
+      codePoliceEnabled: true,
+      dailyAlgoEnabled: true,
+      translationEnabled: false,
+    };
+  }
+
+  return {
+    codePoliceEnabled: false,
+    dailyAlgoEnabled: false,
+    translationEnabled: true,
+  };
+};
+
+const buildCommandRestrictionsForPreset = (
+  presetKey: DashboardPresetKey,
+  options: {
+    moderatorRoleId?: string | null;
+    adminRoleIds: string[];
+    fallbackUserId: string;
+    modRoleIds: string[];
+  },
+): CommandRestrictionRule[] => {
+  const accessByCommand: Record<string, CommandAccessLevel> = {};
+  for (const command of COMMAND_CATALOG) {
+    accessByCommand[command.name] = command.defaultAccess;
+  }
+
+  const overrides = PRESET_COMMAND_OVERRIDES[presetKey] ?? {};
+  for (const [commandName, access] of Object.entries(overrides)) {
+    if (access) {
+      accessByCommand[commandName] = access;
+    }
+  }
+
+  return Object.entries(accessByCommand)
+    .filter(([, access]) => access !== 'tout_le_monde')
+    .map(([commandName, access]) => {
+      const allowedRoleIds = access === 'administration'
+        ? options.adminRoleIds
+        : (options.moderatorRoleId ? [options.moderatorRoleId] : options.modRoleIds);
+      const allowedUserIds = allowedRoleIds.length > 0 ? [] : [options.fallbackUserId];
+
+      return {
+        commandName,
+        allowedChannelIds: [],
+        blockedChannelIds: [],
+        allowedRoleIds,
+        blockedRoleIds: [],
+        allowedUserIds,
+        blockedUserIds: [],
+      };
+    });
 };
 
 type DashboardSanctionType = 'WARN' | 'KICK' | 'TIMEOUT' | 'TEMP_BAN' | 'BAN';
@@ -203,6 +276,7 @@ type DashboardRole = {
   name: string;
   mention: string;
   permissions: string[];
+  position?: number;
 };
 
 type MemberCaseQuickAction = 'WARN' | 'KICK' | 'TIMEOUT' | 'BAN';
@@ -333,6 +407,15 @@ type DashboardAccess = {
   canManageTutoring: boolean;
 };
 
+type FeatureAccess = {
+  canView: boolean;
+  canModerate: boolean;
+  canConfigure: boolean;
+  canDelete: boolean;
+};
+
+type FeatureAccessMap = Record<string, FeatureAccess>;
+
 function resolveDailyAlgoFinalScore(submission: {
   scoreFinal: number | null;
   scoreCorrectness: number | null;
@@ -383,6 +466,7 @@ type DashboardState = {
     canModerateDailyAlgo: boolean;
     canManageSettings: boolean;
   };
+  featureAccess: FeatureAccessMap;
   notifications: NotificationSettings;
   auditTrail: AuditEntry[];
   sanctions: SanctionItem[];
@@ -407,6 +491,16 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
   codepolice: 'Vérification de la syntaxe et bonnes pratiques sur les snippets.',
   dailyalgo: "Génération quotidienne d'un défi d'algorithmique.",
   traduction: 'Traduction instantanée vers la langue configurée.',
+  regulation: 'Configuration et publication du règlement du serveur.',
+  staff_management: 'Gestion complète du personnel, recrutements et absences.',
+  sanctions: 'Historique et gestion des sanctions (warns, mutes, bans).',
+  members: 'Gestion avancée des membres et détection de doubles comptes.',
+  logs: 'Journaux d\'événements Discord (messages, salons, membres).',
+  activity: 'Suivi détaillé de l\'activité utilisateur sur le dashboard.',
+  analytics: 'Statistiques de croissance et d\'engagement du serveur.',
+  profile: 'Gestion du profil utilisateur et paramètres personnels.',
+  youtube: 'Intégration YouTube pour les notifications de nouvelles vidéos.',
+  digest: 'Génération de résumés automatiques et flux RSS.',
 };
 
 const DEFAULT_SEVERITY_BY_MODULE: Array<{ module: string; level: SeverityLevel }> = [
@@ -1415,6 +1509,96 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
 
 const getGuildName = (client: Client, guildId: string) => client.guilds.cache.get(guildId)?.name ?? `Serveur ${guildId}`;
 
+async function resolveFeatureAccessMap(
+  client: Client,
+  guildId: string,
+  access: DashboardAccess,
+  userId: string | null,
+  roleIds: string[],
+): Promise<FeatureAccessMap> {
+  const { getOrCreateFeatureConfigs } = await import('../services/dashboardManagementService.js');
+  const featureConfigs = await getOrCreateFeatureConfigs(guildId);
+  const isGlobalAdmin = userId ? await resolveAdminAccess(client, userId) : false;
+  const hasRoleAccessOverrides = featureConfigs.some((feature) => (feature.roleAccessByRole?.length ?? 0) > 0);
+
+  const moderationFeatureKeys = new Set([
+    'content',
+    'members',
+    'sanctions',
+    'double_accounts',
+    'logs',
+    'activity',
+  ]);
+  const staffFeatureKeys = new Set([
+    'recruitment',
+    'staff_directory',
+    'staff_roles',
+    'tutoring',
+    'meetings',
+    'absences',
+    'polls',
+    'discipline',
+  ]);
+
+  const featureAccess: FeatureAccessMap = {};
+  for (const feature of featureConfigs) {
+    if (isGlobalAdmin || access.level === 'admin') {
+      featureAccess[feature.featureKey] = {
+        canView: true,
+        canModerate: true,
+        canConfigure: true,
+        canDelete: true,
+      };
+      continue;
+    }
+
+    if (!hasRoleAccessOverrides) {
+      const isDailyAlgo = feature.featureKey === 'daily_algo';
+      const isModeration = moderationFeatureKeys.has(feature.featureKey);
+      const isStaff = staffFeatureKeys.has(feature.featureKey);
+
+      featureAccess[feature.featureKey] = {
+        canView: access.canViewDashboard,
+        canModerate: isDailyAlgo
+          ? access.canModerateDailyAlgo
+          : isModeration || isStaff
+            ? access.canModerateContent
+            : false,
+        canConfigure: access.canManageSettings,
+        canDelete: access.canManageSettings,
+      };
+      continue;
+    }
+
+    const permissions = feature.roleAccessByRole?.filter((entry) => roleIds.includes(entry.roleId)) ?? [];
+    if (permissions.length === 0) {
+      featureAccess[feature.featureKey] = {
+        canView: false,
+        canModerate: false,
+        canConfigure: false,
+        canDelete: false,
+      };
+      continue;
+    }
+
+    featureAccess[feature.featureKey] = permissions.reduce<FeatureAccess>((acc, entry) => {
+      return {
+        canView: acc.canView || entry.canView,
+        canModerate: acc.canModerate || entry.canModerate,
+        canConfigure: acc.canConfigure || entry.canConfigure,
+        canDelete: acc.canDelete || entry.canDelete,
+      };
+    }, {
+      canView: false,
+      canModerate: false,
+      canConfigure: false,
+      canDelete: false,
+    });
+  }
+
+  return featureAccess;
+}
+
 const getGuildState = async (client: Client, guildId: string, access: DashboardAccess, userId?: string): Promise<DashboardState | null> => {
   const guild = await prisma.guild.findUnique({ where: { id: guildId } });
   if (!guild) return null;
@@ -1538,12 +1722,105 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
       uptime: guild.translationEnabled ? 97.1 : 100,
       interactions: 0,
       lastSync: guild.updatedAt.toISOString()
+    },
+    {
+      id: 'regulation',
+      name: 'Règlement',
+      description: MODULE_DESCRIPTIONS.regulation,
+      status: 'active',
+      uptime: 100,
+      interactions: 0,
+      lastSync: guild.updatedAt.toISOString()
+    },
+    {
+      id: 'staff_management',
+      name: 'Gestion Staff',
+      description: MODULE_DESCRIPTIONS.staff_management,
+      status: 'active',
+      uptime: 100,
+      interactions: 0,
+      lastSync: guild.updatedAt.toISOString()
+    },
+    {
+      id: 'sanctions',
+      name: 'Gestion Sanctions',
+      description: MODULE_DESCRIPTIONS.sanctions,
+      status: 'active',
+      uptime: 100,
+      interactions: sanctions.length,
+      lastSync: guild.updatedAt.toISOString()
+    },
+    {
+      id: 'members',
+      name: 'Membres & DC',
+      description: MODULE_DESCRIPTIONS.members,
+      status: 'active',
+      uptime: 100,
+      interactions: 0,
+      lastSync: guild.updatedAt.toISOString()
+    },
+    {
+      id: 'logs',
+      name: 'Logs Discord',
+      description: MODULE_DESCRIPTIONS.logs,
+      status: guild.logChannelId ? 'active' : 'inactive',
+      uptime: 100,
+      interactions: 0,
+      lastSync: guild.updatedAt.toISOString()
+    },
+    {
+      id: 'activity',
+      name: 'Journal d\'activité',
+      description: MODULE_DESCRIPTIONS.activity,
+      status: 'active',
+      uptime: 100,
+      interactions: auditTrailFromDb.length,
+      lastSync: guild.updatedAt.toISOString(),
+      isFixed: true,
+    },
+    {
+      id: 'analytics',
+      name: 'Analytics',
+      description: MODULE_DESCRIPTIONS.analytics,
+      status: 'active',
+      uptime: 100,
+      interactions: 0,
+      lastSync: guild.updatedAt.toISOString()
+    },
+    {
+      id: 'profile',
+      name: 'Profil',
+      description: MODULE_DESCRIPTIONS.profile,
+      status: 'active',
+      uptime: 100,
+      interactions: 0,
+      lastSync: guild.updatedAt.toISOString()
+    },
+    {
+      id: 'youtube',
+      name: 'YouTube',
+      description: MODULE_DESCRIPTIONS.youtube,
+      status: guild.youtubeEnabled ? 'active' : 'inactive',
+      uptime: 100,
+      interactions: 0,
+      lastSync: guild.updatedAt.toISOString()
+    },
+    {
+      id: 'digest',
+      name: 'Digest',
+      description: MODULE_DESCRIPTIONS.digest,
+      status: guild.digestEnabled ? 'active' : 'inactive',
+      uptime: 100,
+      interactions: 0,
+      lastSync: guild.updatedAt.toISOString()
     }
   ];
 
 
   const discordGuild = client.guilds.cache.get(guildId);
   const currentMember = userId && discordGuild ? await discordGuild.members.fetch(userId).catch(() => null) : null;
+  const currentRoleIds = currentMember?.roles.cache.map((role) => role.id) ?? [];
+  const featureAccess = await resolveFeatureAccessMap(client, guildId, access, userId ?? null, currentRoleIds);
   const discordChannels: DashboardChannel[] = discordGuild
     ? discordGuild.channels.cache
         .filter((channel) => channel.type === ChannelType.GuildText || channel.type === ChannelType.GuildAnnouncement)
@@ -1581,7 +1858,7 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
           position: role.position
         }))
         .sort((a, b) => b.position - a.position || a.name.localeCompare(b.name, 'fr'))
-        .map(({ id, name, mention, permissions }) => ({ id, name, mention, permissions }))
+        .map(({ id, name, mention, permissions, position }) => ({ id, name, mention, permissions, position }))
     : [];
 
   return {
@@ -1606,6 +1883,7 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
       canModerateDailyAlgo: access.canModerateDailyAlgo,
       canManageSettings: access.canManageSettings,
     },
+    featureAccess,
     notifications: {
       discordChannel: guild.statusCheckChannelId ? `<#${guild.statusCheckChannelId}>` : '#alertes-redaction',
       email: runtime.email,
@@ -4291,6 +4569,76 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
+          if (parts.length === 5 && parts[4] === 'presets' && req.method === 'POST') {
+            const body = await readJsonBody<{ presetKey?: string }>(req);
+            const presetKey = (body?.presetKey ?? '').trim() as DashboardPresetKey;
+
+            if (!presetKey || !Object.keys(PRESET_LABELS).includes(presetKey)) {
+              json(res, 400, { error: 'Preset invalide.' });
+              return;
+            }
+
+            const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+            if (!discordGuild) {
+              json(res, 404, { error: 'Serveur introuvable.' });
+              return;
+            }
+
+            const member = await discordGuild.members.fetch(user.userId).catch(() => null);
+            const roleIds = member?.roles.cache.map((role) => role.id) ?? [];
+            const featureAccess = await resolveFeatureAccessMap(client, guildId, access, user.userId, roleIds);
+
+            if (!access.canManageSettings && !(featureAccess.modules?.canConfigure && featureAccess.commands?.canConfigure)) {
+              json(res, 403, { error: 'Accès refusé. Permissions insuffisantes.' });
+              return;
+            }
+
+            const guildConfig = await prisma.guild.findUnique({
+              where: { id: guildId },
+              select: { moderatorRoleId: true },
+            });
+
+            const adminRoleIds = discordGuild.roles.cache
+              .filter((role) => role.permissions.has(PermissionFlagsBits.Administrator))
+              .map((role) => role.id);
+            const modRoleIds = discordGuild.roles.cache
+              .filter((role) => role.permissions.has(PermissionFlagsBits.ModerateMembers)
+                || role.permissions.has(PermissionFlagsBits.ManageMessages)
+                || role.permissions.has(PermissionFlagsBits.KickMembers)
+                || role.permissions.has(PermissionFlagsBits.BanMembers))
+              .map((role) => role.id);
+
+            const moduleUpdates = buildModuleUpdatesForPreset(presetKey);
+            const commandRestrictions = buildCommandRestrictionsForPreset(presetKey, {
+              moderatorRoleId: guildConfig?.moderatorRoleId ?? null,
+              adminRoleIds,
+              fallbackUserId: user.userId,
+              modRoleIds,
+            });
+
+            const { applyPresetToFeatureAccess } = await import('../services/dashboardManagementService.js');
+            await applyPresetToFeatureAccess(guildId, presetKey, { adminRoleIds, modRoleIds });
+
+            await prisma.$transaction([
+              prisma.guild.update({ where: { id: guildId }, data: moduleUpdates }),
+              prisma.dashboardSettings.update({ where: { guildId }, data: { commandRestrictions } }),
+            ]);
+
+            await pushAudit(guildId, {
+              user: auditUser,
+              action: 'Application preset',
+              context: getGuildName(client, guildId),
+              module: 'Dashboard',
+              eventType: 'Manuel',
+              details: `Preset appliqué : ${PRESET_LABELS[presetKey]}.`,
+              channelId: null,
+            });
+
+            broadcastDashboardStateChange(guildId, 'preset_applied');
+            json(res, 200, { ok: true });
+            return;
+          }
+
 
 
           if (parts.length === 6 && parts[4] === 'sanctions' && req.method === 'DELETE' && parts[5] !== 'reports') {
@@ -4883,6 +5231,16 @@ export const startDashboardApi = (client: Client) => {
           }
 
           if (parts.length === 5 && parts[4] === 'command-access' && req.method === 'PUT') {
+            const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+            const member = discordGuild ? await discordGuild.members.fetch(user.userId).catch(() => null) : null;
+            const roleIds = member?.roles.cache.map((role) => role.id) ?? [];
+            const featureAccess = await resolveFeatureAccessMap(client, guildId, access, user.userId, roleIds);
+
+            if (!featureAccess.commands?.canConfigure && !access.canManageSettings) {
+              json(res, 403, { error: 'Accès refusé. Permissions insuffisantes.' });
+              return;
+            }
+
             const body = await readJsonBody<{ commandRestrictions?: unknown }>(req);
             if (!body) {
               json(res, 400, { error: 'Payload de restrictions invalide' });
@@ -5365,8 +5723,12 @@ export const startDashboardApi = (client: Client) => {
 
         const guildId = parts[3];
         const access = await resolveDashboardAccess(client, guildId, user.userId);
+        const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+        const member = discordGuild ? await discordGuild.members.fetch(user.userId).catch(() => null) : null;
+        const roleIds = member?.roles.cache.map((role) => role.id) ?? [];
+        const featureAccess = await resolveFeatureAccessMap(client, guildId, access, user.userId, roleIds);
 
-        if (!access.canManageSettings) {
+        if (!access.canManageSettings && !featureAccess.centralized_config?.canConfigure) {
           json(res, 403, { error: 'Accès refusé. Seuls les administrateurs peuvent accéder à la gestion centralisée.' });
           return;
         }
@@ -5395,6 +5757,7 @@ export const startDashboardApi = (client: Client) => {
                 loggingEnabled: feature.loggingEnabled,
                 userActivityTracking: feature.userActivityTracking,
                 roleAccess: feature.roleAccess,
+                roleAccessByRole: feature.roleAccessByRole,
               })),
             });
           } catch (err) {
@@ -5456,7 +5819,7 @@ export const startDashboardApi = (client: Client) => {
           const featureKey = parts[6];
           const body = await readJsonBody<{
             roleAccessConfigs: Array<{
-              staffRoleLevel: number;
+              roleId: string;
               canView?: boolean;
               canModerate?: boolean;
               canConfigure?: boolean;

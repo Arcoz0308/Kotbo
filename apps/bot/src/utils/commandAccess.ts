@@ -6,6 +6,8 @@ export type CommandRestrictionRule = {
   blockedChannelIds: string[];
   allowedRoleIds: string[];
   blockedRoleIds: string[];
+  allowedUserIds: string[];
+  blockedUserIds: string[];
 };
 
 export type CommandCatalogEntry = {
@@ -58,6 +60,8 @@ export const normalizeCommandRestrictions = (value: unknown): CommandRestriction
         blockedChannelIds: normalizeIdList((entry as Record<string, unknown>).blockedChannelIds),
         allowedRoleIds: normalizeIdList((entry as Record<string, unknown>).allowedRoleIds),
         blockedRoleIds: normalizeIdList((entry as Record<string, unknown>).blockedRoleIds),
+        allowedUserIds: normalizeIdList((entry as Record<string, unknown>).allowedUserIds),
+        blockedUserIds: normalizeIdList((entry as Record<string, unknown>).blockedUserIds),
       } satisfies CommandRestrictionRule;
     })
     .filter((entry): entry is CommandRestrictionRule => !!entry);
@@ -73,12 +77,21 @@ export function evaluateCommandRestriction(
   commandName: string,
   channelId: string | null,
   roleIds: string[],
+  userId: string,
   isPrivileged = false,
 ): { allowed: boolean; reason?: string } {
   const rule = rules.find((entry) => entry.commandName === commandName);
   if (!rule) return { allowed: true };
 
   if (isPrivileged) return { allowed: true };
+
+  if (rule.blockedUserIds.includes(userId)) {
+    return { allowed: false, reason: 'Cette commande est bloquée pour ton compte.' };
+  }
+
+  if (rule.allowedUserIds.length > 0 && !rule.allowedUserIds.includes(userId)) {
+    return { allowed: false, reason: 'Cette commande est réservée à certains comptes.' };
+  }
 
   if (channelId) {
     if (rule.blockedChannelIds.includes(channelId)) {

@@ -179,6 +179,15 @@ export async function updateModuleStatus(moduleId, status, guildId = authStore.s
   });
 }
 
+export async function applyGuildPreset(presetKey, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/presets', {
+    method: 'POST',
+    payload: { presetKey },
+    guildId,
+    errorContext: 'API Error (Presets):'
+  });
+}
+
 
 
 export async function translateText(text, targetLang = 'fr') {

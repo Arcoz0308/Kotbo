@@ -45,7 +45,10 @@
   let dragOverRuleId = $state<string | null>(null);
   let reordering = $state(false);
 
-  const canManageSettings = $derived(!!dashboardStore.state.access?.canManageSettings);
+  const canManageSettings = $derived(
+    !!dashboardStore.state.featureAccess?.regulation?.canConfigure
+      || !!dashboardStore.state.access?.canManageSettings
+  );
   const regulationRules = $derived(
     [...(dashboardStore.state.regulationRules || [])]
       .sort((left, right) => left.sortOrder - right.sortOrder || left.title.localeCompare(right.title, 'fr'))

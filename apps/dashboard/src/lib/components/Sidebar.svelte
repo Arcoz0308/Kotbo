@@ -6,49 +6,61 @@
   import { notificationsStore } from '../stores/notifications.svelte';
 
   const dashboardItems = [
-    { name: "Vue d'ensemble", icon: "grid", href: "/" },
-    { name: "Mon Profil", icon: "user", href: "/profile/" + (authStore.user?.id || "") },
-    { name: "Inbox", icon: "inbox", href: "/inbox" },
-    { name: "Analytics", icon: "pie-chart", href: "/analytics" },
+    { name: "Vue d'ensemble", icon: "grid", href: "/", featureKey: "dashboard" },
+    { name: "Mon Profil", icon: "user", href: "/profile/" + (authStore.user?.id || ""), featureKey: "dashboard" },
+    { name: "Inbox", icon: "inbox", href: "/inbox", featureKey: "inbox" },
+    { name: "Analytics", icon: "pie-chart", href: "/analytics", featureKey: "analytics" },
   ];
 
   const moderationItems = [
-
-    { name: "Daily Algo", icon: "code", href: "/module-settings/dailyalgo" },
-    { name: "Membres", icon: "user", href: "/members" },
-    { name: "Sanctions", icon: "alert-triangle", href: "/sanctions" },
-    { name: "Doubles Comptes", icon: "users", href: "/double-accounts" },
-    { name: "Logs Discord", icon: "file-text", href: "/logs" },
-    { name: "Journal d'activité", icon: "history", href: "/activity" },
+    { name: "Daily Algo", icon: "code", href: "/module-settings/dailyalgo", featureKey: "daily_algo" },
+    { name: "Membres", icon: "user", href: "/members", featureKey: "members" },
+    { name: "Sanctions", icon: "alert-triangle", href: "/sanctions", featureKey: "sanctions" },
+    { name: "Doubles Comptes", icon: "users", href: "/double-accounts", featureKey: "double_accounts" },
+    { name: "Logs Discord", icon: "file-text", href: "/logs", featureKey: "logs" },
+    { name: "Journal d'activité", icon: "history", href: "/activity", featureKey: "activity" },
   ];
 
   const managementItems = [
-    { name: "Règlement", icon: "book", href: "/regulation" },
+    { name: "Règlement", icon: "book", href: "/regulation", featureKey: "regulation" },
   ];
 
   const staffManagementItems = [
-    { name: "Recrutement", icon: "user-plus", href: "/recruitment" },
-    { name: "Annuaire Staff", icon: "users", href: "/staff-management?tab=members" },
-    { name: "Hiérarchie & Rôles", icon: "shield", href: "/staff-management?tab=roles" },
-    { name: "Tutorat & Formation", icon: "book-open", href: "/tutoring" },
-    { name: "Réunions", icon: "calendar", href: "/meetings" },
-    { name: "Absences", icon: "sun", href: "/absences" },
-    { name: "Sondages", icon: "bar-chart", href: "/staff-management?tab=polls" },
-    { name: "Discipline", icon: "alert-circle", href: "/staff-management?tab=warnings" },
+    { name: "Recrutement", icon: "user-plus", href: "/recruitment", featureKey: "recruitment" },
+    { name: "Annuaire Staff", icon: "users", href: "/staff-management?tab=members", featureKey: "staff_directory" },
+    { name: "Hiérarchie & Rôles", icon: "shield", href: "/staff-management?tab=roles", featureKey: "staff_roles" },
+    { name: "Tutorat & Formation", icon: "book-open", href: "/tutoring", featureKey: "tutoring" },
+    { name: "Réunions", icon: "calendar", href: "/meetings", featureKey: "meetings" },
+    { name: "Absences", icon: "sun", href: "/absences", featureKey: "absences" },
+    { name: "Sondages", icon: "bar-chart", href: "/staff-management?tab=polls", featureKey: "polls" },
+    { name: "Discipline", icon: "alert-circle", href: "/staff-management?tab=warnings", featureKey: "discipline" },
   ];
 
   const configItems = [
-    { name: "Modules", icon: "package", href: "/modules" },
-    { name: "Commandes", icon: "terminal", href: "/command-access" },
-    { name: "Paramètres", icon: "settings", href: "/settings" },
+    { name: "Modules", icon: "package", href: "/modules", featureKey: "modules" },
+    { name: "Commandes", icon: "terminal", href: "/command-access", featureKey: "commands" },
+    { name: "Paramètres", icon: "settings", href: "/settings", featureKey: "settings" },
   ];
 
   const adminItems = [
     { name: "Global Admin", icon: "lock", href: "/admin" },
   ];
 
+  const featureAccess = $derived(dashboardStore.state.featureAccess || {});
+  const fallbackCanView = $derived(
+    authStore.guilds.find((guild) => guild.id === authStore.selectedGuildId)?.accessLevel !== 'none'
+  );
+
+  const canViewFeature = (featureKey: string) => {
+    if (!featureKey) return true;
+    const feature = featureAccess?.[featureKey];
+    if (feature?.canView !== undefined) return feature.canView;
+    return fallbackCanView;
+  };
+
   const canManageSettings = $derived(
-    authStore.guilds.find((guild) => guild.id === authStore.selectedGuildId)?.accessLevel !== 'moderator'
+    !!featureAccess?.settings?.canConfigure
+      || authStore.guilds.find((guild) => guild.id === authStore.selectedGuildId)?.accessLevel !== 'moderator'
   );
 
   const isAdmin = $derived(
@@ -63,9 +75,11 @@
   );
 
   // Modérateurs ne voient pas Modules, Règlement, Commandes, Paramètres
-  const visibleModerationItems = $derived(moderationItems.filter(() => isStaff || isModerator || isAdmin));
+  const visibleModerationItems = $derived(
+    moderationItems.filter((item) => (isStaff || isModerator || isAdmin) && canViewFeature(item.featureKey))
+  );
   const visibleManagementItems = $derived(
-    canManageSettings ? managementItems : []
+    managementItems.filter((item) => canViewFeature(item.featureKey))
   );
   const visibleStaffItems = $derived.by(() => {
     if (isAdmin) return staffManagementItems;
@@ -73,10 +87,10 @@
       if (item.href === '/tutoring') return isTutor || isApprentice || isModerator;
       if (['/absences', '/meetings'].includes(item.href)) return isStaff || isModerator;
       return false;
-    });
+    }).filter((item) => canViewFeature(item.featureKey));
   });
   const visibleConfigItems = $derived(
-    canManageSettings ? configItems : []
+    configItems.filter((item) => canViewFeature(item.featureKey))
   );
 
   function isActiveNavItem(href: string) {

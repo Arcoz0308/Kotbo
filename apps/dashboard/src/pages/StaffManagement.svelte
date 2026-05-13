@@ -943,7 +943,7 @@ import Chart from '../lib/components/charts/Chart.svelte';
           </p>
         </div>
         <div>
-          <button onclick={() => showConfigMenu = true} class="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-outline-variant/20 bg-surface text-on-surface transition-all hover:border-primary/50 hover:bg-primary/5 hover:text-primary active:scale-95 shadow-sm" title="Configuration Modération & Rapports">
+          <button onclick={() => showConfigMenu = true} class="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-outline-variant/20 bg-surface text-on-surface transition-all hover:border-primary/50 hover:bg-primary/5 hover:text-primary active:scale-95 shadow-sm" title="Configuration Automatisation & Sanctions">
             <Papicon icon="settings" size={26} />
           </button>
         </div>
@@ -1936,7 +1936,7 @@ import Chart from '../lib/components/charts/Chart.svelte';
     <div class="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[3rem] border border-outline-variant/30 bg-surface shadow-2xl">
       <div class="sticky top-0 z-10 flex items-center justify-between border-b border-outline-variant/20 bg-surface/80 p-6 backdrop-blur-xl md:px-8">
         <div>
-          <h3 class="text-2xl font-black tracking-tighter text-on-surface">Automatisation & Rapports</h3>
+          <h3 class="text-2xl font-black tracking-tighter text-on-surface">Automatisation & Sanctions</h3>
           <p class="text-sm font-medium text-on-surface-variant/75 mt-1">Configurez les comportements automatiques lors de l'atteinte de seuils critiques.</p>
         </div>
         <div class="flex items-center gap-4">

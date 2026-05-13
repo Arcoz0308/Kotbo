@@ -45,11 +45,22 @@
     status: 'inactive' 
   });
   const moduleMeta = $derived(getModuleMeta(moduleId));
-  const canManageSettings = $derived(!!dashboardStore.state.access?.canManageSettings);
-  const canModerateContent = $derived(!!dashboardStore.state.access?.canModerateContent);
-  const canModerateDailyAlgo = $derived(
-    dashboardStore.state.access?.canModerateDailyAlgo ?? canModerateContent,
+  const canManageSettings = $derived(
+    !!dashboardStore.state.featureAccess?.modules?.canConfigure
+      || !!dashboardStore.state.access?.canManageSettings
   );
+  const canModerateContent = $derived(
+    !!dashboardStore.state.featureAccess?.content?.canModerate
+      || !!dashboardStore.state.access?.canModerateContent
+  );
+  const canModerateDailyAlgo = $derived(() => {
+    if (moduleId === 'dailyalgo') {
+      return !!dashboardStore.state.featureAccess?.daily_algo?.canModerate
+        || !!dashboardStore.state.access?.canModerateDailyAlgo
+        || canModerateContent;
+    }
+    return canModerateContent;
+  });
   const supportedDailyAlgoLanguages: IdeLanguage[] = ['javascript', 'typescript', 'python', 'c', 'lua', 'sqlite'];
   const dailyAlgoLanguageSuggestions = ['javascript', 'typescript', 'python', 'c', 'lua', 'sqlite', 'rust', 'go', 'java', 'php', 'ruby', 'c#'];
 

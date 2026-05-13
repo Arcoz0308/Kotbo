@@ -4,6 +4,7 @@
   const Route = RouteLegacy as any;
   import MainLayout from './lib/components/MainLayout.svelte';
   import { authStore } from './lib/stores/auth.svelte';
+  import { dashboardStore } from './lib/stores/dashboard.svelte';
   import { themeStore } from './lib/stores/theme.svelte';
   import { toast } from './lib/stores/toast.svelte';
   import ToastContainer from './lib/components/ToastContainer.svelte';
@@ -35,14 +36,48 @@
 import DoubleAccounts from './pages/DoubleAccounts.svelte';
 import GeneralSettings from './pages/GeneralSettings.svelte';
 
-  const adminOnlyPrefixes = ['/modules', '/module-settings', '/settings', '/notifications', '/automations', '/command-access', '/regulation', '/staff-management'];
-  const moderatorAllowedModuleSettings = new Set(['/module-settings/dailyalgo']);
-
   const isPublicPage = $derived($router.path.startsWith('/profile/'));
 
-  function isAdminOnlyRoute(path: string) {
-    if (moderatorAllowedModuleSettings.has(path)) return false;
-    return adminOnlyPrefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+  const featureAccess = $derived(dashboardStore.state.featureAccess || {});
+  const fallbackCanView = $derived(
+    authStore.guilds.find((guild) => guild.id === authStore.selectedGuildId)?.accessLevel !== 'none'
+  );
+
+  function canViewFeature(featureKey: string) {
+    if (!featureKey) return true;
+    const feature = featureAccess?.[featureKey];
+    if (feature?.canView !== undefined) return feature.canView;
+    return fallbackCanView;
+  }
+
+  function resolveRouteFeatureKey(path: string): string | null {
+    if (path === '/' || path.startsWith('/profile')) return 'dashboard';
+    if (path.startsWith('/analytics')) return 'analytics';
+    if (path.startsWith('/inbox')) return 'inbox';
+    if (path.startsWith('/module-settings/dailyalgo')) return 'daily_algo';
+    if (path.startsWith('/members')) return 'members';
+    if (path.startsWith('/sanctions')) return 'sanctions';
+    if (path.startsWith('/double-accounts')) return 'double_accounts';
+    if (path.startsWith('/logs')) return 'logs';
+    if (path.startsWith('/activity')) return 'activity';
+    if (path.startsWith('/recruitment')) return 'recruitment';
+    if (path.startsWith('/tutoring')) return 'tutoring';
+    if (path.startsWith('/meetings')) return 'meetings';
+    if (path.startsWith('/absences')) return 'absences';
+    if (path.startsWith('/staff-management')) {
+      const tab = new URLSearchParams(window.location.search).get('tab');
+      if (tab === 'roles') return 'staff_roles';
+      if (tab === 'polls') return 'polls';
+      if (tab === 'warnings') return 'discipline';
+      if (tab === 'leadership') return 'staff_directory';
+      return 'staff_directory';
+    }
+    if (path.startsWith('/modules')) return 'modules';
+    if (path.startsWith('/command-access')) return 'commands';
+    if (path.startsWith('/settings')) return 'settings';
+    if (path.startsWith('/regulation')) return 'regulation';
+    if (path.startsWith('/admin')) return 'centralized_config';
+    return null;
   }
 
   function selectedGuildAccessLevel() {
@@ -92,8 +127,11 @@ import GeneralSettings from './pages/GeneralSettings.svelte';
       return;
     }
 
-    if (authStore.isAuthenticated && selectedGuildAccessLevel() === 'moderator' && isAdminOnlyRoute($router.path)) {
-      router.goto('/content');
+    if (authStore.isAuthenticated && !isPublicPage) {
+      const featureKey = resolveRouteFeatureKey($router.path);
+      if (featureKey && !canViewFeature(featureKey)) {
+        router.goto('/');
+      }
     }
   });
 </script>

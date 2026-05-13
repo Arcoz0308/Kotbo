@@ -122,6 +122,7 @@ async function enforceCommandAccess(interaction: ChatInputCommandInteraction): P
     interaction.commandName,
     interaction.channelId,
     roleIds,
+    interaction.user.id,
     isPrivileged,
   );
 
@@ -215,6 +216,31 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
       }
       await cmd.execute(interaction);
+
+      // Track command usage for analytics
+      try {
+        await prisma.dashboardCommandUsage.upsert({
+          where: {
+            guildId_commandName_userId: {
+              guildId: interaction.guildId || 'DM',
+              commandName: interaction.commandName,
+              userId: interaction.user.id
+            }
+          },
+          update: {
+            count: { increment: 1 },
+            lastUsedAt: new Date()
+          },
+          create: {
+            guildId: interaction.guildId || 'DM',
+            commandName: interaction.commandName,
+            userId: interaction.user.id,
+            count: 1
+          }
+        });
+      } catch (e) {
+        logger.error('Analytics', 'Erreur lors du tracking de commande', e);
+      }
     }
 
     else if (interaction.isAutocomplete()) {

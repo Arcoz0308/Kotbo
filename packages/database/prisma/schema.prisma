@@ -1328,6 +1328,7 @@ model DashboardFeatureConfig {
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
   roleAccess DashboardRoleAccess[]
+  roleAccessByRole DashboardFeatureRoleAccess[]
   notificationTargets NotificationTarget[]
 
   createdAt DateTime @default(now())
@@ -1336,6 +1337,29 @@ model DashboardFeatureConfig {
   @@unique([guildId, featureKey])
   @@index([guildId, enabled])
   @@map("dashboard_feature_configs")
+}
+
+model DashboardFeatureRoleAccess {
+  id String @id @default(cuid())
+
+  guildId String
+  featureConfigId String
+  roleId String
+
+  canView Boolean @default(false)
+  canModerate Boolean @default(false)
+  canConfigure Boolean @default(false)
+  canDelete Boolean @default(false)
+  metadata Json?
+
+  featureConfig DashboardFeatureConfig @relation(fields: [featureConfigId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([featureConfigId, roleId])
+  @@index([guildId, featureConfigId])
+  @@map("dashboard_feature_role_accesses")
 }
 
 model DashboardRoleAccess {
@@ -1349,6 +1373,7 @@ model DashboardRoleAccess {
   canModerate Boolean @default(false)
   canConfigure Boolean @default(false)
   canDelete Boolean @default(false)
+  metadata Json?
 
   featureConfig DashboardFeatureConfig @relation(fields: [featureConfigId], references: [id], onDelete: Cascade)
 
@@ -1424,4 +1449,17 @@ model BotGlobalConfig {
   updatedAt DateTime @updatedAt
 
   @@map("bot_global_config")
+}
+
+model DashboardCommandUsage {
+  id String @id @default(cuid())
+  guildId String
+  commandName String
+  userId String?
+  count Int @default(1)
+  lastUsedAt DateTime @default(now())
+
+  @@unique([guildId, commandName, userId])
+  @@index([guildId, commandName])
+  @@map("dashboard_command_usages")
 }

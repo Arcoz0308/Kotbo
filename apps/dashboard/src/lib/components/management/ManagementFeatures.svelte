@@ -92,7 +92,11 @@
                     </td>
                     <td class="px-6 py-5 text-center">
                       <div class="flex justify-center">
-                        <ToggleSwitch checked={features[idx].enabled} onToggle={(v) => { features[idx].enabled = v; features = [...features]; }} />
+                        <ToggleSwitch 
+                          checked={features[idx].enabled || features[idx].isFixed} 
+                          disabled={features[idx].isFixed}
+                          onToggle={(v) => { features[idx].enabled = v; features = [...features]; }} 
+                        />
                       </div>
                     </td>
                     <td class="px-6 py-5 text-center">
