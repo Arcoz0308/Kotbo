@@ -83,8 +83,29 @@
   );
 
   const activeCount = $derived(dashboardStore.state.modules.filter(m => m.status === 'active').length);
-  const errorCount = $derived(dashboardStore.state.modules.filter(m => m.status === 'error').length);
   const inactiveCount = $derived(dashboardStore.state.modules.filter(m => m.status === 'inactive').length);
+  const errorCount = $derived(dashboardStore.state.modules.filter(m => m.status === 'error').length);
+
+  function getModulePage(moduleId: string) {
+    const mapping: Record<string, string> = {
+      'regulation': '/regulation',
+      'staff-management': '/staff-management',
+      'sanctions': '/sanctions',
+      'members-dc': '/members',
+      'logs': '/logs',
+      'activity-log': '/activity',
+      'analytics': '/analytics',
+      'profile': '/profile',
+      'dailyalgo': '/dailyalgo',
+      'recruitment': '/recruitment',
+      'meetings': '/meetings',
+      'absences': '/absences',
+      'inbox': '/inbox',
+      'tutoring': '/tutoring',
+      'double-accounts': '/double-accounts'
+    };
+    return mapping[moduleId] || `/module-settings/${moduleId}`;
+  }
 </script>
 
 <div class="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20 max-w-7xl mx-auto px-4 md:px-8">
@@ -229,7 +250,8 @@
                 </div>
 
                 <a 
-                  href="/module-settings/{module.id}" 
+
+                  href={getModulePage(module.id)} 
                   class="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-primary hover:gap-2.5 transition-all"
                 >
                   Détails <Papicon icon="ArrowRight" size={10} />

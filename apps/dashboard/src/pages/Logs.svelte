@@ -6,8 +6,11 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
   import ColumnSortFilter, { type ColumnFilterOption } from '../lib/components/sanctions/ColumnSortFilter.svelte';
-  import { fetchMemberCase, runMemberCaseAction } from '../lib/api';
+  import { fetchMemberCase, runMemberCaseAction, updateGlobalSettings, updateModuleStatus } from '../lib/api';
   import { authStore } from '../lib/stores/auth.svelte';
+  import FormSelect from '../lib/components/FormSelect.svelte';
+  import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
+  import { createAsyncActionState } from '../lib/asyncAction.svelte';
 
 
   type LogsSortField = 'date' | 'user' | 'module' | 'action' | 'type';
@@ -151,6 +154,30 @@
   let memberActionIsError = $state(false);
   let sortField = $state<LogsSortField>('date');
   let sortDirection = $state<'asc' | 'desc'>('desc');
+
+  const saveAction = createAsyncActionState();
+  const canManageSettings = $derived(
+    !!dashboardStore.state.featureAccess?.settings?.canConfigure
+      || !!dashboardStore.state.access?.canManageSettings
+  );
+
+  let selectedLogChannelId = $state('');
+
+  $effect(() => {
+    selectedLogChannelId = dashboardStore.state.logChannelId || '';
+  });
+
+  async function handleLogChannelChange(event: Event) {
+    const target = event.target as HTMLSelectElement;
+    const channelId = target.value || '';
+    
+    await saveAction.run(async () => {
+      const ok = await updateGlobalSettings({ logChannelId: channelId });
+      if (!ok) throw new Error('Erreur API');
+      await dashboardStore.refresh();
+      return true;
+    }, { successMessage: 'Salon de logs mis à jour.' });
+  }
 
   // Filter to only Discord logs
   const discordLogs = $derived(dashboardStore.state.auditTrail.filter(entry => entry.source === 'discord'));
@@ -494,6 +521,34 @@
     />
   </div>
 </div>
+
+{#if canManageSettings}
+<div class="bg-surface-container-low/30 p-8 rounded-[2.5rem] border border-outline-variant/10 mb-10 space-y-6 animate-in fade-in duration-500">
+  <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+    <div class="flex items-center gap-4">
+      <div class="bg-primary/10 p-3 rounded-2xl text-primary">
+        <Papicon icon="Settings" size={24} />
+      </div>
+      <div>
+        <h3 class="text-sm font-black uppercase tracking-widest text-on-surface">Configuration des Logs</h3>
+        <p class="text-xs text-on-surface-variant/70 mt-1">Définissez le salon Discord où le bot enverra les logs d'activité.</p>
+      </div>
+    </div>
+    <div class="w-full md:w-72">
+      <FormSelect
+        options={dashboardStore.state.discordChannels.map(c => ({ value: c.id, label: `#${c.name}` }))}
+        bind:value={selectedLogChannelId}
+        onchange={handleLogChannelChange}
+        placeholder="Sélectionner un salon"
+      />
+    </div>
+  </div>
+  
+  {#if saveAction.state.message}
+    <p class="text-xs font-bold text-emerald-600 ml-1">{saveAction.state.message}</p>
+  {/if}
+</div>
+{/if}
 
 
 <div class="section-card p-6 mb-8 font-inter">

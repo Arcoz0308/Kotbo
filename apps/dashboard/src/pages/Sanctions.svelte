@@ -11,6 +11,10 @@
   import ColumnSortFilter, { type ColumnFilterOption } from '../lib/components/sanctions/ColumnSortFilter.svelte';
   import { createSanctionReport, deleteSanction, updateSanctionReport, fetchMemberCase, runMemberCaseAction } from '../lib/api';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
+  import { updateGlobalSettings } from '../lib/api';
+  import FormSelect from '../lib/components/FormSelect.svelte';
+  import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
+  import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import {
     buildBrokenRulesPayload,
     buildReportRuleOptions,
@@ -21,6 +25,9 @@
   import { durationLabel, statusLabel, toDateTimeLocal, typeLabel } from '../lib/sanctions/formatters';
   import { filterAndSortSanctions, type SanctionFilters, type SortField, type SortOption } from '../lib/sanctions/filterSort';
 
+
+  let activeTab = $state('sanctions');
+  const saveAction = createAsyncActionState();
 
   let creatingReport = $state(false);
   let reportMessage = $state('');
@@ -99,6 +106,45 @@
       void loadMemberCase(userId);
     }
   }
+
+  const canManageSettings = $derived(
+    !!dashboardStore.state.featureAccess?.settings?.canConfigure
+      || !!dashboardStore.state.access?.canManageSettings
+  );
+
+  let guildSettings = $state({
+    moderatorRoleId: '',
+    propagateSanctions: false,
+    sanctionsEnabled: false
+  });
+
+  $effect(() => {
+    if (dashboardStore.state.moderatorRoleId !== undefined) {
+      guildSettings.moderatorRoleId = dashboardStore.state.moderatorRoleId || '';
+      guildSettings.propagateSanctions = (dashboardStore.state as any).propagateSanctions || false;
+      guildSettings.sanctionsEnabled = (dashboardStore.state.modules.find((m: any) => m.id === 'sanctions')?.status === 'active');
+    }
+  });
+
+  async function handleSaveSettings() {
+    await saveAction.run(async () => {
+      // Sync module status if changed
+      const currentStatus = dashboardStore.state.modules.find((m: any) => m.id === 'sanctions')?.status === 'active';
+      if (guildSettings.sanctionsEnabled !== currentStatus) {
+        await updateModuleStatus('sanctions', guildSettings.sanctionsEnabled ? 'active' : 'inactive');
+      }
+
+      const ok = await updateGlobalSettings({
+        moderatorRoleId: guildSettings.moderatorRoleId,
+        propagateSanctions: guildSettings.propagateSanctions
+      });
+      if (!ok) throw new Error('Erreur API');
+      await dashboardStore.refresh();
+      return true;
+    }, { successMessage: 'Paramètres enregistrés.' });
+  }
+
+  const availableRoles = $derived(dashboardStore.state.discordRoles || []);
 
   function closeCaseModal() {
     caseModalOpen = false;
@@ -557,47 +603,74 @@
   featureKey="sanctions"
 >
   {#snippet actions()}
-    <RefreshButton
-      onClick={() => dashboardStore.refresh()}
-      loading={dashboardStore.state.loading}
-      label="Actualiser"
-      className="px-5 py-2.5 font-bold shadow-lg shadow-primary/10"
-      iconClass="text-lg"
-    />
+    <div class="flex items-center gap-3">
+      <RefreshButton
+        onClick={() => dashboardStore.refresh()}
+        loading={dashboardStore.state.loading}
+        label="Actualiser"
+        className="px-5 py-2.5 font-bold shadow-lg shadow-primary/10"
+        iconClass="text-lg"
+      />
+    </div>
   {/snippet}
 
-<section class="section-card-flush font-inter">
-  <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-    <h3 class="text-lg font-black">Liste des sanctions</h3>
-    <div class="flex items-center gap-3">
-      <span class="text-xs font-bold text-on-surface-variant">{filteredAndSortedSanctions.length} / {sanctions.length} entree(s)</span>
-      {#if hasActiveFiltersOrSort}
-        <button
-          onclick={resetFiltersAndSort}
-          class="text-xs font-bold text-primary hover:text-primary/80 transition"
+  <div class="space-y-8">
+    <div class="flex border-b border-outline-variant/10">
+      <button 
+        onclick={() => activeTab = 'sanctions'}
+        class="px-8 py-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative {activeTab === 'sanctions' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
+      >
+        Historique
+        {#if activeTab === 'sanctions'}
+          <div class="absolute bottom-0 left-0 w-full h-1 bg-primary rounded-t-full"></div>
+        {/if}
+      </button>
+      {#if canManageSettings}
+        <button 
+          onclick={() => activeTab = 'settings'}
+          class="px-8 py-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative {activeTab === 'settings' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
         >
-          Réinitialiser filtres et tri
+          Configuration
+          {#if activeTab === 'settings'}
+            <div class="absolute bottom-0 left-0 w-full h-1 bg-primary rounded-t-full"></div>
+          {/if}
         </button>
       {/if}
     </div>
-  </div>
-  <div class="px-6 pb-4">
-    <label class="relative block w-full md:max-w-xl">
-      <Papicon icon="search" size={18} class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-      <FormInput
-        type="search"
-        bind:value={searchQuery}
-        placeholder="Rechercher par type, cible, staff, raison..."
-        className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 py-2.5 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:border-slate-700 dark:bg-slate-800"
-      />
-    </label>
-  </div>
-  {#if deletionMessage}
-    <div class="px-6 pt-4 text-sm font-semibold {deletionMessageIsError ? 'text-red-600' : 'text-emerald-600'}">{deletionMessage}</div>
-  {/if}
-  <div class="overflow-x-auto">
-    <table class="w-full text-left border-collapse">
-      <thead>
+
+    {#if activeTab === 'sanctions'}
+      <section class="section-card-flush font-inter">
+        <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <h3 class="text-lg font-black">Liste des sanctions</h3>
+          <div class="flex items-center gap-3">
+            <span class="text-xs font-bold text-on-surface-variant">{filteredAndSortedSanctions.length} / {sanctions.length} entree(s)</span>
+            {#if hasActiveFiltersOrSort}
+              <button
+                onclick={resetFiltersAndSort}
+                class="text-xs font-bold text-primary hover:text-primary/80 transition"
+              >
+                Réinitialiser filtres et tri
+              </button>
+            {/if}
+          </div>
+        </div>
+        <div class="px-6 pb-4">
+          <label class="relative block w-full md:max-w-xl">
+            <Papicon icon="search" size={18} class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <FormInput
+              type="search"
+              bind:value={searchQuery}
+              placeholder="Rechercher par type, cible, staff, raison..."
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 py-2.5 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/10 dark:border-slate-700 dark:bg-slate-800"
+            />
+          </label>
+        </div>
+        {#if deletionMessage}
+          <div class="px-6 pt-4 text-sm font-semibold {deletionMessageIsError ? 'text-red-600' : 'text-emerald-600'}">{deletionMessage}</div>
+        {/if}
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
         <tr class="bg-slate-50 dark:bg-white/5">
           <th class="px-4 py-4">
             <ColumnSortFilter
@@ -749,6 +822,69 @@
     </table>
   </div>
 </section>
+    {/if}
+    
+    {#if activeTab === 'settings'}
+      <section class="space-y-8 animate-in fade-in duration-500">
+        <div class="premium-card p-10 rounded-[3rem] space-y-8">
+          <div class="flex items-center justify-between gap-6 p-6 rounded-2xl bg-surface-container-low border border-outline-variant/20">
+            <div>
+              <p class="text-sm font-black text-on-surface">Activation du module Sanctions</p>
+              <p class="text-xs text-on-surface-variant/70 mt-1">Si désactivé, les commandes de modération et le suivi des rapports seront indisponibles.</p>
+            </div>
+            <ToggleSwitch
+              checked={guildSettings.sanctionsEnabled}
+              onToggle={() => guildSettings.sanctionsEnabled = !guildSettings.sanctionsEnabled}
+            />
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="space-y-4">
+              <div>
+                <p class="text-sm font-black text-on-surface">Rôle Modérateur</p>
+                <p class="text-xs text-on-surface-variant/70 mt-1">Rôle requis pour utiliser les commandes de modération.</p>
+              </div>
+              <FormSelect
+                options={availableRoles.map(r => ({ value: r.id, label: r.name }))}
+                bind:value={guildSettings.moderatorRoleId}
+                placeholder="Sélectionner un rôle"
+              />
+            </div>
+
+            <div class="space-y-4">
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-sm font-black text-on-surface">Propagation des sanctions</p>
+                  <p class="text-xs text-on-surface-variant/70 mt-1">Appliquer automatiquement les sanctions sur les serveurs liés.</p>
+                </div>
+                <ToggleSwitch
+                  checked={guildSettings.propagateSanctions}
+                  onToggle={() => guildSettings.propagateSanctions = !guildSettings.propagateSanctions}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-6 border-t border-outline-variant/10 flex justify-end">
+            <button
+              onclick={handleSaveSettings}
+              disabled={saveAction.state.loading}
+              class="px-8 py-3 bg-primary text-on-primary rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+            >
+              {saveAction.state.loading ? 'Enregistrement...' : 'Enregistrer les modifications'}
+            </button>
+          </div>
+          
+          {#if saveAction.state.message}
+            <p class="text-xs font-bold text-emerald-600 text-center">{saveAction.state.message}</p>
+          {/if}
+          {#if saveAction.state.error}
+            <p class="text-xs font-bold text-red-600 text-center">{saveAction.state.error}</p>
+          {/if}
+        </div>
+      </section>
+    {/if}
+  </div>
 
 {#if modalOpen && selectedSanction}
   <div 

@@ -21,13 +21,9 @@
 
   let guildSettings = $state({
     configChannelId: '',
-    regulationChannelId: '',
-    logChannelId: '',
     publicChannelId: '',
     digestChannelId: '',
-    meetingAnnouncementChannelId: '',
     meetingVoiceChannelId: '',
-    moderatorRoleId: '',
     baseStaffRoleId: '',
     testStaffRoleId: '',
     translationEnabled: false,
@@ -43,20 +39,15 @@
       const s = dashboardStore.state as any;
       guildSettings = {
         configChannelId: s.configChannelId || '',
-        regulationChannelId: s.regulationChannelId || '',
-        logChannelId: s.logChannelId || '',
         publicChannelId: s.publicChannelId || '',
         digestChannelId: s.digestChannelId || '',
-        meetingAnnouncementChannelId: s.meetingAnnouncementChannelId || '',
         meetingVoiceChannelId: s.meetingVoiceChannelId || '',
-        moderatorRoleId: s.moderatorRoleId || '',
         baseStaffRoleId: s.baseStaffRoleId || '',
         testStaffRoleId: s.testStaffRoleId || '',
         translationEnabled: s.translationEnabled || false,
         codePoliceEnabled: s.codePoliceEnabled || false,
         dailyAlgoEnabled: s.dailyAlgoEnabled || false,
         githubReleasesEnabled: s.githubReleasesEnabled || false,
-        propagateSanctions: s.propagateSanctions || false,
       };
     } finally {
       loading = false;
@@ -77,9 +68,6 @@
   }
 
   const channelFields = [
-    { key: 'logChannelId', label: 'Salon de Logs', desc: 'Salon principal pour les logs du bot' },
-    { key: 'regulationChannelId', label: 'Salon Règlement', desc: 'Publication du règlement' },
-    { key: 'meetingAnnouncementChannelId', label: 'Annonces Réunions', desc: 'Annonces des réunions staff' },
     { key: 'meetingVoiceChannelId', label: 'Vocal Réunions', desc: 'Salon vocal par défaut' },
     { key: 'digestChannelId', label: 'Salon Digest', desc: 'Publication du digest de news' },
     { key: 'publicChannelId', label: 'Salon Public', desc: 'Salon public général' },
@@ -87,7 +75,6 @@
   ];
 
   const roleFields = [
-    { key: 'moderatorRoleId', label: 'Rôle Modérateur', desc: 'Rôle de base pour la modération' },
     { key: 'baseStaffRoleId', label: 'Rôle Staff Base', desc: 'Rôle de base du staff' },
     { key: 'testStaffRoleId', label: 'Rôle Staff Test', desc: 'Rôle pour les membres en période d\'essai' },
   ];

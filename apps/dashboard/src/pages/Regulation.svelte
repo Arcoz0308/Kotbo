@@ -13,6 +13,7 @@
     reorderRegulationArticles,
     updateRegulationSettings,
     updateRegulationArticle,
+    updateModuleStatus,
   } from '../lib/api';
 
 
@@ -441,6 +442,29 @@
           label={publishing ? 'Publication en cours...' : dashboardStore.state.regulationMessageId ? 'Actualiser le message' : 'Publier le règlement'}
         />
       </div>
+    </div>
+  </div>
+
+  <div class="bg-surface-container-low/30 p-8 rounded-4xl border border-outline-variant/10 mb-8 flex items-center justify-between gap-6">
+    <div>
+      <h3 class="text-sm font-black uppercase tracking-widest text-on-surface">Activation du module</h3>
+      <p class="text-xs text-on-surface-variant/70 mt-1">Si désactivé, le règlement ne sera plus synchronisé et les fonctionnalités liées seront indisponibles.</p>
+    </div>
+    <div class="scale-110">
+      <ToggleSwitch
+        checked={dashboardStore.state.modules.find(m => m.id === 'regulation')?.status === 'active'}
+        disabled={!canManageSettings || saving}
+        onToggle={async () => {
+          const current = dashboardStore.state.modules.find(m => m.id === 'regulation')?.status === 'active';
+          saving = true;
+          try {
+            await updateModuleStatus('regulation', current ? 'inactive' : 'active');
+            await dashboardStore.refresh();
+          } finally {
+            saving = false;
+          }
+        }}
+      />
     </div>
   </div>
 

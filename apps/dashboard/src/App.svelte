@@ -20,7 +20,6 @@
   import Logs from './pages/Logs.svelte';
   import NotificationsSettings from './pages/NotificationsSettings.svelte';
   import CommandAccess from './pages/CommandAccess.svelte';
-  import ModuleSettings from './pages/ModuleSettings.svelte';
   import Sanctions from './pages/Sanctions.svelte';
   import Regulation from './pages/Regulation.svelte';
   import AdminOverview from './pages/AdminOverview.svelte';
@@ -33,8 +32,9 @@
   import Absences from './pages/Absences.svelte';
   import Inbox from './pages/Inbox.svelte';
   import Tutoring from './pages/Tutoring.svelte';
-import DoubleAccounts from './pages/DoubleAccounts.svelte';
-import GeneralSettings from './pages/GeneralSettings.svelte';
+  import DoubleAccounts from './pages/DoubleAccounts.svelte';
+  import GeneralSettings from './pages/GeneralSettings.svelte';
+  import DailyAlgo from './pages/DailyAlgo.svelte';
 
   const isPublicPage = $derived($router.path.startsWith('/profile/'));
 
@@ -54,7 +54,7 @@ import GeneralSettings from './pages/GeneralSettings.svelte';
     if (path === '/' || path.startsWith('/profile')) return 'dashboard';
     if (path.startsWith('/analytics')) return 'analytics';
     if (path.startsWith('/inbox')) return 'inbox';
-    if (path.startsWith('/module-settings/dailyalgo')) return 'daily_algo';
+    if (path.startsWith('/dailyalgo')) return 'daily_algo';
     if (path.startsWith('/members')) return 'members';
     if (path.startsWith('/sanctions')) return 'sanctions';
     if (path.startsWith('/double-accounts')) return 'double_accounts';
@@ -136,6 +136,17 @@ import GeneralSettings from './pages/GeneralSettings.svelte';
   });
 </script>
 
+{#snippet handleLegacyRedirect(moduleId)}
+  {@const target = {
+    'regulation': '/regulation',
+    'sanctions': '/sanctions',
+    'logs': '/logs',
+    'recruitment': '/recruitment',
+    'meetings': '/meetings',
+    'dailyalgo': '/dailyalgo'
+  }[moduleId] || '/modules'}
+  <div use:() => router.goto(target)}></div>
+{/snippet}
 
 {#if isPublicPage}
   <Route path="/profile/:userId" let:meta>
@@ -183,7 +194,8 @@ import GeneralSettings from './pages/GeneralSettings.svelte';
           <ModuleCatalog />
         </Route>
         <Route path="/module-settings/:moduleId" let:meta>
-          <ModuleSettings moduleId={meta.params.moduleId} />
+          <!-- Simple redirect logic for legacy URLs -->
+          {@render handleLegacyRedirect(meta.params.moduleId)}
         </Route>
         <Route path="/notifications">
           <NotificationsSettings />
@@ -200,11 +212,9 @@ import GeneralSettings from './pages/GeneralSettings.svelte';
         <Route path="/staff-management">
           <StaffManagement />
         </Route>
-      {:else}
-        <Route path="/module-settings/dailyalgo">
-          <ModuleSettings moduleId="dailyalgo" />
-        </Route>
-      {/if}
+      <Route path="/dailyalgo">
+        <DailyAlgo />
+      </Route>
       <Route path="/members/*">
         <Members />
       </Route>

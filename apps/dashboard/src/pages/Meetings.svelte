@@ -2,9 +2,12 @@
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
-  import { fetchMeetings, createMeeting, deleteMeeting, updateMeeting, fetchMemberCase } from '../lib/api';
+  import { fetchMeetings, createMeeting, deleteMeeting, updateMeeting, fetchMemberCase, updateModuleStatus, updateGlobalSettings } from '../lib/api';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import ActionButton from '../lib/components/ActionButton.svelte';
+  import FormSelect from '../lib/components/FormSelect.svelte';
+  import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
+  import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
   import FormTextarea from '../lib/components/FormTextarea.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -40,6 +43,26 @@
   let deleting = $state(false);
 
   const isAdmin = $derived(authStore.guilds.find(g => g.id === authStore.selectedGuildId)?.accessLevel === 'admin');
+  const canManageSettings = $derived(isAdmin || !!dashboardStore.state.access?.canManageSettings);
+
+  const saveAction = createAsyncActionState();
+  let selectedMeetingChannelId = $state('');
+
+  $effect(() => {
+    selectedMeetingChannelId = dashboardStore.state.meetingChannelId || '';
+  });
+
+  async function handleMeetingChannelChange(event: Event) {
+    const target = event.target as HTMLSelectElement;
+    const channelId = target.value || '';
+    
+    await saveAction.run(async () => {
+      const ok = await updateGlobalSettings({ meetingChannelId: channelId });
+      if (!ok) throw new Error('Erreur API');
+      await dashboardStore.refresh();
+      return true;
+    }, { successMessage: 'Salon de réunions mis à jour.' });
+  }
 
   async function loadMeetings() {
     loading = true;
@@ -233,6 +256,45 @@
       <ActionButton onClick={openCreate} variant="primary" icon="plus" label="Nouvelle Réunion" />
     {/if}
   {/snippet}
+
+  {#if canManageSettings}
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10 animate-in fade-in slide-in-from-top-4 duration-500">
+      <div class="bg-surface-container-low/30 p-8 rounded-[2.5rem] border border-outline-variant/10 flex items-center justify-between gap-6">
+        <div>
+          <h3 class="text-sm font-black uppercase tracking-widest text-on-surface">Activation</h3>
+          <p class="text-xs text-on-surface-variant/70 mt-1">Si désactivé, la planification et les RSVP seront indisponibles.</p>
+        </div>
+        <ToggleSwitch
+          checked={dashboardStore.state.modules.find(m => m.id === 'meetings')?.status === 'active'}
+          disabled={saveAction.state.loading}
+          onToggle={async () => {
+            const current = dashboardStore.state.modules.find(m => m.id === 'meetings')?.status === 'active';
+            await saveAction.run(async () => {
+              await updateModuleStatus('meetings', current ? 'inactive' : 'active');
+              await dashboardStore.refresh();
+              return true;
+            });
+          }}
+        />
+      </div>
+
+      <div class="bg-surface-container-low/30 p-8 rounded-[2.5rem] border border-outline-variant/10 space-y-4">
+        <div>
+          <h3 class="text-sm font-black uppercase tracking-widest text-on-surface">Salon d'annonce</h3>
+          <p class="text-xs text-on-surface-variant/70 mt-1">Salon où les réunions seront annoncées avec boutons RSVP.</p>
+        </div>
+        <FormSelect
+          options={dashboardStore.state.discordChannels.map(c => ({ value: c.id, label: `#${c.name}` }))}
+          bind:value={selectedMeetingChannelId}
+          onchange={handleMeetingChannelChange}
+          placeholder="Sélectionner un salon"
+        />
+        {#if saveAction.state.message}
+          <p class="text-[10px] font-bold text-emerald-600 px-1">{saveAction.state.message}</p>
+        {/if}
+      </div>
+    </div>
+  {/if}
 
   <div class="grid grid-cols-1 gap-6">
     {#if loading && meetings.length === 0}

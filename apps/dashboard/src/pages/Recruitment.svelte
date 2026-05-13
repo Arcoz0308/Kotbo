@@ -1,10 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
-  import { API_BASE_URL } from '../lib/api';
+  import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { API_BASE_URL, updateModuleStatus, updateGlobalSettings } from '../lib/api';
   import { themeStore } from '../lib/stores/theme.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
+  import FormSelect from '../lib/components/FormSelect.svelte';
+  import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
+  import { createAsyncActionState } from '../lib/asyncAction.svelte';
 
   let candidatures = $state<any[]>([]);
   let tutors = $state<any[]>([]);
@@ -20,6 +24,12 @@
   let recruitmentCategoryId = $state('');
   let recruitmentLogChannelId = $state('');
   let recruitmentAutoRejectEnabled = $state(true);
+  
+  const saveAction = createAsyncActionState();
+  const canManageSettings = $derived(
+    !!dashboardStore.state.featureAccess?.recruitment?.canConfigure
+      || !!dashboardStore.state.access?.canManageSettings
+  );
   
   // Modals state
   let validateModalTarget = $state<any>(null);
@@ -214,6 +224,15 @@
   {#snippet actions()}
     <div class="flex items-center gap-3">
       <RefreshButton onClick={fetchInitialData} loading={loading} label="Actualiser" />
+      {#if canManageSettings}
+        <button 
+          onclick={() => configVisible = true}
+          class="p-3 rounded-xl bg-surface-container-high hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant/70"
+          title="Paramètres du module"
+        >
+          <Papicon icon="settings" size={20} />
+        </button>
+      {/if}
     </div>
   {/snippet}
 
@@ -430,34 +449,89 @@
 <!-- Config Modal -->
 {#if configVisible}
   <div class="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-    <div class="bg-surface border border-outline-variant/30 rounded-[3rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95 duration-300">
-        <h3 class="text-2xl font-black mb-2">Configuration Recrutement</h3>
-        <p class="text-sm text-on-surface-variant/80 mb-6">Personnalisez les dossiers Discord utilisés par le bot.</p>
+    <div class="bg-surface border border-outline-variant/30 rounded-[3rem] w-full max-w-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 font-inter">
+        <div class="p-8 border-b border-outline-variant/20 flex items-center justify-between bg-primary/5">
+          <div>
+            <h3 class="text-2xl font-black text-on-surface">Configuration Recrutement</h3>
+            <p class="text-on-surface-variant text-sm">Gérez les paramètres de l'équipe et des tickets.</p>
+          </div>
+          <button onclick={() => configVisible = false} class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-hover transition-colors">
+            <Papicon icon="x" size={24} />
+          </button>
+        </div>
         
-        <div class="space-y-4">
-             <div>
-               <label for="recruitment-category-id" class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">ID Catégorie Tickets (Optionnel)</label>
-               <input id="recruitment-category-id" type="text" bind:value={recruitmentCategoryId} class="w-full bg-surface-container rounded-2xl px-5 py-4 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm font-medium" placeholder="Ex: 123456789012345678">
-                <p class="text-[10px] opacity-50 mt-1">L'ID de la catégorie où les tickets d'entretiens oraux seront créés.</p>
-             </div>
-             <div class="rounded-2xl border border-outline-variant/20 bg-surface-container-low/50 p-4 flex items-center justify-between gap-4">
+        <div class="p-8 space-y-8 max-h-[70vh] overflow-y-auto">
+             <div class="bg-surface-container-low/50 p-6 rounded-2xl border border-outline-variant/10 flex items-center justify-between gap-6">
                 <div>
-                  <p class="text-xs font-black uppercase tracking-widest text-primary">Auto-refus</p>
-                  <p class="text-[11px] text-on-surface-variant/70 mt-1">Désactivez pour laisser toutes les candidatures en attente (sans refus automatique).</p>
+                  <p class="text-sm font-black text-on-surface">Activation du module</p>
+                  <p class="text-xs text-on-surface-variant/70 mt-1">Si désactivé, les candidatures et tickets seront gelés.</p>
                 </div>
-                <button
-                  type="button"
-                  onclick={() => recruitmentAutoRejectEnabled = !recruitmentAutoRejectEnabled}
-                  class="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all {recruitmentAutoRejectEnabled ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}"
-                >
-                  {recruitmentAutoRejectEnabled ? 'Activé' : 'Désactivé'}
-                </button>
+                <ToggleSwitch
+                  checked={dashboardStore.state.modules.find(m => m.id === 'recruitment')?.status === 'active'}
+                  onToggle={async () => {
+                    const current = dashboardStore.state.modules.find(m => m.id === 'recruitment')?.status === 'active';
+                    await saveAction.run(async () => {
+                      await updateModuleStatus('recruitment', current ? 'inactive' : 'active');
+                      await dashboardStore.refresh();
+                      return true;
+                    });
+                  }}
+                />
+             </div>
+
+             <div class="space-y-4">
+               <label class="block">
+                 <span class="text-xs font-black uppercase tracking-widest text-on-surface-variant/60 ml-1 mb-2 block">Salon de logs recrutement</span>
+                 <FormSelect
+                    options={dashboardStore.state.discordChannels.map(c => ({ value: c.id, label: `#${c.name}` }))}
+                    bind:value={recruitmentLogChannelId}
+                    placeholder="Sélectionner un salon"
+                 />
+               </label>
+
+               <label class="block">
+                 <span class="text-xs font-black uppercase tracking-widest text-on-surface-variant/60 ml-1 mb-2 block">ID Catégorie Tickets</span>
+                 <FormInput 
+                   type="text" 
+                   bind:value={recruitmentCategoryId} 
+                   placeholder="Ex: 123456789012345678"
+                   className="w-full"
+                 />
+               </label>
+
+               <div class="p-6 bg-surface-container-low/50 rounded-2xl border border-outline-variant/10 flex items-center justify-between gap-6">
+                  <div>
+                    <p class="text-sm font-black text-on-surface">Auto-refus intelligent</p>
+                    <p class="text-xs text-on-surface-variant/70 mt-1">Refuse les candidatures qui ne respectent pas les critères.</p>
+                  </div>
+                  <ToggleSwitch
+                    checked={recruitmentAutoRejectEnabled}
+                    onToggle={() => recruitmentAutoRejectEnabled = !recruitmentAutoRejectEnabled}
+                  />
+               </div>
              </div>
         </div>
         
-        <div class="flex gap-4 mt-8 pt-6 border-t border-outline-variant/20">
-            <button onclick={() => configVisible = false} class="flex-1 py-4 rounded-xl font-bold bg-surface-container hover:bg-surface-container-high transition-colors">Annuler</button>
-            <button onclick={updateConfig} class="flex-1 py-4 rounded-xl font-bold bg-primary text-white hover:scale-105 active:scale-95 transition-transform shadow-lg shadow-primary/30">Sauvegarder</button>
+        <div class="p-8 bg-surface-container-low border-t border-outline-variant/20 flex gap-4">
+            <button onclick={() => configVisible = false} class="flex-1 py-4 rounded-xl font-bold bg-surface hover:bg-surface-hover transition-colors">Annuler</button>
+            <button 
+              onclick={async () => {
+                await saveAction.run(async () => {
+                  await updateGlobalSettings({
+                    recruitmentCategoryId,
+                    recruitmentLogChannelId,
+                    recruitmentAutoRejectEnabled
+                  });
+                  await dashboardStore.refresh();
+                  return true;
+                }, { successMessage: 'Configuration enregistrée.' });
+                configVisible = false;
+              }} 
+              disabled={saveAction.state.loading}
+              class="flex-1 py-4 rounded-xl font-black bg-primary text-on-primary hover:scale-105 active:scale-95 transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
+            >
+              {saveAction.state.loading ? 'Enregistrement...' : 'Enregistrer'}
+            </button>
         </div>
     </div>
 </div>
