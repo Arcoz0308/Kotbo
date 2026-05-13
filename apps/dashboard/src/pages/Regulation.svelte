@@ -317,14 +317,11 @@
 
     publishing = true;
     try {
-      const ok = await publishRegulation();
-      if (!ok) {
-        feedbackMessage = 'Impossible de publier ou mettre à jour le règlement.';
-        feedbackIsError = true;
-        return;
-      }
-
+      await publishRegulation();
       await refreshState(dashboardStore.state.regulationMessageId ? 'Règlement actualisé dans le salon de publication.' : 'Règlement publié dans le salon de publication.');
+    } catch (error) {
+      feedbackMessage = error instanceof Error ? error.message : 'Impossible de publier ou mettre à jour le règlement.';
+      feedbackIsError = true;
     } finally {
       publishing = false;
     }

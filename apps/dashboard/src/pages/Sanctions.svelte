@@ -9,13 +9,15 @@
   import ReportRuleSelector from '../lib/components/sanctions/ReportRuleSelector.svelte';
   import SelectedRuleChips from '../lib/components/sanctions/SelectedRuleChips.svelte';
   import ColumnSortFilter, { type ColumnFilterOption } from '../lib/components/sanctions/ColumnSortFilter.svelte';
-  import { createSanctionReport, deleteSanction } from '../lib/api';
+  import { createSanctionReport, deleteSanction, updateSanctionReport, fetchMemberCase, runMemberCaseAction } from '../lib/api';
+  import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
   import {
     buildBrokenRulesPayload,
     buildReportRuleOptions,
     getRuleIdsFromBrokenRules,
     getRulesFromBrokenRules,
   } from '../lib/sanctions/reportRules';
+  import EvidenceInputList from '../lib/components/sanctions/EvidenceInputList.svelte';
   import { durationLabel, statusLabel, toDateTimeLocal, typeLabel } from '../lib/sanctions/formatters';
   import { filterAndSortSanctions, type SanctionFilters, type SortField, type SortOption } from '../lib/sanctions/filterSort';
 
@@ -52,8 +54,83 @@
   let brokenRules = $state('');
   let selectedRuleIds = $state<string[]>([]);
   let detailedReason = $state('');
-  let evidenceLinksRaw = $state('');
+  let evidenceLinks = $state<string[]>(['']);
   let additionalNotes = $state('');
+
+  let isEditing = $state(false);
+  let updateReportBusy = $state(false);
+
+  // Member Case Modal State
+  let caseModalOpen = $state(false);
+  let selectedCaseUser = $state<{ name: string; id: string | null } | null>(null);
+  let selectedCaseData = $state<any>(null);
+  let selectedCaseLoading = $state(false);
+  let selectedCaseError = $state('');
+  let memberActionReason = $state('Action lancée depuis la page Sanctions.');
+  let memberActionDuration = $state('30m');
+  let memberActionBusy = $state(false);
+  let memberActionFeedback = $state('');
+  let memberActionIsError = $state(false);
+
+  async function loadMemberCase(userId: string) {
+    selectedCaseLoading = true;
+    selectedCaseError = '';
+    try {
+      selectedCaseData = await fetchMemberCase(userId);
+    } catch (error) {
+      selectedCaseError = error instanceof Error ? error.message : 'Impossible de charger le profil membre.';
+      selectedCaseData = null;
+    } finally {
+      selectedCaseLoading = false;
+    }
+  }
+
+  function openCaseModal(userId: string, userName: string) {
+    selectedCaseUser = { name: userName, id: userId };
+    selectedCaseData = null;
+    selectedCaseError = '';
+    memberActionReason = 'Action lancée depuis la page Sanctions.';
+    memberActionDuration = '30m';
+    memberActionFeedback = '';
+    memberActionIsError = false;
+    caseModalOpen = true;
+
+    if (userId) {
+      void loadMemberCase(userId);
+    }
+  }
+
+  function closeCaseModal() {
+    caseModalOpen = false;
+    selectedCaseUser = null;
+    selectedCaseData = null;
+    selectedCaseError = '';
+  }
+
+  async function executeMemberAction(action: 'WARN' | 'KICK' | 'TIMEOUT' | 'BAN') {
+    if (!selectedCaseUser?.id) return;
+
+    memberActionBusy = true;
+    memberActionFeedback = '';
+    memberActionIsError = false;
+
+    try {
+      // Note: simple duration parsing can be improved, but matches existing patterns
+      const durationMs = action === 'TIMEOUT' ? 30 * 60 * 1000 : null; // 30m default for simplicity here
+      
+      await runMemberCaseAction(selectedCaseUser.id, action, { 
+        reason: memberActionReason.trim() || 'Action lancée depuis Sanctions.',
+        durationMs: durationMs ?? undefined 
+      });
+      memberActionFeedback = 'Action appliquée avec succès.';
+      await loadMemberCase(selectedCaseUser.id);
+    } catch (error) {
+      memberActionIsError = true;
+      memberActionFeedback = error instanceof Error ? error.message : 'L’action de modération a échoué.';
+    } finally {
+      memberActionBusy = false;
+    }
+  }
 
   function toggleRuleSelection(ruleId: string, checked: boolean) {
     if (checked) {
@@ -188,6 +265,9 @@
   const canCreateSelectedReport = $derived(
     Boolean(selectedSanction && !selectedReport && selectedSanction.moderatorUserId === authStore.user?.id && reportRuleOptions.length > 0)
   );
+  const canEditSelectedReport = $derived(
+    Boolean(selectedReport && (selectedReport.createdByUserId === authStore.user?.id || authStore.isAdmin))
+  );
 
   type SanctionListItem = {
     id: string;
@@ -246,10 +326,23 @@
     brokenRules = '';
     selectedRuleIds = [];
     detailedReason = sanction.reason;
-    evidenceLinksRaw = '';
+    evidenceLinks = [''];
     additionalNotes = sanction.reason ? `Raison initiale de la sanction: ${sanction.reason}` : '';
     reportMessage = '';
     reportMessageIsError = false;
+    isEditing = false;
+  }
+
+  function startEditing() {
+    if (!selectedReport) return;
+    
+    incidentAt = toDateTimeLocal(selectedReport.incidentAt);
+    sanctionDurationLabel = selectedReport.sanctionDurationLabel || '';
+    selectedRuleIds = getRuleIdsFromBrokenRules(selectedReport.brokenRules);
+    detailedReason = selectedReport.detailedReason;
+    evidenceLinks = selectedReport.evidenceLinks.length > 0 ? [...selectedReport.evidenceLinks] : [''];
+    additionalNotes = selectedReport.additionalNotes || '';
+    isEditing = true;
   }
 
   function openReportModal(sanction: { id: string; createdAt: string; reason: string; durationSeconds: number | null }) {
@@ -261,13 +354,13 @@
 
   function closeModal() {
     modalOpen = false;
+    isEditing = false;
     reportMessage = '';
     reportMessageIsError = false;
   }
 
-  function sanitizeLinks(raw: string): string[] {
-    return raw
-      .split(/\n|,/g)
+  function sanitizeLinks(linksArr: string[]): string[] {
+    return linksArr
       .map((value) => value.trim())
       .filter((value) => /^https?:\/\//i.test(value));
   }
@@ -312,8 +405,8 @@
       return;
     }
 
-    const evidenceLinks = sanitizeLinks(evidenceLinksRaw);
-    if (evidenceLinks.length === 0) {
+    const sanitizedLinks = sanitizeLinks(evidenceLinks);
+    if (sanitizedLinks.length === 0) {
       reportMessage = 'Ajoute au moins un lien de preuve valide (http/https).';
       reportMessageIsError = true;
       return;
@@ -335,7 +428,7 @@
         sanctionDurationLabel: sanctionDurationLabel.trim(),
         brokenRules: brokenRules.trim(),
         detailedReason: detailedReason.trim(),
-        evidenceLinks,
+        evidenceLinks: sanitizedLinks,
         additionalNotes: additionalNotes || null,
       });
 
@@ -351,6 +444,54 @@
       reportMessageIsError = false;
     } finally {
       creatingReport = false;
+    }
+  }
+
+  async function handleUpdateReport() {
+    if (!selectedReport) return;
+    
+    const sanitizedLinks = sanitizeLinks(evidenceLinks);
+    if (sanitizedLinks.length === 0) {
+      reportMessage = 'Ajoute au moins un lien de preuve valide (http/https).';
+      reportMessageIsError = true;
+      return;
+    }
+
+    if (selectedRuleIds.length === 0) {
+      reportMessage = 'Sélectionne au moins une règle enfreinte.';
+      reportMessageIsError = true;
+      return;
+    }
+
+    updateReportBusy = true;
+    reportMessage = '';
+    reportMessageIsError = false;
+
+    try {
+      const ok = await updateSanctionReport(selectedReport.id, {
+        incidentAt: new Date(incidentAt).toISOString(),
+        sanctionDurationLabel: sanctionDurationLabel.trim(),
+        brokenRules: buildBrokenRulesPayload(selectedRuleIds, reportRuleOptions),
+        detailedReason: detailedReason.trim(),
+        evidenceLinks: sanitizedLinks,
+        additionalNotes: additionalNotes || null,
+      });
+
+      if (!ok) {
+        reportMessage = 'Impossible de mettre à jour le rapport.';
+        reportMessageIsError = true;
+        return;
+      }
+
+      await dashboardStore.refresh();
+      isEditing = false;
+      reportMessage = 'Rapport mis à jour avec succès.';
+      reportMessageIsError = false;
+    } catch (e) {
+      reportMessage = 'Une erreur est survenue lors de la mise à jour.';
+      reportMessageIsError = true;
+    } finally {
+      updateReportBusy = false;
     }
   }
 
@@ -543,8 +684,22 @@
             <tr class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
               <td class="px-4 py-4 text-xs font-medium">{new Date(entry.createdAt).toLocaleString('fr-FR')}</td>
               <td class="px-4 py-4 text-xs font-bold text-primary">{typeLabel(entry.type)}</td>
-              <td class="px-4 py-4 text-xs">{entry.targetTag}</td>
-              <td class="px-4 py-4 text-xs">{entry.moderatorTag}</td>
+              <td class="px-4 py-4 text-xs">
+                <button 
+                  onclick={() => openCaseModal(entry.targetUserId, entry.targetTag)}
+                  class="hover:text-primary transition-colors font-bold text-left"
+                >
+                  @{entry.targetTag}
+                </button>
+              </td>
+              <td class="px-4 py-4 text-xs">
+                <button 
+                  onclick={() => openCaseModal(entry.moderatorUserId, entry.moderatorTag)}
+                  class="hover:text-primary transition-colors font-bold text-left"
+                >
+                  @{entry.moderatorTag}
+                </button>
+              </td>
               <td class="px-4 py-4 text-xs">{durationLabel(entry.durationSeconds)}</td>
               <td class="px-4 py-4 text-xs">
                 <span class="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-bold {entry.status === 'ACTIVE' ? 'bg-amber-100 text-amber-700' : entry.status === 'RESOLVED' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}">
@@ -604,150 +759,194 @@
     role="button"
     tabindex="-1"
   >
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div 
-      class="modal-panel modal-panel-lg space-y-5 font-inter" 
+      class="modal-panel modal-panel-lg space-y-0 p-0 font-inter overflow-hidden rounded-[2.5rem]" 
       onclick={(e) => e.stopPropagation()}
-      onkeydown={(e) => e.stopPropagation()}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="modal-title"
-      tabindex="-1"
     >
-      <div class="flex items-start justify-between gap-4">
-        <div>
-          <p class="text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant">Sanction selectionnee</p>
-          <h3 id="modal-title" class="text-xl font-black text-on-surface mt-1">{typeLabel(selectedSanction.type)} - {selectedSanction.targetTag}</h3>
-          <p class="text-xs text-on-surface-variant mt-1">Par {selectedSanction.moderatorTag} le {new Date(selectedSanction.createdAt).toLocaleString('fr-FR')}</p>
+      <!-- Hero Header Style -->
+      <div class="relative bg-linear-to-br from-primary/10 via-surface to-surface p-8 border-b border-outline-variant/5">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Dossier de Sanction</p>
+            <h3 id="modal-title" class="text-2xl font-black text-on-surface mt-1">{typeLabel(selectedSanction.type)}</h3>
+            <p class="text-xs font-bold text-on-surface-variant/60 mt-1">
+              Appliquée à 
+              <button onclick={() => openCaseModal(selectedSanction.targetUserId, selectedSanction.targetTag)} class="text-on-surface hover:text-primary transition-colors font-black">
+                @{selectedSanction.targetTag}
+              </button> 
+              par 
+              <button onclick={() => openCaseModal(selectedSanction.moderatorUserId, selectedSanction.moderatorTag)} class="text-on-surface hover:text-primary transition-colors font-black">
+                @{selectedSanction.moderatorTag}
+              </button>
+            </p>
+          </div>
+          <button
+            onclick={closeModal}
+            class="flex h-10 w-10 items-center justify-center rounded-xl bg-on-surface/5 text-on-surface-variant hover:bg-on-surface/10 hover:text-on-surface transition-all"
+          >
+            <Papicon icon="x" size={20} />
+          </button>
         </div>
-        <ActionButton onClick={closeModal} size="sm" variant="neutral" label="Fermer" />
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-        <div class="rounded-xl bg-slate-50 dark:bg-slate-800/40 p-3">
-          <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Type</p>
-          <p class="mt-1 font-semibold">{typeLabel(selectedSanction.type)}</p>
-        </div>
-        <div class="rounded-xl bg-slate-50 dark:bg-slate-800/40 p-3">
-          <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Membre</p>
-          <p class="mt-1 font-semibold">{selectedSanction.targetTag} ({selectedSanction.targetUserId})</p>
-        </div>
-      </div>
+      <div class="p-8 space-y-8 max-h-[70vh] overflow-y-auto">
+        {#if modalMode === 'view' && selectedReport && !isEditing}
+          <!-- View Mode -->
+          <div class="space-y-8 animate-in fade-in duration-300">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div class="space-y-1.5">
+                <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Date de l'incident</p>
+                <div class="rounded-2xl bg-surface-container-high/40 px-5 py-3 text-sm font-bold text-on-surface">
+                  {new Date(selectedReport.incidentAt).toLocaleString('fr-FR')}
+                </div>
+              </div>
+              <div class="space-y-1.5">
+                <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Durée annoncée</p>
+                <div class="rounded-2xl bg-surface-container-high/40 px-5 py-3 text-sm font-bold text-on-surface">
+                  {selectedReport.sanctionDurationLabel || 'N/A'}
+                </div>
+              </div>
+            </div>
 
-      {#if modalMode === 'view' && selectedReport}
-        <div class="space-y-4">
-          <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-200">
-            Mode lecture seule. Le rapport reprend le même formulaire que la création pour garder la cohérence visuelle.
+            <div class="space-y-3">
+              <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Règles enfreintes</p>
+              <SelectedRuleChips selectedRules={selectedReportRules} />
+            </div>
+
+            <div class="space-y-3">
+              <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Raison détaillée</p>
+              <div class="rounded-3xl bg-surface-container-high/30 p-6 text-sm text-on-surface-variant leading-relaxed italic border border-outline-variant/5">
+                "{selectedReport.detailedReason}"
+              </div>
+            </div>
+
+            {#if selectedReport.evidenceLinks && selectedReport.evidenceLinks.length > 0}
+              <div class="space-y-3">
+                <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Preuves</p>
+                <div class="flex flex-wrap gap-2">
+                  {#each selectedReport.evidenceLinks as link}
+                    <a href={link} target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 rounded-xl bg-primary/5 px-4 py-2.5 text-[11px] font-black text-primary uppercase tracking-widest transition-all hover:bg-primary/10">
+                      <Papicon icon="external-link" size={14} />
+                      Lien de preuve
+                    </a>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+
+            {#if selectedReport.additionalNotes}
+              <div class="space-y-3">
+                <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Notes complémentaires</p>
+                <p class="text-sm text-on-surface-variant/70 leading-relaxed bg-surface-container-low p-4 rounded-2xl border border-outline-variant/10">{selectedReport.additionalNotes}</p>
+              </div>
+            {/if}
+
+            <div class="pt-6 flex flex-col items-center gap-4 border-t border-outline-variant/10">
+              <p class="text-[10px] font-bold text-on-surface-variant/30 text-center">
+                Rapport rédigé par 
+                <button 
+                  onclick={() => openCaseModal(selectedReport.createdByUserId, selectedReport.createdByTag || selectedReport.createdByUserId)}
+                  class="hover:text-primary transition-colors font-bold"
+                >
+                  @{selectedReport.createdByTag || selectedReport.createdByUserId}
+                </button>
+              </p>
+              
+              {#if canEditSelectedReport}
+                <button
+                  onclick={startEditing}
+                  class="inline-flex items-center gap-2 rounded-2xl bg-primary px-8 py-3 text-[11px] font-black text-on-primary uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-primary/20"
+                >
+                  <Papicon icon="edit-3" size={16} />
+                  Modifier le rapport
+                </button>
+              {/if}
+            </div>
           </div>
+        {:else}
+          <!-- Create / Edit Form -->
+          <div class="space-y-8 animate-in fade-in duration-300">
+            {#if !canCreateSelectedReport && !isEditing}
+              <div class="rounded-2xl bg-amber-500/10 border border-amber-500/20 p-4 flex items-center gap-4">
+                <Papicon icon="lock" class="text-amber-500" />
+                <p class="text-xs font-bold text-amber-700">Seule la personne qui a appliqué la sanction peut créer ce rapport.</p>
+              </div>
+            {/if}
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label for="report-incident-at-view" class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Date et heure de l'incident</label>
-              <FormInput id="report-incident-at-view" type="datetime-local" value={toDateTimeLocal(selectedReport.incidentAt)} disabled className="mt-1 w-full rounded-xl px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none text-sm disabled:opacity-100 disabled:text-slate-500" />
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div class="space-y-1.5">
+                <label for="report-incident-at" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Date et heure de l'incident</label>
+                <input id="report-incident-at" type="datetime-local" bind:value={incidentAt} class="w-full rounded-2xl bg-surface-container-high px-5 py-3 text-sm font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all" />
+              </div>
+              <div class="space-y-1.5">
+                <label for="report-duration" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Durée appliquée</label>
+                <input id="report-duration" type="text" bind:value={sanctionDurationLabel} placeholder="Ex: 2h, 1j, Permanent" class="w-full rounded-2xl bg-surface-container-high px-5 py-3 text-sm font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all" />
+              </div>
             </div>
-            <div>
-              <label for="report-duration-view" class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Durée</label>
-              <FormInput id="report-duration-view" type="text" value={selectedReport.sanctionDurationLabel || ''} disabled className="mt-1 w-full rounded-xl px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none text-sm disabled:opacity-100 disabled:text-slate-500" />
-            </div>
-            <div>
-              <label for="report-rules-view" class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Regle(s) enfreinte(s)</label>
-              <ReportRuleSelector
-                id="report-rules-view"
-                options={reportRuleOptions}
-                selectedIds={selectedReportRuleIds}
-                disabled={true}
-                placeholder="Aucune regle selectionnee"
-              />
-            </div>
-          </div>
 
-            <SelectedRuleChips selectedRules={selectedReportRules} />
-
-          <div>
-            <label for="report-reason-view" class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Raison detaillee</label>
-            <FormTextarea id="report-reason-view" value={selectedReport.detailedReason} rows={3} disabled className="mt-1 w-full rounded-xl px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none text-sm disabled:opacity-100 disabled:text-slate-500" />
-          </div>
-
-          <div>
-            <label for="report-evidence-view" class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Lien(s) de preuves</label>
-            <FormTextarea id="report-evidence-view" value={selectedReport.evidenceLinks.join('\n')} rows={3} disabled className="mt-1 w-full rounded-xl px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none text-sm disabled:opacity-100 disabled:text-slate-500" />
-          </div>
-
-          <div>
-            <label for="report-notes-view" class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Notes supplementaires</label>
-            <FormTextarea id="report-notes-view" value={selectedReport.additionalNotes || ''} rows={2} disabled className="mt-1 w-full rounded-xl px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none text-sm disabled:opacity-100 disabled:text-slate-500" placeholder="Aucune note supplementaire" />
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-            <div class="rounded-xl bg-slate-50 dark:bg-slate-800/40 p-3">
-              <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Cree par</p>
-              <p class="mt-1 font-semibold">{selectedReport.createdByTag || selectedReport.createdByUserId}</p>
-            </div>
-            <div class="rounded-xl bg-slate-50 dark:bg-slate-800/40 p-3">
-              <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Duree</p>
-              <p class="mt-1 font-semibold">{selectedReport.sanctionDurationLabel || 'N/A'}</p>
-            </div>
-          </div>
-        </div>
-      {:else}
-        <div class="space-y-4">
-          {#if !canCreateSelectedReport}
-            <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800">
-              Seule la personne qui a applique la sanction peut creer ce rapport.
-            </div>
-          {/if}
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label for="report-incident-at" class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Date et heure de l'incident</label>
-              <FormInput id="report-incident-at" type="datetime-local" bind:value={incidentAt} className="mt-1 w-full rounded-xl px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none text-sm" />
-            </div>
-            <div>
-              <label for="report-duration" class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Durée</label>
-              <FormInput id="report-duration" type="text" bind:value={sanctionDurationLabel} className="mt-1 w-full rounded-xl px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none text-sm" placeholder="Ex: 2h, 1j 4h, 30m" />
-            </div>
-            <div>
-              <label for="report-rules" class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Regle(s) enfreinte(s)</label>
+            <div class="space-y-3">
+              <label for="report-rules" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Règles enfreintes</label>
               <ReportRuleSelector
                 id="report-rules"
                 options={reportRuleOptions}
                 selectedIds={selectedRuleIds}
-                placeholder="Selectionner une ou plusieurs regles"
+                placeholder="Sélectionner les articles du règlement..."
                 onToggle={toggleRuleSelection}
               />
+              <SelectedRuleChips selectedRules={isEditing ? selectedDraftRules : selectedDraftRules} />
+            </div>
+
+            <div class="space-y-1.5">
+              <label for="report-reason" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Raison détaillée</label>
+              <textarea id="report-reason" bind:value={detailedReason} rows={4} placeholder="Décrivez précisément les faits reprochés..." class="w-full rounded-3xl bg-surface-container-high px-5 py-4 text-sm font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"></textarea>
+            </div>
+
+            <div class="space-y-3">
+              <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Preuves (URLs)</label>
+              <EvidenceInputList bind:links={evidenceLinks} />
+            </div>
+
+            <div class="space-y-1.5">
+              <label for="report-notes" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Notes contextuelles</label>
+              <textarea id="report-notes" bind:value={additionalNotes} rows={2} placeholder="Contexte, antécédents, remarques..." class="w-full rounded-2xl bg-surface-container-high px-5 py-3 text-sm font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"></textarea>
+            </div>
+
+            {#if reportMessage}
+              <div class="rounded-xl p-4 text-xs font-black uppercase tracking-widest {reportMessageIsError ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}">
+                {reportMessage}
+              </div>
+            {/if}
+
+            <div class="flex gap-4 pt-4">
+              {#if isEditing}
+                <button
+                  onclick={() => isEditing = false}
+                  class="flex-1 py-4 rounded-2xl bg-on-surface/5 text-[11px] font-black uppercase tracking-widest text-on-surface-variant transition-all hover:bg-on-surface/10"
+                >
+                  Annuler
+                </button>
+                <button
+                  onclick={handleUpdateReport}
+                  disabled={updateReportBusy}
+                  class="flex-[2] py-4 rounded-2xl bg-primary text-on-primary text-[11px] font-black uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-primary/20 disabled:opacity-50"
+                >
+                  {updateReportBusy ? 'Enregistrement...' : 'Mettre à jour le rapport'}
+                </button>
+              {:else}
+                <button
+                  onclick={submitReport}
+                  disabled={creatingReport || !canCreateSelectedReport}
+                  class="w-full py-4 rounded-2xl bg-primary text-on-primary text-[11px] font-black uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-primary/20 disabled:opacity-50"
+                >
+                  {creatingReport ? 'Création en cours...' : 'Finaliser et créer le rapport'}
+                </button>
+              {/if}
             </div>
           </div>
-
-          <SelectedRuleChips selectedRules={selectedDraftRules} />
-
-          <div>
-            <label for="report-reason" class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Raison detaillee</label>
-            <FormTextarea id="report-reason" bind:value={detailedReason} rows={3} className="mt-1 w-full rounded-xl px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none text-sm" placeholder="Explique ce qu'a fait le membre" />
-          </div>
-
-          <div>
-            <label for="report-evidence" class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Lien(s) de preuves (obligatoire)</label>
-            <FormTextarea id="report-evidence" bind:value={evidenceLinksRaw} rows={3} className="mt-1 w-full rounded-xl px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none text-sm" placeholder="Un lien par ligne" />
-          </div>
-
-          <div>
-            <label for="report-notes" class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Notes supplementaires</label>
-            <FormTextarea id="report-notes" bind:value={additionalNotes} rows={2} className="mt-1 w-full rounded-xl px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border-none text-sm" placeholder="Contexte, antecedents..." />
-          </div>
-
-          {#if reportMessage}
-            <p class="text-sm font-semibold {reportMessageIsError ? 'text-red-600' : 'text-emerald-600'}">{reportMessage}</p>
-          {/if}
-
-          <ActionButton
-            onClick={submitReport}
-            disabled={creatingReport || !canCreateSelectedReport}
-            variant="primary"
-            size="lg"
-            fullWidth={true}
-            label={creatingReport ? 'Creation en cours...' : 'Creer le rapport de sanction'}
-          />
-        </div>
-      {/if}
+        {/if}
+      </div>
     </div>
   </div>
 {/if}

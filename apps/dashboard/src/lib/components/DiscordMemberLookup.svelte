@@ -21,6 +21,7 @@
     selectedIdPlaceholder = 'ID Discord (auto-rempli)',
     autoSelectOnExactMatch = true,
     disabled = false,
+    staffOnly = false,
     className = '',
   }: {
     guildId: string | null;
@@ -32,6 +33,7 @@
     selectedIdPlaceholder?: string;
     autoSelectOnExactMatch?: boolean;
     disabled?: boolean;
+    staffOnly?: boolean;
     className?: string;
   } = $props();
 
@@ -104,7 +106,11 @@
     error = '';
 
     try {
-      const searchParams = new URLSearchParams({ q: trimmed, limit: '10' });
+      const searchParams = new URLSearchParams({ 
+        q: trimmed, 
+        limit: '10',
+        staffOnly: staffOnly.toString()
+      });
       const response = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/discord-members?${searchParams.toString()}`, {
         headers: { Authorization: `Bearer ${authStore.token}` },
         signal: abortController.signal,

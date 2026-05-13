@@ -1,7 +1,5 @@
 <script lang="ts">
-  import { authStore } from '../stores/auth.svelte';
   import Papicon from './Papicon.svelte';
-  import ModuleSettingsModal from './management/ModuleSettingsModal.svelte';
 
   let { 
     title = '', 
@@ -12,11 +10,7 @@
     actions
   } = $props();
 
-  let settingsModalOpen = $state(false);
 
-  const canManageSettings = $derived(
-    authStore.guilds.find(g => g.id === authStore.selectedGuildId)?.accessLevel === 'admin'
-  );
 </script>
 
 <div class="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -35,15 +29,6 @@
     </div>
 
     <div class="flex items-center gap-3 relative">
-      {#if canManageSettings && featureKey}
-        <button 
-          onclick={() => settingsModalOpen = true}
-          class="w-12 h-12 rounded-2xl bg-surface-container-high/50 border border-outline-variant/20 flex items-center justify-center text-on-surface-variant hover:bg-primary hover:text-on-primary transition-all duration-300 shadow-sm hover:shadow-primary/20"
-          title="Paramètres du module"
-        >
-          <Papicon icon="Gear" size={20} />
-        </button>
-      {/if}
       {#if actions}
         {@render actions()}
       {/if}
@@ -54,11 +39,4 @@
     {@render children()}
   </main>
 
-  {#if featureKey}
-    <ModuleSettingsModal 
-      show={settingsModalOpen} 
-      onClose={() => settingsModalOpen = false} 
-      {featureKey} 
-    />
-  {/if}
 </div>

@@ -13,7 +13,7 @@ export type BackgroundJobName =
   | 'sanctions'
   | 'staff-warnings-expiration'
   | 'staff-blacklist-expiration'
-  | 'activity-minute-snapshot'
+  | 'activity-10min-snapshot'
   | 'analytics-hourly-snapshot'
   | 'analytics-snapshot'
   | 'missing-reports-check'

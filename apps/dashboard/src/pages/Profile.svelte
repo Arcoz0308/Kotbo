@@ -383,15 +383,26 @@
                 <Chart 
                   data={{
                     labels: analyticsData.dailyTrend.map(d => d.dateKey.slice(5)),
-                    datasets: [{
-                      label: 'Messages',
-                      data: analyticsData.dailyTrend.map(d => d.messages),
-                      borderColor: 'rgb(var(--color-primary))',
-                      backgroundColor: 'rgba(var(--color-primary), 0.1)',
-                      fill: true,
-                      tension: 0.4,
-                      pointRadius: 0
-                    }]
+                    datasets: [
+                      {
+                        label: 'Messages',
+                        data: analyticsData.dailyTrend.map(d => d.messages),
+                        borderColor: 'rgb(var(--color-primary))',
+                        backgroundColor: 'rgba(var(--color-primary), 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0
+                      },
+                      {
+                        label: 'Vocal (min)',
+                        data: analyticsData.dailyTrend.map(d => d.voiceMinutes || 0),
+                        borderColor: 'rgb(var(--color-secondary))',
+                        backgroundColor: 'rgba(var(--color-secondary), 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0
+                      }
+                    ]
                   }} 
                   height={300} 
                 />

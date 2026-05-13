@@ -251,6 +251,7 @@ export const getDashboardAnalytics = async (guildId: string, options: { days?: n
       voiceMinutes: stat.voiceMinutes,
       membersJoined: stat.membersJoined,
       membersLeft: stat.membersLeft,
+      sanctions: stat.sanctionsCount || 0,
       onlineMembers: stat.onlineMembers || 0,
       peakOnline: stat.peakOnline || 0
     })),

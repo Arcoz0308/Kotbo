@@ -7,7 +7,7 @@ export type ValidateRoute = {
 export type UserCaseSection = 'resume' | 'sanctions' | 'identite' | 'activite';
 
 export type UserCaseRoute = {
-  action: 'open' | 'refresh' | 'prev' | 'next' | 'close' | 'section';
+  action: 'open' | 'refresh' | 'prev' | 'next' | 'close' | 'section' | 'note' | 'sanction_action';
   userId: string;
   section?: UserCaseSection;
   pageIndex?: number;
@@ -24,19 +24,39 @@ export function parseValidateRoute(customId: string): ValidateRoute | null {
   const parts = customId.split(':');
   if (parts.length < 4) return null;
 
-  const action = parts[1];
-  const type = parts[2];
+  const action = parts[1] as ValidateRoute['action'];
+  const type = parts[2] as ValidateRoute['type'];
   const itemId = parts[3];
-
-  if (!itemId) return null;
-  if (action !== 'approve' && action !== 'reject' && action !== 'translate' && action !== 'pin' && action !== 'rate') return null;
-  if (type !== 'daily-algo') return null;
 
   return { action, type, itemId };
 }
 
-export function parseNewsSessionId(customId: string, expectedPrefix: string): string | null {
-  if (!customId.startsWith(expectedPrefix)) return null;
+export function parseSessionRoute(customId: string): { type: string; sessionId: string } | null {
+  if (!customId.startsWith('session:')) return null;
+  const parts = customId.split(':');
+  if (parts.length < 3) return null;
+  return { type: parts[1], sessionId: parts[2] };
+}
+
+export function parseMeetingRoute(customId: string): { meetingId: string; status: string } | null {
+  if (!customId.startsWith('meeting:')) return null;
+  const parts = customId.split(':');
+  if (parts.length < 3) return null;
+  return { meetingId: parts[1], status: parts[2] };
+}
+
+export function parseMeetingExcuseModal(customId: string): string | null {
+  if (!customId.startsWith('meeting_excuse_modal:')) return null;
+  return customId.split(':')[1] ?? null;
+}
+
+export function parseRecruitExcuseModal(customId: string): string | null {
+  if (!customId.startsWith('recruit_excuse_modal:')) return null;
+  return customId.split(':')[1] ?? null;
+}
+
+export function parseConfigRoute(customId: string): string | null {
+  if (!customId.startsWith('cfg:')) return null;
   return customId.split(':')[2] ?? null;
 }
 
@@ -51,10 +71,10 @@ export function parseUserCaseRoute(customId: string): UserCaseRoute | null {
   const parts = customId.split(':');
   const action = parts[1];
 
-  if (action === 'open' || action === 'close') {
+  if (action === 'open' || action === 'close' || action === 'note' || action === 'sanction_action') {
     const userId = parts[2];
     if (!userId) return null;
-    return { action, userId };
+    return { action, userId } as UserCaseRoute;
   }
 
   if (action === 'refresh' || action === 'prev' || action === 'next') {

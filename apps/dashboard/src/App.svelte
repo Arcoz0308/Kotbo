@@ -5,6 +5,9 @@
   import MainLayout from './lib/components/MainLayout.svelte';
   import { authStore } from './lib/stores/auth.svelte';
   import { themeStore } from './lib/stores/theme.svelte';
+  import { toast } from './lib/stores/toast.svelte';
+  import ToastContainer from './lib/components/ToastContainer.svelte';
+  import NotFound from './pages/NotFound.svelte';
   
   
   import Login from './pages/Login.svelte';
@@ -65,6 +68,21 @@ import GeneralSettings from './pages/GeneralSettings.svelte';
     if (!authStore.isAuthenticated && $router.path !== '/login' && !isPublicPage) {
       router.goto('/login');
     }
+
+    // Global error handling
+    const handleError = (event: ErrorEvent | PromiseRejectionEvent) => {
+      const message = 'message' in event ? event.message : (event as PromiseRejectionEvent).reason?.message || 'Une erreur est survenue';
+      console.error('Global error:', event);
+      toast.error(message);
+    };
+
+    window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleError);
+
+    return () => {
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleError);
+    };
   });
 
   
@@ -85,92 +103,105 @@ import GeneralSettings from './pages/GeneralSettings.svelte';
   <Route path="/profile/:userId" let:meta>
     <PublicProfile userId={meta.params.userId} />
   </Route>
+  <Route path="/profile/*">
+    <NotFound />
+  </Route>
 {:else}
   <Route path="/login">
     <Login />
   </Route>
 
-  <Route path="/*">
-    {#if authStore.isAuthenticated}
-      <MainLayout>
-        <Route path="/">
-          <Overview />
-        </Route>
+  {#if authStore.isAuthenticated}
+    <MainLayout>
+      <Route path="/">
+        <Overview />
+      </Route>
 
-        <Route path="/analytics">
-          <Analytics />
+      <Route path="/analytics">
+        <Analytics />
+      </Route>
+      <Route path="/activity">
+        <ActivityLog />
+      </Route>
+      {#if authStore.isBotAdmin}
+        <Route path="/admin">
+          <AdminOverview />
         </Route>
-        <Route path="/activity">
-          <ActivityLog />
+      {/if}
+      <Route path="/logs">
+        <Logs />
+      </Route>
+      <Route path="/sanctions">
+        <Sanctions />
+      </Route>
+      <Route path="/regulation">
+        <Regulation />
+      </Route>
+      <Route path="/profile">
+        <Profile />
+      </Route>
+      {#if canManageSettings}
+        <Route path="/modules">
+          <ModuleCatalog />
         </Route>
-        {#if authStore.isBotAdmin}
-          <Route path="/admin">
-            <AdminOverview />
-          </Route>
-        {/if}
-        <Route path="/logs">
-          <Logs />
+        <Route path="/module-settings/:moduleId" let:meta>
+          <ModuleSettings moduleId={meta.params.moduleId} />
         </Route>
-        <Route path="/sanctions">
-          <Sanctions />
+        <Route path="/notifications">
+          <NotificationsSettings />
         </Route>
-        <Route path="/regulation">
-          <Regulation />
+        <Route path="/command-access">
+          <CommandAccess />
         </Route>
-        <Route path="/profile">
-          <Profile />
+        <Route path="/settings">
+          <GeneralSettings />
         </Route>
-        {#if canManageSettings}
-          <Route path="/modules">
-            <ModuleCatalog />
-          </Route>
-          <Route path="/module-settings/:moduleId" let:meta>
-            <ModuleSettings moduleId={meta.params.moduleId} />
-          </Route>
-          <Route path="/notifications">
-            <NotificationsSettings />
-          </Route>
-          <Route path="/command-access">
-            <CommandAccess />
-          </Route>
-          <Route path="/settings">
-            <GeneralSettings />
-          </Route>
-          <Route path="/automations">
-            <ModuleCatalog />
-          </Route>
-          <Route path="/staff-management">
-            <StaffManagement />
-          </Route>
-        {:else}
-          <Route path="/module-settings/dailyalgo">
-            <ModuleSettings moduleId="dailyalgo" />
-          </Route>
-        {/if}
-        <Route path="/members/*">
-          <Members />
+        <Route path="/automations">
+          <ModuleCatalog />
         </Route>
-        <Route path="/recruitment">
-          <Recruitment />
+        <Route path="/staff-management">
+          <StaffManagement />
         </Route>
-        <Route path="/meetings">
-          <Meetings />
+      {:else}
+        <Route path="/module-settings/dailyalgo">
+          <ModuleSettings moduleId="dailyalgo" />
         </Route>
-        <Route path="/absences">
-          <Absences />
-        </Route>
-        <Route path="/inbox">
-          <Inbox />
-        </Route>
-        <Route path="/tutoring">
-          <Tutoring />
-        </Route>
-        <Route path="/double-accounts">
-          <DoubleAccounts />
-        </Route>
-      </MainLayout>
-    {:else if $router.path !== '/login'}
-       <!-- Optional: Loader or nothing while redirecting -->
-    {/if}
-  </Route>
+      {/if}
+      <Route path="/members/*">
+        <Members />
+      </Route>
+      <Route path="/recruitment">
+        <Recruitment />
+      </Route>
+      <Route path="/meetings">
+        <Meetings />
+      </Route>
+      <Route path="/absences">
+        <Absences />
+      </Route>
+      <Route path="/inbox">
+        <Inbox />
+      </Route>
+      <Route path="/tutoring">
+        <Tutoring />
+      </Route>
+      <Route path="/double-accounts">
+        <DoubleAccounts />
+      </Route>
+
+      <!-- Fallback for authenticated users -->
+      <Route path="/*">
+        <NotFound />
+      </Route>
+    </MainLayout>
+  {:else if $router.path !== '/login'}
+    <!-- Fallback for unauthenticated users -->
+    <Route path="/*">
+      <div class="flex items-center justify-center min-h-screen">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    </Route>
+  {/if}
 {/if}
+
+<ToastContainer />

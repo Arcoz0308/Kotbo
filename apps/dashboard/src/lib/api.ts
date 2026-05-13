@@ -1,4 +1,5 @@
 import { authStore } from './stores/auth.svelte';
+import { toast } from './stores/toast.svelte';
 
 const envApiUrl = (import.meta.env.VITE_API_URL ?? '').trim().replace(/\/$/, '');
 
@@ -78,9 +79,24 @@ async function dashboardMutation(path: string, options: {
       headers: hasPayload ? JSON_HEADERS : undefined,
       body: hasPayload ? JSON.stringify(options.payload) : undefined
     });
+    
+    if (response.ok) {
+      if (method !== 'GET') {
+        toast.success('Opération réussie');
+      }
+    } else {
+      let message = 'Erreur lors de l\'opération';
+      try {
+        const data = await response.json();
+        message = data.error || data.message || message;
+      } catch {}
+      toast.error(message);
+    }
+
     return response.ok;
   } catch (error) {
     console.error(errorContext, error);
+    toast.error('Erreur réseau ou serveur');
     return false;
   }
 }
@@ -122,9 +138,14 @@ async function dashboardRequest(path: string, options: {
       throw error;
     }
 
+    if (method !== 'GET' && response.ok) {
+      toast.success('Opération réussie');
+    }
+
     return await response.json();
   } catch (error) {
     console.error(errorContext, error);
+    toast.error(error.message || 'Erreur réseau ou serveur');
     throw error;
   }
 }
@@ -338,7 +359,7 @@ export async function deleteRegulationArticle(articleId, guildId = authStore.sel
 }
 
 export async function publishRegulation(guildId = authStore.selectedGuildId) {
-  return dashboardMutation('/regulation/publish', {
+  return dashboardRequest('/regulation/publish', {
     method: 'POST',
     guildId,
     errorContext: 'API Error (Publish Regulation):'
@@ -485,6 +506,10 @@ export async function fetchStaffMetrics(guildId = authStore.selectedGuildId) {
 
 export async function fetchStaffMembers(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/staff/members', { method: 'GET', guildId });
+}
+
+export async function fetchStaffWarnings(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/staff/warnings', { method: 'GET', guildId });
 }
 
 export async function fetchStaffRoles(guildId = authStore.selectedGuildId) {
@@ -696,8 +721,8 @@ export async function fetchApprenticeProgress(guildId = authStore.selectedGuildI
   return dashboardRequest('/tutoring/apprentice-progress', { method: 'GET', guildId });
 }
 
-export async function updateTutoringChecklist(testingPeriodId, itemId, completed, guildId = authStore.selectedGuildId) {
-  return dashboardMutation('/tutoring/checklist', { method: 'PATCH', payload: { testingPeriodId, itemId, completed }, guildId });
+export async function updateTutoringChecklist(testingPeriodId, itemId, state, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/tutoring/checklist', { method: 'PATCH', payload: { testingPeriodId, itemId, state }, guildId });
 }
 
 export async function addTutoringLog(testingPeriodId, content, guildId = authStore.selectedGuildId) {

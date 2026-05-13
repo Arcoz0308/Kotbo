@@ -6,8 +6,10 @@
   import Chart from './charts/Chart.svelte';
   import { fetchMemberCase, fetchMemberDetailedAnalytics, updateSanctionReport, linkMemberAccount, unlinkMemberAccount, updateMemberNote } from '../api';
   import { statusLabel, toDateTimeLocal, typeLabel as formatTypeLabel } from '../sanctions/formatters';
-  import { buildReportRuleOptions, getRulesFromBrokenRules } from '../sanctions/reportRules';
+  import { buildReportRuleOptions, getRuleIdsFromBrokenRules, getRulesFromBrokenRules, buildBrokenRulesPayload } from '../sanctions/reportRules';
   import SelectedRuleChips from './sanctions/SelectedRuleChips.svelte';
+  import EvidenceInputList from './sanctions/EvidenceInputList.svelte';
+  import ReportRuleSelector from './sanctions/ReportRuleSelector.svelte';
 
   type MemberCaseTab = 'resume' | 'identite' | 'activite' | 'messages' | 'logs' | 'sanctions' | 'invites' | 'connexions' | 'analytics' | 'candidatures' | 'linked_accounts' | 'notes';
 
@@ -173,9 +175,11 @@
   let isEditingReport = $state(false);
   let updateReportBusy = $state(false);
   let editReportData = $state({
-    brokenRules: '',
+    incidentAt: '',
+    sanctionDurationLabel: '',
+    selectedRuleIds: [] as string[],
     detailedReason: '',
-    evidenceLinks: '',
+    evidenceLinks: [] as string[],
     additionalNotes: ''
   });
 
@@ -279,9 +283,11 @@
 
   function startEditingReport(report: any) {
     editReportData = {
-      brokenRules: report.brokenRules,
+      incidentAt: toDateTimeLocal(report.incidentAt),
+      sanctionDurationLabel: report.sanctionDurationLabel || '',
+      selectedRuleIds: getRuleIdsFromBrokenRules(report.brokenRules),
       detailedReason: report.detailedReason,
-      evidenceLinks: (report.evidenceLinks || []).join('\n'),
+      evidenceLinks: report.evidenceLinks && report.evidenceLinks.length > 0 ? [...report.evidenceLinks] : [''],
       additionalNotes: report.additionalNotes || ''
     };
     isEditingReport = true;
@@ -293,9 +299,11 @@
 
     try {
       const success = await updateSanctionReport(selectedReport.id, {
-        brokenRules: editReportData.brokenRules,
+        incidentAt: new Date(editReportData.incidentAt).toISOString(),
+        sanctionDurationLabel: editReportData.sanctionDurationLabel.trim(),
+        brokenRules: buildBrokenRulesPayload(editReportData.selectedRuleIds, reportRuleOptions),
         detailedReason: editReportData.detailedReason,
-        evidenceLinks: editReportData.evidenceLinks.split('\n').map(l => l.trim()).filter(l => l),
+        evidenceLinks: editReportData.evidenceLinks.map(l => l.trim()).filter(l => /^https?:\/\//i.test(l)),
         additionalNotes: editReportData.additionalNotes.trim() || null
       });
 
@@ -309,9 +317,11 @@
           if (idx !== -1) {
             caseData.sanctionReports[idx] = {
               ...caseData.sanctionReports[idx],
-              brokenRules: editReportData.brokenRules,
+              incidentAt: new Date(editReportData.incidentAt).toISOString(),
+              sanctionDurationLabel: editReportData.sanctionDurationLabel.trim(),
+              brokenRules: buildBrokenRulesPayload(editReportData.selectedRuleIds, reportRuleOptions),
               detailedReason: editReportData.detailedReason,
-              evidenceLinks: editReportData.evidenceLinks.split('\n').map(l => l.trim()).filter(l => l),
+              evidenceLinks: editReportData.evidenceLinks.map(l => l.trim()).filter(l => /^https?:\/\//i.test(l)),
               additionalNotes: editReportData.additionalNotes.trim() || null
             };
           }
@@ -340,6 +350,11 @@
   );
   const selectedReportRules = $derived(
     selectedReport ? getRulesFromBrokenRules(selectedReport.brokenRules, reportRuleOptions) : []
+  );
+  const editDraftRules = $derived(
+    editReportData.selectedRuleIds
+      .map(id => reportRuleOptions.find(r => r.id === id))
+      .filter((r): r is any => !!r)
   );
 
   const tabs: { id: MemberCaseTab; label: string; icon: string; count?: () => number }[] = [
@@ -823,21 +838,38 @@
                        <Chart 
                          data={{
                            labels: analyticsData.dailyTrend.map(d => d.dateKey.slice(5)),
-                           datasets: [{
-                             label: 'Messages',
-                             data: analyticsData.dailyTrend.map(d => d.messages),
-                             borderColor: '#6366f1',
-                             backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                             fill: true,
-                             tension: 0.4,
-                             pointRadius: 0,
-                             gradient: {
-                               backgroundColor: {
-                                 axis: 'y',
-                                 colors: { 0: 'rgba(99, 102, 241, 0)', 100: 'rgba(99, 102, 241, 0.2)' }
+                           datasets: [
+                             {
+                               label: 'Messages',
+                               data: analyticsData.dailyTrend.map(d => d.messages),
+                               borderColor: '#6366f1',
+                               backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                               fill: true,
+                               tension: 0.4,
+                               pointRadius: 0,
+                               gradient: {
+                                 backgroundColor: {
+                                   axis: 'y',
+                                   colors: { 0: 'rgba(99, 102, 241, 0)', 100: 'rgba(99, 102, 241, 0.2)' }
+                                 }
+                               }
+                             },
+                             {
+                               label: 'Vocal (min)',
+                               data: analyticsData.dailyTrend.map(d => d.voiceMinutes || 0),
+                               borderColor: '#ec4899',
+                               backgroundColor: 'rgba(236, 72, 153, 0.1)',
+                               fill: true,
+                               tension: 0.4,
+                               pointRadius: 0,
+                               gradient: {
+                                 backgroundColor: {
+                                   axis: 'y',
+                                   colors: { 0: 'rgba(236, 72, 153, 0)', 100: 'rgba(236, 72, 153, 0.2)' }
+                                 }
                                }
                              }
-                           }]
+                           ]
                          }} 
                          height={200} 
                        />
@@ -1422,16 +1454,43 @@
                         {#if selectedReport}
                           {#if isEditingReport}
                             <!-- Edit Form -->
-                            <div class="space-y-6 animate-in fade-in duration-300">
-                               <div class="space-y-1.5">
-                                 <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Règles enfreintes (IDs séparés par des virgules)</p>
-                                 <input 
-                                   type="text" 
-                                   bind:value={editReportData.brokenRules} 
-                                   placeholder="1.1, 2.3..." 
-                                   class="w-full rounded-2xl bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all"
-                                 />
+                             <div class="space-y-6 animate-in fade-in duration-300">
+                               <div class="grid grid-cols-2 gap-4">
+                                 <div class="space-y-1.5">
+                                   <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Date de l'incident</p>
+                                   <input 
+                                     type="datetime-local" 
+                                     bind:value={editReportData.incidentAt} 
+                                     class="w-full rounded-2xl bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all"
+                                   />
+                                 </div>
+                                 <div class="space-y-1.5">
+                                   <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Durée appliquée</p>
+                                   <input 
+                                     type="text" 
+                                     bind:value={editReportData.sanctionDurationLabel} 
+                                     placeholder="Ex: 2h, Permanent..." 
+                                     class="w-full rounded-2xl bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all"
+                                   />
+                                 </div>
                                </div>
+
+                               <div class="space-y-1.5">
+                                 <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Règles enfreintes</p>
+                                 <ReportRuleSelector
+                                   options={reportRuleOptions}
+                                   selectedIds={editReportData.selectedRuleIds}
+                                   onToggle={(id, checked) => {
+                                     if (checked) {
+                                       editReportData.selectedRuleIds = [...new Set([...editReportData.selectedRuleIds, id])];
+                                     } else {
+                                       editReportData.selectedRuleIds = editReportData.selectedRuleIds.filter(v => v !== id);
+                                     }
+                                   }}
+                                 />
+                                 <SelectedRuleChips selectedRules={editDraftRules} />
+                               </div>
+
                                <div class="space-y-1.5">
                                  <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Raison détaillée</p>
                                  <textarea 
@@ -1441,15 +1500,12 @@
                                    class="w-full rounded-2xl bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"
                                  ></textarea>
                                </div>
+
                                <div class="space-y-1.5">
-                                 <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Liens de preuve (un par ligne)</p>
-                                 <textarea 
-                                   bind:value={editReportData.evidenceLinks} 
-                                   rows="3"
-                                   placeholder="https://..." 
-                                   class="w-full rounded-2xl bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"
-                                 ></textarea>
+                                 <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Preuves (URLs)</p>
+                                 <EvidenceInputList bind:links={editReportData.evidenceLinks} />
                                </div>
+
                                <div class="space-y-1.5">
                                  <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Notes complémentaires</p>
                                  <textarea 

@@ -13,7 +13,7 @@
   let loading = $state(true);
   let error = $state('');
 
-  let filter = $state('ALL'); // ALL, PENDING, ORAL, APPROVED, REJECTED, AUTO_REJECTED
+  let filter = $state('PENDING'); // ALL, PENDING, ORAL, APPROVED, REJECTED, AUTO_REJECTED
   
   let configVisible = $state(false);
   
@@ -290,124 +290,136 @@
       </p>
     </div>
   {:else}
-    <div class="grid grid-cols-1 gap-6">
-      {#each filteredCandidatures as candidature (candidature.id)}
-        <div class="relative group bg-surface-container-low/40 border border-outline-variant/10 rounded-[3rem] p-8 hover:bg-surface-container-low transition-all duration-500 {candidature.status === 'AUTO_REJECTED' ? 'opacity-80 grayscale-30' : ''}">
-          <div class="absolute -inset-1 bg-linear-to-r from-primary/10 to-secondary/10 rounded-[3.1rem] blur-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+    {#if filteredCandidatures.length === 0}
+      <div class="flex flex-col items-center justify-center py-24 text-on-surface-variant/30 border-2 border-dashed border-outline-variant/10 rounded-[4rem] bg-surface-container-low/20">
+        <div class="w-20 h-20 rounded-[2.5rem] bg-surface-container flex items-center justify-center mb-6 shadow-inner opacity-50">
+          <Papicon icon={filter === 'PENDING' ? 'inbox' : 'filter_list_off'} size={32} />
+        </div>
+        <h3 class="text-xl font-black tracking-tight text-on-surface/40">
+          {filter === 'PENDING' ? 'Pas de nouvelle candidature pour l\'instant' : `Aucune candidature "${getStatusLabel(filter)}"`}
+        </h3>
+        <p class="mt-2 text-xs opacity-50">Revenez plus tard ou changez de filtre.</p>
+      </div>
+    {:else}
+      <div class="grid grid-cols-1 gap-6">
+        {#each filteredCandidatures as candidature (candidature.id)}
+          <div class="relative group bg-surface-container-low/40 border border-outline-variant/10 rounded-[3rem] p-8 hover:bg-surface-container-low transition-all duration-500 {candidature.status === 'AUTO_REJECTED' ? 'opacity-80 grayscale-30' : ''}">
+            <div class="absolute -inset-1 bg-linear-to-r from-primary/10 to-secondary/10 rounded-[3.1rem] blur-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
 
-            <div class="relative flex flex-col xl:flex-row gap-8">
-                <!-- Main Info -->
-                <div class="flex-1 space-y-6">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-4">
-                            <div class="w-14 h-14 rounded-2xl bg-surface-container flex items-center justify-center text-primary font-black text-xl shadow-lg">
-                                {candidature.username?.charAt(0).toUpperCase() || '?'}
-                            </div>
-                            <div>
-                                <h3 class="text-xl font-black text-on-surface font-headline tracking-tight">{candidature.username || 'Anonyme'}</h3>
-                                <div class="flex flex-wrap items-center gap-3 mt-1">
-                                    <span class="text-xs font-bold text-on-surface-variant/75">{new Date(candidature.createdAt).toLocaleDateString()}</span>
-                                    <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border {getStatusColor(candidature.status)}">
-                                        {getStatusLabel(candidature.status)}
-                                    </span>
-                                    {#if candidature.discordId}
-                                       <span class="text-[10px] font-mono text-on-surface-variant/70">ID: {candidature.discordId}</span>
-                                    {/if}
-                                </div>
-                            </div>
-                        </div>
-                            <button 
-                                onclick={() => deleteCandidature(candidature.id)}
-                                class="w-10 h-10 rounded-full bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
-                                title="Supprimer la candidature"
-                            >
-                                <Papicon icon="delete" size={14} />
-                            </button>
-                    </div>
-                    
-                    {#if candidature.autoRejected && candidature.autoRejectReason}
-                        <div class="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 flex gap-4 text-rose-400">
-                           <Papicon icon="robot_2" size={20} class="shrink-0" />
-                           <p class="text-sm font-medium">{candidature.autoRejectReason}</p>
-                        </div>
-                    {/if}
+              <div class="relative flex flex-col xl:flex-row gap-8">
+                  <!-- Main Info -->
+                  <div class="flex-1 space-y-6">
+                      <div class="flex items-center justify-between">
+                          <div class="flex items-center gap-4">
+                              <div class="w-14 h-14 rounded-2xl bg-surface-container flex items-center justify-center text-primary font-black text-xl shadow-lg">
+                                  {candidature.username?.charAt(0).toUpperCase() || '?'}
+                              </div>
+                              <div>
+                                  <h3 class="text-xl font-black text-on-surface font-headline tracking-tight">{candidature.username || 'Anonyme'}</h3>
+                                  <div class="flex flex-wrap items-center gap-3 mt-1">
+                                      <span class="text-xs font-bold text-on-surface-variant/75">{new Date(candidature.createdAt).toLocaleDateString()}</span>
+                                      <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border {getStatusColor(candidature.status)}">
+                                          {getStatusLabel(candidature.status)}
+                                      </span>
+                                      {#if candidature.discordId}
+                                         <span class="text-[10px] font-mono text-on-surface-variant/70">ID: {candidature.discordId}</span>
+                                      {/if}
+                                  </div>
+                              </div>
+                          </div>
+                              <button 
+                                  onclick={() => deleteCandidature(candidature.id)}
+                                  class="w-10 h-10 rounded-full bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
+                                  title="Supprimer la candidature"
+                              >
+                                  <Papicon icon="delete" size={14} />
+                              </button>
+                      </div>
+                      
+                      {#if candidature.autoRejected && candidature.autoRejectReason}
+                          <div class="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 flex gap-4 text-rose-400">
+                             <Papicon icon="robot_2" size={20} class="shrink-0" />
+                             <p class="text-sm font-medium">{candidature.autoRejectReason}</p>
+                          </div>
+                      {/if}
 
-                    <!-- Details from Form -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {#each Object.entries(candidature.data) as [key, value]}
-                           {#if typeof value !== 'object' || Array.isArray(value)}
-                            <div class="space-y-1">
-                                <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/70 leading-tight">{key}</p>
-                                <div class="text-sm font-medium text-on-surface/80 bg-surface-container/30 rounded-xl px-4 py-2 border border-outline-variant/5">
-                                   <div class="max-h-32 overflow-y-auto scrollbar-hide whitespace-pre-wrap">{formatValue(value)}</div>
-                                </div>
-                            </div>
+                      <!-- Details from Form -->
+                      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {#each Object.entries(candidature.data) as [key, value]}
+                             {#if typeof value !== 'object' || Array.isArray(value)}
+                              <div class="space-y-1">
+                                  <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/70 leading-tight">{key}</p>
+                                  <div class="text-sm font-medium text-on-surface/80 bg-surface-container/30 rounded-xl px-4 py-2 border border-outline-variant/5">
+                                     <div class="max-h-32 overflow-y-auto scrollbar-hide whitespace-pre-wrap">{formatValue(value)}</div>
+                                  </div>
+                              </div>
+                             {/if}
+                          {/each}
+                      </div>
+                  </div>
+
+                  <!-- Actions Side -->
+                  <div class="xl:w-80 space-y-6 xl:border-l border-outline-variant/20 xl:pl-8">
+                      <div>
+                          <p class="text-[10px] font-black uppercase tracking-widest text-primary mb-3">Notes de gestion</p>
+                          <textarea 
+                             bind:value={candidature.notes}
+                             onblur={() => doAction(candidature.id, 'status_update', { status: candidature.status, notes: candidature.notes })}
+                             placeholder="Ajouter une observation interne..."
+                             class="w-full h-32 bg-surface-container/50 border border-outline-variant/20 rounded-2xl p-4 text-xs text-on-surface placeholder:text-on-surface-variant/60 focus:outline-hidden focus:border-primary/50 transition-all resize-none"></textarea>
+                      </div>
+                      
+                      {#if candidature.status === 'ORAL' && candidature.ticketChannelId}
+                         <div class="flex items-center gap-2 p-3 rounded-xl bg-surface-container-low text-xs font-medium text-on-surface-variant">
+                            <Papicon icon="forum" size={16} /> Ticket créé
+                         </div>
+                      {/if}
+
+                      <div class="grid grid-cols-2 gap-3">
+                           {#if candidature.status === 'PENDING'}
+                              <button 
+                                 onclick={() => openValidateModal(candidature)}
+                                 class="col-span-2 py-3 rounded-2xl bg-blue-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2">
+                                  <Papicon icon="check_circle" size={14} /> Passer Oral
+                              </button>
+                              <button 
+                                 onclick={() => openRejectModal(candidature)}
+                                 class="col-span-2 py-3 rounded-2xl bg-surface-container hover:bg-rose-500/10 hover:text-rose-500 text-on-surface-variant text-xs font-black uppercase tracking-widest transition-all">
+                                  Refuser
+                              </button>
                            {/if}
-                        {/each}
-                    </div>
-                </div>
-
-                <!-- Actions Side -->
-                <div class="xl:w-80 space-y-6 xl:border-l border-outline-variant/20 xl:pl-8">
-                    <div>
-                        <p class="text-[10px] font-black uppercase tracking-widest text-primary mb-3">Notes de gestion</p>
-                        <textarea 
-                           bind:value={candidature.notes}
-                           onblur={() => doAction(candidature.id, 'status_update', { status: candidature.status, notes: candidature.notes })}
-                           placeholder="Ajouter une observation interne..."
-                           class="w-full h-32 bg-surface-container/50 border border-outline-variant/20 rounded-2xl p-4 text-xs text-on-surface placeholder:text-on-surface-variant/60 focus:outline-hidden focus:border-primary/50 transition-all resize-none"></textarea>
-                    </div>
-                    
-                    {#if candidature.status === 'ORAL' && candidature.ticketChannelId}
-                       <div class="flex items-center gap-2 p-3 rounded-xl bg-surface-container-low text-xs font-medium text-on-surface-variant">
-                          <Papicon icon="forum" size={16} /> Ticket créé
-                       </div>
-                    {/if}
-
-                    <div class="grid grid-cols-2 gap-3">
-                         {#if candidature.status === 'PENDING'}
-                            <button 
+                           {#if candidature.status === 'AUTO_REJECTED'}
+                             <button 
                                onclick={() => openValidateModal(candidature)}
-                               class="col-span-2 py-3 rounded-2xl bg-blue-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2">
-                                <Papicon icon="check_circle" size={14} /> Passer Oral
-                            </button>
-                            <button 
-                               onclick={() => openRejectModal(candidature)}
-                               class="col-span-2 py-3 rounded-2xl bg-surface-container hover:bg-rose-500/10 hover:text-rose-500 text-on-surface-variant text-xs font-black uppercase tracking-widest transition-all">
-                                Refuser
-                            </button>
-                         {/if}
-                         {#if candidature.status === 'AUTO_REJECTED'}
-                           <button 
-                             onclick={() => openValidateModal(candidature)}
-                             class="col-span-2 py-3 rounded-2xl bg-emerald-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2">
-                              <Papicon icon="verified" size={14} /> Accepter quand même
-                           </button>
-                         {/if}
-                         {#if candidature.status === 'ORAL'}
-                            <button 
-                               onclick={() => openOralPassModal(candidature)}
-                               class="py-3 rounded-2xl bg-emerald-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center">
-                                Concluant
-                            </button>
-                            <button 
-                               onclick={() => openOralFailModal(candidature)}
-                               class="py-3 rounded-2xl bg-rose-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-rose-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center">
-                                Échoué
-                            </button>
-                         {/if}
-                    </div>
-                    
-                    {#if candidature.reapplyAfter && new Date(candidature.reapplyAfter) > new Date()}
-                       <div class="text-[10px] uppercase font-bold tracking-widest text-on-surface-variant/50 text-center mt-2">
-                         Recandidature : {new Date(candidature.reapplyAfter).toLocaleDateString()}
-                       </div>
-                    {/if}
-                </div>
-            </div>
-         </div>
-      {/each}
-    </div>
+                               class="col-span-2 py-3 rounded-2xl bg-emerald-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2">
+                                <Papicon icon="verified" size={14} /> Accepter quand même
+                             </button>
+                           {/if}
+                           {#if candidature.status === 'ORAL'}
+                              <button 
+                                 onclick={() => openOralPassModal(candidature)}
+                                 class="py-3 rounded-2xl bg-emerald-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center">
+                                  Concluant
+                              </button>
+                              <button 
+                                 onclick={() => openOralFailModal(candidature)}
+                                 class="py-3 rounded-2xl bg-rose-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-rose-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center">
+                                  Échoué
+                              </button>
+                           {/if}
+                      </div>
+                      
+                      {#if candidature.reapplyAfter && new Date(candidature.reapplyAfter) > new Date()}
+                         <div class="text-[10px] uppercase font-bold tracking-widest text-on-surface-variant/50 text-center mt-2">
+                           Recandidature : {new Date(candidature.reapplyAfter).toLocaleDateString()}
+                         </div>
+                      {/if}
+                  </div>
+              </div>
+           </div>
+        {/each}
+      </div>
+    {/if}
   {/if}
 </div>
 

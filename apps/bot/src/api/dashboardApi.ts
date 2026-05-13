@@ -10,7 +10,7 @@ import {
   type Client,
   type TextChannel,
 } from 'discord.js';
-import { SanctionType } from '@prisma/client';
+import { SanctionType, TutoringItemState } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 import WebSocket, { WebSocketServer } from 'ws';
 import prisma from '../utils/db.js';
@@ -90,6 +90,7 @@ import {
   getCandidatureHistory,
 } from '../services/recruitmentService.js';
 import * as altAccountService from '../services/altAccountService.js';
+import { publishOrUpdateRegulationMessage } from '../services/regulationService.js';
 import { env } from 'node:process';
 
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
@@ -2166,8 +2167,14 @@ export const startDashboardApi = (client: Client) => {
                   update: { reason: body.reason },
                   create: { userId: body.userId, reason: body.reason, addedBy: user.userId }
                 });
+
+                const blacklist: Set<string> = (global as any).KOTBO_BLACKLIST || new Set();
+                blacklist.add(body.userId);
+                (global as any).KOTBO_BLACKLIST = blacklist;
+
                 json(res, 201, { success: true });
-             } catch {
+             } catch (err) {
+                logger.error('AdminAPI', 'Error adding to blacklist:', err);
                 json(res, 400, { error: 'Utilisateur Discord introuvable' });
              }
              return;
@@ -2176,6 +2183,13 @@ export const startDashboardApi = (client: Client) => {
           if (req.method === 'DELETE' && parts.length === 4) {
              const targetId = parts[3];
              await prisma.globalBlacklist.delete({ where: { userId: targetId } }).catch(() => {});
+             
+             // Update memory cache
+             const blacklist: Set<string> = (global as any).KOTBO_BLACKLIST;
+             if (blacklist) {
+               blacklist.delete(targetId);
+             }
+
              json(res, 200, { success: true });
              return;
           }
@@ -4860,6 +4874,7 @@ export const startDashboardApi = (client: Client) => {
               json(res, 200, { ok: true, mode: result.mode, messageId: result.messageId });
               return;
             } catch (error) {
+              logger.error('DashboardAPI', `Erreur lors de la publication du règlement pour la guilde ${guildId}:`, error);
               json(res, 400, {
                 error: error instanceof Error ? error.message : 'Impossible de publier le règlement.',
               });
@@ -5802,6 +5817,7 @@ export const startDashboardApi = (client: Client) => {
           if (parts[5] === 'discord-members' && req.method === 'GET' && !parts[6]) {
             try {
               const rawQuery = (url.searchParams.get('q') ?? url.searchParams.get('query') ?? '').trim();
+              const staffOnly = url.searchParams.get('staffOnly') === 'true';
               const parsedLimit = Number(url.searchParams.get('limit') ?? '12');
               const limit = Number.isFinite(parsedLimit)
                 ? Math.min(25, Math.max(1, Math.trunc(parsedLimit)))
@@ -5852,6 +5868,15 @@ export const startDashboardApi = (client: Client) => {
                       avatarUrl: member.displayAvatarURL() || null,
                     }))
                   : [];
+              }
+
+              if (staffOnly) {
+                const staffMembers = await prisma.staffMember.findMany({
+                  where: { guildId },
+                  select: { userId: true }
+                });
+                const staffUserIds = new Set(staffMembers.map(m => m.userId));
+                candidates = candidates.filter(c => staffUserIds.has(c.id));
               }
 
               const members = candidates
@@ -6087,6 +6112,39 @@ export const startDashboardApi = (client: Client) => {
           }
 
           // POST /api/dashboard/guilds/:guildId/staff/warnings - Issue warning
+          if (parts[5] === 'warnings' && req.method === 'GET' && !parts[6]) {
+            try {
+              const warnings = await prisma.staffWarning.findMany({
+                where: { guildId },
+                include: {
+                  staffMember: true,
+                },
+                orderBy: { createdAt: 'desc' },
+              });
+
+              const formattedWarnings = await Promise.all(warnings.map(async (w) => {
+                const issuedBy = await client.users.fetch(w.issuedByUserId).catch(() => null);
+                return {
+                  id: w.id,
+                  staffUserId: w.staffMember.userId,
+                  staffDisplayName: w.staffMember.displayName || w.staffMember.username,
+                  staffAvatarUrl: w.staffMember.avatarUrl,
+                  reason: w.reason,
+                  issuedByTag: issuedBy?.tag || w.issuedByUserId,
+                  createdAt: w.createdAt.toISOString(),
+                  expiresAt: w.expiresAt?.toISOString() || null,
+                  isActive: w.isActive,
+                };
+              }));
+
+              json(res, 200, { warnings: formattedWarnings });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error fetching staff warnings:', err);
+              json(res, 500, { error: 'Erreur lors de la récupération des avertissements staff' });
+            }
+            return;
+          }
+
           if (parts[5] === 'warnings' && req.method === 'POST') {
             const body = await readJsonBody<{
               staffUserId: string;
@@ -6122,6 +6180,42 @@ export const startDashboardApi = (client: Client) => {
             } catch (err) {
               logger.error('StaffAPI', 'Error issuing warning:', err);
               json(res, 500, { error: 'Erreur lors de la génération de l\'avertissement' });
+            }
+            return;
+          }
+
+          // DELETE /api/dashboard/guilds/:guildId/staff/warnings/:warningId - Delete warning
+          if (parts[5] === 'warnings' && parts[6] && req.method === 'DELETE') {
+            const warningId = parts[6];
+            try {
+              const warning = await prisma.staffWarning.findFirst({
+                where: { id: warningId, guildId },
+                include: { staffMember: true }
+              });
+
+              if (!warning) {
+                json(res, 404, { error: 'Avertissement introuvable' });
+                return;
+              }
+
+              await prisma.staffWarning.delete({
+                where: { id: warningId },
+              });
+
+              await pushAudit(guildId, {
+                user: user.username ?? `User${user.userId}`,
+                action: 'Suppression avertissement staff',
+                context: getGuildName(client, guildId),
+                module: 'Staff Management',
+                eventType: 'Manuel',
+                details: `Avertissement supprimé pour ${warning.staffMember.username || warning.staffMember.userId}: ${warning.reason}`,
+                channelId: null
+              });
+
+              json(res, 200, { ok: true });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error deleting staff warning:', err);
+              json(res, 500, { error: 'Erreur lors de la suppression de l\'avertissement' });
             }
             return;
           }
@@ -6262,6 +6356,11 @@ export const startDashboardApi = (client: Client) => {
                     testStaffRoleId: true,
                     meetingAnnouncementChannelId: true,
                     meetingVoiceChannelId: true,
+                    warnsToDemote: true,
+                    warnsToBlacklist: true,
+                    blacklistPermanentByDefault: true,
+                    actionMode: true,
+                    demoteRemoveAllRoles: true,
                   },
                 });
 
@@ -6284,15 +6383,15 @@ export const startDashboardApi = (client: Client) => {
                 testStaffRoleId?: string | null;
                 meetingAnnouncementChannelId?: string | null;
                 meetingVoiceChannelId?: string | null;
+                warnsToDemote?: number;
+                warnsToBlacklist?: number;
+                blacklistPermanentByDefault?: boolean;
+                actionMode?: string;
+                demoteRemoveAllRoles?: boolean;
               }>(req);
 
               try {
-                const data: {
-                  baseStaffRoleId?: string | null;
-                  testStaffRoleId?: string | null;
-                  meetingAnnouncementChannelId?: string | null;
-                  meetingVoiceChannelId?: string | null;
-                } = {};
+                const data: any = {};
 
                 if (Object.prototype.hasOwnProperty.call(body ?? {}, 'baseStaffRoleId')) {
                   data.baseStaffRoleId = extractDiscordSnowflake(body?.baseStaffRoleId ?? null);
@@ -6307,6 +6406,23 @@ export const startDashboardApi = (client: Client) => {
                   data.meetingVoiceChannelId = extractDiscordSnowflake(body?.meetingVoiceChannelId ?? null);
                 }
 
+
+                if (Object.prototype.hasOwnProperty.call(body ?? {}, 'warnsToDemote')) {
+                  data.warnsToDemote = Number(body?.warnsToDemote) || 0;
+                }
+                if (Object.prototype.hasOwnProperty.call(body ?? {}, 'warnsToBlacklist')) {
+                  data.warnsToBlacklist = Number(body?.warnsToBlacklist) || 0;
+                }
+                if (Object.prototype.hasOwnProperty.call(body ?? {}, 'blacklistPermanentByDefault')) {
+                  data.blacklistPermanentByDefault = !!body?.blacklistPermanentByDefault;
+                }
+                if (Object.prototype.hasOwnProperty.call(body ?? {}, 'actionMode')) {
+                  data.actionMode = body?.actionMode || 'MANUAL';
+                }
+                if (Object.prototype.hasOwnProperty.call(body ?? {}, 'demoteRemoveAllRoles')) {
+                  data.demoteRemoveAllRoles = !!body?.demoteRemoveAllRoles;
+                }
+
                 const updatedGuild = await prisma.guild.update({
                   where: { id: guildId },
                   data,
@@ -6315,6 +6431,11 @@ export const startDashboardApi = (client: Client) => {
                     testStaffRoleId: true,
                     meetingAnnouncementChannelId: true,
                     meetingVoiceChannelId: true,
+                    warnsToDemote: true,
+                    warnsToBlacklist: true,
+                    blacklistPermanentByDefault: true,
+                    actionMode: true,
+                    demoteRemoveAllRoles: true,
                   },
                 });
 
@@ -6324,7 +6445,7 @@ export const startDashboardApi = (client: Client) => {
                   context: getGuildName(client, guildId),
                   module: 'Staff Management',
                   eventType: 'Manuel',
-                  details: `Configuration staff mise à jour (base: ${updatedGuild.baseStaffRoleId ?? 'aucun'}, test: ${updatedGuild.testStaffRoleId ?? 'aucun'}, annonce: ${updatedGuild.meetingAnnouncementChannelId ?? 'aucun'}, conférence: ${updatedGuild.meetingVoiceChannelId ?? 'aucun'})`,
+                  details: `Configuration staff mise à jour (Rôles: ${updatedGuild.baseStaffRoleId ?? 'aucun'}/${updatedGuild.testStaffRoleId ?? 'aucun'}, Sanctions: ${updatedGuild.warnsToDemote} warns p. démo / ${updatedGuild.warnsToBlacklist} warns p. bl, Mode: ${updatedGuild.actionMode})`,
                   channelId: null,
                 });
 
@@ -6826,10 +6947,10 @@ export const startDashboardApi = (client: Client) => {
             const body = await readJsonBody<{
               testingPeriodId: string;
               itemId: string;
-              completed: boolean;
+              state: TutoringItemState;
             }>(req);
 
-            if (!body?.testingPeriodId || !body?.itemId) {
+            if (!body?.testingPeriodId || !body?.itemId || !body?.state) {
               json(res, 400, { error: 'Données manquantes' });
               return;
             }
@@ -6838,7 +6959,7 @@ export const startDashboardApi = (client: Client) => {
               const progress = await tutoringService.updateChecklistProgress(
                 body.testingPeriodId,
                 body.itemId,
-                body.completed,
+                body.state,
                 user.userId
               );
               json(res, 200, { progress });

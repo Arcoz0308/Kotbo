@@ -319,7 +319,7 @@ import DailyAlgoAnalyticsCard from '../lib/components/analytics/DailyAlgoAnalyti
     {:else if activeTab === 'invitations'}
       <InvitationsStats {invitesData} />
     {:else if activeTab === 'moderation'}
-      <ModerationAudit {data} onOpenMember={openMemberDetails} />
+      <ModerationAudit {data} {chartLabels} onOpenMember={openMemberDetails} />
     {:else if activeTab === 'staff'}
       <StaffAudit {data} onOpenMember={openMemberDetails} {fmt} {fmtH} />
     {:else if activeTab === 'heatmap' && heatmapData}

@@ -1,5 +1,5 @@
 import prisma from '../utils/db.js';
-import type { TutoringItem, TutoringConfig, TestingPeriod } from '@prisma/client';
+import type { TutoringItem, TutoringConfig, TestingPeriod, TutoringItemState } from '@prisma/client';
 
 /**
  * Service de gestion du tutorat
@@ -185,7 +185,7 @@ export const getApprenticeProgress = async (guildId: string, userId: string) => 
 export const updateChecklistProgress = async (
   testingPeriodId: string,
   itemId: string,
-  completed: boolean,
+  state: TutoringItemState,
   userId: string
 ) => {
   return prisma.tutoringChecklistProgress.upsert({
@@ -196,15 +196,15 @@ export const updateChecklistProgress = async (
       }
     },
     update: {
-      completed,
-      completedAt: completed ? new Date() : null,
+      state,
+      completedAt: state === 'ACQUIRED' ? new Date() : null,
       completedByUserId: userId
     },
     create: {
       testingPeriodId,
       itemId,
-      completed,
-      completedAt: completed ? new Date() : null,
+      state,
+      completedAt: state === 'ACQUIRED' ? new Date() : null,
       completedByUserId: userId
     }
   });

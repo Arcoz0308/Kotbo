@@ -61,6 +61,13 @@ model Guild {
   statusCheckChannelId     String?
   logChannelId             String?
 
+  // Configuration de la modération du personnel
+  warnsToDemote               Int      @default(3)
+  warnsToBlacklist            Int      @default(5)
+  blacklistPermanentByDefault Boolean  @default(false)
+  actionMode                  String   @default("MANUAL") // AUTO, MANUAL
+  demoteRemoveAllRoles        Boolean  @default(false)
+
   sanctionSyncEnabled      Boolean @default(false)
   sanctionAlertChannelId   String?
   newsChannelId            String?
@@ -1249,11 +1256,17 @@ model TutoringItem {
   @@map("tutoring_items")
 }
 
+enum TutoringItemState {
+  UNCHECKED
+  KNOWN
+  ACQUIRED
+}
+
 model TutoringChecklistProgress {
   id String @id @default(cuid())
   testingPeriodId String
   itemId String
-  completed Boolean @default(false)
+  state TutoringItemState @default(UNCHECKED)
   completedAt DateTime?
   completedByUserId String? // Tutor who checked it
 
