@@ -5,13 +5,12 @@ export const getDashboardAnalytics = async (guildId: string, options: { days?: n
   const endKey = options.endDate || new Date().toISOString().split('T')[0];
   let startKey = options.startDate;
 
+  const finalEndKey = endKey.split('T')[0];
   if (!startKey) {
-    const startDate = new Date(endKey);
+    const startDate = new Date(finalEndKey);
     startDate.setDate(startDate.getDate() - days);
     startKey = startDate.toISOString().split('T')[0];
   }
-
-  const finalEndKey = endKey.split('T')[0];
   const finalStartKey = startKey.split('T')[0];
 
   let dailyStats: any[] = [];
@@ -138,8 +137,8 @@ export const getDashboardAnalytics = async (guildId: string, options: { days?: n
   const topVoiceMembers = [...memberTotalsArray]
     .sort((a, b) => b.voiceTimeSeconds - a.voiceTimeSeconds);
 
-  const startISO = new Date(startKey).toISOString();
-  const endISO = new Date(endKey + 'T23:59:59.999Z').toISOString();
+  const startISO = new Date(finalStartKey + 'T00:00:00.000Z').toISOString();
+  const endISO = new Date(finalEndKey + 'T23:59:59.999Z').toISOString();
 
   const sanctions = await prisma.sanction.findMany({
     where: {
@@ -298,12 +297,14 @@ export const getDashboardAnalytics = async (guildId: string, options: { days?: n
  * Get command usage analytics
  */
 export const getCommandUsageAnalytics = async (guildId: string, options: { startDate?: string, endDate?: string } = {}) => {
+  const gte = options.startDate ? new Date(options.startDate) : undefined;
+  const lte = options.endDate ? new Date(options.endDate) : undefined;
   const usages = await prisma.dashboardCommandUsage.findMany({
     where: {
       guildId,
       lastUsedAt: {
-        gte: options.startDate,
-        lte: options.endDate
+        gte,
+        lte
       }
     },
     orderBy: { count: 'desc' }
@@ -328,12 +329,14 @@ export const getStaffPerformanceAnalytics = async (guildId: string, options: { s
     where: { guildId }
   });
 
+  const gte = options.startDate ? new Date(options.startDate) : undefined;
+  const lte = options.endDate ? new Date(options.endDate) : undefined;
   const sanctions = await prisma.sanction.findMany({
     where: {
       guildId,
       createdAt: {
-        gte: options.startDate,
-        lte: options.endDate
+        gte,
+        lte
       }
     }
   });
@@ -342,8 +345,8 @@ export const getStaffPerformanceAnalytics = async (guildId: string, options: { s
     where: {
       guildId,
       createdAt: {
-        gte: options.startDate,
-        lte: options.endDate
+        gte,
+        lte
       }
     }
   });
@@ -400,18 +403,20 @@ export const getHourlyHeatmapData = async (guildId: string, options: { days?: nu
   const endKey = options.endDate || new Date().toISOString().split('T')[0];
   let startKey = options.startDate;
 
+  const finalEndKey = endKey.split('T')[0];
   if (!startKey) {
-    const startDate = new Date(endKey);
+    const startDate = new Date(finalEndKey);
     startDate.setDate(startDate.getDate() - days);
     startKey = startDate.toISOString().split('T')[0];
   }
+  const finalStartKey = startKey.split('T')[0];
 
   const hourlyStats = await prisma.guildHourlyStat.findMany({
     where: {
       guildId,
       dateKey: {
-        gte: startKey,
-        lte: endKey
+        gte: finalStartKey,
+        lte: finalEndKey
       }
     },
     orderBy: [{ dateKey: 'asc' }, { hour: 'asc' }]
@@ -589,20 +594,22 @@ export const getDailyAlgoAnalytics = async (guildId: string, options: { days?: n
   const endKey = options.endDate || new Date().toISOString().split('T')[0];
   let startKey = options.startDate;
 
+  const finalEndKey = endKey.split('T')[0];
   if (!startKey) {
-    const startDate = new Date(endKey);
+    const startDate = new Date(finalEndKey);
     startDate.setDate(startDate.getDate() - days);
     startKey = startDate.toISOString().split('T')[0];
   }
+  const finalStartKey = startKey.split('T')[0];
 
-  const startISO = new Date(startKey).toISOString();
-  const endISO = new Date(endKey + 'T23:59:59.999Z').toISOString();
+  const startISO = new Date(finalStartKey + 'T00:00:00.000Z').toISOString();
+  const endISO = new Date(finalEndKey + 'T23:59:59.999Z').toISOString();
 
   // Get recent daily algo runs
   const runs = await prisma.dailyAlgoRun.findMany({
     where: {
       guildId,
-      createdAt: { gte: startISO, lte: endISO }
+      createdAt: { gte: new Date(startISO), lte: new Date(endISO) }
     },
     include: {
       problem: true,
@@ -691,4 +698,160 @@ export const getDailyAlgoAnalytics = async (guildId: string, options: { days?: n
     difficultyDistribution: Object.entries(difficultyMap).map(([difficulty, count]) => ({ difficulty, count })),
     trend
   };
+};
+
+/**
+ * Get global member-to-member interaction graph
+ */
+export const getGlobalInteractions = async (guildId: string, options: { days?: number, startDate?: string, endDate?: string } = {}) => {
+  const days = options.days || 30;
+  const endKey = options.endDate || new Date().toISOString().split('T')[0];
+  let startKey = options.startDate;
+
+  const endKeyOnly = endKey.split('T')[0];
+  if (!startKey) {
+    const startDate = new Date(endKeyOnly);
+    startDate.setDate(startDate.getDate() - days);
+    startKey = startDate.toISOString().split('T')[0];
+  }
+  const startKeyOnly = startKey.split('T')[0];
+
+  const finalEndKey = new Date(endKeyOnly + 'T23:59:59.999Z');
+  const finalStartKey = new Date(startKeyOnly + 'T00:00:00.000Z');
+
+  // Fetch audit logs in the timeframe
+  const logs = await prisma.dashboardAuditLog.findMany({
+    where: {
+      guildId,
+      dateIso: {
+        gte: finalStartKey,
+        lte: finalEndKey
+      },
+      module: { in: ['Messages', 'Interactions'] },
+      action: { in: ['Message envoyé', 'Réaction ajoutée'] }
+    },
+    select: {
+      user: true,
+      action: true,
+      details: true
+    }
+  });
+
+  const extractIdFromUserStr = (str: string | null | undefined): string | null => {
+    if (!str) return null;
+    const match = str.match(/\(<@(\d+)>\)/);
+    if (match) return match[1];
+    const rawIdMatch = str.match(/^(\d+)$/);
+    return rawIdMatch ? rawIdMatch[1] : null;
+  };
+
+  // Maps to aggregate counts
+  const userActivity = new Map<string, number>();
+  const edgeMap = new Map<string, { from: string; to: string; mention: number; reply: number; reaction: number }>();
+
+  const addEdge = (from: string, to: string, type: 'mention' | 'reply' | 'reaction') => {
+    if (from === to) return; // ignore self-interactions
+    const key = from < to ? `${from}-${to}` : `${to}-${from}`;
+    let edge = edgeMap.get(key);
+    if (!edge) {
+      edge = { from, to, mention: 0, reply: 0, reaction: 0 };
+      edgeMap.set(key, edge);
+    }
+    edge[type] += 1;
+
+    userActivity.set(from, (userActivity.get(from) || 0) + 1);
+    userActivity.set(to, (userActivity.get(to) || 0) + 1);
+  };
+
+  for (const log of logs) {
+    const logUserId = extractIdFromUserStr(log.user);
+    if (!logUserId) continue;
+
+    if (log.action === 'Message envoyé') {
+      const details = log.details || '';
+      
+      // Parse mentions
+      const mentionRegex = /<@!?(\d+)>/g;
+      let match;
+      const processedMentions = new Set<string>();
+      while ((match = mentionRegex.exec(details)) !== null) {
+        const targetId = match[1];
+        if (processedMentions.has(targetId)) continue;
+        processedMentions.add(targetId);
+        addEdge(logUserId, targetId, 'mention');
+      }
+
+      // Parse replies
+      const replyMatch = details.match(/Réponse à:\s*<@!?(\d+)>/i);
+      if (replyMatch) {
+        const targetId = replyMatch[1];
+        addEdge(logUserId, targetId, 'reply');
+      }
+    } else if (log.action === 'Réaction ajoutée') {
+      const details = log.details || '';
+      const targetMatch = details.match(/Cible:\s*.*?\(<@!?(\d+)>\)/i);
+      if (targetMatch) {
+        const targetId = targetMatch[1];
+        addEdge(logUserId, targetId, 'reaction');
+      }
+    }
+  }
+
+  // Take 100% of active users in the timeframe
+  const topUsers = [...userActivity.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(entry => entry[0]);
+
+  const topUserSet = new Set(topUsers);
+
+  // Filter edges to only include top users
+  const filteredEdges: any[] = [];
+  for (const edge of edgeMap.values()) {
+    if (topUserSet.has(edge.from) && topUserSet.has(edge.to)) {
+      if (edge.mention > 0) {
+        filteredEdges.push({ from: edge.from, to: edge.to, type: 'mention', count: edge.mention });
+      }
+      if (edge.reply > 0) {
+        filteredEdges.push({ from: edge.from, to: edge.to, type: 'reply', count: edge.reply });
+      }
+      if (edge.reaction > 0) {
+        filteredEdges.push({ from: edge.from, to: edge.to, type: 'reaction', count: edge.reaction });
+      }
+    }
+  }
+
+  // Get user details for top users
+  const profiles = await prisma.memberProfile.findMany({
+    where: {
+      guildId,
+      userId: { in: topUsers }
+    },
+    select: {
+      userId: true,
+      displayName: true,
+      username: true,
+      globalName: true,
+      avatarUrl: true,
+      isBot: true
+    }
+  });
+
+  const profileMap = new Map(profiles.map(p => [p.userId, p]));
+
+  const nodes = topUsers
+    .filter(userId => {
+      const p = profileMap.get(userId);
+      return p ? !p.isBot : true; // filter out bots
+    })
+    .map(userId => {
+      const p = profileMap.get(userId);
+      return {
+        id: userId,
+        label: p?.displayName || p?.globalName || p?.username || `User ${userId}`,
+        avatar: p?.avatarUrl || null,
+        activityCount: userActivity.get(userId) || 0
+      };
+    });
+
+  return { nodes, edges: filteredEdges };
 };

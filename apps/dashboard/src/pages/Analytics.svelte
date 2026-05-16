@@ -3,7 +3,7 @@ import { onMount } from 'svelte';
 import { authStore } from '../lib/stores/auth.svelte';
 import Papicon from '../lib/components/Papicon.svelte';
 import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
-import { fetchAnalytics, fetchMemberCase, fetchInviteAnalytics, fetchHourlyHeatmap, fetchWeeklyComparison, fetchDailyAlgoAnalytics } from '../lib/api';
+import { fetchAnalytics, fetchMemberCase, fetchInviteAnalytics, fetchHourlyHeatmap, fetchWeeklyComparison, fetchDailyAlgoAnalytics, fetchGlobalInteractions } from '../lib/api';
 import AnalyticsSkeleton from '../lib/components/analytics/AnalyticsSkeleton.svelte';
 import StatsOverview from '../lib/components/analytics/StatsOverview.svelte';
 import EngagementMetrics from '../lib/components/analytics/EngagementMetrics.svelte';
@@ -16,13 +16,17 @@ import WeeklyComparison from '../lib/components/analytics/WeeklyComparison.svelt
 import DailyAlgoAnalyticsCard from '../lib/components/analytics/DailyAlgoAnalyticsCard.svelte';
 import CommandUsage from '../lib/components/analytics/CommandUsage.svelte';
 import StaffPerformance from '../lib/components/analytics/StaffPerformance.svelte';
+import GlobalInteractionGraph from '../lib/components/charts/GlobalInteractionGraph.svelte';
 
   let data: any = $state(null);
   let heatmapData: any = $state(null);
   let weeklyData: any = $state(null);
   let algoData: any = $state(null);
+  let interactionsData: any = $state(null);
   let loading = $state(true);
+  let loadingInteractions = $state(false);
   let error = $state('');
+  let interactionsError = $state('');
   let period = $state(30);
   let startDate = $state('');
   let endDate = $state('');
@@ -36,6 +40,33 @@ import StaffPerformance from '../lib/components/analytics/StaffPerformance.svelt
     { label: '365 jours', value: 365 },
     { label: 'Personnalisé', value: 'custom' }
   ];
+
+  let currentInteractionsRequestId = 0;
+
+  async function loadInteractions() {
+    const requestId = ++currentInteractionsRequestId;
+    loadingInteractions = true;
+    interactionsError = '';
+    const options = isCustomPeriod 
+      ? { startDate, endDate } 
+      : { period };
+
+    try {
+      const res = await fetchGlobalInteractions(options);
+      if (requestId === currentInteractionsRequestId) {
+        interactionsData = res;
+      }
+    } catch (e: any) {
+      if (requestId === currentInteractionsRequestId) {
+        console.error('Error preloading interactions:', e);
+        interactionsError = e.message || 'Erreur lors de la récupération des interactions';
+      }
+    } finally {
+      if (requestId === currentInteractionsRequestId) {
+        loadingInteractions = false;
+      }
+    }
+  }
 
   async function load() {
     loading = true; error = '';
@@ -56,6 +87,9 @@ import StaffPerformance from '../lib/components/analytics/StaffPerformance.svelt
       heatmapData = heatmap;
       weeklyData = weekly;
       algoData = algo;
+      
+      // Pre-charge/preload the heavy interactions graph in the background
+      loadInteractions();
     }
     catch (e: any) { error = e.message || 'Erreur'; }
     finally { loading = false; }
@@ -131,6 +165,7 @@ import StaffPerformance from '../lib/components/analytics/StaffPerformance.svelt
     engagement: [
       { id: 'messages', label: 'Messages', icon: 'ChatCircleDots' },
       { id: 'voice', label: 'Vocal', icon: 'Microphone' },
+      { id: 'interactions', label: 'Réseau', icon: 'Compass' },
       { id: 'commands', label: 'Commandes', icon: 'Code' },
       { id: 'members', label: 'Membres', icon: 'UsersFour' },
     ],
@@ -318,6 +353,39 @@ import StaffPerformance from '../lib/components/analytics/StaffPerformance.svelt
       <StatsOverview {data} {chartLabels} />
     {:else if activeTab === 'messages' || activeTab === 'voice'}
       <EngagementMetrics {data} mode={activeTab} onOpenMember={openMemberDetails} />
+    {:else if activeTab === 'interactions'}
+      {#if loadingInteractions}
+        <div class="w-full h-[620px] rounded-4xl border border-white/5 bg-surface-container-low/50 backdrop-blur-xl flex flex-col items-center justify-center gap-4 text-on-surface-variant p-8">
+          <div class="relative w-16 h-16 flex items-center justify-center">
+            <div class="absolute inset-0 rounded-full border-4 border-primary/10 border-t-primary animate-spin"></div>
+            <div class="absolute inset-2 rounded-full border-4 border-secondary/10 border-t-secondary animate-spin" style="animation-direction: reverse; animation-duration: 1.5s;"></div>
+          </div>
+          <div class="flex flex-col items-center text-center mt-2">
+            <span class="text-sm font-black uppercase tracking-wider text-primary animate-pulse">Chargement du Réseau...</span>
+            <span class="text-xs text-on-surface-variant/60 mt-1">Analyse des flux de communication et des interactions globales</span>
+          </div>
+        </div>
+      {:else if interactionsError}
+        <div class="w-full h-[620px] rounded-4xl border border-error/10 bg-error-container/5 backdrop-blur-xl flex flex-col items-center justify-center gap-4 text-error p-8 text-center">
+          <div class="w-12 h-12 rounded-full bg-error/10 flex items-center justify-center text-error mb-2">
+            <Papicon icon="alert-octagon" size={24} />
+          </div>
+          <span class="text-sm font-black uppercase tracking-wider">Impossible de charger le graphe de réseau</span>
+          <span class="text-xs text-on-surface-variant/60 max-w-md">{interactionsError}</span>
+          <button 
+            onclick={loadInteractions}
+            class="mt-2 px-5 py-2.5 bg-error/10 hover:bg-error/20 border border-error/20 hover:border-error/30 rounded-full text-xs font-black uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-[0.98]"
+          >
+            Réessayer
+          </button>
+        </div>
+      {:else if interactionsData}
+        <GlobalInteractionGraph 
+          nodes={interactionsData.nodes || []} 
+          edges={interactionsData.edges || []} 
+          onSelectNode={(userId) => openMemberDetails(userId, 'Chargement...')}
+        />
+      {/if}
     {:else if activeTab === 'members'}
       <MembersStats {data} {chartLabels} onOpenMember={openMemberDetails} />
     {:else if activeTab === 'invitations'}

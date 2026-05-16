@@ -726,6 +726,19 @@ export async function fetchDailyAlgoAnalytics(options: { days?: number, startDat
   });
 }
 
+export async function fetchGlobalInteractions(options: { period?: number, startDate?: string, endDate?: string } = {}, guildId = authStore.selectedGuildId) {
+  const params = new URLSearchParams();
+  if (options.period) params.append('period', options.period.toString());
+  if (options.startDate) params.append('startDate', options.startDate);
+  if (options.endDate) params.append('endDate', options.endDate);
+
+  return dashboardRequest(`/analytics/interactions?${params.toString()}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Global Interactions Graph):'
+  });
+}
+
 // Tutoring
 export async function fetchTutoringConfig(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/tutoring/config', { method: 'GET', guildId });

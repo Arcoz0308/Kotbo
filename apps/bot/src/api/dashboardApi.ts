@@ -7684,6 +7684,12 @@ export const startDashboardApi = (client: Client) => {
         }
         // GET /api/dashboard/guilds/:guildId/analytics
         if (parts[4] === 'analytics') {
+          const guildId = parts[3] ?? null;
+          if (!guildId) {
+            json(res, 400, { error: 'guildId manquant' });
+            return;
+          }
+
           if (req.method === 'GET') {
             try {
               const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
@@ -7699,6 +7705,17 @@ export const startDashboardApi = (client: Client) => {
 
               if (parts[5] === 'members') {
                 json(res, 200, { data: [] }); // TODO: implémenter member detailed analytics
+                return;
+              }
+
+              if (parts[5] === 'interactions') {
+                const url = new URL(req.url, `http://${req.headers.host}`);
+                const days = parseInt(url.searchParams.get('period') || '30', 10);
+                const startDate = url.searchParams.get('startDate') || undefined;
+                const endDate = url.searchParams.get('endDate') || undefined;
+
+                const data = await import('../services/dashboardAnalyticsService.js').then(m => m.getGlobalInteractions(guildId, { days, startDate, endDate }));
+                json(res, 200, data);
                 return;
               }
 
