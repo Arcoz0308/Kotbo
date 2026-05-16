@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
-  import { fetchMeetings, createMeeting, deleteMeeting, updateMeeting, fetchMemberCase, updateModuleStatus, updateGlobalSettings } from '../lib/api';
+  import { fetchMeetings, createMeeting, deleteMeeting, updateMeeting, fetchMemberCase, updateModuleStatus, updateGlobalSettings, fetchFeatureConfigurations, updateFeatureConfiguration, fetchStaffConfig, updateStaffConfig } from '../lib/api';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import ActionButton from '../lib/components/ActionButton.svelte';
   import FormSelect from '../lib/components/FormSelect.svelte';
@@ -12,6 +12,8 @@
   import FormTextarea from '../lib/components/FormTextarea.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
+  import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
 
   let meetings = $state<any[]>([]);
   let loading = $state(true);
@@ -43,26 +45,22 @@
   let deleting = $state(false);
 
   const isAdmin = $derived(authStore.guilds.find(g => g.id === authStore.selectedGuildId)?.accessLevel === 'admin');
-  const canManageSettings = $derived(isAdmin || !!dashboardStore.state.access?.canManageSettings);
+  const featureAccess = $derived(dashboardStore.state.featureAccess?.meetings || {});
+  const canManageSettings = $derived(isAdmin || !!dashboardStore.state.access?.canManageSettings || !!featureAccess.canConfigure);
+  const canModerate = $derived(canManageSettings || !!featureAccess.canModerate);
 
   const saveAction = createAsyncActionState();
-  let selectedMeetingChannelId = $state('');
+  let meetingsConfig = $state<any>(null);
+  let loadingConfig = $state(false);
 
-  $effect(() => {
-    selectedMeetingChannelId = dashboardStore.state.meetingChannelId || '';
-  });
+  // Derived from dashboardStore for real-time sync
+  const guildState = $derived(dashboardStore.state.guild);
+  const meetingAnnouncementChannelId = $derived(guildState?.meetingAnnouncementChannelId || null);
+  const meetingVoiceChannelId = $derived(guildState?.meetingVoiceChannelId || null);
+  const availableDiscordChannels = $derived(dashboardStore.state.guild?.discordChannels || []);
+  const availableDiscordVoiceChannels = $derived(dashboardStore.state.guild?.discordVoiceChannels || []);
 
-  async function handleMeetingChannelChange(event: Event) {
-    const target = event.target as HTMLSelectElement;
-    const channelId = target.value || '';
-    
-    await saveAction.run(async () => {
-      const ok = await updateGlobalSettings({ meetingChannelId: channelId });
-      if (!ok) throw new Error('Erreur API');
-      await dashboardStore.refresh();
-      return true;
-    }, { successMessage: 'Salon de réunions mis à jour.' });
-  }
+  const canView = $derived(isAdmin || !!featureAccess.canView);
 
   async function loadMeetings() {
     loading = true;
@@ -111,8 +109,23 @@
     };
   }
 
-  onMount(() => {
+  onMount(async () => {
+    if (!canView) {
+      // On redirige ou affiche une erreur si besoin, mais ici on laisse le ModulePage gérer le message si possible
+      // ou on peut mettre une erreur locale
+      return;
+    }
     loadMeetings();
+    
+    loadingConfig = true;
+    try {
+      const configs = await fetchFeatureConfigurations();
+      meetingsConfig = configs?.features?.find((c: any) => c.featureKey === 'meetings') || null;
+    } catch (err) {
+      console.error('Error fetching meetings config:', err);
+    } finally {
+      loadingConfig = false;
+    }
 
     // Polling toutes les 10 secondes pour le "temps réel" demandé
     const interval = setInterval(() => {
@@ -134,7 +147,7 @@
   });
 
   function openCreate() {
-    if (!isAdmin) return;
+    if (!canManageSettings) return;
     editMode = false;
     meetingTitle = '';
     meetingDesc = '';
@@ -144,7 +157,7 @@
   }
 
   function openEdit(meeting: any) {
-    if (!isAdmin) return;
+    if (!canManageSettings) return;
     editMode = true;
     currentMeetingId = meeting.id;
     meetingTitle = meeting.title;
@@ -180,7 +193,7 @@
   }
 
   function openDelete(id: string) {
-    if (!isAdmin) return;
+    if (!canManageSettings) return;
     meetingToDeleteId = id;
     deleteDiscordEvent = true;
     deleteDiscordMessage = false;
@@ -207,7 +220,7 @@
   }
 
   async function updateStatus(id: string, status: string) {
-    if (!isAdmin) return;
+    if (!canModerate) return;
     try {
       await updateMeeting(id, { status });
       await loadMeetings();
@@ -241,7 +254,6 @@
     detailModalOpen = true;
   }
 
-  import ModulePage from '../lib/components/ModulePage.svelte';
 </script>
 
 <ModulePage 
@@ -252,47 +264,68 @@
 >
   {#snippet actions()}
     <RefreshButton onClick={loadMeetings} loading={loading} label="Actualiser" />
-    {#if isAdmin}
+    {#if canManageSettings}
       <ActionButton onClick={openCreate} variant="primary" icon="plus" label="Nouvelle Réunion" />
     {/if}
   {/snippet}
 
-  {#if canManageSettings}
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10 animate-in fade-in slide-in-from-top-4 duration-500">
-      <div class="bg-surface-container-low/30 p-8 rounded-[2.5rem] border border-outline-variant/10 flex items-center justify-between gap-6">
-        <div>
-          <h3 class="text-sm font-black uppercase tracking-widest text-on-surface">Activation</h3>
-          <p class="text-xs text-on-surface-variant/70 mt-1">Si désactivé, la planification et les RSVP seront indisponibles.</p>
+  {#if canManageSettings && meetingsConfig}
+    <div class="mb-10 space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-surface-container-low rounded-3xl p-6 border border-outline-variant/20 shadow-sm">
+          <h4 class="text-xs font-black text-on-surface-variant uppercase tracking-widest mb-4">Canaux de Réunion</h4>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-[10px] font-black text-on-surface-variant uppercase mb-2 ml-1">Salon d'annonce</label>
+              <select 
+                value={meetingAnnouncementChannelId} 
+                onchange={async (e) => {
+                  const val = (e.target as HTMLSelectElement).value;
+                  await updateStaffConfig({ meetingAnnouncementChannelId: val || null });
+                  await dashboardStore.refresh();
+                }}
+                class="w-full rounded-xl border border-outline-variant/30 bg-surface-container-lowest px-4 py-2.5 text-sm outline-none transition focus:border-primary/50"
+              >
+                <option value="">-- Aucun --</option>
+                {#each availableDiscordChannels as ch}
+                  <option value={ch.id}>#{ch.name}</option>
+                {/each}
+              </select>
+            </div>
+            <div>
+              <label class="block text-[10px] font-black text-on-surface-variant uppercase mb-2 ml-1">Salon vocal</label>
+              <select 
+                value={meetingVoiceChannelId} 
+                onchange={async (e) => {
+                  const val = (e.target as HTMLSelectElement).value;
+                  await updateStaffConfig({ meetingVoiceChannelId: val || null });
+                  await dashboardStore.refresh();
+                }}
+                class="w-full rounded-xl border border-outline-variant/30 bg-surface-container-lowest px-4 py-2.5 text-sm outline-none transition focus:border-primary/50"
+              >
+                <option value="">-- Aucun --</option>
+                {#each availableDiscordVoiceChannels as ch}
+                  <option value={ch.id}>{ch.name}</option>
+                {/each}
+              </select>
+            </div>
+          </div>
         </div>
-        <ToggleSwitch
-          checked={dashboardStore.state.modules.find(m => m.id === 'meetings')?.status === 'active'}
-          disabled={saveAction.state.loading}
-          onToggle={async () => {
-            const current = dashboardStore.state.modules.find(m => m.id === 'meetings')?.status === 'active';
-            await saveAction.run(async () => {
-              await updateModuleStatus('meetings', current ? 'inactive' : 'active');
-              await dashboardStore.refresh();
-              return true;
-            });
-          }}
-        />
+
+        <div class="bg-surface-container-low rounded-3xl p-6 border border-outline-variant/20 shadow-sm flex flex-col">
+          <h4 class="text-xs font-black text-on-surface-variant uppercase tracking-widest mb-4">Accès Rôles</h4>
+          <div class="flex-1 overflow-y-auto max-h-[300px]">
+            <RolePermissionSettings 
+              featureKey="meetings" 
+              roleAccess={meetingsConfig.roleAccessByRole} 
+            />
+          </div>
+        </div>
       </div>
 
-      <div class="bg-surface-container-low/30 p-8 rounded-[2.5rem] border border-outline-variant/10 space-y-4">
-        <div>
-          <h3 class="text-sm font-black uppercase tracking-widest text-on-surface">Salon d'annonce</h3>
-          <p class="text-xs text-on-surface-variant/70 mt-1">Salon où les réunions seront annoncées avec boutons RSVP.</p>
-        </div>
-        <FormSelect
-          options={dashboardStore.state.discordChannels.map(c => ({ value: c.id, label: `#${c.name}` }))}
-          bind:value={selectedMeetingChannelId}
-          onchange={handleMeetingChannelChange}
-          placeholder="Sélectionner un salon"
-        />
-        {#if saveAction.state.message}
-          <p class="text-[10px] font-bold text-emerald-600 px-1">{saveAction.state.message}</p>
-        {/if}
-      </div>
+      {#if saveAction.state.message}
+        <p class="text-xs font-bold text-emerald-600 ml-1">{saveAction.state.message}</p>
+      {/if}
     </div>
   {/if}
 
@@ -307,7 +340,7 @@
         <Papicon icon="calendar" size={60} class="text-on-surface-variant/20 mb-4" />
         <h3 class="text-xl font-bold text-on-surface">Aucune réunion prévue</h3>
         <p class="text-on-surface-variant mt-1">Planifiez votre première réunion pour commencer le suivi.</p>
-        {#if isAdmin}
+        {#if canManageSettings}
           <button onclick={openCreate} class="mt-6 px-6 py-2.5 bg-primary text-on-primary rounded-xl font-bold hover:bg-primary-hover transition-colors">
             Créer une réunion
           </button>
@@ -330,7 +363,7 @@
                     {new Date(meeting.scheduledAt).toLocaleString('fr-FR', { dateStyle: 'full', timeStyle: 'short' })}
                   </div>
                 </div>
-                {#if isAdmin}
+                {#if canManageSettings}
                   <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onclick={() => openEdit(meeting)} class="p-2 hover:bg-surface-hover rounded-full transition-colors text-on-surface-variant hover:text-primary" title="Modifier">
                       <Papicon icon="edit-2" size={18} />
@@ -385,7 +418,7 @@
               </div>
 
               <div class="flex items-center gap-2">
-                {#if isAdmin}
+                {#if canModerate}
                    {#if meeting.status === 'SCHEDULED'}
                       <button onclick={() => updateStatus(meeting.id, 'IN_PROGRESS')} class="text-xs font-bold text-primary px-3 py-1.5 hover:bg-primary/10 rounded-lg transition-colors">
                         Démarrer

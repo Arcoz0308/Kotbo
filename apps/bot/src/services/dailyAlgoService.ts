@@ -298,7 +298,7 @@ export function buildDailyAlgoValidationButtons(submissionId: string, disabled =
   const rate = new ButtonBuilder()
     .setLabel('📝 Noter')
     .setStyle(ButtonStyle.Link)
-    .setURL(`${DASHBOARD_URL}/module-settings/dailyalgo?submissionId=${submissionId}`)
+    .setURL(`${DASHBOARD_URL}/dailyalgo/ide?submissionId=${submissionId}`)
     .setDisabled(disabled);
 
   const reject = new ButtonBuilder()
@@ -1406,7 +1406,8 @@ export async function reviewDailyAlgoSubmission(params: {
         ? `Votre soumission a été validée avec une note de ${updateData.scoreFinal}/5.`
         : `Votre soumission a été rejetée. Motif : ${normalizedFeedback || 'Non spécifié'}`,
       params.action === 'approve' ? 'SUCCESS' : 'ERROR',
-      '/module-settings/dailyalgo'
+      '/dailyalgo/ide',
+      false
     ).catch(() => null);
   }
 

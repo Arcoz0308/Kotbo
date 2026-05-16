@@ -2,24 +2,35 @@
   import { onMount } from 'svelte';
   import { router } from 'tinro';
   import { authStore } from '../lib/stores/auth.svelte';
-  import { API_BASE_URL, fetchGuildState, fetchPolls, toggleTutorStatus, fetchStaffWarnings } from '../lib/api';
+  import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { 
+    API_BASE_URL, 
+    fetchGuildState, 
+    fetchPolls, 
+    toggleTutorStatus, 
+    fetchStaffWarnings,
+    fetchFeatureConfigurations,
+    updateFeatureConfiguration,
+    updateStaffConfig
+  } from '../lib/api';
   import DiscordMemberLookup from '../lib/components/DiscordMemberLookup.svelte';
   import MetricCard from '../lib/components/MetricCard.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
-import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
-import Papicon from '../lib/components/Papicon.svelte';
-import Chart from '../lib/components/charts/Chart.svelte';
+  import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
+  import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
+  import Papicon from '../lib/components/Papicon.svelte';
+  import Chart from '../lib/components/charts/Chart.svelte';
 
 
   let guildId = $state<string | null>(null);
   let accessLevel = $state('none');
   let error = $state('');
   
-  type StaffTab = 'members' | 'roles' | 'warnings' | 'blacklist' | 'polls' | 'leadership';
-  const staffTabs: StaffTab[] = ['members', 'roles', 'warnings', 'blacklist', 'polls', 'leadership'];
+  type StaffTab = 'members' | 'roles' | 'warnings' | 'blacklist' | 'polls' | 'leadership' | 'permissions';
+  const staffTabs: StaffTab[] = ['members', 'roles', 'warnings', 'blacklist', 'polls', 'leadership', 'permissions'];
 
   function isStaffTab(value: string | null | undefined): value is StaffTab {
     return !!value && staffTabs.includes(value as StaffTab);
@@ -95,9 +106,18 @@ import Chart from '../lib/components/charts/Chart.svelte';
       }
     ]
   });
-  let availableDiscordRoles = $state<Array<{ id: string; name: string }>>([]);
-  let availableDiscordChannels = $state<Array<{ id: string; name: string }>>([]);
-  let availableDiscordVoiceChannels = $state<Array<{ id: string; name: string }>>([]);
+  let availableDiscordRoles = $state<any[]>(dashboardStore.state.discordRoles || []);
+  let availableDiscordChannels = $state<any[]>(dashboardStore.state.discordChannels || []);
+  let availableDiscordVoiceChannels = $state<any[]>(dashboardStore.state.discordVoiceChannels || []);
+  let featureConfigs = $state<any[]>([]);
+  let loadingFeatureConfigs = $state(false);
+
+  const isAdmin = $derived(authStore.guilds.find(g => g.id === authStore.selectedGuildId)?.accessLevel === 'admin');
+  const directoryAccess = $derived(dashboardStore.state.featureAccess?.staff_directory || {});
+  const rolesAccess = $derived(dashboardStore.state.featureAccess?.staff_roles || {});
+  
+  const canManageSettings = $derived(isAdmin || !!dashboardStore.state.access?.canManageSettings || !!directoryAccess.canConfigure || !!rolesAccess.canConfigure);
+  const canModerate = $derived(canManageSettings || !!directoryAccess.canModerate || !!rolesAccess.canModerate);
 
   // Forms
   let showAddMemberForm = $state(false);
@@ -352,8 +372,8 @@ import Chart from '../lib/components/charts/Chart.svelte';
         accessLevel = adminGuild.accessLevel;
       }
 
-      if (accessLevel !== 'admin') {
-        error = 'Accès admin requis pour cette page';
+      if (accessLevel !== 'admin' && !directoryAccess.canView && !rolesAccess.canView) {
+        error = 'Accès insuffisant pour cette page';
         return;
       }
 
@@ -374,7 +394,7 @@ import Chart from '../lib/components/charts/Chart.svelte';
 
   async function loadInitialData() {
     // 1. Charger les configs essentielles (non bloquantes pour l'UI, mais nécessaires pour les selects/rôles)
-    await Promise.all([loadStaffRoles(), loadStaffConfig()]);
+    await Promise.all([loadStaffRoles(), loadStaffConfig(), loadFeatureConfigs()]);
 
     // 2. Charger l'onglet actif immédiatement
     await loadTabData(activeTab);
@@ -470,33 +490,38 @@ import Chart from '../lib/components/charts/Chart.svelte';
     }
   }
 
+  async function loadFeatureConfigs() {
+    loadingFeatureConfigs = true;
+    try {
+      const data = await fetchFeatureConfigurations(guildId!);
+      featureConfigs = data.features || [];
+    } catch (err) {
+      console.error('Erreur loading feature configs:', err);
+    } finally {
+      loadingFeatureConfigs = false;
+    }
+  }
+
   async function saveStaffConfig() {
     if (!guildId || !authStore.token) return;
     isSavingConfig = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/config`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`
-        },
-        body: JSON.stringify({
-          baseStaffRoleId,
-          testStaffRoleId,
-          meetingAnnouncementChannelId,
-          meetingVoiceChannelId,
-
-
-          warnsToDemote,
-          warnsToBlacklist,
-          blacklistPermanentByDefault,
-          actionMode,
-          demoteRemoveAllRoles
-        })
-      });
-      if (!res.ok) throw new Error('Erreur');
+      const ok = await updateStaffConfig({
+        baseStaffRoleId,
+        testStaffRoleId,
+        meetingAnnouncementChannelId,
+        meetingVoiceChannelId,
+        warnsToDemote,
+        warnsToBlacklist,
+        blacklistPermanentByDefault,
+        actionMode,
+        demoteRemoveAllRoles
+      }, guildId);
+      
+      if (!ok) throw new Error('Erreur API');
+      await dashboardStore.refresh();
     } catch (err) {
-      alert('Erreur lors de la sauvegarde de la configuration globale');
+      console.error('Error saving staff config:', err);
     } finally {
       isSavingConfig = false;
     }
@@ -942,11 +967,13 @@ import Chart from '../lib/components/charts/Chart.svelte';
             Supervisez votre équipe de modération, attribuez des permissions, gérez les périodes de test et consultez l'historique des avertissements.
           </p>
         </div>
-        <div>
-          <button onclick={() => showConfigMenu = true} class="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-outline-variant/20 bg-surface text-on-surface transition-all hover:border-primary/50 hover:bg-primary/5 hover:text-primary active:scale-95 shadow-sm" title="Configuration Automatisation & Sanctions">
-            <Papicon icon="settings" size={26} />
-          </button>
-        </div>
+        {#if canManageSettings}
+          <div>
+            <button onclick={() => showConfigMenu = true} class="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-outline-variant/20 bg-surface text-on-surface transition-all hover:border-primary/50 hover:bg-primary/5 hover:text-primary active:scale-95 shadow-sm" title="Configuration Automatisation & Sanctions">
+              <Papicon icon="settings" size={26} />
+            </button>
+          </div>
+        {/if}
       </div>
 
         
@@ -970,13 +997,14 @@ import Chart from '../lib/components/charts/Chart.svelte';
     <!-- TABS -->
     <div class="flex flex-wrap items-center gap-3">
       {#each [
-        { id: 'members', label: 'Membres', icon: 'users' },
-        { id: 'roles', label: 'Rôles Staff', icon: 'shield' },
-        { id: 'warnings', label: 'Avertir', icon: 'alert-triangle' },
-        { id: 'blacklist', label: 'Blacklist', icon: 'slash' },
-        { id: 'polls', label: 'Sondages', icon: 'check-square' },
-        { id: 'leadership', label: 'Leadership', icon: 'bar-chart' }
-      ] as tab}
+        { id: 'members', label: 'Membres', icon: 'users', visible: !!directoryAccess.canView },
+        { id: 'roles', label: 'Rôles Staff', icon: 'shield', visible: !!rolesAccess.canView },
+        { id: 'warnings', label: 'Avertir', icon: 'alert-triangle', visible: canModerate },
+        { id: 'blacklist', label: 'Blacklist', icon: 'slash', visible: canModerate },
+        { id: 'polls', label: 'Sondages', icon: 'check-square', visible: canModerate },
+        { id: 'leadership', label: 'Leadership', icon: 'bar-chart', visible: canModerate },
+        { id: 'permissions', label: 'Permissions', icon: 'lock', visible: canManageSettings }
+      ].filter(t => t.visible) as tab}
         <button
           onclick={() => switchTab(tab.id as StaffTab)}
           class="inline-flex items-center gap-2 rounded-full px-5 py-3 text-xs font-black uppercase tracking-[0.18em] transition-all {activeTab === tab.id
@@ -997,13 +1025,15 @@ import Chart from '../lib/components/charts/Chart.svelte';
             <h3 class="text-2xl font-black tracking-tighter text-on-surface">Membres du Personnel</h3>
             <p class="text-sm font-medium text-on-surface-variant/60 mt-1">Gérez l'équipe et leurs grades actuels.</p>
           </div>
-          <button
-            onclick={openAddMemberForm}
-            class="inline-flex items-center gap-2 whitespace-nowrap rounded-2xl border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
-          >
-            <Papicon icon={showAddMemberForm ? 'x' : 'plus'} size={14} />
-            {showAddMemberForm ? 'Annuler' : 'Ajouter un membre'}
-          </button>
+          {#if directoryAccess.canConfigure}
+            <button
+              onclick={openAddMemberForm}
+              class="inline-flex items-center gap-2 whitespace-nowrap rounded-2xl border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
+            >
+              <Papicon icon={showAddMemberForm ? 'x' : 'plus'} size={14} />
+              {showAddMemberForm ? 'Annuler' : 'Ajouter un membre'}
+            </button>
+          {/if}
         </div>
 
         {#if showAddMemberForm}
@@ -1122,54 +1152,59 @@ import Chart from '../lib/components/charts/Chart.svelte';
                   </div>
 
                   <div class="flex items-center gap-2 shrink-0 flex-wrap">
-                    <button
-                      onclick={() => toggleTutor(member.userId)}
-                      class="group/tutor relative inline-flex items-center justify-center rounded-xl p-2.5 transition-all {member.isTutor ? 'text-indigo-600 bg-indigo-500/15 border border-indigo-500/30 shadow-lg shadow-indigo-500/10 ring-2 ring-indigo-500/20' : 'text-on-surface-variant/40 hover:text-indigo-600 hover:bg-indigo-500/10 border border-outline-variant/20 bg-surface-container-low/50 hover:border-indigo-500/30'}"
-                      title={member.isTutor ? 'Retirer le statut de tuteur' : 'Désigner comme Tuteur'}
-                    >
-                      <Papicon 
-                        icon={member.isTutor ? 'user-check' : 'user-plus'} 
-                        size={20} 
-                        class="transition-transform group-hover/tutor:scale-110 group-active/tutor:scale-90" 
-                      />
-                      {#if member.isTutor}
-                         <span class="absolute -top-1 -right-1 flex h-3 w-3">
-                           <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                           <span class="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
-                         </span>
-                      {/if}
-                    </button>
-                    <div class="w-px h-6 bg-outline-variant/10 mx-1"></div>
-                    <button
-                      onclick={() => promoteStaff(member.userId)}
-                      disabled={(() => {
-                        const idx = orderedStaffRoles.findIndex((r) => r.name === member.grade);
-                        return idx === -1 || idx >= orderedStaffRoles.length - 1;
-                      })()}
-                      class="inline-flex items-center justify-center rounded-xl p-2.5 transition-colors disabled:opacity-40 {(orderedStaffRoles.findIndex((r) => r.name === member.grade) >= orderedStaffRoles.length - 1) ? 'text-on-surface-variant/30' : 'text-emerald-600 hover:bg-emerald-500/15 border border-emerald-500/20 bg-emerald-500/5'}"
-                      title="Promouvoir"
-                    >
-                      <Papicon icon="chevrons-up" size={20} />
-                    </button>
-                    <button
-                      onclick={() => demoteStaff(member.userId)}
-                      disabled={(() => {
-                        const idx = orderedStaffRoles.findIndex((r) => r.name === member.grade);
-                        return idx <= 0;
-                      })()}
-                      class="inline-flex items-center justify-center rounded-xl p-2.5 transition-colors disabled:opacity-40 {(orderedStaffRoles.findIndex((r) => r.name === member.grade) <= 0) ? 'text-on-surface-variant/30' : 'text-amber-600 hover:bg-amber-500/15 border border-amber-500/20 bg-amber-500/5'}"
-                      title="Rétrograder"
-                    >
-                      <Papicon icon="chevrons-down" size={20} />
-                    </button>
-                    <div class="w-px h-6 bg-outline-variant/20 mx-1"></div>
-                    <button
-                      onclick={() => removeStaff(member.userId)}
-                      class="inline-flex items-center justify-center rounded-xl p-2.5 text-rose-600 transition-colors hover:bg-rose-500/15 border border-rose-500/20 bg-rose-500/5"
-                      title="Démettre"
-                    >
-                      <Papicon icon="user-minus" size={20} />
-                    </button>
+                    {#if canModerate}
+                      <button
+                        onclick={() => toggleTutor(member.userId)}
+                        class="group/tutor relative inline-flex items-center justify-center rounded-xl p-2.5 transition-all {member.isTutor ? 'text-indigo-600 bg-indigo-500/15 border border-indigo-500/30 shadow-lg shadow-indigo-500/10 ring-2 ring-indigo-500/20' : 'text-on-surface-variant/40 hover:text-indigo-600 hover:bg-indigo-500/10 border border-outline-variant/20 bg-surface-container-low/50 hover:border-indigo-500/30'}"
+                        title={member.isTutor ? 'Retirer le statut de tuteur' : 'Désigner comme Tuteur'}
+                      >
+                        <Papicon 
+                          icon={member.isTutor ? 'user-check' : 'user-plus'} 
+                          size={20} 
+                          class="transition-transform group-hover/tutor:scale-110 group-active/tutor:scale-90" 
+                        />
+                        {#if member.isTutor}
+                           <span class="absolute -top-1 -right-1 flex h-3 w-3">
+                             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                             <span class="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+                           </span>
+                        {/if}
+                      </button>
+                    {/if}
+
+                    {#if canManageSettings}
+                      <div class="w-px h-6 bg-outline-variant/10 mx-1"></div>
+                      <button
+                        onclick={() => promoteStaff(member.userId)}
+                        disabled={(() => {
+                          const idx = orderedStaffRoles.findIndex((r) => r.name === member.grade);
+                          return idx === -1 || idx >= orderedStaffRoles.length - 1;
+                        })()}
+                        class="inline-flex items-center justify-center rounded-xl p-2.5 transition-colors disabled:opacity-40 {(orderedStaffRoles.findIndex((r) => r.name === member.grade) >= orderedStaffRoles.length - 1) ? 'text-on-surface-variant/30' : 'text-emerald-600 hover:bg-emerald-500/15 border border-emerald-500/20 bg-emerald-500/5'}"
+                        title="Promouvoir"
+                      >
+                        <Papicon icon="chevrons-up" size={20} />
+                      </button>
+                      <button
+                        onclick={() => demoteStaff(member.userId)}
+                        disabled={(() => {
+                          const idx = orderedStaffRoles.findIndex((r) => r.name === member.grade);
+                          return idx <= 0;
+                        })()}
+                        class="inline-flex items-center justify-center rounded-xl p-2.5 transition-colors disabled:opacity-40 {(orderedStaffRoles.findIndex((r) => r.name === member.grade) <= 0) ? 'text-on-surface-variant/30' : 'text-amber-600 hover:bg-amber-500/15 border border-amber-500/20 bg-amber-500/5'}"
+                        title="Rétrograder"
+                      >
+                        <Papicon icon="chevrons-down" size={20} />
+                      </button>
+                      <div class="w-px h-6 bg-outline-variant/20 mx-1"></div>
+                      <button
+                        onclick={() => removeStaff(member.userId)}
+                        class="inline-flex items-center justify-center rounded-xl p-2.5 text-rose-600 transition-colors hover:bg-rose-500/15 border border-rose-500/20 bg-rose-500/5"
+                        title="Démettre"
+                      >
+                        <Papicon icon="user-minus" size={20} />
+                      </button>
+                    {/if}
                   </div>
                 </div>
               </article>
@@ -1195,13 +1230,15 @@ import Chart from '../lib/components/charts/Chart.svelte';
             <h3 class="text-2xl font-black tracking-tighter text-on-surface">Hiérarchie des Rôles</h3>
             <p class="text-sm font-medium text-on-surface-variant/75 mt-1">Associez un rôle Discord à un grade staff, et réordonnez la hiérarchie.</p>
           </div>
-          <button
-            onclick={() => showAddRoleForm = !showAddRoleForm}
-            class="inline-flex items-center gap-2 whitespace-nowrap rounded-2xl border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
-          >
-            <Papicon icon={showAddRoleForm ? 'x' : 'plus'} size={14} />
-            {showAddRoleForm ? 'Fermer' : 'Nouveau Rôle'}
-          </button>
+          {#if rolesAccess.canConfigure}
+            <button
+              onclick={() => showAddRoleForm = !showAddRoleForm}
+              class="inline-flex items-center gap-2 whitespace-nowrap rounded-2xl border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
+            >
+              <Papicon icon={showAddRoleForm ? 'x' : 'plus'} size={14} />
+              {showAddRoleForm ? 'Fermer' : 'Nouveau Rôle'}
+            </button>
+          {/if}
         </div>
 
         <div class="p-6 md:p-8 border-b border-outline-variant/20 bg-surface-container-lowest/50">
@@ -1215,7 +1252,7 @@ import Chart from '../lib/components/charts/Chart.svelte';
             <div>
               <label>
                 <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">Rôle Staff de base <span class="text-on-surface-variant/50 normal-case tracking-normal">(Optionnel)</span></span>
-                <select bind:value={baseStaffRoleId} onchange={saveStaffConfig} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
+                <select bind:value={baseStaffRoleId} onchange={saveStaffConfig} disabled={!rolesAccess.canConfigure} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 disabled:opacity-50 disabled:cursor-not-allowed">
                   <option value={null}>-- Aucun --</option>
                   {#each availableDiscordRoles as dr}
                     <option value={dr.id}>{dr.name}</option>
@@ -1226,7 +1263,7 @@ import Chart from '../lib/components/charts/Chart.svelte';
             <div>
               <label>
                 <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">Rôle Staff en Test <span class="text-on-surface-variant/50 normal-case tracking-normal">(Optionnel)</span></span>
-                <select bind:value={testStaffRoleId} onchange={saveStaffConfig} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
+                <select bind:value={testStaffRoleId} onchange={saveStaffConfig} disabled={!rolesAccess.canConfigure} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 disabled:opacity-50 disabled:cursor-not-allowed">
                   <option value={null}>-- Aucun --</option>
                   {#each availableDiscordRoles as dr}
                     <option value={dr.id}>{dr.name}</option>
@@ -1237,7 +1274,7 @@ import Chart from '../lib/components/charts/Chart.svelte';
             <div>
               <label>
                 <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">Salon d'annonce des réunions <span class="text-on-surface-variant/50 normal-case tracking-normal">(Texte)</span></span>
-                <select bind:value={meetingAnnouncementChannelId} onchange={saveStaffConfig} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
+                <select bind:value={meetingAnnouncementChannelId} onchange={saveStaffConfig} disabled={!rolesAccess.canConfigure} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 disabled:opacity-50 disabled:cursor-not-allowed">
                   <option value={null}>-- Aucun --</option>
                   {#each availableDiscordChannels as dc}
                     <option value={dc.id}>#{dc.name}</option>
@@ -1248,7 +1285,7 @@ import Chart from '../lib/components/charts/Chart.svelte';
             <div>
               <label>
                 <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">Salon vocal / conférence des réunions</span>
-                <select bind:value={meetingVoiceChannelId} onchange={saveStaffConfig} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
+                <select bind:value={meetingVoiceChannelId} onchange={saveStaffConfig} disabled={!rolesAccess.canConfigure} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 disabled:opacity-50 disabled:cursor-not-allowed">
                   <option value={null}>-- Aucun --</option>
                   {#each availableDiscordVoiceChannels as vc}
                     <option value={vc.id}>{vc.name}</option>
@@ -1912,6 +1949,32 @@ import Chart from '../lib/components/charts/Chart.svelte';
           </div>
         </div>
 
+      {:else if activeTab === 'permissions'}
+        <div class="p-6 md:p-8 space-y-12">
+          <div>
+            <h3 class="text-2xl font-black tracking-tighter text-on-surface flex items-center gap-3">
+              <Papicon icon="lock" size={28} class="text-primary" />
+              Permissions Staff
+            </h3>
+            <p class="text-sm font-medium text-on-surface-variant/60 mt-1">Gérez qui peut consulter et administrer les différentes sections de la gestion du personnel.</p>
+          </div>
+
+          <div class="grid grid-cols-1 gap-8">
+            <RolePermissionSettings
+              title="Annuaire Staff"
+              description="Contrôle l'accès à la liste des membres du personnel."
+              featureKey="staff_directory"
+              {guildId}
+            />
+
+            <RolePermissionSettings
+              title="Hiérarchie & Rôles"
+              description="Contrôle l'accès à la gestion des rôles et de la hiérarchie staff."
+              featureKey="staff_roles"
+              {guildId}
+            />
+          </div>
+        </div>
       {/if}
 
     </div>

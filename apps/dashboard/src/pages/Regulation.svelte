@@ -13,8 +13,12 @@
     reorderRegulationArticles,
     updateRegulationSettings,
     updateRegulationArticle,
-    updateModuleStatus,
+    fetchFeatureConfigurations,
+    updateFeatureConfiguration
   } from '../lib/api';
+  import { onMount } from 'svelte';
+  import { createAsyncActionState } from '../lib/asyncAction.svelte';
+  import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
 
 
   type RegulationRule = {
@@ -45,6 +49,33 @@
   let draggingRuleId = $state<string | null>(null);
   let dragOverRuleId = $state<string | null>(null);
   let reordering = $state(false);
+  const saveAction = createAsyncActionState();
+
+  let featureConfig = $state<any>(null);
+  let loadingConfig = $state(false);
+
+  onMount(async () => {
+    loadingConfig = true;
+    try {
+      const configs = await fetchFeatureConfigurations();
+      featureConfig = configs?.features?.find((c: any) => c.featureKey === 'regulation') || null;
+    } catch (err) {
+      console.error('Error fetching regulation config:', err);
+    } finally {
+      loadingConfig = false;
+    }
+  });
+
+  async function toggleConfig(key: string, value: boolean) {
+    if (!featureConfig) return;
+    
+    await saveAction.run(async () => {
+      const ok = await updateFeatureConfiguration('regulation', { [key]: value });
+      if (!ok) throw new Error('Erreur API');
+      featureConfig[key] = value;
+      return true;
+    }, { successMessage: 'Configuration mise à jour.' });
+  }
 
   const canManageSettings = $derived(
     !!dashboardStore.state.featureAccess?.regulation?.canConfigure
@@ -340,14 +371,18 @@
     saving = true;
 
     try {
-      const ok = await updateRegulationSettings(channelId);
-      if (!ok) {
-        feedbackMessage = 'Impossible de mettre à jour le salon de publication du règlement.';
-        feedbackIsError = true;
-        return;
-      }
+      await saveAction.run(async () => {
+        const ok = await updateRegulationSettings(channelId);
+        if (!ok) throw new Error('Erreur API');
+        
+        if (featureConfig) {
+          await updateFeatureConfiguration('regulation', { channelId });
+          featureConfig.channelId = channelId;
+        }
 
-      await refreshState(channelId ? 'Salon de publication du règlement mis à jour.' : 'Salon de publication spécifique supprimé (fallback configuration actif).');
+        await dashboardStore.refresh();
+        return true;
+      }, { successMessage: channelId ? 'Salon de publication du règlement mis à jour.' : 'Salon de publication spécifique supprimé (fallback configuration actif).' });
     } finally {
       saving = false;
     }
@@ -445,28 +480,15 @@
     </div>
   </div>
 
-  <div class="bg-surface-container-low/30 p-8 rounded-4xl border border-outline-variant/10 mb-8 flex items-center justify-between gap-6">
-    <div>
-      <h3 class="text-sm font-black uppercase tracking-widest text-on-surface">Activation du module</h3>
-      <p class="text-xs text-on-surface-variant/70 mt-1">Si désactivé, le règlement ne sera plus synchronisé et les fonctionnalités liées seront indisponibles.</p>
-    </div>
-    <div class="scale-110">
-      <ToggleSwitch
-        checked={dashboardStore.state.modules.find(m => m.id === 'regulation')?.status === 'active'}
-        disabled={!canManageSettings || saving}
-        onToggle={async () => {
-          const current = dashboardStore.state.modules.find(m => m.id === 'regulation')?.status === 'active';
-          saving = true;
-          try {
-            await updateModuleStatus('regulation', current ? 'inactive' : 'active');
-            await dashboardStore.refresh();
-          } finally {
-            saving = false;
-          }
-        }}
+  {#if featureConfig && canManageSettings}
+    <div class="bg-surface-container-low/30 p-8 rounded-4xl border border-outline-variant/10 mt-8 animate-in fade-in duration-500">
+      <RolePermissionSettings 
+        featureKey="regulation" 
+        roleAccess={featureConfig.roleAccessByRole} 
       />
     </div>
-  </div>
+  {/if}
+
 
   <!-- Articles List -->
   <div class="space-y-6">

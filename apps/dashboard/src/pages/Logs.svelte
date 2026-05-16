@@ -6,11 +6,14 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
   import ColumnSortFilter, { type ColumnFilterOption } from '../lib/components/sanctions/ColumnSortFilter.svelte';
-  import { fetchMemberCase, runMemberCaseAction, updateGlobalSettings, updateModuleStatus } from '../lib/api';
+  import { fetchMemberCase, runMemberCaseAction, updateGlobalSettings, updateModuleStatus, fetchFeatureConfigurations, updateFeatureConfiguration } from '../lib/api';
+  import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import FormSelect from '../lib/components/FormSelect.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
+  import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
 
 
   type LogsSortField = 'date' | 'user' | 'module' | 'action' | 'type';
@@ -157,7 +160,8 @@
 
   const saveAction = createAsyncActionState();
   const canManageSettings = $derived(
-    !!dashboardStore.state.featureAccess?.settings?.canConfigure
+    !!dashboardStore.state.featureAccess?.logs?.canConfigure
+      || !!dashboardStore.state.featureAccess?.settings?.canConfigure
       || !!dashboardStore.state.access?.canManageSettings
   );
 
@@ -167,6 +171,32 @@
     selectedLogChannelId = dashboardStore.state.logChannelId || '';
   });
 
+  let logsConfig = $state<any>(null);
+  let loadingConfig = $state(false);
+
+  onMount(async () => {
+    loadingConfig = true;
+    try {
+      const configs = await fetchFeatureConfigurations();
+      logsConfig = configs?.features?.find((c: any) => c.featureKey === 'logs') || null;
+    } catch (err) {
+      console.error('Error fetching logs config:', err);
+    } finally {
+      loadingConfig = false;
+    }
+  });
+
+  async function toggleConfig(key: string, value: boolean) {
+    if (!logsConfig) return;
+    
+    await saveAction.run(async () => {
+      const ok = await updateFeatureConfiguration('logs', { [key]: value });
+      if (!ok) throw new Error('Erreur API');
+      logsConfig[key] = value;
+      return true;
+    }, { successMessage: 'Configuration mise à jour.' });
+  }
+
   async function handleLogChannelChange(event: Event) {
     const target = event.target as HTMLSelectElement;
     const channelId = target.value || '';
@@ -174,6 +204,13 @@
     await saveAction.run(async () => {
       const ok = await updateGlobalSettings({ logChannelId: channelId });
       if (!ok) throw new Error('Erreur API');
+      
+      // Also update the feature config channelId if logsConfig exists
+      if (logsConfig) {
+        await updateFeatureConfiguration('logs', { channelId });
+        logsConfig.channelId = channelId;
+      }
+
       await dashboardStore.refresh();
       return true;
     }, { successMessage: 'Salon de logs mis à jour.' });
@@ -506,12 +543,13 @@
 </script>
 
 
-<div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10 font-inter">
-  <div>
-    <h2 class="text-3xl font-extrabold text-primary tracking-tight font-headline">Logs Discord</h2>
-    <p class="text-on-surface-variant mt-1 leading-relaxed">Tous les événements serveur pour {dashboardStore.state.guildName}.</p>
-  </div>
-  <div class="flex items-center gap-3">
+<ModulePage 
+  title="Logs Discord" 
+  description="Tous les événements serveur pour {dashboardStore.state.guildName}." 
+  icon="List"
+  featureKey="logs"
+>
+  {#snippet actions()}
     <RefreshButton
       onClick={() => dashboardStore.refresh()}
       loading={dashboardStore.state.loading}
@@ -519,8 +557,7 @@
       className="px-5 py-2.5 font-bold shadow-lg shadow-primary/10"
       iconClass="text-lg"
     />
-  </div>
-</div>
+  {/snippet}
 
 {#if canManageSettings}
 <div class="bg-surface-container-low/30 p-8 rounded-[2.5rem] border border-outline-variant/10 mb-10 space-y-6 animate-in fade-in duration-500">
@@ -536,14 +573,77 @@
     </div>
     <div class="w-full md:w-72">
       <FormSelect
-        options={dashboardStore.state.discordChannels.map(c => ({ value: c.id, label: `#${c.name}` }))}
         bind:value={selectedLogChannelId}
         onchange={handleLogChannelChange}
-        placeholder="Sélectionner un salon"
+        className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
+      >
+        <option value="">Sélectionner un salon</option>
+        {#each dashboardStore.state.discordChannels as c}
+          <option value={c.id}>#{c.name}</option>
+        {/each}
+      </FormSelect>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-6 border-t border-outline-variant/10">
+    <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container-low/50 border border-outline-variant/10">
+      <div>
+        <p class="text-[10px] font-black uppercase tracking-widest text-on-surface">Journalisation</p>
+        <p class="text-[9px] text-on-surface-variant/60 mt-0.5">Activer l'audit global</p>
+      </div>
+      <ToggleSwitch 
+        checked={logsConfig?.loggingEnabled ?? true} 
+        disabled={loadingConfig}
+        onToggle={() => toggleConfig('loggingEnabled', !(logsConfig?.loggingEnabled ?? true))} 
+      />
+    </div>
+
+    <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container-low/50 border border-outline-variant/10">
+      <div>
+        <p class="text-[10px] font-black uppercase tracking-widest text-on-surface">Suivi d'activité</p>
+        <p class="text-[9px] text-on-surface-variant/60 mt-0.5">Tracking des actions</p>
+      </div>
+      <ToggleSwitch 
+        checked={logsConfig?.userActivityTracking ?? true} 
+        disabled={loadingConfig}
+        onToggle={() => toggleConfig('userActivityTracking', !(logsConfig?.userActivityTracking ?? true))} 
+      />
+    </div>
+
+    <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container-low/50 border border-outline-variant/10">
+      <div>
+        <p class="text-[10px] font-black uppercase tracking-widest text-on-surface">Notifs Salon</p>
+        <p class="text-[9px] text-on-surface-variant/60 mt-0.5">Alertes dans le salon logs</p>
+      </div>
+      <ToggleSwitch 
+        checked={logsConfig?.notifyViaDiscordChannel ?? true} 
+        disabled={loadingConfig}
+        onToggle={() => toggleConfig('notifyViaDiscordChannel', !(logsConfig?.notifyViaDiscordChannel ?? true))} 
+      />
+    </div>
+
+    <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container-low/50 border border-outline-variant/10">
+      <div>
+        <p class="text-[10px] font-black uppercase tracking-widest text-on-surface">Notifs MP</p>
+        <p class="text-[9px] text-on-surface-variant/60 mt-0.5">Alertes staff par MP</p>
+      </div>
+      <ToggleSwitch 
+        checked={logsConfig?.notifyViaDM ?? false} 
+        disabled={loadingConfig}
+        onToggle={() => toggleConfig('notifyViaDM', !(logsConfig?.notifyViaDM ?? false))} 
       />
     </div>
   </div>
   
+  {#if logsConfig}
+  <div class="pt-8 border-t border-outline-variant/10">
+    <RolePermissionSettings 
+      featureKey="logs" 
+      roleAccess={logsConfig.roleAccessByRole} 
+    />
+  </div>
+  {/if}
+
   {#if saveAction.state.message}
     <p class="text-xs font-bold text-emerald-600 ml-1">{saveAction.state.message}</p>
   {/if}
@@ -738,4 +838,6 @@
     onAction={(action) => executeMemberAction(action)}
   />
 {/if}
+
+</ModulePage>
 

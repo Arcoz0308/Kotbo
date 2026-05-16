@@ -13,7 +13,7 @@
   ];
 
   const moderationItems = [
-    { name: "Daily Algo", icon: "code", href: "/module-settings/dailyalgo", featureKey: "daily_algo" },
+    { name: "Daily Algo", icon: "code", href: "/dailyalgo", featureKey: "daily_algo" },
     { name: "Membres", icon: "user", href: "/members", featureKey: "members" },
     { name: "Sanctions", icon: "alert-triangle", href: "/sanctions", featureKey: "sanctions" },
     { name: "Doubles Comptes", icon: "users", href: "/double-accounts", featureKey: "double_accounts" },

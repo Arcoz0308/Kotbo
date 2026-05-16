@@ -37,6 +37,8 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
+  import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
+  import { fetchFeatureConfigurations, updateFeatureConfiguration } from '../lib/api';
 
   const moduleId = 'dailyalgo';
 
@@ -155,6 +157,7 @@
   let ideModalOpen = $state(false);
   let dailyAlgoSubmissionStatusFilter = $state<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
   let dailyAlgoLibrarySearch = $state('');
+  let dailyAlgoScheduleModalOpen = $state(false);
   
   let algoDraft = $state({
     title: '',
@@ -170,6 +173,21 @@
 
   let scoreDraftBySubmissionId = $state<Record<string, any>>({});
 
+  let featureConfig = $state<any>(null);
+  let loadingConfig = $state(false);
+
+  async function loadFeatureConfig() {
+    loadingConfig = true;
+    try {
+      const configs = await fetchFeatureConfigurations();
+      featureConfig = configs?.features?.find((c: any) => c.featureKey === 'daily_algo') || null;
+    } catch (err) {
+      console.error('Error fetching daily algo config:', err);
+    } finally {
+      loadingConfig = false;
+    }
+  }
+
   onMount(async () => {
     await dashboardStore.refresh();
     await Promise.all([
@@ -177,7 +195,8 @@
       loadTodayDailyAlgoSubmissions(), 
       loadDailyAlgoHistory(), 
       loadDailyAlgoSchedule(), 
-      loadMyApiKeys()
+      loadMyApiKeys(),
+      loadFeatureConfig()
     ]);
   });
 
@@ -271,8 +290,24 @@
   );
 
   function openSubmissionInIntegratedIde(submission: any) {
-    ideFocusedSubmissionId = submission.id;
-    ideModalOpen = true;
+    const payload = {
+      code: submission.solution,
+      language: submission.language,
+      authorName: submission.authorName,
+      submissionId: submission.id,
+      status: submission.status,
+      scoreCorrectness: submission.scoreCorrectness || 5,
+      scoreComments: submission.scoreComments || 5,
+      scoreCompactness: submission.scoreCompactness || 5,
+      scoreOptimization: submission.scoreOptimization || 5,
+      scoreReadability: submission.scoreReadability || 5,
+      reviewFeedback: submission.reviewFeedback || '',
+    };
+    
+    const payloadKey = `daily_algo_payload_${submission.id}_${Date.now()}`;
+    localStorage.setItem(payloadKey, JSON.stringify(payload));
+    
+    router.goto(`/dailyalgo/ide?payloadKey=${payloadKey}`);
   }
 
 </script>
@@ -313,10 +348,19 @@
         <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Bibliothèque</p>
         <p class="text-4xl font-black text-on-surface mt-2">{dailyAlgoProblems.length}</p>
       </div>
-      <div class="bg-surface-container-low/40 rounded-[2.5rem] p-8 border border-outline-variant/10">
-        <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Planning</p>
+      <button 
+        onclick={() => dailyAlgoScheduleModalOpen = true}
+        class="bg-surface-container-low/40 rounded-[2.5rem] p-8 border border-outline-variant/10 text-left hover:bg-surface-container-high/60 transition-colors group"
+      >
+        <div class="flex items-center justify-between">
+          <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Planning</p>
+          <Papicon icon="Calendar" size={14} class="text-on-surface-variant/20 group-hover:text-primary transition-colors" />
+        </div>
         <p class="text-4xl font-black text-on-surface mt-2">{dailyAlgoSchedule.length} jours</p>
-      </div>
+        <p class="text-[10px] font-bold text-primary mt-4 flex items-center gap-2">
+          Voir le programme <Papicon icon="ArrowRight" size={10} />
+        </p>
+      </button>
     </div>
 
     <!-- Active Challenge -->
@@ -392,7 +436,96 @@
       </div>
     </section>
 
+    <!-- Configuration Section -->
+    {#if canManageSettings && featureConfig}
+      <section class="bg-surface-container-low/30 rounded-[3rem] p-10 border border-outline-variant/10 animate-in fade-in duration-500">
+        <h3 class="text-xl font-black text-on-surface mb-8">Configuration & Permissions</h3>
+        <RolePermissionSettings 
+          featureKey="daily_algo" 
+          roleAccess={featureConfig.roleAccessByRole} 
+        />
+      </section>
+    {/if}
+
   </div>
+  {#if dailyAlgoScheduleModalOpen}
+    <div class="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-background/80 backdrop-blur-xl animate-in fade-in duration-300">
+      <div class="bg-surface-container-low border border-outline-variant/10 w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+        <header class="p-10 border-b border-outline-variant/5 flex items-center justify-between">
+          <div>
+            <h2 class="text-3xl font-black text-on-surface tracking-tight">Programme Daily Algo</h2>
+            <p class="text-on-surface-variant/60 mt-1 font-medium">Les prochains défis prévus pour la guilde.</p>
+          </div>
+          <button onclick={() => dailyAlgoScheduleModalOpen = false} class="p-3 rounded-2xl bg-on-surface/5 hover:bg-on-surface/10 transition-colors">
+            <Papicon icon="X" size={20} />
+          </button>
+        </header>
+
+        <div class="flex-1 overflow-y-auto p-10 space-y-4">
+          {#if isFetchingAlgoSchedule}
+            {#each Array(5) as _}
+              <div class="h-20 bg-on-surface/5 rounded-3xl animate-pulse"></div>
+            {/each}
+          {:else if dailyAlgoSchedule.length === 0}
+            <div class="py-20 text-center">
+              <div class="w-16 h-16 bg-on-surface/5 rounded-full flex items-center justify-center mx-auto mb-4 text-on-surface-variant/20">
+                <Papicon icon="Calendar" size={32} />
+              </div>
+              <p class="text-on-surface-variant/60 font-bold">Aucun programme généré pour l'instant.</p>
+              <button 
+                onclick={loadDailyAlgoSchedule}
+                class="mt-6 px-6 py-3 bg-primary text-on-primary rounded-2xl font-black text-[10px] uppercase tracking-widest"
+              >
+                Générer le planning
+              </button>
+            </div>
+          {:else}
+            {#each dailyAlgoSchedule as run}
+              <div class="group flex items-center justify-between p-6 bg-surface-container-high/40 border border-outline-variant/5 rounded-[2rem] hover:border-primary/20 hover:bg-primary/5 transition-all">
+                <div class="flex items-center gap-6">
+                  <div class="w-14 h-14 bg-surface-container-highest rounded-2xl flex flex-col items-center justify-center text-center border border-outline-variant/10">
+                    <span class="text-[8px] font-black uppercase text-on-surface-variant/40 leading-none mb-1">
+                      {new Date(run.dateKey).toLocaleDateString('fr-FR', { month: 'short' })}
+                    </span>
+                    <span class="text-xl font-black text-on-surface leading-none">
+                      {new Date(run.dateKey).getDate()}
+                    </span>
+                  </div>
+                  <div>
+                    <h4 class="font-black text-on-surface">{run.problem?.title ?? 'Problème inconnu'}</h4>
+                    <div class="flex items-center gap-3 mt-1">
+                      <span class="px-2 py-0.5 bg-on-surface/5 rounded-lg text-[8px] font-black uppercase tracking-widest text-on-surface-variant/60 border border-outline-variant/5">
+                        {run.problem?.difficulty ?? 'normal'}
+                      </span>
+                      <span class="text-[10px] font-bold text-on-surface-variant/40">
+                        {run.submissionsCount ?? 0} soumissions
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                {#if run.dateKey === new Date().toISOString().split('T')[0]}
+                  <span class="px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-lg text-[8px] font-black uppercase tracking-widest border border-emerald-500/20">Aujourd'hui</span>
+                {/if}
+              </div>
+            {/each}
+          {/if}
+        </div>
+
+        {#if canManageSettings}
+          <footer class="p-8 bg-surface-container-high/30 border-t border-outline-variant/5">
+            <button 
+              onclick={() => ensureDailyAlgoSchedule(21).then(loadDailyAlgoSchedule)}
+              class="w-full py-4 bg-primary text-on-primary rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest shadow-xl shadow-primary/20 hover:scale-[1.02] transition-transform flex items-center justify-center gap-3"
+            >
+              <Papicon icon="RefreshCw" size={14} />
+              Étendre le planning de 3 semaines
+            </button>
+          </footer>
+        {/if}
+      </div>
+    </div>
+  {/if}
 </ModulePage>
 
 <style>

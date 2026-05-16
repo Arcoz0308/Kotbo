@@ -7,7 +7,7 @@
   import FormSelect from '../lib/components/FormSelect.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
-  import { updateGlobalSettings } from '../lib/api';
+  import { updateGlobalSettings, updateFeatureConfiguration } from '../lib/api';
 
   const saveAction = createAsyncActionState();
   let loading = $state(false);
@@ -30,6 +30,8 @@
     codePoliceEnabled: false,
     dailyAlgoEnabled: false,
     githubReleasesEnabled: false,
+    logChannelId: '',
+    propagateSanctions: false,
   });
 
   onMount(async () => {
@@ -48,6 +50,8 @@
         codePoliceEnabled: s.codePoliceEnabled || false,
         dailyAlgoEnabled: s.dailyAlgoEnabled || false,
         githubReleasesEnabled: s.githubReleasesEnabled || false,
+        logChannelId: s.logChannelId || '',
+        propagateSanctions: s.propagateSanctions || false,
       };
     } finally {
       loading = false;
@@ -62,6 +66,12 @@
     await saveAction.run(async () => {
       const ok = await updateGlobalSettings(guildSettings);
       if (!ok) throw new Error('Erreur API');
+      
+      // Also update the feature config channelId for logs
+      if (guildSettings.logChannelId) {
+        await updateFeatureConfiguration('logs', { channelId: guildSettings.logChannelId });
+      }
+
       await dashboardStore.refresh();
       return true;
     }, { successMessage: 'Paramètres globaux enregistrés.' });
@@ -72,6 +82,7 @@
     { key: 'digestChannelId', label: 'Salon Digest', desc: 'Publication du digest de news' },
     { key: 'publicChannelId', label: 'Salon Public', desc: 'Salon public général' },
     { key: 'configChannelId', label: 'Salon Config', desc: 'Salon de configuration interne' },
+    { key: 'logChannelId', label: 'Salon Logs', desc: 'Salon des logs d\'activité' },
   ];
 
   const roleFields = [

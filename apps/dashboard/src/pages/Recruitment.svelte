@@ -2,12 +2,19 @@
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
-  import { API_BASE_URL, updateModuleStatus, updateGlobalSettings } from '../lib/api';
+  import { 
+    API_BASE_URL, 
+    updateGlobalSettings,
+    fetchFeatureConfigurations,
+    updateFeatureConfiguration,
+    updateRecruitmentConfig
+  } from '../lib/api';
   import { themeStore } from '../lib/stores/theme.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import FormSelect from '../lib/components/FormSelect.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
+  import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
 
   let candidatures = $state<any[]>([]);
@@ -21,11 +28,54 @@
   
   let configVisible = $state(false);
   
-  let recruitmentCategoryId = $state('');
-  let recruitmentLogChannelId = $state('');
-  let recruitmentAutoRejectEnabled = $state(true);
-  
   const saveAction = createAsyncActionState();
+
+  const guildData = $derived(dashboardStore.state.guild);
+  let recruitmentCategoryId = $state<string | null>(guildData?.recruitmentCategoryId || null);
+  let recruitmentLogChannelId = $state<string | null>(guildData?.recruitmentLogChannelId || null);
+  let recruitmentAutoRejectEnabled = $state<boolean>(dashboardStore.state.modules?.recruitment?.enabled ?? true);
+
+  const availableChannels = $derived(dashboardStore.state.guild?.discordChannels || []);
+  const availableCategories = $derived(dashboardStore.state.guild?.discordCategories || []);
+
+  let featureConfig = $state<any>(null);
+  let loadingConfig = $state(false);
+
+  async function loadFeatureConfig() {
+    loadingConfig = true;
+    try {
+      const configs = await fetchFeatureConfigurations();
+      featureConfig = configs?.features?.find((c: any) => c.featureKey === 'recruitment') || null;
+      if (featureConfig) {
+        recruitmentCategoryId = featureConfig.secondaryChannelId || ''; // categoryId is stored in secondaryChannelId for recruitment usually
+        recruitmentLogChannelId = featureConfig.channelId || '';
+        recruitmentAutoRejectEnabled = featureConfig.enabled;
+      }
+    } catch (err) {
+      console.error('Error fetching recruitment config:', err);
+    } finally {
+      loadingConfig = false;
+    }
+  }
+
+  async function toggleConfig(key: string, value: boolean) {
+    if (!featureConfig) return;
+    
+    await saveAction.run(async () => {
+      const ok = await updateFeatureConfiguration('recruitment', { [key]: value });
+      if (!ok) throw new Error('Erreur API');
+      featureConfig[key] = value;
+      return true;
+    }, { successMessage: 'Configuration mise à jour.' });
+  }
+  const canView = $derived(
+    !!dashboardStore.state.featureAccess?.recruitment?.canView
+      || !!dashboardStore.state.access?.canManageSettings
+  );
+  const canModerate = $derived(
+    !!dashboardStore.state.featureAccess?.recruitment?.canModerate
+      || !!dashboardStore.state.access?.canManageSettings
+  );
   const canManageSettings = $derived(
     !!dashboardStore.state.featureAccess?.recruitment?.canConfigure
       || !!dashboardStore.state.access?.canManageSettings
@@ -97,29 +147,23 @@
     }
   }
 
-  onMount(() => {
-    fetchInitialData();
+  onMount(async () => {
+    if (!canView) return;
+    await Promise.all([
+      fetchInitialData(),
+      loadFeatureConfig()
+    ]);
   });
 
-  async function updateConfig() {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/config`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${authStore.token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          recruitmentCategoryId,
-          recruitmentLogChannelId,
-          recruitmentAutoRejectEnabled
-        })
-      });
-      if (!res.ok) throw new Error('Erreur configuration.');
+  async function updateConfig(payload: any) {
+    await saveAction.run(async () => {
+      const ok = await updateRecruitmentConfig(payload);
+      if (!ok) throw new Error('Erreur API');
+
+      await dashboardStore.refresh();
       configVisible = false;
-    } catch (err: any) {
-      alert(err.message);
-    }
+      return true;
+    }, { successMessage: 'Configuration enregistrée.' });
   }
 
   async function doAction(candidatureId: string, action: string, data: any = {}) {
@@ -346,13 +390,15 @@
                                   </div>
                               </div>
                           </div>
-                              <button 
-                                  onclick={() => deleteCandidature(candidature.id)}
-                                  class="w-10 h-10 rounded-full bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
-                                  title="Supprimer la candidature"
-                              >
-                                  <Papicon icon="delete" size={14} />
-                              </button>
+                              {#if canModerate}
+                                <button 
+                                    onclick={() => deleteCandidature(candidature.id)}
+                                    class="w-10 h-10 rounded-full bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
+                                    title="Supprimer la candidature"
+                                >
+                                    <Papicon icon="delete" size={14} />
+                                </button>
+                              {/if}
                       </div>
                       
                       {#if candidature.autoRejected && candidature.autoRejectReason}
@@ -394,39 +440,41 @@
                          </div>
                       {/if}
 
-                      <div class="grid grid-cols-2 gap-3">
-                           {#if candidature.status === 'PENDING'}
-                              <button 
+                      {#if canModerate}
+                        <div class="grid grid-cols-2 gap-3">
+                             {#if candidature.status === 'PENDING'}
+                                <button 
+                                   onclick={() => openValidateModal(candidature)}
+                                   class="col-span-2 py-3 rounded-2xl bg-blue-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2">
+                                    <Papicon icon="check_circle" size={14} /> Passer Oral
+                                </button>
+                                <button 
+                                   onclick={() => openRejectModal(candidature)}
+                                   class="col-span-2 py-3 rounded-2xl bg-surface-container hover:bg-rose-500/10 hover:text-rose-500 text-on-surface-variant text-xs font-black uppercase tracking-widest transition-all">
+                                    Refuser
+                                </button>
+                             {/if}
+                             {#if candidature.status === 'AUTO_REJECTED'}
+                               <button 
                                  onclick={() => openValidateModal(candidature)}
-                                 class="col-span-2 py-3 rounded-2xl bg-blue-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2">
-                                  <Papicon icon="check_circle" size={14} /> Passer Oral
-                              </button>
-                              <button 
-                                 onclick={() => openRejectModal(candidature)}
-                                 class="col-span-2 py-3 rounded-2xl bg-surface-container hover:bg-rose-500/10 hover:text-rose-500 text-on-surface-variant text-xs font-black uppercase tracking-widest transition-all">
-                                  Refuser
-                              </button>
-                           {/if}
-                           {#if candidature.status === 'AUTO_REJECTED'}
-                             <button 
-                               onclick={() => openValidateModal(candidature)}
-                               class="col-span-2 py-3 rounded-2xl bg-emerald-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2">
-                                <Papicon icon="verified" size={14} /> Accepter quand même
-                             </button>
-                           {/if}
-                           {#if candidature.status === 'ORAL'}
-                              <button 
-                                 onclick={() => openOralPassModal(candidature)}
-                                 class="py-3 rounded-2xl bg-emerald-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center">
-                                  Concluant
-                              </button>
-                              <button 
-                                 onclick={() => openOralFailModal(candidature)}
-                                 class="py-3 rounded-2xl bg-rose-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-rose-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center">
-                                  Échoué
-                              </button>
-                           {/if}
-                      </div>
+                                 class="col-span-2 py-3 rounded-2xl bg-emerald-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2">
+                                  <Papicon icon="verified" size={14} /> Accepter quand même
+                               </button>
+                             {/if}
+                             {#if candidature.status === 'ORAL'}
+                                <button 
+                                   onclick={() => openOralPassModal(candidature)}
+                                   class="py-3 rounded-2xl bg-emerald-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center">
+                                    Concluant
+                                </button>
+                                <button 
+                                   onclick={() => openOralFailModal(candidature)}
+                                   class="py-3 rounded-2xl bg-rose-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-rose-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center">
+                                    Échoué
+                                </button>
+                             {/if}
+                        </div>
+                      {/if}
                       
                       {#if candidature.reapplyAfter && new Date(candidature.reapplyAfter) > new Date()}
                          <div class="text-[10px] uppercase font-bold tracking-widest text-on-surface-variant/50 text-center mt-2">
@@ -461,33 +509,19 @@
         </div>
         
         <div class="p-8 space-y-8 max-h-[70vh] overflow-y-auto">
-             <div class="bg-surface-container-low/50 p-6 rounded-2xl border border-outline-variant/10 flex items-center justify-between gap-6">
-                <div>
-                  <p class="text-sm font-black text-on-surface">Activation du module</p>
-                  <p class="text-xs text-on-surface-variant/70 mt-1">Si désactivé, les candidatures et tickets seront gelés.</p>
-                </div>
-                <ToggleSwitch
-                  checked={dashboardStore.state.modules.find(m => m.id === 'recruitment')?.status === 'active'}
-                  onToggle={async () => {
-                    const current = dashboardStore.state.modules.find(m => m.id === 'recruitment')?.status === 'active';
-                    await saveAction.run(async () => {
-                      await updateModuleStatus('recruitment', current ? 'inactive' : 'active');
-                      await dashboardStore.refresh();
-                      return true;
-                    });
-                  }}
-                />
-             </div>
-
              <div class="space-y-4">
-               <label class="block">
-                 <span class="text-xs font-black uppercase tracking-widest text-on-surface-variant/60 ml-1 mb-2 block">Salon de logs recrutement</span>
-                 <FormSelect
-                    options={dashboardStore.state.discordChannels.map(c => ({ value: c.id, label: `#${c.name}` }))}
-                    bind:value={recruitmentLogChannelId}
-                    placeholder="Sélectionner un salon"
-                 />
-               </label>
+                <label class="block">
+                  <span class="text-xs font-black uppercase tracking-widest text-on-surface-variant/60 ml-1 mb-2 block">Salon de logs recrutement</span>
+                  <FormSelect
+                     bind:value={recruitmentLogChannelId}
+                     className="w-full"
+                  >
+                    <option value="">Sélectionner un salon</option>
+                    {#each dashboardStore.state.discordChannels as c}
+                      <option value={c.id}>#{c.name}</option>
+                    {/each}
+                  </FormSelect>
+                </label>
 
                <label class="block">
                  <span class="text-xs font-black uppercase tracking-widest text-on-surface-variant/60 ml-1 mb-2 block">ID Catégorie Tickets</span>
@@ -499,34 +533,22 @@
                  />
                </label>
 
-               <div class="p-6 bg-surface-container-low/50 rounded-2xl border border-outline-variant/10 flex items-center justify-between gap-6">
-                  <div>
-                    <p class="text-sm font-black text-on-surface">Auto-refus intelligent</p>
-                    <p class="text-xs text-on-surface-variant/70 mt-1">Refuse les candidatures qui ne respectent pas les critères.</p>
-                  </div>
-                  <ToggleSwitch
-                    checked={recruitmentAutoRejectEnabled}
-                    onToggle={() => recruitmentAutoRejectEnabled = !recruitmentAutoRejectEnabled}
-                  />
                </div>
+
+               {#if featureConfig}
+               <div class="pt-6 border-t border-outline-variant/10">
+                 <RolePermissionSettings 
+                   featureKey="recruitment" 
+                   roleAccess={featureConfig.roleAccessByRole} 
+                 />
+               </div>
+               {/if}
              </div>
-        </div>
         
         <div class="p-8 bg-surface-container-low border-t border-outline-variant/20 flex gap-4">
             <button onclick={() => configVisible = false} class="flex-1 py-4 rounded-xl font-bold bg-surface hover:bg-surface-hover transition-colors">Annuler</button>
             <button 
-              onclick={async () => {
-                await saveAction.run(async () => {
-                  await updateGlobalSettings({
-                    recruitmentCategoryId,
-                    recruitmentLogChannelId,
-                    recruitmentAutoRejectEnabled
-                  });
-                  await dashboardStore.refresh();
-                  return true;
-                }, { successMessage: 'Configuration enregistrée.' });
-                configVisible = false;
-              }} 
+              onclick={updateConfig} 
               disabled={saveAction.state.loading}
               class="flex-1 py-4 rounded-xl font-black bg-primary text-on-primary hover:scale-105 active:scale-95 transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
             >

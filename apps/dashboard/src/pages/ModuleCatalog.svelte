@@ -12,6 +12,10 @@
     !!dashboardStore.state.featureAccess?.modules?.canConfigure
       || !!dashboardStore.state.access?.canManageSettings
   );
+
+  function canConfigureModule(moduleId: string) {
+    return canManageSettings || !!dashboardStore.state.featureAccess?.[moduleId]?.canConfigure;
+  }
   
   const canApplyPreset = $derived(
     !!dashboardStore.state.access?.canManageSettings
@@ -20,7 +24,7 @@
   );
 
   async function toggleModule(moduleId, currentStatus) {
-    if (!canManageSettings) return;
+    if (!canConfigureModule(moduleId)) return;
     const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
     const success = await updateModuleStatus(moduleId, newStatus);
     if (success) {
@@ -89,20 +93,20 @@
   function getModulePage(moduleId: string) {
     const mapping: Record<string, string> = {
       'regulation': '/regulation',
-      'staff-management': '/staff-management',
+      'staff_management': '/staff-management',
       'sanctions': '/sanctions',
-      'members-dc': '/members',
+      'members': '/members',
       'logs': '/logs',
-      'activity-log': '/activity',
+      'activity': '/activity',
       'analytics': '/analytics',
       'profile': '/profile',
-      'dailyalgo': '/dailyalgo',
+      'daily_algo': '/dailyalgo',
       'recruitment': '/recruitment',
       'meetings': '/meetings',
       'absences': '/absences',
       'inbox': '/inbox',
       'tutoring': '/tutoring',
-      'double-accounts': '/double-accounts'
+      'double_accounts': '/double-accounts'
     };
     return mapping[moduleId] || `/module-settings/${moduleId}`;
   }
@@ -225,7 +229,7 @@
             <div class="absolute top-7 right-7">
                <ToggleSwitch
                  checked={module.status === 'active' || module.isFixed}
-                 disabled={!canManageSettings || module.isFixed}
+                 disabled={!canConfigureModule(module.id) || module.isFixed}
                  onToggle={() => toggleModule(module.id, module.status)}
                />
             </div>

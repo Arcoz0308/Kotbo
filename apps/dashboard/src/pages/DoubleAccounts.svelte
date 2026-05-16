@@ -1,9 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
-  import { fetchLinkedAccounts, updateLinkedAccountStatus, deleteLinkedAccount, fetchMemberCase } from '../lib/api';
+  import { fetchLinkedAccounts, updateLinkedAccountStatus, deleteLinkedAccount, fetchMemberCase, fetchFeatureConfigurations, updateFeatureConfiguration } from '../lib/api';
+  import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
+  import { createAsyncActionState } from '../lib/asyncAction.svelte';
+  import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
+  import RefreshButton from '../lib/components/RefreshButton.svelte';
 
   let linkedAccounts = $state<any[]>([]);
   let loading = $state(true);
@@ -16,6 +21,10 @@
   let caseData = $state<any>(null);
   let loadingCase = $state(false);
   let caseError = $state('');
+
+  let doubleAccountsConfig = $state<any>(null);
+  let loadingConfig = $state(false);
+  const saveAction = createAsyncActionState();
 
   const filteredAccounts = $derived(
     Array.isArray(linkedAccounts) 
@@ -37,29 +46,35 @@
     }
   }
 
-  async function handleUpdateStatus(id: string, status: 'VALIDATED' | 'REJECTED') {
+  async function loadConfig() {
+    loadingConfig = true;
     try {
-      const updated = await updateLinkedAccountStatus(id, status);
-      if (updated) {
-        // We need to re-load to get enriched data or just update the status locally
-        // Re-loading is safer for now to get fresh tags/avatars if they changed
-        await loadData();
-      }
-    } catch (err: any) {
-      alert(err.message || 'Erreur lors de la mise à jour');
+      const configs = await fetchFeatureConfigurations();
+      doubleAccountsConfig = configs?.features?.find((c: any) => c.featureKey === 'double_accounts') || null;
+    } catch (err) {
+      console.error('Error fetching double accounts config:', err);
+    } finally {
+      loadingConfig = false;
     }
+  }
+
+  async function handleUpdateStatus(id: string, status: 'VALIDATED' | 'REJECTED') {
+    await saveAction.run(async () => {
+      const updated = await updateLinkedAccountStatus(id, status);
+      if (!updated) throw new Error('Erreur lors de la mise à jour');
+      await loadData();
+      return true;
+    }, { successMessage: 'Statut mis à jour.' });
   }
 
   async function handleDelete(id: string) {
     if (!confirm('Voulez-vous vraiment supprimer cette liaison ?')) return;
-    try {
+    await saveAction.run(async () => {
       const success = await deleteLinkedAccount(id);
-      if (success) {
-        linkedAccounts = linkedAccounts.filter(a => a.id !== id);
-      }
-    } catch (err: any) {
-      alert(err.message || 'Erreur lors de la suppression');
-    }
+      if (!success) throw new Error('Erreur lors de la suppression');
+      linkedAccounts = linkedAccounts.filter(a => a.id !== id);
+      return true;
+    }, { successMessage: 'Liaison supprimée.' });
   }
 
   async function openMemberCase(userId: string, userName?: string) {
@@ -68,6 +83,7 @@
     modalOpen = true;
     loadingCase = true;
     caseData = null;
+    caseError = '';
     try {
       caseData = await fetchMemberCase(userId);
     } catch (err: any) {
@@ -77,52 +93,62 @@
     }
   }
 
-  onMount(loadData);
+  onMount(() => {
+    loadData();
+    loadConfig();
+  });
 </script>
 
-<svelte:head>
-  <title>Doubles Comptes</title>
-</svelte:head>
-
-<div class="space-y-8 animate-in fade-in duration-500 pb-20">
-  <header class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-    <div class="space-y-2">
-      <div class="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.25em] text-primary">
-        <Papicon icon="users" size={14} />
-        Gestion des liaisons
-      </div>
-      <h1 class="text-4xl font-black tracking-tight text-on-surface font-headline">Doubles Comptes</h1>
-      <p class="max-w-2xl text-sm text-on-surface-variant/60">
-        Gérez les liaisons entre comptes, validez les déclarations de bonne foi et gardez un œil sur les membres multi-comptes.
-      </p>
+<ModulePage 
+  title="Doubles Comptes" 
+  description="Gérez les liaisons entre comptes et validez les déclarations." 
+  icon="users"
+  featureKey="double_accounts"
+>
+  {#if doubleAccountsConfig}
+    <div class="bg-surface-container-low/30 p-8 rounded-[2.5rem] border border-outline-variant/10 mb-10 animate-in fade-in duration-500">
+      <RolePermissionSettings 
+        featureKey="double_accounts" 
+        roleAccess={doubleAccountsConfig.roleAccessByRole} 
+      />
     </div>
-  </header>
+  {/if}
 
-  <div class="flex flex-wrap items-center gap-2 rounded-2xl border border-outline-variant/10 bg-surface-container-low/70 p-1 w-fit">
-    <button
-      onclick={() => filterStatus = 'ALL'}
-      class={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${filterStatus === 'ALL' ? 'bg-surface text-primary shadow-xs' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
-    >
-      Tous
-    </button>
-    <button
-      onclick={() => filterStatus = 'PENDING'}
-      class={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${filterStatus === 'PENDING' ? 'bg-surface text-amber-500 shadow-xs' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
-    >
-      En attente
-    </button>
-    <button
-      onclick={() => filterStatus = 'VALIDATED'}
-      class={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${filterStatus === 'VALIDATED' ? 'bg-surface text-emerald-500 shadow-xs' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
-    >
-      Validés
-    </button>
-    <button
-      onclick={() => filterStatus = 'REJECTED'}
-      class={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${filterStatus === 'REJECTED' ? 'bg-surface text-rose-500 shadow-xs' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
-    >
-      Rejetés
-    </button>
+  {#snippet actions()}
+    <RefreshButton onClick={loadData} loading={loading} label="Actualiser" />
+  {/snippet}
+
+  <div class="flex flex-wrap items-center justify-between gap-4 mb-8">
+    <div class="flex flex-wrap items-center gap-2 rounded-2xl border border-outline-variant/10 bg-surface-container-low/70 p-1 w-fit">
+      <button
+        onclick={() => filterStatus = 'ALL'}
+        class={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${filterStatus === 'ALL' ? 'bg-surface text-primary shadow-xs' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
+      >
+        Tous
+      </button>
+      <button
+        onclick={() => filterStatus = 'PENDING'}
+        class={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${filterStatus === 'PENDING' ? 'bg-surface text-amber-500 shadow-xs' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
+      >
+        En attente
+      </button>
+      <button
+        onclick={() => filterStatus = 'VALIDATED'}
+        class={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${filterStatus === 'VALIDATED' ? 'bg-surface text-emerald-500 shadow-xs' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
+      >
+        Validés
+      </button>
+      <button
+        onclick={() => filterStatus = 'REJECTED'}
+        class={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${filterStatus === 'REJECTED' ? 'bg-surface text-rose-500 shadow-xs' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
+      >
+        Rejetés
+      </button>
+    </div>
+
+    {#if saveAction.state.message}
+      <p class="text-xs font-bold text-emerald-600 animate-in fade-in duration-300">{saveAction.state.message}</p>
+    {/if}
   </div>
 
   {#if loading}
@@ -162,7 +188,7 @@
              <div class="flex-1 min-w-0">
                 <button 
                   onclick={() => openMemberCase(link.user1Id, link.user1.tag)} 
-                  class="flex items-center gap-2 text-sm font-black text-on-surface hover:text-primary transition-colors truncate w-full"
+                  class="flex items-center gap-2 text-sm font-black text-on-surface hover:text-primary transition-colors truncate w-full text-left"
                 >
                   {#if link.user1.avatar}
                     <img src={link.user1.avatar} alt="" class="w-5 h-5 rounded-full shrink-0" />
@@ -174,7 +200,7 @@
              <div class="flex-1 min-w-0">
                 <button 
                   onclick={() => openMemberCase(link.user2Id, link.user2.tag)} 
-                  class="flex items-center justify-end gap-2 text-sm font-black text-on-surface hover:text-primary transition-colors truncate w-full"
+                  class="flex items-center justify-end gap-2 text-sm font-black text-on-surface hover:text-primary transition-colors truncate w-full text-right"
                 >
                   <span class="truncate">@{link.user2.tag}</span>
                   {#if link.user2.avatar}
@@ -195,14 +221,16 @@
             {#if link.status === 'PENDING'}
               <button 
                 onclick={() => handleUpdateStatus(link.id, 'VALIDATED')}
-                class="flex-1 py-2 rounded-xl bg-emerald-500/10 text-emerald-500 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center gap-2"
+                disabled={saveAction.state.loading}
+                class="flex-1 py-2 rounded-xl bg-emerald-500/10 text-emerald-500 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 <Papicon icon="check" size={12} />
                 Valider
               </button>
               <button 
                 onclick={() => handleUpdateStatus(link.id, 'REJECTED')}
-                class="flex-1 py-2 rounded-xl bg-rose-500/10 text-rose-500 text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-2"
+                disabled={saveAction.state.loading}
+                class="flex-1 py-2 rounded-xl bg-rose-500/10 text-rose-500 text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 <Papicon icon="x" size={12} />
                 Rejeter
@@ -213,7 +241,8 @@
               </div>
               <button 
                 onclick={() => handleDelete(link.id)}
-                class="p-2 rounded-xl text-rose-500 hover:bg-rose-500/10 transition-colors"
+                disabled={saveAction.state.loading}
+                class="p-2 rounded-xl text-rose-500 hover:bg-rose-500/10 transition-colors disabled:opacity-50"
                 title="Supprimer la liaison"
               >
                 <Papicon icon="trash-2" size={16} />
@@ -224,7 +253,7 @@
       {/each}
     </div>
   {/if}
-</div>
+</ModulePage>
 
 <MemberCaseModal
   open={modalOpen}

@@ -14,8 +14,12 @@
     upsertTutoringItem,
     deleteTestingPeriod,
     addMentorReport,
-    endTestingPeriod
+    endTestingPeriod,
+    fetchFeatureConfigurations,
+    updateFeatureConfiguration
   } from '../lib/api';
+  import { createAsyncActionState } from '../lib/asyncAction.svelte';
+  import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
   
   let activeTab = $state('dashboard'); // dashboard, progress, config
   let config = $state<any>(null);
@@ -56,6 +60,23 @@
     onConfirm: () => {}
   });
 
+  const saveAction = createAsyncActionState();
+
+  let featureConfig = $state<any>(null);
+  let loadingConfig = $state(false);
+
+  async function loadFeatureConfig() {
+    loadingConfig = true;
+    try {
+      const configs = await fetchFeatureConfigurations();
+      featureConfig = configs?.features?.find((c: any) => c.featureKey === 'tutoring') || null;
+    } catch (err) {
+      console.error('Error fetching tutoring config:', err);
+    } finally {
+      loadingConfig = false;
+    }
+  }
+
   function showConfirm(title: string, message: string, onConfirm: () => void) {
     confirmModal = { open: true, title, message, onConfirm };
   }
@@ -87,14 +108,35 @@
     }
   }
 
-  onMount(fetchData);
+  onMount(async () => {
+    await Promise.all([
+      fetchData(),
+      loadFeatureConfig()
+    ]);
+  });
 
   async function saveConfig() {
-    try {
-      await updateTutoringConfig(config);
-    } catch (err) {
-      console.error('Error saving config:', err);
-    }
+    await saveAction.run(async () => {
+      const ok = await updateTutoringConfig(config);
+      if (!ok) throw new Error('Erreur API');
+
+      if (featureConfig) {
+        // Sync to feature config as well
+        await updateFeatureConfiguration('tutoring', {
+          metadata: {
+            reportIntervalDays: config.reportIntervalDays,
+            reminderDaysBefore: config.reminderDaysBefore,
+            minTestDays: config.minTestDays,
+            showVocalActivity: config.showVocalActivity,
+            showAbsences: config.showAbsences,
+            remindersEnabled: config.remindersEnabled
+          }
+        });
+      }
+
+      await dashboardStore.refresh();
+      return true;
+    }, { successMessage: 'Configuration enregistrée.' });
   }
 
   async function setChecklistState(periodId: string, itemId: string, targetState: string, currentState: string | undefined) {
@@ -731,11 +773,21 @@
             </div>
 
           <button 
-            class="w-full py-4 mt-4 bg-primary text-white rounded-2xl font-black shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all"
+            class="w-full py-4 mt-4 bg-primary text-white rounded-2xl font-black shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
             onclick={saveConfig}
+            disabled={saveAction.state.loading}
           >
-            Sauvegarder
+            {saveAction.state.loading ? 'Enregistrement...' : 'Sauvegarder'}
           </button>
+          {/if}
+
+          {#if featureConfig}
+            <div class="pt-6 border-t border-outline-variant/10">
+              <RolePermissionSettings 
+                featureKey="tutoring" 
+                roleAccess={featureConfig.roleAccessByRole} 
+              />
+            </div>
           {/if}
         </div>
 

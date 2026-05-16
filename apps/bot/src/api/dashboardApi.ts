@@ -499,8 +499,13 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
   activity: 'Suivi détaillé de l\'activité utilisateur sur le dashboard.',
   analytics: 'Statistiques de croissance et d\'engagement du serveur.',
   profile: 'Gestion du profil utilisateur et paramètres personnels.',
+  recruitment: 'Suivi des candidatures et intégration du personnel.',
   youtube: 'Intégration YouTube pour les notifications de nouvelles vidéos.',
   digest: 'Génération de résumés automatiques et flux RSS.',
+  tutoring: 'Gestion des périodes d\'essai et formation des nouveaux staff.',
+  meetings: 'Planification et suivi des réunions d\'équipe.',
+  absences: 'Gestion des congés et disponibilités du personnel.',
+  double_accounts: 'Détection et gestion des comptes multiples pour la sécurité.',
 };
 
 const DEFAULT_SEVERITY_BY_MODULE: Array<{ module: string; level: SeverityLevel }> = [
@@ -1519,7 +1524,6 @@ async function resolveFeatureAccessMap(
   const { getOrCreateFeatureConfigs } = await import('../services/dashboardManagementService.js');
   const featureConfigs = await getOrCreateFeatureConfigs(guildId);
   const isGlobalAdmin = userId ? await resolveAdminAccess(client, userId) : false;
-  const hasRoleAccessOverrides = featureConfigs.some((feature) => (feature.roleAccessByRole?.length ?? 0) > 0);
 
   const moderationFeatureKeys = new Set([
     'content',
@@ -1552,7 +1556,9 @@ async function resolveFeatureAccessMap(
       continue;
     }
 
-    if (!hasRoleAccessOverrides) {
+    const hasFeatureRoleOverrides = (feature.roleAccessByRole?.length ?? 0) > 0;
+    
+    if (!hasFeatureRoleOverrides) {
       const isDailyAlgo = feature.featureKey === 'daily_algo';
       const isModeration = moderationFeatureKeys.has(feature.featureKey);
       const isStaff = staffFeatureKeys.has(feature.featureKey);
@@ -1596,11 +1602,15 @@ async function resolveFeatureAccessMap(
     });
   }
 
+  logger.info('DashboardAPI', `Resolved feature access for user ${userId} in guild ${guildId}`, { featureAccess });
   return featureAccess;
 }
 
 const getGuildState = async (client: Client, guildId: string, access: DashboardAccess, userId?: string): Promise<DashboardState | null> => {
-  const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+  const guild = await prisma.guild.findUnique({ 
+    where: { id: guildId },
+    include: { dashboardFeatureConfigs: true }
+  });
   if (!guild) return null;
 
   const [
@@ -1695,30 +1705,64 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
 
 
 
+  const featureConfigs = (guild as any).dashboardFeatureConfigs || [];
+  const getFeatureStatus = (key: string, defaultEnabled = true): ModuleStatus => {
+    const config = featureConfigs.find((c: any) => c.featureKey === key);
+    if (config) return config.enabled ? 'active' : 'inactive';
+    return defaultEnabled ? 'active' : 'inactive';
+  };
+
   const modules: ModuleItem[] = [
     {
       id: 'codepolice',
       name: 'Code Police',
       description: MODULE_DESCRIPTIONS.codepolice,
-      status: guild.codePoliceEnabled ? 'active' : 'inactive',
+      status: getFeatureStatus('codepolice', guild.codePoliceEnabled),
       uptime: 99.9,
       interactions: 0,
       lastSync: guild.updatedAt.toISOString()
     },
     {
-      id: 'dailyalgo',
+      id: 'daily_algo',
       name: 'Daily Algo',
       description: MODULE_DESCRIPTIONS.dailyalgo,
-      status: guild.dailyAlgoEnabled ? 'active' : 'inactive',
+      status: getFeatureStatus('daily_algo', guild.dailyAlgoEnabled),
       uptime: guild.dailyAlgoEnabled ? 98.8 : 100,
       interactions: dailyAlgoSubmissionCount,
+      lastSync: guild.updatedAt.toISOString()
+    },
+    {
+      id: 'tutoring',
+      name: 'Tutorat & Formation',
+      description: MODULE_DESCRIPTIONS.tutoring,
+      status: getFeatureStatus('tutoring'),
+      uptime: 100,
+      interactions: 0,
+      lastSync: guild.updatedAt.toISOString()
+    },
+    {
+      id: 'meetings',
+      name: 'Réunions',
+      description: MODULE_DESCRIPTIONS.meetings,
+      status: getFeatureStatus('meetings'),
+      uptime: 100,
+      interactions: 0,
+      lastSync: guild.updatedAt.toISOString()
+    },
+    {
+      id: 'absences',
+      name: 'Absences',
+      description: MODULE_DESCRIPTIONS.absences,
+      status: getFeatureStatus('absences'),
+      uptime: 100,
+      interactions: 0,
       lastSync: guild.updatedAt.toISOString()
     },
     {
       id: 'traduction',
       name: 'Traduction Automatique',
       description: MODULE_DESCRIPTIONS.traduction,
-      status: guild.translationEnabled ? 'active' : 'inactive',
+      status: getFeatureStatus('translation', guild.translationEnabled),
       uptime: guild.translationEnabled ? 97.1 : 100,
       interactions: 0,
       lastSync: guild.updatedAt.toISOString()
@@ -1727,7 +1771,7 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
       id: 'regulation',
       name: 'Règlement',
       description: MODULE_DESCRIPTIONS.regulation,
-      status: 'active',
+      status: getFeatureStatus('regulation'),
       uptime: 100,
       interactions: 0,
       lastSync: guild.updatedAt.toISOString()
@@ -1745,7 +1789,7 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
       id: 'sanctions',
       name: 'Gestion Sanctions',
       description: MODULE_DESCRIPTIONS.sanctions,
-      status: 'active',
+      status: getFeatureStatus('sanctions'),
       uptime: 100,
       interactions: sanctions.length,
       lastSync: guild.updatedAt.toISOString()
@@ -1760,10 +1804,28 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
       lastSync: guild.updatedAt.toISOString()
     },
     {
+      id: 'double_accounts',
+      name: 'Doubles Comptes',
+      description: MODULE_DESCRIPTIONS.double_accounts,
+      status: getFeatureStatus('double_accounts'),
+      uptime: 100,
+      interactions: 0,
+      lastSync: guild.updatedAt.toISOString()
+    },
+    {
       id: 'logs',
       name: 'Logs Discord',
       description: MODULE_DESCRIPTIONS.logs,
-      status: guild.logChannelId ? 'active' : 'inactive',
+      status: getFeatureStatus('logs'),
+      uptime: 100,
+      interactions: 0,
+      lastSync: guild.updatedAt.toISOString()
+    },
+    {
+      id: 'recruitment',
+      name: 'Recrutement',
+      description: MODULE_DESCRIPTIONS.recruitment,
+      status: getFeatureStatus('recruitment'),
       uptime: 100,
       interactions: 0,
       lastSync: guild.updatedAt.toISOString()
@@ -1867,6 +1929,8 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
     logChannelId: guild.logChannelId ?? '',
     regulationChannelId: guild.regulationChannelId ?? '',
     regulationMessageId: guild.regulationMessageId ?? null,
+    meetingAnnouncementChannelId: guild.meetingAnnouncementChannelId ?? '',
+    meetingVoiceChannelId: guild.meetingVoiceChannelId ?? '',
     recruitmentCategoryId: guild.recruitmentCategoryId ?? '',
     recruitmentLogChannelId: guild.recruitmentLogChannelId ?? '',
     recruitmentAutoRejectEnabled: isRecruitmentAutoRejectEnabled(guildId),
@@ -1881,7 +1945,7 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
       level: access.level === 'admin' ? 'admin' : 'moderator',
       canModerateContent: access.canModerateContent,
       canModerateDailyAlgo: access.canModerateDailyAlgo,
-      canManageSettings: access.canManageSettings,
+      canManageSettings: access.canManageSettings || Object.values(featureAccess).some(f => f.canConfigure),
     },
     featureAccess,
     notifications: {
@@ -4548,12 +4612,30 @@ export const startDashboardApi = (client: Client) => {
 
             const updates: Record<string, unknown> = {};
             if (moduleId === 'codepolice') updates.codePoliceEnabled = body.status === 'active';
-            if (moduleId === 'dailyalgo') updates.dailyAlgoEnabled = body.status === 'active';
-            if (moduleId === 'traduction') updates.translationEnabled = body.status === 'active';
+            if (moduleId === 'dailyalgo' || moduleId === 'daily_algo') updates.dailyAlgoEnabled = body.status === 'active';
+            if (moduleId === 'traduction' || moduleId === 'translation') updates.translationEnabled = body.status === 'active';
+            if (moduleId === 'sanctions') updates.sanctionSyncEnabled = body.status === 'active';
 
             if (Object.keys(updates).length > 0) {
               await prisma.guild.update({ where: { id: guildId }, data: updates });
             }
+
+            const normalizedKey = moduleId === 'dailyalgo' ? 'daily_algo' : (moduleId === 'traduction' ? 'translation' : moduleId);
+            await prisma.dashboardFeatureConfig.upsert({
+              where: { guildId_featureKey: { guildId, featureKey: normalizedKey } },
+              create: {
+                guildId,
+                featureKey: normalizedKey,
+                featureName: moduleId.charAt(0).toUpperCase() + moduleId.slice(1),
+                enabled: body.status === 'active',
+                loggingEnabled: true,
+                userActivityTracking: true,
+                notifyViaDiscordChannel: true,
+              },
+              update: {
+                enabled: body.status === 'active'
+              }
+            });
 
             await pushAudit(guildId, {
               user: auditUser,
@@ -5524,6 +5606,50 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
+          if (parts.length === 6 && parts[4] === 'daily-algo-submissions' && req.method === 'GET') {
+            const submissionId = parts[5];
+            try {
+              const submission = await prisma.dailyAlgoSubmission.findUnique({
+                where: { id: submissionId }
+              });
+
+              if (!submission) {
+                json(res, 404, { error: 'Soumission introuvable' });
+                return;
+              }
+
+              const finalScore = resolveDailyAlgoFinalScore(submission);
+              const totalPoints = finalScore !== null
+                ? Math.round((finalScore + (submission.speedBonusPoints ?? 0)) * 10) / 10
+                : null;
+
+              json(res, 200, {
+                id: submission.id,
+                authorId: submission.authorId,
+                authorName: submission.authorName,
+                solution: submission.solution,
+                status: submission.status,
+                submittedAt: submission.submittedAt.toISOString(),
+                speedRank: submission.speedRank,
+                speedBonusPoints: submission.speedBonusPoints,
+                scoreCorrectness: submission.scoreCorrectness,
+                scoreComments: submission.scoreComments,
+                scoreCompactness: submission.scoreCompactness,
+                scoreOptimization: submission.scoreOptimization,
+                scoreReadability: submission.scoreReadability,
+                scoreFinal: finalScore,
+                totalPoints,
+                reviewFeedback: submission.reviewFeedback,
+                validatedById: submission.validatedById,
+                validatedAt: submission.validatedAt?.toISOString() ?? null,
+              });
+            } catch (err) {
+              logger.error('DailyAlgoAPI', 'Error getting submission:', err);
+              json(res, 500, { error: 'Erreur récupération soumission' });
+            }
+            return;
+          }
+
           if (parts.length === 6 && parts[4] === 'daily-algo-submissions' && req.method === 'PATCH') {
             const submissionId = parts[5];
             const body = await readJsonBody<{
@@ -5728,9 +5854,15 @@ export const startDashboardApi = (client: Client) => {
         const roleIds = member?.roles.cache.map((role) => role.id) ?? [];
         const featureAccess = await resolveFeatureAccessMap(client, guildId, access, user.userId, roleIds);
 
-        if (!access.canManageSettings && !featureAccess.centralized_config?.canConfigure) {
-          json(res, 403, { error: 'Accès refusé. Seuls les administrateurs peuvent accéder à la gestion centralisée.' });
+        const isGetMethod = req.method === 'GET';
+        if (!isGetMethod && !access.canManageSettings && !featureAccess.centralized_config?.canConfigure) {
+          json(res, 403, { error: 'Accès refusé. Seuls les administrateurs peuvent modifier la gestion centralisée.' });
           return;
+        }
+
+        if (isGetMethod && !access.canViewDashboard) {
+           json(res, 403, { error: 'Accès refusé. Vous n\'avez pas accès au dashboard.' });
+           return;
         }
 
         const auditUser = user.username ?? `User${user.userId}`;

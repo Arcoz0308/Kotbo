@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { router } from 'tinro';
-  import { reviewDailyAlgoSubmission } from '../lib/api';
+  import { reviewDailyAlgoSubmission, fetchDailyAlgoSubmission } from '../lib/api';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import DailyAlgoMiniIDE from '../lib/components/DailyAlgoMiniIDE.svelte';
   import { detectIdeLanguageFromCode, normalizeIdeLanguage, type IdeLanguage } from '../lib/dailyAlgoIde';
@@ -53,7 +53,11 @@
   let reviewError = $state('');
   let reviewSuccess = $state('');
 
-  const canModerateContent = $derived(!!dashboardStore.state.access?.canModerateContent);
+  const canModerateDailyAlgo = $derived(
+    !!dashboardStore.state.featureAccess?.daily_algo?.canModerate
+      || !!dashboardStore.state.access?.canModerateDailyAlgo
+      || !!dashboardStore.state.access?.canModerateContent
+  );
   const hasLowScore = $derived(
     [scoreCorrectness, scoreComments, scoreCompactness, scoreOptimization, scoreReadability].some((score) => score < 5),
   );
@@ -81,16 +85,16 @@
   }
 
   function goBackToDailyAlgo() {
-    router.goto('/module-settings/dailyalgo');
+    router.goto('/dailyalgo');
   }
 
   function computeEditorHeight() {
     if (typeof window === 'undefined') return;
-    editorHeight = Math.max(430, Math.floor(window.innerHeight - 230));
+    editorHeight = Math.max(430, Math.floor(window.innerHeight - 120));
   }
 
   function applyPayload(payload: IdePayload) {
-    code = payload.code ?? '';
+    code = payload.code?.trim() || (payload as any).solution?.trim() || '';
     language = payload.language
       ? normalizeIdeLanguage(payload.language)
       : detectIdeLanguageFromCode(code);
@@ -227,9 +231,28 @@
         }
 
         applyPayload(payload);
+        
+        if (!code.trim() && submissionId) {
+          try {
+            const fetched = await fetchDailyAlgoSubmission(submissionId);
+            if (fetched) {
+              applyPayload({
+                ...fetched,
+                code: fetched.solution, // API uses 'solution' field
+                submissionId: fetched.id
+              });
+            }
+          } catch (err) {
+            console.error('DailyAlgoIDE: Failed to fetch submission', err);
+          }
+        }
 
         if (!code.trim()) {
-          pageError = 'Aucun code trouve pour cette session IDE.';
+          console.warn('DailyAlgoIDE: No code found in payload', payload);
+          // Don't set pageError if we have metadata, just show the empty editor
+          if (!submissionId) {
+            pageError = 'Aucun code trouve pour cette session IDE.';
+          }
         }
       } catch (error) {
         pageError = error instanceof Error ? error.message : 'Impossible de charger la session IDE.';
@@ -336,7 +359,7 @@
 
           <h2>{status === 'PENDING' ? 'Notation rapide' : 'Détails de la correction'}</h2>
 
-          {#if !canModerateContent}
+          {#if !canModerateDailyAlgo}
             <div class="alert alert-warn">
               Cette vue est ouverte, mais ton compte n'a pas les droits de moderation pour noter/rejeter.
             </div>
@@ -345,23 +368,23 @@
           <div class="scores-grid">
             <label class="score-field" for="score-correctness">
               Correctitude
-              <input id="score-correctness" class="score-input" type="number" min="1" max="5" step="1" bind:value={scoreCorrectness} disabled={!canModerateContent || (status !== 'PENDING' && !canModerateContent)} />
+              <input id="score-correctness" class="score-input" type="number" min="1" max="5" step="1" bind:value={scoreCorrectness} disabled={!canModerateDailyAlgo || (status !== 'PENDING' && !canModerateDailyAlgo)} />
             </label>
             <label class="score-field" for="score-comments">
               Commentaires
-              <input id="score-comments" class="score-input" type="number" min="1" max="5" step="1" bind:value={scoreComments} disabled={!canModerateContent || (status !== 'PENDING' && !canModerateContent)} />
+              <input id="score-comments" class="score-input" type="number" min="1" max="5" step="1" bind:value={scoreComments} disabled={!canModerateDailyAlgo || (status !== 'PENDING' && !canModerateDailyAlgo)} />
             </label>
             <label class="score-field" for="score-compactness">
               Compacite
-              <input id="score-compactness" class="score-input" type="number" min="1" max="5" step="1" bind:value={scoreCompactness} disabled={!canModerateContent || (status !== 'PENDING' && !canModerateContent)} />
+              <input id="score-compactness" class="score-input" type="number" min="1" max="5" step="1" bind:value={scoreCompactness} disabled={!canModerateDailyAlgo || (status !== 'PENDING' && !canModerateDailyAlgo)} />
             </label>
             <label class="score-field" for="score-optimization">
               Optimisation
-              <input id="score-optimization" class="score-input" type="number" min="1" max="5" step="1" bind:value={scoreOptimization} disabled={!canModerateContent || (status !== 'PENDING' && !canModerateContent)} />
+              <input id="score-optimization" class="score-input" type="number" min="1" max="5" step="1" bind:value={scoreOptimization} disabled={!canModerateDailyAlgo || (status !== 'PENDING' && !canModerateDailyAlgo)} />
             </label>
             <label class="score-field score-field-full" for="score-readability">
               Lisibilite
-              <input id="score-readability" class="score-input" type="number" min="1" max="5" step="1" bind:value={scoreReadability} disabled={!canModerateContent || (status !== 'PENDING' && !canModerateContent)} />
+              <input id="score-readability" class="score-input" type="number" min="1" max="5" step="1" bind:value={scoreReadability} disabled={!canModerateDailyAlgo || (status !== 'PENDING' && !canModerateDailyAlgo)} />
             </label>
           </div>
 
@@ -373,7 +396,7 @@
               maxlength="1000"
               bind:value={reviewFeedback}
               placeholder={status === 'PENDING' ? "Obligatoire si une note est inferieure a 5/5." : ""}
-              disabled={!canModerateContent || (status !== 'PENDING' && !canModerateContent)}
+              disabled={!canModerateDailyAlgo || (status !== 'PENDING' && !canModerateDailyAlgo)}
               class="review-textarea"
             ></textarea>
             {#if hasLowScore}
@@ -396,7 +419,7 @@
               type="button"
               class="btn-approve"
               onclick={submitApprove}
-              disabled={!canModerateContent || isSubmitting || !submissionId}
+              disabled={!canModerateDailyAlgo || isSubmitting || !submissionId}
             >
               {isSubmitting ? 'En cours...' : 'Valider'}
             </button>
@@ -404,7 +427,7 @@
               type="button"
               class="btn-reject"
               onclick={submitReject}
-              disabled={!canModerateContent || isSubmitting || !submissionId}
+              disabled={!canModerateDailyAlgo || isSubmitting || !submissionId}
             >
               Rejeter
             </button>
@@ -423,21 +446,24 @@
   }
 
   .daily-ide-wrap {
-    width: min(1880px, calc(100vw - 1.5rem));
-    margin: 0 auto;
-    padding: 0.75rem 0 1.25rem;
+    width: 100%;
+    height: 100vh;
+    padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.9rem;
+    gap: 0;
+    overflow: hidden;
   }
 
   .daily-ide-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.9rem;
-    padding: 1rem 1.15rem;
-    border-radius: 1rem;
+    gap: 1.5rem;
+    padding: 0.8rem 1.5rem;
+    background: var(--surface-container-low);
+    border-bottom: 1px solid var(--outline-variant);
+    z-index: 10;
   }
 
   .daily-eyebrow {
@@ -525,15 +551,18 @@
 
   .daily-ide-grid {
     display: grid;
-    gap: 0.9rem;
-    align-items: start;
+    gap: 0;
+    flex: 1;
+    min-height: 0;
     grid-template-columns: minmax(0, 1fr);
   }
 
   .daily-ide-main,
   .daily-ide-panel {
-    border-radius: 1rem;
-    padding: 0.75rem;
+    padding: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
   }
 
   .corrected-feedback-card {
@@ -582,6 +611,10 @@
     display: flex;
     flex-direction: column;
     gap: 0.9rem;
+    padding: 1.5rem;
+    border-left: 1px solid var(--outline-variant);
+    background: var(--surface-container-lowest);
+    overflow-y: auto;
   }
 
   .daily-ide-panel h2 {

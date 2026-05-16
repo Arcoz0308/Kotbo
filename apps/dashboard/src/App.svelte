@@ -35,6 +35,7 @@
   import DoubleAccounts from './pages/DoubleAccounts.svelte';
   import GeneralSettings from './pages/GeneralSettings.svelte';
   import DailyAlgo from './pages/DailyAlgo.svelte';
+  import DailyAlgoIDE from './pages/DailyAlgoIDE.svelte';
 
   const isPublicPage = $derived($router.path.startsWith('/profile/'));
 
@@ -78,6 +79,10 @@
     if (path.startsWith('/regulation')) return 'regulation';
     if (path.startsWith('/admin')) return 'centralized_config';
     return null;
+  }
+
+  function navigate(node: HTMLElement, path: string) {
+    router.goto(path);
   }
 
   function selectedGuildAccessLevel() {
@@ -136,23 +141,24 @@
   });
 </script>
 
-{#snippet handleLegacyRedirect(moduleId)}
-  {@const target = {
+{#snippet handleLegacyRedirect(moduleId: string)}
+  {@const mapping: Record<string, string> = {
     'regulation': '/regulation',
     'sanctions': '/sanctions',
     'logs': '/logs',
     'recruitment': '/recruitment',
     'meetings': '/meetings',
-    'dailyalgo': '/dailyalgo'
-  }[moduleId] || '/modules'}
-  <div use:() => router.goto(target)}></div>
+    'dailyalgo': $router.query.submissionId ? `/dailyalgo/ide?submissionId=${$router.query.submissionId}` : '/dailyalgo'
+  }}
+  {@const target = mapping[moduleId] || '/modules'}
+  <div use:navigate={target}></div>
 {/snippet}
 
 {#if isPublicPage}
   <Route path="/profile/:userId" let:meta>
     <PublicProfile userId={meta.params.userId} />
   </Route>
-  <Route path="/profile/*">
+  <Route fallback>
     <NotFound />
   </Route>
 {:else}
@@ -161,7 +167,12 @@
   </Route>
 
   {#if authStore.isAuthenticated}
-    <MainLayout>
+    {#if $router.path === '/dailyalgo/ide'}
+      <Route path="/dailyalgo/ide">
+        <DailyAlgoIDE />
+      </Route>
+    {:else}
+      <MainLayout>
       <Route path="/">
         <Overview />
       </Route>
@@ -212,6 +223,8 @@
         <Route path="/staff-management">
           <StaffManagement />
         </Route>
+      {/if}
+
       <Route path="/dailyalgo">
         <DailyAlgo />
       </Route>
@@ -236,12 +249,13 @@
       <Route path="/double-accounts">
         <DoubleAccounts />
       </Route>
-
+      
       <!-- Fallback for authenticated users -->
-      <Route path="/*">
+      <Route fallback>
         <NotFound />
       </Route>
     </MainLayout>
+    {/if}
   {:else if $router.path !== '/login'}
     <!-- Fallback for unauthenticated users -->
     <Route path="/*">

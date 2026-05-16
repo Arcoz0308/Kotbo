@@ -1,6 +1,7 @@
 <script lang="ts">
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import ActionButton from '../lib/components/ActionButton.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -9,12 +10,22 @@
   import ReportRuleSelector from '../lib/components/sanctions/ReportRuleSelector.svelte';
   import SelectedRuleChips from '../lib/components/sanctions/SelectedRuleChips.svelte';
   import ColumnSortFilter, { type ColumnFilterOption } from '../lib/components/sanctions/ColumnSortFilter.svelte';
-  import { createSanctionReport, deleteSanction, updateSanctionReport, fetchMemberCase, runMemberCaseAction } from '../lib/api';
+  import { 
+    createSanctionReport, 
+    deleteSanction, 
+    updateSanctionReport, 
+    fetchMemberCase, 
+    runMemberCaseAction,
+    updateGlobalSettings,
+    fetchFeatureConfigurations,
+    updateFeatureConfiguration
+  } from '../lib/api';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
-  import { updateGlobalSettings } from '../lib/api';
   import FormSelect from '../lib/components/FormSelect.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
+  import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
+  import { onMount } from 'svelte';
   import {
     buildBrokenRulesPayload,
     buildReportRuleOptions,
@@ -114,31 +125,54 @@
 
   let guildSettings = $state({
     moderatorRoleId: '',
-    propagateSanctions: false,
-    sanctionsEnabled: false
+    propagateSanctions: false
+  });
+
+  let featureConfig = $state<any>(null);
+  let loadingConfig = $state(false);
+
+  onMount(async () => {
+    loadingConfig = true;
+    try {
+      const configs = await fetchFeatureConfigurations();
+      featureConfig = configs?.features?.find((c: any) => c.featureKey === 'sanctions') || null;
+    } catch (err) {
+      console.error('Error fetching sanctions config:', err);
+    } finally {
+      loadingConfig = false;
+    }
   });
 
   $effect(() => {
     if (dashboardStore.state.moderatorRoleId !== undefined) {
       guildSettings.moderatorRoleId = dashboardStore.state.moderatorRoleId || '';
       guildSettings.propagateSanctions = (dashboardStore.state as any).propagateSanctions || false;
-      guildSettings.sanctionsEnabled = (dashboardStore.state.modules.find((m: any) => m.id === 'sanctions')?.status === 'active');
     }
   });
 
+  async function toggleConfig(key: string, value: boolean) {
+    if (!featureConfig) return;
+    
+    await saveAction.run(async () => {
+      const ok = await updateFeatureConfiguration('sanctions', { [key]: value });
+      if (!ok) throw new Error('Erreur API');
+      featureConfig[key] = value;
+      return true;
+    }, { successMessage: 'Configuration mise à jour.' });
+  }
+
   async function handleSaveSettings() {
     await saveAction.run(async () => {
-      // Sync module status if changed
-      const currentStatus = dashboardStore.state.modules.find((m: any) => m.id === 'sanctions')?.status === 'active';
-      if (guildSettings.sanctionsEnabled !== currentStatus) {
-        await updateModuleStatus('sanctions', guildSettings.sanctionsEnabled ? 'active' : 'inactive');
-      }
-
       const ok = await updateGlobalSettings({
         moderatorRoleId: guildSettings.moderatorRoleId,
         propagateSanctions: guildSettings.propagateSanctions
       });
       if (!ok) throw new Error('Erreur API');
+      
+      if (featureConfig) {
+         // Sync with feature config if necessary
+      }
+
       await dashboardStore.refresh();
       return true;
     }, { successMessage: 'Paramètres enregistrés.' });
@@ -593,7 +627,6 @@
       deletingSanctionId = null;
     }
   }
-  import ModulePage from '../lib/components/ModulePage.svelte';
 </script>
 
 <ModulePage 
@@ -827,17 +860,6 @@
     {#if activeTab === 'settings'}
       <section class="space-y-8 animate-in fade-in duration-500">
         <div class="premium-card p-10 rounded-[3rem] space-y-8">
-          <div class="flex items-center justify-between gap-6 p-6 rounded-2xl bg-surface-container-low border border-outline-variant/20">
-            <div>
-              <p class="text-sm font-black text-on-surface">Activation du module Sanctions</p>
-              <p class="text-xs text-on-surface-variant/70 mt-1">Si désactivé, les commandes de modération et le suivi des rapports seront indisponibles.</p>
-            </div>
-            <ToggleSwitch
-              checked={guildSettings.sanctionsEnabled}
-              onToggle={() => guildSettings.sanctionsEnabled = !guildSettings.sanctionsEnabled}
-            />
-          </div>
-
           <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div class="space-y-4">
               <div>
@@ -845,10 +867,14 @@
                 <p class="text-xs text-on-surface-variant/70 mt-1">Rôle requis pour utiliser les commandes de modération.</p>
               </div>
               <FormSelect
-                options={availableRoles.map(r => ({ value: r.id, label: r.name }))}
                 bind:value={guildSettings.moderatorRoleId}
-                placeholder="Sélectionner un rôle"
-              />
+                className="w-full rounded-2xl bg-surface-container-high/40 border border-outline-variant/10 px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all"
+              >
+                <option value="">— Aucun rôle —</option>
+                {#each availableRoles as r}
+                  <option value={r.id}>@{r.name}</option>
+                {/each}
+              </FormSelect>
             </div>
 
             <div class="space-y-4">
@@ -859,11 +885,25 @@
                 </div>
                 <ToggleSwitch
                   checked={guildSettings.propagateSanctions}
-                  onToggle={() => guildSettings.propagateSanctions = !guildSettings.propagateSanctions}
+                  onToggle={() => {
+                    guildSettings.propagateSanctions = !guildSettings.propagateSanctions;
+                    // Auto save for toggles is better UX
+                    void handleSaveSettings();
+                  }}
+                  loading={saveAction.state.loading}
                 />
               </div>
             </div>
           </div>
+
+          {#if featureConfig}
+          <div class="pt-8 border-t border-outline-variant/10">
+            <RolePermissionSettings 
+              featureKey="sanctions" 
+              roleAccess={featureConfig.roleAccessByRole} 
+            />
+          </div>
+          {/if}
 
           <div class="pt-6 border-t border-outline-variant/10 flex justify-end">
             <button

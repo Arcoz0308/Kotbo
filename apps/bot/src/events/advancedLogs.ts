@@ -503,10 +503,18 @@ async function getGuildLogChannelId(guildId: string): Promise<string | null> {
 
   const guild = await prisma.guild.findUnique({
     where: { id: guildId },
-    select: { logChannelId: true },
+    select: { 
+      logChannelId: true,
+      dashboardFeatureConfigs: {
+        where: { featureKey: 'logs' },
+        select: { enabled: true }
+      }
+    },
   });
 
-  const channelId = guild?.logChannelId ?? null;
+  const isEnabled = guild?.dashboardFeatureConfigs?.[0]?.enabled !== false; // Default to true
+  const channelId = isEnabled ? (guild?.logChannelId ?? null) : null;
+  
   logChannelCache.set(guildId, { channelId, expiresAt: now + LOG_CHANNEL_CACHE_TTL_MS });
   return channelId;
 }

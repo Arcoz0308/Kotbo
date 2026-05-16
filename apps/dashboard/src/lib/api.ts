@@ -505,6 +505,14 @@ export async function reviewDailyAlgoSubmission(submissionId, review, guildId = 
   });
 }
 
+export async function fetchDailyAlgoSubmission(submissionId, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/daily-algo-submissions/${submissionId}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Daily Algo Submission):'
+  });
+}
+
 // ==========================================
 // STAFF LEADERSHIP / HR APIs
 // ==========================================
@@ -526,6 +534,23 @@ export async function fetchStaffRoles(guildId = authStore.selectedGuildId) {
     method: 'GET',
     guildId,
     errorContext: 'API Error (Fetch Staff Roles):'
+  });
+}
+
+export async function fetchStaffConfig(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/staff/config', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Staff Config):'
+  });
+}
+
+export async function updateStaffConfig(config, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/staff/config', {
+    method: 'PATCH',
+    payload: config,
+    guildId,
+    errorContext: 'API Error (Update Staff Config):'
   });
 }
 
@@ -791,6 +816,7 @@ export async function updateNotificationTargets(featureKey, notificationTargets,
 
 
 
+
 export async function fetchAdminStats() {
   const response = await authorizedFetch(`${API_BASE_URL}/api/admin/stats`);
   if (!response.ok) throw new Error('Erreur lors du chargement des statistiques admin');
@@ -912,4 +938,13 @@ export async function sendGlobalBroadcast(message: string) {
     throw new Error(error.error || 'Erreur broadcast');
   }
   return response.json();
+}
+
+export async function updateRecruitmentConfig(payload: any, guildId: string = authStore.selectedGuildId) {
+  return dashboardMutation('/recruitment/config', {
+    method: 'PATCH',
+    payload,
+    guildId,
+    errorContext: 'API Error (Update Recruitment Config):'
+  });
 }

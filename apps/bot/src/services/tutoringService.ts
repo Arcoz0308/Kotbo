@@ -107,15 +107,18 @@ export const getTutorDashboard = async (guildId: string, tutorUserId: string, fe
   // Enrich with stats and absences
   return Promise.all(apprentices.map(async (apprentice) => {
     const [vocalStats, absences] = await Promise.all([
-      prisma.memberProfile.findUnique({
+      apprentice.staffMember?.userId ? prisma.memberProfile.findUnique({
         where: { guildId_userId: { guildId, userId: apprentice.staffMember.userId } },
         select: { voiceTimeSeconds: true, voiceSessionCount: true }
-      }),
+      }) : Promise.resolve(null),
       prisma.staffAbsence.findMany({
         where: { 
           guildId, 
-          staffUserId: apprentice.staffMember.id,
-          endDate: { gte: new Date() }
+          staffUserId: apprentice.staffUserId,
+          OR: [
+            { endDate: { gte: new Date() } },
+            { isIndefinite: true }
+          ]
         },
         orderBy: { startDate: 'asc' },
         take: 3
@@ -152,7 +155,7 @@ export const getApprenticeProgress = async (guildId: string, userId: string) => 
         orderBy: { createdAt: 'desc' }
       },
       logs: {
-        orderBy: { date: 'desc' }
+        orderBy: { createdAt: 'desc' }
       }
     }
   });
