@@ -148,11 +148,6 @@
             {@const colors = ['#334557', '#48626e', '#6c3400', '#ba1a1a', '#10b981', '#f59e0b']}
             {@const bgColors = ['bg-primary', 'bg-secondary', 'bg-tertiary', 'bg-error', 'bg-emerald-500', 'bg-amber-500']}
 
-          {#if stats}
-            {@const total = Object.values(stats.distribution).reduce((a, b) => Number(a) + Number(b), 0) || 1}
-            {@const colors = ['#334557', '#48626e', '#6c3400', '#ba1a1a', '#10b981', '#f59e0b']}
-            {@const bgColors = ['bg-primary', 'bg-secondary', 'bg-tertiary', 'bg-error', 'bg-emerald-500', 'bg-amber-500']}
-
             <div class="text-center mb-12">
               <div class="flex items-center justify-center gap-3 mb-4">
                 <span class="px-3 py-1 bg-primary/10 text-primary rounded-lg text-[9px] font-black uppercase tracking-widest">En direct</span>

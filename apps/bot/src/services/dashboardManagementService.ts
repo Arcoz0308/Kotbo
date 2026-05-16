@@ -113,6 +113,12 @@ export const defaultFeatures = [
     description: 'Avertissements et blacklist staff',
     category: 'staff',
   },
+  {
+    featureKey: 'events',
+    featureName: 'Événements & Quiz',
+    description: 'Organisation de quiz et événements communautaires',
+    category: 'staff',
+  },
   // ─── Gestion ───
   {
     featureKey: 'regulation',
