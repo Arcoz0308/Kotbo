@@ -36,6 +36,9 @@
   import GeneralSettings from './pages/GeneralSettings.svelte';
   import DailyAlgo from './pages/DailyAlgo.svelte';
   import DailyAlgoIDE from './pages/DailyAlgoIDE.svelte';
+  import Events from './pages/Events.svelte';
+  import EventEditor from './pages/EventEditor.svelte';
+  import EventControl from './pages/EventControl.svelte';
 
   const isPublicPage = $derived($router.path.startsWith('/profile/'));
 
@@ -56,6 +59,7 @@
     if (path.startsWith('/analytics')) return 'analytics';
     if (path.startsWith('/inbox')) return 'inbox';
     if (path.startsWith('/dailyalgo')) return 'daily_algo';
+    if (path.startsWith('/events')) return 'events';
     if (path.startsWith('/members')) return 'members';
     if (path.startsWith('/sanctions')) return 'sanctions';
     if (path.startsWith('/double-accounts')) return 'double_accounts';
@@ -248,6 +252,16 @@
       </Route>
       <Route path="/double-accounts">
         <DoubleAccounts />
+      </Route>
+
+      <Route path="/events">
+        <Events />
+      </Route>
+      <Route path="/events/edit/:eventId" let:meta>
+        <EventEditor eventId={meta.params.eventId} />
+      </Route>
+      <Route path="/events/control/:eventId" let:meta>
+        <EventControl eventId={meta.params.eventId} />
       </Route>
       
       <!-- Fallback for authenticated users -->

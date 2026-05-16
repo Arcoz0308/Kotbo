@@ -103,6 +103,7 @@ model Guild {
   tutoringConfig TutoringConfig?
   tutoringItems TutoringItem[]
   dashboardFeatureConfigs DashboardFeatureConfig[]
+  events Event[]
 
   @@map("guilds")
 }
@@ -451,6 +452,7 @@ model MemberProfile {
   moderatorNote String?
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  eventParticipations EventParticipant[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1462,4 +1464,103 @@ model DashboardCommandUsage {
   @@unique([guildId, commandName, userId])
   @@index([guildId, commandName])
   @@map("dashboard_command_usages")
+}
+
+// ============================================================================
+// SYSTÈME D'ÉVÉNEMENTS
+// ============================================================================
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+enum EventType {
+  QUIZ
+}
+
+model Event {
+  id String @id @default(cuid())
+  guildId String
+  title String
+  description String?
+  type EventType
+  status EventStatus @default(DRAFT)
+  channelId String?
+  messageId String?
+  
+  config Json? // { themeColor, etc. }
+  
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  questions EventQuizQuestion[]
+  participants EventParticipant[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("events")
+}
+
+model EventQuizQuestion {
+  id String @id @default(cuid())
+  eventId String
+  text String
+  imageUrl String?
+  options Json // Array of strings or objects { text, emoji }
+  correctOptionIndex Int
+  
+  sortOrder Int @default(0)
+  status EventStatus @default(DRAFT)
+  
+  startTime DateTime?
+  endTime DateTime?
+  
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  responses EventQuizResponse[]
+
+  @@map("event_quiz_questions")
+}
+
+model EventParticipant {
+  id String @id @default(cuid())
+  eventId String
+  userId String
+  guildId String
+  
+  userTag String?
+  username String?
+  
+  score Int @default(0)
+  metadata Json?
+  
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  profile MemberProfile @relation(fields: [guildId, userId], references: [guildId, userId], onDelete: Cascade)
+  responses EventQuizResponse[]
+
+  createdAt DateTime @default(now())
+  
+  @@unique([eventId, userId])
+  @@map("event_participants")
+}
+
+model EventQuizResponse {
+  id String @id @default(cuid())
+  questionId String
+  participantId String
+  
+  optionIndex Int
+  isCorrect Boolean
+  responseTimeMs Int?
+  
+  question EventQuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  participant EventParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([questionId, participantId])
+  @@map("event_quiz_responses")
 }

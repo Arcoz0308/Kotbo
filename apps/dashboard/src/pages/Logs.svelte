@@ -134,6 +134,10 @@
       status: string;
     }>;
     isSuspectedDC: boolean;
+    interactionGraph: {
+      nodes: Array<{ id: string; label: string; type: 'user' | 'target'; avatar?: string | null }>;
+      edges: Array<{ from: string; to: string; type: 'mention' | 'reply' | 'reaction'; count: number }>;
+    };
   };
 
   let searchQuery = $state('');
@@ -822,22 +826,24 @@
 </div>
 
 {#if caseModalOpen && selectedCaseUser}
-  <MemberCaseModal
-    open={caseModalOpen}
-    userName={selectedCaseUser.name}
-    userId={selectedCaseUser.id}
+  <MemberCaseModal 
+    bind:open={caseModalOpen}
+    userId={selectedCaseUser?.id}
     caseData={selectedCaseData}
     loading={selectedCaseLoading}
     error={selectedCaseError}
-    bind:actionReason={memberActionReason}
-    bind:actionDuration={memberActionDuration}
+    actionReason={memberActionReason}
+    actionDuration={memberActionDuration}
     actionBusy={memberActionBusy}
     actionFeedback={memberActionFeedback}
     actionIsError={memberActionIsError}
+    onAction={executeMemberAction}
     onClose={closeCaseModal}
-    onAction={(action) => executeMemberAction(action)}
+    onSelectUser={(userId) => {
+      selectedCaseUser = { name: 'Chargement...', id: userId };
+      void loadMemberCase(userId);
+    }}
   />
 {/if}
 
 </ModulePage>
-

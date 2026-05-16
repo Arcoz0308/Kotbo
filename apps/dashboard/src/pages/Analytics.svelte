@@ -341,7 +341,7 @@ import StaffPerformance from '../lib/components/analytics/StaffPerformance.svelt
 
   <!-- Member Case Modal -->
   <MemberCaseModal
-    open={modalOpen}
+    bind:open={modalOpen}
     userId={selectedUserId}
     userName={selectedUserName}
     {caseData}
@@ -349,6 +349,9 @@ import StaffPerformance from '../lib/components/analytics/StaffPerformance.svelt
     error={caseError}
     onClose={() => {
       modalOpen = false;
+    }}
+    onSelectUser={(userId) => {
+      openMemberDetails(userId, 'Chargement...');
     }}
   />
 </div>

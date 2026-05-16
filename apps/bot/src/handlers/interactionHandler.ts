@@ -23,7 +23,8 @@ import { handleConfigButton, handleConfigModal } from './configHandler.js';
 import { sendSetupStep1, sendSetupStep2, sendSetupStep3, sendSetupFinish } from '../panels/setupPanel.js';
 import { reviewDailyAlgoSubmission } from '../services/dailyAlgoService.js';
 import { renderPanelTarget } from '../utils/interactionResponses.js';
-import { parseSetupStep, parseUserCaseRoute, parseValidateRoute } from './interactionRoutes.js';
+import { parseSetupStep, parseUserCaseRoute, parseValidateRoute, parseEventQuizRoute } from './interactionRoutes.js';
+import { handleQuizInteraction } from '../services/eventService.js';
 import { toggleGuildBoolean } from '../utils/prismaToggles.js';
 import { requireSingleSelectedValue, validateTimeField } from '../utils/interactionValidation.js';
 import { buildMemberCasePanel, type MemberCaseSection } from '../services/memberCaseService.js';
@@ -282,6 +283,12 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     );
 
     await interaction.showModal(feedbackModal);
+    return;
+  }
+
+  const eventRoute = parseEventQuizRoute(customId);
+  if (eventRoute && eventRoute.optionIndex !== undefined) {
+    await handleQuizInteraction(interaction, eventRoute.questionId, eventRoute.optionIndex);
     return;
   }
 
@@ -801,6 +808,13 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
       content: `✅ Note modérateur mise à jour pour <@${targetUserId}>.`,
       flags: [MessageFlags.Ephemeral],
     });
+    return;
+  }
+
+  const eventRoute = parseEventQuizRoute(customId);
+  if (eventRoute && interaction.isStringSelectMenu()) {
+    const optionIndex = parseInt(interaction.values[0], 10);
+    await handleQuizInteraction(interaction, eventRoute.questionId, optionIndex);
     return;
   }
 }

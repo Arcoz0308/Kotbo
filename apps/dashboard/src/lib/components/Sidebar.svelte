@@ -19,6 +19,7 @@
     { name: "Doubles Comptes", icon: "users", href: "/double-accounts", featureKey: "double_accounts" },
     { name: "Logs Discord", icon: "file-text", href: "/logs", featureKey: "logs" },
     { name: "Journal d'activité", icon: "history", href: "/activity", featureKey: "activity" },
+    { name: "Événements", icon: "zap", href: "/events", featureKey: "events" },
   ];
 
   const managementItems = [

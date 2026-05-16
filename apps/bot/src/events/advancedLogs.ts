@@ -568,6 +568,7 @@ async function recordMessageAudit(message: Message | PartialMessage): Promise<vo
       details: truncate([
         `ID: ${message.id}`,
         `Contenu: ${message.content?.trim() || '_vide_'}`,
+        message.mentions.repliedUser ? `Réponse à: <@${message.mentions.repliedUser.id}>` : null,
         message.attachments.size > 0 ? `Pièces jointes: ${[...message.attachments.values()].slice(0, 5).map((a) => a.url).join(' | ')}` : null,
       ].filter(Boolean).join(' | '), 900),
       dateIso: new Date(),
@@ -1257,9 +1258,28 @@ export function registerAdvancedLogsListener(client: Client): void {
     await sendLogEmbed(member.guild, embed, [buildMemberCaseActionRow(member.id)]);
   });
 
-  client.on(Events.MessageReactionAdd, async (reaction) => {
-    if (!reaction.message.guildId) return;
+  client.on(Events.MessageReactionAdd, async (reaction, user) => {
+    if (!reaction.message.guildId || user.bot) return;
     void incrementGuildHourlyStat(reaction.message.guildId, 'reaction');
+    
+    // Log the reaction interaction for the graph
+    await prisma.dashboardAuditLog.create({
+      data: {
+        guildId: reaction.message.guildId,
+        channelId: reaction.message.channelId,
+        user: formatUser(user.id, user.tag ?? user.username ?? `Utilisateur ${user.id}`),
+        action: 'Réaction ajoutée',
+        context: reaction.message.guild?.name ?? `Serveur ${reaction.message.guildId}`,
+        module: 'Interactions',
+        eventType: 'Discord',
+        details: truncate([
+          `Emoji: ${reaction.emoji.name}`,
+          `Cible: ${reaction.message.author?.tag ?? 'Inconnu'} (<@${reaction.message.author?.id ?? '0'}>)`,
+          `Message ID: ${reaction.message.id}`
+        ].join(' | '), 900),
+        dateIso: new Date(),
+      }
+    }).catch(() => null);
   });
 
   client.on(Events.ThreadCreate, async (thread) => {

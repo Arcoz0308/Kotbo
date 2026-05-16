@@ -79,6 +79,15 @@ import {
 } from '../services/staffLeadershipService.js';
 import * as tutoringService from '../services/tutoringService.js';
 import {
+  getEvents,
+  getEvent,
+  createEvent,
+  publishEvent,
+  nextQuestion,
+  getEventStats,
+  finishEvent
+} from '../services/eventService.js';
+import {
   getCandidatures,
   createCandidature,
   getEligibleTutors,
@@ -359,6 +368,25 @@ type LinkedAccountItem = {
   status: string;
 };
 
+type MemberCaseInteractionNode = {
+  id: string;
+  label: string;
+  type: 'user' | 'target';
+  avatar?: string | null;
+};
+
+type MemberCaseInteractionEdge = {
+  from: string;
+  to: string;
+  type: 'mention' | 'reply' | 'reaction';
+  count: number;
+};
+
+type MemberCaseInteractionGraph = {
+  nodes: MemberCaseInteractionNode[];
+  edges: MemberCaseInteractionEdge[];
+};
+
 type MemberCaseResponse = {
   profile: MemberCaseProfile | null;
   invite: MemberCaseInviteInfo | null;
@@ -385,6 +413,7 @@ type MemberCaseResponse = {
   }>;
   linkedAccounts: LinkedAccountItem[];
   isSuspectedDC: boolean;
+  interactionGraph: MemberCaseInteractionGraph;
 };
 
 type CommandRestrictionState = CommandRestrictionRule;
@@ -506,6 +535,7 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
   meetings: 'Planification et suivi des réunions d\'équipe.',
   absences: 'Gestion des congés et disponibilités du personnel.',
   double_accounts: 'Détection et gestion des comptes multiples pour la sécurité.',
+  events: 'Organisation et gestion d\'événements communautaires et quiz.',
 };
 
 const DEFAULT_SEVERITY_BY_MODULE: Array<{ module: string; level: SeverityLevel }> = [
@@ -1275,7 +1305,7 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
         where: {
           guildId,
           OR: [
-            { user: actualUserId },
+            { user: { contains: actualUserId } },
             { details: { contains: actualUserId } }
           ]
         },
@@ -1342,7 +1372,11 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
     .find((entry): entry is MemberCaseInviteInfo => !!entry) ?? null;
 
     const messages = (auditLogs || [])
-      .filter((entry) => entry.module === 'Messages' && entry.action === 'Message envoyé' && entry.user.includes(actualUserId))
+      .filter((entry) => {
+        if (entry.module !== 'Messages' || entry.action !== 'Message envoyé') return false;
+        // Le champ user est formaté "Tag (ID)", on vérifie que l'ID est bien à la fin
+        return entry.user === actualUserId || entry.user.endsWith(`(${actualUserId})`);
+      })
       .slice(0, 250)
       .map((entry) => {
         const msgId = extractMessageId(entry.details);
@@ -1373,6 +1407,51 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
     }
     messagesByChannelMap.set(message.channelId, current);
   }
+
+    // --- Calcul du graph d'interactions ---
+    const nodes: MemberCaseInteractionNode[] = [
+      { id: actualUserId, label: user?.tag ?? profile?.userTag ?? "Utilisateur", type: 'user', avatar: profile?.avatarUrl ?? user?.displayAvatarURL?.() }
+    ];
+    const edges: MemberCaseInteractionEdge[] = [];
+    const targetMap = new Map<string, { label: string, count: number }>();
+
+    for (const log of auditLogs || []) {
+      if (log.module === 'Messages' && log.action === 'Message envoyé') {
+        const contentMatch = log.details.match(/Contenu: (.*)/);
+        if (contentMatch) {
+          const content = contentMatch[1];
+          const mentionRegex = /<@!?(\d+)>/g;
+          let match;
+          while ((match = mentionRegex.exec(content)) !== null) {
+            const targetId = match[1];
+            if (targetId === actualUserId) continue;
+
+            const current = targetMap.get(targetId) ?? { label: `User ${targetId}`, count: 0 };
+            current.count += 1;
+            targetMap.set(targetId, current);
+          }
+        }
+      }
+    }
+
+    // On récupère les tags des cibles si possible (limité au top 10 pour la perf)
+    const topTargets = [...targetMap.entries()]
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 10);
+
+    for (const [targetId, data] of topTargets) {
+      // Tentative de résolution du tag et avatar via le cache ou fetch rapide
+      let targetLabel = data.label;
+      let targetAvatar: string | null = null;
+      const cachedUser = client.users.cache.get(targetId);
+      if (cachedUser) {
+        targetLabel = cachedUser.tag;
+        targetAvatar = cachedUser.displayAvatarURL({ size: 128 });
+      }
+
+      nodes.push({ id: targetId, label: targetLabel, type: 'target', avatar: targetAvatar });
+      edges.push({ from: actualUserId, to: targetId, type: 'mention', count: data.count });
+    }
 
     const result: MemberCaseResponse = {
       profile: {
@@ -1438,6 +1517,7 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
       connections: inviteConnections?.connections || [],
       connectionsNote: inviteConnections?.note || "",
       isSuspectedDC: profile?.isSuspectedDC ?? false,
+      interactionGraph: { nodes, edges },
       candidatures: (candidatureHistory || []).map((c) => ({
         id: c.id,
         status: c.status,
@@ -1542,6 +1622,7 @@ async function resolveFeatureAccessMap(
     'absences',
     'polls',
     'discipline',
+    'events',
   ]);
 
   const featureAccess: FeatureAccessMap = {};
@@ -1754,6 +1835,15 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
       name: 'Absences',
       description: MODULE_DESCRIPTIONS.absences,
       status: getFeatureStatus('absences'),
+      uptime: 100,
+      interactions: 0,
+      lastSync: guild.updatedAt.toISOString()
+    },
+    {
+      id: 'events',
+      name: 'Événements & Quiz',
+      description: MODULE_DESCRIPTIONS.events,
+      status: getFeatureStatus('events'),
       uptime: 100,
       interactions: 0,
       lastSync: guild.updatedAt.toISOString()
@@ -6089,6 +6179,14 @@ export const startDashboardApi = (client: Client) => {
               accessibleTools.push('Éditeur de Règlement');
             }
 
+            const participations = await prisma.eventParticipant.findMany({
+              where: { userId },
+              include: {
+                event: true,
+              },
+              orderBy: { event: { createdAt: 'desc' } }
+            });
+
             json(res, 200, {
               staffMember,
               apiKeys: apiKeys.map(k => ({
@@ -6102,6 +6200,7 @@ export const startDashboardApi = (client: Client) => {
               blacklistReason: blacklist?.reason,
               blacklistEndDate: blacklist?.endDate,
               accessibleTools,
+              eventParticipations: participations,
             });
           } catch (err) {
             logger.error('StaffAPI', 'Error getting user profile:', err);
@@ -7542,6 +7641,130 @@ export const startDashboardApi = (client: Client) => {
               json(res, 500, { error: 'Erreur récupération analytics' });
             }
             return;
+          }
+        }
+
+        // EVENTS ROUTES
+        if (parts[4] === 'events') {
+          const guildId = parts[3] ?? null;
+          if (!guildId) {
+            json(res, 400, { error: 'guildId manquant' });
+            return;
+          }
+
+          const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+          if (accessLevel.level === 'none') {
+            json(res, 403, { error: 'Accès refusé' });
+            return;
+          }
+
+          // GET /api/dashboard/guilds/:guildId/events
+          if (req.method === 'GET' && !parts[5]) {
+            try {
+              const events = await getEvents(guildId);
+              json(res, 200, { events });
+            } catch (err) {
+              logger.error('EventsAPI', err);
+              json(res, 500, { error: 'Erreur récupération événements' });
+            }
+            return;
+          }
+
+          // POST /api/dashboard/guilds/:guildId/events
+          if (req.method === 'POST' && !parts[5]) {
+            try {
+              const body = await readJsonBody<any>(req);
+              const event = await createEvent(guildId, body);
+              json(res, 201, { event });
+            } catch (err) {
+              logger.error('EventsAPI', err);
+              json(res, 500, { error: 'Erreur création événement' });
+            }
+            return;
+          }
+
+          // Routes avec :eventId
+          if (parts[5]) {
+            const eventId = parts[5];
+
+            // GET /api/dashboard/guilds/:guildId/events/:eventId
+            if (req.method === 'GET' && !parts[6]) {
+              try {
+                const event = await getEvent(eventId);
+                json(res, 200, { event });
+              } catch (err) {
+                logger.error('EventsAPI', err);
+                json(res, 500, { error: 'Erreur récupération événement' });
+              }
+              return;
+            }
+
+            // POST /api/dashboard/guilds/:guildId/events/:eventId/publish
+            if (req.method === 'POST' && parts[6] === 'publish') {
+              try {
+                const event = await publishEvent(client, eventId);
+                json(res, 200, { event });
+              } catch (err) {
+                logger.error('EventsAPI', err);
+                json(res, 500, { error: (err as Error).message });
+              }
+              return;
+            }
+
+            // POST /api/dashboard/guilds/:guildId/events/:eventId/next
+            if (req.method === 'POST' && parts[6] === 'next') {
+              try {
+                const result = await nextQuestion(client, eventId);
+                json(res, 200, result);
+              } catch (err) {
+                logger.error('EventsAPI', err);
+                json(res, 500, { error: (err as Error).message });
+              }
+              return;
+            }
+
+            // PATCH /api/dashboard/guilds/:guildId/events/:eventId
+            if (req.method === 'PATCH' && !parts[6]) {
+              try {
+                const body = await readJsonBody<any>(req);
+                const event = await prisma.event.update({
+                  where: { id: eventId },
+                  data: {
+                    title: body.title,
+                    description: body.description,
+                    channelId: body.channelId,
+                    questions: body.questions ? {
+                      deleteMany: {},
+                      create: body.questions.map((q: any, i: number) => ({
+                        text: q.text,
+                        options: q.options,
+                        correctOptionIndex: q.correctOptionIndex,
+                        sortOrder: i,
+                        imageUrl: q.imageUrl
+                      }))
+                    } : undefined
+                  },
+                  include: { questions: true }
+                });
+                json(res, 200, { event });
+              } catch (err) {
+                logger.error('EventsAPI', err);
+                json(res, 500, { error: 'Erreur lors de la mise à jour' });
+              }
+              return;
+            }
+
+            // GET /api/dashboard/guilds/:guildId/events/:eventId/stats
+            if (req.method === 'GET' && parts[6] === 'stats') {
+              try {
+                const stats = await getEventStats(eventId);
+                json(res, 200, { stats });
+              } catch (err) {
+                logger.error('EventsAPI', err);
+                json(res, 500, { error: 'Erreur récupération stats' });
+              }
+              return;
+            }
           }
         }
 

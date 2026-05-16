@@ -10,6 +10,7 @@
   import SelectedRuleChips from './sanctions/SelectedRuleChips.svelte';
   import EvidenceInputList from './sanctions/EvidenceInputList.svelte';
   import ReportRuleSelector from './sanctions/ReportRuleSelector.svelte';
+  import InteractionTree from './charts/InteractionTree.svelte';
 
   type MemberCaseTab = 'resume' | 'identite' | 'activite' | 'messages' | 'logs' | 'sanctions' | 'invites' | 'connexions' | 'analytics' | 'candidatures' | 'linked_accounts' | 'notes';
 
@@ -136,6 +137,10 @@
       status: string;
     }>;
     isSuspectedDC: boolean;
+    interactionGraph: {
+      nodes: Array<{ id: string; label: string; type: 'user' | 'target'; avatar?: string | null }>;
+      edges: Array<{ from: string; to: string; type: 'mention' | 'reply' | 'reaction'; count: number }>;
+    };
   };
 
   let {
@@ -152,6 +157,7 @@
     actionIsError = false,
     onClose = () => {},
     onAction = (_action: 'WARN' | 'KICK' | 'TIMEOUT' | 'BAN') => {},
+    onSelectUser = (_userId: string) => {},
   } = $props<{
     open?: boolean;
     userName?: string;
@@ -1212,8 +1218,8 @@
                   <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10">
                     <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-8 px-2">Répartition par salon</p>
                     <div class="space-y-6">
-                      {#each caseData?.messagesByChannel as channel}
-                        {@const max = Math.max(...caseData?.messagesByChannel.map(c => c.count), 1)}
+                      {#each caseData?.messagesByChannel || [] as channel}
+                        {@const max = Math.max(...(caseData?.messagesByChannel || []).map(c => c.count), 1)}
                         <div class="space-y-2">
                           <div class="flex items-center justify-between px-1">
                             <span class="text-sm font-black text-on-surface">{channel.channelName}</span>
@@ -1643,24 +1649,44 @@
                 </div>
 
               {:else if activeTab === 'connexions'}
-                <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                   {#each caseData?.connections as connection}
-                     <div class="flex items-center gap-4 rounded-[1.5rem] bg-surface-container-low/50 p-4 border border-outline-variant/10 hover:border-primary/30 transition-all group">
-                       <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary group-hover:scale-110 transition-transform">
-                         <Papicon icon={getConnectionIcon(connection.type)} size={20} />
-                       </div>
-                       <div class="min-w-0">
-                         <p class="text-sm font-black text-on-surface truncate">{connection.name}</p>
-                         <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 mt-0.5">{connection.type}</p>
-                       </div>
-                     </div>
-                   {/each}
-                   {#if caseData?.connections.length === 0}
-                     <div class="md:col-span-2 lg:col-span-3 flex flex-col items-center py-20 text-on-surface-variant/30 bg-surface-container-low/30 rounded-[2.5rem]">
-                       <Papicon icon="link-2" size={48} />
-                       <p class="mt-4 text-sm font-black uppercase tracking-widest">Aucun lien externe</p>
-                     </div>
-                   {/if}
+                <div class="space-y-6 h-[500px]">
+                  <div class="flex items-center justify-between px-2">
+                    <div>
+                      <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-1">Réseau Social</p>
+                      <h4 class="text-sm font-black text-on-surface uppercase tracking-widest">Graphe d'Interactions</h4>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <span class="text-[10px] font-bold text-on-surface-variant/40 bg-surface-container-high px-3 py-1 rounded-lg">Top 10 contacts</span>
+                    </div>
+                  </div>
+                  
+                  <div class="flex-1 h-[400px]">
+                    <InteractionTree 
+                      nodes={caseData?.interactionGraph?.nodes || []} 
+                      edges={caseData?.interactionGraph?.edges || []} 
+                      onSelectNode={onSelectUser}
+                    />
+                  </div>
+
+                  <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {#each caseData?.connections as connection}
+                      <div class="flex items-center gap-4 rounded-[1.5rem] bg-surface-container-low/50 p-4 border border-outline-variant/10 hover:border-primary/30 transition-all group">
+                        <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary group-hover:scale-110 transition-transform">
+                          <Papicon icon={getConnectionIcon(connection.type)} size={20} />
+                        </div>
+                        <div class="min-w-0">
+                          <p class="text-sm font-black text-on-surface truncate">{connection.name}</p>
+                          <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 mt-0.5">{connection.type}</p>
+                        </div>
+                      </div>
+                    {/each}
+                    {#if caseData?.connections.length === 0 && (caseData?.interactionGraph?.nodes || []).length === 0}
+                      <div class="md:col-span-2 lg:col-span-3 flex flex-col items-center py-20 text-on-surface-variant/30 bg-surface-container-low/30 rounded-[2.5rem]">
+                        <Papicon icon="link-2" size={48} />
+                        <p class="mt-4 text-sm font-black uppercase tracking-widest">Aucun lien externe</p>
+                      </div>
+                    {/if}
+                  </div>
                 </div>
 
               {:else if activeTab === 'candidatures'}

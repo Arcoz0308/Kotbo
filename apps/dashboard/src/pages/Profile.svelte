@@ -28,6 +28,7 @@
     { id: 'overview', label: 'Vue d\'ensemble', icon: 'Grid' },
     { id: 'activity', label: 'Activité', icon: 'TrendingUp' },
     { id: 'security', label: 'Sécurité', icon: 'Lock' },
+    { id: 'events', label: 'Événements', icon: 'Zap' },
     { id: 'tools', label: 'Outils', icon: 'Gears' },
   ];
 
@@ -97,6 +98,8 @@
       blacklistReason = profileData.blacklistReason;
       blacklistEndDate = profileData.blacklistEndDate;
       accessibleTools = profileData.accessibleTools || [];
+      const eventParticipations = profileData.eventParticipations || [];
+      user = { ...user, eventParticipations };
 
       // Récupérer les stats et analytics
       if (staffMember) {
@@ -567,7 +570,34 @@
             </div>
           </div>
         </div>
-
+      {:else if activeTab === 'events'}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {#each user.eventParticipations || [] as part}
+            <div class="bg-surface-container-low/50 rounded-[2.5rem] p-8 border border-outline-variant/10 flex items-center justify-between">
+              <div class="flex items-center gap-6">
+                <div class="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
+                  <Papicon icon="Zap" size={24} />
+                </div>
+                <div>
+                  <h5 class="text-lg font-black text-on-surface">{part.event.title}</h5>
+                  <p class="text-[10px] text-on-surface-variant/40 mt-1 uppercase tracking-widest font-black">
+                    {formatDate(part.event.createdAt)}
+                  </p>
+                </div>
+              </div>
+              <div class="text-right">
+                <p class="text-2xl font-black text-primary">{part.score} pts</p>
+                <p class="text-[10px] text-on-surface-variant/40 uppercase font-black">Score final</p>
+              </div>
+            </div>
+          {:else}
+             <div class="md:col-span-2 py-24 flex flex-col items-center justify-center text-center bg-surface-container-low/10 rounded-[3rem] border-2 border-dashed border-outline-variant/10">
+               <Papicon icon="Zap" size={64} class="text-on-surface-variant/10 mb-6" />
+               <h5 class="text-xl font-black text-on-surface-variant/40">Aucune participation</h5>
+               <p class="mt-2 text-sm font-bold text-on-surface-variant/20">Vous n'avez pas encore participé à un événement.</p>
+            </div>
+          {/each}
+        </div>
       {:else if activeTab === 'tools'}
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           <!-- Tools Grid -->
@@ -593,7 +623,6 @@
           {/if}
         </div>
       {/if}
-
     </div>
 
   {:else}

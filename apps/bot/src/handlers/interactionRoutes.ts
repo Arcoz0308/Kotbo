@@ -104,3 +104,15 @@ export function parseUserCaseRoute(customId: string): UserCaseRoute | null {
 
   return null;
 }
+
+export function parseEventQuizRoute(customId: string): { questionId: string; optionIndex?: number } | null {
+  if (customId.startsWith('event-quiz-answer:')) {
+    const parts = customId.split(':');
+    return { questionId: parts[1], optionIndex: parseInt(parts[2], 10) };
+  }
+  if (customId.startsWith('event-quiz-select:')) {
+    const parts = customId.split(':');
+    return { questionId: parts[1] };
+  }
+  return null;
+}
