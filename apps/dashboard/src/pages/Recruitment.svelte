@@ -1,10 +1,21 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
-  import { API_BASE_URL } from '../lib/api';
+  import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { 
+    API_BASE_URL, 
+    updateGlobalSettings,
+    fetchFeatureConfigurations,
+    updateFeatureConfiguration,
+    updateRecruitmentConfig
+  } from '../lib/api';
   import { themeStore } from '../lib/stores/theme.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
+  import FormSelect from '../lib/components/FormSelect.svelte';
+  import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
+  import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
+  import { createAsyncActionState } from '../lib/asyncAction.svelte';
 
   let candidatures = $state<any[]>([]);
   let tutors = $state<any[]>([]);
@@ -13,13 +24,62 @@
   let loading = $state(true);
   let error = $state('');
 
-  let filter = $state('ALL'); // ALL, PENDING, ORAL, APPROVED, REJECTED, AUTO_REJECTED
+  let filter = $state('PENDING'); // ALL, PENDING, ORAL, APPROVED, REJECTED, AUTO_REJECTED
   
   let configVisible = $state(false);
   
-  let recruitmentCategoryId = $state('');
-  let recruitmentLogChannelId = $state('');
-  let recruitmentAutoRejectEnabled = $state(true);
+  const saveAction = createAsyncActionState();
+
+  const guildData = $derived(dashboardStore.state.guild);
+  let recruitmentCategoryId = $state<string | null>(guildData?.recruitmentCategoryId || null);
+  let recruitmentLogChannelId = $state<string | null>(guildData?.recruitmentLogChannelId || null);
+  let recruitmentAutoRejectEnabled = $state<boolean>(dashboardStore.state.modules?.recruitment?.enabled ?? true);
+
+  const availableChannels = $derived(dashboardStore.state.guild?.discordChannels || []);
+  const availableCategories = $derived(dashboardStore.state.guild?.discordCategories || []);
+
+  let featureConfig = $state<any>(null);
+  let loadingConfig = $state(false);
+
+  async function loadFeatureConfig() {
+    loadingConfig = true;
+    try {
+      const configs = await fetchFeatureConfigurations();
+      featureConfig = configs?.features?.find((c: any) => c.featureKey === 'recruitment') || null;
+      if (featureConfig) {
+        recruitmentCategoryId = featureConfig.secondaryChannelId || ''; // categoryId is stored in secondaryChannelId for recruitment usually
+        recruitmentLogChannelId = featureConfig.channelId || '';
+        recruitmentAutoRejectEnabled = featureConfig.enabled;
+      }
+    } catch (err) {
+      console.error('Error fetching recruitment config:', err);
+    } finally {
+      loadingConfig = false;
+    }
+  }
+
+  async function toggleConfig(key: string, value: boolean) {
+    if (!featureConfig) return;
+    
+    await saveAction.run(async () => {
+      const ok = await updateFeatureConfiguration('recruitment', { [key]: value });
+      if (!ok) throw new Error('Erreur API');
+      featureConfig[key] = value;
+      return true;
+    }, { successMessage: 'Configuration mise à jour.' });
+  }
+  const canView = $derived(
+    !!dashboardStore.state.featureAccess?.recruitment?.canView
+      || !!dashboardStore.state.access?.canManageSettings
+  );
+  const canModerate = $derived(
+    !!dashboardStore.state.featureAccess?.recruitment?.canModerate
+      || !!dashboardStore.state.access?.canManageSettings
+  );
+  const canManageSettings = $derived(
+    !!dashboardStore.state.featureAccess?.recruitment?.canConfigure
+      || !!dashboardStore.state.access?.canManageSettings
+  );
   
   // Modals state
   let validateModalTarget = $state<any>(null);
@@ -87,29 +147,23 @@
     }
   }
 
-  onMount(() => {
-    fetchInitialData();
+  onMount(async () => {
+    if (!canView) return;
+    await Promise.all([
+      fetchInitialData(),
+      loadFeatureConfig()
+    ]);
   });
 
-  async function updateConfig() {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/config`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${authStore.token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          recruitmentCategoryId,
-          recruitmentLogChannelId,
-          recruitmentAutoRejectEnabled
-        })
-      });
-      if (!res.ok) throw new Error('Erreur configuration.');
+  async function updateConfig(payload: any) {
+    await saveAction.run(async () => {
+      const ok = await updateRecruitmentConfig(payload);
+      if (!ok) throw new Error('Erreur API');
+
+      await dashboardStore.refresh();
       configVisible = false;
-    } catch (err: any) {
-      alert(err.message);
-    }
+      return true;
+    }, { successMessage: 'Configuration enregistrée.' });
   }
 
   async function doAction(candidatureId: string, action: string, data: any = {}) {
@@ -214,6 +268,15 @@
   {#snippet actions()}
     <div class="flex items-center gap-3">
       <RefreshButton onClick={fetchInitialData} loading={loading} label="Actualiser" />
+      {#if canManageSettings}
+        <button 
+          onclick={() => configVisible = true}
+          class="p-3 rounded-xl bg-surface-container-high hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant/70"
+          title="Paramètres du module"
+        >
+          <Papicon icon="settings" size={20} />
+        </button>
+      {/if}
     </div>
   {/snippet}
 
@@ -290,124 +353,140 @@
       </p>
     </div>
   {:else}
-    <div class="grid grid-cols-1 gap-6">
-      {#each filteredCandidatures as candidature (candidature.id)}
-        <div class="relative group bg-surface-container-low/40 border border-outline-variant/10 rounded-[3rem] p-8 hover:bg-surface-container-low transition-all duration-500 {candidature.status === 'AUTO_REJECTED' ? 'opacity-80 grayscale-30' : ''}">
-          <div class="absolute -inset-1 bg-linear-to-r from-primary/10 to-secondary/10 rounded-[3.1rem] blur-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+    {#if filteredCandidatures.length === 0}
+      <div class="flex flex-col items-center justify-center py-24 text-on-surface-variant/30 border-2 border-dashed border-outline-variant/10 rounded-[4rem] bg-surface-container-low/20">
+        <div class="w-20 h-20 rounded-[2.5rem] bg-surface-container flex items-center justify-center mb-6 shadow-inner opacity-50">
+          <Papicon icon={filter === 'PENDING' ? 'inbox' : 'filter_list_off'} size={32} />
+        </div>
+        <h3 class="text-xl font-black tracking-tight text-on-surface/40">
+          {filter === 'PENDING' ? 'Pas de nouvelle candidature pour l\'instant' : `Aucune candidature "${getStatusLabel(filter)}"`}
+        </h3>
+        <p class="mt-2 text-xs opacity-50">Revenez plus tard ou changez de filtre.</p>
+      </div>
+    {:else}
+      <div class="grid grid-cols-1 gap-6">
+        {#each filteredCandidatures as candidature (candidature.id)}
+          <div class="relative group bg-surface-container-low/40 border border-outline-variant/10 rounded-[3rem] p-8 hover:bg-surface-container-low transition-all duration-500 {candidature.status === 'AUTO_REJECTED' ? 'opacity-80 grayscale-30' : ''}">
+            <div class="absolute -inset-1 bg-linear-to-r from-primary/10 to-secondary/10 rounded-[3.1rem] blur-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
 
-            <div class="relative flex flex-col xl:flex-row gap-8">
-                <!-- Main Info -->
-                <div class="flex-1 space-y-6">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-4">
-                            <div class="w-14 h-14 rounded-2xl bg-surface-container flex items-center justify-center text-primary font-black text-xl shadow-lg">
-                                {candidature.username?.charAt(0).toUpperCase() || '?'}
-                            </div>
-                            <div>
-                                <h3 class="text-xl font-black text-on-surface font-headline tracking-tight">{candidature.username || 'Anonyme'}</h3>
-                                <div class="flex flex-wrap items-center gap-3 mt-1">
-                                    <span class="text-xs font-bold text-on-surface-variant/75">{new Date(candidature.createdAt).toLocaleDateString()}</span>
-                                    <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border {getStatusColor(candidature.status)}">
-                                        {getStatusLabel(candidature.status)}
-                                    </span>
-                                    {#if candidature.discordId}
-                                       <span class="text-[10px] font-mono text-on-surface-variant/70">ID: {candidature.discordId}</span>
-                                    {/if}
-                                </div>
-                            </div>
+              <div class="relative flex flex-col xl:flex-row gap-8">
+                  <!-- Main Info -->
+                  <div class="flex-1 space-y-6">
+                      <div class="flex items-center justify-between">
+                          <div class="flex items-center gap-4">
+                              <div class="w-14 h-14 rounded-2xl bg-surface-container flex items-center justify-center text-primary font-black text-xl shadow-lg">
+                                  {candidature.username?.charAt(0).toUpperCase() || '?'}
+                              </div>
+                              <div>
+                                  <h3 class="text-xl font-black text-on-surface font-headline tracking-tight">{candidature.username || 'Anonyme'}</h3>
+                                  <div class="flex flex-wrap items-center gap-3 mt-1">
+                                      <span class="text-xs font-bold text-on-surface-variant/75">{new Date(candidature.createdAt).toLocaleDateString()}</span>
+                                      <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border {getStatusColor(candidature.status)}">
+                                          {getStatusLabel(candidature.status)}
+                                      </span>
+                                      {#if candidature.discordId}
+                                         <span class="text-[10px] font-mono text-on-surface-variant/70">ID: {candidature.discordId}</span>
+                                      {/if}
+                                  </div>
+                              </div>
+                          </div>
+                              {#if canModerate}
+                                <button 
+                                    onclick={() => deleteCandidature(candidature.id)}
+                                    class="w-10 h-10 rounded-full bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
+                                    title="Supprimer la candidature"
+                                >
+                                    <Papicon icon="delete" size={14} />
+                                </button>
+                              {/if}
+                      </div>
+                      
+                      {#if candidature.autoRejected && candidature.autoRejectReason}
+                          <div class="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 flex gap-4 text-rose-400">
+                             <Papicon icon="robot_2" size={20} class="shrink-0" />
+                             <p class="text-sm font-medium">{candidature.autoRejectReason}</p>
+                          </div>
+                      {/if}
+
+                      <!-- Details from Form -->
+                      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {#each Object.entries(candidature.data) as [key, value]}
+                             {#if typeof value !== 'object' || Array.isArray(value)}
+                              <div class="space-y-1">
+                                  <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/70 leading-tight">{key}</p>
+                                  <div class="text-sm font-medium text-on-surface/80 bg-surface-container/30 rounded-xl px-4 py-2 border border-outline-variant/5">
+                                     <div class="max-h-32 overflow-y-auto scrollbar-hide whitespace-pre-wrap">{formatValue(value)}</div>
+                                  </div>
+                              </div>
+                             {/if}
+                          {/each}
+                      </div>
+                  </div>
+
+                  <!-- Actions Side -->
+                  <div class="xl:w-80 space-y-6 xl:border-l border-outline-variant/20 xl:pl-8">
+                      <div>
+                          <p class="text-[10px] font-black uppercase tracking-widest text-primary mb-3">Notes de gestion</p>
+                          <textarea 
+                             bind:value={candidature.notes}
+                             onblur={() => doAction(candidature.id, 'status_update', { status: candidature.status, notes: candidature.notes })}
+                             placeholder="Ajouter une observation interne..."
+                             class="w-full h-32 bg-surface-container/50 border border-outline-variant/20 rounded-2xl p-4 text-xs text-on-surface placeholder:text-on-surface-variant/60 focus:outline-hidden focus:border-primary/50 transition-all resize-none"></textarea>
+                      </div>
+                      
+                      {#if candidature.status === 'ORAL' && candidature.ticketChannelId}
+                         <div class="flex items-center gap-2 p-3 rounded-xl bg-surface-container-low text-xs font-medium text-on-surface-variant">
+                            <Papicon icon="forum" size={16} /> Ticket créé
+                         </div>
+                      {/if}
+
+                      {#if canModerate}
+                        <div class="grid grid-cols-2 gap-3">
+                             {#if candidature.status === 'PENDING'}
+                                <button 
+                                   onclick={() => openValidateModal(candidature)}
+                                   class="col-span-2 py-3 rounded-2xl bg-blue-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2">
+                                    <Papicon icon="check_circle" size={14} /> Passer Oral
+                                </button>
+                                <button 
+                                   onclick={() => openRejectModal(candidature)}
+                                   class="col-span-2 py-3 rounded-2xl bg-surface-container hover:bg-rose-500/10 hover:text-rose-500 text-on-surface-variant text-xs font-black uppercase tracking-widest transition-all">
+                                    Refuser
+                                </button>
+                             {/if}
+                             {#if candidature.status === 'AUTO_REJECTED'}
+                               <button 
+                                 onclick={() => openValidateModal(candidature)}
+                                 class="col-span-2 py-3 rounded-2xl bg-emerald-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2">
+                                  <Papicon icon="verified" size={14} /> Accepter quand même
+                               </button>
+                             {/if}
+                             {#if candidature.status === 'ORAL'}
+                                <button 
+                                   onclick={() => openOralPassModal(candidature)}
+                                   class="py-3 rounded-2xl bg-emerald-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center">
+                                    Concluant
+                                </button>
+                                <button 
+                                   onclick={() => openOralFailModal(candidature)}
+                                   class="py-3 rounded-2xl bg-rose-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-rose-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center">
+                                    Échoué
+                                </button>
+                             {/if}
                         </div>
-                            <button 
-                                onclick={() => deleteCandidature(candidature.id)}
-                                class="w-10 h-10 rounded-full bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
-                                title="Supprimer la candidature"
-                            >
-                                <Papicon icon="delete" size={14} />
-                            </button>
-                    </div>
-                    
-                    {#if candidature.autoRejected && candidature.autoRejectReason}
-                        <div class="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 flex gap-4 text-rose-400">
-                           <Papicon icon="robot_2" size={20} class="shrink-0" />
-                           <p class="text-sm font-medium">{candidature.autoRejectReason}</p>
-                        </div>
-                    {/if}
-
-                    <!-- Details from Form -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {#each Object.entries(candidature.data) as [key, value]}
-                           {#if typeof value !== 'object' || Array.isArray(value)}
-                            <div class="space-y-1">
-                                <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/70 leading-tight">{key}</p>
-                                <div class="text-sm font-medium text-on-surface/80 bg-surface-container/30 rounded-xl px-4 py-2 border border-outline-variant/5">
-                                   <div class="max-h-32 overflow-y-auto scrollbar-hide whitespace-pre-wrap">{formatValue(value)}</div>
-                                </div>
-                            </div>
-                           {/if}
-                        {/each}
-                    </div>
-                </div>
-
-                <!-- Actions Side -->
-                <div class="xl:w-80 space-y-6 xl:border-l border-outline-variant/20 xl:pl-8">
-                    <div>
-                        <p class="text-[10px] font-black uppercase tracking-widest text-primary mb-3">Notes de gestion</p>
-                        <textarea 
-                           bind:value={candidature.notes}
-                           onblur={() => doAction(candidature.id, 'status_update', { status: candidature.status, notes: candidature.notes })}
-                           placeholder="Ajouter une observation interne..."
-                           class="w-full h-32 bg-surface-container/50 border border-outline-variant/20 rounded-2xl p-4 text-xs text-on-surface placeholder:text-on-surface-variant/60 focus:outline-hidden focus:border-primary/50 transition-all resize-none"></textarea>
-                    </div>
-                    
-                    {#if candidature.status === 'ORAL' && candidature.ticketChannelId}
-                       <div class="flex items-center gap-2 p-3 rounded-xl bg-surface-container-low text-xs font-medium text-on-surface-variant">
-                          <Papicon icon="forum" size={16} /> Ticket créé
-                       </div>
-                    {/if}
-
-                    <div class="grid grid-cols-2 gap-3">
-                         {#if candidature.status === 'PENDING'}
-                            <button 
-                               onclick={() => openValidateModal(candidature)}
-                               class="col-span-2 py-3 rounded-2xl bg-blue-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2">
-                                <Papicon icon="check_circle" size={14} /> Passer Oral
-                            </button>
-                            <button 
-                               onclick={() => openRejectModal(candidature)}
-                               class="col-span-2 py-3 rounded-2xl bg-surface-container hover:bg-rose-500/10 hover:text-rose-500 text-on-surface-variant text-xs font-black uppercase tracking-widest transition-all">
-                                Refuser
-                            </button>
-                         {/if}
-                         {#if candidature.status === 'AUTO_REJECTED'}
-                           <button 
-                             onclick={() => openValidateModal(candidature)}
-                             class="col-span-2 py-3 rounded-2xl bg-emerald-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2">
-                              <Papicon icon="verified" size={14} /> Accepter quand même
-                           </button>
-                         {/if}
-                         {#if candidature.status === 'ORAL'}
-                            <button 
-                               onclick={() => openOralPassModal(candidature)}
-                               class="py-3 rounded-2xl bg-emerald-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center">
-                                Concluant
-                            </button>
-                            <button 
-                               onclick={() => openOralFailModal(candidature)}
-                               class="py-3 rounded-2xl bg-rose-600 text-white text-xs font-black uppercase tracking-widest shadow-lg shadow-rose-600/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center">
-                                Échoué
-                            </button>
-                         {/if}
-                    </div>
-                    
-                    {#if candidature.reapplyAfter && new Date(candidature.reapplyAfter) > new Date()}
-                       <div class="text-[10px] uppercase font-bold tracking-widest text-on-surface-variant/50 text-center mt-2">
-                         Recandidature : {new Date(candidature.reapplyAfter).toLocaleDateString()}
-                       </div>
-                    {/if}
-                </div>
-            </div>
-         </div>
-      {/each}
-    </div>
+                      {/if}
+                      
+                      {#if candidature.reapplyAfter && new Date(candidature.reapplyAfter) > new Date()}
+                         <div class="text-[10px] uppercase font-bold tracking-widest text-on-surface-variant/50 text-center mt-2">
+                           Recandidature : {new Date(candidature.reapplyAfter).toLocaleDateString()}
+                         </div>
+                      {/if}
+                  </div>
+              </div>
+           </div>
+        {/each}
+      </div>
+    {/if}
   {/if}
 </div>
 
@@ -418,34 +497,63 @@
 <!-- Config Modal -->
 {#if configVisible}
   <div class="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-    <div class="bg-surface border border-outline-variant/30 rounded-[3rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95 duration-300">
-        <h3 class="text-2xl font-black mb-2">Configuration Recrutement</h3>
-        <p class="text-sm text-on-surface-variant/80 mb-6">Personnalisez les dossiers Discord utilisés par le bot.</p>
-        
-        <div class="space-y-4">
-             <div>
-               <label for="recruitment-category-id" class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">ID Catégorie Tickets (Optionnel)</label>
-               <input id="recruitment-category-id" type="text" bind:value={recruitmentCategoryId} class="w-full bg-surface-container rounded-2xl px-5 py-4 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm font-medium" placeholder="Ex: 123456789012345678">
-                <p class="text-[10px] opacity-50 mt-1">L'ID de la catégorie où les tickets d'entretiens oraux seront créés.</p>
-             </div>
-             <div class="rounded-2xl border border-outline-variant/20 bg-surface-container-low/50 p-4 flex items-center justify-between gap-4">
-                <div>
-                  <p class="text-xs font-black uppercase tracking-widest text-primary">Auto-refus</p>
-                  <p class="text-[11px] text-on-surface-variant/70 mt-1">Désactivez pour laisser toutes les candidatures en attente (sans refus automatique).</p>
-                </div>
-                <button
-                  type="button"
-                  onclick={() => recruitmentAutoRejectEnabled = !recruitmentAutoRejectEnabled}
-                  class="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all {recruitmentAutoRejectEnabled ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}"
-                >
-                  {recruitmentAutoRejectEnabled ? 'Activé' : 'Désactivé'}
-                </button>
-             </div>
+    <div class="bg-surface border border-outline-variant/30 rounded-[3rem] w-full max-w-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 font-inter">
+        <div class="p-8 border-b border-outline-variant/20 flex items-center justify-between bg-primary/5">
+          <div>
+            <h3 class="text-2xl font-black text-on-surface">Configuration Recrutement</h3>
+            <p class="text-on-surface-variant text-sm">Gérez les paramètres de l'équipe et des tickets.</p>
+          </div>
+          <button onclick={() => configVisible = false} class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-hover transition-colors">
+            <Papicon icon="x" size={24} />
+          </button>
         </div>
         
-        <div class="flex gap-4 mt-8 pt-6 border-t border-outline-variant/20">
-            <button onclick={() => configVisible = false} class="flex-1 py-4 rounded-xl font-bold bg-surface-container hover:bg-surface-container-high transition-colors">Annuler</button>
-            <button onclick={updateConfig} class="flex-1 py-4 rounded-xl font-bold bg-primary text-white hover:scale-105 active:scale-95 transition-transform shadow-lg shadow-primary/30">Sauvegarder</button>
+        <div class="p-8 space-y-8 max-h-[70vh] overflow-y-auto">
+             <div class="space-y-4">
+                <label class="block">
+                  <span class="text-xs font-black uppercase tracking-widest text-on-surface-variant/60 ml-1 mb-2 block">Salon de logs recrutement</span>
+                  <FormSelect
+                     bind:value={recruitmentLogChannelId}
+                     className="w-full"
+                  >
+                    <option value="">Sélectionner un salon</option>
+                    {#each dashboardStore.state.discordChannels as c}
+                      <option value={c.id}>#{c.name}</option>
+                    {/each}
+                  </FormSelect>
+                </label>
+
+               <label class="block">
+                 <span class="text-xs font-black uppercase tracking-widest text-on-surface-variant/60 ml-1 mb-2 block">ID Catégorie Tickets</span>
+                 <FormInput 
+                   type="text" 
+                   bind:value={recruitmentCategoryId} 
+                   placeholder="Ex: 123456789012345678"
+                   className="w-full"
+                 />
+               </label>
+
+               </div>
+
+               {#if featureConfig}
+               <div class="pt-6 border-t border-outline-variant/10">
+                 <RolePermissionSettings 
+                   featureKey="recruitment" 
+                   roleAccess={featureConfig.roleAccessByRole} 
+                 />
+               </div>
+               {/if}
+             </div>
+        
+        <div class="p-8 bg-surface-container-low border-t border-outline-variant/20 flex gap-4">
+            <button onclick={() => configVisible = false} class="flex-1 py-4 rounded-xl font-bold bg-surface hover:bg-surface-hover transition-colors">Annuler</button>
+            <button 
+              onclick={updateConfig} 
+              disabled={saveAction.state.loading}
+              class="flex-1 py-4 rounded-xl font-black bg-primary text-on-primary hover:scale-105 active:scale-95 transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
+            >
+              {saveAction.state.loading ? 'Enregistrement...' : 'Enregistrer'}
+            </button>
         </div>
     </div>
 </div>

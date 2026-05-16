@@ -108,7 +108,7 @@ export async function registerCrons(client: Client): Promise<void> {
     },
     'staff-warnings-expiration': expireStaffWarnings,
     'staff-blacklist-expiration': expireStaffBlacklist,
-    'activity-minute-snapshot': async () => {
+    'activity-10min-snapshot': async () => {
       await runActivitySnapshot(client);
     },
     'missing-reports-check': async () => {
@@ -142,9 +142,9 @@ export async function registerCrons(client: Client): Promise<void> {
     }, 1000);
   });
 
-  // 📊 Activity & Heatmap: Toutes les minutes (Snapshot présences)
-  cron.schedule('* * * * *', async () => {
-    await runCronJob('activity-minute-snapshot', async () => {
+  // 📊 Activity & Heatmap: Toutes les 10 minutes (Snapshot présences lissé)
+  cron.schedule('*/10 * * * *', async () => {
+    await runCronJob('activity-10min-snapshot', async () => {
       await runActivitySnapshot(client);
     }, 1000);
   });

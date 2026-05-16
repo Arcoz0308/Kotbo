@@ -13,7 +13,12 @@
     reorderRegulationArticles,
     updateRegulationSettings,
     updateRegulationArticle,
+    fetchFeatureConfigurations,
+    updateFeatureConfiguration
   } from '../lib/api';
+  import { onMount } from 'svelte';
+  import { createAsyncActionState } from '../lib/asyncAction.svelte';
+  import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
 
 
   type RegulationRule = {
@@ -44,8 +49,38 @@
   let draggingRuleId = $state<string | null>(null);
   let dragOverRuleId = $state<string | null>(null);
   let reordering = $state(false);
+  const saveAction = createAsyncActionState();
 
-  const canManageSettings = $derived(!!dashboardStore.state.access?.canManageSettings);
+  let featureConfig = $state<any>(null);
+  let loadingConfig = $state(false);
+
+  onMount(async () => {
+    loadingConfig = true;
+    try {
+      const configs = await fetchFeatureConfigurations();
+      featureConfig = configs?.features?.find((c: any) => c.featureKey === 'regulation') || null;
+    } catch (err) {
+      console.error('Error fetching regulation config:', err);
+    } finally {
+      loadingConfig = false;
+    }
+  });
+
+  async function toggleConfig(key: string, value: boolean) {
+    if (!featureConfig) return;
+    
+    await saveAction.run(async () => {
+      const ok = await updateFeatureConfiguration('regulation', { [key]: value });
+      if (!ok) throw new Error('Erreur API');
+      featureConfig[key] = value;
+      return true;
+    }, { successMessage: 'Configuration mise à jour.' });
+  }
+
+  const canManageSettings = $derived(
+    !!dashboardStore.state.featureAccess?.regulation?.canConfigure
+      || !!dashboardStore.state.access?.canManageSettings
+  );
   const regulationRules = $derived(
     [...(dashboardStore.state.regulationRules || [])]
       .sort((left, right) => left.sortOrder - right.sortOrder || left.title.localeCompare(right.title, 'fr'))
@@ -317,14 +352,11 @@
 
     publishing = true;
     try {
-      const ok = await publishRegulation();
-      if (!ok) {
-        feedbackMessage = 'Impossible de publier ou mettre à jour le règlement.';
-        feedbackIsError = true;
-        return;
-      }
-
+      await publishRegulation();
       await refreshState(dashboardStore.state.regulationMessageId ? 'Règlement actualisé dans le salon de publication.' : 'Règlement publié dans le salon de publication.');
+    } catch (error) {
+      feedbackMessage = error instanceof Error ? error.message : 'Impossible de publier ou mettre à jour le règlement.';
+      feedbackIsError = true;
     } finally {
       publishing = false;
     }
@@ -339,14 +371,18 @@
     saving = true;
 
     try {
-      const ok = await updateRegulationSettings(channelId);
-      if (!ok) {
-        feedbackMessage = 'Impossible de mettre à jour le salon de publication du règlement.';
-        feedbackIsError = true;
-        return;
-      }
+      await saveAction.run(async () => {
+        const ok = await updateRegulationSettings(channelId);
+        if (!ok) throw new Error('Erreur API');
+        
+        if (featureConfig) {
+          await updateFeatureConfiguration('regulation', { channelId });
+          featureConfig.channelId = channelId;
+        }
 
-      await refreshState(channelId ? 'Salon de publication du règlement mis à jour.' : 'Salon de publication spécifique supprimé (fallback configuration actif).');
+        await dashboardStore.refresh();
+        return true;
+      }, { successMessage: channelId ? 'Salon de publication du règlement mis à jour.' : 'Salon de publication spécifique supprimé (fallback configuration actif).' });
     } finally {
       saving = false;
     }
@@ -443,6 +479,16 @@
       </div>
     </div>
   </div>
+
+  {#if featureConfig && canManageSettings}
+    <div class="bg-surface-container-low/30 p-8 rounded-4xl border border-outline-variant/10 mt-8 animate-in fade-in duration-500">
+      <RolePermissionSettings 
+        featureKey="regulation" 
+        roleAccess={featureConfig.roleAccessByRole} 
+      />
+    </div>
+  {/if}
+
 
   <!-- Articles List -->
   <div class="space-y-6">

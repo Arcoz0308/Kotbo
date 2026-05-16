@@ -250,7 +250,7 @@ async function notifyStaffOfSanction(guildId: string, sanction: any) {
   }[sanction.type as string] || 'Sanction';
 
   for (const member of staff) {
-    if (member.userId === sanction.moderatorUserId) continue; // Don't notify the moderator themselves
+    if (member.userId === sanction.moderatorUserId || member.userId === sanction.targetUserId) continue; // Don't notify the moderator themselves or the target
 
     await createNotification(
       guildId,
@@ -322,6 +322,15 @@ export async function registerWarnSanction(params: {
   client?: Client;
   isSync?: boolean;
 }) {
+  const existing = await findRecentSanction({
+    guildId: params.guildId,
+    type: SanctionType.WARN,
+    targetUserId: params.target.id,
+    moderatorUserId: params.moderator.id,
+  });
+
+  if (existing) return existing;
+
   const sanction = await prisma.sanction.create({
     data: {
       guildId: params.guildId,

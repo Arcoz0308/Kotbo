@@ -14,8 +14,12 @@
     upsertTutoringItem,
     deleteTestingPeriod,
     addMentorReport,
-    endTestingPeriod
+    endTestingPeriod,
+    fetchFeatureConfigurations,
+    updateFeatureConfiguration
   } from '../lib/api';
+  import { createAsyncActionState } from '../lib/asyncAction.svelte';
+  import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
   
   let activeTab = $state('dashboard'); // dashboard, progress, config
   let config = $state<any>(null);
@@ -48,6 +52,35 @@
   let endTutoringError = $state<string | null>(null);
   let canForce = $state(false);
 
+  // Confirmation Modal state
+  let confirmModal = $state({
+    open: false,
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
+
+  const saveAction = createAsyncActionState();
+
+  let featureConfig = $state<any>(null);
+  let loadingConfig = $state(false);
+
+  async function loadFeatureConfig() {
+    loadingConfig = true;
+    try {
+      const configs = await fetchFeatureConfigurations();
+      featureConfig = configs?.features?.find((c: any) => c.featureKey === 'tutoring') || null;
+    } catch (err) {
+      console.error('Error fetching tutoring config:', err);
+    } finally {
+      loadingConfig = false;
+    }
+  }
+
+  function showConfirm(title: string, message: string, onConfirm: () => void) {
+    confirmModal = { open: true, title, message, onConfirm };
+  }
+
   async function fetchData() {
     loading = true;
     try {
@@ -75,19 +108,42 @@
     }
   }
 
-  onMount(fetchData);
+  onMount(async () => {
+    await Promise.all([
+      fetchData(),
+      loadFeatureConfig()
+    ]);
+  });
 
   async function saveConfig() {
-    try {
-      await updateTutoringConfig(config);
-    } catch (err) {
-      console.error('Error saving config:', err);
-    }
+    await saveAction.run(async () => {
+      const ok = await updateTutoringConfig(config);
+      if (!ok) throw new Error('Erreur API');
+
+      if (featureConfig) {
+        // Sync to feature config as well
+        await updateFeatureConfiguration('tutoring', {
+          metadata: {
+            reportIntervalDays: config.reportIntervalDays,
+            reminderDaysBefore: config.reminderDaysBefore,
+            minTestDays: config.minTestDays,
+            showVocalActivity: config.showVocalActivity,
+            showAbsences: config.showAbsences,
+            remindersEnabled: config.remindersEnabled
+          }
+        });
+      }
+
+      await dashboardStore.refresh();
+      return true;
+    }, { successMessage: 'Configuration enregistrée.' });
   }
 
-  async function toggleChecklist(periodId: string, itemId: string, completed: boolean) {
+  async function setChecklistState(periodId: string, itemId: string, targetState: string, currentState: string | undefined) {
+    const newState = currentState === targetState ? 'UNCHECKED' : targetState;
+    
     try {
-      await updateTutoringChecklist(periodId, itemId, completed);
+      await updateTutoringChecklist(periodId, itemId, newState);
       fetchData();
     } catch (err) {
       console.error('Error updating checklist:', err);
@@ -106,18 +162,30 @@
 
   function getProgressPercentage(progress: any[]) {
     if (!tutoringItems.length) return 0;
-    const completed = progress.filter(p => p.completed).length;
-    return Math.round((completed / tutoringItems.length) * 100);
+    
+    let totalScore = 0;
+    progress.forEach(p => {
+      if (p.state === 'KNOWN') totalScore += 1;
+      else if (p.state === 'ACQUIRED') totalScore += 2;
+    });
+    
+    const maxScore = tutoringItems.length * 2;
+    return Math.round((totalScore / maxScore) * 100);
   }
 
   async function handleDeleteTutoring(periodId: string) {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce tutorat ? Cette action est irréversible.')) return;
-    try {
-      await deleteTestingPeriod(periodId);
-      fetchData();
-    } catch (err) {
-      console.error('Error deleting tutoring:', err);
-    }
+    showConfirm(
+      'Supprimer le tutorat',
+      'Êtes-vous sûr de vouloir supprimer ce tutorat ? Cette action est irréversible.',
+      async () => {
+        try {
+          await deleteTestingPeriod(periodId);
+          fetchData();
+        } catch (err) {
+          console.error('Error deleting tutoring:', err);
+        }
+      }
+    );
   }
 
   async function submitReport() {
@@ -200,13 +268,18 @@
   }
 
   async function deleteItem(itemId: string) {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer cet item ?')) return;
-    try {
-      await deleteTutoringItem(itemId);
-      fetchData();
-    } catch (err) {
-      console.error('Error deleting tutoring item:', err);
-    }
+    showConfirm(
+      'Supprimer l\'item',
+      'Êtes-vous sûr de vouloir supprimer cet item de la checklist ?',
+      async () => {
+        try {
+          await deleteTutoringItem(itemId);
+          fetchData();
+        } catch (err) {
+          console.error('Error deleting tutoring item:', err);
+        }
+      }
+    );
   }
 
   import ModulePage from '../lib/components/ModulePage.svelte';
@@ -395,27 +468,49 @@
                     {#each tutoringItems as item}
                       {@const progress = apprentice.checklistProgress.find(p => p.itemId === item.id)}
                       <div class="flex items-start gap-4 p-4 bg-surface-container/30 rounded-2xl border border-outline-variant/20 hover:border-primary/30 transition-all group">
-                        <button 
-                          onclick={() => toggleChecklist(apprentice.id, item.id, !progress?.completed)}
-                          class="mt-1 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all {progress?.completed ? 'bg-primary border-primary text-white' : 'border-outline group-hover:border-primary'}"
-                          aria-label={progress?.completed ? "Marquer comme non acquis" : "Marquer comme acquis"}
-                        >
-                          {#if progress?.completed}
-                            <Papicon icon="check" size={14} />
-                          {/if}
-                        </button>
                         <div class="flex-1">
-                          <div class="flex items-center gap-2 mb-0.5">
-                            <span class="font-bold text-sm text-on-surface">{item.title}</span>
-                            <Papicon 
-                              icon={categories.find(c => c.id === item.category)?.icon || 'info'} 
-                              size={12} 
-                              class="text-on-surface-variant/40" 
-                            />
+                          <div class="flex items-center justify-between mb-1">
+                            <div class="flex items-center gap-2">
+                              <span class="font-bold text-sm text-on-surface">{item.title}</span>
+                              <Papicon 
+                                icon={categories.find(c => c.id === item.category)?.icon || 'info'} 
+                                size={12} 
+                                class="text-on-surface-variant/40" 
+                              />
+                            </div>
+                            
+                            <div class="flex gap-2">
+                              <button 
+                                onclick={() => setChecklistState(apprentice.id, item.id, 'KNOWN', progress?.state)}
+                                class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-all text-[10px] font-black uppercase tracking-wider
+                                  {progress?.state === 'KNOWN' ? 'bg-primary/10 border-primary/30 text-primary shadow-sm shadow-primary/5' : 
+                                   progress?.state === 'ACQUIRED' ? 'bg-surface-container-highest/30 border-outline-variant/20 text-on-surface-variant/30 cursor-not-allowed' :
+                                   'bg-surface-container border-outline-variant/30 text-on-surface-variant hover:border-primary/50'}"
+                                disabled={progress?.state === 'ACQUIRED'}
+                              >
+                                <Papicon icon="eye" size={12} />
+                                <span>Connu</span>
+                              </button>
+                              
+                              <button 
+                                onclick={() => setChecklistState(apprentice.id, item.id, 'ACQUIRED', progress?.state)}
+                                class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-all text-[10px] font-black uppercase tracking-wider
+                                  {progress?.state === 'ACQUIRED' ? 'bg-success/10 border-success/30 text-success shadow-sm shadow-success/5' : 
+                                   'bg-surface-container border-outline-variant/30 text-on-surface-variant hover:border-success/50'}"
+                              >
+                                <Papicon icon="check" size={12} />
+                                <span>Acquis</span>
+                              </button>
+                            </div>
                           </div>
-                          <p class="text-xs text-on-surface-variant leading-relaxed">{item.description}</p>
+                          
+                          <p class="text-xs text-on-surface-variant leading-relaxed mb-2">{item.description}</p>
+                          
                           {#if progress?.completedAt}
-                            <span class="text-[9px] font-medium text-primary/60 mt-1 block">Coché le {new Date(progress.completedAt).toLocaleDateString()}</span>
+                            <div class="flex items-center gap-1 text-[9px] font-medium text-primary/60">
+                              <Papicon icon="clock" size={10} />
+                              <span>Validé le {new Date(progress.completedAt).toLocaleDateString()} par {apprentice.mentor?.username || 'un tuteur'}</span>
+                            </div>
                           {/if}
                         </div>
                       </div>
@@ -461,7 +556,8 @@
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {#each categories as cat}
                   {@const items = tutoringItems.filter(i => i.category === cat.id)}
-                  {@const completed = apprenticeProgress.checklistProgress.filter(p => p.completed && items.find(i => i.id === p.itemId)).length}
+                  {@const score = apprenticeProgress.checklistProgress.filter(p => items.find(i => i.id === p.itemId)).reduce((acc, p) => acc + (p.state === 'ACQUIRED' ? 2 : p.state === 'KNOWN' ? 1 : 0), 0)}
+                  {@const catProgress = Math.round((score / (items.length * 2)) * 100)}
                   <div class="p-6 bg-surface-container/50 rounded-3xl border border-outline-variant/20">
                     <div class="flex items-center gap-3 mb-4">
                       <div class="w-10 h-10 rounded-xl bg-{cat.color}/10 flex items-center justify-center">
@@ -469,13 +565,13 @@
                       </div>
                       <div>
                         <div class="text-xs font-black uppercase text-on-surface-variant/60">{cat.label}</div>
-                        <div class="text-lg font-black text-on-surface">{completed} / {items.length}</div>
+                        <div class="text-lg font-black text-on-surface">{catProgress}%</div>
                       </div>
                     </div>
                     <div class="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
                       <div 
                         class="h-full bg-{cat.color} transition-all duration-700" 
-                        style="width: {items.length ? (completed / items.length) * 100 : 0}%"
+                        style="width: {catProgress}%"
                       ></div>
                     </div>
                   </div>
@@ -677,11 +773,21 @@
             </div>
 
           <button 
-            class="w-full py-4 mt-4 bg-primary text-white rounded-2xl font-black shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all"
+            class="w-full py-4 mt-4 bg-primary text-white rounded-2xl font-black shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
             onclick={saveConfig}
+            disabled={saveAction.state.loading}
           >
-            Sauvegarder
+            {saveAction.state.loading ? 'Enregistrement...' : 'Sauvegarder'}
           </button>
+          {/if}
+
+          {#if featureConfig}
+            <div class="pt-6 border-t border-outline-variant/10">
+              <RolePermissionSettings 
+                featureKey="tutoring" 
+                roleAccess={featureConfig.roleAccessByRole} 
+              />
+            </div>
           {/if}
         </div>
 
@@ -923,6 +1029,36 @@
               Enregistrer
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if confirmModal.open}
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-surface-container-lowest/80 backdrop-blur-md animate-in fade-in duration-300">
+    <div class="w-full max-w-md bg-surface-container-low rounded-[31px] border border-outline-variant/30 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+      <div class="p-8">
+        <div class="w-16 h-16 bg-error/10 rounded-2xl flex items-center justify-center text-error mb-6 mx-auto">
+          <Papicon icon="alert-triangle" size={32} />
+        </div>
+        
+        <h2 class="text-2xl font-black text-on-surface text-center mb-2">{confirmModal.title}</h2>
+        <p class="text-on-surface-variant text-center mb-8 font-medium">{confirmModal.message}</p>
+        
+        <div class="flex gap-4">
+          <button 
+            onclick={() => confirmModal.open = false}
+            class="flex-1 py-4 rounded-2xl border-2 border-outline-variant/30 text-on-surface-variant font-black hover:bg-surface-hover transition-all"
+          >
+            Annuler
+          </button>
+          <button 
+            onclick={() => { confirmModal.onConfirm(); confirmModal.open = false; }}
+            class="flex-1 py-4 bg-error text-white rounded-2xl font-black shadow-xl shadow-error/20 hover:scale-105 active:scale-95 transition-all"
+          >
+            Confirmer
+          </button>
         </div>
       </div>
     </div>

@@ -23,14 +23,23 @@ import { handleConfigButton, handleConfigModal } from './configHandler.js';
 import { sendSetupStep1, sendSetupStep2, sendSetupStep3, sendSetupFinish } from '../panels/setupPanel.js';
 import { reviewDailyAlgoSubmission } from '../services/dailyAlgoService.js';
 import { renderPanelTarget } from '../utils/interactionResponses.js';
-import { parseSetupStep, parseUserCaseRoute, parseValidateRoute } from './interactionRoutes.js';
+import { parseSetupStep, parseUserCaseRoute, parseValidateRoute, parseEventQuizRoute } from './interactionRoutes.js';
+import { handleQuizInteraction } from '../services/eventService.js';
 import { toggleGuildBoolean } from '../utils/prismaToggles.js';
 import { requireSingleSelectedValue, validateTimeField } from '../utils/interactionValidation.js';
 import { buildMemberCasePanel, type MemberCaseSection } from '../services/memberCaseService.js';
 import { handleRecruitmentButton } from '../services/recruitmentService.js';
 import { checkInMeeting } from '../services/staffLeadershipService.js';
 import { handleDCInteraction } from '../services/dcDetectionService.js';
-
+import { showModeratorNoteModal } from '../commands/note.js';
+import {
+  parseDurationToMs,
+  registerBanSanction,
+  registerKickSanction,
+  registerTimeoutSanction,
+  registerWarnSanction,
+  runGuildBan,
+} from '../services/sanctionService.js';
 
 
 function normalizeTargetLanguage(value: string | null | undefined): 'FR' | 'EN' | 'ES' | 'DE' {
@@ -112,6 +121,12 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       return;
     }
 
+    if (caseRoute.action === 'note') {
+      const targetUser = await client.users.fetch(caseRoute.userId).catch(() => null);
+      await showModeratorNoteModal(interaction, caseRoute.userId, targetUser?.username ?? 'Utilisateur');
+      return;
+    }
+
     const section: MemberCaseSection = caseRoute.section ?? 'resume';
     const pageIndex = caseRoute.action === 'prev'
       ? Math.max(0, (caseRoute.pageIndex ?? 0) - 1)
@@ -123,6 +138,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     await renderPanelTarget(interaction, {
       embeds: [panel.embed],
       components: panel.components,
+      files: panel.files,
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -270,6 +286,12 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
+  const eventRoute = parseEventQuizRoute(customId);
+  if (eventRoute && eventRoute.optionIndex !== undefined) {
+    await handleQuizInteraction(interaction, eventRoute.questionId, eventRoute.optionIndex);
+    return;
+  }
+
   if (!guildId) return;
 
   const setupStep = parseSetupStep(customId);
@@ -404,7 +426,55 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
     if (!section) return;
 
     const panel = await buildMemberCasePanel(interaction.guild!, caseRoute.userId, section, caseRoute.pageIndex ?? 0);
-    await interaction.update({ embeds: [panel.embed], components: panel.components });
+    await interaction.update({ embeds: [panel.embed], components: panel.components, files: panel.files });
+    return;
+  }
+
+  if (caseRoute?.action === 'sanction_action') {
+    if (!interaction.isStringSelectMenu()) return;
+    const action = interaction.values[0]; // warn, timeout, kick, ban
+
+    const member = await resolveGuildMemberByUserId(interaction, interaction.user.id);
+    if (!(await canModerate(member, guildId))) {
+      await interaction.reply({ content: '❌ Tu n’as pas les permissions nécessaires.', flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    const targetUserId = caseRoute.userId;
+    const targetUser = await client.users.fetch(targetUserId).catch(() => null);
+    const targetUsername = targetUser?.username ?? 'Utilisateur';
+
+    const actionLabel = action === 'warn' ? 'Avertissement' : action === 'timeout' ? 'Timeout' : action === 'kick' ? 'Expulsion' : 'Bannissement';
+
+    const modal = new ModalBuilder()
+      .setCustomId(`sanction_modal:${action}:${targetUserId}`)
+      .setTitle(`Sanction : ${truncate(targetUsername, 20)}`);
+
+    const reasonInput = new TextInputBuilder()
+      .setCustomId('reason')
+      .setLabel(`Raison du ${actionLabel}`)
+      .setStyle(TextInputStyle.Paragraph)
+      .setPlaceholder(`Motif de la sanction...`)
+      .setRequired(true)
+      .setMaxLength(500);
+
+    const rows: ActionRowBuilder<TextInputBuilder>[] = [];
+
+    if (action === 'timeout') {
+      const durationInput = new TextInputBuilder()
+        .setCustomId('duration')
+        .setLabel('Durée (ex: 2h, 1j)')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('Exemple : 2h')
+        .setRequired(true)
+        .setMaxLength(50);
+      rows.push(new ActionRowBuilder<TextInputBuilder>().addComponents(durationInput));
+    }
+
+    rows.push(new ActionRowBuilder<TextInputBuilder>().addComponents(reasonInput));
+    modal.addComponents(rows);
+
+    await interaction.showModal(modal);
     return;
   }
 
@@ -493,6 +563,75 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
         content: '❌ Une erreur est survenue lors de l\'enregistrement de votre excuse.',
         flags: [MessageFlags.Ephemeral]
       });
+    }
+    return;
+  }
+
+  if (customId.startsWith('sanction_modal:')) {
+    const parts = customId.split(':');
+    const action = parts[1];
+    const targetUserId = parts[2];
+    if (!targetUserId) return;
+
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+    const reason = interaction.fields.getTextInputValue('reason');
+    const durationInput = action === 'timeout' ? interaction.fields.getTextInputValue('duration') : null;
+
+    const member = await resolveGuildMemberByUserId(interaction, interaction.user.id);
+    if (!(await canModerate(member, interaction.guildId!))) {
+      await interaction.editReply('❌ Vous n\'avez pas les permissions.');
+      return;
+    }
+
+    const executor = interaction.user;
+
+    try {
+      if (action === 'warn') {
+        const warnResult = await registerWarnSanction({
+          guildId: interaction.guildId!,
+          targetUserId,
+          executorUserId: executor.id,
+          executorTag: executor.tag,
+          reason,
+        });
+        await interaction.editReply({ embeds: [successEmbed('Avertissement appliqué', `L'avertissement a bien été enregistré. (Warn #${warnResult.warnCount})`)] });
+      } else if (action === 'timeout') {
+        const durationMs = parseDurationToMs(durationInput || '');
+        if (!durationMs) {
+          await interaction.editReply({ embeds: [errorEmbed('Durée invalide', 'Le format de la durée est invalide.')] });
+          return;
+        }
+        await registerTimeoutSanction({
+          guildId: interaction.guildId!,
+          targetUserId,
+          executorUserId: executor.id,
+          executorTag: executor.tag,
+          reason,
+          durationMs,
+        });
+        await interaction.editReply({ embeds: [successEmbed('Timeout appliqué', `Le timeout de ${durationInput} a bien été enregistré.`)] });
+      } else if (action === 'kick') {
+        await registerKickSanction({
+          guildId: interaction.guildId!,
+          targetUserId,
+          executorUserId: executor.id,
+          executorTag: executor.tag,
+          reason,
+        });
+        await interaction.editReply({ embeds: [successEmbed('Expulsion appliquée', `L'utilisateur a été expulsé.`)] });
+      } else if (action === 'ban') {
+        await registerBanSanction({
+          guildId: interaction.guildId!,
+          targetUserId,
+          executorUserId: executor.id,
+          executorTag: executor.tag,
+          reason,
+        });
+        await interaction.editReply({ embeds: [successEmbed('Bannissement appliqué', `L'utilisateur a été banni.`)] });
+      }
+    } catch (error) {
+      await interaction.editReply({ embeds: [errorEmbed('Erreur', error instanceof Error ? error.message : 'Une erreur est survenue.')] });
     }
     return;
   }
@@ -640,6 +779,42 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
 
   if (customId.startsWith('cfg:')) {
     await handleConfigModal(interaction);
+    return;
+  }
+
+  // ── Moderator Note Modal ────────────────────────────────────────────────
+  if (customId.startsWith('modal:moderator-note:')) {
+    const targetUserId = customId.split(':')[2];
+    const noteContent = interaction.fields.getTextInputValue('note_content').trim();
+
+    if (!targetUserId) return;
+
+    await prisma.memberProfile.upsert({
+      where: {
+        guildId_userId: {
+          guildId,
+          userId: targetUserId,
+        },
+      },
+      update: { moderatorNote: noteContent },
+      create: {
+        guildId,
+        userId: targetUserId,
+        moderatorNote: noteContent,
+      },
+    });
+
+    await interaction.reply({
+      content: `✅ Note modérateur mise à jour pour <@${targetUserId}>.`,
+      flags: [MessageFlags.Ephemeral],
+    });
+    return;
+  }
+
+  const eventRoute = parseEventQuizRoute(customId);
+  if (eventRoute && interaction.isStringSelectMenu()) {
+    const optionIndex = parseInt(interaction.values[0], 10);
+    await handleQuizInteraction(interaction, eventRoute.questionId, optionIndex);
     return;
   }
 }

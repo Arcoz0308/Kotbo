@@ -11,7 +11,10 @@
   const availableChannels = $derived(dashboardStore.state.discordChannels || []);
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
   const commandCatalog = $derived(dashboardStore.state.commandCatalog || []);
-  const canManageSettings = $derived(!!dashboardStore.state.access?.canManageSettings);
+  const canManageSettings = $derived(
+    !!dashboardStore.state.featureAccess?.commands?.canConfigure
+      || !!dashboardStore.state.access?.canManageSettings
+  );
   const activeRestrictionCount = $derived(dashboardStore.state.commandRestrictions.length);
 
   const saveAction = createAsyncActionState();
@@ -22,6 +25,7 @@
   let catalogFilter = $state<'all' | 'active' | 'no-rules' | 'administration' | 'modération' | 'public'>('all');
   let channelMode = $state<RestrictionMode>('neutral');
   let roleMode = $state<RestrictionMode>('neutral');
+  let userMode = $state<RestrictionMode>('neutral');
   let selectedCommandName = $state('');
   let commandDraft = $state({
     commandName: '',
@@ -29,7 +33,10 @@
     blockedChannelIds: [],
     allowedRoleIds: [],
     blockedRoleIds: [],
+    allowedUserIds: [],
+    blockedUserIds: [],
   });
+  let userIdInput = $state('');
 
   const emptyDraft = () => ({
     commandName: '',
@@ -37,6 +44,8 @@
     blockedChannelIds: [],
     allowedRoleIds: [],
     blockedRoleIds: [],
+    allowedUserIds: [],
+    blockedUserIds: [],
   });
 
   const uniqueIds = (ids: string[]) => [...new Set(ids)];
@@ -57,7 +66,8 @@
 
   const channelConflicts = $derived(commandDraft.allowedChannelIds.filter((id) => commandDraft.blockedChannelIds.includes(id)));
   const roleConflicts = $derived(commandDraft.allowedRoleIds.filter((id) => commandDraft.blockedRoleIds.includes(id)));
-  const hasConflicts = $derived(channelConflicts.length > 0 || roleConflicts.length > 0);
+  const userConflicts = $derived(commandDraft.allowedUserIds.filter((id) => commandDraft.blockedUserIds.includes(id)));
+  const hasConflicts = $derived(channelConflicts.length > 0 || roleConflicts.length > 0 || userConflicts.length > 0);
 
   function inferMode(allowedIds: string[], blockedIds: string[]): RestrictionMode {
     if (allowedIds.length > 0 && blockedIds.length === 0) return 'allowedOnly';
@@ -67,9 +77,11 @@
 
   const selectedChannelIds = $derived(channelMode === 'allowedOnly' ? commandDraft.allowedChannelIds : commandDraft.blockedChannelIds);
   const selectedRoleIds = $derived(roleMode === 'allowedOnly' ? commandDraft.allowedRoleIds : commandDraft.blockedRoleIds);
+  const selectedUserIds = $derived(userMode === 'allowedOnly' ? commandDraft.allowedUserIds : commandDraft.blockedUserIds);
 
   const channelSelectionDisabled = $derived(channelMode === 'neutral' || !canManageSettings || !selectedCommandName);
   const roleSelectionDisabled = $derived(roleMode === 'neutral' || !canManageSettings || !selectedCommandName);
+  const userSelectionDisabled = $derived(userMode === 'neutral' || !canManageSettings || !selectedCommandName);
 
   function loadCommandDraft(commandName: string) {
     const rule = dashboardStore.state.commandRestrictions.find((entry) => entry.commandName === commandName);
@@ -79,6 +91,8 @@
       blockedChannelIds: [...rule.blockedChannelIds],
       allowedRoleIds: [...rule.allowedRoleIds],
       blockedRoleIds: [...rule.blockedRoleIds],
+      allowedUserIds: [...(rule.allowedUserIds || [])],
+      blockedUserIds: [...(rule.blockedUserIds || [])],
     } : {
       ...emptyDraft(),
       commandName,
@@ -88,6 +102,7 @@
 
     channelMode = inferMode(nextDraft.allowedChannelIds, nextDraft.blockedChannelIds);
     roleMode = inferMode(nextDraft.allowedRoleIds, nextDraft.blockedRoleIds);
+    userMode = inferMode(nextDraft.allowedUserIds, nextDraft.blockedUserIds);
   }
 
   function selectCommand(commandName: string) {
@@ -115,13 +130,16 @@
   function resolveDraftConflicts() {
     const allowedChannels = new Set(commandDraft.allowedChannelIds);
     const allowedRoles = new Set(commandDraft.allowedRoleIds);
+    const allowedUsers = new Set(commandDraft.allowedUserIds);
     commandDraft = {
       ...commandDraft,
       blockedChannelIds: commandDraft.blockedChannelIds.filter((id) => !allowedChannels.has(id)),
       blockedRoleIds: commandDraft.blockedRoleIds.filter((id) => !allowedRoles.has(id)),
+      blockedUserIds: commandDraft.blockedUserIds.filter((id) => !allowedUsers.has(id)),
     };
     channelMode = inferMode(commandDraft.allowedChannelIds, commandDraft.blockedChannelIds);
     roleMode = inferMode(commandDraft.allowedRoleIds, commandDraft.blockedRoleIds);
+    userMode = inferMode(commandDraft.allowedUserIds, commandDraft.blockedUserIds);
   }
 
   function setChannelMode(mode: RestrictionMode) {
@@ -190,6 +208,39 @@
     };
   }
 
+  function setUserMode(mode: RestrictionMode) {
+    userMode = mode;
+    if (mode === 'neutral') {
+      commandDraft = {
+        ...commandDraft,
+        allowedUserIds: [],
+        blockedUserIds: [],
+      };
+      return;
+    }
+
+    if (mode === 'allowedOnly') {
+      const nextAllowed = commandDraft.allowedUserIds.length > 0
+        ? commandDraft.allowedUserIds
+        : commandDraft.blockedUserIds;
+      commandDraft = {
+        ...commandDraft,
+        allowedUserIds: uniqueIds(nextAllowed),
+        blockedUserIds: [],
+      };
+      return;
+    }
+
+    const nextBlocked = commandDraft.blockedUserIds.length > 0
+      ? commandDraft.blockedUserIds
+      : commandDraft.allowedUserIds;
+    commandDraft = {
+      ...commandDraft,
+      allowedUserIds: [],
+      blockedUserIds: uniqueIds(nextBlocked),
+    };
+  }
+
   function toggleChannelSelection(channelId: string, checked: boolean) {
     if (channelMode === 'neutral') return;
     if (channelMode === 'allowedOnly') {
@@ -240,9 +291,19 @@
     };
   }
 
+  function clearUsers() {
+    userMode = 'neutral';
+    commandDraft = {
+      ...commandDraft,
+      allowedUserIds: [],
+      blockedUserIds: [],
+    };
+  }
+
   function clearAllRules() {
     channelMode = 'neutral';
     roleMode = 'neutral';
+    userMode = 'neutral';
     commandDraft = {
       ...commandDraft,
       ...emptyDraft(),
@@ -268,13 +329,17 @@
       blockedChannelIds: uniqueIds(commandDraft.blockedChannelIds),
       allowedRoleIds: uniqueIds(commandDraft.allowedRoleIds),
       blockedRoleIds: uniqueIds(commandDraft.blockedRoleIds),
+      allowedUserIds: uniqueIds(commandDraft.allowedUserIds),
+      blockedUserIds: uniqueIds(commandDraft.blockedUserIds),
     };
 
     const nextRules = dashboardStore.state.commandRestrictions.filter((entry) => entry.commandName !== selectedCommandName);
     const hasAnyRestriction = nextRule.allowedChannelIds.length > 0
       || nextRule.blockedChannelIds.length > 0
       || nextRule.allowedRoleIds.length > 0
-      || nextRule.blockedRoleIds.length > 0;
+      || nextRule.blockedRoleIds.length > 0
+      || nextRule.allowedUserIds.length > 0
+      || nextRule.blockedUserIds.length > 0;
 
     dashboardStore.state.commandRestrictions = hasAnyRestriction ? [...nextRules, nextRule] : nextRules;
     commandDraft = { ...nextRule };
@@ -342,6 +407,39 @@
         return a.name.localeCompare(b.name, 'fr');
       });
   });
+
+  function addUserId() {
+    if (userSelectionDisabled) return;
+    const normalized = userIdInput.trim().replace(/[^0-9]/g, '');
+    if (!normalized) return;
+
+    if (userMode === 'allowedOnly') {
+      const next = uniqueIds([...commandDraft.allowedUserIds, normalized]);
+      commandDraft = { ...commandDraft, allowedUserIds: next };
+    } else if (userMode === 'blockedOnly') {
+      const next = uniqueIds([...commandDraft.blockedUserIds, normalized]);
+      commandDraft = { ...commandDraft, blockedUserIds: next };
+    }
+
+    userIdInput = '';
+  }
+
+  function removeUserId(userId: string) {
+    if (userMode === 'allowedOnly') {
+      commandDraft = {
+        ...commandDraft,
+        allowedUserIds: commandDraft.allowedUserIds.filter((entry) => entry !== userId),
+      };
+      return;
+    }
+
+    if (userMode === 'blockedOnly') {
+      commandDraft = {
+        ...commandDraft,
+        blockedUserIds: commandDraft.blockedUserIds.filter((entry) => entry !== userId),
+      };
+    }
+  }
 </script>
 
 <div class="relative overflow-hidden rounded-4xl border border-primary/10 bg-linear-to-br from-primary/10 via-white to-sky-100/70 dark:from-primary/20 dark:via-slate-900 dark:to-slate-800 p-8 mb-8 font-inter">
@@ -448,7 +546,7 @@
         </div>
       </div>
 
-      <div class="mb-6 grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div class="mb-6 grid grid-cols-1 md:grid-cols-6 gap-3">
         <div class="rounded-2xl border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800/80">
           <p class="text-[10px] font-black uppercase tracking-[0.17em] text-on-surface-variant">Salons autorisés</p>
           <p class="mt-1 text-xl font-black">{commandDraft.allowedChannelIds.length}</p>
@@ -465,12 +563,20 @@
           <p class="text-[10px] font-black uppercase tracking-[0.17em] text-on-surface-variant">Rôles interdits</p>
           <p class="mt-1 text-xl font-black">{commandDraft.blockedRoleIds.length}</p>
         </div>
+        <div class="rounded-2xl border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800/80">
+          <p class="text-[10px] font-black uppercase tracking-[0.17em] text-on-surface-variant">Utilisateurs autorisés</p>
+          <p class="mt-1 text-xl font-black">{commandDraft.allowedUserIds.length}</p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800/80">
+          <p class="text-[10px] font-black uppercase tracking-[0.17em] text-on-surface-variant">Utilisateurs interdits</p>
+          <p class="mt-1 text-xl font-black">{commandDraft.blockedUserIds.length}</p>
+        </div>
       </div>
 
       {#if hasConflicts}
         <div class="mb-6 rounded-2xl border border-amber-300/70 bg-amber-500/10 p-4 text-sm">
           <p class="font-bold text-amber-800 dark:text-amber-200">Conflit détecté</p>
-          <p class="text-amber-700 dark:text-amber-300 mt-1">Des éléments sont à la fois autorisés et interdits ({channelConflicts.length} salon(s), {roleConflicts.length} rôle(s)).</p>
+          <p class="text-amber-700 dark:text-amber-300 mt-1">Des éléments sont à la fois autorisés et interdits ({channelConflicts.length} salon(s), {roleConflicts.length} rôle(s), {userConflicts.length} utilisateur(s)).</p>
           <button
             type="button"
             onclick={resolveDraftConflicts}
@@ -502,6 +608,14 @@
         </button>
         <button
           type="button"
+          onclick={clearUsers}
+          disabled={!canManageSettings || !selectedCommandName}
+          class="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-600 text-[11px] font-black uppercase tracking-[0.14em] hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
+        >
+          Vider les utilisateurs
+        </button>
+        <button
+          type="button"
           onclick={clearAllRules}
           disabled={!canManageSettings || !selectedCommandName}
           class="px-3 py-1.5 rounded-xl border border-rose-300/70 text-rose-700 dark:text-rose-300 text-[11px] font-black uppercase tracking-[0.14em] hover:bg-rose-500/10 disabled:opacity-50"
@@ -510,7 +624,7 @@
         </button>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div class="space-y-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 p-4">
           <div class="flex items-center justify-between gap-3">
             <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Mode salons</p>
@@ -570,11 +684,78 @@
             {/if}
           </p>
         </div>
+
+        <div class="space-y-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 p-4">
+          <div class="flex items-center justify-between gap-3">
+            <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Mode utilisateurs</p>
+            <div class="inline-flex rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-1">
+              <button type="button" onclick={() => setUserMode('neutral')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-[0.12em] transition-colors {userMode === 'neutral' ? 'bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Vide</button>
+              <button type="button" onclick={() => setUserMode('allowedOnly')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-[0.12em] transition-colors {userMode === 'allowedOnly' ? 'bg-emerald-600 text-white' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Autorisé</button>
+              <button type="button" onclick={() => setUserMode('blockedOnly')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-[0.12em] transition-colors {userMode === 'blockedOnly' ? 'bg-rose-600 text-white' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Interdit</button>
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <div class="flex items-center gap-2">
+              <input
+                type="text"
+                bind:value={userIdInput}
+                placeholder="ID Discord"
+                disabled={userSelectionDisabled}
+                class="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary/25 disabled:opacity-60"
+              />
+              <button
+                type="button"
+                onclick={addUserId}
+                disabled={userSelectionDisabled}
+                class="px-3 py-2 rounded-xl bg-primary text-white text-[10px] font-black uppercase tracking-[0.12em] disabled:opacity-50"
+              >
+                Ajouter
+              </button>
+            </div>
+
+            <div class="max-h-32 overflow-y-auto space-y-2 pr-1">
+              {#if selectedUserIds.length === 0}
+                <div class="text-[11px] text-on-surface-variant/60">
+                  {userMode === 'neutral'
+                    ? 'Mode vide: aucun filtrage par utilisateur.'
+                    : userMode === 'allowedOnly'
+                      ? 'Ajoutez les utilisateurs autorisés.'
+                      : 'Ajoutez les utilisateurs interdits.'}
+                </div>
+              {:else}
+                {#each selectedUserIds as userId}
+                  <div class="flex items-center justify-between gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/70 px-2.5 py-1.5">
+                    <span class="text-[11px] font-semibold text-on-surface">{userId}</span>
+                    <button
+                      type="button"
+                      onclick={() => removeUserId(userId)}
+                      disabled={userSelectionDisabled}
+                      class="text-[10px] font-black uppercase tracking-[0.12em] text-rose-500 disabled:opacity-50"
+                    >
+                      Retirer
+                    </button>
+                  </div>
+                {/each}
+              {/if}
+            </div>
+          </div>
+
+          <p class="text-xs text-on-surface-variant">
+            {#if userMode === 'neutral'}
+              Aucun filtrage utilisateur: la commande est ouverte pour tous.
+            {:else if userMode === 'allowedOnly'}
+              Seuls les utilisateurs listés peuvent exécuter la commande.
+            {:else}
+              Les utilisateurs listés ne peuvent pas exécuter la commande.
+            {/if}
+          </p>
+        </div>
       </div>
 
       <div class="mt-8 p-4 rounded-3xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-sm text-on-surface-variant">
         <p class="font-bold text-on-surface mb-2">Résumé de la règle en cours</p>
-        <p>Salons autorisés : {commandDraft.allowedChannelIds.length || 'aucun'} · Salons interdits : {commandDraft.blockedChannelIds.length || 'aucun'} · Rôles autorisés : {commandDraft.allowedRoleIds.length || 'aucun'} · Rôles interdits : {commandDraft.blockedRoleIds.length || 'aucun'}</p>
+        <p>Salons autorisés : {commandDraft.allowedChannelIds.length || 'aucun'} · Salons interdits : {commandDraft.blockedChannelIds.length || 'aucun'} · Rôles autorisés : {commandDraft.allowedRoleIds.length || 'aucun'} · Rôles interdits : {commandDraft.blockedRoleIds.length || 'aucun'} · Utilisateurs autorisés : {commandDraft.allowedUserIds.length || 'aucun'} · Utilisateurs interdits : {commandDraft.blockedUserIds.length || 'aucun'}</p>
       </div>
 
       <div class="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 dark:border-slate-800 pt-6">

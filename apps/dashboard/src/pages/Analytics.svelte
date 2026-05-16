@@ -14,6 +14,8 @@ import StaffAudit from '../lib/components/analytics/StaffAudit.svelte';
 import HourlyHeatmap from '../lib/components/analytics/HourlyHeatmap.svelte';
 import WeeklyComparison from '../lib/components/analytics/WeeklyComparison.svelte';
 import DailyAlgoAnalyticsCard from '../lib/components/analytics/DailyAlgoAnalyticsCard.svelte';
+import CommandUsage from '../lib/components/analytics/CommandUsage.svelte';
+import StaffPerformance from '../lib/components/analytics/StaffPerformance.svelte';
 
   let data: any = $state(null);
   let heatmapData: any = $state(null);
@@ -129,11 +131,13 @@ import DailyAlgoAnalyticsCard from '../lib/components/analytics/DailyAlgoAnalyti
     engagement: [
       { id: 'messages', label: 'Messages', icon: 'ChatCircleDots' },
       { id: 'voice', label: 'Vocal', icon: 'Microphone' },
+      { id: 'commands', label: 'Commandes', icon: 'Code' },
       { id: 'members', label: 'Membres', icon: 'UsersFour' },
     ],
     moderation: [
       { id: 'moderation', label: 'Modération', icon: 'Gavel' },
-      { id: 'staff', label: 'Staff', icon: 'Users' },
+      { id: 'staff', label: 'Annuaire Staff', icon: 'Users' },
+      { id: 'performance', label: 'Performance Staff', icon: 'TrendUp' },
     ],
     invitations: [
       { id: 'invitations', label: 'Invitations', icon: 'MailOpen' },
@@ -319,7 +323,7 @@ import DailyAlgoAnalyticsCard from '../lib/components/analytics/DailyAlgoAnalyti
     {:else if activeTab === 'invitations'}
       <InvitationsStats {invitesData} />
     {:else if activeTab === 'moderation'}
-      <ModerationAudit {data} onOpenMember={openMemberDetails} />
+      <ModerationAudit {data} {chartLabels} onOpenMember={openMemberDetails} />
     {:else if activeTab === 'staff'}
       <StaffAudit {data} onOpenMember={openMemberDetails} {fmt} {fmtH} />
     {:else if activeTab === 'heatmap' && heatmapData}
@@ -328,12 +332,16 @@ import DailyAlgoAnalyticsCard from '../lib/components/analytics/DailyAlgoAnalyti
       <WeeklyComparison data={weeklyData} />
     {:else if activeTab === 'algo' && algoData}
       <DailyAlgoAnalyticsCard data={algoData} />
+    {:else if activeTab === 'commands' && data?.commandUsage}
+      <CommandUsage data={data.commandUsage} />
+    {:else if activeTab === 'performance' && data?.staffPerformance}
+      <StaffPerformance data={data.staffPerformance} onOpenMember={openMemberDetails} />
     {/if}
   {/if}
 
   <!-- Member Case Modal -->
   <MemberCaseModal
-    open={modalOpen}
+    bind:open={modalOpen}
     userId={selectedUserId}
     userName={selectedUserName}
     {caseData}
@@ -341,6 +349,9 @@ import DailyAlgoAnalyticsCard from '../lib/components/analytics/DailyAlgoAnalyti
     error={caseError}
     onClose={() => {
       modalOpen = false;
+    }}
+    onSelectUser={(userId) => {
+      openMemberDetails(userId, 'Chargement...');
     }}
   />
 </div>

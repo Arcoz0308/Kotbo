@@ -8,7 +8,11 @@ import {
   MessageFlags,
   PermissionFlagsBits,
   SlashCommandBuilder,
+  StringSelectMenuBuilder,
+  ContextMenuCommandBuilder,
+  ApplicationCommandType,
   type ChatInputCommandInteraction,
+  type UserContextMenuCommandInteraction,
   type User,
 } from 'discord.js';
 import { SanctionStatus, SanctionType } from '@prisma/client';
@@ -80,17 +84,22 @@ export const data = new SlashCommandBuilder()
       .addUserOption((option) => option.setName('membre').setDescription('Membre à afficher').setRequired(true)),
   );
 
-function canModerate(interaction: ChatInputCommandInteraction): interaction is ChatInputCommandInteraction<'cached'> {
+export const contextData = new ContextMenuCommandBuilder()
+  .setName('Sanctionner')
+  .setType(ApplicationCommandType.User)
+  .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers);
+
+function canModerate(interaction: ChatInputCommandInteraction | UserContextMenuCommandInteraction): interaction is ChatInputCommandInteraction<'cached'> | UserContextMenuCommandInteraction<'cached'> {
   if (!interaction.inCachedGuild()) return false;
   const me = interaction.guild.members.me;
   return Boolean(me);
 }
 
-async function fetchTargetMember(interaction: ChatInputCommandInteraction<'cached'>, targetUser: User) {
+async function fetchTargetMember(interaction: ChatInputCommandInteraction<'cached'> | UserContextMenuCommandInteraction<'cached'>, targetUser: User) {
   return interaction.guild.members.fetch(targetUser.id).catch(() => null);
 }
 
-function validateTarget(interaction: ChatInputCommandInteraction<'cached'>, member: GuildMember | null, targetUser: User, action: string): string | null {
+function validateTarget(interaction: ChatInputCommandInteraction<'cached'> | UserContextMenuCommandInteraction<'cached'>, member: GuildMember | null, targetUser: User, action: string): string | null {
   if (targetUser.bot && action === 'warn') return 'Impossible de warn un bot.';
   if (targetUser.id === interaction.user.id) return 'Tu ne peux pas te sanctionner toi-même.';
   if (targetUser.id === interaction.client.user.id) return 'Impossible de sanctionner le bot.';
@@ -124,16 +133,12 @@ async function notifyModeratorDashboardReportReminder(
   ).addFields({ name: 'ID sanction', value: params.sanctionId, inline: false });
 
   try {
-    await interaction.user.send({ embeds: [reminderEmbed] });
     await interaction.followUp({
-      embeds: [infoEmbed('Rappel envoyé', 'Je t\'ai envoyé un MP pour compléter le rapport de sanction.')],
+      embeds: [infoEmbed('Rapport requis', 'N\'oubliez pas de compléter le rapport de sanction sur le dashboard.')],
       flags: [MessageFlags.Ephemeral],
     });
   } catch {
-    await interaction.followUp({
-      embeds: [reminderEmbed],
-      flags: [MessageFlags.Ephemeral],
-    });
+    // Silent catch if interaction is already replied/expired
   }
 }
 
@@ -260,9 +265,31 @@ async function buildSanctionListView(guildId: string, targetUserId: string, targ
   return { embed, row, caseRow, pageIndex: safePageIndex, totalPages };
 }
 
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+export async function execute(interaction: ChatInputCommandInteraction | UserContextMenuCommandInteraction): Promise<void> {
   if (!canModerate(interaction)) {
-    await replyError(interaction, 'Serveur requis', 'Cette commande ne peut être utilisée qu\'en serveur.');
+    await replyError(interaction as any, 'Serveur requis', 'Cette commande ne peut être utilisée qu\'en serveur.');
+    return;
+  }
+
+  if (interaction.isUserContextMenuCommand()) {
+    const targetUserId = interaction.targetId;
+    const menu = new StringSelectMenuBuilder()
+      .setCustomId(`case:sanction_action:${targetUserId}`)
+      .setPlaceholder("Sanctionner l'utilisateur")
+      .addOptions(
+        { label: 'Avertissement (Warn)', value: 'warn', emoji: '⚠️' },
+        { label: 'Exclusion temporaire (Timeout)', value: 'timeout', emoji: '⏳' },
+        { label: 'Expulsion (Kick)', value: 'kick', emoji: '👢' },
+        { label: 'Bannissement (Ban)', value: 'ban', emoji: '🔨' },
+      );
+
+    const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
+
+    await interaction.reply({
+      content: `Choisis la sanction à appliquer à <@${targetUserId}> :`,
+      components: [row],
+      flags: [MessageFlags.Ephemeral],
+    });
     return;
   }
 

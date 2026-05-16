@@ -62,6 +62,7 @@ export const defaultFeatures = [
     featureName: 'Journal d\'activité',
     description: 'Suivi de l\'activité utilisateur',
     category: 'moderation',
+    isFixed: true, // Cannot be disabled
   },
   // ─── Gestion Staff ───
   {
@@ -157,6 +158,12 @@ export const defaultFeatures = [
     description: 'Digest de nouvelles et flux RSS',
     category: 'integrations',
   },
+  {
+    featureKey: 'profile',
+    featureName: 'Profil',
+    description: 'Gestion du profil utilisateur et préférences',
+    category: 'dashboard',
+  },
 ];
 
 export async function getOrCreateFeatureConfigs(guildId: string) {
@@ -166,6 +173,9 @@ export async function getOrCreateFeatureConfigs(guildId: string) {
     include: {
       roleAccess: {
         orderBy: { staffRoleLevel: 'asc' },
+      },
+      roleAccessByRole: {
+        orderBy: { roleId: 'asc' },
       },
       notificationTargets: true,
     },
@@ -208,6 +218,7 @@ export async function getOrCreateFeatureConfigs(guildId: string) {
     where: { guildId },
     include: {
       roleAccess: { orderBy: { staffRoleLevel: 'asc' } },
+      roleAccessByRole: { orderBy: { roleId: 'asc' } },
       notificationTargets: true,
     },
     orderBy: { createdAt: 'asc' },
@@ -249,25 +260,25 @@ export async function updateRoleAccess(
   guildId: string,
   featureConfigId: string,
   roleAccessConfigs: Array<{
-    staffRoleLevel: number;
+    roleId: string;
     canView?: boolean;
     canModerate?: boolean;
     canConfigure?: boolean;
     canDelete?: boolean;
   }>
 ) {
-  // Delete existing role accesses
-  await prisma.dashboardRoleAccess.deleteMany({
+  // Delete existing role accesses for Discord roles
+  await prisma.dashboardFeatureRoleAccess.deleteMany({
     where: { featureConfigId },
   });
 
   // Create new ones in parallel for speed
   await Promise.all(roleAccessConfigs.map(config => 
-    prisma.dashboardRoleAccess.create({
+    prisma.dashboardFeatureRoleAccess.create({
       data: {
         guildId,
         featureConfigId,
-        staffRoleLevel: config.staffRoleLevel,
+        roleId: config.roleId,
         canView: config.canView ?? false,
         canModerate: config.canModerate ?? false,
         canConfigure: config.canConfigure ?? false,
@@ -280,6 +291,7 @@ export async function updateRoleAccess(
     where: { id: featureConfigId },
     include: {
       roleAccess: { orderBy: { staffRoleLevel: 'asc' } },
+      roleAccessByRole: { orderBy: { roleId: 'asc' } },
       notificationTargets: true,
     },
   });
@@ -319,4 +331,61 @@ export async function updateNotificationTargets(
       notificationTargets: true,
     },
   });
+}
+
+export async function applyPresetToFeatureAccess(
+  guildId: string,
+  presetKey: 'general' | 'gaming' | 'dev',
+  roleIds: { adminRoleIds: string[]; modRoleIds: string[] }
+) {
+  const configs = await getOrCreateFeatureConfigs(guildId);
+  
+  const updates = configs.map(async (config) => {
+    const featureKey = config.featureKey;
+    
+    // Clear existing per-role access for this feature to avoid conflicts
+    await prisma.dashboardFeatureRoleAccess.deleteMany({
+      where: { featureConfigId: config.id }
+    });
+
+    const roleAccessToCreate = [];
+
+    // Default mapping based on preset
+    for (const adminId of roleIds.adminRoleIds) {
+      roleAccessToCreate.push({
+        guildId,
+        featureConfigId: config.id,
+        roleId: adminId,
+        canView: true,
+        canModerate: true,
+        canConfigure: true,
+        canDelete: true
+      });
+    }
+
+    for (const modId of roleIds.modRoleIds) {
+      // Don't add if already added as admin
+      if (roleIds.adminRoleIds.includes(modId)) continue;
+
+      const isRestricted = ['settings', 'centralized_config', 'commands', 'discipline'].includes(featureKey);
+      
+      roleAccessToCreate.push({
+        guildId,
+        featureConfigId: config.id,
+        roleId: modId,
+        canView: true,
+        canModerate: !isRestricted,
+        canConfigure: false,
+        canDelete: false
+      });
+    }
+
+    if (roleAccessToCreate.length > 0) {
+      await prisma.dashboardFeatureRoleAccess.createMany({
+        data: roleAccessToCreate
+      });
+    }
+  });
+
+  await Promise.all(updates);
 }

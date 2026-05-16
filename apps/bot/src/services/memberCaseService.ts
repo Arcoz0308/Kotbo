@@ -1,5 +1,6 @@
 import {
   ActionRowBuilder,
+  AttachmentBuilder,
   ButtonBuilder,
   ButtonStyle,
   EmbedBuilder,
@@ -13,6 +14,7 @@ import { Prisma, SanctionType, type MemberProfile } from '@prisma/client';
 import prisma from '../utils/db.js';
 import { truncate } from '../utils/embeds.js';
 import { formatDurationFr, getSanctionTypeBreakdown, listSanctionsByMember, type ListedSanction } from './sanctionService.js';
+import { generateMemberStatsImage } from './imageService.js';
 
 export type MemberCaseSection = 'resume' | 'sanctions' | 'identite' | 'activite';
 
@@ -24,6 +26,7 @@ export type MemberCasePanel = {
   section: MemberCaseSection;
   pageIndex: number;
   totalPages: number;
+  files?: import('discord.js').AttachmentBuilder[];
 };
 
 type MemberCaseContext = {
@@ -211,6 +214,20 @@ function buildSectionSelectRow(userId: string, section: MemberCaseSection, pageI
   return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
 }
 
+function buildSanctionSelectRow(userId: string): ActionRowBuilder<StringSelectMenuBuilder> {
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId(`case:sanction_action:${userId}`)
+    .setPlaceholder("Sanctionner l'utilisateur")
+    .addOptions(
+      { label: 'Avertissement (Warn)', value: 'warn', emoji: '⚠️' },
+      { label: 'Exclusion temporaire (Timeout)', value: 'timeout', emoji: '⏳' },
+      { label: 'Expulsion (Kick)', value: 'kick', emoji: '👢' },
+      { label: 'Bannissement (Ban)', value: 'ban', emoji: '🔨' },
+    );
+
+  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
+}
+
 function buildCaseNavigationRow(userId: string, section: MemberCaseSection, pageIndex: number, totalPages: number): ActionRowBuilder<ButtonBuilder> {
   const prevDisabled = section !== 'sanctions' || pageIndex <= 0 || totalPages <= 1;
   const nextDisabled = section !== 'sanctions' || pageIndex >= totalPages - 1 || totalPages <= 1;
@@ -231,6 +248,11 @@ function buildCaseNavigationRow(userId: string, section: MemberCaseSection, page
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(nextDisabled),
     new ButtonBuilder()
+      .setCustomId(`case:note:${userId}`)
+      .setLabel('Note')
+      .setEmoji('📝')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
       .setCustomId(`case:close:${userId}`)
       .setLabel('Fermer')
       .setStyle(ButtonStyle.Danger),
@@ -249,56 +271,83 @@ function buildCaseTargetRow(userId: string): ActionRowBuilder<ButtonBuilder> {
 
 function buildSummaryEmbed(context: MemberCaseContext): EmbedBuilder {
   const profile = context.profile;
-  const userLabel = buildUserLabel(context.user?.id ?? profile?.userId ?? context.member?.id ?? 'inconnu', context.user?.tag ?? profile?.userTag ?? context.member?.user.tag ?? null);
-  const accountCreatedAt = context.user?.createdTimestamp
-    ? `<t:${Math.floor(context.user.createdTimestamp / 1000)}:F> (<t:${Math.floor(context.user.createdTimestamp / 1000)}:R>)`
-    : profile?.accountCreatedAt
-      ? `<t:${Math.floor(profile.accountCreatedAt.getTime() / 1000)}:F> (<t:${Math.floor(profile.accountCreatedAt.getTime() / 1000)}:R>)`
-      : 'Inconnu';
+  const user = context.user;
+  const member = context.member;
 
-  const joinedAt = context.member?.joinedTimestamp
-    ? `<t:${Math.floor(context.member.joinedTimestamp / 1000)}:F> (<t:${Math.floor(context.member.joinedTimestamp / 1000)}:R>)`
+  const userId = user?.id ?? profile?.userId ?? member?.id ?? 'inconnu';
+  const username = user?.username ?? profile?.username ?? member?.user.username ?? 'inconnu';
+  const globalName = user?.globalName ?? profile?.globalName ?? member?.user.globalName ?? username;
+
+  const accountCreatedAt = user?.createdTimestamp
+    ? `<t:${Math.floor(user.createdTimestamp / 1000)}:d> (<t:${Math.floor(user.createdTimestamp / 1000)}:R>)`
+    : profile?.accountCreatedAt
+      ? `<t:${Math.floor(profile.accountCreatedAt.getTime() / 1000)}:d> (<t:${Math.floor(profile.accountCreatedAt.getTime() / 1000)}:R>)`
+      : 'Inconnue';
+
+  const joinedAt = member?.joinedTimestamp
+    ? `<t:${Math.floor(member.joinedTimestamp / 1000)}:d> (<t:${Math.floor(member.joinedTimestamp / 1000)}:R>)`
     : profile?.guildJoinedAt
-      ? `<t:${Math.floor(profile.guildJoinedAt.getTime() / 1000)}:F> (<t:${Math.floor(profile.guildJoinedAt.getTime() / 1000)}:R>)`
-      : 'Inconnu';
+      ? `<t:${Math.floor(profile.guildJoinedAt.getTime() / 1000)}:d> (<t:${Math.floor(profile.guildJoinedAt.getTime() / 1000)}:R>)`
+      : 'Inconnue';
 
   const leftAt = profile?.guildLeftAt
-    ? `<t:${Math.floor(profile.guildLeftAt.getTime() / 1000)}:F> (<t:${Math.floor(profile.guildLeftAt.getTime() / 1000)}:R>)`
-    : context.banned
-      ? 'Banni du serveur'
-      : 'Toujours présent / non renseigné';
+    ? `<t:${Math.floor(profile.guildLeftAt.getTime() / 1000)}:d> (<t:${Math.floor(profile.guildLeftAt.getTime() / 1000)}:R>)`
+    : 'Inconnue';
 
-  const statusLabel = context.member
-    ? 'Présent sur le serveur'
+  const statusLabel = member
+    ? '✅ Membre du serveur'
     : context.banned
-      ? 'Banni du serveur'
-      : 'Hors serveur';
+      ? '🔨 Banni du serveur'
+      : '❌ Ancien membre';
 
+  let rolesText = '';
+  if (member) {
+    const rolesCount = Math.max(0, member.roles.cache.size - 1);
+    const highestRole = member.roles.highest.name !== '@everyone' ? member.roles.highest.name : 'Aucun';
+    rolesText = `\n**Permissions :** ${highestRole} (${rolesCount} rôle${rolesCount > 1 ? 's' : ''})`;
+  }
+
+  const msgCount = profile?.messageCount ?? 0;
+  const lastMsg = profile?.lastMessageAt ? `<t:${Math.floor(profile.lastMessageAt.getTime() / 1000)}:R>` : 'Aucun';
+  const voiceTime = formatDurationFr((profile?.voiceTimeSeconds ?? 0) * 1000);
+  const lastVoice = profile?.voiceLastChannelId ? `<#${profile.voiceLastChannelId}>` : 'Aucun';
+  
+  const noteDisplay = profile?.moderatorNote ? `\n> ${profile.moderatorNote.replace(/\n/g, '\n> ')}` : '\n*Aucune note.*';
+  
   const recentSanctions = context.sanctions.length > 0
-    ? context.sanctions.slice(0, 3).map((sanction, index) => {
-        const reason = truncate(sanction.reason, 120);
-        return `${index + 1}. ${sanction.type} · ${reason} · <t:${Math.floor(sanction.createdAt.getTime() / 1000)}:R>`;
-      }).join('\n')
-    : 'Aucune sanction enregistrée.';
+    ? context.sanctions.slice(0, 3).map((s, i) => `**${i + 1}. ${s.type}** · ${truncate(s.reason, 60)} · <t:${Math.floor(s.createdAt.getTime() / 1000)}:R>`).join('\n')
+    : '*Aucune sanction enregistrée pour ce membre.*';
+
+  const description = `🌐 <@${userId}> (\`${username}\`)
+${statusLabel}
+────────────────────────
+
+**Création du compte** ${accountCreatedAt}
+**Membre depuis** ${joinedAt}${!member && !context.banned ? `\n**Dernier départ** ${leftAt}` : ''}${rolesText}
+────────────────────────
+
+📊 **Activité globale**
+💬 **Messages :** ${msgCount} *(Dernier : ${lastMsg})*
+🎙️ **Vocal :** ${voiceTime} *(Dernier : ${lastVoice})*
+────────────────────────
+
+✏️ **Note**${noteDisplay}
+────────────────────────
+
+🚨 **Dernières sanctions (${context.sanctions.length}/${context.sanctionsTotal})**
+${recentSanctions}
+────────────────────────
+
+\`ID\` \`${userId}\``;
 
   return new EmbedBuilder()
-    .setColor(context.banned ? 0xd62828 : context.member ? 0x2a9d8f : 0x5865f2)
-    .setTitle('📁 Casier utilisateur')
-    .setDescription(userLabel)
-    .addFields(
-      { name: 'Statut', value: statusLabel, inline: true },
-      { name: 'Compte créé', value: accountCreatedAt, inline: true },
-      { name: 'Entrée serveur', value: joinedAt, inline: true },
-      { name: 'Dernière sortie', value: leftAt, inline: true },
-      { name: 'Messages observés', value: `${profile?.messageCount ?? 0}`, inline: true },
-      { name: 'Temps vocal total', value: formatDurationFr((profile?.voiceTimeSeconds ?? 0) * 1000), inline: true },
-      { name: 'Dernier pseudo connu', value: profile?.displayName ?? context.member?.displayName ?? context.user?.username ?? 'Inconnu', inline: false },
-      { name: 'Dernier salon vocal', value: profile?.voiceLastChannelId ? `<#${profile.voiceLastChannelId}>` : 'Aucun', inline: true },
-      { name: 'Dernier message', value: profile?.lastMessageAt ? `<t:${Math.floor(profile.lastMessageAt.getTime() / 1000)}:R>` : 'Aucun', inline: true },
-      { name: 'Sanctions récentes', value: recentSanctions, inline: false },
-    )
-    .setFooter({ text: `Serveur ${context.guild.name} · ${context.sanctionsTotal} sanction(s)` })
-    .setTimestamp();
+    .setColor(context.banned ? 0xd62828 : member ? 0x2a9d8f : 0x5865f2)
+    .setAuthor({
+      name: `🧑‍⚖️ ${globalName}`,
+      iconURL: user?.displayAvatarURL() ?? undefined,
+    })
+    .setThumbnail(user?.displayAvatarURL({ size: 256 }) ?? null)
+    .setDescription(description);
 }
 
 function buildIdentityEmbed(context: MemberCaseContext): EmbedBuilder {
@@ -568,17 +617,68 @@ export async function buildMemberCasePanel(
   const contextPageIndex = section === 'sanctions' ? pageIndex : 0;
   const context = await fetchGuildUserContext(guild, userId, contextPageIndex);
 
-  const embed = section === 'sanctions'
-    ? buildSanctionsEmbed(context)
-    : section === 'identite'
-      ? buildIdentityEmbed(context)
-      : section === 'activite'
-        ? buildActivityEmbed(context)
-        : buildSummaryEmbed(context);
+  let embed: EmbedBuilder;
+  let files: import('discord.js').AttachmentBuilder[] | undefined;
+
+  if (section === 'sanctions') {
+    embed = buildSanctionsEmbed(context);
+  } else if (section === 'identite') {
+    embed = buildIdentityEmbed(context);
+  } else if (section === 'activite') {
+    embed = buildActivityEmbed(context);
+
+    try {
+      const periodDays = 14;
+      const sinceDate = new Date();
+      sinceDate.setDate(sinceDate.getDate() - periodDays);
+      const startDateKey = `${sinceDate.getFullYear()}-${String(sinceDate.getMonth() + 1).padStart(2, '0')}-${String(sinceDate.getDate()).padStart(2, '0')}`;
+
+      const dailyStats = await prisma.memberDailyStat.findMany({
+        where: { guildId: guild.id, userId, dateKey: { gte: startDateKey } },
+        orderBy: { dateKey: 'asc' },
+      });
+
+      const activeDays = dailyStats.length;
+      let totalMessages = 0;
+      let totalVoice = 0;
+      let peakDayMessages = 0;
+
+      const dailyData = dailyStats.map(stat => {
+        totalMessages += stat.messagesCount;
+        totalVoice += stat.voiceMinutes;
+        if (stat.messagesCount > peakDayMessages) peakDayMessages = stat.messagesCount;
+        return {
+          date: stat.dateKey,
+          messages: stat.messagesCount,
+          voice: stat.voiceMinutes,
+        };
+      });
+
+      const username = context.user?.username ?? context.profile?.username ?? context.member?.user.username ?? 'inconnu';
+
+      const imageBuffer = await generateMemberStatsImage(
+        username,
+        periodDays,
+        { totalMessages, totalVoice, activeDays, peakDayMessages },
+        dailyData
+      );
+
+      const attachment = new AttachmentBuilder(imageBuffer, { name: 'activity_stats.png' });
+      embed.setImage('attachment://activity_stats.png');
+      files = [attachment];
+    } catch (error) {
+      import('../utils/logger.js').then(({ logger }) => {
+        logger.error('Casier', `Erreur de génération du graphique d'activité: ${String(error)}`);
+      });
+    }
+  } else {
+    embed = buildSummaryEmbed(context);
+  }
 
   const components: Array<ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>> = [
     buildSectionSelectRow(userId, section, context.pageIndex),
     buildCaseNavigationRow(userId, section, context.pageIndex, context.totalPages),
+    buildSanctionSelectRow(userId),
   ];
 
   return {
@@ -587,6 +687,7 @@ export async function buildMemberCasePanel(
     section,
     pageIndex: context.pageIndex,
     totalPages: context.totalPages,
+    files,
   };
 }
 

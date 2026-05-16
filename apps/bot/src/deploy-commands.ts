@@ -24,6 +24,7 @@ import * as statsCmd from './commands/stats.js';
 import * as leaderboardCmd from './commands/leaderboard.js';
 import * as serverstatsCmd from './commands/serverstats.js';
 import * as invitesCmd from './commands/invites.js';
+import * as noteCmd from './commands/note.js';
 const commands = [
   setupCmd,
   configCmd,
@@ -45,6 +46,10 @@ const commands = [
   leaderboardCmd,
   serverstatsCmd,
   invitesCmd,
+  noteCmd,
+  { data: noteCmd.contextData },
+  { data: casierCmd.contextData },
+  { data: sanctionCmd.contextData },
 ].map((cmd) => cmd.data.toJSON());
 
 const token = process.env.DISCORD_TOKEN;

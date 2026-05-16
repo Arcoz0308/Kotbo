@@ -4,6 +4,7 @@
     dashboard: 'Tableau de bord',
     analytics: 'Tableau de bord',
     inbox: 'Tableau de bord',
+    profile: 'Tableau de bord',
     content: 'Modération',
     daily_algo: 'Modération',
     members: 'Modération',
@@ -53,7 +54,12 @@
 <script lang="ts">
   import Papicon from '../Papicon.svelte';
 
-  let { features = $bindable([]), staffRoles = [], onSave = (_key: string) => {} } = $props();
+  let { 
+    features = $bindable([]), 
+    availableRoles = [], 
+    onUpdateAccess = (_key: string, _access: any[]) => {},
+    onApplyPreset = (_preset: string) => {}
+  } = $props();
 
   // Group features by category - Use $derived.by for better performance
   const groupedFeatures = $derived.by(() => {
@@ -81,23 +87,19 @@
   });
 
   // Generate dynamic role levels from actual staff roles
-  const roleLevels = $derived.by(() => {
-    if (staffRoles.length > 0) {
-      return [...staffRoles]
-        .sort((a, b) => (a.sortOrder ?? a.level ?? 0) - (b.sortOrder ?? b.level ?? 0))
+  const roleEntries = $derived.by(() => {
+    if (availableRoles.length > 0) {
+      return [...availableRoles]
+        .sort((a, b) => (b.position ?? 0) - (a.position ?? 0))
         .map((role, idx) => ({
-          level: role.level ?? idx,
+          roleId: role.id,
           name: role.name,
           color: ['text-blue-400', 'text-emerald-400', 'text-purple-400', 'text-amber-400', 'text-rose-400', 'text-cyan-400', 'text-teal-400', 'text-orange-400'][idx % 8],
           bg: ['bg-blue-500/10', 'bg-emerald-500/10', 'bg-purple-500/10', 'bg-amber-500/10', 'bg-rose-500/10', 'bg-cyan-500/10', 'bg-teal-500/10', 'bg-orange-500/10'][idx % 8],
           dotColor: ['bg-blue-400', 'bg-emerald-400', 'bg-purple-400', 'bg-amber-400', 'bg-rose-400', 'bg-cyan-400', 'bg-teal-400', 'bg-orange-400'][idx % 8],
         }));
     }
-    return [
-      { level: 0, name: 'Helper', color: 'text-blue-400', bg: 'bg-blue-500/10', dotColor: 'bg-blue-400' },
-      { level: 1, name: 'Modérateur', color: 'text-emerald-400', bg: 'bg-emerald-500/10', dotColor: 'bg-emerald-400' },
-      { level: 2, name: 'Administrateur', color: 'text-purple-400', bg: 'bg-purple-500/10', dotColor: 'bg-purple-400' },
-    ];
+    return [];
   });
 
   const permissions = [
@@ -107,19 +109,19 @@
     { key: 'canDelete', label: 'Supprimer', icon: 'Trash' },
   ];
 
-  function getRoleAccess(feature: any, level: number): any {
-    if (!feature.roleAccess) return {};
-    return feature.roleAccess.find((ra: any) => ra.staffRoleLevel === level) || {};
+  function getRoleAccess(feature: any, roleId: string): any {
+    if (!feature.roleAccessByRole) return {};
+    return feature.roleAccessByRole.find((ra: any) => ra.roleId === roleId) || {};
   }
 
-  function togglePermission(featureIdx: number, level: number, permKey: string) {
+  function togglePermission(featureIdx: number, roleId: string, permKey: string) {
     const feature = features[featureIdx];
-    if (!feature.roleAccess) feature.roleAccess = [];
+    if (!feature.roleAccessByRole) feature.roleAccessByRole = [];
 
-    let ra = feature.roleAccess.find((r: any) => r.staffRoleLevel === level);
+    let ra = feature.roleAccessByRole.find((r: any) => r.roleId === roleId);
     if (!ra) {
-      ra = { staffRoleLevel: level, canView: false, canModerate: false, canConfigure: false, canDelete: false };
-      feature.roleAccess.push(ra);
+      ra = { roleId, canView: false, canModerate: false, canConfigure: false, canDelete: false };
+      feature.roleAccessByRole.push(ra);
     }
     ra[permKey] = !ra[permKey];
     features = [...features];
@@ -131,19 +133,33 @@
 
 <div class="space-y-6 animate-in fade-in duration-500">
   <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
-    <div>
-      <h3 class="text-2xl font-black">Matrice des Accès</h3>
-      <p class="text-xs text-on-surface-variant/50 mt-1">
-        Définissez les permissions par rôle staff pour chaque page et fonctionnalité du dashboard.
-        {#if staffRoles.length > 0}
-          <span class="text-primary font-bold">{staffRoles.length} rôles chargés depuis la hiérarchie.</span>
-        {/if}
-      </p>
+    <div class="flex flex-col md:flex-row justify-between gap-6">
+      <div>
+        <h3 class="text-2xl font-black">Matrice des Accès</h3>
+        <p class="text-xs text-on-surface-variant/50 mt-1">
+          Définissez les permissions par rôle Discord pour chaque page et fonctionnalité du dashboard.
+          {#if availableRoles.length > 0}
+            <span class="text-primary font-bold">{availableRoles.length} rôles Discord chargés.</span>
+          {/if}
+        </p>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <span class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40">Réinitialiser via Preset :</span>
+        {#each ['general', 'gaming', 'dev'] as p}
+          <button 
+            onclick={() => onApplyPreset(p)}
+            class="px-3 py-1.5 rounded-lg border border-outline-variant/10 hover:bg-surface-container-high transition-colors text-[9px] font-black uppercase tracking-widest"
+          >
+            {p}
+          </button>
+        {/each}
+      </div>
     </div>
 
     <!-- Légende rôles -->
     <div class="flex flex-wrap gap-3">
-      {#each roleLevels as role}
+      {#each roleEntries as role}
         <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl {role.bg}">
           <span class="w-2 h-2 rounded-full {role.dotColor}"></span>
           <span class="text-[10px] font-black uppercase tracking-widest {role.color}">{role.name}</span>
@@ -202,8 +218,8 @@
                     <div class="flex items-center gap-3">
                       <!-- Quick preview badges -->
                       <div class="flex gap-1 hidden sm:flex">
-                        {#each roleLevels as role}
-                          {@const ra = getRoleAccess(feature, role.level)}
+                        {#each roleEntries as role}
+                          {@const ra = getRoleAccess(feature, role.roleId)}
                           {@const activePerms = permissions.filter(p => ra[p.key]).length}
                           <span class="px-1.5 py-0.5 rounded text-[8px] font-bold {role.bg} {role.color}">{activePerms}/{permissions.length}</span>
                         {/each}
@@ -230,8 +246,8 @@
                             </tr>
                           </thead>
                           <tbody class="divide-y divide-outline-variant/5">
-                            {#each roleLevels as role}
-                              {@const ra = getRoleAccess(feature, role.level)}
+                            {#each roleEntries as role}
+                              {@const ra = getRoleAccess(feature, role.roleId)}
                               <tr class="hover:bg-surface-container-high/10 transition-colors">
                                 <td class="px-4 py-3">
                                   <span class="flex items-center gap-2 {role.color} font-bold text-sm">
@@ -242,7 +258,7 @@
                                 {#each permissions as perm}
                                   <td class="px-4 py-3 text-center">
                                     <button
-                                      onclick={() => togglePermission(idx, role.level, perm.key)}
+                                      onclick={() => togglePermission(idx, role.roleId, perm.key)}
                                       class="w-7 h-7 rounded-lg flex items-center justify-center transition-all {ra[perm.key] ? 'bg-emerald-500/20 text-emerald-500 hover:bg-emerald-500/30' : 'bg-surface-container-high/40 text-on-surface-variant/30 hover:bg-surface-container-high/60'}"
                                     >
                                       <Papicon icon={ra[perm.key] ? "Check" : "X"} size={12} />
@@ -257,7 +273,7 @@
 
                       <div class="flex justify-end">
                         <button
-                          onclick={() => onSave(feature.featureKey)}
+                          onclick={() => onUpdateAccess(feature.featureKey, feature.roleAccessByRole || [])}
                           class="px-5 py-2 bg-on-surface text-surface text-[9px] font-black uppercase tracking-widest rounded-xl hover:scale-105 transition-transform"
                         >
                           Sauvegarder

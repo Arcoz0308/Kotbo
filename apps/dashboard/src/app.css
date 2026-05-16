@@ -384,3 +384,28 @@
   background: rgba(147, 197, 253, 0.15);
 }
 
+/* Animations for Toasts and Pages */
+@keyframes slide-in-right {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-in {
+  animation-duration: 300ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  animation-fill-mode: both;
+}
+
+.slide-in-from-right {
+  animation-name: slide-in-right;
+}
+
+.fade-in {
+  animation-name: fade-in;
+}
+

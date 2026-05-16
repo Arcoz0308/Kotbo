@@ -2,22 +2,35 @@
   import { onMount } from 'svelte';
   import { router } from 'tinro';
   import { authStore } from '../lib/stores/auth.svelte';
-  import { API_BASE_URL, fetchGuildState, fetchPolls, toggleTutorStatus } from '../lib/api';
+  import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { 
+    API_BASE_URL, 
+    fetchGuildState, 
+    fetchPolls, 
+    toggleTutorStatus, 
+    fetchStaffWarnings,
+    fetchFeatureConfigurations,
+    updateFeatureConfiguration,
+    updateStaffConfig
+  } from '../lib/api';
   import DiscordMemberLookup from '../lib/components/DiscordMemberLookup.svelte';
   import MetricCard from '../lib/components/MetricCard.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
+  import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
-import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
-import Papicon from '../lib/components/Papicon.svelte';
+  import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
+  import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
+  import Papicon from '../lib/components/Papicon.svelte';
+  import Chart from '../lib/components/charts/Chart.svelte';
 
 
   let guildId = $state<string | null>(null);
   let accessLevel = $state('none');
   let error = $state('');
   
-  type StaffTab = 'members' | 'roles' | 'warnings' | 'blacklist' | 'polls' | 'leadership';
-  const staffTabs: StaffTab[] = ['members', 'roles', 'warnings', 'blacklist', 'polls', 'leadership'];
+  type StaffTab = 'members' | 'roles' | 'warnings' | 'blacklist' | 'polls' | 'leadership' | 'permissions';
+  const staffTabs: StaffTab[] = ['members', 'roles', 'warnings', 'blacklist', 'polls', 'leadership', 'permissions'];
 
   function isStaffTab(value: string | null | undefined): value is StaffTab {
     return !!value && staffTabs.includes(value as StaffTab);
@@ -60,11 +73,51 @@ import Papicon from '../lib/components/Papicon.svelte';
   // Data
   let staffMembers = $state<StaffMember[]>([]);
   let staffRoles = $state<StaffRole[]>([]);
+  let staffWarnings = $state<any[]>([]);
   let polls = $state<any[]>([]);
   let leadershipMetrics = $state<any[]>([]);
-  let availableDiscordRoles = $state<Array<{ id: string; name: string }>>([]);
-  let availableDiscordChannels = $state<Array<{ id: string; name: string }>>([]);
-  let availableDiscordVoiceChannels = $state<Array<{ id: string; name: string }>>([]);
+
+  const progressionChartData = $derived({
+    labels: leadershipMetrics.map(m => staffMembers.find(sm => sm.userId === m.staffUserId)?.username || m.staffUserId),
+    datasets: [{
+      label: 'Score de Progression',
+      data: leadershipMetrics.map(m => m.progressionScore),
+      backgroundColor: 'rgba(99, 102, 241, 0.5)',
+      borderColor: 'rgb(99, 102, 241)',
+      borderWidth: 1,
+      borderRadius: 8
+    }]
+  });
+
+  const activityChartData = $derived({
+    labels: leadershipMetrics.map(m => staffMembers.find(sm => sm.userId === m.staffUserId)?.username || m.staffUserId),
+    datasets: [
+      {
+        label: 'Moyenne 30j',
+        data: leadershipMetrics.map(m => m.avg30d),
+        backgroundColor: 'rgba(107, 114, 128, 0.4)',
+        borderRadius: 6
+      },
+      {
+        label: 'Moyenne 7j',
+        data: leadershipMetrics.map(m => m.avg7d),
+        backgroundColor: 'rgba(99, 102, 241, 0.8)',
+        borderRadius: 6
+      }
+    ]
+  });
+  let availableDiscordRoles = $state<any[]>(dashboardStore.state.discordRoles || []);
+  let availableDiscordChannels = $state<any[]>(dashboardStore.state.discordChannels || []);
+  let availableDiscordVoiceChannels = $state<any[]>(dashboardStore.state.discordVoiceChannels || []);
+  let featureConfigs = $state<any[]>([]);
+  let loadingFeatureConfigs = $state(false);
+
+  const isAdmin = $derived(authStore.guilds.find(g => g.id === authStore.selectedGuildId)?.accessLevel === 'admin');
+  const directoryAccess = $derived(dashboardStore.state.featureAccess?.staff_directory || {});
+  const rolesAccess = $derived(dashboardStore.state.featureAccess?.staff_roles || {});
+  
+  const canManageSettings = $derived(isAdmin || !!dashboardStore.state.access?.canManageSettings || !!directoryAccess.canConfigure || !!rolesAccess.canConfigure);
+  const canModerate = $derived(canManageSettings || !!directoryAccess.canModerate || !!rolesAccess.canModerate);
 
   // Forms
   let showAddMemberForm = $state(false);
@@ -108,7 +161,15 @@ import Papicon from '../lib/components/Papicon.svelte';
   let testStaffRoleId = $state<string | null>(null);
   let meetingAnnouncementChannelId = $state<string | null>(null);
   let meetingVoiceChannelId = $state<string | null>(null);
+  
+  let warnsToDemote = $state<number>(3);
+  let warnsToBlacklist = $state<number>(5);
+  let blacklistPermanentByDefault = $state<boolean>(true);
+  let actionMode = $state<'auto' | 'validation'>('validation');
+  let demoteRemoveAllRoles = $state<boolean>(true);
+  
   let isSavingConfig = $state(false);
+  let showConfigMenu = $state(false);
   
   // Member Case Modal State
   let caseModalOpen = $state(false);
@@ -311,8 +372,8 @@ import Papicon from '../lib/components/Papicon.svelte';
         accessLevel = adminGuild.accessLevel;
       }
 
-      if (accessLevel !== 'admin') {
-        error = 'Accès admin requis pour cette page';
+      if (accessLevel !== 'admin' && !directoryAccess.canView && !rolesAccess.canView) {
+        error = 'Accès insuffisant pour cette page';
         return;
       }
 
@@ -333,13 +394,13 @@ import Papicon from '../lib/components/Papicon.svelte';
 
   async function loadInitialData() {
     // 1. Charger les configs essentielles (non bloquantes pour l'UI, mais nécessaires pour les selects/rôles)
-    await Promise.all([loadStaffRoles(), loadStaffConfig()]);
+    await Promise.all([loadStaffRoles(), loadStaffConfig(), loadFeatureConfigs()]);
 
     // 2. Charger l'onglet actif immédiatement
     await loadTabData(activeTab);
 
     // 3. Charger le reste en tâche de fond (lazy loading)
-    const otherTabs: StaffTab[] = ['members', 'roles', 'polls', 'leadership']
+    const otherTabs: StaffTab[] = ['members', 'roles', 'warnings', 'polls', 'leadership']
        .filter(t => t !== activeTab) as StaffTab[];
     
     // On lance en parallèle sans await pour ne pas bloquer l'interactivité
@@ -350,6 +411,7 @@ import Papicon from '../lib/components/Papicon.svelte';
     switch (tab) {
       case 'members': await loadStaffMembers(); break;
       case 'roles': await loadStaffRoles(); break;
+      case 'warnings': await loadStaffWarnings(); break;
       case 'polls': await loadPolls(); break;
       case 'leadership': await loadLeadershipMetrics(); break;
     }
@@ -389,6 +451,19 @@ import Papicon from '../lib/components/Papicon.svelte';
     }
   }
 
+  async function loadStaffWarnings() {
+    if (!guildId || !authStore.token) return;
+    loadingStates.warnings = true;
+    try {
+      const data = await fetchStaffWarnings(guildId);
+      staffWarnings = data.warnings || [];
+    } catch (err) {
+      console.error('Erreur loading staff warnings:', err);
+    } finally {
+      loadingStates.warnings = false;
+    }
+  }
+
   async function loadStaffConfig() {
     if (!guildId || !authStore.token) return;
     try {
@@ -397,13 +472,33 @@ import Papicon from '../lib/components/Papicon.svelte';
       });
       if (res.ok) {
         const data = await res.json();
-        baseStaffRoleId = data.config?.baseStaffRoleId ?? null;
-        testStaffRoleId = data.config?.testStaffRoleId ?? null;
-        meetingAnnouncementChannelId = data.config?.meetingAnnouncementChannelId ?? null;
-        meetingVoiceChannelId = data.config?.meetingVoiceChannelId ?? null;
+        const cfg = data.config || {};
+        baseStaffRoleId = cfg.baseStaffRoleId ?? null;
+        testStaffRoleId = cfg.testStaffRoleId ?? null;
+        meetingAnnouncementChannelId = cfg.meetingAnnouncementChannelId ?? null;
+        meetingVoiceChannelId = cfg.meetingVoiceChannelId ?? null;
+
+
+        warnsToDemote = Number.isFinite(Number(cfg.warnsToDemote)) ? Number(cfg.warnsToDemote) : warnsToDemote;
+        warnsToBlacklist = Number.isFinite(Number(cfg.warnsToBlacklist)) ? Number(cfg.warnsToBlacklist) : warnsToBlacklist;
+        blacklistPermanentByDefault = cfg.blacklistPermanentByDefault === undefined ? blacklistPermanentByDefault : !!cfg.blacklistPermanentByDefault;
+        actionMode = cfg.actionMode === 'auto' ? 'auto' : 'validation';
+        demoteRemoveAllRoles = cfg.demoteRemoveAllRoles === undefined ? demoteRemoveAllRoles : !!cfg.demoteRemoveAllRoles;
       }
     } catch (err) {
       console.error('Erreur loading staff config:', err);
+    }
+  }
+
+  async function loadFeatureConfigs() {
+    loadingFeatureConfigs = true;
+    try {
+      const data = await fetchFeatureConfigurations(guildId!);
+      featureConfigs = data.features || [];
+    } catch (err) {
+      console.error('Erreur loading feature configs:', err);
+    } finally {
+      loadingFeatureConfigs = false;
     }
   }
 
@@ -411,22 +506,22 @@ import Papicon from '../lib/components/Papicon.svelte';
     if (!guildId || !authStore.token) return;
     isSavingConfig = true;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/config`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`
-        },
-        body: JSON.stringify({
-          baseStaffRoleId,
-          testStaffRoleId,
-          meetingAnnouncementChannelId,
-          meetingVoiceChannelId
-        })
-      });
-      if (!res.ok) throw new Error('Erreur');
+      const ok = await updateStaffConfig({
+        baseStaffRoleId,
+        testStaffRoleId,
+        meetingAnnouncementChannelId,
+        meetingVoiceChannelId,
+        warnsToDemote,
+        warnsToBlacklist,
+        blacklistPermanentByDefault,
+        actionMode,
+        demoteRemoveAllRoles
+      }, guildId);
+      
+      if (!ok) throw new Error('Erreur API');
+      await dashboardStore.refresh();
     } catch (err) {
-      alert('Erreur lors de la sauvegarde de la configuration globale');
+      console.error('Error saving staff config:', err);
     } finally {
       isSavingConfig = false;
     }
@@ -748,9 +843,29 @@ import Papicon from '../lib/components/Papicon.svelte';
       warnTargetUserId = '';
       warnReason = '';
       warnExpiresAt = '';
-      await loadStaffMembers();
+      await Promise.all([loadStaffMembers(), loadStaffWarnings()]);
     } catch (err) {
       alert('Erreur lors de l\'avertissement');
+    }
+  }
+
+  async function deleteWarning(warningId: string) {
+    if (!guildId || !authStore.token) return;
+    if (!confirm('Voulez-vous vraiment supprimer cet avertissement ?')) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/warnings/${warningId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${authStore.token}`
+        }
+      });
+
+      if (!res.ok) throw new Error('Erreur');
+
+      await Promise.all([loadStaffMembers(), loadStaffWarnings()]);
+    } catch (err) {
+      alert('Erreur lors de la suppression de l\'avertissement');
     }
   }
 
@@ -839,7 +954,7 @@ import Papicon from '../lib/components/Papicon.svelte';
     <div
       class="rounded-[3rem] border border-outline-variant/20 bg-linear-to-br from-surface-container/90 via-surface-container-low/80 to-surface-container/50 p-8 md:p-10 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur-xl"
     >
-      <div class="flex flex-col gap-8 xl:flex-row xl:items-end xl:justify-between">
+      <div class="flex flex-col gap-8 xl:flex-row xl:items-end xl:justify-between pb-8">
         <div class="max-w-3xl space-y-4">
           <div class="inline-flex items-center gap-2 rounded-full border border-outline-variant/20 bg-white/60 px-4 py-2 text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant/60">
             <Papicon icon="user" size={14} class="text-primary" />
@@ -852,7 +967,17 @@ import Papicon from '../lib/components/Papicon.svelte';
             Supervisez votre équipe de modération, attribuez des permissions, gérez les périodes de test et consultez l'historique des avertissements.
           </p>
         </div>
+        {#if canManageSettings}
+          <div>
+            <button onclick={() => showConfigMenu = true} class="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-outline-variant/20 bg-surface text-on-surface transition-all hover:border-primary/50 hover:bg-primary/5 hover:text-primary active:scale-95 shadow-sm" title="Configuration Automatisation & Sanctions">
+              <Papicon icon="settings" size={26} />
+            </button>
+          </div>
+        {/if}
       </div>
+
+        
+
     </div>
 
     <!-- STATS -->
@@ -872,13 +997,14 @@ import Papicon from '../lib/components/Papicon.svelte';
     <!-- TABS -->
     <div class="flex flex-wrap items-center gap-3">
       {#each [
-        { id: 'members', label: 'Membres', icon: 'users' },
-        { id: 'roles', label: 'Rôles Staff', icon: 'shield' },
-        { id: 'warnings', label: 'Avertir', icon: 'alert-triangle' },
-        { id: 'blacklist', label: 'Blacklist', icon: 'slash' },
-        { id: 'polls', label: 'Sondages', icon: 'check-square' },
-        { id: 'leadership', label: 'Leadership', icon: 'bar-chart' }
-      ] as tab}
+        { id: 'members', label: 'Membres', icon: 'users', visible: !!directoryAccess.canView },
+        { id: 'roles', label: 'Rôles Staff', icon: 'shield', visible: !!rolesAccess.canView },
+        { id: 'warnings', label: 'Avertir', icon: 'alert-triangle', visible: canModerate },
+        { id: 'blacklist', label: 'Blacklist', icon: 'slash', visible: canModerate },
+        { id: 'polls', label: 'Sondages', icon: 'check-square', visible: canModerate },
+        { id: 'leadership', label: 'Leadership', icon: 'bar-chart', visible: canModerate },
+        { id: 'permissions', label: 'Permissions', icon: 'lock', visible: canManageSettings }
+      ].filter(t => t.visible) as tab}
         <button
           onclick={() => switchTab(tab.id as StaffTab)}
           class="inline-flex items-center gap-2 rounded-full px-5 py-3 text-xs font-black uppercase tracking-[0.18em] transition-all {activeTab === tab.id
@@ -899,13 +1025,15 @@ import Papicon from '../lib/components/Papicon.svelte';
             <h3 class="text-2xl font-black tracking-tighter text-on-surface">Membres du Personnel</h3>
             <p class="text-sm font-medium text-on-surface-variant/60 mt-1">Gérez l'équipe et leurs grades actuels.</p>
           </div>
-          <button
-            onclick={openAddMemberForm}
-            class="inline-flex items-center gap-2 whitespace-nowrap rounded-2xl border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
-          >
-            <Papicon icon={showAddMemberForm ? 'x' : 'plus'} size={14} />
-            {showAddMemberForm ? 'Annuler' : 'Ajouter un membre'}
-          </button>
+          {#if directoryAccess.canConfigure}
+            <button
+              onclick={openAddMemberForm}
+              class="inline-flex items-center gap-2 whitespace-nowrap rounded-2xl border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
+            >
+              <Papicon icon={showAddMemberForm ? 'x' : 'plus'} size={14} />
+              {showAddMemberForm ? 'Annuler' : 'Ajouter un membre'}
+            </button>
+          {/if}
         </div>
 
         {#if showAddMemberForm}
@@ -1024,54 +1152,59 @@ import Papicon from '../lib/components/Papicon.svelte';
                   </div>
 
                   <div class="flex items-center gap-2 shrink-0 flex-wrap">
-                    <button
-                      onclick={() => toggleTutor(member.userId)}
-                      class="group/tutor relative inline-flex items-center justify-center rounded-xl p-2.5 transition-all {member.isTutor ? 'text-indigo-600 bg-indigo-500/15 border border-indigo-500/30 shadow-lg shadow-indigo-500/10 ring-2 ring-indigo-500/20' : 'text-on-surface-variant/40 hover:text-indigo-600 hover:bg-indigo-500/10 border border-outline-variant/20 bg-surface-container-low/50 hover:border-indigo-500/30'}"
-                      title={member.isTutor ? 'Retirer le statut de tuteur' : 'Désigner comme Tuteur'}
-                    >
-                      <Papicon 
-                        icon={member.isTutor ? 'user-check' : 'user-plus'} 
-                        size={20} 
-                        class="transition-transform group-hover/tutor:scale-110 group-active/tutor:scale-90" 
-                      />
-                      {#if member.isTutor}
-                         <span class="absolute -top-1 -right-1 flex h-3 w-3">
-                           <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                           <span class="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
-                         </span>
-                      {/if}
-                    </button>
-                    <div class="w-px h-6 bg-outline-variant/10 mx-1"></div>
-                    <button
-                      onclick={() => promoteStaff(member.userId)}
-                      disabled={(() => {
-                        const idx = orderedStaffRoles.findIndex((r) => r.name === member.grade);
-                        return idx === -1 || idx >= orderedStaffRoles.length - 1;
-                      })()}
-                      class="inline-flex items-center justify-center rounded-xl p-2.5 transition-colors disabled:opacity-40 {(orderedStaffRoles.findIndex((r) => r.name === member.grade) >= orderedStaffRoles.length - 1) ? 'text-on-surface-variant/30' : 'text-emerald-600 hover:bg-emerald-500/15 border border-emerald-500/20 bg-emerald-500/5'}"
-                      title="Promouvoir"
-                    >
-                      <Papicon icon="chevrons-up" size={20} />
-                    </button>
-                    <button
-                      onclick={() => demoteStaff(member.userId)}
-                      disabled={(() => {
-                        const idx = orderedStaffRoles.findIndex((r) => r.name === member.grade);
-                        return idx <= 0;
-                      })()}
-                      class="inline-flex items-center justify-center rounded-xl p-2.5 transition-colors disabled:opacity-40 {(orderedStaffRoles.findIndex((r) => r.name === member.grade) <= 0) ? 'text-on-surface-variant/30' : 'text-amber-600 hover:bg-amber-500/15 border border-amber-500/20 bg-amber-500/5'}"
-                      title="Rétrograder"
-                    >
-                      <Papicon icon="chevrons-down" size={20} />
-                    </button>
-                    <div class="w-px h-6 bg-outline-variant/20 mx-1"></div>
-                    <button
-                      onclick={() => removeStaff(member.userId)}
-                      class="inline-flex items-center justify-center rounded-xl p-2.5 text-rose-600 transition-colors hover:bg-rose-500/15 border border-rose-500/20 bg-rose-500/5"
-                      title="Démettre"
-                    >
-                      <Papicon icon="user-minus" size={20} />
-                    </button>
+                    {#if canModerate}
+                      <button
+                        onclick={() => toggleTutor(member.userId)}
+                        class="group/tutor relative inline-flex items-center justify-center rounded-xl p-2.5 transition-all {member.isTutor ? 'text-indigo-600 bg-indigo-500/15 border border-indigo-500/30 shadow-lg shadow-indigo-500/10 ring-2 ring-indigo-500/20' : 'text-on-surface-variant/40 hover:text-indigo-600 hover:bg-indigo-500/10 border border-outline-variant/20 bg-surface-container-low/50 hover:border-indigo-500/30'}"
+                        title={member.isTutor ? 'Retirer le statut de tuteur' : 'Désigner comme Tuteur'}
+                      >
+                        <Papicon 
+                          icon={member.isTutor ? 'user-check' : 'user-plus'} 
+                          size={20} 
+                          class="transition-transform group-hover/tutor:scale-110 group-active/tutor:scale-90" 
+                        />
+                        {#if member.isTutor}
+                           <span class="absolute -top-1 -right-1 flex h-3 w-3">
+                             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                             <span class="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+                           </span>
+                        {/if}
+                      </button>
+                    {/if}
+
+                    {#if canManageSettings}
+                      <div class="w-px h-6 bg-outline-variant/10 mx-1"></div>
+                      <button
+                        onclick={() => promoteStaff(member.userId)}
+                        disabled={(() => {
+                          const idx = orderedStaffRoles.findIndex((r) => r.name === member.grade);
+                          return idx === -1 || idx >= orderedStaffRoles.length - 1;
+                        })()}
+                        class="inline-flex items-center justify-center rounded-xl p-2.5 transition-colors disabled:opacity-40 {(orderedStaffRoles.findIndex((r) => r.name === member.grade) >= orderedStaffRoles.length - 1) ? 'text-on-surface-variant/30' : 'text-emerald-600 hover:bg-emerald-500/15 border border-emerald-500/20 bg-emerald-500/5'}"
+                        title="Promouvoir"
+                      >
+                        <Papicon icon="chevrons-up" size={20} />
+                      </button>
+                      <button
+                        onclick={() => demoteStaff(member.userId)}
+                        disabled={(() => {
+                          const idx = orderedStaffRoles.findIndex((r) => r.name === member.grade);
+                          return idx <= 0;
+                        })()}
+                        class="inline-flex items-center justify-center rounded-xl p-2.5 transition-colors disabled:opacity-40 {(orderedStaffRoles.findIndex((r) => r.name === member.grade) <= 0) ? 'text-on-surface-variant/30' : 'text-amber-600 hover:bg-amber-500/15 border border-amber-500/20 bg-amber-500/5'}"
+                        title="Rétrograder"
+                      >
+                        <Papicon icon="chevrons-down" size={20} />
+                      </button>
+                      <div class="w-px h-6 bg-outline-variant/20 mx-1"></div>
+                      <button
+                        onclick={() => removeStaff(member.userId)}
+                        class="inline-flex items-center justify-center rounded-xl p-2.5 text-rose-600 transition-colors hover:bg-rose-500/15 border border-rose-500/20 bg-rose-500/5"
+                        title="Démettre"
+                      >
+                        <Papicon icon="user-minus" size={20} />
+                      </button>
+                    {/if}
                   </div>
                 </div>
               </article>
@@ -1097,13 +1230,15 @@ import Papicon from '../lib/components/Papicon.svelte';
             <h3 class="text-2xl font-black tracking-tighter text-on-surface">Hiérarchie des Rôles</h3>
             <p class="text-sm font-medium text-on-surface-variant/75 mt-1">Associez un rôle Discord à un grade staff, et réordonnez la hiérarchie.</p>
           </div>
-          <button
-            onclick={() => showAddRoleForm = !showAddRoleForm}
-            class="inline-flex items-center gap-2 whitespace-nowrap rounded-2xl border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
-          >
-            <Papicon icon={showAddRoleForm ? 'x' : 'plus'} size={14} />
-            {showAddRoleForm ? 'Fermer' : 'Nouveau Rôle'}
-          </button>
+          {#if rolesAccess.canConfigure}
+            <button
+              onclick={() => showAddRoleForm = !showAddRoleForm}
+              class="inline-flex items-center gap-2 whitespace-nowrap rounded-2xl border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
+            >
+              <Papicon icon={showAddRoleForm ? 'x' : 'plus'} size={14} />
+              {showAddRoleForm ? 'Fermer' : 'Nouveau Rôle'}
+            </button>
+          {/if}
         </div>
 
         <div class="p-6 md:p-8 border-b border-outline-variant/20 bg-surface-container-lowest/50">
@@ -1117,7 +1252,7 @@ import Papicon from '../lib/components/Papicon.svelte';
             <div>
               <label>
                 <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">Rôle Staff de base <span class="text-on-surface-variant/50 normal-case tracking-normal">(Optionnel)</span></span>
-                <select bind:value={baseStaffRoleId} onchange={saveStaffConfig} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
+                <select bind:value={baseStaffRoleId} onchange={saveStaffConfig} disabled={!rolesAccess.canConfigure} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 disabled:opacity-50 disabled:cursor-not-allowed">
                   <option value={null}>-- Aucun --</option>
                   {#each availableDiscordRoles as dr}
                     <option value={dr.id}>{dr.name}</option>
@@ -1128,7 +1263,7 @@ import Papicon from '../lib/components/Papicon.svelte';
             <div>
               <label>
                 <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">Rôle Staff en Test <span class="text-on-surface-variant/50 normal-case tracking-normal">(Optionnel)</span></span>
-                <select bind:value={testStaffRoleId} onchange={saveStaffConfig} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
+                <select bind:value={testStaffRoleId} onchange={saveStaffConfig} disabled={!rolesAccess.canConfigure} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 disabled:opacity-50 disabled:cursor-not-allowed">
                   <option value={null}>-- Aucun --</option>
                   {#each availableDiscordRoles as dr}
                     <option value={dr.id}>{dr.name}</option>
@@ -1139,7 +1274,7 @@ import Papicon from '../lib/components/Papicon.svelte';
             <div>
               <label>
                 <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">Salon d'annonce des réunions <span class="text-on-surface-variant/50 normal-case tracking-normal">(Texte)</span></span>
-                <select bind:value={meetingAnnouncementChannelId} onchange={saveStaffConfig} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
+                <select bind:value={meetingAnnouncementChannelId} onchange={saveStaffConfig} disabled={!rolesAccess.canConfigure} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 disabled:opacity-50 disabled:cursor-not-allowed">
                   <option value={null}>-- Aucun --</option>
                   {#each availableDiscordChannels as dc}
                     <option value={dc.id}>#{dc.name}</option>
@@ -1150,7 +1285,7 @@ import Papicon from '../lib/components/Papicon.svelte';
             <div>
               <label>
                 <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">Salon vocal / conférence des réunions</span>
-                <select bind:value={meetingVoiceChannelId} onchange={saveStaffConfig} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
+                <select bind:value={meetingVoiceChannelId} onchange={saveStaffConfig} disabled={!rolesAccess.canConfigure} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 disabled:opacity-50 disabled:cursor-not-allowed">
                   <option value={null}>-- Aucun --</option>
                   {#each availableDiscordVoiceChannels as vc}
                     <option value={vc.id}>{vc.name}</option>
@@ -1317,7 +1452,8 @@ import Papicon from '../lib/components/Papicon.svelte';
                     {guildId}
                     bind:query={warnLookupQuery}
                     bind:selectedId={warnTargetUserId}
-                    placeholder="@mention, pseudo ou ID Discord"
+                    staffOnly={true}
+                    placeholder="Chercher un membre du staff..."
                     selectedIdPlaceholder="ID Discord du staff (auto-rempli)"
                   />
                 </label>
@@ -1356,17 +1492,101 @@ import Papicon from '../lib/components/Papicon.svelte';
           </div>
         {/if}
 
-        <div class="p-16 flex flex-col items-center justify-center text-center">
+        {#if loadingStates.warnings}
+          <div class="p-6 md:p-8 space-y-4">
+            {#each Array(3) as _}
+              <div class="h-16 w-full rounded-3xl border border-outline-variant/10 bg-surface-container animate-pulse"></div>
+            {/each}
+          </div>
+        {:else if staffWarnings.length > 0}
+          <div class="p-6 md:p-8">
+            <div class="overflow-hidden rounded-3xl border border-outline-variant/10 bg-surface-container-low/50">
+              <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                  <thead>
+                    <tr class="bg-surface-container-high/30 text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/40">
+                      <th class="px-6 py-4">Membre</th>
+                      <th class="px-6 py-4">Raison</th>
+                      <th class="px-6 py-4">Émis par</th>
+                      <th class="px-6 py-4 text-center">Date</th>
+                      <th class="px-6 py-4 text-center">Statut</th>
+                      <th class="px-6 py-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-outline-variant/5">
+                    {#each staffWarnings as warn (warn.id)}
+                      <tr class="group hover:bg-primary/5 transition-colors">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                          <div class="flex items-center gap-3">
+                            <div class="h-9 w-9 rounded-full overflow-hidden bg-white/5 border border-white/10 shrink-0">
+                              {#if warn.staffAvatarUrl}
+                                <img src={warn.staffAvatarUrl} alt="" class="h-full w-full object-cover" />
+                              {:else}
+                                <div class="h-full w-full flex items-center justify-center text-on-surface-variant/30">
+                                  <Papicon icon="user" size={16} />
+                                </div>
+                              {/if}
+                            </div>
+                            <div>
+                              <div class="text-sm font-bold text-on-surface leading-none">{warn.staffDisplayName}</div>
+                              <div class="text-[10px] text-on-surface-variant/40 mt-1 font-mono">{warn.staffUserId}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td class="px-6 py-4">
+                          <div class="text-sm text-on-surface-variant/80 max-w-md line-clamp-2" title={warn.reason}>
+                            {warn.reason}
+                          </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                          <div class="text-xs font-bold text-on-surface-variant/70">
+                            {warn.issuedByTag}
+                          </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                          <div class="text-xs font-medium text-on-surface-variant/50">
+                            {new Date(warn.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                          </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                          {#if warn.isActive}
+                            <span class="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-amber-600 border border-amber-500/20">
+                              <span class="w-1 h-1 rounded-full bg-amber-600 animate-pulse"></span>
+                              Actif
+                            </span>
+                          {:else}
+                            <span class="inline-flex items-center rounded-full bg-outline-variant/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/40">Expiré</span>
+                          {/if}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                          <button
+                            onclick={() => deleteWarning(warn.id)}
+                            class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500 transition-all hover:bg-rose-500 hover:text-white"
+                            title="Supprimer l'avertissement"
+                          >
+                            <Papicon icon="trash-2" size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    {/each}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        {:else}
+          <div class="p-16 flex flex-col items-center justify-center text-center">
             <div class="w-20 h-20 rounded-4xl bg-amber-500/10 text-amber-500 flex items-center justify-center shadow-inner">
               <Papicon icon="alert-triangle" size={40} />
             </div>
             <h3 class="mt-6 text-2xl font-black tracking-tighter text-on-surface">
-              Aperçu des avertissements
+              Aucun avertissement actif
             </h3>
             <p class="mt-3 max-w-xl text-sm leading-relaxed text-on-surface-variant/65">
-              Les avertissements sont directement liés aux profils des membres. Vous pouvez les voir en listant les membres.
+              Tous les membres de l'équipe staff sont irréprochables pour le moment.
             </p>
-        </div>
+          </div>
+        {/if}
 
       {:else if activeTab === 'blacklist'}
          <div class="p-6 md:p-8 flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-low/30 backdrop-blur-sm">
@@ -1620,6 +1840,33 @@ import Papicon from '../lib/components/Papicon.svelte';
             <p class="text-sm font-medium text-on-surface-variant/60 mt-1">Analyse des performances, scores de progression et alertes d'inactivité.</p>
           </div>
 
+          <!-- Analyse des Performances (Charts) -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="premium-card p-6 rounded-[2.5rem] space-y-4">
+              <div class="flex items-center gap-3 mb-2">
+                <div class="p-2 rounded-xl bg-primary/10 text-primary">
+                  <Papicon icon="BarChart" size={18} />
+                </div>
+                <h4 class="text-sm font-black text-on-surface uppercase tracking-widest">Distribution des Scores</h4>
+              </div>
+              <div class="h-[200px]">
+                <Chart data={progressionChartData} type="bar" height={200} options={{ indexAxis: 'y', scales: { x: { beginAtZero: true, max: 100 } } }} />
+              </div>
+            </div>
+
+            <div class="premium-card p-6 rounded-[2.5rem] space-y-4">
+              <div class="flex items-center gap-3 mb-2">
+                <div class="p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
+                  <Papicon icon="Activity" size={18} />
+                </div>
+                <h4 class="text-sm font-black text-on-surface uppercase tracking-widest">Comparaison d'Activité</h4>
+              </div>
+              <div class="h-[200px]">
+                <Chart data={activityChartData} type="bar" height={200} options={{ indexAxis: 'y', scales: { x: { beginAtZero: true } } }} />
+              </div>
+            </div>
+          </div>
+
           <div class="overflow-x-auto rounded-4xl border border-outline-variant/10 bg-surface-container-low/50">
             <table class="w-full text-left border-collapse">
               <thead>
@@ -1702,6 +1949,32 @@ import Papicon from '../lib/components/Papicon.svelte';
           </div>
         </div>
 
+      {:else if activeTab === 'permissions'}
+        <div class="p-6 md:p-8 space-y-12">
+          <div>
+            <h3 class="text-2xl font-black tracking-tighter text-on-surface flex items-center gap-3">
+              <Papicon icon="lock" size={28} class="text-primary" />
+              Permissions Staff
+            </h3>
+            <p class="text-sm font-medium text-on-surface-variant/60 mt-1">Gérez qui peut consulter et administrer les différentes sections de la gestion du personnel.</p>
+          </div>
+
+          <div class="grid grid-cols-1 gap-8">
+            <RolePermissionSettings
+              title="Annuaire Staff"
+              description="Contrôle l'accès à la liste des membres du personnel."
+              featureKey="staff_directory"
+              {guildId}
+            />
+
+            <RolePermissionSettings
+              title="Hiérarchie & Rôles"
+              description="Contrôle l'accès à la gestion des rôles et de la hiérarchie staff."
+              featureKey="staff_roles"
+              {guildId}
+            />
+          </div>
+        </div>
       {/if}
 
     </div>
@@ -1717,5 +1990,126 @@ import Papicon from '../lib/components/Papicon.svelte';
   error={caseError}
   onClose={() => caseModalOpen = false}
 />
+
+<!-- Modal Configuration -->
+{#if showConfigMenu}
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+    <div class="absolute inset-0 bg-surface-container-lowest/80 backdrop-blur-sm transition-opacity" onclick={() => showConfigMenu = false}></div>
+    
+    <div class="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[3rem] border border-outline-variant/30 bg-surface shadow-2xl">
+      <div class="sticky top-0 z-10 flex items-center justify-between border-b border-outline-variant/20 bg-surface/80 p-6 backdrop-blur-xl md:px-8">
+        <div>
+          <h3 class="text-2xl font-black tracking-tighter text-on-surface">Automatisation & Sanctions</h3>
+          <p class="text-sm font-medium text-on-surface-variant/75 mt-1">Configurez les comportements automatiques lors de l'atteinte de seuils critiques.</p>
+        </div>
+        <div class="flex items-center gap-4">
+          {#if isSavingConfig}
+            <span class="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-primary">
+              <span class="relative flex h-2 w-2">
+                <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75"></span>
+                <span class="relative inline-flex h-2 w-2 rounded-full bg-primary"></span>
+              </span>
+              Sauvegarde...
+            </span>
+          {/if}
+          <button onclick={() => showConfigMenu = false} class="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-container text-on-surface-variant hover:bg-rose-500/10 hover:text-rose-500 transition-colors">
+            <Papicon icon="x" size={20} />
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 gap-6 p-6 md:p-8 lg:grid-cols-2">
+        <!-- Bloc Sanctions / Seuils -->
+        <div class="premium-card relative overflow-hidden rounded-[2.5rem] border border-rose-500/15 bg-surface-container-low p-6">
+          <div class="absolute -right-12 -top-12 h-32 w-32 rounded-full bg-rose-500/5 blur-2xl"></div>
+          
+          <div class="relative mb-6 flex items-center gap-4">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-600 shadow-inner">
+              <Papicon icon="alert-triangle" size={24} />
+            </div>
+            <div>
+              <h4 class="text-lg font-black tracking-tight text-on-surface">Sanctions & Seuils</h4>
+              <p class="text-xs text-on-surface-variant/80">Règles d'action selon l'accumulation d'avertissements</p>
+            </div>
+          </div>
+
+          <div class="space-y-6">
+            <div>
+              <span class="mb-3 block text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/60">Mode d'exécution</span>
+              <div class="flex gap-2 rounded-2xl border border-outline-variant/20 bg-surface p-1">
+                <label class="flex-1 cursor-pointer">
+                  <input type="radio" name="actionMode" value="validation" checked={actionMode === 'validation'} onchange={() => { actionMode = 'validation'; saveStaffConfig(); }} class="peer sr-only" />
+                  <div class="rounded-xl px-3 py-2 text-center text-xs font-bold transition-all peer-checked:bg-primary/10 peer-checked:text-primary peer-checked:shadow-sm">
+                    <Papicon icon="user-check" size={14} class="mb-1 mx-auto" />
+                    Approbation
+                  </div>
+                </label>
+                <label class="flex-1 cursor-pointer">
+                  <input type="radio" name="actionMode" value="auto" checked={actionMode === 'auto'} onchange={() => { actionMode = 'auto'; saveStaffConfig(); }} class="peer sr-only" />
+                  <div class="rounded-xl px-3 py-2 text-center text-xs font-bold transition-all peer-checked:bg-rose-500/10 peer-checked:text-rose-600 peer-checked:shadow-sm">
+                    <Papicon icon="zap" size={14} class="mb-1 mx-auto" />
+                    Automatique
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <span class="mb-3 block text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/60">Seuils d'avertissements</span>
+              <div class="flex gap-4">
+                <div class="flex-1 rounded-2xl border border-orange-500/20 bg-orange-500/5 p-4">
+                  <div class="flex items-center justify-between mb-2">
+                     <span class="text-xs font-bold text-orange-700">Démotion</span>
+                     <Papicon icon="chevrons-down" size={16} class="text-orange-600/50" />
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <input type="number" min="0" bind:value={warnsToDemote} onchange={saveStaffConfig} class="w-full rounded-xl border border-outline-variant/30 bg-surface px-3 py-2 text-center text-lg font-black text-on-surface outline-none transition focus:border-orange-500/50 focus:ring-2 focus:ring-orange-500/20" />
+                    <span class="text-[10px] font-bold uppercase text-on-surface-variant/60">Warn(s)</span>
+                  </div>
+                </div>
+                <div class="flex-1 rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4">
+                  <div class="flex items-center justify-between mb-2">
+                     <span class="text-xs font-bold text-rose-700">Blacklist</span>
+                     <Papicon icon="shield-off" size={16} class="text-rose-600/50" />
+                  </div>
+                   <div class="flex items-center gap-2">
+                    <input type="number" min="0" bind:value={warnsToBlacklist} onchange={saveStaffConfig} class="w-full rounded-xl border border-outline-variant/30 bg-surface px-3 py-2 text-center text-lg font-black text-on-surface outline-none transition focus:border-rose-500/50 focus:ring-2 focus:ring-rose-500/20" />
+                    <span class="text-[10px] font-bold uppercase text-on-surface-variant/60">Warn(s)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="space-y-1">
+              <label class="flex cursor-pointer items-center justify-between rounded-2xl border border-outline-variant/15 bg-surface px-4 py-3 hover:bg-surface-container-high transition-colors">
+                <div class="flex items-center gap-3">
+                  <Papicon icon="user-minus" size={18} class="text-on-surface-variant/60" />
+                  <div>
+                    <span class="block text-sm font-bold text-on-surface">Retirer les rôles (Démotion)</span>
+                    <span class="block text-xs text-on-surface-variant">Supprime l'intégralité des rôles staff</span>
+                  </div>
+                </div>
+                <ToggleSwitch checked={demoteRemoveAllRoles} onToggle={(v) => { demoteRemoveAllRoles = v; saveStaffConfig(); }} size="sm" activeClass="peer-checked:bg-amber-500" />
+              </label>
+
+              <label class="flex cursor-pointer items-center justify-between rounded-2xl border border-outline-variant/15 bg-surface px-4 py-3 hover:bg-surface-container-high transition-colors">
+                <div class="flex items-center gap-3">
+                  <Papicon icon="lock" size={18} class="text-on-surface-variant/60" />
+                  <div>
+                    <span class="block text-sm font-bold text-on-surface">Blacklist Permanente</span>
+                    <span class="block text-xs text-on-surface-variant">L'utilisateur est banni du staff par défaut</span>
+                  </div>
+                </div>
+                <ToggleSwitch checked={blacklistPermanentByDefault} onToggle={(v) => { blacklistPermanentByDefault = v; saveStaffConfig(); }} size="sm" activeClass="peer-checked:bg-rose-500" />
+              </label>
+            </div>
+          </div>
+        </div>
+
+
+      </div>
+    </div>
+  </div>
+{/if}
 
 

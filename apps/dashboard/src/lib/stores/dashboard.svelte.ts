@@ -8,7 +8,10 @@ class DashboardStore {
     logChannelId: '',
     regulationChannelId: '',
     regulationMessageId: null,
+    meetingAnnouncementChannelId: '',
+    meetingVoiceChannelId: '',
     discordChannels: [],
+    discordVoiceChannels: [],
     discordRoles: [],
     moderatorRoleId: '',
     commandRestrictions: [],
@@ -19,6 +22,7 @@ class DashboardStore {
       canModerateDailyAlgo: false,
       canManageSettings: false
     },
+    featureAccess: {},
     modules: [],
     notifications: {
       discordChannel: '#alertes-redaction',
@@ -89,7 +93,10 @@ class DashboardStore {
         this.state.logChannelId = data.logChannelId || '';
         this.state.regulationChannelId = data.regulationChannelId || '';
         this.state.regulationMessageId = data.regulationMessageId || null;
+        this.state.meetingAnnouncementChannelId = data.meetingAnnouncementChannelId || '';
+        this.state.meetingVoiceChannelId = data.meetingVoiceChannelId || '';
         this.state.discordChannels = data.discordChannels || [];
+        this.state.discordVoiceChannels = data.discordVoiceChannels || [];
         this.state.discordRoles = data.discordRoles || [];
         this.state.moderatorRoleId = data.moderatorRoleId || '';
         this.state.commandRestrictions = data.commandRestrictions || [];
@@ -100,6 +107,7 @@ class DashboardStore {
           canModerateDailyAlgo: false,
           canManageSettings: false
         };
+        this.state.featureAccess = data.featureAccess || {};
         this.state.modules = data.modules;
         this.state.notifications = data.notifications;
         this.state.auditTrail = this.mergeAuditTrail(this.state.auditTrail, data.auditTrail);

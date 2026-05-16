@@ -3,7 +3,11 @@
   import Chart from '../charts/Chart.svelte';
   import DetailedAnalyticsModal from './DetailedAnalyticsModal.svelte';
 
-  let { data, onOpenMember } = $props<{ data: any; onOpenMember: (id: string, name: string) => void }>();
+  let { data, onOpenMember, chartLabels } = $props<{ 
+    data: any; 
+    onOpenMember: (id: string, name: string) => void;
+    chartLabels?: any;
+  }>();
 
   const recentSanctions = $derived(data?.recentSanctions || []);
   const topModerators = $derived(data?.topModerators || []);
@@ -30,7 +34,36 @@
   const doughnutOptions = {
     plugins: {
       legend: { display: false }
-    }
+    },
+    maintainAspectRatio: false
+  };
+
+  const trendChartData = $derived({
+    labels: data?.dailyTrend?.map((d: any) => {
+      const parts = d.dateKey.split(' ')[0].split('-');
+      return `${parts[2]}/${parts[1]}`;
+    }) || [],
+    datasets: [{
+      label: 'Sanctions',
+      data: data?.dailyTrend?.map((d: any) => d.sanctions || 0) || [],
+      borderColor: '#f43f5e',
+      backgroundColor: 'rgba(244, 63, 94, 0.1)',
+      fill: true,
+      tension: 0.4,
+      pointRadius: 0,
+      borderWidth: 3
+    }]
+  });
+
+  const trendOptions = {
+    scales: {
+      x: { display: true, grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 7 } },
+      y: { display: true, beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' } }
+    },
+    plugins: {
+      legend: { display: false }
+    },
+    maintainAspectRatio: false
   };
 
   const getAvatar = (url: string | null) => url || 'https://cdn.discordapp.com/embed/avatars/0.png';
@@ -51,28 +84,47 @@
 </script>
 
 <div class="space-y-6">
-  <!-- Moderation Stats -->
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <div class="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-      {#each stats as stat}
-        <div class="premium-card p-6 rounded-4xl flex flex-col items-center text-center gap-2 group hover:scale-[1.02] transition-all">
-          <div class="p-3 rounded-2xl mb-2" style="background: {stat.color}15; color: {stat.color}">
-             <Papicon icon="Hammer" size={20} />
-          </div>
-          <span class="text-4xl font-black" style="color: {stat.color}">{stat.value}</span>
-          <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">{stat.label}</p>
+  <!-- Moderation Stats & Charts -->
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    {#each stats as stat}
+      <div class="premium-card p-6 rounded-4xl flex flex-col items-center text-center gap-2 group hover:scale-[1.02] transition-all">
+        <div class="p-3 rounded-2xl mb-2" style="background: {stat.color}15; color: {stat.color}">
+           <Papicon icon="Hammer" size={20} />
         </div>
-      {/each}
-    </div>
+        <span class="text-4xl font-black" style="color: {stat.color}">{stat.value}</span>
+        <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">{stat.label}</p>
+      </div>
+    {/each}
+  </div>
 
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <!-- Distribution Chart -->
-    <div class="premium-card p-6 rounded-4xl flex flex-col items-center justify-center relative overflow-hidden group">
-      <div class="h-32 w-32 relative z-10">
+    <div class="premium-card p-6 rounded-4xl flex flex-col items-center justify-center min-h-[220px]">
+      <div class="flex items-center gap-3 mb-6 w-full">
+        <div class="p-2 rounded-xl bg-amber-500/10 text-amber-500">
+          <Papicon icon="ChartPieSlice" size={18} />
+        </div>
+        <h4 class="text-sm font-black text-on-surface uppercase tracking-widest">Distribution</h4>
+      </div>
+      <div class="h-32 w-32 relative">
         <Chart data={distributionData} type="doughnut" height={128} options={doughnutOptions} />
         <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
            <span class="text-xl font-black text-on-surface">{stats.reduce((a, b) => a + b.value, 0)}</span>
            <span class="text-[8px] font-black uppercase tracking-widest text-on-surface-variant/40">Total</span>
         </div>
+      </div>
+    </div>
+
+    <!-- Trend Chart -->
+    <div class="premium-card p-6 rounded-4xl flex flex-col min-h-[220px] space-y-4">
+      <div class="flex items-center gap-3">
+        <div class="p-2 rounded-xl bg-rose-500/10 text-rose-500">
+          <Papicon icon="ChartLineUp" size={18} />
+        </div>
+        <h4 class="text-sm font-black text-on-surface uppercase tracking-widest">Tendance</h4>
+      </div>
+      <div class="flex-grow h-[140px]">
+        <Chart data={trendChartData} type="line" height={140} options={trendOptions} />
       </div>
     </div>
   </div>

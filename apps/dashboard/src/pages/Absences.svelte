@@ -8,8 +8,11 @@
     fetchStaffMembers, 
     fetchStaffRoles,
     fetchStaffCalendarData,
-    fetchAbsenceConfig
+    fetchAbsenceConfig,
+    fetchFeatureConfigurations,
+    updateFeatureConfiguration
   } from '../lib/api';
+  import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import ActionButton from '../lib/components/ActionButton.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -23,6 +26,8 @@
   let calendarData = $state<{ absences: any[], voiceSessions: any[] }>({ absences: [], voiceSessions: [] });
   let absenceConfig = $state<any>(null);
   let loading = $state(true);
+  const saveAction = createAsyncActionState();
+  let loadingConfig = $state(false);
   
   // Selection states
   let selectedStaffIds = $state<string[]>([]);
@@ -81,16 +86,17 @@
 
   async function loadInitialData() {
     loading = true;
+    loadingConfig = true;
     try {
-      const [membersData, rolesData, configData] = await Promise.all([
+      const [membersData, rolesData, configsData] = await Promise.all([
         fetchStaffMembers(),
         fetchStaffRoles(),
-        fetchAbsenceConfig().catch(() => ({ config: null }))
+        fetchFeatureConfigurations().catch(() => ({ features: [] }))
       ]);
       
       allStaff = membersData.members || [];
       allRoles = rolesData.roles || [];
-      absenceConfig = configData.config;
+      absenceConfig = configsData?.features?.find((c: any) => c.featureKey === 'absences') || null;
 
       // Default selection: just me
       if (myStaffRecord) {
@@ -102,6 +108,7 @@
       console.error('Failed to fetch initial data:', e);
     } finally {
       loading = false;
+      loadingConfig = false;
     }
   }
 
@@ -262,6 +269,7 @@
   }
 
   import ModulePage from '../lib/components/ModulePage.svelte';
+  import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
 </script>
 
 <ModulePage 
@@ -272,8 +280,25 @@
 >
   {#snippet actions()}
     <RefreshButton onClick={refreshCalendar} loading={loading} label="Actualiser" />
-    <ActionButton onClick={() => modalOpen = true} variant="primary" icon="plus" label="Déclarer une Absence" />
+    <ActionButton 
+      onClick={() => modalOpen = true} 
+      variant="primary" 
+      icon="plus" 
+      label="Déclarer une Absence" 
+      disabled={absenceConfig?.status === 'inactive'}
+    />
   {/snippet}
+
+  {#if isAdmin || isManager}
+    <div class="bg-surface-container-low/30 p-8 rounded-[2.5rem] border border-outline-variant/10 mb-10 animate-in fade-in duration-500">
+      {#if absenceConfig}
+        <RolePermissionSettings 
+          featureKey="absences" 
+          roleAccess={absenceConfig.roleAccessByRole} 
+        />
+      {/if}
+    </div>
+  {/if}
 
   {#if loading}
     <div class="space-y-8 animate-in fade-in duration-500">

@@ -22,7 +22,7 @@
     "db:seed": "bun run --filter @kotbo/database seed",
     "dev:all": "bun run dev:bot && bun run dev:dashboard",
     "deploy-commands": "bun run --filter @kotbo/bot deploy-commands",
-    "deploy": "bun db:migrate:deploy && bun run quality:bot && bun db:seed && bun deploy-commands && bun run dev:bot:safe",
+    "deploy": "bun db:migrate:deploy && bun run quality:bot && bun deploy-commands",
     "update:all": "ncu -u && bun install && bun run quality:bot && bun deploy-commands",
     "update:dashboard": "ncu -u -f '^(?!@kotbo/.*)' && bun install && bun run quality:bot && bun deploy-commands",
     "update:bot": "ncu -u -f '^(?!@kotbo/.*)' && bun install && bun run quality:bot && bun deploy-commands"

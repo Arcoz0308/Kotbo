@@ -7,29 +7,31 @@
   import FormSelect from '../lib/components/FormSelect.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
-  import { updateGlobalSettings } from '../lib/api';
+  import { updateGlobalSettings, updateFeatureConfiguration } from '../lib/api';
 
   const saveAction = createAsyncActionState();
   let loading = $state(false);
+  const canManageSettings = $derived(
+    !!dashboardStore.state.featureAccess?.settings?.canConfigure
+      || !!dashboardStore.state.access?.canManageSettings
+  );
 
   const availableChannels = $derived(dashboardStore.state.discordChannels || []);
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
 
   let guildSettings = $state({
     configChannelId: '',
-    regulationChannelId: '',
-    logChannelId: '',
     publicChannelId: '',
     digestChannelId: '',
-    meetingAnnouncementChannelId: '',
     meetingVoiceChannelId: '',
-    moderatorRoleId: '',
     baseStaffRoleId: '',
     testStaffRoleId: '',
     translationEnabled: false,
     codePoliceEnabled: false,
     dailyAlgoEnabled: false,
     githubReleasesEnabled: false,
+    logChannelId: '',
+    propagateSanctions: false,
   });
 
   onMount(async () => {
@@ -39,19 +41,16 @@
       const s = dashboardStore.state as any;
       guildSettings = {
         configChannelId: s.configChannelId || '',
-        regulationChannelId: s.regulationChannelId || '',
-        logChannelId: s.logChannelId || '',
         publicChannelId: s.publicChannelId || '',
         digestChannelId: s.digestChannelId || '',
-        meetingAnnouncementChannelId: s.meetingAnnouncementChannelId || '',
         meetingVoiceChannelId: s.meetingVoiceChannelId || '',
-        moderatorRoleId: s.moderatorRoleId || '',
         baseStaffRoleId: s.baseStaffRoleId || '',
         testStaffRoleId: s.testStaffRoleId || '',
         translationEnabled: s.translationEnabled || false,
         codePoliceEnabled: s.codePoliceEnabled || false,
         dailyAlgoEnabled: s.dailyAlgoEnabled || false,
         githubReleasesEnabled: s.githubReleasesEnabled || false,
+        logChannelId: s.logChannelId || '',
         propagateSanctions: s.propagateSanctions || false,
       };
     } finally {
@@ -60,26 +59,33 @@
   });
 
   async function handleSave() {
+    if (!canManageSettings) {
+      saveAction.setError('Accès refusé: permissions insuffisantes.');
+      return;
+    }
     await saveAction.run(async () => {
       const ok = await updateGlobalSettings(guildSettings);
       if (!ok) throw new Error('Erreur API');
+      
+      // Also update the feature config channelId for logs
+      if (guildSettings.logChannelId) {
+        await updateFeatureConfiguration('logs', { channelId: guildSettings.logChannelId });
+      }
+
       await dashboardStore.refresh();
       return true;
     }, { successMessage: 'Paramètres globaux enregistrés.' });
   }
 
   const channelFields = [
-    { key: 'logChannelId', label: 'Salon de Logs', desc: 'Salon principal pour les logs du bot' },
-    { key: 'regulationChannelId', label: 'Salon Règlement', desc: 'Publication du règlement' },
-    { key: 'meetingAnnouncementChannelId', label: 'Annonces Réunions', desc: 'Annonces des réunions staff' },
     { key: 'meetingVoiceChannelId', label: 'Vocal Réunions', desc: 'Salon vocal par défaut' },
     { key: 'digestChannelId', label: 'Salon Digest', desc: 'Publication du digest de news' },
     { key: 'publicChannelId', label: 'Salon Public', desc: 'Salon public général' },
     { key: 'configChannelId', label: 'Salon Config', desc: 'Salon de configuration interne' },
+    { key: 'logChannelId', label: 'Salon Logs', desc: 'Salon des logs d\'activité' },
   ];
 
   const roleFields = [
-    { key: 'moderatorRoleId', label: 'Rôle Modérateur', desc: 'Rôle de base pour la modération' },
     { key: 'baseStaffRoleId', label: 'Rôle Staff Base', desc: 'Rôle de base du staff' },
     { key: 'testStaffRoleId', label: 'Rôle Staff Test', desc: 'Rôle pour les membres en période d\'essai' },
   ];
@@ -107,7 +113,7 @@
     </div>
     <button 
       onclick={handleSave}
-      disabled={saveAction.loading || loading}
+      disabled={saveAction.loading || loading || !canManageSettings}
       class="px-8 py-3 bg-primary text-on-primary font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-primary/20 hover:scale-105 transition-all disabled:opacity-50"
     >
       Enregistrer les modifications

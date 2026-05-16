@@ -39,6 +39,7 @@ import * as sanctionCmd from './commands/sanction.js';
 import * as casierCmd from './commands/casier.js';
 import * as absentCmd from './commands/absent.js';
 import * as meetingCmd from './commands/meeting.js';
+import * as noteCmd from './commands/note.js';
 import prisma from './utils/db.js';
 import {
   evaluateCommandRestriction,
@@ -93,9 +94,12 @@ type SlashCommand = {
 };
 
 const commands = new Collection<string, SlashCommand>();
-[setupCmd, configCmd, pingCmd, infoCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd, postCmd, dailyAlgoCmd, profileCmd, profilCmd, sanctionCmd, casierCmd, absentCmd, meetingCmd, statsCmd, invitesCmd, leaderboardCmd, serverstatsCmd].forEach((cmd) => {
+[setupCmd, configCmd, pingCmd, infoCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd, postCmd, dailyAlgoCmd, profileCmd, profilCmd, sanctionCmd, casierCmd, absentCmd, meetingCmd, statsCmd, invitesCmd, leaderboardCmd, serverstatsCmd, noteCmd].forEach((cmd) => {
   commands.set(cmd.data.name, cmd as SlashCommand);
 });
+commands.set(noteCmd.contextData.name, noteCmd as unknown as SlashCommand);
+commands.set(casierCmd.contextData.name, casierCmd as unknown as SlashCommand);
+commands.set(sanctionCmd.contextData.name, sanctionCmd as unknown as SlashCommand);
 
 async function enforceCommandAccess(interaction: ChatInputCommandInteraction): Promise<boolean> {
   if (!interaction.guildId) return true;
@@ -118,6 +122,7 @@ async function enforceCommandAccess(interaction: ChatInputCommandInteraction): P
     interaction.commandName,
     interaction.channelId,
     roleIds,
+    interaction.user.id,
     isPrivileged,
   );
 
@@ -168,6 +173,7 @@ client.once(Events.ClientReady, async (c) => {
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
+  logger.info('Interactions', `Interaction reçue: ${interaction.type} - ${interaction.id}`);
   try {
     // 1. Vérification de la blacklist globale
     const blacklist: Set<string> = (global as any).KOTBO_BLACKLIST || new Set();
@@ -210,11 +216,41 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
       }
       await cmd.execute(interaction);
+
+      // Track command usage for analytics
+      try {
+        await prisma.dashboardCommandUsage.upsert({
+          where: {
+            guildId_commandName_userId: {
+              guildId: interaction.guildId || 'DM',
+              commandName: interaction.commandName,
+              userId: interaction.user.id
+            }
+          },
+          update: {
+            count: { increment: 1 },
+            lastUsedAt: new Date()
+          },
+          create: {
+            guildId: interaction.guildId || 'DM',
+            commandName: interaction.commandName,
+            userId: interaction.user.id,
+            count: 1
+          }
+        });
+      } catch (e) {
+        logger.error('Analytics', 'Erreur lors du tracking de commande', e);
+      }
     }
 
     else if (interaction.isAutocomplete()) {
       const cmd = commands.get(interaction.commandName);
       if (cmd?.autocomplete) await cmd.autocomplete(interaction);
+    }
+
+    else if (interaction.isUserContextMenuCommand()) {
+      const cmd = commands.get(interaction.commandName);
+      if (cmd) await cmd.execute(interaction as any);
     }
 
     else if (interaction.isButton()) {

@@ -1,4 +1,12 @@
-import { MessageFlags, PermissionFlagsBits, SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
+import {
+  MessageFlags,
+  PermissionFlagsBits,
+  SlashCommandBuilder,
+  type ChatInputCommandInteraction,
+  ContextMenuCommandBuilder,
+  ApplicationCommandType,
+  type UserContextMenuCommandInteraction,
+} from 'discord.js';
 import { errorEmbed } from '../utils/embeds.js';
 import { renderPanelTarget } from '../utils/interactionResponses.js';
 import { buildMemberCasePanel } from '../services/memberCaseService.js';
@@ -14,6 +22,11 @@ export const data = new SlashCommandBuilder()
       .addUserOption((option) => option.setName('membre').setDescription('Membre à consulter').setRequired(false))
       .addStringOption((option) => option.setName('id').setDescription('ID Discord à consulter si le membre n’est plus présent').setRequired(false)),
   );
+
+export const contextData = new ContextMenuCommandBuilder()
+  .setName('Voir le Casier')
+  .setType(ApplicationCommandType.User)
+  .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers);
 
 function canModerate(interaction: ChatInputCommandInteraction): interaction is ChatInputCommandInteraction<'cached'> {
   if (!interaction.inCachedGuild()) return false;
@@ -32,24 +45,17 @@ async function replyError(interaction: ChatInputCommandInteraction, title: strin
   await interaction.reply({ embeds: [errorEmbed(title, description)], flags: [MessageFlags.Ephemeral] });
 }
 
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!canModerate(interaction)) {
-    await replyError(interaction, 'Serveur requis', 'Cette commande ne peut être utilisée qu’en serveur.');
-    return;
-  }
+export async function execute(interaction: ChatInputCommandInteraction | UserContextMenuCommandInteraction): Promise<void> {
+  if (!interaction.inCachedGuild()) return;
 
-  const subcommand = interaction.options.getSubcommand();
-  if (subcommand !== 'voir') {
-    await replyError(interaction, 'Sous-commande inconnue', 'Cette sous-commande n’est pas encore supportée.');
-    return;
-  }
-
-  const targetUser = interaction.options.getUser('membre', false);
-  const rawId = interaction.options.getString('id', false);
-  const targetUserId = targetUser?.id ?? (rawId ? extractUserId(rawId) : null);
+  const targetUserId = interaction.isChatInputCommand()
+    ? (interaction.options.getUser('membre', false)?.id ?? (interaction.options.getString('id', false) ? extractUserId(interaction.options.getString('id', false)!) : null))
+    : interaction.targetId;
 
   if (!targetUserId) {
-    await replyError(interaction, 'Cible manquante', 'Indique un membre ou un ID Discord valide.');
+    if (interaction.isChatInputCommand()) {
+      await replyError(interaction, 'Cible manquante', 'Indique un membre ou un ID Discord valide.');
+    }
     return;
   }
 
@@ -60,6 +66,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     await renderPanelTarget(interaction, {
       embeds: [panel.embed],
       components: panel.components,
+      files: panel.files,
       flags: [MessageFlags.Ephemeral],
     });
   } catch (error) {
