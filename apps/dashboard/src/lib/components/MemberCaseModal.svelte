@@ -172,6 +172,7 @@
     actionIsError?: boolean;
     onClose?: (e: MouseEvent) => void;
     onAction?: (action: 'WARN' | 'KICK' | 'TIMEOUT' | 'BAN') => void;
+    onSelectUser?: (userId: string) => void;
   }>();
 
   let activeTab = $state<MemberCaseTab>('resume');
@@ -194,6 +195,17 @@
   let linkBusy = $state(false);
   let linkFeedback = $state('');
   let linkIsError = $state(false);
+
+  $effect(() => {
+    if (open) {
+      document.body.classList.add('overflow-hidden');
+    } else {
+      document.body.classList.remove('overflow-hidden');
+    }
+    return () => {
+      document.body.classList.remove('overflow-hidden');
+    };
+  });
 
   async function handleLinkAccount() {
     if (!targetAccountId.trim()) {
@@ -936,45 +948,6 @@
                    </div>
                 </div>
 
-                <!-- Moderation Console (Bento Side) -->
-                <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm transition-all hover:shadow-xl duration-500 group">
-                   <div class="flex items-center gap-3 mb-8">
-                     <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-500 group-hover:scale-110 transition-transform">
-                       <Papicon icon="hammer" size={24} />
-                     </div>
-                     <div>
-                       <p class="text-[10px] font-black uppercase tracking-[0.2em] text-rose-500">Modération</p>
-                       <p class="text-lg font-black text-on-surface">Console d'action</p>
-                     </div>
-                   </div>
-
-                   <div class="space-y-4">
-                     <div class="space-y-1.5">
-                        <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Raison</p>
-                        <input 
-                          type="text" 
-                          bind:value={actionReason} 
-                          placeholder="Motif de l'action..." 
-                          class="w-full rounded-2xl bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface placeholder:text-on-surface-variant/30 border border-outline-variant/10 focus:border-rose-500/50 outline-hidden transition-all"
-                        />
-                     </div>
-                     <div class="space-y-1.5">
-                        <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Durée (si applicable)</p>
-                        <input 
-                          type="text" 
-                          bind:value={actionDuration} 
-                          placeholder="Ex: 30m, 2h, 1j..." 
-                          class="w-full rounded-2xl bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface placeholder:text-on-surface-variant/30 border border-outline-variant/10 focus:border-rose-500/50 outline-hidden transition-all"
-                        />
-                     </div>
-                     {#if actionFeedback}
-                        <p class="text-[10px] font-black {actionIsError ? 'text-rose-500' : 'text-emerald-500'} animate-pulse px-1">
-                          {actionFeedback}
-                        </p>
-                     {/if}
-                   </div>
-                </div>
-
                 <!-- Recent Activity Feed (Wide Footer) -->
                 <div class="md:col-span-4 rounded-[3rem] bg-surface-container-low/20 p-10 border border-outline-variant/10 group">
                   <div class="flex items-center justify-between mb-10">
@@ -1649,7 +1622,7 @@
                 </div>
 
               {:else if activeTab === 'connexions'}
-                <div class="space-y-6 h-[500px]">
+                <div class="space-y-6">
                   <div class="flex items-center justify-between px-2">
                     <div>
                       <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-1">Réseau Social</p>
@@ -1660,7 +1633,7 @@
                     </div>
                   </div>
                   
-                  <div class="flex-1 h-[400px]">
+                  <div class="w-full h-[520px]">
                     <InteractionTree 
                       nodes={caseData?.interactionGraph?.nodes || []} 
                       edges={caseData?.interactionGraph?.edges || []} 

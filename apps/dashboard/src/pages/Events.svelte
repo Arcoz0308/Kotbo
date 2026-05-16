@@ -167,6 +167,14 @@
                   <Papicon icon="Play" size={12} /> Piloter
                 </button>
               {/if}
+              {#if event.status === 'COMPLETED'}
+                <button 
+                  onclick={() => router.goto(`/events/control/${event.id}`)}
+                  class="px-6 py-3 bg-primary/10 text-primary rounded-2xl text-[10px] font-black uppercase tracking-widest border border-primary/20 hover:bg-primary/20 transition-colors flex items-center gap-2"
+                >
+                  <Papicon icon="ChartLineUp" size={12} /> Stats
+                </button>
+              {/if}
               <button 
                 onclick={() => router.goto(`/events/edit/${event.id}`)}
                 class="px-6 py-3 bg-surface-container-high rounded-2xl text-[10px] font-black uppercase tracking-widest border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2"

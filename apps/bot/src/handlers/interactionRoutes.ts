@@ -116,3 +116,10 @@ export function parseEventQuizRoute(customId: string): { questionId: string; opt
   }
   return null;
 }
+
+export function parseEventResultRoute(customId: string): { eventId: string; page: number } | null {
+  if (!customId.startsWith('event-result-page:')) return null;
+  const parts = customId.split(':');
+  if (parts.length < 3) return null;
+  return { eventId: parts[1], page: parseInt(parts[2], 10) };
+}

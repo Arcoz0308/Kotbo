@@ -263,4 +263,9 @@
   loading={loadingCase}
   error={caseError}
   onClose={() => modalOpen = false}
+  onSelectUser={(newUserId) => {
+    const foundNode = caseData?.interactionGraph?.nodes?.find((n: any) => n.id === newUserId);
+    const label = foundNode?.label || 'Membre';
+    openMemberCase(newUserId, label);
+  }}
 />

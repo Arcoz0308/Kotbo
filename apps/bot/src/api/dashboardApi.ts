@@ -85,6 +85,7 @@ import {
   publishEvent,
   nextQuestion,
   getEventStats,
+  prevQuestion,
   finishEvent
 } from '../services/eventService.js';
 import {
@@ -1409,38 +1410,114 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
   }
 
     // --- Calcul du graph d'interactions ---
+    const extractIdFromUserStr = (str: string | null | undefined): string | null => {
+      if (!str) return null;
+      const match = str.match(/\(<@(\d+)>\)/);
+      if (match) return match[1];
+      const rawIdMatch = str.match(/^(\d+)$/);
+      return rawIdMatch ? rawIdMatch[1] : null;
+    };
+
     const nodes: MemberCaseInteractionNode[] = [
       { id: actualUserId, label: user?.tag ?? profile?.userTag ?? "Utilisateur", type: 'user', avatar: profile?.avatarUrl ?? user?.displayAvatarURL?.() }
     ];
     const edges: MemberCaseInteractionEdge[] = [];
-    const targetMap = new Map<string, { label: string, count: number }>();
+    const targets = new Map<string, { label: string; mention: number; reply: number; reaction: number; total: number }>();
+
+    const getOrCreateTarget = (targetId: string, defaultLabel: string) => {
+      let t = targets.get(targetId);
+      if (!t) {
+        t = { label: defaultLabel, mention: 0, reply: 0, reaction: 0, total: 0 };
+        targets.set(targetId, t);
+      }
+      return t;
+    };
 
     for (const log of auditLogs || []) {
-      if (log.module === 'Messages' && log.action === 'Message envoyé') {
-        const contentMatch = log.details.match(/Contenu: (.*)/);
-        if (contentMatch) {
-          const content = contentMatch[1];
-          const mentionRegex = /<@!?(\d+)>/g;
-          let match;
-          while ((match = mentionRegex.exec(content)) !== null) {
-            const targetId = match[1];
-            if (targetId === actualUserId) continue;
+      const logUserId = extractIdFromUserStr(log.user);
+      if (!logUserId) continue;
 
-            const current = targetMap.get(targetId) ?? { label: `User ${targetId}`, count: 0 };
-            current.count += 1;
-            targetMap.set(targetId, current);
+      if (log.module === 'Messages' && log.action === 'Message envoyé') {
+        const details = log.details || '';
+        const contentMatch = details.match(/Contenu: (.*)/);
+        const content = contentMatch ? contentMatch[1] : details;
+
+        // Parse mentions
+        const mentionRegex = /<@!?(\d+)>/g;
+        let match;
+        const processedMentions = new Set<string>();
+        while ((match = mentionRegex.exec(content)) !== null) {
+          const targetId = match[1];
+          if (processedMentions.has(targetId)) continue;
+          processedMentions.add(targetId);
+
+          if (logUserId === actualUserId) {
+            // Outgoing mention
+            if (targetId !== actualUserId) {
+              const t = getOrCreateTarget(targetId, `User ${targetId}`);
+              t.mention += 1;
+              t.total += 1;
+            }
+          } else {
+            // Incoming mention
+            if (targetId === actualUserId) {
+              const t = getOrCreateTarget(logUserId, `User ${logUserId}`);
+              t.mention += 1;
+              t.total += 1;
+            }
+          }
+        }
+
+        // Parse replies
+        const replyMatch = details.match(/Réponse à:\s*<@!?(\d+)>/i);
+        if (replyMatch) {
+          const targetId = replyMatch[1];
+          if (logUserId === actualUserId) {
+            // Outgoing reply
+            if (targetId !== actualUserId) {
+              const t = getOrCreateTarget(targetId, `User ${targetId}`);
+              t.reply += 1;
+              t.total += 1;
+            }
+          } else {
+            // Incoming reply
+            if (targetId === actualUserId) {
+              const t = getOrCreateTarget(logUserId, `User ${logUserId}`);
+              t.reply += 1;
+              t.total += 1;
+            }
+          }
+        }
+      } else if (log.module === 'Interactions' && log.action === 'Réaction ajoutée') {
+        const details = log.details || '';
+        const targetMatch = details.match(/Cible:\s*.*?\(<@!?(\d+)>\)/i);
+        if (targetMatch) {
+          const targetId = targetMatch[1];
+          if (logUserId === actualUserId) {
+            // Outgoing reaction
+            if (targetId !== actualUserId) {
+              const t = getOrCreateTarget(targetId, `User ${targetId}`);
+              t.reaction += 1;
+              t.total += 1;
+            }
+          } else {
+            // Incoming reaction
+            if (targetId === actualUserId) {
+              const t = getOrCreateTarget(logUserId, `User ${logUserId}`);
+              t.reaction += 1;
+              t.total += 1;
+            }
           }
         }
       }
     }
 
-    // On récupère les tags des cibles si possible (limité au top 10 pour la perf)
-    const topTargets = [...targetMap.entries()]
-      .sort((a, b) => b[1].count - a[1].count)
-      .slice(0, 10);
+    // On récupère les tags des cibles si possible (limité au top 12 pour la perf et le visuel)
+    const topTargets = [...targets.entries()]
+      .sort((a, b) => b[1].total - a[1].total)
+      .slice(0, 12);
 
     for (const [targetId, data] of topTargets) {
-      // Tentative de résolution du tag et avatar via le cache ou fetch rapide
       let targetLabel = data.label;
       let targetAvatar: string | null = null;
       const cachedUser = client.users.cache.get(targetId);
@@ -1450,7 +1527,16 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
       }
 
       nodes.push({ id: targetId, label: targetLabel, type: 'target', avatar: targetAvatar });
-      edges.push({ from: actualUserId, to: targetId, type: 'mention', count: data.count });
+      
+      if (data.mention > 0) {
+        edges.push({ from: actualUserId, to: targetId, type: 'mention', count: data.mention });
+      }
+      if (data.reply > 0) {
+        edges.push({ from: actualUserId, to: targetId, type: 'reply', count: data.reply });
+      }
+      if (data.reaction > 0) {
+        edges.push({ from: actualUserId, to: targetId, type: 'reaction', count: data.reaction });
+      }
     }
 
     const result: MemberCaseResponse = {
@@ -2406,27 +2492,37 @@ export const startDashboardApi = (client: Client) => {
             }
 
             const botGuildIds = client.guilds.cache.map((guild) => guild.id);
-            for (const guildId of botGuildIds) {
-              if (accessibleGuilds.has(guildId)) continue;
-              if (!userGuildsById.has(guildId)) continue;
+            const accessResults = await Promise.all(
+              botGuildIds.map(async (guildId) => {
+                if (accessibleGuilds.has(guildId)) return null;
+                if (!userGuildsById.has(guildId)) return null;
 
-              const access = await resolveDashboardAccess(
-                client,
-                guildId,
-                user.userId,
-                userGuildPermissions.get(guildId) ?? null,
-              );
+                try {
+                  const access = await resolveDashboardAccess(
+                    client,
+                    guildId,
+                    user.userId,
+                    userGuildPermissions.get(guildId) ?? null,
+                  );
+                  return { guildId, access };
+                } catch (err) {
+                  logger.warn('DashboardAPI', `Failed to resolve access for guild ${guildId}:`, err);
+                  return null;
+                }
+              })
+            );
 
-              if (!access.canViewDashboard) continue;
-
-              const sourceGuild = userGuildsById.get(guildId);
-              accessibleGuilds.set(guildId, {
-                id: guildId,
+            for (const result of accessResults) {
+              if (!result || !result.access.canViewDashboard) continue;
+              
+              const sourceGuild = userGuildsById.get(result.guildId);
+              accessibleGuilds.set(result.guildId, {
+                id: result.guildId,
                 name: sourceGuild.name,
                 icon: sourceGuild.icon ?? null,
                 owner: !!sourceGuild.owner,
                 botPresent: true,
-                accessLevel: access.level === 'admin' ? 'admin' : 'moderator'
+                accessLevel: result.access.level === 'admin' ? 'admin' : 'moderator'
               });
             }
 
@@ -7723,17 +7819,46 @@ export const startDashboardApi = (client: Client) => {
               return;
             }
 
+            // POST /api/dashboard/guilds/:guildId/events/:eventId/prev
+            if (req.method === 'POST' && parts[6] === 'prev') {
+              try {
+                const result = await prevQuestion(client, eventId);
+                json(res, 200, result);
+              } catch (err) {
+                logger.error('EventsAPI', err);
+                json(res, 500, { error: (err as Error).message });
+              }
+              return;
+            }
+
+            // POST /api/dashboard/guilds/:guildId/events/:eventId/finish
+            if (req.method === 'POST' && parts[6] === 'finish') {
+              try {
+                const result = await finishEvent(client, eventId);
+                json(res, 200, result);
+              } catch (err) {
+                logger.error('EventsAPI', err);
+                json(res, 500, { error: (err as Error).message });
+              }
+              return;
+            }
+
             // PATCH /api/dashboard/guilds/:guildId/events/:eventId
             if (req.method === 'PATCH' && !parts[6]) {
               try {
                 const body = await readJsonBody<any>(req);
+                const currentEvent = await prisma.event.findUnique({ where: { id: eventId } });
+                
+                // Si l'événement est en cours, on évite de supprimer/recréer les questions car ça casse tout
+                const isLive = currentEvent?.status === 'ONGOING';
+                
                 const event = await prisma.event.update({
                   where: { id: eventId },
                   data: {
                     title: body.title,
                     description: body.description,
                     channelId: body.channelId,
-                    questions: body.questions ? {
+                    questions: (body.questions && !isLive) ? {
                       deleteMany: {},
                       create: body.questions.map((q: any, i: number) => ({
                         text: q.text,
@@ -7746,10 +7871,34 @@ export const startDashboardApi = (client: Client) => {
                   },
                   include: { questions: true }
                 });
+
+                // Si c'est en live et qu'on a des questions, on les met à jour individuellement si possible
+                if (isLive && body.questions) {
+                   const existingQuestions = await prisma.eventQuizQuestion.findMany({
+                     where: { eventId },
+                     orderBy: { sortOrder: 'asc' }
+                   });
+
+                   for (let i = 0; i < Math.min(existingQuestions.length, body.questions.length); i++) {
+                     const q = body.questions[i];
+                     if (i < existingQuestions.length) {
+                       await prisma.eventQuizQuestion.update({
+                         where: { id: existingQuestions[i].id },
+                         data: {
+                           text: q.text,
+                           options: q.options,
+                           correctOptionIndex: q.correctOptionIndex,
+                           imageUrl: q.imageUrl
+                         }
+                       });
+                     }
+                   }
+                }
+
                 json(res, 200, { event });
               } catch (err) {
                 logger.error('EventsAPI', err);
-                json(res, 500, { error: 'Erreur lors de la mise à jour' });
+                json(res, 500, { error: (err as Error).message });
               }
               return;
             }
