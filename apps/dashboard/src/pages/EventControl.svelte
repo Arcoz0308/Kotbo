@@ -16,6 +16,10 @@
 
   let activeTab = $state<'stats' | 'participants'>('stats');
 
+  const currentQuestion = $derived(event?.questions?.find((q: any) => q.id === stats?.questionId) || event?.questions?.[event?.questions?.length - 1]);
+  const currentQIdx = $derived(event?.questions?.findIndex((q: any) => q.id === stats?.questionId) + 1);
+  const totalQ = $derived(event?.questions?.length || 0);
+
   onMount(async () => {
     await loadEvent();
     await loadStats();
@@ -100,9 +104,16 @@
     <div class="space-y-10 pb-20">
       <section class="bg-primary/5 rounded-[3rem] p-10 border border-primary/10">
         <div class="flex items-center justify-between">
-          <div>
-            <span class="text-[10px] font-black uppercase tracking-widest text-primary">Événement en cours</span>
-            <h3 class="text-3xl font-black text-on-surface mt-2">{event.title}</h3>
+          <div class="flex items-center gap-8">
+            <div>
+              <span class="text-[10px] font-black uppercase tracking-widest text-primary">Événement en cours</span>
+              <h3 class="text-3xl font-black text-on-surface mt-2">{event.title}</h3>
+            </div>
+            <div class="h-12 w-px bg-outline-variant/20 hidden md:block"></div>
+            <div class="hidden md:block">
+              <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Progression</span>
+              <p class="text-2xl font-black text-on-surface mt-1">Question {currentQIdx || 1} / {totalQ}</p>
+            </div>
           </div>
           <div class="text-right">
             <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Participants</span>
@@ -137,14 +148,14 @@
             {@const colors = ['#334557', '#48626e', '#6c3400', '#ba1a1a', '#10b981', '#f59e0b']}
             {@const bgColors = ['bg-primary', 'bg-secondary', 'bg-tertiary', 'bg-error', 'bg-emerald-500', 'bg-amber-500']}
 
-            {@const currentQIdx = event.questions.findIndex(q => q.id === stats?.questionId) + 1}
-            {@const totalQ = event.questions.length}
-            {@const currentQuestion = event.questions.find(q => q.id === stats?.questionId)}
+          {#if stats}
+            {@const total = Object.values(stats.distribution).reduce((a, b) => Number(a) + Number(b), 0) || 1}
+            {@const colors = ['#334557', '#48626e', '#6c3400', '#ba1a1a', '#10b981', '#f59e0b']}
+            {@const bgColors = ['bg-primary', 'bg-secondary', 'bg-tertiary', 'bg-error', 'bg-emerald-500', 'bg-amber-500']}
 
             <div class="text-center mb-12">
               <div class="flex items-center justify-center gap-3 mb-4">
-                <span class="px-3 py-1 bg-primary/10 text-primary rounded-lg text-[9px] font-black uppercase tracking-widest">Direct</span>
-                <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Question {currentQIdx || 1} / {totalQ}</span>
+                <span class="px-3 py-1 bg-primary/10 text-primary rounded-lg text-[9px] font-black uppercase tracking-widest">En direct</span>
               </div>
               <h4 class="text-2xl font-black text-on-surface">{stats.questionText}</h4>
             </div>
@@ -248,8 +259,9 @@
                   </td>
                   <td class="px-8 py-5">
                     {#if lastResp}
+                      {@const respText = (currentQuestion?.options as string[])?.[lastResp.optionIndex] || `Option ${lastResp.optionIndex + 1}`}
                       <span class="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest {lastResp.isCorrect ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600'}">
-                        Option {lastResp.optionIndex + 1}
+                        {respText}
                       </span>
                     {:else}
                       <span class="text-[10px] text-on-surface-variant/40">Pas encore répondu</span>
