@@ -145,8 +145,16 @@
           
           {#if stats}
             {@const total = Object.values(stats.distribution).reduce((a, b) => Number(a) + Number(b), 0) || 1}
-            {@const colors = ['#334557', '#48626e', '#6c3400', '#ba1a1a', '#10b981', '#f59e0b']}
-            {@const bgColors = ['bg-primary', 'bg-secondary', 'bg-tertiary', 'bg-error', 'bg-emerald-500', 'bg-amber-500']}
+            {@const colors = [
+              '#6366f1', '#ec4899', '#06b6d4', '#f59e0b', '#10b981', '#8b5cf6', 
+              '#f43f5e', '#f97316', '#84cc16', '#14b8a6', '#3b82f6', '#d946ef',
+              '#0ea5e9', '#eab308'
+            ]}
+            {@const bgColors = [
+              'bg-indigo-500', 'bg-pink-500', 'bg-cyan-500', 'bg-amber-500', 'bg-emerald-500', 'bg-violet-500',
+              'bg-rose-500', 'bg-orange-500', 'bg-lime-500', 'bg-teal-500', 'bg-blue-500', 'bg-fuchsia-500',
+              'bg-sky-500', 'bg-yellow-500'
+            ]}
 
             <div class="text-center mb-12">
               <div class="flex items-center justify-center gap-3 mb-4">
@@ -165,6 +173,7 @@
                       {@const percentage = (value / total) * 100}
                       {@const prevValues = Object.values(stats.distribution).slice(0, i).reduce((a, b) => Number(a) + Number(b), 0)}
                       {@const offset = (prevValues / total) * 100}
+                      {@const isCorrect = i === currentQuestion?.correctOptionIndex}
                       
                       {#if percentage > 0}
                         <circle
@@ -172,7 +181,7 @@
                           cx="50"
                           cy="50"
                           fill="transparent"
-                          stroke={colors[i % colors.length]}
+                          stroke={isCorrect ? '#10b981' : colors[i % colors.length]}
                           stroke-width="20"
                           stroke-dasharray="{percentage * 2.51} 251.2"
                           stroke-dashoffset="-{offset * 2.51}"
