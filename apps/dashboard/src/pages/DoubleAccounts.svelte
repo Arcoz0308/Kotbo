@@ -61,7 +61,7 @@
   async function handleUpdateStatus(id: string, status: 'VALIDATED' | 'REJECTED') {
     await saveAction.run(async () => {
       const updated = await updateLinkedAccountStatus(id, status);
-      if (!updated) throw new Error('Erreur lors de la mise à jour');
+      if (!updated) return false;
       await loadData();
       return true;
     }, { successMessage: 'Statut mis à jour.' });
@@ -71,7 +71,7 @@
     if (!confirm('Voulez-vous vraiment supprimer cette liaison ?')) return;
     await saveAction.run(async () => {
       const success = await deleteLinkedAccount(id);
-      if (!success) throw new Error('Erreur lors de la suppression');
+      if (!success) return false;
       linkedAccounts = linkedAccounts.filter(a => a.id !== id);
       return true;
     }, { successMessage: 'Liaison supprimée.' });
