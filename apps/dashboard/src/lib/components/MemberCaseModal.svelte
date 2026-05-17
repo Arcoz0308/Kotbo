@@ -755,16 +755,30 @@
                      </div>
                      <div class="space-y-1">
                        <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Invité par</p>
-                       {#if caseData?.invite?.inviterTag}
-                         <div class="flex items-center gap-2">
-                           <div class="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
-                             {caseData?.invite.inviterTag.slice(0, 1).toUpperCase()}
-                           </div>
-                           <p class="text-sm font-black text-on-surface truncate">@{caseData?.invite.inviterTag}</p>
-                         </div>
-                       {:else}
-                         <p class="text-sm font-bold text-on-surface-variant/40 italic">Origine inconnue</p>
-                       {/if}
+                        {#if caseData?.invite?.inviterTag}
+                          {#if caseData?.invite?.inviterId}
+                            <button
+                              type="button"
+                              onclick={() => caseData?.invite?.inviterId && onSelectUser(caseData.invite.inviterId)}
+                              class="flex items-center gap-2 text-left hover:text-primary transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary/20 rounded-xl p-1 -ml-1 group/inviter w-full"
+                              title="Ouvrir la vue modérateur de l'inviteur"
+                            >
+                              <div class="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary group-hover/inviter:bg-primary group-hover/inviter:text-on-primary transition-all duration-300">
+                                {caseData.invite.inviterTag.slice(0, 1).toUpperCase()}
+                              </div>
+                              <p class="text-sm font-black text-on-surface group-hover/inviter:text-primary truncate transition-colors">@{caseData.invite.inviterTag}</p>
+                            </button>
+                          {:else}
+                            <div class="flex items-center gap-2">
+                              <div class="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
+                                {caseData.invite.inviterTag.slice(0, 1).toUpperCase()}
+                              </div>
+                              <p class="text-sm font-black text-on-surface truncate">@{caseData.invite.inviterTag}</p>
+                            </div>
+                          {/if}
+                        {:else}
+                          <p class="text-sm font-bold text-on-surface-variant/40 italic">Origine inconnue</p>
+                        {/if}
                      </div>
                      <div class="space-y-1">
                        <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Code d'invitation</p>
@@ -1607,7 +1621,27 @@
                      <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-6">Source d'invitation</p>
                      <dl class="space-y-4">
                        <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Code utilisé</dt><dd class="text-sm font-black text-on-surface font-mono">{caseData?.invite?.code ?? 'Inconnu'}</dd></div>
-                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Créateur</dt><dd class="text-sm font-black text-on-surface">@{caseData?.invite?.inviterTag ?? 'Inconnu'}</dd></div>
+                       <div class="flex items-center justify-between">
+                          <dt class="text-xs font-bold text-on-surface-variant/60">Créateur</dt>
+                          <dd class="text-sm font-black text-on-surface">
+                            {#if caseData?.invite?.inviterTag}
+                              {#if caseData?.invite?.inviterId}
+                                <button
+                                  type="button"
+                                  onclick={() => caseData?.invite?.inviterId && onSelectUser(caseData.invite.inviterId)}
+                                  class="text-primary hover:underline focus:outline-none font-black"
+                                  title="Ouvrir la vue modérateur de l'inviteur"
+                                >
+                                  @{caseData.invite.inviterTag}
+                                </button>
+                              {:else}
+                                @{caseData.invite.inviterTag}
+                              {/if}
+                            {:else}
+                              Inconnu
+                            {/if}
+                          </dd>
+                        </div>
                        <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Date d'utilisation</dt><dd class="text-sm font-black text-on-surface">{formatDateTime(caseData?.invite?.joinedAt ?? caseData?.profile?.guildJoinedAt)}</dd></div>
                      </dl>
                    </div>

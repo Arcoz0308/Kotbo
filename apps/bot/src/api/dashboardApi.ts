@@ -1282,7 +1282,7 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
   }
 
   try {
-    const [user, member, profile, sanctions, auditLogs, inviteConnections, staffMember, candidatureHistory, sanctionReports] = await Promise.all([
+    const [user, member, profile, sanctions, auditLogs, inviteConnections, staffMember, candidatureHistory, sanctionReports, dbInvite] = await Promise.all([
       Promise.race([
         client.users.fetch(actualUserId).catch(() => null),
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000))
@@ -1323,6 +1323,9 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
         orderBy: { createdAt: 'desc' },
         take: 200,
       }).catch(() => []),
+      prisma.memberInvite.findFirst({
+        where: { guildId, userId: actualUserId },
+      }).catch(() => null),
     ]);
 
   const effectivePermissions = member?.permissions?.toArray() ?? [];
@@ -1370,9 +1373,42 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
       channelId: entry.channelId,
     }));
 
-  const invite = mappedLogs
-    .map((entry) => parseInviteFromDetails(entry.details))
-    .find((entry): entry is MemberCaseInviteInfo => !!entry) ?? null;
+  let invite: MemberCaseInviteInfo | null = dbInvite ? {
+    code: dbInvite.inviteCode,
+    inviterId: dbInvite.inviterId,
+    inviterTag: dbInvite.inviterTag,
+    joinedAt: dbInvite.joinedAt.toISOString(),
+  } : null;
+
+  if (!invite) {
+    invite = mappedLogs
+      .map((entry) => parseInviteFromDetails(entry.details))
+      .find((entry): entry is MemberCaseInviteInfo => !!entry) ?? null;
+  }
+
+  if (invite && invite.inviterId) {
+    const cachedUser = client.users.cache.get(invite.inviterId);
+    if (cachedUser) {
+      invite.inviterTag = cachedUser.tag || cachedUser.username;
+    } else {
+      const fetchedUser = await client.users.fetch(invite.inviterId).catch(() => null);
+      if (fetchedUser) {
+        invite.inviterTag = fetchedUser.tag || fetchedUser.username;
+      } else {
+        const inviterProfile = await prisma.memberProfile.findFirst({
+          where: { guildId, userId: invite.inviterId },
+          select: { userTag: true, displayName: true, username: true }
+        }).catch(() => null);
+        if (inviterProfile) {
+          invite.inviterTag = inviterProfile.displayName || inviterProfile.userTag || inviterProfile.username;
+        }
+      }
+    }
+  }
+
+  if (invite && invite.inviterId && !invite.inviterTag) {
+    invite.inviterTag = `Utilisateur ${invite.inviterId}`;
+  }
 
     const messages = (auditLogs || [])
       .filter((entry) => {
