@@ -58,6 +58,7 @@
       code: string | null;
       inviterId: string | null;
       inviterTag: string | null;
+      inviterAvatarUrl: string | null;
       joinedAt: string | null;
     } | null;
     roles: Array<{ id: string; name: string; mention: string; permissions: string[] }>;
@@ -763,16 +764,32 @@
                               class="flex items-center gap-2 text-left hover:text-primary transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary/20 rounded-xl p-1 -ml-1 group/inviter w-full"
                               title="Ouvrir la vue modérateur de l'inviteur"
                             >
-                              <div class="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary group-hover/inviter:bg-primary group-hover/inviter:text-on-primary transition-all duration-300">
-                                {caseData.invite.inviterTag.slice(0, 1).toUpperCase()}
-                              </div>
+                              {#if caseData.invite.inviterAvatarUrl}
+                                <img
+                                  src={caseData.invite.inviterAvatarUrl}
+                                  alt={caseData.invite.inviterTag}
+                                  class="h-6 w-6 rounded-full object-cover border border-primary/10 group-hover/inviter:border-primary transition-all duration-300"
+                                />
+                              {:else}
+                                <div class="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary group-hover/inviter:bg-primary group-hover/inviter:text-on-primary transition-all duration-300">
+                                  {caseData.invite.inviterTag.slice(0, 1).toUpperCase()}
+                                </div>
+                              {/if}
                               <p class="text-sm font-black text-on-surface group-hover/inviter:text-primary truncate transition-colors">@{caseData.invite.inviterTag}</p>
                             </button>
                           {:else}
                             <div class="flex items-center gap-2">
-                              <div class="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
-                                {caseData.invite.inviterTag.slice(0, 1).toUpperCase()}
-                              </div>
+                              {#if caseData.invite.inviterAvatarUrl}
+                                <img
+                                  src={caseData.invite.inviterAvatarUrl}
+                                  alt={caseData.invite.inviterTag}
+                                  class="h-6 w-6 rounded-full object-cover border border-primary/10"
+                                />
+                              {:else}
+                                <div class="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
+                                  {caseData.invite.inviterTag.slice(0, 1).toUpperCase()}
+                                </div>
+                              {/if}
                               <p class="text-sm font-black text-on-surface truncate">@{caseData.invite.inviterTag}</p>
                             </div>
                           {/if}
@@ -1625,18 +1642,27 @@
                           <dt class="text-xs font-bold text-on-surface-variant/60">Créateur</dt>
                           <dd class="text-sm font-black text-on-surface">
                             {#if caseData?.invite?.inviterTag}
-                              {#if caseData?.invite?.inviterId}
-                                <button
-                                  type="button"
-                                  onclick={() => caseData?.invite?.inviterId && onSelectUser(caseData.invite.inviterId)}
-                                  class="text-primary hover:underline focus:outline-none font-black"
-                                  title="Ouvrir la vue modérateur de l'inviteur"
-                                >
+                              <div class="flex items-center gap-2">
+                                {#if caseData.invite.inviterAvatarUrl}
+                                  <img
+                                    src={caseData.invite.inviterAvatarUrl}
+                                    alt={caseData.invite.inviterTag}
+                                    class="h-5 w-5 rounded-full object-cover border border-primary/10"
+                                  />
+                                {/if}
+                                {#if caseData?.invite?.inviterId}
+                                  <button
+                                    type="button"
+                                    onclick={() => caseData?.invite?.inviterId && onSelectUser(caseData.invite.inviterId)}
+                                    class="text-primary hover:underline focus:outline-none font-black text-left"
+                                    title="Ouvrir la vue modérateur de l'inviteur"
+                                  >
+                                    @{caseData.invite.inviterTag}
+                                  </button>
+                                {:else}
                                   @{caseData.invite.inviterTag}
-                                </button>
-                              {:else}
-                                @{caseData.invite.inviterTag}
-                              {/if}
+                                {/if}
+                              </div>
                             {:else}
                               Inconnu
                             {/if}

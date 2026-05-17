@@ -326,6 +326,7 @@ type MemberCaseInviteInfo = {
   code: string | null;
   inviterId: string | null;
   inviterTag: string | null;
+  inviterAvatarUrl: string | null;
   joinedAt: string | null;
 };
 
@@ -1181,6 +1182,7 @@ function parseInviteFromDetails(details: string): MemberCaseInviteInfo | null {
     code: inviteCode,
     inviterId: inviterId ?? inviterMentionMatch?.[1] ?? null,
     inviterTag: normalizedInviter,
+    inviterAvatarUrl: null,
     joinedAt: null,
   };
 }
@@ -1377,6 +1379,7 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
     code: dbInvite.inviteCode,
     inviterId: dbInvite.inviterId,
     inviterTag: dbInvite.inviterTag,
+    inviterAvatarUrl: null,
     joinedAt: dbInvite.joinedAt.toISOString(),
   } : null;
 
@@ -1390,17 +1393,20 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
     const cachedUser = client.users.cache.get(invite.inviterId);
     if (cachedUser) {
       invite.inviterTag = cachedUser.tag || cachedUser.username;
+      invite.inviterAvatarUrl = cachedUser.displayAvatarURL({ size: 64 }) || null;
     } else {
       const fetchedUser = await client.users.fetch(invite.inviterId).catch(() => null);
       if (fetchedUser) {
         invite.inviterTag = fetchedUser.tag || fetchedUser.username;
+        invite.inviterAvatarUrl = fetchedUser.displayAvatarURL({ size: 64 }) || null;
       } else {
         const inviterProfile = await prisma.memberProfile.findFirst({
           where: { guildId, userId: invite.inviterId },
-          select: { userTag: true, displayName: true, username: true }
+          select: { userTag: true, displayName: true, username: true, avatarUrl: true }
         }).catch(() => null);
         if (inviterProfile) {
           invite.inviterTag = inviterProfile.displayName || inviterProfile.userTag || inviterProfile.username;
+          invite.inviterAvatarUrl = inviterProfile.avatarUrl || null;
         }
       }
     }
