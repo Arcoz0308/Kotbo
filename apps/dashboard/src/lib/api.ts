@@ -162,6 +162,12 @@ export async function fetchGuildState(guildId = authStore.selectedGuildId) {
     if (!response.ok) {
         const error = new Error(`Server error: ${response.status}`);
         (error as any).status = response.status;
+        try {
+          const body = await response.clone().json();
+          if (body?.needsActivation) {
+            (error as any).needsActivation = true;
+          }
+        } catch {}
         throw error;
     }
     return await response.json();
@@ -961,3 +967,54 @@ export async function updateRecruitmentConfig(payload: any, guildId: string = au
     errorContext: 'API Error (Update Recruitment Config):'
   });
 }
+
+export async function fetchActivationCodes() {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/activation-codes`, { method: 'GET' });
+  if (!response.ok) throw new Error('Erreur lors du chargement des codes d\'activation');
+  return response.json();
+}
+
+export async function createActivationCode() {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/activation-codes`, { method: 'POST' });
+  if (!response.ok) throw new Error('Erreur lors de la génération du code d\'activation');
+  return response.json();
+}
+
+export async function deleteActivationCode(id: string) {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/activation-codes/${id}`, { method: 'DELETE' });
+  if (!response.ok) throw new Error('Erreur lors de la suppression du code d\'activation');
+  return response.json();
+}
+
+export async function deactivateAdminGuild(guildId: string) {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/guilds/${guildId}/deactivate`, { method: 'POST' });
+  if (!response.ok) throw new Error('Erreur lors de la désactivation du serveur');
+  return response.json();
+}
+
+export async function activateAdminGuildAuto(guildId: string) {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/guilds/${guildId}/activate-auto`, { method: 'POST' });
+  if (!response.ok) throw new Error('Erreur lors de l\'activation automatique du serveur');
+  return response.json();
+}
+
+export async function activateGuildWithCode(code: string, guildId = authStore.selectedGuildId) {
+  const token = authStore.token;
+  if (!token) {
+    throw new Error('No auth token available');
+  }
+  const response = await fetch(`${BASE_URL}/guilds/${guildId}/activate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ code })
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || 'Erreur lors de l\'activation du serveur');
+  }
+  return response.json();
+}
+

@@ -679,3 +679,29 @@ export async function buildEventResultsView(interaction: any, eventId: string, p
 
   return { embeds: [embed], components: [row] };
 }
+
+export async function deleteEvent(client: Client, eventId: string) {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { channelId: true, messageId: true }
+  });
+
+  if (event && event.channelId && event.messageId) {
+    try {
+      const channel = await client.channels.fetch(event.channelId).catch(() => null) as TextChannel | null;
+      if (channel) {
+        const message = await channel.messages.fetch(event.messageId).catch(() => null);
+        if (message) {
+          await message.delete().catch(() => null);
+        }
+      }
+    } catch (err) {
+      logger.error('EventsService', 'Failed to delete Discord message for event:', err);
+    }
+  }
+
+  return prisma.event.delete({
+    where: { id: eventId },
+  });
+}
+

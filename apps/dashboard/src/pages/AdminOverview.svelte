@@ -1,9 +1,31 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { fetchAdminStats, fetchAdminGuilds, fetchAdminGuildInvite, leaveAdminGuild, fetchGlobalAdmins, addGlobalAdmin, removeGlobalAdmin, fetchGlobalBlacklist, addGlobalBlacklist, removeGlobalBlacklist, fetchMaintenanceConfig, updateMaintenanceConfig, fetchBotErrors, clearBotErrors, sendGlobalBroadcast } from '../lib/api';
+  import { 
+    fetchAdminStats, 
+    fetchAdminGuilds, 
+    fetchAdminGuildInvite, 
+    leaveAdminGuild, 
+    fetchGlobalAdmins, 
+    addGlobalAdmin, 
+    removeGlobalAdmin, 
+    fetchGlobalBlacklist, 
+    addGlobalBlacklist, 
+    removeGlobalBlacklist, 
+    fetchMaintenanceConfig, 
+    updateMaintenanceConfig, 
+    fetchBotErrors, 
+    clearBotErrors, 
+    sendGlobalBroadcast,
+    fetchActivationCodes,
+    createActivationCode,
+    deleteActivationCode,
+    deactivateAdminGuild,
+    activateAdminGuildAuto
+  } from '../lib/api';
   import Papicon from '../lib/components/Papicon.svelte';
   import MetricCard from '../lib/components/MetricCard.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
+  import { toast } from '../lib/stores/toast.svelte';
 
   let stats = $state(null);
   let guilds = $state([]);
@@ -11,16 +33,25 @@
   let globalBlacklist = $state([]);
   let maintenanceMode = $state(false);
   let botErrors = $state([]);
+  let activationCodes = $state([]);
   
   let newAdminId = $state('');
   let newBlacklistId = $state('');
   let newBlacklistReason = $state('');
   let broadcastMessage = $state('');
   
-  let activeTab = $state('overview'); // overview, servers, security, config
+  let activeTab = $state('overview'); // overview, servers, security, config, activation
   
   let loading = $state(true);
   let error = $state(null);
+
+  async function loadActivationCodes() {
+    try {
+      activationCodes = await fetchActivationCodes();
+    } catch (err: any) {
+      console.error('Erreur chargement codes activation:', err);
+    }
+  }
 
   onMount(async () => {
     try {
@@ -30,7 +61,8 @@
         fetchGlobalAdmins(),
         fetchGlobalBlacklist(),
         fetchMaintenanceConfig(),
-        fetchBotErrors()
+        fetchBotErrors(),
+        loadActivationCodes()
       ]);
       stats = statsData;
       guilds = guildsData.guilds;
@@ -150,6 +182,66 @@
       botErrors = [];
     } catch (err) { alert(err.message); }
   }
+
+  async function handleGenerateCode() {
+    try {
+      const newCode = await createActivationCode();
+      toast.success(`Nouveau code généré : ${newCode.code}`);
+      await loadActivationCodes();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  }
+
+  async function handleDeleteCode(codeId: string, code: string, usedBy: string | null) {
+    const warning = usedBy 
+      ? `ATTENTION: Ce code est utilisé par le serveur "${usedBy}". Supprimer ce code désactivera immédiatement ce serveur ! Continuer ?`
+      : `Voulez-vous vraiment supprimer le code d'activation ${code} ?`;
+    if (!confirm(warning)) return;
+    try {
+      await deleteActivationCode(codeId);
+      toast.success("Code d'activation supprimé.");
+      await loadActivationCodes();
+      
+      // Update global guilds and stats if deactivated
+      if (usedBy) {
+        const statsData = await fetchAdminStats();
+        stats = statsData;
+        const guildsData = await fetchAdminGuilds();
+        guilds = guildsData.guilds;
+      }
+    } catch (err: any) {
+      alert(err.message);
+    }
+  }
+
+  async function handleActivateGuildAuto(guildId: string, guildName: string) {
+    if (!confirm(`Voulez-vous vraiment activer automatiquement le serveur "${guildName}" avec un nouveau code généré ?`)) return;
+    try {
+      const res = await activateAdminGuildAuto(guildId);
+      toast.success(`Serveur activé ! Code généré : ${res.code}`);
+      
+      const guildsData = await fetchAdminGuilds();
+      guilds = guildsData.guilds;
+      await loadActivationCodes();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  }
+
+  async function handleDeactivateGuild(guildId: string, guildName: string) {
+    if (!confirm(`Voulez-vous vraiment désactiver le serveur "${guildName}" ? Ses fonctionnalités et son dashboard seront immédiatement verrouillés.`)) return;
+    try {
+      await deactivateAdminGuild(guildId);
+      toast.success("Serveur désactivé avec succès.");
+      
+      const guildsData = await fetchAdminGuilds();
+      guilds = guildsData.guilds;
+      await loadActivationCodes();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  }
 </script>
 
 <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-12">
@@ -233,6 +325,12 @@
         class="flex-1 min-w-[120px] px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all {activeTab === 'config' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-on-surface/5 hover:text-on-surface'}"
       >
         <Papicon icon="Settings" size={20} /> Avancé
+      </button>
+      <button 
+        onclick={() => activeTab = 'activation'}
+        class="flex-1 min-w-[120px] px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all {activeTab === 'activation' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-on-surface/5 hover:text-on-surface'}"
+      >
+        <Papicon icon="Key" size={20} /> Codes d'activation
       </button>
     </div>
 
@@ -373,6 +471,7 @@
                 <tr>
                   <th class="px-8 py-5">Serveur</th>
                   <th class="px-8 py-5">Membres</th>
+                  <th class="px-8 py-5">Activation</th>
                   <th class="px-8 py-5">Rejoint le</th>
                   <th class="px-8 py-5 text-right">Action</th>
                 </tr>
@@ -398,11 +497,41 @@
                     <td class="px-8 py-5 font-black text-on-surface">
                       {guild.memberCount.toLocaleString()}
                     </td>
+                    <td class="px-8 py-5">
+                      {#if guild.activated}
+                        <div class="flex flex-col gap-1">
+                          <span class="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full w-fit">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            Activé
+                          </span>
+                          {#if guild.activationCode}
+                            <span class="text-[10px] text-on-surface-variant/50 font-mono tracking-wider ml-1">{guild.activationCode}</span>
+                          {/if}
+                        </div>
+                      {:else}
+                        <button 
+                          onclick={() => handleActivateGuildAuto(guild.id, guild.name)}
+                          class="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 px-3 py-1.5 rounded-xl border border-amber-500/20 hover:scale-105 transition-all shadow-lg shadow-amber-500/5 cursor-pointer"
+                        >
+                          <Papicon icon="Key" size={12} />
+                          Activer (Auto)
+                        </button>
+                      {/if}
+                    </td>
                     <td class="px-8 py-5 text-sm font-medium text-on-surface-variant/60">
                       {new Date(guild.joinedAt).toLocaleDateString('fr-FR')}
                     </td>
                     <td class="px-8 py-5 text-right">
                       <div class="flex items-center justify-end gap-2">
+                        {#if guild.activated}
+                          <button 
+                            class="w-10 h-10 flex items-center justify-center hover:bg-amber-500/10 rounded-xl text-on-surface-variant hover:text-amber-500 transition-all group-hover:scale-110"
+                            onclick={() => handleDeactivateGuild(guild.id, guild.name)}
+                            title="Désactiver le serveur"
+                          >
+                            <Papicon icon="Unlock" size={18} />
+                          </button>
+                        {/if}
                         <button 
                           class="w-10 h-10 flex items-center justify-center hover:bg-primary/10 rounded-xl text-on-surface-variant hover:text-primary transition-all group-hover:scale-110"
                           onclick={() => handleGetInvite(guild.id)}
@@ -578,7 +707,7 @@
               <div class="flex-1 overflow-y-auto space-y-3 font-mono text-xs p-2 rounded-xl bg-black/50 border border-white/5">
                 {#each botErrors as err}
                   <div class="border-b border-white/5 pb-3">
-                    <div class="flex justify-between text-[10px] text-white/40 mb-1">
+                     <div class="flex justify-between text-[10px] text-white/40 mb-1">
                       <span>{new Date(err.createdAt).toLocaleString()}</span>
                       <span class="text-amber-400/80">{err.source || 'Inconnu'}</span>
                     </div>
@@ -590,6 +719,111 @@
                     Aucune erreur détectée ✅
                   </div>
                 {/if}
+              </div>
+            </div>
+          </div>
+        </div>
+      {/if}
+
+      {#if activeTab === 'activation'}
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in">
+          <!-- Generation Sidebar -->
+          <div class="lg:col-span-1 space-y-6">
+            <h2 class="text-xl font-black font-headline flex items-center gap-3 px-2">
+              <Papicon icon="Lock" size={24} class="text-indigo-400" />
+              Générateur
+            </h2>
+            
+            <div class="premium-card rounded-[2.25rem] p-8 space-y-6 flex flex-col justify-between">
+              <div class="space-y-4">
+                <p class="text-sm text-on-surface-variant leading-relaxed">
+                  Générez un nouveau code d'activation aléatoire unique. Ce code pourra être utilisé par les administrateurs de serveurs Discord pour activer le bot et débloquer leur accès au tableau de bord.
+                </p>
+                <div class="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400 font-bold flex items-start gap-3">
+                  <Papicon icon="AlertTriangle" size={18} class="shrink-0 mt-0.5" />
+                  <span>Chaque code ne peut être utilisé que pour un seul serveur Discord à la fois.</span>
+                </div>
+              </div>
+
+              <button 
+                onclick={handleGenerateCode}
+                class="w-full py-4 rounded-xl bg-primary text-on-primary font-black uppercase tracking-widest text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-primary/20 flex items-center justify-center gap-3"
+              >
+                <Papicon icon="Unlock" size={16} />
+                Générer un code
+              </button>
+            </div>
+          </div>
+
+          <!-- Codes List Table -->
+          <div class="lg:col-span-2 space-y-6">
+            <h2 class="text-xl font-black font-headline flex items-center gap-3 px-2">
+              <Papicon icon="activity" size={24} class="text-purple-400" />
+              Jetons d'activation ({activationCodes.length})
+            </h2>
+
+            <div class="premium-card rounded-[2.25rem] overflow-hidden">
+              <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse border-spacing-0">
+                  <thead class="bg-on-surface/5 text-on-surface-variant/40 text-[10px] font-black uppercase tracking-widest">
+                    <tr>
+                      <th class="px-8 py-5">Code d'activation</th>
+                      <th class="px-8 py-5">Statut</th>
+                      <th class="px-8 py-5">Utilisé par</th>
+                      <th class="px-8 py-5 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-outline-variant/10">
+                    {#each activationCodes as item}
+                      <tr class="hover:bg-on-surface/5 transition-colors group">
+                        <td class="px-8 py-5">
+                          <span class="font-mono text-sm font-black text-on-surface bg-surface-container-high px-3 py-1.5 rounded-lg border border-outline-variant/20 tracking-wider">
+                            {item.code}
+                          </span>
+                        </td>
+                        <td class="px-8 py-5">
+                          {#if item.isActive}
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-success/10 text-success border border-success/20">
+                              <span class="w-1.5 h-1.5 rounded-full bg-success animate-pulse"></span>
+                              Disponible
+                            </span>
+                          {:else}
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                              <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                              Utilisé
+                            </span>
+                          {/if}
+                        </td>
+                        <td class="px-8 py-5 text-sm">
+                          {#if item.usedByGuildId}
+                            <div>
+                              <p class="font-bold text-on-surface">{item.guildName || 'Serveur Actif'}</p>
+                              <p class="text-[10px] text-on-surface-variant/40 font-mono tracking-tighter mt-0.5">{item.usedByGuildId}</p>
+                            </div>
+                          {:else}
+                            <span class="text-xs text-on-surface-variant/40 italic">Aucun serveur</span>
+                          {/if}
+                        </td>
+                        <td class="px-8 py-5 text-right">
+                          <button 
+                            class="w-10 h-10 flex inline-flex items-center justify-center hover:bg-error/10 rounded-xl text-on-surface-variant hover:text-error transition-all group-hover:scale-110"
+                            onclick={() => handleDeleteCode(item.id, item.code, item.guildName)}
+                            title={item.usedByGuildId ? "Révoquer et désactiver le serveur" : "Supprimer ce code"}
+                          >
+                            <Papicon icon="Trash" size={18} />
+                          </button>
+                        </td>
+                      </tr>
+                    {/each}
+                    {#if activationCodes.length === 0}
+                      <tr>
+                        <td colspan="4" class="px-8 py-10 text-center text-on-surface-variant/40 italic text-sm">
+                          Aucun code d'activation généré pour le moment.
+                        </td>
+                      </tr>
+                    {/if}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>

@@ -17,6 +17,7 @@ import WebSocket, { WebSocketServer } from 'ws';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { COLORS } from '../utils/embeds.js';
+import { isGuildActivated, activateGuild, deactivateGuild, activatedGuilds } from '../utils/activation.js';
 import { translate } from '../services/translationService.js';
 import {
   registerBanSanction,
@@ -86,7 +87,8 @@ import {
   nextQuestion,
   getEventStats,
   prevQuestion,
-  finishEvent
+  finishEvent,
+  deleteEvent
 } from '../services/eventService.js';
 import {
   getCandidatures,
@@ -2569,13 +2571,27 @@ export const startDashboardApi = (client: Client) => {
         }
 
         if (parts[2] === 'guilds' && parts.length === 3) {
-          const guilds = client.guilds.cache.map(g => ({
-            id: g.id,
-            name: g.name,
-            icon: g.iconURL(),
-            memberCount: g.memberCount,
-            joinedAt: g.joinedAt,
-          }));
+          const dbGuilds = await prisma.guild.findMany({
+            select: {
+              id: true,
+              activated: true,
+              activationCode: true,
+            }
+          });
+          const dbGuildsMap = new Map(dbGuilds.map(g => [g.id, g]));
+
+          const guilds = client.guilds.cache.map(g => {
+            const dbGuild = dbGuildsMap.get(g.id);
+            return {
+              id: g.id,
+              name: g.name,
+              icon: g.iconURL(),
+              memberCount: g.memberCount,
+              joinedAt: g.joinedAt,
+              activated: dbGuild?.activated ?? false,
+              activationCode: dbGuild?.activationCode ?? null,
+            };
+          });
 
           json(res, 200, { guilds });
           return;
@@ -2810,6 +2826,131 @@ export const startDashboardApi = (client: Client) => {
         }
       }
 
+      if (parts.length >= 2 && parts[0] === 'api' && parts[1] === 'admin') {
+        const user = verifyAuth(req);
+        if (!user) {
+          json(res, 401, { error: 'Non authentifié' });
+          return;
+        }
+
+        const isGlobalAdmin = await resolveAdminAccess(client, user.userId);
+        if (!isGlobalAdmin) {
+          json(res, 403, { error: 'Accès réservé aux administrateurs globaux Kotbo.' });
+          return;
+        }
+
+        // GET /api/admin/activation-codes - List all activation codes
+        if (parts.length === 3 && parts[2] === 'activation-codes' && req.method === 'GET') {
+          try {
+            const codes = await prisma.activationCode.findMany({
+              orderBy: { createdAt: 'desc' }
+            });
+            const enrichedCodes = await Promise.all(codes.map(async (c) => {
+              let guildName = null;
+              if (c.usedByGuildId) {
+                guildName = getGuildName(client, c.usedByGuildId);
+              }
+              return {
+                ...c,
+                guildName
+              };
+            }));
+            json(res, 200, enrichedCodes);
+          } catch (err) {
+            logger.error('AdminAPI', 'Erreur lors de la récupération des codes :', err);
+            json(res, 500, { error: 'Erreur lors de la récupération des codes d\'activation.' });
+          }
+          return;
+        }
+
+        // POST /api/admin/activation-codes - Generate a new activation code
+        if (parts.length === 3 && parts[2] === 'activation-codes' && req.method === 'POST') {
+          try {
+            const code = `KB-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+            
+            const newCode = await prisma.activationCode.create({
+              data: {
+                code,
+                createdById: user.userId,
+                isActive: true
+              }
+            });
+
+            json(res, 201, newCode);
+          } catch (err) {
+            logger.error('AdminAPI', 'Erreur lors de la création d\'un code :', err);
+            json(res, 500, { error: 'Erreur lors de la création du code d\'activation.' });
+          }
+          return;
+        }
+
+        // DELETE /api/admin/activation-codes/:id - Delete an activation code (and deactivate the guild if used)
+        if (parts.length === 4 && parts[2] === 'activation-codes' && req.method === 'DELETE') {
+          const codeId = parts[3];
+          try {
+            const codeRow = await prisma.activationCode.findUnique({
+              where: { id: codeId }
+            });
+
+            if (!codeRow) {
+              json(res, 404, { error: 'Code introuvable.' });
+              return;
+            }
+
+            if (codeRow.usedByGuildId) {
+              await deactivateGuild(codeRow.usedByGuildId);
+            }
+
+            await prisma.activationCode.delete({
+              where: { id: codeId }
+            });
+
+            json(res, 200, { ok: true });
+          } catch (err) {
+            logger.error('AdminAPI', 'Erreur lors de la suppression du code :', err);
+            json(res, 500, { error: 'Erreur lors de la suppression du code d\'activation.' });
+          }
+          return;
+        }
+
+        // POST /api/admin/guilds/:guildId/deactivate - Deactivate a guild
+        if (parts.length === 5 && parts[2] === 'guilds' && parts[4] === 'deactivate' && req.method === 'POST') {
+          const guildId = parts[3];
+          try {
+            await deactivateGuild(guildId);
+            json(res, 200, { ok: true, message: 'Le serveur a été désactivé.' });
+          } catch (err) {
+            logger.error('AdminAPI', 'Erreur lors de la désactivation du serveur :', err);
+            json(res, 500, { error: 'Erreur lors de la désactivation du serveur.' });
+          }
+          return;
+        }
+
+        // POST /api/admin/guilds/:guildId/activate-auto - Autogenerate and assign an activation code
+        if (parts.length === 5 && parts[2] === 'guilds' && parts[4] === 'activate-auto' && req.method === 'POST') {
+          const guildId = parts[3];
+          try {
+            const code = `KB-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+
+            await prisma.activationCode.create({
+              data: {
+                code,
+                createdById: user.userId,
+                isActive: true
+              }
+            });
+
+            await activateGuild(guildId, code);
+
+            json(res, 200, { ok: true, code, message: 'Le serveur a été activé automatiquement.' });
+          } catch (err) {
+            logger.error('AdminAPI', 'Erreur lors de la génération et affectation du code :', err);
+            json(res, 500, { error: 'Erreur lors de l\'activation automatique du serveur.' });
+          }
+          return;
+        }
+      }
+
       if (parts.length >= 2 && parts[0] === 'api' && parts[1] === 'dashboard') {
         if (parts.length === 6 && parts[2] === 'guilds' && parts[4] === 'recruitment' && parts[5] === 'candidatures' && req.method === 'POST') {
           const guildId = parts[3];
@@ -2877,7 +3018,8 @@ export const startDashboardApi = (client: Client) => {
               id: guild.id,
               name: getGuildName(client, guild.id),
               updatedAt: guild.updatedAt.toISOString(),
-              accessLevel: access.level === 'admin' ? 'admin' : 'moderator'
+              accessLevel: access.level === 'admin' ? 'admin' : 'moderator',
+              activated: isGuildActivated(guild.id) || user.userId === DISCORD_CLIENT_OWNER_ID
             });
           }
 
@@ -2891,6 +3033,13 @@ export const startDashboardApi = (client: Client) => {
 
           if (!access.canViewDashboard) {
             json(res, 403, { error: 'Accès refusé au dashboard pour ce serveur.' });
+            return;
+          }
+
+          // Gating check for guild activation (bypassed for owner)
+          const isActivationRequest = parts.length === 5 && parts[4] === 'activate' && req.method === 'POST';
+          if (!isGuildActivated(guildId) && !isActivationRequest && user.userId !== DISCORD_CLIENT_OWNER_ID) {
+            json(res, 403, { error: 'Activation requise', needsActivation: true });
             return;
           }
 
@@ -2947,6 +3096,46 @@ export const startDashboardApi = (client: Client) => {
               return;
             }
             json(res, 200, state);
+            return;
+          }
+
+          // POST /api/dashboard/guilds/:guildId/activate - Activate a guild with a code
+          if (parts.length === 5 && parts[4] === 'activate' && req.method === 'POST') {
+            const isGlobalAdmin = await resolveAdminAccess(client, user.userId);
+            const canActivate = isGlobalAdmin || access.level === 'admin';
+            if (!canActivate) {
+              json(res, 403, { error: 'Seuls les administrateurs du serveur ou les administrateurs globaux peuvent activer ce serveur.' });
+              return;
+            }
+
+            const body = await readJsonBody<{ code?: string }>(req);
+            const rawCode = body?.code?.trim() || '';
+            if (!rawCode) {
+              json(res, 400, { error: 'Le code d\'activation est requis.' });
+              return;
+            }
+
+            const codeRow = await prisma.activationCode.findUnique({
+              where: { code: rawCode.toUpperCase() }
+            });
+
+            if (!codeRow) {
+              json(res, 404, { error: 'Code d\'activation introuvable.' });
+              return;
+            }
+
+            if (!codeRow.isActive || codeRow.usedAt) {
+              json(res, 400, { error: 'Ce code d\'activation a déjà été utilisé ou est désactivé.' });
+              return;
+            }
+
+            try {
+              await activateGuild(guildId, rawCode);
+              json(res, 200, { ok: true, message: 'Le serveur a été activé avec succès.' });
+            } catch (err) {
+              logger.error('ActivationAPI', 'Erreur lors de l\'activation de la guilde :', err);
+              json(res, 500, { error: 'Erreur interne lors de l\'activation du serveur.' });
+            }
             return;
           }
 
@@ -7808,6 +7997,18 @@ export const startDashboardApi = (client: Client) => {
               } catch (err) {
                 logger.error('EventsAPI', err);
                 json(res, 500, { error: 'Erreur récupération événement' });
+              }
+              return;
+            }
+
+            // DELETE /api/dashboard/guilds/:guildId/events/:eventId
+            if (req.method === 'DELETE' && !parts[6]) {
+              try {
+                await deleteEvent(client, eventId);
+                json(res, 200, { success: true });
+              } catch (err) {
+                logger.error('EventsAPI', err);
+                json(res, 500, { error: 'Erreur suppression événement' });
               }
               return;
             }

@@ -72,6 +72,10 @@ model Guild {
   sanctionAlertChannelId   String?
   newsChannelId            String?
 
+  activated                Boolean   @default(false)
+  activatedAt              DateTime?
+  activationCode           String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1424,6 +1428,18 @@ model GlobalAdmin {
   createdAt DateTime @default(now())
 
   @@map("global_admins")
+}
+
+model ActivationCode {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  createdAt     DateTime  @default(now())
+  createdById   String
+  usedAt        DateTime?
+  usedByGuildId String?   @unique
+  isActive      Boolean   @default(true)
+
+  @@map("activation_codes")
 }
 
 model GlobalBlacklist {

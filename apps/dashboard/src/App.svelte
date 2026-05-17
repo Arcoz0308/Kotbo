@@ -12,6 +12,7 @@
   
   
   import Login from './pages/Login.svelte';
+  import Activation from './pages/Activation.svelte';
   import Overview from './pages/Overview.svelte';
   import Analytics from './pages/Analytics.svelte';
   import ModuleCatalog from './pages/ModuleCatalog.svelte';
@@ -171,13 +172,18 @@
   </Route>
 
   {#if authStore.isAuthenticated}
-    {#if $router.path === '/dailyalgo/ide'}
-      <Route path="/dailyalgo/ide">
-        <DailyAlgoIDE />
+    {#if dashboardStore.state.error === 'activation_requise'}
+      <Route path="/*">
+        <Activation />
       </Route>
     {:else}
-      <MainLayout>
-      <Route path="/">
+      {#if $router.path === '/dailyalgo/ide'}
+        <Route path="/dailyalgo/ide">
+          <DailyAlgoIDE />
+        </Route>
+      {:else}
+        <MainLayout>
+        <Route path="/">
         <Overview />
       </Route>
 
@@ -269,6 +275,7 @@
         <NotFound />
       </Route>
     </MainLayout>
+    {/if}
     {/if}
   {:else if $router.path !== '/login'}
     <!-- Fallback for unauthenticated users -->
