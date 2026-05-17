@@ -4676,6 +4676,460 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
+          // --- INVITATIONS ENDPOINTS ---
+          if (parts[4] === 'invitations') {
+            if (!access.canViewDashboard) {
+              json(res, 403, { error: 'Accès refusé' });
+              return;
+            }
+
+            const auditUser = user.username ?? `User${user.userId}`;
+
+            // GET /api/dashboard/guilds/:guildId/invitations
+            if (parts.length === 5 && req.method === 'GET') {
+              try {
+                const dbInvites = await prisma.guildInvite.findMany({
+                  where: { guildId },
+                  orderBy: { createdAt: 'desc' }
+                });
+                const dbSuspended = await prisma.suspendedInviter.findMany({
+                  where: { guildId },
+                  orderBy: { createdAt: 'desc' }
+                });
+                const inviteUsage = await prisma.memberInvite.groupBy({
+                  by: ['inviteCode'],
+                  where: { guildId, inviteCode: { not: null } },
+                  _count: { _all: true, leftAt: true },
+                  _max: { joinedAt: true }
+                });
+                const inviterUsage = await prisma.memberInvite.groupBy({
+                  by: ['inviterId', 'inviterTag'],
+                  where: { guildId, inviterId: { not: null } },
+                  _count: { _all: true, leftAt: true },
+                  _max: { joinedAt: true }
+                });
+                const totalJoined = await prisma.memberInvite.count({ where: { guildId } });
+                const totalLeft = await prisma.memberInvite.count({ where: { guildId, leftAt: { not: null } } });
+
+                json(res, 200, {
+                  invitations: dbInvites,
+                  suspendedInviters: dbSuspended,
+                  inviteUsage,
+                  inviterUsage,
+                  summary: { totalJoined, totalLeft }
+                });
+              } catch (err) {
+                logger.error('InvitationsAPI', 'Error fetching invitations:', err);
+                json(res, 500, { error: 'Erreur lors de la récupération des invitations' });
+              }
+              return;
+            }
+
+            // GET /api/dashboard/guilds/:guildId/invitations/suspended-inviters
+            if (parts.length === 6 && parts[5] === 'suspended-inviters' && req.method === 'GET') {
+              try {
+                const dbSuspended = await prisma.suspendedInviter.findMany({
+                  where: { guildId },
+                  orderBy: { createdAt: 'desc' }
+                });
+                json(res, 200, { suspendedInviters: dbSuspended });
+              } catch (err) {
+                logger.error('InvitationsAPI', 'Error fetching suspended inviters:', err);
+                json(res, 500, { error: 'Erreur lors de la récupération des créateurs suspendus' });
+              }
+              return;
+            }
+
+            // POST /api/dashboard/guilds/:guildId/invitations/suspended-inviters
+            if (parts.length === 6 && parts[5] === 'suspended-inviters' && req.method === 'POST') {
+              if (!access.canModerateContent) {
+                json(res, 403, { error: 'Accès refusé : Action de modération requise.' });
+                return;
+              }
+              const body = await readJsonBody<{ userId: string; userTag?: string; reason?: string; cascade?: boolean }>(req);
+              if (!body || !body.userId) {
+                json(res, 400, { error: 'userId est requis' });
+                return;
+              }
+
+              try {
+                let tag = body.userTag || '';
+                if (!tag) {
+                  const discordUser = await client.users.fetch(body.userId).catch(() => null);
+                  if (discordUser) tag = discordUser.tag;
+                }
+
+                const suspended = await prisma.suspendedInviter.upsert({
+                  where: {
+                    guildId_userId: { guildId, userId: body.userId }
+                  },
+                  update: {
+                    userTag: tag || undefined,
+                    reason: body.reason || null
+                  },
+                  create: {
+                    guildId,
+                    userId: body.userId,
+                    userTag: tag || `Utilisateur ${body.userId}`,
+                    reason: body.reason || null
+                  }
+                });
+
+                let cascadeResult = null;
+                if (body.cascade) {
+                  const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+                  if (discordGuild) {
+                    const joins = await prisma.memberInvite.findMany({
+                      where: { guildId, inviterId: body.userId, leftAt: null }
+                    });
+
+                    let purgedCount = 0;
+                    let failedCount = 0;
+
+                    for (const join of joins) {
+                      const member = await discordGuild.members.fetch(join.userId).catch(() => null);
+                      if (member) {
+                        try {
+                          await member.kick(`[Purge Sécurité] Expulsion en cascade (créateur ${body.userId})`);
+                          purgedCount++;
+                          await prisma.memberInvite.updateMany({
+                            where: { guildId, inviterId: body.userId, userId: join.userId },
+                            data: { leftAt: new Date() }
+                          }).catch(() => null);
+                        } catch (e) {
+                          failedCount++;
+                        }
+                      }
+                    }
+
+                    cascadeResult = { purgedCount, failedCount };
+                  }
+                }
+
+                await pushAudit(guildId, {
+                  user: auditUser,
+                  action: "Suspension créateur invitations",
+                  context: getGuildName(client, guildId),
+                  module: 'Invitations',
+                  eventType: 'Manuel',
+                  details: `Créateur suspendu : ${tag || body.userId} (${body.userId}). Raison : ${body.reason || 'Aucune'}${body.cascade ? ' | Purge en cascade déclenchée.' : ''}`,
+                  channelId: null
+                });
+
+                json(res, 201, { suspended, cascade: cascadeResult });
+              } catch (err) {
+                logger.error('InvitationsAPI', 'Error suspending inviter:', err);
+                json(res, 500, { error: 'Erreur lors de la suspension du créateur d\'invitations' });
+              }
+              return;
+            }
+
+            // POST /api/dashboard/guilds/:guildId/invitations/inviters/:userId/purge
+            if (parts.length === 8 && parts[5] === 'inviters' && parts[7] === 'purge' && req.method === 'POST') {
+              if (!access.canModerateContent) {
+                json(res, 403, { error: 'Accès refusé : Action de modération requise.' });
+                return;
+              }
+
+              const inviterId = parts[6];
+              try {
+                const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+                if (!discordGuild) {
+                  json(res, 404, { error: 'Serveur Discord introuvable' });
+                  return;
+                }
+
+                const joins = await prisma.memberInvite.findMany({
+                  where: { guildId, inviterId, leftAt: null }
+                });
+
+                let purgedCount = 0;
+                let failedCount = 0;
+
+                for (const join of joins) {
+                  const member = await discordGuild.members.fetch(join.userId).catch(() => null);
+                  if (member) {
+                    try {
+                      await member.kick(`[Purge Sécurité] Expulsion en cascade des membres invités par : ${inviterId}`);
+                      purgedCount++;
+                      await prisma.memberInvite.updateMany({
+                        where: { guildId, inviterId, userId: join.userId },
+                        data: { leftAt: new Date() }
+                      }).catch(() => null);
+                    } catch (e) {
+                      failedCount++;
+                    }
+                  }
+                }
+
+                await pushAudit(guildId, {
+                  user: auditUser,
+                  action: 'Purge membres créateur invitation',
+                  context: getGuildName(client, guildId),
+                  module: 'Invitations',
+                  eventType: 'Manuel',
+                  details: `Purge cascade pour le créateur ${inviterId}. Membres exclus : ${purgedCount}, Échecs : ${failedCount}.`,
+                  channelId: null
+                });
+
+                json(res, 200, { ok: true, purgedCount, failedCount });
+              } catch (err) {
+                logger.error('InvitationsAPI', 'Error purging inviter members:', err);
+                json(res, 500, { error: 'Erreur lors de la purge en cascade du créateur' });
+              }
+              return;
+            }
+
+            // DELETE /api/dashboard/guilds/:guildId/invitations/suspended-inviters/:userId
+            if (parts.length === 7 && parts[5] === 'suspended-inviters' && req.method === 'DELETE') {
+              if (!access.canModerateContent) {
+                json(res, 403, { error: 'Accès refusé : Action de modération requise.' });
+                return;
+              }
+              const userId = parts[6];
+              try {
+                await prisma.suspendedInviter.delete({
+                  where: {
+                    guildId_userId: { guildId, userId }
+                  }
+                });
+
+                await pushAudit(guildId, {
+                  user: auditUser,
+                  action: "Restauration créateur invitations",
+                  context: getGuildName(client, guildId),
+                  module: 'Invitations',
+                  eventType: 'Manuel',
+                  details: `Créateur d'invitations réhabilité : ${userId}`,
+                  channelId: null
+                });
+
+                json(res, 200, { ok: true });
+              } catch (err) {
+                logger.error('InvitationsAPI', 'Error removing suspended inviter:', err);
+                json(res, 500, { error: 'Erreur lors de la réhabilitation du créateur d\'invitations' });
+              }
+              return;
+            }
+
+            // GET /api/dashboard/guilds/:guildId/invitations/:code
+            if (parts.length === 6 && req.method === 'GET') {
+              const code = parts[5];
+              try {
+                const invite = await prisma.guildInvite.findUnique({
+                  where: { code }
+                });
+                if (!invite || invite.guildId !== guildId) {
+                  json(res, 404, { error: 'Invitation introuvable' });
+                  return;
+                }
+                const joins = await prisma.memberInvite.findMany({
+                  where: { inviteCode: code, guildId },
+                  orderBy: { joinedAt: 'desc' }
+                });
+
+                const userIds = [...new Set(joins.map((j) => j.userId))];
+                const profiles = userIds.length
+                  ? await prisma.memberProfile.findMany({
+                    where: { guildId, userId: { in: userIds } },
+                    select: { userId: true, displayName: true, username: true, avatarUrl: true, isBot: true, guildLeftAt: true }
+                  })
+                  : [];
+                const profileMap = new Map(profiles.map((p) => [p.userId, p]));
+                const enrichedJoins = joins.map((join) => {
+                  const profile = profileMap.get(join.userId);
+                  return {
+                    ...join,
+                    userTag: profile?.displayName ?? profile?.username ?? `Utilisateur ${join.userId}`,
+                    avatarUrl: profile?.avatarUrl ?? null,
+                    isBot: profile?.isBot ?? false,
+                    guildLeftAt: profile?.guildLeftAt ?? null
+                  };
+                });
+
+                const daysRaw = Number(url.searchParams.get('days') || '30');
+                const days = Number.isFinite(daysRaw) ? Math.min(Math.max(daysRaw, 1), 365) : 30;
+                const now = new Date();
+                const startDate = new Date(now);
+                startDate.setDate(startDate.getDate() - (days - 1));
+                startDate.setHours(0, 0, 0, 0);
+
+                const trendJoins = await prisma.memberInvite.findMany({
+                  where: { guildId, inviteCode: code, joinedAt: { gte: startDate } },
+                  select: { joinedAt: true }
+                });
+
+                const countsByDate = new Map<string, number>();
+                for (const entry of trendJoins) {
+                  const dateKey = entry.joinedAt.toISOString().split('T')[0];
+                  countsByDate.set(dateKey, (countsByDate.get(dateKey) ?? 0) + 1);
+                }
+
+                const labels: string[] = [];
+                const counts: number[] = [];
+                for (let i = 0; i < days; i++) {
+                  const d = new Date(startDate);
+                  d.setDate(startDate.getDate() + i);
+                  const key = d.toISOString().split('T')[0];
+                  labels.push(key);
+                  counts.push(countsByDate.get(key) ?? 0);
+                }
+
+                const totalJoined = joins.length;
+                const totalLeft = joins.filter((j) => j.leftAt).length;
+
+                json(res, 200, {
+                  invite,
+                  joins: enrichedJoins,
+                  trend: { labels, counts, totalJoined, totalLeft, totalStayed: totalJoined - totalLeft }
+                });
+              } catch (err) {
+                logger.error('InvitationsAPI', 'Error fetching single invitation details:', err);
+                json(res, 500, { error: 'Erreur lors de la récupération du détail de l\'invitation' });
+              }
+              return;
+            }
+
+            // PUT /api/dashboard/guilds/:guildId/invitations/:code/suspend
+            if (parts.length === 7 && parts[6] === 'suspend' && req.method === 'PUT') {
+              if (!access.canModerateContent) {
+                json(res, 403, { error: 'Accès refusé : Action de modération requise.' });
+                return;
+              }
+              const code = parts[5];
+              const body = await readJsonBody<{ suspended: boolean }>(req);
+
+              try {
+                const invite = await prisma.guildInvite.findUnique({ where: { code } });
+                if (!invite || invite.guildId !== guildId) {
+                  json(res, 404, { error: 'Invitation introuvable' });
+                  return;
+                }
+
+                const updated = await prisma.guildInvite.update({
+                  where: { code },
+                  data: { isSuspended: !!body?.suspended }
+                });
+
+                await pushAudit(guildId, {
+                  user: auditUser,
+                  action: body?.suspended ? "Suspension invitation" : "Restauration invitation",
+                  context: getGuildName(client, guildId),
+                  module: 'Invitations',
+                  eventType: 'Manuel',
+                  details: `Invitation ${code} ${body?.suspended ? 'suspendue' : 'restaurée'}.`,
+                  channelId: null
+                });
+
+                json(res, 200, { ok: true, invite: updated });
+              } catch (err) {
+                logger.error('InvitationsAPI', 'Error toggling invite suspension:', err);
+                json(res, 500, { error: 'Erreur lors de la modification du statut de suspension' });
+              }
+              return;
+            }
+
+            // POST /api/dashboard/guilds/:guildId/invitations/:code/purge
+            if (parts.length === 7 && parts[6] === 'purge' && req.method === 'POST') {
+              if (!access.canModerateContent) {
+                json(res, 403, { error: 'Accès refusé : Action de modération requise.' });
+                return;
+              }
+              const code = parts[5];
+
+              try {
+                const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+                if (!discordGuild) {
+                  json(res, 404, { error: 'Serveur Discord introuvable' });
+                  return;
+                }
+
+                const joins = await prisma.memberInvite.findMany({
+                  where: { inviteCode: code, leftAt: null }
+                });
+
+                let purgedCount = 0;
+                let failedCount = 0;
+
+                for (const join of joins) {
+                  const member = await discordGuild.members.fetch(join.userId).catch(() => null);
+                  if (member) {
+                    try {
+                      await member.kick(`[Purge Sécurité] Expulsion en masse des membres liés au code : ${code}`);
+                      purgedCount++;
+                      
+                      await prisma.memberInvite.updateMany({
+                        where: { inviteCode: code, userId: join.userId },
+                        data: { leftAt: new Date() }
+                      }).catch(() => null);
+                    } catch (e) {
+                      failedCount++;
+                    }
+                  }
+                }
+
+                await pushAudit(guildId, {
+                  user: auditUser,
+                  action: "Purge membres invitation",
+                  context: getGuildName(client, guildId),
+                  module: 'Invitations',
+                  eventType: 'Manuel',
+                  details: `Purge effectuée pour le code ${code}. Membres exclus avec succès : ${purgedCount}, Échecs : ${failedCount}.`,
+                  channelId: null
+                });
+
+                json(res, 200, { ok: true, purgedCount, failedCount });
+              } catch (err) {
+                logger.error('InvitationsAPI', 'Error purging members on invitation:', err);
+                json(res, 500, { error: 'Erreur lors de la purge en masse de l\'invitation' });
+              }
+              return;
+            }
+
+            // DELETE /api/dashboard/guilds/:guildId/invitations/:code
+            if (parts.length === 6 && req.method === 'DELETE') {
+              if (!access.canModerateContent) {
+                json(res, 403, { error: 'Accès refusé : Action de modération requise.' });
+                return;
+              }
+              const code = parts[5];
+
+              try {
+                const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+                if (discordGuild) {
+                  const invites = await discordGuild.invites.fetch().catch(() => null);
+                  const targetInvite = invites?.find(inv => inv.code === code);
+                  if (targetInvite) {
+                    await targetInvite.delete("Suppression depuis le Dashboard").catch(e => {
+                      logger.warn('DashboardAPI', `Impossible de supprimer l'invitation ${code} de Discord :`, e);
+                    });
+                  }
+                }
+
+                const updated = await prisma.guildInvite.update({
+                  where: { code },
+                  data: { isDeleted: true }
+                }).catch(() => null);
+
+                await pushAudit(guildId, {
+                  user: auditUser,
+                  action: "Suppression invitation",
+                  context: getGuildName(client, guildId),
+                  module: 'Invitations',
+                  eventType: 'Manuel',
+                  details: `Invitation ${code} supprimée de Discord et marquée supprimée en BDD.`,
+                  channelId: null
+                });
+
+                json(res, 200, { ok: true });
+              } catch (err) {
+                logger.error('InvitationsAPI', 'Error deleting invitation:', err);
+                json(res, 500, { error: 'Erreur lors de la suppression de l\'invitation' });
+              }
+              return;
+            }
+          }
+
           if (parts.length === 5 && parts[4] === 'leadership' && req.method === 'GET') {
             try {
               const metrics = await getStaffAlertsAndProgression(guildId);

@@ -1,5 +1,6 @@
 <script lang="ts">
   import Papicon from '../Papicon.svelte';
+  import { inviteDetailsModal } from '../../stores/inviteDetailsModal.svelte';
   import Chart from '../charts/Chart.svelte';
 
   let { invitesData } = $props<{ 
@@ -118,9 +119,16 @@
               <div class="flex items-center justify-between gap-4" role="button" tabindex="0" onclick={() => { selectedInvite = invite; inviteModalOpen = true }} onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && (selectedInvite = invite, inviteModalOpen = true)}>
               <div class="flex-1">
                 <div class="flex items-center gap-2 mb-2">
-                  <code class="text-sm font-black text-primary bg-primary/10 px-3 py-1 rounded-lg">
+                  <button
+                    class="text-sm font-black text-primary bg-primary/10 px-3 py-1 rounded-lg hover:bg-primary/20 transition-colors"
+                    onclick={(event) => {
+                      event.stopPropagation();
+                      inviteDetailsModal.show(invite.code);
+                    }}
+                    title="Ouvrir la vue Invitations"
+                  >
                     {invite.code}
-                  </code>
+                  </button>
                   {#if invite.uses > 0}
                     <span class="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-[9px] font-black">
                       {invite.uses} utilisations

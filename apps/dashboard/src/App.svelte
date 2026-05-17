@@ -8,6 +8,7 @@
   import { themeStore } from './lib/stores/theme.svelte';
   import { toast } from './lib/stores/toast.svelte';
   import ToastContainer from './lib/components/ToastContainer.svelte';
+  import InviteDetailsModal from './lib/components/invitations/InviteDetailsModal.svelte';
   import NotFound from './pages/NotFound.svelte';
   
   
@@ -40,6 +41,8 @@
   import Events from './pages/Events.svelte';
   import EventEditor from './pages/EventEditor.svelte';
   import EventControl from './pages/EventControl.svelte';
+  import Invitations from './pages/Invitations.svelte';
+  import InvitationDetail from './pages/InvitationDetail.svelte';
 
   const isPublicPage = $derived($router.path.startsWith('/profile/'));
 
@@ -61,7 +64,7 @@
     if (path.startsWith('/inbox')) return 'inbox';
     if (path.startsWith('/dailyalgo')) return 'daily_algo';
     if (path.startsWith('/events')) return 'events';
-    if (path.startsWith('/members')) return 'members';
+    if (path.startsWith('/members') || path.startsWith('/invitations')) return 'members';
     if (path.startsWith('/sanctions')) return 'sanctions';
     if (path.startsWith('/double-accounts')) return 'double_accounts';
     if (path.startsWith('/logs')) return 'logs';
@@ -259,6 +262,14 @@
       <Route path="/double-accounts">
         <DoubleAccounts />
       </Route>
+      <Route path="/invitations">
+        <Invitations />
+      </Route>
+      <Route path="/invitations/:code" let:meta>
+        {#key meta.params.code}
+          <InvitationDetail code={meta.params.code} />
+        {/key}
+      </Route>
 
       <Route path="/events">
         <Events />
@@ -288,3 +299,4 @@
 {/if}
 
 <ToastContainer />
+<InviteDetailsModal />

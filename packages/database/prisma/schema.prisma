@@ -102,6 +102,7 @@ model Guild {
   memberDailyStats MemberDailyStat[]
   memberInvites MemberInvite[]
   guildInvites  GuildInvite[]
+  suspendedInviters SuspendedInviter[]
   linkedAccounts LinkedAccount[]
 
   tutoringConfig TutoringConfig?
@@ -1167,6 +1168,7 @@ model GuildInvite {
   
   isTemporary Boolean @default(false)
   isDeleted   Boolean @default(false)
+  isSuspended Boolean @default(false)
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -1175,6 +1177,21 @@ model GuildInvite {
   
   @@index([guildId, inviterId])
   @@map("guild_invites")
+}
+
+model SuspendedInviter {
+  id        String   @id @default(cuid())
+  guildId   String
+  userId    String   // ID Discord du créateur
+  userTag   String?  // Tag de l'utilisateur
+  reason    String?  // Raison de la suspension
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, userId])
+  @@map("suspended_inviters")
 }
 
 model GuildHourlyStat {
