@@ -48,6 +48,9 @@ model Guild {
 
   codePoliceEnabled        Boolean @default(false)
   codePoliceRules          CodePoliceRule[]
+
+  autoNicknameModerationEnabled Boolean   @default(false)
+  autoNicknameModerationWords   String[]  @default([])
   
   dailyAlgoEnabled         Boolean @default(false)
   dailyAlgoChannelId       String?

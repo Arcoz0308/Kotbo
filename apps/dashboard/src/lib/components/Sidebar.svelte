@@ -16,6 +16,7 @@
     { name: "Daily Algo", icon: "code", href: "/dailyalgo", featureKey: "daily_algo" },
     { name: "Membres", icon: "user", href: "/members", featureKey: "members" },
     { name: "Sanctions", icon: "alert-triangle", href: "/sanctions", featureKey: "sanctions" },
+    { name: "Pseudos", icon: "tag", href: "/nickname-moderation", featureKey: "nickname_moderation" },
     { name: "Doubles Comptes", icon: "users", href: "/double-accounts", featureKey: "double_accounts" },
     { name: "Invitations", icon: "link", href: "/invitations", featureKey: "members" },
     { name: "Logs Discord", icon: "file-text", href: "/logs", featureKey: "logs" },

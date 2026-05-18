@@ -5808,6 +5808,96 @@ export const startDashboardApi = (client: Client) => {
           }
 
 
+          // ---------------------------------------------------------------
+          // GET /api/dashboard/guilds/:guildId/nickname-moderation
+          // PATCH /api/dashboard/guilds/:guildId/nickname-moderation
+          // ---------------------------------------------------------------
+          if (parts.length === 5 && parts[4] === 'nickname-moderation') {
+            if (req.method === 'GET') {
+              try {
+                const guild = await prisma.guild.findUnique({
+                  where: { id: guildId },
+                  select: {
+                    autoNicknameModerationEnabled: true,
+                    autoNicknameModerationWords: true,
+                  },
+                });
+
+                if (!guild) {
+                  json(res, 404, { error: 'Serveur introuvable' });
+                  return;
+                }
+
+                json(res, 200, {
+                  enabled: guild.autoNicknameModerationEnabled,
+                  bannedWords: guild.autoNicknameModerationWords,
+                });
+              } catch (err) {
+                logger.error('NicknameAPI', 'GET nickname-moderation error:', err);
+                json(res, 500, { error: 'Erreur lors de la récupération de la configuration' });
+              }
+              return;
+            }
+
+            if (req.method === 'PATCH') {
+              const body = await readJsonBody<{
+                enabled?: boolean;
+                bannedWords?: string[];
+              }>(req);
+
+              if (!body) {
+                json(res, 400, { error: 'Payload invalide' });
+                return;
+              }
+
+              try {
+                const data: { autoNicknameModerationEnabled?: boolean; autoNicknameModerationWords?: string[] } = {};
+
+                if (Object.prototype.hasOwnProperty.call(body, 'enabled')) {
+                  data.autoNicknameModerationEnabled = !!body.enabled;
+                }
+
+                if (Object.prototype.hasOwnProperty.call(body, 'bannedWords') && Array.isArray(body.bannedWords)) {
+                  // Nettoyage : trim, lowercase, dédoublonnage, max 200 mots, max 100 chars par mot
+                  data.autoNicknameModerationWords = [
+                    ...new Set(
+                      body.bannedWords
+                        .map((w: string) => String(w).trim().toLowerCase())
+                        .filter((w: string) => w.length > 0 && w.length <= 100),
+                    ),
+                  ].slice(0, 200);
+                }
+
+                if (Object.keys(data).length === 0) {
+                  json(res, 400, { error: 'Aucun champ à mettre à jour' });
+                  return;
+                }
+
+                await prisma.guild.update({ where: { id: guildId }, data });
+
+                // Invalider le cache bot pour que les changements prennent effet immédiatement
+                const { invalidateNicknameModerationCache } = await import('../events/nicknameModeration.js');
+                invalidateNicknameModerationCache(guildId);
+
+                await pushAudit(guildId, {
+                  user: auditUser,
+                  action: 'Mise à jour modération pseudos',
+                  context: getGuildName(client, guildId),
+                  module: 'Modération des pseudos',
+                  eventType: 'Manuel',
+                  details: `Activé: ${data.autoNicknameModerationEnabled ?? '(inchangé)'}, Mots bannis: ${data.autoNicknameModerationWords?.length ?? '(inchangé)'} entrée(s)`,
+                  channelId: null,
+                });
+
+                json(res, 200, { ok: true });
+              } catch (err) {
+                logger.error('NicknameAPI', 'PATCH nickname-moderation error:', err);
+                json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration' });
+              }
+              return;
+            }
+          }
+
           if (parts.length === 5 && parts[4] === 'notifications' && req.method === 'PUT') {
             const body = await readJsonBody<NotificationSettings>(req);
             if (!body) {

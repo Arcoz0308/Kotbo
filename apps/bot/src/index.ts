@@ -51,6 +51,7 @@ import { registerCodePoliceListener } from './events/codePolice.js';
 import { registerModerationAuditListener } from './events/moderation.js';
 import { registerAdvancedLogsListener } from './events/advancedLogs.js';
 import { registerCloseSourceWarningListener } from './events/closeSourceWarning.js';
+import { registerNicknameModerationListener } from './events/nicknameModeration.js';
 import { registerDailyAlgoHandlers } from './handlers/dailyAlgoHandler.js';
 import { registerMeetingEvents } from './events/meetingEvents.js';
 import { registerAnalyticsListeners } from './events/analyticsEvents.js';
@@ -233,6 +234,7 @@ client.once(Events.ClientReady, async (c) => {
   registerModerationAuditListener(client);
   registerAdvancedLogsListener(client);
   registerCloseSourceWarningListener(client);
+  registerNicknameModerationListener(client);
   registerDailyAlgoHandlers(client);
   registerMeetingEvents(client);
   registerAnalyticsListeners(client);

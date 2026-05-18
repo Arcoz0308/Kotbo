@@ -1085,4 +1085,26 @@ export async function purgeInviterMembers(userId: string, guildId = authStore.se
   });
 }
 
+// ==========================================
+// MODÉRATION DES PSEUDOS
+// ==========================================
 
+export async function fetchNicknameModerationConfig(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/nickname-moderation', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Nickname Moderation Config):'
+  });
+}
+
+export async function updateNicknameModerationConfig(
+  payload: { enabled?: boolean; bannedWords?: string[] },
+  guildId = authStore.selectedGuildId
+) {
+  return dashboardMutation('/nickname-moderation', {
+    method: 'PATCH',
+    payload,
+    guildId,
+    errorContext: 'API Error (Update Nickname Moderation Config):'
+  });
+}
