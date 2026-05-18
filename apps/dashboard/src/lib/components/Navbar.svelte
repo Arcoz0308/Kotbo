@@ -9,6 +9,8 @@
 
   let config = $state({ discordClientId: '' });
   let userMenuOpen = $state(false);
+  let serverDropdownOpen = $state(false);
+  let searchQuery = $state('');
 
   onMount(() => {
     // Fire async fetch without making the onMount callback async
@@ -29,10 +31,22 @@
       if (!target.closest('.user-menu-container')) {
         userMenuOpen = false;
       }
+      if (!target.closest('.server-selector-container')) {
+        serverDropdownOpen = false;
+        searchQuery = '';
+      }
     };
     window.addEventListener('click', handleClick);
     return () => window.removeEventListener('click', handleClick);
   });
+
+  function toggleServerDropdown(e: MouseEvent) {
+    e.stopPropagation();
+    serverDropdownOpen = !serverDropdownOpen;
+    if (!serverDropdownOpen) {
+      searchQuery = '';
+    }
+  }
 
   const logout = () => {
     authStore.logout();
@@ -47,6 +61,12 @@
 
   const selectedGuild = $derived(
     authStore.guilds.find((guild) => guild.id === authStore.selectedGuildId)
+  );
+
+  const filteredGuilds = $derived(
+    authStore.guilds.filter((guild) =>
+      guild.name.toLowerCase().includes(searchQuery.toLowerCase())
+    )
   );
 
   const highestRole = $derived.by(() => {
@@ -82,25 +102,80 @@
 <svelte:window />
 
 <header class="flex items-center justify-between px-10 bg-surface/40 backdrop-blur-3xl w-[calc(100%-16rem)] h-20 fixed top-0 right-0 z-40 border-b border-outline-variant/30 transition-all duration-300">
-  <div class="flex items-center gap-6">
-    <div class="relative">
-      <div class="flex items-center gap-3 bg-surface-container-low px-5 py-2.5 rounded-2xl text-xs font-bold text-on-surface-variant border border-outline-variant/30 transition-all duration-300 shadow-sm">
-        {#if guildIconUrl}
-          <img src={guildIconUrl} alt="Server Logo" class="w-6 h-6 rounded-lg object-cover">
+  <div class="flex items-center gap-6 server-selector-container relative">
+    <button 
+      onclick={toggleServerDropdown}
+      disabled={authStore.guilds.length <= 1}
+      class="flex items-center gap-3 bg-surface-container-low hover:bg-surface-container-high/80 px-5 py-2.5 rounded-2xl text-xs font-bold text-on-surface border border-outline-variant/30 hover:border-primary/30 transition-all duration-300 shadow-sm hover:shadow-md cursor-pointer disabled:cursor-default disabled:hover:bg-surface-container-low disabled:border-outline-variant/30 group"
+    >
+      {#if guildIconUrl}
+        <img src={guildIconUrl} alt="Server Logo" class="w-6 h-6 rounded-lg object-cover transition-transform duration-300 group-hover:scale-105">
+      {:else}
+        <div class="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center text-[10px] font-black text-primary border border-primary/20 transition-transform duration-300 group-hover:scale-105">
+          {selectedGuild?.name?.charAt(0) || '?'}
+        </div>
+      {/if}
+      <span class="tracking-tight text-on-surface-variant font-bold transition-colors group-hover:text-primary">
+        {#if selectedGuild?.name}
+          {selectedGuild.name}
         {:else}
-          <div class="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center text-[10px] font-black text-primary border border-primary/20">
-            {selectedGuild?.name?.charAt(0) || '?'}
-          </div>
+          <div class="h-4 w-24 bg-surface-variant/50 rounded animate-pulse inline-block align-middle"></div>
         {/if}
-        <span class="tracking-tight">
-          {#if selectedGuild?.name}
-            {selectedGuild.name}
+      </span>
+      {#if authStore.guilds.length > 1}
+        <Papicon icon="chevron-down" size={14} class="text-on-surface-variant/50 group-hover:text-primary transition-transform duration-300 {serverDropdownOpen ? 'rotate-180 text-primary' : ''}" />
+      {/if}
+    </button>
+
+    {#if serverDropdownOpen && authStore.guilds.length > 1}
+      <div class="absolute left-0 top-14 w-64 rounded-2xl border border-outline-variant/30 bg-surface-container-lowest/95 backdrop-blur-2xl shadow-2xl shadow-black/15 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-50 py-1.5">
+        <div class="px-4 py-2 border-b border-outline-variant/20 mb-1.5 space-y-2">
+          <p class="text-[10px] font-black text-on-surface-variant/60 uppercase tracking-widest">Sélectionner un serveur</p>
+          <div class="relative flex items-center">
+            <span class="absolute left-3 text-on-surface-variant/40">
+              <Papicon icon="search" size={12} />
+            </span>
+            <input
+              type="text"
+              placeholder="Rechercher..."
+              bind:value={searchQuery}
+              class="w-full pl-8 pr-3 py-1.5 rounded-lg bg-surface/50 border border-outline-variant/30 text-[11px] font-medium text-on-surface placeholder:text-on-surface-variant/30 focus:outline-hidden focus:border-primary/50 transition-colors"
+            />
+          </div>
+        </div>
+        <div class="max-h-60 overflow-y-auto pr-1">
+          {#if filteredGuilds.length === 0}
+            <div class="px-4 py-3 text-center text-xs text-on-surface-variant/50 font-bold">
+              Aucun serveur trouvé
+            </div>
           {:else}
-            <div class="h-4 w-24 bg-surface-variant/50 rounded animate-pulse inline-block align-middle"></div>
+            {#each filteredGuilds as guild}
+              <button
+                onclick={() => {
+                  authStore.setGuild(guild.id);
+                  serverDropdownOpen = false;
+                  searchQuery = '';
+                  window.location.reload();
+                }}
+                class="w-full flex items-center gap-3 px-4 py-2.5 text-left text-xs font-bold transition-all hover:bg-primary/8 {guild.id === authStore.selectedGuildId ? 'text-primary bg-primary/4' : 'text-on-surface-variant hover:text-primary'}"
+              >
+                {#if guild.icon}
+                  <img src={`https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png`} alt={guild.name} class="w-5 h-5 rounded-md object-cover">
+                {:else}
+                  <div class="w-5 h-5 rounded-md bg-primary/10 flex items-center justify-center text-[8px] font-black text-primary border border-primary/20">
+                    {guild.name.charAt(0)}
+                  </div>
+                {/if}
+                <span class="truncate flex-1">{guild.name}</span>
+                {#if guild.id === authStore.selectedGuildId}
+                  <Papicon icon="check" size={14} class="text-primary shrink-0" />
+                {/if}
+              </button>
+            {/each}
           {/if}
-        </span>
+        </div>
       </div>
-    </div>
+    {/if}
   </div>
 
   <div class="flex items-center gap-8">
@@ -132,7 +207,7 @@
 
     <NotificationBell />
 
-    <div class="flex items-center gap-4 group">
+    <div class="flex items-center gap-4 group user-menu-container relative">
       <div class="flex flex-col items-end">
         <span class="text-xs font-black text-on-surface font-headline leading-none">
           {#if authStore.user?.username}

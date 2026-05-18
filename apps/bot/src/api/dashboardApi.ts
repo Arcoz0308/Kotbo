@@ -289,6 +289,7 @@ type DashboardRole = {
   mention: string;
   permissions: string[];
   position?: number;
+  color?: string;
 };
 
 type MemberCaseQuickAction = 'WARN' | 'KICK' | 'TIMEOUT' | 'BAN';
@@ -978,6 +979,9 @@ const resolveDashboardAccess = async (
   userId: string,
   knownPermissions?: bigint | null,
 ): Promise<DashboardAccess> => {
+  const isGlobalAdmin = await resolveAdminAccess(client, userId);
+  if (isGlobalAdmin) return DASHBOARD_ACCESS_ADMIN;
+
   const guildConfig = await prisma.guild.findUnique({
     where: { id: guildId },
     select: { moderatorRoleId: true }
@@ -1193,7 +1197,7 @@ function extractMessagePreview(details: string): string | null {
   return content === '_vide_' ? '' : content;
 }
 
-function mapGuildRolePermissions(role: { id: string; name: string; permissions?: { toArray: () => string[] } | string[] }, mention: string): DashboardRole {
+function mapGuildRolePermissions(role: { id: string; name: string; hexColor?: string; permissions?: { toArray: () => string[] } | string[] }, mention: string): DashboardRole {
   const permissions = Array.isArray(role.permissions)
     ? role.permissions
     : typeof role.permissions?.toArray === 'function'
@@ -1205,6 +1209,7 @@ function mapGuildRolePermissions(role: { id: string; name: string; permissions?:
     name: role.name,
     mention,
     permissions,
+    color: role.hexColor,
   };
 }
 
@@ -2512,66 +2517,62 @@ export const startDashboardApi = (client: Client) => {
               }
             }
 
-            const accessibleGuilds = new Map<string, {
+            const isGlobalAdmin = await resolveAdminAccess(client, user.userId);
+            const accessibleGuildsList: Array<{
               id: string;
               name: string;
               icon: string | null;
               owner: boolean;
               botPresent: boolean;
               accessLevel: Exclude<DashboardAccessLevel, 'none'>;
-            }>();
+            }> = [];
 
-            for (const guild of userGuilds) {
-              const perms = userGuildPermissions.get(guild.id);
-              if (!perms || !hasDashboardAdminPermission(perms)) continue;
+            for (const botGuild of client.guilds.cache.values()) {
+              const guildId = botGuild.id;
+              const isMember = userGuildsById.has(guildId);
+              if (!isMember && !isGlobalAdmin) continue; // For non-global admins, user must be in the guild on Discord
 
-              accessibleGuilds.set(guild.id, {
-                id: guild.id,
-                name: guild.name,
-                icon: guild.icon ?? null,
-                owner: !!guild.owner,
-                botPresent: client.guilds.cache.has(guild.id),
-                accessLevel: 'admin'
-              });
-            }
+              // Check activation status: if not activated, only owner/global admins can access
+              const activated = isGuildActivated(guildId);
+              if (!activated && !isGlobalAdmin) continue;
 
-            const botGuildIds = client.guilds.cache.map((guild) => guild.id);
-            const accessResults = await Promise.all(
-              botGuildIds.map(async (guildId) => {
-                if (accessibleGuilds.has(guildId)) return null;
-                if (!userGuildsById.has(guildId)) return null;
+              const perms = userGuildPermissions.get(guildId) ?? BigInt(0);
+              const isAdmin = hasDashboardAdminPermission(perms);
+              
+              let hasAccess = isGlobalAdmin || isAdmin;
+              let accessLevel: Exclude<DashboardAccessLevel, 'none'> = isAdmin ? 'admin' : 'moderator';
 
+              if (!hasAccess) {
                 try {
                   const access = await resolveDashboardAccess(
                     client,
                     guildId,
                     user.userId,
-                    userGuildPermissions.get(guildId) ?? null,
+                    perms,
                   );
-                  return { guildId, access };
+                  if (access.canViewDashboard) {
+                    hasAccess = true;
+                    accessLevel = access.level === 'admin' ? 'admin' : 'moderator';
+                  }
                 } catch (err) {
                   logger.warn('DashboardAPI', `Failed to resolve access for guild ${guildId}:`, err);
-                  return null;
                 }
-              })
-            );
+              }
 
-            for (const result of accessResults) {
-              if (!result || !result.access.canViewDashboard) continue;
-              
-              const sourceGuild = userGuildsById.get(result.guildId);
-              accessibleGuilds.set(result.guildId, {
-                id: result.guildId,
-                name: sourceGuild.name,
-                icon: sourceGuild.icon ?? null,
-                owner: !!sourceGuild.owner,
-                botPresent: true,
-                accessLevel: result.access.level === 'admin' ? 'admin' : 'moderator'
-              });
+              if (hasAccess) {
+                const sourceGuild = userGuildsById.get(guildId);
+                accessibleGuildsList.push({
+                  id: guildId,
+                  name: sourceGuild ? sourceGuild.name : botGuild.name,
+                  icon: sourceGuild ? (sourceGuild.icon ?? null) : (botGuild.icon ?? null),
+                  owner: sourceGuild ? !!sourceGuild.owner : false,
+                  botPresent: true,
+                  accessLevel
+                });
+              }
             }
 
-            const payload = Array.from(accessibleGuilds.values()).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
-
+            const payload = accessibleGuildsList.sort((a, b) => a.name.localeCompare(b.name, 'fr'));
             json(res, 200, { guilds: payload });
           } catch (err) {
             logger.error('API', 'Unexpected error in /api/user/guilds:', err);
@@ -3050,9 +3051,14 @@ export const startDashboardApi = (client: Client) => {
             name: string;
             updatedAt: string;
             accessLevel: Exclude<DashboardAccessLevel, 'none'>;
+            activated: boolean;
           }> = [];
 
+          const isGlobalAdmin = await resolveAdminAccess(client, user.userId);
           for (const guild of guilds) {
+            const activated = isGuildActivated(guild.id);
+            if (!activated && !isGlobalAdmin) continue;
+
             const access = await resolveDashboardAccess(client, guild.id, user.userId);
             if (!access.canViewDashboard) continue;
 
@@ -3061,7 +3067,7 @@ export const startDashboardApi = (client: Client) => {
               name: getGuildName(client, guild.id),
               updatedAt: guild.updatedAt.toISOString(),
               accessLevel: access.level === 'admin' ? 'admin' : 'moderator',
-              activated: isGuildActivated(guild.id) || user.userId === DISCORD_CLIENT_OWNER_ID
+              activated: activated
             });
           }
 
@@ -3078,9 +3084,10 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
-          // Gating check for guild activation (bypassed for owner)
+          // Gating check for guild activation (bypassed for owner and global admins)
+          const isGlobalAdmin = await resolveAdminAccess(client, user.userId);
           const isActivationRequest = parts.length === 5 && parts[4] === 'activate' && req.method === 'POST';
-          if (!isGuildActivated(guildId) && !isActivationRequest && user.userId !== DISCORD_CLIENT_OWNER_ID) {
+          if (!isGuildActivated(guildId) && !isActivationRequest && !isGlobalAdmin) {
             json(res, 403, { error: 'Activation requise', needsActivation: true });
             return;
           }
@@ -3629,8 +3636,69 @@ export const startDashboardApi = (client: Client) => {
               const olderMessages = olderStats.reduce((s, d) => s + d.messagesCount, 0);
               const messagesTrend = olderMessages > 0 ? Math.round((recentMessages - olderMessages) / olderMessages * 100) : 0;
 
+              // Resolve clan/server tag and calculate growth
+              let clanTag: string | null = null;
+              let clanTaggedMembersCount = 0;
+              let taggedMembersList: any[] = [];
+              if (discordGuild) {
+                try {
+                  const { Routes } = await import('discord.js');
+                  const rawGuild = await client.rest.get(Routes.guild(guildId)) as any;
+                  if (rawGuild.clan && rawGuild.clan.tag) {
+                    clanTag = rawGuild.clan.tag;
+                  }
+                } catch (err) {
+                  logger.debug('AnalyticsAPI', 'Error fetching raw guild clan info (non-critical): ' + String(err));
+                }
+
+                if (!clanTag) {
+                  clanTag = (discordGuild as any).clan?.tag || (discordGuild as any).clanTag;
+                }
+
+                try {
+                  const allMembers = await discordGuild.members.fetch();
+                  
+                  // If tag is still unresolved, scan members' primaryGuild
+                  if (!clanTag) {
+                    for (const [_, m] of allMembers) {
+                      const primaryGuild = (m.user as any).primaryGuild;
+                      if (primaryGuild && primaryGuild.identityGuildId === guildId && primaryGuild.tag) {
+                        clanTag = primaryGuild.tag;
+                        break;
+                      }
+                    }
+                  }
+
+                  if (clanTag) {
+                    const tagLower = clanTag.toLowerCase();
+                    const taggedMembers = allMembers.filter(m => {
+                      const hasNativeTag = (m.user as any).clan?.tag === clanTag || 
+                                           (m.user as any).primaryGuild?.tag === clanTag;
+                      
+                      const hasNicknameTag = m.nickname?.toLowerCase().includes(`[${tagLower}]`) || 
+                                             m.nickname?.toLowerCase().includes(`(${tagLower})`) ||
+                                             m.nickname?.toLowerCase().startsWith(`${tagLower} `) ||
+                                             m.nickname?.toLowerCase().startsWith(`${tagLower} |`) ||
+                                             m.user.username.toLowerCase().includes(`[${tagLower}]`) || 
+                                             m.user.username.toLowerCase().includes(`(${tagLower})`) ||
+                                             m.user.displayName?.toLowerCase().includes(`[${tagLower}]`) || 
+                                             m.user.displayName?.toLowerCase().includes(`(${tagLower})`);
+                                             
+                      return hasNativeTag || hasNicknameTag;
+                    });
+
+                    clanTaggedMembersCount = taggedMembers.size;
+                    taggedMembersList = Array.from(taggedMembers.values());
+                  }
+                } catch (fetchErr) {
+                  logger.error('AnalyticsAPI', 'Error fetching guild members for tag analytics:', fetchErr);
+                }
+              }
+
               const analyticsPayload = {
                 period: periodDays,
+                clanTag,
+                clanTaggedMembersCount,
                 // Live stats
                 live: {
                   totalMembers,
@@ -3673,19 +3741,26 @@ export const startDashboardApi = (client: Client) => {
                   messagesTrend,
                 },
                 // Daily trend data
-                dailyTrend: dailyStats.map(d => ({
-                  dateKey: d.dateKey,
-                  messages: d.messagesCount,
-                  voiceMinutes: d.voiceMinutes,
-                  voiceSessions: d.voiceSessionsCount,
-                  membersJoined: d.membersJoined,
-                  membersLeft: d.membersLeft,
-                  totalMembers: d.totalMembers,
-                  onlineMembers: d.onlineMembers,
-                  peakOnline: d.peakOnline,
-                  peakVoice: d.peakVoice,
-                  sanctions: d.sanctionsCount,
-                })),
+                dailyTrend: dailyStats.map(d => {
+                  const trendDate = new Date(d.dateKey + 'T23:59:59.999Z');
+                  const count = clanTag 
+                    ? taggedMembersList.filter(m => m.joinedAt && m.joinedAt <= trendDate).size 
+                    : 0;
+                  return {
+                    dateKey: d.dateKey,
+                    messages: d.messagesCount,
+                    voiceMinutes: d.voiceMinutes,
+                    voiceSessions: d.voiceSessionsCount,
+                    membersJoined: d.membersJoined,
+                    membersLeft: d.membersLeft,
+                    totalMembers: d.totalMembers,
+                    onlineMembers: d.onlineMembers,
+                    peakOnline: d.peakOnline,
+                    peakVoice: d.peakVoice,
+                    sanctions: d.sanctionsCount,
+                    taggedMembersCount: count,
+                  };
+                }),
                 // Rankings
                 topChannels,
                 topMessageMembers: topMessageMembers.map(m => ({
@@ -8035,12 +8110,12 @@ export const startDashboardApi = (client: Client) => {
                   if (diffDays < minDays && !body.force) {
                     json(res, 403, { 
                       error: `La période de test est trop courte (${Math.floor(diffDays)}j / ${minDays}j).`,
-                      canForce: access.level === 'admin'
+                      canForce: accessLevel.level === 'admin'
                     });
                     return;
                   }
 
-                  if (body.force && access.level !== 'admin') {
+                  if (body.force && accessLevel.level !== 'admin') {
                     json(res, 403, { error: 'Seuls les administrateurs peuvent forcer une validation précoce.' });
                     return;
                   }
@@ -8420,6 +8495,77 @@ export const startDashboardApi = (client: Client) => {
                   onlineMembers: onlineCount,
                   totalMembers: discordGuild.memberCount
                 };
+
+                // Fetch raw guild object to get clan details if available
+                let clanTag: string | null = null;
+                try {
+                  const { Routes } = await import('discord.js');
+                  const rawGuild = await client.rest.get(Routes.guild(guildId)) as any;
+                  if (rawGuild.clan && rawGuild.clan.tag) {
+                    clanTag = rawGuild.clan.tag;
+                  }
+                } catch (err) {
+                  logger.debug('AnalyticsAPI', 'Error fetching raw guild clan info (non-critical): ' + String(err));
+                }
+
+                // If not found in REST raw guild, fallback to guild property or cache
+                if (!clanTag) {
+                  clanTag = (discordGuild as any).clan?.tag || (discordGuild as any).clanTag;
+                }
+
+                // Fetch all members to find tag if not yet resolved, and to calculate growth
+                try {
+                  const allMembers = await discordGuild.members.fetch();
+                  
+                  // If tag is still unresolved, scan members' primaryGuild
+                  if (!clanTag) {
+                    for (const [_, m] of allMembers) {
+                      const primaryGuild = (m.user as any).primaryGuild;
+                      if (primaryGuild && primaryGuild.identityGuildId === guildId && primaryGuild.tag) {
+                        clanTag = primaryGuild.tag;
+                        break;
+                      }
+                    }
+                  }
+
+                  if (clanTag) {
+                    (data as any).clanTag = clanTag;
+                    
+                    const tagLower = clanTag.toLowerCase();
+                    const taggedMembers = allMembers.filter(m => {
+                      const hasNativeTag = (m.user as any).clan?.tag === clanTag || 
+                                           (m.user as any).primaryGuild?.tag === clanTag;
+                      
+                      // Exact matching to avoid false positives (e.g. usernames containing the word)
+                      const hasNicknameTag = m.nickname?.toLowerCase().includes(`[${tagLower}]`) || 
+                                             m.nickname?.toLowerCase().includes(`(${tagLower})`) ||
+                                             m.nickname?.toLowerCase().startsWith(`${tagLower} `) ||
+                                             m.nickname?.toLowerCase().startsWith(`${tagLower} |`) ||
+                                             m.user.username.toLowerCase().includes(`[${tagLower}]`) || 
+                                             m.user.username.toLowerCase().includes(`(${tagLower})`) ||
+                                             m.user.displayName?.toLowerCase().includes(`[${tagLower}]`) || 
+                                             m.user.displayName?.toLowerCase().includes(`(${tagLower})`);
+                                             
+                      return hasNativeTag || hasNicknameTag;
+                    });
+
+                    (data as any).clanTaggedMembersCount = taggedMembers.size;
+
+                    // Enrich dailyTrend with taggedMembersCount
+                    if (data.dailyTrend && Array.isArray(data.dailyTrend)) {
+                      data.dailyTrend = data.dailyTrend.map((entry: any) => {
+                        const trendDate = new Date(entry.dateKey + 'T23:59:59.999Z');
+                        const count = taggedMembers.filter(m => m.joinedAt && m.joinedAt <= trendDate).size;
+                        return {
+                          ...entry,
+                          taggedMembersCount: count
+                        };
+                      });
+                    }
+                  }
+                } catch (fetchErr) {
+                  logger.error('AnalyticsAPI', 'Error fetching guild members for clan tag analytics:', fetchErr);
+                }
 
                 // Enrich popular channels with names
                 if (data.topChannels) {
