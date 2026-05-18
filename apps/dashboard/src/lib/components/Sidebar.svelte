@@ -29,6 +29,7 @@
 
   const staffManagementItems = [
     { name: "Recrutement", icon: "user-plus", href: "/recruitment", featureKey: "recruitment" },
+    { name: "Tickets Support", icon: "message-square", href: "/tickets", featureKey: "tickets" },
     { name: "Annuaire Staff", icon: "users", href: "/staff-management?tab=members", featureKey: "staff_directory" },
     { name: "Hiérarchie & Rôles", icon: "shield", href: "/staff-management?tab=roles", featureKey: "staff_roles" },
     { name: "Tutorat & Formation", icon: "book-open", href: "/tutoring", featureKey: "tutoring" },
@@ -87,7 +88,7 @@
     if (isAdmin) return staffManagementItems;
     return staffManagementItems.filter(item => {
       if (item.href === '/tutoring') return isTutor || isApprentice || isModerator;
-      if (['/absences', '/meetings'].includes(item.href)) return isStaff || isModerator;
+      if (['/absences', '/meetings', '/tickets', '/recruitment'].includes(item.href)) return isStaff || isModerator;
       return false;
     }).filter((item) => canViewFeature(item.featureKey));
   });

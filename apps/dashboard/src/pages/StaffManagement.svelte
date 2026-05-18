@@ -345,51 +345,49 @@
 
   // Loadings
 
-  onMount(async () => {
+  onMount(() => {
     const initialTab = getTabFromSearch(window.location.search);
     if (initialTab) {
       activeTab = initialTab;
     }
+  });
+
+  $effect(() => {
+    const currentGuildId = authStore.selectedGuildId;
+    if (!currentGuildId) return;
 
     if (!authStore.token) {
       error = 'Non authentifié';
       return;
     }
 
-    try {
-      // Récupérer les serveurs accessibles au dashboard
-      const guildsRes = await fetch(`${API_BASE_URL}/api/dashboard/guilds`, {
-        headers: { Authorization: `Bearer ${authStore.token}` }
-      });
-      const guildsData = await guildsRes.json();
+    guildId = currentGuildId;
+    const activeGuild = authStore.guilds.find((g: any) => g.id === currentGuildId);
+    accessLevel = activeGuild?.accessLevel || 'none';
 
-      const adminGuild = Array.isArray(guildsData.guilds)
-        ? guildsData.guilds.find((guild: { accessLevel?: string }) => guild.accessLevel === 'admin')
-        : null;
-
-      if (adminGuild) {
-        guildId = adminGuild.id;
-        accessLevel = adminGuild.accessLevel;
-      }
-
-      if (accessLevel !== 'admin' && !directoryAccess.canView && !rolesAccess.canView) {
-        error = 'Accès insuffisant pour cette page';
-        return;
-      }
-
-      const dashboardState = await fetchGuildState(guildId);
-      availableDiscordRoles = dashboardState?.discordRoles || [];
-      availableDiscordChannels = dashboardState?.discordChannels || [];
-      availableDiscordVoiceChannels = dashboardState?.discordVoiceChannels || [];
-
-      // Démarrage du chargement intelligent
-      console.log('--- PRIORITIZED LOADING START ---');
-      await loadInitialData();
-      console.log('--- PRIORITIZED LOADING END ---');
-    } catch (err) {
-      console.error('Erreur:', err);
-      error = 'Erreur lors du chargement';
+    if (accessLevel !== 'admin' && !directoryAccess.canView && !rolesAccess.canView) {
+      error = 'Accès insuffisant pour cette page';
+      return;
+    } else {
+      error = '';
     }
+
+    void (async () => {
+      try {
+        const dashboardState = await fetchGuildState(currentGuildId);
+        availableDiscordRoles = dashboardState?.discordRoles || [];
+        availableDiscordChannels = dashboardState?.discordChannels || [];
+        availableDiscordVoiceChannels = dashboardState?.discordVoiceChannels || [];
+
+        // Démarrage du chargement intelligent
+        console.log('--- PRIORITIZED LOADING START ---');
+        await loadInitialData();
+        console.log('--- PRIORITIZED LOADING END ---');
+      } catch (err) {
+        console.error('Erreur:', err);
+        error = 'Erreur lors du chargement';
+      }
+    })();
   });
 
   async function loadInitialData() {

@@ -12,6 +12,7 @@ class DashboardStore {
     meetingVoiceChannelId: '',
     discordChannels: [],
     discordVoiceChannels: [],
+    discordCategories: [],
     discordRoles: [],
     moderatorRoleId: '',
     commandRestrictions: [],
@@ -97,6 +98,7 @@ class DashboardStore {
         this.state.meetingVoiceChannelId = data.meetingVoiceChannelId || '';
         this.state.discordChannels = data.discordChannels || [];
         this.state.discordVoiceChannels = data.discordVoiceChannels || [];
+        this.state.discordCategories = data.discordCategories || [];
         this.state.discordRoles = data.discordRoles || [];
         this.state.moderatorRoleId = data.moderatorRoleId || '';
         this.state.commandRestrictions = data.commandRestrictions || [];

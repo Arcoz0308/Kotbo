@@ -29,6 +29,7 @@ import { toggleGuildBoolean } from '../utils/prismaToggles.js';
 import { requireSingleSelectedValue, validateTimeField } from '../utils/interactionValidation.js';
 import { buildMemberCasePanel, type MemberCaseSection } from '../services/memberCaseService.js';
 import { handleRecruitmentButton } from '../services/recruitmentService.js';
+import { handleTicketButton, handleTicketModalSubmit } from '../services/ticketService.js';
 import { checkInMeeting } from '../services/staffLeadershipService.js';
 import { handleDCInteraction } from '../services/dcDetectionService.js';
 import { showModeratorNoteModal } from '../commands/note.js';
@@ -147,6 +148,12 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   // Recruitment ticket buttons
   if (customId.startsWith('recruit:')) {
     await handleRecruitmentButton(client, customId, interaction);
+    return;
+  }
+
+  // Ticket system buttons
+  if (customId.startsWith('ticket:')) {
+    await handleTicketButton(client, customId, interaction);
     return;
   }
 
@@ -623,6 +630,11 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
 export async function handleModalSubmit(interaction: ModalSubmitInteraction, client: Client): Promise<void> {
   const { customId, guildId } = interaction;
   if (!guildId) return;
+
+  if (customId.startsWith('modal:ticket:')) {
+    await handleTicketModalSubmit(client, customId, interaction);
+    return;
+  }
 
   if (customId.startsWith('meeting_excuse_modal:')) {
     const meetingId = customId.split(':')[1];

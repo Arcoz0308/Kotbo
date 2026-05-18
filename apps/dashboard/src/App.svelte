@@ -43,8 +43,10 @@
   import EventControl from './pages/EventControl.svelte';
   import Invitations from './pages/Invitations.svelte';
   import InvitationDetail from './pages/InvitationDetail.svelte';
+  import Tickets from './pages/Tickets.svelte';
+  import TranscriptDetail from './pages/TranscriptDetail.svelte';
 
-  const isPublicPage = $derived($router.path.startsWith('/profile/'));
+  const isPublicPage = $derived($router.path.startsWith('/profile/') || $router.path.startsWith('/transcripts/'));
 
   const featureAccess = $derived(dashboardStore.state.featureAccess || {});
   const fallbackCanView = $derived(
@@ -70,6 +72,7 @@
     if (path.startsWith('/logs')) return 'logs';
     if (path.startsWith('/activity')) return 'activity';
     if (path.startsWith('/recruitment')) return 'recruitment';
+    if (path.startsWith('/tickets')) return 'tickets';
     if (path.startsWith('/tutoring')) return 'tutoring';
     if (path.startsWith('/meetings')) return 'meetings';
     if (path.startsWith('/absences')) return 'absences';
@@ -155,6 +158,7 @@
     'sanctions': '/sanctions',
     'logs': '/logs',
     'recruitment': '/recruitment',
+    'tickets': '/tickets',
     'meetings': '/meetings',
     'dailyalgo': $router.query.submissionId ? `/dailyalgo/ide?submissionId=${$router.query.submissionId}` : '/dailyalgo'
   }}
@@ -165,6 +169,9 @@
 {#if isPublicPage}
   <Route path="/profile/:userId" let:meta>
     <PublicProfile userId={meta.params.userId} />
+  </Route>
+  <Route path="/transcripts/:transcriptId" let:meta>
+    <TranscriptDetail transcriptId={meta.params.transcriptId} />
   </Route>
   <Route fallback>
     <NotFound />
@@ -246,6 +253,9 @@
       </Route>
       <Route path="/recruitment">
         <Recruitment />
+      </Route>
+      <Route path="/tickets">
+        <Tickets />
       </Route>
       <Route path="/meetings">
         <Meetings />
