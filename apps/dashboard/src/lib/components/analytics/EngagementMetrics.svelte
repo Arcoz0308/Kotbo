@@ -13,7 +13,7 @@
   let showChannelsModal = $state(false);
 
   const topMembers = $derived(mode === 'messages' ? (data?.topMessageMembers || []) : (data?.topVoiceMembers || []));
-  const topChannels = $derived(data?.topChannels || []);
+  const topChannels = $derived(mode === 'messages' ? (data?.topChannels || []) : []);
 
   const membersChartData = $derived({
     labels: topMembers.slice(0, 5).map(m => m.name || m.username),
@@ -143,7 +143,8 @@
     </div>
   </div>
 
-  <!-- Top Channels -->
+  <!-- Top Channels (messages mode only) -->
+  {#if mode === 'messages'}
   <div class="premium-card p-8 rounded-[2.5rem] space-y-8 flex flex-col">
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-4">
@@ -151,8 +152,8 @@
           <Papicon icon="Hash" size={24} />
         </div>
         <div>
-          <h3 class="text-xl font-black text-on-surface">Salons Populaires</h3>
-          <p class="text-xs font-bold text-on-surface-variant/40">Distribution de l'activité</p>
+          <h3 class="text-xl font-black text-on-surface">Salons Textuels Populaires</h3>
+          <p class="text-xs font-bold text-on-surface-variant/40">Distribution des messages par salon</p>
         </div>
       </div>
       <button 
@@ -176,6 +177,18 @@
        {/each}
     </div>
   </div>
+  {:else}
+  <!-- Voice mode: no per-channel voice data available -->
+  <div class="premium-card p-8 rounded-[2.5rem] flex flex-col items-center justify-center gap-4 text-center min-h-[200px]">
+    <div class="w-14 h-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+      <Papicon icon="Microphone" size={28} />
+    </div>
+    <div>
+      <h3 class="text-base font-black text-on-surface">Activité Vocale par Salon</h3>
+      <p class="text-xs font-bold text-on-surface-variant/40 mt-1 max-w-xs">Le suivi du temps vocal par salon n'est pas encore disponible. Seul le temps total par membre est enregistré.</p>
+    </div>
+  </div>
+  {/if}
 </div>
 
 <DetailedAnalyticsModal

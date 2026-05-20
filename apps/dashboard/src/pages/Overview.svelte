@@ -27,7 +27,71 @@
   const pendingAbsences = $derived(staffStore.pendingAbsences);
   const nextMeeting = $derived(staffStore.upcomingMeetings[0]);
   
-  const activityData = $derived(dashboardStore.state.analytics.activityTrend.map((v, i) => ({
+  let selectedStat = $state('messages');
+
+  $effect(() => {
+    if (authStore.selectedGuildId && authStore.user?.id) {
+      const saved = localStorage.getItem(`fav_stat_${authStore.selectedGuildId}_${authStore.user.id}`);
+      if (saved) {
+        selectedStat = saved;
+      }
+    }
+  });
+
+  const handleStatChange = (stat: string) => {
+    selectedStat = stat;
+    if (authStore.selectedGuildId && authStore.user?.id) {
+      localStorage.setItem(`fav_stat_${authStore.selectedGuildId}_${authStore.user.id}`, stat);
+    }
+  };
+
+  const statConfig = $derived.by(() => {
+    switch (selectedStat) {
+      case 'voice':
+        return {
+          title: 'Temps Vocal',
+          subtitle: 'Minutes vocales cumulées',
+          color: 'var(--color-secondary)',
+          trend: dashboardStore.state.analytics.voiceTrend || [0, 0, 0, 0, 0, 0, 0],
+          unit: ' min'
+        };
+      case 'joins':
+        return {
+          title: 'Arrivées',
+          subtitle: 'Nouveaux membres',
+          color: 'var(--color-primary)',
+          trend: dashboardStore.state.analytics.joinsTrend || [0, 0, 0, 0, 0, 0, 0],
+          unit: ''
+        };
+      case 'leaves':
+        return {
+          title: 'Départs',
+          subtitle: 'Membres ayant quitté',
+          color: 'rgb(239, 68, 68)',
+          trend: dashboardStore.state.analytics.leavesTrend || [0, 0, 0, 0, 0, 0, 0],
+          unit: ''
+        };
+      case 'sanctions':
+        return {
+          title: 'Sanctions',
+          subtitle: 'Modérations appliquées',
+          color: 'rgb(245, 158, 11)',
+          trend: dashboardStore.state.analytics.sanctionsTrend || [0, 0, 0, 0, 0, 0, 0],
+          unit: ''
+        };
+      case 'messages':
+      default:
+        return {
+          title: 'Messages',
+          subtitle: 'Messages envoyés',
+          color: 'var(--color-tertiary)',
+          trend: dashboardStore.state.analytics.messagesTrend || [0, 0, 0, 0, 0, 0, 0],
+          unit: ''
+        };
+    }
+  });
+
+  const activityData = $derived(statConfig.trend.map((v, i) => ({
     name: `J-${6-i}`,
     value: v
   })));
@@ -117,7 +181,7 @@
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 auto-rows-[minmax(160px,auto)]">
     
     <!-- Widget Inbox -->
-    <div class="lg:col-span-2 lg:row-span-2 premium-card p-6 md:p-8 rounded-[2.5rem] flex flex-col relative overflow-hidden group">
+    <div class="{unreadNotifs.length > 0 ? 'lg:col-span-2 lg:row-span-2' : 'lg:col-span-1 lg:row-span-1'} premium-card p-6 md:p-8 rounded-[2.5rem] flex flex-col relative overflow-hidden group">
       <div class="absolute top-0 right-0 w-48 h-48 bg-primary/5 rounded-full blur-[60px] -mr-24 -mt-24"></div>
       
       <div class="flex items-center justify-between mb-6 md:mb-8 relative z-10">
@@ -155,26 +219,29 @@
             </div>
           {/each}
         {:else}
-          <div class="flex flex-col items-center justify-center py-10 text-center opacity-30 group-hover:opacity-60 transition-opacity">
-            <div class="w-16 h-16 rounded-full bg-emerald-500/5 flex items-center justify-center text-emerald-500 mb-4">
-              <Papicon icon="sparkles" size={32} />
+          <div class="flex flex-col items-center justify-center py-4 text-center opacity-30 group-hover:opacity-60 transition-opacity">
+            <div class="w-12 h-12 rounded-full bg-emerald-500/5 flex items-center justify-center text-emerald-500 mb-2">
+              <Papicon icon="sparkles" size={24} />
             </div>
             <h4 class="font-black text-sm">Tout est à jour</h4>
           </div>
         {/if}
       </div>
 
-      <div class="mt-6 pt-6 border-t border-outline-variant/5 flex items-center justify-between relative z-10">
-        <span class="text-[9px] font-black text-primary/60 uppercase tracking-widest">Activité Récente</span>
-        <div class="flex -space-x-1.5">
-           {#each Array(3) as _}
-             <div class="w-6 h-6 rounded-full border-2 border-surface bg-surface-container-highest shadow-sm"></div>
-           {/each}
+      {#if unreadNotifs.length > 0}
+        <div class="mt-6 pt-6 border-t border-outline-variant/5 flex items-center justify-between relative z-10">
+          <span class="text-[9px] font-black text-primary/60 uppercase tracking-widest">Activité Récente</span>
+          <div class="flex -space-x-1.5">
+             {#each Array(3) as _}
+               <div class="w-6 h-6 rounded-full border-2 border-surface bg-surface-container-highest shadow-sm"></div>
+             {/each}
+          </div>
         </div>
-      </div>
+      {/if}
     </div>
 
     <!-- Widget Activité -->
+    {#if dashboardStore.state.featureAccess.analytics?.canView}
     <div class="lg:col-span-2 lg:row-span-1 premium-card p-6 md:p-8 rounded-[2.5rem] flex flex-col justify-between group">
        <div class="flex items-center justify-between mb-4 relative z-10">
           <div class="flex items-center gap-3">
@@ -182,20 +249,36 @@
               <Papicon icon="trending-up" size={22} />
             </div>
             <div>
-              <h3 class="font-black text-xl tracking-tight">Activité</h3>
-              <p class="text-[9px] font-black text-on-surface-variant/30 uppercase tracking-widest">7 derniers jours</p>
+              <div class="flex flex-wrap items-center gap-2">
+                <h3 class="font-black text-xl tracking-tight">{statConfig.title}</h3>
+                <div class="flex items-center bg-surface-container-highest/40 border border-outline-variant/10 rounded-xl px-2 py-0.5 ml-1">
+                  <select 
+                    value={selectedStat} 
+                    onchange={(e) => handleStatChange(e.currentTarget.value)}
+                    class="bg-transparent text-[9px] font-black text-on-surface uppercase tracking-wider outline-none cursor-pointer border-none py-0 pr-1"
+                  >
+                    <option value="messages" class="dark:bg-slate-900 text-on-surface">💬 Messages</option>
+                    <option value="voice" class="dark:bg-slate-900 text-on-surface">🎙️ Vocal</option>
+                    <option value="joins" class="dark:bg-slate-900 text-on-surface">📥 Arrivées</option>
+                    <option value="leaves" class="dark:bg-slate-900 text-on-surface">📤 Départs</option>
+                    <option value="sanctions" class="dark:bg-slate-900 text-on-surface">🛡️ Sanctions</option>
+                  </select>
+                </div>
+              </div>
+              <p class="text-[9px] font-black text-on-surface-variant/30 uppercase tracking-widest">{statConfig.subtitle}</p>
             </div>
           </div>
           <div class="text-right">
-             <span class="text-2xl font-black tracking-tighter">+{dashboardStore.state.analytics.activityTrend.reduce((a,b)=>a+b, 0)}</span>
-             <p class="text-[9px] font-black text-emerald-500 uppercase tracking-widest">+12%</p>
+             <span class="text-2xl font-black tracking-tighter">+{statConfig.trend.reduce((a,b)=>a+b, 0)}{statConfig.unit}</span>
+             <p class="text-[9px] font-black text-emerald-500 uppercase tracking-widest">7j</p>
           </div>
        </div>
        
        <div class="h-28 w-full relative z-10">
-          <LineChart data={activityData} height={110} labelKey="name" valueKey="value" color="var(--color-tertiary)" />
+          <LineChart data={activityData} height={110} labelKey="name" valueKey="value" color={statConfig.color} />
        </div>
     </div>
+    {/if}
 
     <!-- Bot Status -->
     <div class="premium-card p-7 rounded-[2.5rem] flex flex-col justify-between group bg-surface-container-low/20">

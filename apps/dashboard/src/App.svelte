@@ -120,19 +120,62 @@
       router.goto('/login');
     }
 
-    // Global error handling
-    const handleError = (event: ErrorEvent | PromiseRejectionEvent) => {
-      const message = 'message' in event ? event.message : (event as PromiseRejectionEvent).reason?.message || 'Une erreur est survenue';
-      console.error('Global error:', event);
-      toast.error(message);
+    // Global error handling — ignores network/abort errors from WS reconnections
+    // and Vite dev-server internal errors to avoid infinite feedback loops
+    const IGNORED_MESSAGES = [
+      'Failed to fetch',
+      'NetworkError',
+      'Load failed',
+      'AbortError',
+      'The operation was aborted',
+      // Vite dev-server WS errors (would cause infinite loop if logged via console)
+      'send was called before connect',
+      'WebSocket is closed',
+    ];
+
+    // Re-entrancy guard: prevents the handler from triggering itself
+    let isHandlingRejection = false;
+    
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      if (isHandlingRejection) {
+        event.preventDefault();
+        return;
+      }
+
+      const reason = event.reason;
+      const message: string = reason?.message || String(reason) || '';
+      
+      // Silently ignore network errors (e.g. from WS reconnect / API temporarily down)
+      if (IGNORED_MESSAGES.some(ignored => message.includes(ignored))) {
+        event.preventDefault(); // Suppress browser console error too
+        return;
+      }
+
+      isHandlingRejection = true;
+      try {
+        // Use queueMicrotask to avoid calling toast synchronously during Vite init
+        queueMicrotask(() => {
+          toast.error(message || 'Une erreur inattendue est survenue');
+          isHandlingRejection = false;
+        });
+      } catch {
+        isHandlingRejection = false;
+      }
+    };
+
+    const handleError = (event: ErrorEvent) => {
+      // Only show toast for non-script-load errors
+      if (event.message && !IGNORED_MESSAGES.some(m => event.message.includes(m))) {
+        toast.error(event.message || 'Une erreur est survenue');
+      }
     };
 
     window.addEventListener('error', handleError);
-    window.addEventListener('unhandledrejection', handleError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
 
     return () => {
       window.removeEventListener('error', handleError);
-      window.removeEventListener('unhandledrejection', handleError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
     };
   });
 

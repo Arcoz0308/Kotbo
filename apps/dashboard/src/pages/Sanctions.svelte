@@ -1,5 +1,6 @@
 <script lang="ts">
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { portal } from '../lib/actions/portal';
   import { authStore } from '../lib/stores/auth.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
@@ -928,6 +929,7 @@
 
 {#if modalOpen && selectedSanction}
   <div 
+    use:portal
     class="modal-backdrop" 
     onclick={closeModal}
     onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && closeModal()}
@@ -1129,6 +1131,7 @@
 
 {#if deleteModalOpen && pendingDeletion}
   <div 
+    use:portal
     class="modal-backdrop" 
     onclick={closeDeleteModal}
     onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && closeDeleteModal()}

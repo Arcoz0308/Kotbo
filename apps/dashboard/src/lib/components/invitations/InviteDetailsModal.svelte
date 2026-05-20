@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { portal } from '../../actions/portal';
   import { router } from 'tinro';
   import Papicon from '../Papicon.svelte';
   import Chart from '../charts/Chart.svelte';
@@ -175,6 +176,7 @@
 
 {#if isOpen}
   <div
+    use:portal
     class="modal-backdrop"
     role="button"
     aria-label="Fermer la vue invitation"

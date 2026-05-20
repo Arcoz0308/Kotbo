@@ -86,6 +86,10 @@ export async function generateTranscript(channel: TextChannel): Promise<{ id: st
   // Reverse so they are in chronological order (oldest to newest)
   allMessages.reverse();
 
+  return generateTranscriptFromMessages(channel, allMessages);
+}
+
+export async function generateTranscriptFromMessages(channel: TextChannel, allMessages: Message[]): Promise<{ id: string; url: string; count: number }> {
   // 2. Build the HTML content
   let messagesHtml = '';
   

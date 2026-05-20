@@ -10,7 +10,7 @@
   });
 </script>
 
-<div class="flex min-h-screen bg-background text-on-background transition-colors duration-500 relative overflow-hidden">
+<div class="flex min-h-screen bg-background text-on-background transition-colors duration-500 relative">
   
   <div class="absolute inset-0 pointer-events-none opacity-[0.03] dark:opacity-[0.07] overflow-hidden">
     <div class="absolute -top-[20%] -left-[10%] w-[60%] h-[60%] bg-primary rounded-full blur-[150px] animate-mesh"></div>

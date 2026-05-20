@@ -25,6 +25,7 @@ import * as leaderboardCmd from './commands/leaderboard.js';
 import * as serverstatsCmd from './commands/serverstats.js';
 import * as invitesCmd from './commands/invites.js';
 import * as noteCmd from './commands/note.js';
+import * as transcriptCmd from './commands/transcript.js';
 const commands = [
   setupCmd,
   configCmd,
@@ -47,6 +48,7 @@ const commands = [
   serverstatsCmd,
   invitesCmd,
   noteCmd,
+  transcriptCmd,
   { data: noteCmd.contextData },
   { data: casierCmd.contextData },
   { data: sanctionCmd.contextData },

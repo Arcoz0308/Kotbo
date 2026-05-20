@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { portal } from '../actions/portal';
   import FormInput from './FormInput.svelte';
   import { dashboardStore } from '../stores/dashboard.svelte.ts';
   import { authStore } from '../stores/auth.svelte.ts';
@@ -557,6 +558,7 @@
 
 {#if open}
   <div 
+    use:portal
     class="modal-backdrop" 
     role="button" 
     aria-label="Fermer le dossier"

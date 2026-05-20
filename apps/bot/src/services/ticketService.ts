@@ -177,7 +177,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
       }
 
       if (overclaimPermission === 'SUPERIOR_OR_EQUAL') {
-        const claimantIsAdmin = member.permissions.has(PermissionFlagsBits.Administrator);
+        const claimantIsAdmin = (member as GuildMember).permissions.has(PermissionFlagsBits.Administrator);
         if (!claimantIsAdmin) {
           const claimantLevel = await getStaffLevel(guildId, user.id);
           const currentLevel = ticket.claimedById ? await getStaffLevel(guildId, ticket.claimedById) : 0;

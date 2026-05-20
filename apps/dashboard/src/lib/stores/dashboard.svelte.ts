@@ -41,6 +41,11 @@ class DashboardStore {
     messageTemplate: '',
     analytics: {
       activityTrend: [0, 0, 0, 0, 0, 0, 0],
+      messagesTrend: [0, 0, 0, 0, 0, 0, 0],
+      voiceTrend: [0, 0, 0, 0, 0, 0, 0],
+      joinsTrend: [0, 0, 0, 0, 0, 0, 0],
+      leavesTrend: [0, 0, 0, 0, 0, 0, 0],
+      sanctionsTrend: [0, 0, 0, 0, 0, 0, 0],
       totalAutomations: 0,
       healthStatus: 100
     },

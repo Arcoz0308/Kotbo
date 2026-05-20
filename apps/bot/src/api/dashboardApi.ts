@@ -273,6 +273,11 @@ type RegulationRuleItem = {
 
 type AnalyticsData = {
   activityTrend: number[];
+  messagesTrend: number[];
+  voiceTrend: number[];
+  joinsTrend: number[];
+  leavesTrend: number[];
+  sanctionsTrend: number[];
   totalAutomations: number;
   healthStatus: number;
 };
@@ -1830,6 +1835,14 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
   });
   if (!guild) return null;
 
+  const last7Days: string[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    last7Days.push(dateKey);
+  }
+
   const [
     dailyAlgoSubmissionCount,
     runtime,
@@ -1837,6 +1850,7 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
     sanctions,
     sanctionReports,
     regulationRules,
+    dailyStatsTrend,
   ] = await Promise.all([
     prisma.dailyAlgoSubmission.count({ where: { run: { guildId } } }),
     getOrCreateRuntime(guildId),
@@ -1858,6 +1872,12 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
     prisma.guildRegulationArticle.findMany({
       where: { guildId },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+    }),
+    prisma.guildDailyStat.findMany({
+      where: {
+        guildId,
+        dateKey: { in: last7Days }
+      }
     }),
   ]);
 
@@ -2172,6 +2192,13 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
         .map(({ id, name, mention, permissions, position }) => ({ id, name, mention, permissions, position }))
     : [];
 
+  const trendMap = new Map(dailyStatsTrend.map(s => [s.dateKey, s]));
+  const messagesTrend = last7Days.map(dateKey => trendMap.get(dateKey)?.messagesCount ?? 0);
+  const voiceTrend = last7Days.map(dateKey => trendMap.get(dateKey)?.voiceMinutes ?? 0);
+  const joinsTrend = last7Days.map(dateKey => trendMap.get(dateKey)?.membersJoined ?? 0);
+  const leavesTrend = last7Days.map(dateKey => trendMap.get(dateKey)?.membersLeft ?? 0);
+  const sanctionsTrend = last7Days.map(dateKey => trendMap.get(dateKey)?.sanctionsCount ?? 0);
+
   return {
     guildName: getGuildName(client, guildId),
     configChannelId: guild.configChannelId ?? '',
@@ -2213,7 +2240,12 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
     regulationRules: mappedRegulationRules,
     messageTemplate: runtime.messageTemplate,
     analytics: {
-      activityTrend: [0, 0, 0, 0, 0, 0, 0],
+      activityTrend: messagesTrend,
+      messagesTrend,
+      voiceTrend,
+      joinsTrend,
+      leavesTrend,
+      sanctionsTrend,
       totalAutomations: modules.reduce((acc, m) => acc + m.interactions, 0),
       healthStatus: 100
     },
