@@ -276,8 +276,9 @@
           <h4 class="text-xs font-black text-on-surface-variant uppercase tracking-widest mb-4">Canaux de Réunion</h4>
           <div class="space-y-4">
             <div>
-              <label class="block text-[10px] font-black text-on-surface-variant uppercase mb-2 ml-1">Salon d'annonce</label>
+              <label for="meeting-announcement-channel" class="block text-[10px] font-black text-on-surface-variant uppercase mb-2 ml-1">Salon d'annonce</label>
               <select 
+                id="meeting-announcement-channel"
                 value={meetingAnnouncementChannelId} 
                 onchange={async (e) => {
                   const val = (e.target as HTMLSelectElement).value;
@@ -293,8 +294,9 @@
               </select>
             </div>
             <div>
-              <label class="block text-[10px] font-black text-on-surface-variant uppercase mb-2 ml-1">Salon vocal</label>
+              <label for="meeting-voice-channel" class="block text-[10px] font-black text-on-surface-variant uppercase mb-2 ml-1">Salon vocal</label>
               <select 
+                id="meeting-voice-channel"
                 value={meetingVoiceChannelId} 
                 onchange={async (e) => {
                   const val = (e.target as HTMLSelectElement).value;
