@@ -19,7 +19,7 @@ export const data = new SlashCommandBuilder()
   .addIntegerOption((option) =>
     option
       .setName('nombre')
-      .setDescription('Nombre de messages à transcrire depuis maintenant')
+      .setDescription('Nombre de messages à transcrire (par défaut 100)')
       .setRequired(false)
       .setMinValue(1)
       .setMaxValue(5000)
@@ -27,13 +27,25 @@ export const data = new SlashCommandBuilder()
   .addStringOption((option) =>
     option
       .setName('temps')
-      .setDescription('Durée écoulée (ex: 2h, 1j, 30m, 7j)')
+      .setDescription('Début : Durée (ex: 2h), Date (JJ/MM/AAAA-HH:MM) ou Timestamp')
       .setRequired(false)
   )
   .addStringOption((option) =>
     option
       .setName('message_id')
-      .setDescription('ID du message de départ (transcrit de ce message jusqu\'à maintenant)')
+      .setDescription("Début : ID du message de départ")
+      .setRequired(false)
+  )
+  .addStringOption((option) =>
+    option
+      .setName('jusqua_message_id')
+      .setDescription("Fin : ID du message d'arrêt")
+      .setRequired(false)
+  )
+  .addStringOption((option) =>
+    option
+      .setName('jusqua_temps')
+      .setDescription('Fin : Durée (ex: 1h), Date (JJ/MM/AAAA-HH:MM) ou Timestamp')
       .setRequired(false)
   );
 
@@ -63,6 +75,51 @@ export function parseDurationToMs(durationStr: string): number | null {
     default:
       return null;
   }
+}
+
+export function parseDateTimeOrDuration(input: string): number | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  // 1. Check relative duration first (e.g., 2h, 30m)
+  const durationMs = parseDurationToMs(trimmed);
+  if (durationMs !== null) {
+    return Date.now() - durationMs;
+  }
+
+  // 2. Check if digits only (unix timestamp)
+  if (/^\d+$/.test(trimmed)) {
+    const val = parseInt(trimmed, 10);
+    if (trimmed.length <= 11) {
+      return val * 1000;
+    }
+    return val;
+  }
+
+  // 3. Check French date format DD/MM/YYYY-HH:MM or DD/MM/YYYY HH:MM or DD/MM/YYYY
+  const dateRegex = /^(\d{2})[/-](\d{2})[/-](\d{4})(?:[ -](\d{2}):(\d{2})(?::(\d{2}))?)?$/;
+  const match = trimmed.match(dateRegex);
+  if (match) {
+    const day = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10) - 1;
+    const year = parseInt(match[3], 10);
+    const hour = match[4] ? parseInt(match[4], 10) : 0;
+    const minute = match[5] ? parseInt(match[5], 10) : 0;
+    const second = match[6] ? parseInt(match[6], 10) : 0;
+
+    const date = new Date(year, month, day, hour, minute, second);
+    if (!isNaN(date.getTime())) {
+      return date.getTime();
+    }
+  }
+
+  // 4. Fallback JS parse
+  const parsed = Date.parse(trimmed);
+  if (!isNaN(parsed)) {
+    return parsed;
+  }
+
+  return null;
 }
 
 export async function execute(interaction: ChatInputCommandInteraction) {
@@ -95,15 +152,31 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   const count = interaction.options.getInteger('nombre', false);
   const temps = interaction.options.getString('temps', false);
   const messageId = interaction.options.getString('message_id', false);
+  const jusquaMessageId = interaction.options.getString('jusqua_message_id', false);
+  const jusquaTemps = interaction.options.getString('jusqua_temps', false);
 
-  let optionsCount = 0;
-  if (count !== null) optionsCount++;
-  if (temps !== null) optionsCount++;
-  if (messageId !== null) optionsCount++;
+  // Check start options (mutually exclusive)
+  let startOptionsCount = 0;
+  if (count !== null) startOptionsCount++;
+  if (temps !== null) startOptionsCount++;
+  if (messageId !== null) startOptionsCount++;
 
-  if (optionsCount > 1) {
+  if (startOptionsCount > 1) {
     await interaction.reply({
-      content: '❌ Veuillez spécifier une seule option parmi `nombre`, `temps` et `message_id`.',
+      content: '❌ Veuillez spécifier une seule option de départ parmi `nombre`, `temps` et `message_id`.',
+      flags: [MessageFlags.Ephemeral]
+    });
+    return;
+  }
+
+  // Check end options (mutually exclusive)
+  let endOptionsCount = 0;
+  if (jusquaMessageId !== null) endOptionsCount++;
+  if (jusquaTemps !== null) endOptionsCount++;
+
+  if (endOptionsCount > 1) {
+    await interaction.reply({
+      content: '❌ Veuillez spécifier une seule option de fin parmi `jusqua_message_id` et `jusqua_temps`.',
       flags: [MessageFlags.Ephemeral]
     });
     return;
@@ -112,81 +185,138 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
   try {
-    let fetchedMessages: Message[] = [];
-
-    if (count !== null) {
-      // Fetch X messages backwards
-      let lastId: string | undefined;
-      while (fetchedMessages.length < count) {
-        const limit = Math.min(100, count - fetchedMessages.length);
-        const messages = await channel.messages.fetch({ limit, before: lastId });
-        if (messages.size === 0) break;
-        fetchedMessages.push(...messages.values());
-        lastId = messages.last()?.id;
-      }
-      fetchedMessages.reverse();
-    } else if (temps !== null) {
-      // Fetch since duration
-      const durationMs = parseDurationToMs(temps);
-      if (!durationMs) {
-        await interaction.editReply({
-          content: '❌ Format de durée invalide. Utilisez par exemple : `2h` (2 heures), `30m` (30 minutes), `1j` (1 jour).'
-        });
-        return;
-      }
-
-      const targetTimestamp = Date.now() - durationMs;
-      let lastId: string | undefined;
-      let stop = false;
-
-      while (!stop) {
-        const messages = await channel.messages.fetch({ limit: 100, before: lastId });
-        if (messages.size === 0) break;
-
-        for (const msg of messages.values()) {
-          if (msg.createdTimestamp < targetTimestamp) {
-            stop = true;
-            break;
-          }
-          fetchedMessages.push(msg);
-        }
-
-        if (messages.size < 100) break;
-        lastId = messages.last()?.id;
-      }
-      fetchedMessages.reverse();
-    } else if (messageId !== null) {
-      // Fetch from messageId to now
+    // Validate explicit message IDs if provided
+    if (messageId !== null) {
       try {
-        const startMsg = await channel.messages.fetch(messageId);
-        if (startMsg) {
-          fetchedMessages.push(startMsg);
-        }
+        await channel.messages.fetch(messageId);
       } catch (err) {
         await interaction.editReply({
           content: `❌ Impossible de trouver le message de départ avec l'ID \`${messageId}\` dans ce salon.`
         });
         return;
       }
+    }
 
-      let lastId = messageId;
+    if (jusquaMessageId !== null) {
+      try {
+        await channel.messages.fetch(jusquaMessageId);
+      } catch (err) {
+        await interaction.editReply({
+          content: `❌ Impossible de trouver le message de fin avec l'ID \`${jusquaMessageId}\` dans ce salon.`
+        });
+        return;
+      }
+    }
+
+    let startId: string | undefined;
+    let endId: string | undefined;
+
+    // Resolve start point
+    if (messageId !== null) {
+      startId = messageId;
+    } else if (temps !== null) {
+      const startTimestamp = parseDateTimeOrDuration(temps);
+      if (startTimestamp === null) {
+        await interaction.editReply({
+          content: '❌ Format de début invalide. Utilisez par exemple : `2h` (2 heures), `30m` (30 minutes), ou une date/heure `JJ/MM/AAAA-HH:MM`.'
+        });
+        return;
+      }
+      startId = ((BigInt(startTimestamp) - 1420070400000n) << 22n).toString();
+    }
+
+    // Resolve end point
+    if (jusquaMessageId !== null) {
+      endId = jusquaMessageId;
+    } else if (jusquaTemps !== null) {
+      const endTimestamp = parseDateTimeOrDuration(jusquaTemps);
+      if (endTimestamp === null) {
+        await interaction.editReply({
+          content: '❌ Format de fin invalide. Utilisez par exemple : `1h` (1 heure), ou une date/heure `JJ/MM/AAAA-HH:MM`, ou un timestamp.'
+        });
+        return;
+      }
+      endId = ((BigInt(endTimestamp) - 1420070400000n) << 22n).toString();
+    }
+
+    let fetchedMessages: Message[] = [];
+
+    if (startId !== undefined) {
+      // Fetch forward from startId
+      const finalEndId = endId ?? ((BigInt(Date.now()) - 1420070400000n) << 22n).toString();
+      
+      // Ensure chronological order
+      let firstId = startId;
+      let secondId = finalEndId;
+      if (BigInt(firstId) > BigInt(secondId)) {
+        firstId = finalEndId;
+        secondId = startId;
+      }
+
+      try {
+        const startMsg = await channel.messages.fetch(firstId);
+        if (startMsg) {
+          fetchedMessages.push(startMsg);
+        }
+      } catch (err) {
+        // Ignore
+      }
+
+      let lastId = firstId;
       while (true) {
         const messages = await channel.messages.fetch({ limit: 100, after: lastId });
         if (messages.size === 0) break;
 
-        fetchedMessages.push(...messages.values());
-        
-        // Find latest message ID in this batch to keep fetching
+        let stop = false;
         const sortedBatch = [...messages.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
-        lastId = sortedBatch[sortedBatch.length - 1].id;
+        
+        for (const msg of sortedBatch) {
+          if (BigInt(msg.id) > BigInt(secondId)) {
+            stop = true;
+            break;
+          }
+          fetchedMessages.push(msg);
+        }
 
-        if (messages.size < 100) break;
+        if (stop || messages.size < 100) break;
+        lastId = sortedBatch[sortedBatch.length - 1].id;
       }
       fetchedMessages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+
+    } else if (endId !== undefined) {
+      // Fetch backward from endId
+      const limitCount = count ?? 100;
+
+      try {
+        const endMsg = await channel.messages.fetch(endId);
+        if (endMsg) {
+          fetchedMessages.push(endMsg);
+        }
+      } catch (err) {
+        // Ignore
+      }
+
+      let lastId = endId;
+      while (fetchedMessages.length < limitCount) {
+        const limit = Math.min(100, limitCount - fetchedMessages.length);
+        const messages = await channel.messages.fetch({ limit, before: lastId });
+        if (messages.size === 0) break;
+        fetchedMessages.push(...messages.values());
+        lastId = messages.last()?.id;
+      }
+      fetchedMessages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+
     } else {
-      // Default: Last 100 messages
-      const messages = await channel.messages.fetch({ limit: 100 });
-      fetchedMessages.push(...messages.values());
+      // Default: fetch last X messages from now
+      const limitCount = count ?? 100;
+      let lastId: string | undefined;
+      while (fetchedMessages.length < limitCount) {
+        const limit = Math.min(100, limitCount - fetchedMessages.length);
+        const messages = await channel.messages.fetch({ limit, before: lastId });
+        if (messages.size === 0) break;
+        fetchedMessages.push(...messages.values());
+        lastId = messages.last()?.id;
+      }
       fetchedMessages.reverse();
     }
 
@@ -223,3 +353,4 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     });
   }
 }
+

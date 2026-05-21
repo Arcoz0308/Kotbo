@@ -3525,6 +3525,32 @@ export const startDashboardApi = (client: Client) => {
               return;
             }
 
+            // GET /api/dashboard/guilds/:guildId/tickets/transcripts
+            if (parts.length === 6 && parts[5] === 'transcripts' && req.method === 'GET') {
+              try {
+                const transcripts = await prisma.transcript.findMany({
+                  where: { guildId },
+                  orderBy: { createdAt: 'desc' },
+                  select: {
+                    id: true,
+                    guildId: true,
+                    channelId: true,
+                    channelName: true,
+                    startMessageId: true,
+                    endMessageId: true,
+                    startTime: true,
+                    endTime: true,
+                    createdAt: true
+                  }
+                });
+                json(res, 200, { transcripts });
+              } catch (err: any) {
+                logger.error('TicketsAPI', `Error listing transcripts: ${err.message}`);
+                json(res, 500, { error: 'Erreur lors de la récupération des transcriptions' });
+              }
+              return;
+            }
+
             // PATCH /api/dashboard/guilds/:guildId/tickets/config
             if (parts.length === 6 && parts[5] === 'config' && req.method === 'PATCH') {
               if (access.level !== 'admin') {

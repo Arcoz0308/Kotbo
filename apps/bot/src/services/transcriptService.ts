@@ -469,12 +469,19 @@ export async function generateTranscriptFromMessages(channel: TextChannel, allMe
 </html>`;
 
   // 3. Save to database
+  const firstMsg = allMessages[0];
+  const lastMsg = allMessages[allMessages.length - 1];
+
   const transcript = await prisma.transcript.create({
     data: {
       guildId: channel.guild.id,
       channelId: channel.id,
       channelName: channel.name,
-      html: fullHtml
+      html: fullHtml,
+      startMessageId: firstMsg?.id || null,
+      endMessageId: lastMsg?.id || null,
+      startTime: firstMsg?.createdAt || null,
+      endTime: lastMsg?.createdAt || null
     }
   });
 

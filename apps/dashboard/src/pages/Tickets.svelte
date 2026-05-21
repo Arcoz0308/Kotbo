@@ -18,11 +18,12 @@
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
 
   // Navigation & Tabs
-  let activeTab = $state<'tickets' | 'config'>('tickets');
+  let activeTab = $state<'tickets' | 'transcripts' | 'config'>('tickets');
   let ticketFilter = $state<'ALL' | 'OPEN' | 'CLAIMED' | 'CLOSED'>('ALL');
   
   // Data State
   let tickets = $state<any[]>([]);
+  let transcripts = $state<any[]>([]);
   let config = $state<any>({});
   let selectedTicketId = $state<string | null>(null);
   let selectedTicketDetail = $state<any>(null);
@@ -110,6 +111,33 @@
       error = err.message || 'Une erreur est survenue';
     } finally {
       loading = false;
+    }
+  }
+
+  // Fetch transcripts for this guild
+  async function loadTranscripts() {
+    if (!authStore.selectedGuildId) return;
+    loading = true;
+    error = '';
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/transcripts`, {
+        headers: { 'Authorization': `Bearer ${authStore.token}` }
+      });
+      if (!res.ok) throw new Error('Impossible de charger les transcriptions');
+      const data = await res.json();
+      transcripts = data.transcripts || [];
+    } catch (err: any) {
+      error = err.message || 'Une erreur est survenue';
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleRefresh() {
+    if (activeTab === 'transcripts') {
+      await loadTranscripts();
+    } else {
+      await loadTicketsAndConfig();
     }
   }
 
@@ -373,6 +401,12 @@
     }
   }
 
+  $effect(() => {
+    if (activeTab === 'transcripts') {
+      void loadTranscripts();
+    }
+  });
+
   onMount(async () => {
     await loadTicketsAndConfig();
 
@@ -408,9 +442,9 @@
 >
   {#snippet actions()}
     <div class="flex items-center gap-3">
-      <RefreshButton onClick={loadTicketsAndConfig} loading={loading} label="Actualiser" />
+      <RefreshButton onClick={handleRefresh} loading={loading} label="Actualiser" />
       <button 
-        onclick={() => activeTab = activeTab === 'tickets' ? 'config' : 'tickets'}
+        onclick={() => activeTab = activeTab === 'config' ? 'tickets' : 'config'}
         class="p-3 rounded-xl bg-surface-container-high hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant/70"
         title="Paramètres de configuration"
       >
@@ -427,6 +461,15 @@
     >
       Tickets Support
       {#if activeTab === 'tickets'}
+        <div class="absolute bottom-0 left-0 w-full h-1 bg-primary rounded-t-full"></div>
+      {/if}
+    </button>
+    <button 
+      onclick={() => activeTab = 'transcripts'}
+      class="px-8 py-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative {activeTab === 'transcripts' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
+    >
+      Transcriptions
+      {#if activeTab === 'transcripts'}
         <div class="absolute bottom-0 left-0 w-full h-1 bg-primary rounded-t-full"></div>
       {/if}
     </button>
@@ -948,6 +991,83 @@
           {saveAction.state.loading ? 'Enregistrement...' : 'Sauvegarder les paramètres'}
         </button>
       </div>
+    </div>
+  {:else if activeTab === 'transcripts'}
+    <div class="bg-surface-container-low/40 border border-outline-variant/10 rounded-[2.5rem] p-8 flex flex-col h-full min-h-[50vh] font-inter">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h3 class="text-xl font-black text-on-surface">Historique des Transcriptions</h3>
+          <p class="text-on-surface-variant text-sm">Consultez l'historique complet des transcriptions de tickets et de salons.</p>
+        </div>
+      </div>
+
+      {#if loading}
+        <div class="flex items-center justify-center py-20">
+          <div class="w-8 h-8 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+        </div>
+      {:else if transcripts.length === 0}
+        <div class="flex flex-col items-center justify-center py-20 text-on-surface-variant/30">
+          <Papicon icon="inbox" size={48} class="opacity-50 mb-3" />
+          <p class="text-sm font-bold">Aucune transcription disponible</p>
+        </div>
+      {:else}
+        <div class="overflow-x-auto w-full">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="border-b border-outline-variant/15 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/70">
+                <th class="py-4 px-6">Salon</th>
+                <th class="py-4 px-6">Type / Origine</th>
+                <th class="py-4 px-6">Période des messages</th>
+                <th class="py-4 px-6">Généré le</th>
+                <th class="py-4 px-6 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each transcripts as t}
+                <tr class="border-b border-outline-variant/10 hover:bg-white/5 transition-colors group">
+                  <td class="py-4 px-6 font-mono text-sm font-bold text-on-surface">
+                    <span class="text-primary/70">#</span>{t.channelName}
+                  </td>
+                  <td class="py-4 px-6">
+                    {#if t.channelName.startsWith('ticket-')}
+                      <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                        Ticket Support
+                      </span>
+                    {:else}
+                      <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        Commande /transcript
+                      </span>
+                    {/if}
+                  </td>
+                  <td class="py-4 px-6 text-xs text-on-surface-variant">
+                    {#if t.startTime && t.endTime}
+                      <div class="flex flex-col gap-0.5">
+                        <span>Du <strong class="text-on-surface/90">{new Date(t.startTime).toLocaleDateString('fr-FR')} à {new Date(t.startTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</strong></span>
+                        <span>Au <strong class="text-on-surface/90">{new Date(t.endTime).toLocaleDateString('fr-FR')} à {new Date(t.endTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</strong></span>
+                      </div>
+                    {:else}
+                      <span class="text-on-surface-variant/40 italic">Non spécifiée (Toutes)</span>
+                    {/if}
+                  </td>
+                  <td class="py-4 px-6 text-xs text-on-surface-variant">
+                    {new Date(t.createdAt).toLocaleDateString('fr-FR')} {new Date(t.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                  </td>
+                  <td class="py-4 px-6 text-right">
+                    <a
+                      href="/transcripts/{t.id}"
+                      target="_blank"
+                      class="px-4 py-2 bg-primary/10 text-primary border border-primary/20 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-primary hover:text-white transition-all inline-flex items-center gap-1.5 shadow-sm"
+                    >
+                      <Papicon icon="external-link" size={12} />
+                      Consulter
+                    </a>
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      {/if}
     </div>
   {/if}
 </ModulePage>

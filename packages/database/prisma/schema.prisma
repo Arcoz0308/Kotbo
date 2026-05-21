@@ -1644,13 +1644,18 @@ model Ticket {
 }
 
 model Transcript {
-  id          String   @id @default(cuid())
-  guildId     String
-  channelId   String
-  channelName String
-  html        String
-  createdAt   DateTime @default(now())
+  id             String    @id @default(cuid())
+  guildId        String
+  channelId      String
+  channelName    String
+  html           String
+  startMessageId String?
+  endMessageId   String?
+  startTime      DateTime?
+  endTime        DateTime?
+  createdAt      DateTime  @default(now())
 
   @@map("transcripts")
 }
+
 
