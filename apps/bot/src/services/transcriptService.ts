@@ -17,30 +17,55 @@ function escapeHtml(text: string): string {
 /**
  * Parses basic Discord markdown: **bold**, *italic*, __underline__, ~~strike~~, `code`, and blockquotes.
  */
-function parseMarkdown(text: string, guild?: Guild): string {
+export function parseMarkdown(text: string, guild?: Guild): string {
   let escaped = escapeHtml(text);
 
-  // Bold
-  escaped = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  
-  // Italic
-  escaped = escaped.replace(/\*(.*?)\*/g, '<em>$1</em>');
-  
-  // Underline
-  escaped = escaped.replace(/__(.*?)__/g, '<u>$1</u>');
-  
-  // Strikethrough
-  escaped = escaped.replace(/~~(.*?)~~/g, '<del>$1</del>');
-
-  // Inline Code
-  escaped = escaped.replace(/`(.*?)`/g, '<code class="inline-code">$1</code>');
-
-  // Block Code (multi-line)
+  // 1. Extract block code
+  const blockCodes: string[] = [];
   escaped = escaped.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
-    return `<pre><code class="block-code language-${lang || 'plaintext'}">${code}</code></pre>`;
+    const placeholder = `%%BLOCK_CODE_PLACEHOLDER_${blockCodes.length}%%`;
+    blockCodes.push(`<pre><code class="block-code language-${lang || 'plaintext'}">${code}</code></pre>`);
+    return placeholder;
   });
 
-  // User/Channel mentions
+  // 2. Extract inline code
+  const inlineCodes: string[] = [];
+  escaped = escaped.replace(/`(.*?)`/g, (_, code) => {
+    const placeholder = `%%INLINE_CODE_PLACEHOLDER_${inlineCodes.length}%%`;
+    inlineCodes.push(`<code class="inline-code">${code}</code>`);
+    return placeholder;
+  });
+
+  // 3. Auto-link URLs
+  escaped = escaped.replace(/(https?:\/\/[^\s<]+)/g, (url) => {
+    let cleanUrl = url;
+    let trailing = '';
+    
+    if (cleanUrl.endsWith('&gt;')) {
+      cleanUrl = cleanUrl.slice(0, -4);
+      trailing = '&gt;';
+    }
+    
+    const match = cleanUrl.match(/([.,;:!?)\]]+)$/);
+    if (match) {
+      cleanUrl = cleanUrl.substring(0, cleanUrl.length - match[0].length);
+      trailing = match[0] + trailing;
+    }
+    
+    return `<a href="${cleanUrl}" target="_blank" class="discord-link">${cleanUrl}</a>${trailing}`;
+  });
+
+  // 4. Bold, Italic, Underline, Strikethrough
+  escaped = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  escaped = escaped.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  escaped = escaped.replace(/__(.*?)__/g, '<u>$1</u>');
+  escaped = escaped.replace(/~~(.*?)~~/g, '<del>$1</del>');
+
+  // 5. Custom emojis: &lt;a:name:id&gt; or &lt;:name:id&gt;
+  escaped = escaped.replace(/&lt;a:([a-zA-Z0-9_]+):(\d+)&gt;/g, '<img class="discord-emoji" src="https://cdn.discordapp.com/emojis/$2.gif" alt=":$1:" title=":$1:" />');
+  escaped = escaped.replace(/&lt;:([a-zA-Z0-9_]+):(\d+)&gt;/g, '<img class="discord-emoji" src="https://cdn.discordapp.com/emojis/$2.png" alt=":$1:" title=":$1:" />');
+
+  // 6. User/Channel/Role mentions
   if (guild) {
     escaped = escaped.replace(/&lt;@!?(\d+)&gt;/g, (_, id) => {
       const member = guild.members.cache.get(id);
@@ -61,6 +86,16 @@ function parseMarkdown(text: string, guild?: Guild): string {
     escaped = escaped.replace(/&lt;#(\d+)&gt;/g, '<span class="mention">#salon</span>');
     escaped = escaped.replace(/&lt;@&amp;(\d+)&gt;/g, '<span class="mention">@Rôle</span>');
   }
+
+  // 7. Restore inline code
+  inlineCodes.forEach((html, index) => {
+    escaped = escaped.replace(`%%INLINE_CODE_PLACEHOLDER_${index}%%`, html);
+  });
+
+  // 8. Restore block code
+  blockCodes.forEach((html, index) => {
+    escaped = escaped.replace(`%%BLOCK_CODE_PLACEHOLDER_${index}%%`, html);
+  });
 
   return escaped;
 }
@@ -140,23 +175,72 @@ export async function generateTranscriptFromMessages(channel: TextChannel, allMe
       }
     }
 
+    // Process stickers
+    if (msg.stickers && msg.stickers.size > 0) {
+      for (const [_, sticker] of msg.stickers) {
+        bodyHtml += `
+          <div class="sticker-container">
+            <img src="${sticker.url}" class="discord-sticker" alt="${escapeHtml(sticker.name)}" title="${escapeHtml(sticker.name)}" />
+          </div>
+        `;
+      }
+    }
+
     // Process embeds
     if (msg.embeds.length > 0) {
       for (const embed of msg.embeds) {
         const borderHex = embed.hexColor || '#1e1f22';
         bodyHtml += `
           <div class="discord-embed" style="border-left-color: ${borderHex}">
-            ${embed.author ? `<div class="discord-embed-author">${escapeHtml(embed.author.name || '')}</div>` : ''}
-            ${embed.title ? `<div class="discord-embed-title">${escapeHtml(embed.title)}</div>` : ''}
-            ${embed.description ? `<div class="discord-embed-description">${parseMarkdown(embed.description, channel.guild)}</div>` : ''}
-            ${embed.fields && embed.fields.length > 0 ? `
-              <div class="discord-embed-fields">
-                ${embed.fields.map(f => `
-                  <div class="discord-embed-field ${f.inline ? 'inline' : ''}">
-                    <div class="discord-embed-field-name">${escapeHtml(f.name)}</div>
-                    <div class="discord-embed-field-value">${parseMarkdown(f.value, channel.guild)}</div>
+            <div class="discord-embed-content">
+              <div class="discord-embed-text">
+                ${embed.provider ? `<div class="discord-embed-provider">${escapeHtml(embed.provider.name)}</div>` : ''}
+                ${embed.author ? `
+                  <div class="discord-embed-author">
+                    ${embed.author.iconURL ? `<img class="discord-embed-author-icon" src="${embed.author.iconURL}" alt="" />` : ''}
+                    ${embed.author.url ? `<a class="discord-embed-author-link" href="${embed.author.url}" target="_blank">${escapeHtml(embed.author.name)}</a>` : `<span>${escapeHtml(embed.author.name)}</span>`}
                   </div>
-                `).join('')}
+                ` : ''}
+                ${embed.title ? `
+                  <div class="discord-embed-title">
+                    ${embed.url ? `<a href="${embed.url}" target="_blank">${escapeHtml(embed.title)}</a>` : escapeHtml(embed.title)}
+                  </div>
+                ` : ''}
+                ${embed.description ? `<div class="discord-embed-description">${parseMarkdown(embed.description, channel.guild)}</div>` : ''}
+                ${embed.fields && embed.fields.length > 0 ? `
+                  <div class="discord-embed-fields">
+                    ${embed.fields.map(f => `
+                      <div class="discord-embed-field ${f.inline ? 'inline' : ''}">
+                        <div class="discord-embed-field-name">${escapeHtml(f.name)}</div>
+                        <div class="discord-embed-field-value">${parseMarkdown(f.value, channel.guild)}</div>
+                      </div>
+                    `).join('')}
+                  </div>
+                ` : ''}
+              </div>
+              ${embed.thumbnail ? `
+                <div class="discord-embed-thumbnail-container">
+                  <img class="discord-embed-thumbnail" src="${embed.thumbnail.url}" alt="" />
+                </div>
+              ` : ''}
+            </div>
+            ${embed.image ? `
+              <div class="discord-embed-image-container">
+                <img class="discord-embed-image" src="${embed.image.url}" alt="" />
+              </div>
+            ` : ''}
+            ${embed.video && !embed.image ? `
+              <div class="discord-embed-video-container">
+                <video class="discord-embed-video" src="${embed.video.url}" controls></video>
+              </div>
+            ` : ''}
+            ${embed.footer ? `
+              <div class="discord-embed-footer">
+                ${embed.footer.iconURL ? `<img class="discord-embed-footer-icon" src="${embed.footer.iconURL}" alt="" />` : ''}
+                <span class="discord-embed-footer-text">
+                  ${escapeHtml(embed.footer.text)}
+                  ${embed.timestamp ? ` • ${new Date(embed.timestamp).toLocaleString('fr-FR')}` : ''}
+                </span>
               </div>
             ` : ''}
           </div>
@@ -168,9 +252,23 @@ export async function generateTranscriptFromMessages(channel: TextChannel, allMe
     if (msg.reactions.cache.size > 0) {
       bodyHtml += '<div class="reactions-list">';
       for (const [_, reaction] of msg.reactions.cache) {
-        const emoji = reaction.emoji.name;
+        const emojiName = reaction.emoji.name;
         const count = reaction.count;
-        bodyHtml += `<span class="reaction-tag">${emoji} <span class="reaction-count">${count}</span></span>`;
+        if (reaction.emoji.url) {
+          bodyHtml += `
+            <span class="reaction-tag">
+              <img class="discord-emoji-reaction" src="${reaction.emoji.url}" alt=":${emojiName}:" title=":${emojiName}:" />
+              <span class="reaction-count">${count}</span>
+            </span>
+          `;
+        } else {
+          bodyHtml += `
+            <span class="reaction-tag">
+              ${emojiName}
+              <span class="reaction-count">${count}</span>
+            </span>
+          `;
+        }
       }
       bodyHtml += '</div>';
     }
@@ -433,6 +531,122 @@ export async function generateTranscriptFromMessages(channel: TextChannel, allMe
       color: #b5bac1;
       font-size: 12px;
       font-weight: 600;
+    }
+    .discord-emoji {
+      width: 22px;
+      height: 22px;
+      min-width: 22px;
+      min-height: 22px;
+      object-fit: contain;
+      vertical-align: bottom;
+      display: inline-block;
+      margin: 0 1px;
+    }
+    .discord-emoji-reaction {
+      width: 16px;
+      height: 16px;
+      object-fit: contain;
+      vertical-align: middle;
+      display: inline-block;
+    }
+    .sticker-container {
+      margin-top: 8px;
+    }
+    .discord-sticker {
+      width: 160px;
+      height: 160px;
+      object-fit: contain;
+    }
+    .discord-link {
+      color: #00a8fc;
+      text-decoration: none;
+    }
+    .discord-link:hover {
+      text-decoration: underline;
+    }
+    .discord-embed-content {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .discord-embed-text {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .discord-embed-provider {
+      font-size: 12px;
+      color: #949ba4;
+    }
+    .discord-embed-author {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .discord-embed-author-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+    }
+    .discord-embed-author-link {
+      color: #f2f3f5;
+      text-decoration: none;
+    }
+    .discord-embed-author-link:hover {
+      text-decoration: underline;
+    }
+    .discord-embed-title a {
+      color: #00a8fc;
+      text-decoration: none;
+    }
+    .discord-embed-title a:hover {
+      text-decoration: underline;
+    }
+    .discord-embed-thumbnail-container {
+      flex-shrink: 0;
+    }
+    .discord-embed-thumbnail {
+      max-width: 80px;
+      max-height: 80px;
+      border-radius: 4px;
+      object-fit: contain;
+    }
+    .discord-embed-image-container {
+      margin-top: 8px;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .discord-embed-image {
+      max-width: 100%;
+      max-height: 400px;
+      object-fit: contain;
+      border-radius: 4px;
+    }
+    .discord-embed-video-container {
+      margin-top: 8px;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .discord-embed-video {
+      max-width: 100%;
+      max-height: 400px;
+      border-radius: 4px;
+    }
+    .discord-embed-footer {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      font-size: 12px;
+      color: #949ba4;
+    }
+    .discord-embed-footer-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
     }
     .footer {
       border-top: 1px solid #3f4147;
