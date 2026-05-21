@@ -1082,8 +1082,12 @@
             </div>
 
             <div class="space-y-3">
-              <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Preuves (URLs)</label>
-              <EvidenceInputList bind:links={evidenceLinks} />
+              <p id="report-evidence-label" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Preuves (URLs)</p>
+              <EvidenceInputList
+                bind:links={evidenceLinks}
+                labelId="report-evidence-label"
+                inputIdPrefix="report-evidence"
+              />
             </div>
 
             <div class="space-y-1.5">

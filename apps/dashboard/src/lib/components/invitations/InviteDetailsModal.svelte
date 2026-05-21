@@ -181,10 +181,16 @@
     role="button"
     aria-label="Fermer la vue invitation"
     tabindex="0"
-    onclick={closeModal}
-    onkeydown={(e) => e.key === 'Escape' && closeModal()}
+    onclick={(e) => e.currentTarget === e.target && closeModal()}
+    onkeydown={(e) => {
+      if (e.key === 'Escape') closeModal();
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        closeModal();
+      }
+    }}
   >
-    <div class="modal-panel modal-panel-lg space-y-0 p-0 font-body" onclick={(e) => e.stopPropagation()}>
+    <div class="modal-panel modal-panel-lg space-y-0 p-0 font-body">
       <div class="p-6 border-b border-outline-variant/30 flex items-center justify-between">
         <div>
           <h3 class="text-2xl font-black">Invitation {inviteCode}</h3>

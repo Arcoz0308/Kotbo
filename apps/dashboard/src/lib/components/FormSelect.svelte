@@ -57,7 +57,7 @@
     background-repeat: no-repeat;
     background-size: 1.5em 1.5em;
   }
-  .custom-select option {
+  :global(.custom-select option) {
     background-color: #1e1e24; /* Dark theme DA */
     color: #ffffff;
   }

@@ -1997,7 +1997,20 @@
 <!-- Modal Configuration -->
 {#if showConfigMenu}
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-    <div class="absolute inset-0 bg-surface-container-lowest/80 backdrop-blur-sm transition-opacity" onclick={() => showConfigMenu = false}></div>
+    <div
+      class="absolute inset-0 bg-surface-container-lowest/80 backdrop-blur-sm transition-opacity"
+      role="button"
+      tabindex="0"
+      aria-label="Fermer la configuration"
+      onclick={() => showConfigMenu = false}
+      onkeydown={(e) => {
+        if (e.key === 'Escape') showConfigMenu = false;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          showConfigMenu = false;
+        }
+      }}
+    ></div>
     
     <div class="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[3rem] border border-outline-variant/30 bg-surface shadow-2xl">
       <div class="sticky top-0 z-10 flex items-center justify-between border-b border-outline-variant/20 bg-surface/80 p-6 backdrop-blur-xl md:px-8">
