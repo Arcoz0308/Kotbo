@@ -45,16 +45,35 @@ export const getDashboardAnalytics = async (guildId: string, options: { days?: n
       take: options.startDate ? 200 : 24 
     });
     
-    dailyStats = hourlyStats.map(h => ({
-      dateKey: `${h.dateKey} ${h.hour}h`,
-      messagesCount: h.messagesCount,
-      voiceMinutes: h.voiceMinutes,
-      membersJoined: h.joinsCount,
-      membersLeft: h.leavesCount,
-      activeMembers: h.activeMembers,
-      totalMembers: 0, 
-      onlineMembers: h.onlineMembers,
-    }));
+    const stats: any[] = [];
+    for (const h of hourlyStats) {
+      const hourStr = String(h.hour).padStart(2, '0');
+      
+      // Bucket 1: :00
+      stats.push({
+        dateKey: `${h.dateKey} ${hourStr}h00`,
+        messagesCount: Math.round(h.messagesCount / 2),
+        voiceMinutes: Math.round(h.voiceMinutes / 2),
+        membersJoined: Math.round(h.joinsCount / 2),
+        membersLeft: Math.round(h.leavesCount / 2),
+        activeMembers: h.activeMembers,
+        totalMembers: 0,
+        onlineMembers: h.onlineMembers,
+      });
+      
+      // Bucket 2: :30
+      stats.push({
+        dateKey: `${h.dateKey} ${hourStr}h30`,
+        messagesCount: Math.floor(h.messagesCount / 2),
+        voiceMinutes: Math.floor(h.voiceMinutes / 2),
+        membersJoined: Math.floor(h.joinsCount / 2),
+        membersLeft: Math.floor(h.leavesCount / 2),
+        activeMembers: h.activeMembers,
+        totalMembers: 0,
+        onlineMembers: h.onlineMembers,
+      });
+    }
+    dailyStats = stats;
   } else {
     // Daily resolution
     dailyStats = await prisma.guildDailyStat.findMany({
@@ -464,41 +483,59 @@ export const getHourlyHeatmapData = async (guildId: string, options: { days?: nu
 /**
  * Get week-over-week comparison
  */
-export const getWeekOverWeekComparison = async (guildId: string) => {
+export const getWeekOverWeekComparison = async (guildId: string, options: { offset?: number, mode?: 'week' | 'month' } = {}) => {
+  const { offset = 1, mode = 'week' } = options;
   const now = new Date();
-  const thisWeekStart = new Date(now);
-  thisWeekStart.setDate(now.getDate() - now.getUTCDay());
-  thisWeekStart.setHours(0, 0, 0, 0);
+  
+  let currentStart = new Date(now);
+  let currentEnd = new Date(now);
+  let previousStart = new Date(now);
+  let previousEnd = new Date(now);
 
-  const lastWeekStart = new Date(thisWeekStart);
-  lastWeekStart.setDate(thisWeekStart.getDate() - 7);
+  if (mode === 'month') {
+    // Current month
+    currentStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    currentEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999));
+    
+    // Previous month (offset)
+    previousStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - offset, 1));
+    previousEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - offset + 1, 0, 23, 59, 59, 999));
+  } else {
+    // Current week (starting Sunday)
+    currentStart.setUTCDate(now.getUTCDate() - now.getUTCDay());
+    currentStart.setUTCHours(0, 0, 0, 0);
+    currentEnd = new Date(currentStart);
+    currentEnd.setUTCDate(currentStart.getUTCDate() + 6);
+    currentEnd.setUTCHours(23, 59, 59, 999);
+    
+    // Previous week (offset)
+    previousStart = new Date(currentStart);
+    previousStart.setUTCDate(currentStart.getUTCDate() - (7 * offset));
+    previousEnd = new Date(previousStart);
+    previousEnd.setUTCDate(previousStart.getUTCDate() + 6);
+    previousEnd.setUTCHours(23, 59, 59, 999);
+  }
 
-  const thisWeekEnd = new Date(thisWeekStart);
-  thisWeekEnd.setDate(thisWeekStart.getDate() + 6);
+  const currentKeyStart = currentStart.toISOString().split('T')[0];
+  const currentKeyEnd = currentEnd.toISOString().split('T')[0];
+  const previousKeyStart = previousStart.toISOString().split('T')[0];
+  const previousKeyEnd = previousEnd.toISOString().split('T')[0];
 
-  const thisWeekKey = thisWeekStart.toISOString().split('T')[0];
-  const lastWeekKey = lastWeekStart.toISOString().split('T')[0];
-  const thisWeekEndKey = thisWeekEnd.toISOString().split('T')[0];
-
-  const thisWeekStats = await prisma.guildDailyStat.findMany({
+  const currentStats = await prisma.guildDailyStat.findMany({
     where: {
       guildId,
-      dateKey: { gte: thisWeekKey, lte: thisWeekEndKey }
+      dateKey: { gte: currentKeyStart, lte: currentKeyEnd }
     }
   });
 
-  const lastWeekEndKey = new Date(lastWeekStart);
-  lastWeekEndKey.setDate(lastWeekStart.getDate() + 6);
-  const lastWeekEndKeyStr = lastWeekEndKey.toISOString().split('T')[0];
-
-  const lastWeekStats = await prisma.guildDailyStat.findMany({
+  const previousStats = await prisma.guildDailyStat.findMany({
     where: {
       guildId,
-      dateKey: { gte: lastWeekKey, lte: lastWeekEndKeyStr }
+      dateKey: { gte: previousKeyStart, lte: previousKeyEnd }
     }
   });
 
-  const sumStats = (stats: typeof thisWeekStats) => ({
+  const sumStats = (stats: typeof currentStats) => ({
     messages: stats.reduce((sum, s) => sum + s.messagesCount, 0),
     voiceMinutes: stats.reduce((sum, s) => sum + s.voiceMinutes, 0),
     joins: stats.reduce((sum, s) => sum + s.membersJoined, 0),
@@ -506,8 +543,8 @@ export const getWeekOverWeekComparison = async (guildId: string) => {
     sanctions: stats.reduce((sum, s) => sum + (s.sanctionsCount || 0), 0)
   });
 
-  const thisWeek = sumStats(thisWeekStats);
-  const lastWeek = sumStats(lastWeekStats);
+  const thisPeriod = sumStats(currentStats);
+  const lastPeriod = sumStats(previousStats);
 
   const getChange = (current: number, previous: number) => {
     if (previous === 0) return current > 0 ? 100 : 0;
@@ -515,14 +552,14 @@ export const getWeekOverWeekComparison = async (guildId: string) => {
   };
 
   return {
-    thisWeek,
-    lastWeek,
+    thisWeek: thisPeriod, // keeping keys same for compatibility
+    lastWeek: lastPeriod,
     changes: {
-      messagesChange: getChange(thisWeek.messages, lastWeek.messages),
-      voiceChange: getChange(thisWeek.voiceMinutes, lastWeek.voiceMinutes),
-      joinsChange: getChange(thisWeek.joins, lastWeek.joins),
-      leavesChange: getChange(thisWeek.leaves, lastWeek.leaves),
-      sanctionsChange: getChange(thisWeek.sanctions, lastWeek.sanctions)
+      messagesChange: getChange(thisPeriod.messages, lastPeriod.messages),
+      voiceChange: getChange(thisPeriod.voiceMinutes, lastPeriod.voiceMinutes),
+      joinsChange: getChange(thisPeriod.joins, lastPeriod.joins),
+      leavesChange: getChange(thisPeriod.leaves, lastPeriod.leaves),
+      sanctionsChange: getChange(thisPeriod.sanctions, lastPeriod.sanctions)
     }
   };
 };

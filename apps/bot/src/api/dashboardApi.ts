@@ -1301,7 +1301,7 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000))
       ]),
       Promise.race([
-        discordGuild.members.fetch(actualUserId).catch(() => null),
+        discordGuild.members.fetch({ user: actualUserId, withPresences: true }).catch(() => null),
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000))
       ]),
       prisma.memberProfile.findUnique({
@@ -4040,17 +4040,66 @@ export const startDashboardApi = (client: Client) => {
           // GET /api/dashboard/guilds/:guildId/analytics - Full analytics data
           if (parts.length === 5 && parts[4] === 'analytics' && req.method === 'GET') {
             try {
-              const periodDays = Math.min(90, Math.max(7, parseInt(url.searchParams.get('period') || '30', 10)));
+              const periodDays = Math.min(90, Math.max(1, parseInt(url.searchParams.get('period') || '30', 10)));
               const now = new Date();
               const startDate = new Date(now);
               startDate.setDate(startDate.getDate() - periodDays);
               const startDateKey = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`;
 
-              // 1. Guild daily stats (trend data)
-              const dailyStats = await prisma.guildDailyStat.findMany({
-                where: { guildId, dateKey: { gte: startDateKey } },
-                orderBy: { dateKey: 'asc' },
-              });
+              let dailyStats: any[] = [];
+              const granularity = url.searchParams.get('granularity');
+              const use30Min = periodDays === 1 || granularity === '30';
+
+              if (use30Min) {
+                const hourlyStats = await prisma.guildHourlyStat.findMany({
+                  where: { guildId },
+                  orderBy: [
+                    { dateKey: 'desc' },
+                    { hour: 'desc' }
+                  ],
+                  take: 24
+                });
+                hourlyStats.reverse();
+                
+                for (const h of hourlyStats) {
+                  const hourStr = String(h.hour).padStart(2, '0');
+                  
+                  // Bucket 1: :00
+                  dailyStats.push({
+                    dateKey: `${h.dateKey} ${hourStr}h00`,
+                    messagesCount: Math.round(h.messagesCount / 2),
+                    voiceMinutes: Math.round(h.voiceMinutes / 2),
+                    voiceSessionsCount: 0,
+                    membersJoined: Math.round(h.joinsCount / 2),
+                    membersLeft: Math.round(h.leavesCount / 2),
+                    totalMembers: 0,
+                    onlineMembers: h.onlineMembers,
+                    peakOnline: h.onlineMembers,
+                    peakVoice: h.voiceMembers,
+                    sanctionsCount: 0,
+                  });
+                  
+                  // Bucket 2: :30
+                  dailyStats.push({
+                    dateKey: `${h.dateKey} ${hourStr}h30`,
+                    messagesCount: Math.floor(h.messagesCount / 2),
+                    voiceMinutes: Math.floor(h.voiceMinutes / 2),
+                    voiceSessionsCount: 0,
+                    membersJoined: Math.floor(h.joinsCount / 2),
+                    membersLeft: Math.floor(h.leavesCount / 2),
+                    totalMembers: 0,
+                    onlineMembers: h.onlineMembers,
+                    peakOnline: h.onlineMembers,
+                    peakVoice: h.voiceMembers,
+                    sanctionsCount: 0,
+                  });
+                }
+              } else {
+                dailyStats = await prisma.guildDailyStat.findMany({
+                  where: { guildId, dateKey: { gte: startDateKey } },
+                  orderBy: { dateKey: 'asc' },
+                });
+              }
 
               // 2. Channel daily stats (top channels)
               const channelStats = await prisma.channelDailyStat.groupBy({
@@ -4455,7 +4504,8 @@ export const startDashboardApi = (client: Client) => {
                 },
                 // Daily trend data
                 dailyTrend: dailyStats.map(d => {
-                  const trendDate = new Date(d.dateKey + 'T23:59:59.999Z');
+                  const datePart = d.dateKey.split(' ')[0];
+                  const trendDate = new Date(datePart + 'T23:59:59.999Z');
                   const count = clanTag 
                     ? taggedMembersList.filter(m => m.joinedAt && m.joinedAt <= trendDate).size 
                     : 0;
@@ -4763,7 +4813,7 @@ export const startDashboardApi = (client: Client) => {
           // GET /api/dashboard/guilds/:guildId/analytics/heatmap - Hourly activity heatmap
           if (parts.length === 6 && parts[4] === 'analytics' && parts[5] === 'heatmap' && req.method === 'GET') {
             try {
-              const days = Math.min(90, Math.max(7, parseInt(url.searchParams.get('days') || '30', 10)));
+              const days = Math.min(90, Math.max(1, parseInt(url.searchParams.get('days') || '30', 10)));
               const startDate = url.searchParams.get('startDate');
               const endDate = url.searchParams.get('endDate');
               const { getHourlyHeatmapData } = await import('../services/dashboardAnalyticsService.js');
@@ -4808,7 +4858,7 @@ export const startDashboardApi = (client: Client) => {
           // GET /api/dashboard/guilds/:guildId/analytics/daily-algo - Daily Algo analytics
           if (parts.length === 6 && parts[4] === 'analytics' && parts[5] === 'daily-algo' && req.method === 'GET') {
             try {
-              const days = Math.min(365, Math.max(7, parseInt(url.searchParams.get('days') || '30', 10)));
+              const days = Math.min(365, Math.max(1, parseInt(url.searchParams.get('days') || '30', 10)));
               const startDate = url.searchParams.get('startDate');
               const endDate = url.searchParams.get('endDate');
               const { getDailyAlgoAnalytics } = await import('../services/dashboardAnalyticsService.js');

@@ -236,7 +236,7 @@ async function processSingleGuildSnapshot(guild: Guild, dateKey: string, hour: n
     // If we have 0 online members in cache but the guild has many members, something is likely wrong with the cache
     if (onlineMembers === 0 && totalMembers > 1) {
       try {
-        const fetchedGuild = await guild.fetch();
+        const fetchedGuild = await guild.client.guilds.fetch({ guild: guild.id, withCounts: true, force: true });
         // approximatePresenceCount is only available if the bot has specific permissions or if fetched correctly
         if (fetchedGuild.approximatePresenceCount !== null && fetchedGuild.approximatePresenceCount !== undefined) {
           onlineMembers = fetchedGuild.approximatePresenceCount;

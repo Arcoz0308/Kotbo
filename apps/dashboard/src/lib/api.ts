@@ -656,11 +656,12 @@ export async function toggleTutorStatus(userId, guildId = authStore.selectedGuil
   return dashboardMutation(`/staff/members/${userId}/tutor`, { method: 'POST', guildId });
 }
 
-export async function fetchAnalytics(options: { period?: number, startDate?: string, endDate?: string } = {}, guildId = authStore.selectedGuildId) {
+export async function fetchAnalytics(options: { period?: number, startDate?: string, endDate?: string, granularity?: string } = {}, guildId = authStore.selectedGuildId) {
   const params = new URLSearchParams();
   if (options.period) params.append('period', options.period.toString());
   if (options.startDate) params.append('startDate', options.startDate);
   if (options.endDate) params.append('endDate', options.endDate);
+  if (options.granularity) params.append('granularity', options.granularity);
   
   return dashboardRequest(`/analytics?${params.toString()}`, {
     method: 'GET',

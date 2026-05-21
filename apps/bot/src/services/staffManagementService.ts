@@ -504,22 +504,31 @@ export const addMentorReport = async (
   type: 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL',
   content: string
 ) => {
+  const period = await prisma.testingPeriod.findUnique({
+    where: { id: testingPeriodId },
+    include: { staffMember: true }
+  });
+
+  if (!period) {
+    throw new Error('Période de test introuvable');
+  }
+
+  const resolvedAuthorId = await resolveStaffMemberId(period.guildId, authorId);
+  if (!resolvedAuthorId) {
+    throw new Error('Auteur introuvable dans le staff');
+  }
+
   const report = await prisma.mentorReport.create({
     data: {
       testingPeriodId,
-      authorId,
+      authorId: resolvedAuthorId,
       type,
       content,
     },
   });
 
   // Notifier le membre en test
-  const period = await prisma.testingPeriod.findUnique({
-    where: { id: testingPeriodId },
-    include: { staffMember: true }
-  });
-
-  if (period?.staffMember) {
+  if (period.staffMember) {
     await createNotification(
       period.guildId,
       period.staffMember.userId,
