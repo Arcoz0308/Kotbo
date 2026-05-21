@@ -1066,7 +1066,7 @@ export const processMeetingNotifications = async () => {
             staffMember: true
           }
         },
-        guild: { select: { id: true, name: true } }
+        guild: { select: { id: true } }
       }
     });
 
@@ -1115,7 +1115,7 @@ export const processMeetingNotifications = async () => {
             staffMember: true
           }
         },
-        guild: { select: { id: true, name: true } }
+        guild: { select: { id: true } }
       }
     });
 

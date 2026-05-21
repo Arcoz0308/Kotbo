@@ -699,8 +699,11 @@ export async function fetchHourlyHeatmap(options: { days?: number, startDate?: s
   });
 }
 
-export async function fetchWeeklyComparison(guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/analytics/weekly-comparison', {
+export async function fetchWeeklyComparison(options: { offset?: number, mode?: 'week' | 'month' } = {}, guildId = authStore.selectedGuildId) {
+  const params = new URLSearchParams();
+  if (options.offset) params.append('offset', options.offset.toString());
+  if (options.mode) params.append('mode', options.mode);
+  return dashboardRequest(`/analytics/weekly-comparison?${params.toString()}`, {
     method: 'GET',
     guildId,
     errorContext: 'API Error (Weekly Comparison):'

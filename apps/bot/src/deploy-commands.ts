@@ -26,6 +26,7 @@ import * as serverstatsCmd from './commands/serverstats.js';
 import * as invitesCmd from './commands/invites.js';
 import * as noteCmd from './commands/note.js';
 import * as transcriptCmd from './commands/transcript.js';
+import * as sayCmd from './commands/say.js';
 const commands = [
   setupCmd,
   configCmd,
@@ -49,6 +50,7 @@ const commands = [
   invitesCmd,
   noteCmd,
   transcriptCmd,
+  sayCmd,
   { data: noteCmd.contextData },
   { data: casierCmd.contextData },
   { data: sanctionCmd.contextData },
@@ -56,7 +58,6 @@ const commands = [
 
 const token = process.env.DISCORD_TOKEN;
 const clientId = process.env.DISCORD_CLIENT_ID;
-const guildId = process.env.GUILD_ID;
 
 if (!token || !clientId) {
   logger.error('Déploiement', 'DISCORD_TOKEN et DISCORD_CLIENT_ID sont requis dans .env');
@@ -66,15 +67,34 @@ if (!token || !clientId) {
 const rest = new REST().setToken(token);
 
 try {
-  logger.info('Déploiement', `Déploiement de ${commands.length} commandes...`);
+  // Récupère toutes les guilds sur lesquelles le bot est présent
+  const guilds = await rest.get(Routes.userGuilds()) as { id: string; name: string }[];
 
-  if (guildId) {
-    await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: commands });
-    logger.success('Déploiement', `Commandes déployées sur le serveur ${guildId}`);
-  } else {
-    await rest.put(Routes.applicationCommands(clientId), { body: commands });
-    logger.success('Déploiement', 'Commandes déployées globalement (délai jusqu\'à 1h)');
+  logger.info('Déploiement', `Bot présent sur ${guilds.length} serveur(s). Déploiement de ${commands.length} commandes sur chacun...`);
+
+  const results = await Promise.allSettled(
+    guilds.map((guild) =>
+      rest
+        .put(Routes.applicationGuildCommands(clientId!, guild.id), { body: commands })
+        .then(() => ({ guild, ok: true }))
+        .catch((err) => ({ guild, ok: false, err }))
+    )
+  );
+
+  let successCount = 0;
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      const { guild, ok, err } = result.value as any;
+      if (ok) {
+        logger.success('Déploiement', `✓ Commandes déployées sur "${guild.name}" (${guild.id})`);
+        successCount++;
+      } else {
+        logger.error('Déploiement', `✗ Échec sur "${guild.name}" (${guild.id}) :`, err);
+      }
+    }
   }
+
+  logger.info('Déploiement', `Terminé : ${successCount}/${guilds.length} serveur(s) mis à jour avec succès.`);
 } catch (err) {
   logger.error('Déploiement', 'Échec du déploiement :', err);
   process.exit(1);

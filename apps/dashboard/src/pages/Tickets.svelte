@@ -846,7 +846,7 @@
           </div>
 
           <!-- Chat Input Bar -->
-          {#if selectedTicketDetail?.status === 'OPEN'}
+          {#if selectedTicketDetail?.status === 'OPEN' || selectedTicketDetail?.status === 'CLAIMED'}
             <div class="p-6 border-t border-outline-variant/10 bg-surface-container/20 flex gap-4">
               <input 
                 type="text" 

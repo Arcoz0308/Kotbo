@@ -2712,7 +2712,7 @@ export const startDashboardApi = (client: Client) => {
               const isAdmin = hasDashboardAdminPermission(perms);
               
               let hasAccess = isGlobalAdmin || isAdmin;
-              let accessLevel: Exclude<DashboardAccessLevel, 'none'> = isAdmin ? 'admin' : 'moderator';
+              let accessLevel: Exclude<DashboardAccessLevel, 'none'> = (isGlobalAdmin || isAdmin) ? 'admin' : 'moderator';
 
               if (!hasAccess) {
                 try {
@@ -4830,7 +4830,10 @@ export const startDashboardApi = (client: Client) => {
           if (parts.length === 6 && parts[4] === 'analytics' && parts[5] === 'weekly-comparison' && req.method === 'GET') {
             try {
               const { getWeekOverWeekComparison } = await import('../services/dashboardAnalyticsService.js');
-              const comparisonData = await getWeekOverWeekComparison(guildId);
+              const offset = Math.min(12, Math.max(1, parseInt(url.searchParams.get('offset') || '1', 10)));
+              const rawMode = url.searchParams.get('mode') || 'week';
+              const mode = (rawMode === 'month' ? 'month' : 'week') as 'week' | 'month';
+              const comparisonData = await getWeekOverWeekComparison(guildId, { offset, mode });
               json(res, 200, comparisonData);
             } catch (err) {
               logger.error('AnalyticsAPI', 'Error computing weekly comparison:', err);
