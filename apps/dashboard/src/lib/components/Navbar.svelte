@@ -179,7 +179,7 @@
   </div>
 
   <div class="flex items-center gap-8">
-    {#if !authStore.member}
+    {#if !authStore.member || !authStore.member.roles}
       <div class="hidden md:flex items-center gap-2 bg-slate-500/5 px-4 py-2 rounded-full border border-slate-500/10 animate-pulse">
         <div class="w-5 h-5 bg-slate-500/20 rounded-full"></div>
         <div class="w-16 h-3 bg-slate-500/20 rounded-md"></div>

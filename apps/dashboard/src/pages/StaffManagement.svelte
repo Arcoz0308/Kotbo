@@ -1635,6 +1635,7 @@
                     {guildId}
                     bind:query={blacklistLookupQuery}
                     bind:selectedId={blacklistTargetUserId}
+                    staffOnly={true}
                     placeholder="@mention, pseudo ou ID Discord"
                     selectedIdPlaceholder="ID Discord du staff (auto-rempli)"
                   />

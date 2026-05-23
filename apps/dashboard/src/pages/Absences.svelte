@@ -32,7 +32,7 @@
   
   // Selection states
   let selectedStaffIds = $state<string[]>([]);
-  let visibleTypes = $state<string[]>(['absence', 'vocal', 'meeting']);
+  let visibleTypes = $state<string[]>(['absence', 'meeting']);
 
   // Modal states
   let modalOpen = $state(false);
@@ -168,7 +168,7 @@
       calendarData.voiceSessions.forEach(vs => {
         events.push({
           id: vs.id,
-          title: `${vs.staffMember?.displayName || vs.staffMember?.username || 'Staff'}: ${vs.channelName || 'Vocal'}`,
+          title: vs.channelName || 'Vocal',
           start: new Date(vs.joinedAt),
           end: vs.leftAt ? new Date(vs.leftAt) : new Date(),
           type: 'vocal',

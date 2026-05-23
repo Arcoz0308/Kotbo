@@ -385,7 +385,16 @@
                   {#if event.avatarUrl}
                     <img src={event.avatarUrl} alt="" class="inline-block w-3 h-3 rounded-full mr-1 -mt-0.5" />
                   {/if}
-                  {event.staffName ? `${event.staffName.split(' ')[0]}: ` : ''}{event.title}
+                  <span class="inline-flex items-center gap-0.5">
+                    {#if event.type === 'vocal'}
+                      <span class="opacity-75"><Papicon icon="mic" size={10} /></span>
+                    {:else if event.type === 'absence'}
+                      <span class="opacity-75"><Papicon icon="sun" size={10} /></span>
+                    {:else if event.type === 'meeting'}
+                      <span class="opacity-75"><Papicon icon="calendar" size={10} /></span>
+                    {/if}
+                    <span>{event.staffName ? `${event.staffName.split(' ')[0]}: ` : ''}{event.title}</span>
+                  </span>
                 </button>
               {/each}
             </div>
@@ -426,7 +435,16 @@
                   onmousedown={(e) => e.stopPropagation()}
                   class="w-full text-left px-2 py-0.5 rounded-md text-[9px] font-bold truncate transition-all hover:scale-[1.02] shadow-sm {getEventClass(event)}"
                 >
-                  {event.staffName ? `${event.staffName}: ` : ''}{event.title}
+                  <span class="inline-flex items-center gap-0.5">
+                    {#if event.type === 'vocal'}
+                      <span class="opacity-75"><Papicon icon="mic" size={10} /></span>
+                    {:else if event.type === 'absence'}
+                      <span class="opacity-75"><Papicon icon="sun" size={10} /></span>
+                    {:else if event.type === 'meeting'}
+                      <span class="opacity-75"><Papicon icon="calendar" size={10} /></span>
+                    {/if}
+                    <span>{event.staffName ? `${event.staffName}: ` : ''}{event.title}</span>
+                  </span>
                 </button>
               {/each}
               {#if allDayEvents.length > 2}
@@ -510,7 +528,16 @@
                        {/if}
                        <span class="truncate">{event.staffName || 'Staff'}</span>
                     </div>
-                    <span class="leading-tight opacity-90 truncate w-full">{event.title}</span>
+                    <span class="leading-tight opacity-90 truncate w-full flex items-center gap-1">
+                      {#if event.type === 'vocal'}
+                        <Papicon icon="mic" size={10} />
+                      {:else if event.type === 'absence'}
+                        <Papicon icon="sun" size={10} />
+                      {:else if event.type === 'meeting'}
+                        <Papicon icon="calendar" size={10} />
+                      {/if}
+                      <span>{event.title}</span>
+                    </span>
                   </button>
                 {/each}
 

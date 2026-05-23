@@ -54,11 +54,10 @@
   let loadingConfig = $state(false);
 
   // Derived from dashboardStore for real-time sync
-  const guildState = $derived(dashboardStore.state.guild);
-  const meetingAnnouncementChannelId = $derived(guildState?.meetingAnnouncementChannelId || null);
-  const meetingVoiceChannelId = $derived(guildState?.meetingVoiceChannelId || null);
-  const availableDiscordChannels = $derived(dashboardStore.state.guild?.discordChannels || []);
-  const availableDiscordVoiceChannels = $derived(dashboardStore.state.guild?.discordVoiceChannels || []);
+  const meetingAnnouncementChannelId = $derived(dashboardStore.state.meetingAnnouncementChannelId || null);
+  const meetingVoiceChannelId = $derived(dashboardStore.state.meetingVoiceChannelId || null);
+  const availableDiscordChannels = $derived(dashboardStore.state.discordChannels || []);
+  const availableDiscordVoiceChannels = $derived(dashboardStore.state.discordVoiceChannels || []);
 
   const canView = $derived(isAdmin || !!featureAccess.canView);
 
