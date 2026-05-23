@@ -445,6 +445,8 @@ model MemberProfile {
   accentColor Int?
   locale String?
   isBot Boolean @default(false)
+  bio String?
+  isProfilePrivate Boolean @default(false)
 
   accountCreatedAt DateTime?
   guildJoinedAt DateTime?

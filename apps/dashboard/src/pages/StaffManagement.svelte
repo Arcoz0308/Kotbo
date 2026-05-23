@@ -1122,7 +1122,7 @@
                     </div>
                     <div>
                       <h4 class="text-lg font-black text-on-surface leading-tight hover:text-primary transition-colors cursor-pointer">
-                        <a href="/profile/{member.userId}">{member.displayName || member.username || 'Utilisateur inconnu'}</a>
+                        <a href="/profile?userId={member.userId}">{member.displayName || member.username || 'Utilisateur inconnu'}</a>
                       </h4>
                       <div class="flex items-center gap-3 mt-1.5 flex-wrap">
                         <span class="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-primary">
@@ -1872,7 +1872,7 @@
                 </div>
                 <h4 class="text-sm font-black text-on-surface uppercase tracking-widest">Distribution des Scores</h4>
               </div>
-              <div class="h-[200px]">
+              <div class="h-50">
                 <Chart data={progressionChartData} type="bar" height={200} options={{ indexAxis: 'y', scales: { x: { beginAtZero: true, max: 100 } } }} />
               </div>
             </div>
@@ -1884,7 +1884,7 @@
                 </div>
                 <h4 class="text-sm font-black text-on-surface uppercase tracking-widest">Comparaison d'Activité</h4>
               </div>
-              <div class="h-[200px]">
+              <div class="h-50">
                 <Chart data={activityChartData} type="bar" height={200} options={{ indexAxis: 'y', scales: { x: { beginAtZero: true } } }} />
               </div>
             </div>
@@ -1935,7 +1935,7 @@
                     </td>
                     <td class="px-8 py-5">
                       <div class="flex items-center gap-4">
-                        <div class="flex-1 h-2 bg-surface-container-high rounded-full overflow-hidden max-w-[100px]">
+                        <div class="flex-1 h-2 bg-surface-container-high rounded-full overflow-hidden max-w-25">
                           <div class="h-full bg-primary" style="width: {metric.progressionScore}%"></div>
                         </div>
                         <span class="text-xs font-black text-primary">{metric.progressionScore}/100</span>

@@ -58,6 +58,10 @@ import {
   recordStaffActivity,
 } from '../services/staffManagementService.js';
 import {
+  getPublicProfileSnapshot,
+  getStaffProfileSnapshot,
+} from '../services/profileService.js';
+import {
   getPolls,
   createPoll,
   castPollVote,
@@ -167,6 +171,49 @@ const PRESET_COMMAND_OVERRIDES: Record<DashboardPresetKey, Partial<Record<string
   gaming: {},
   dev: { dailyAlgo: 'tout_le_monde' },
 };
+
+type RoleDisplay = {
+  id: string;
+  name: string;
+};
+
+type PrimaryRoleDisplay = RoleDisplay | null;
+
+function isDisplayableRoleName(name: string): boolean {
+  const trimmedName = name.trim();
+  return trimmedName.length > 0 && trimmedName !== '@everyone' && !/^[\W_]+$/u.test(trimmedName);
+}
+
+async function resolveProfileRoleDisplay(client: Client, guildId: string, roleIds: string[]): Promise<{
+  roles: RoleDisplay[];
+  primaryRole: PrimaryRoleDisplay;
+}> {
+  const guild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
+
+  if (!guild) {
+    return { roles: [], primaryRole: null };
+  }
+
+  const resolvedRoles = roleIds
+    .map((roleId) => guild.roles.cache.get(roleId) ?? guild.roles.cache.find((role) => role.name === roleId) ?? null)
+    .filter((role): role is NonNullable<typeof role> => !!role && role.name !== '@everyone')
+    .sort((left, right) => right.position - left.position || left.id.localeCompare(right.id));
+
+  const primaryRole = resolvedRoles.find((role) => isDisplayableRoleName(role.name)) ?? resolvedRoles[0] ?? null;
+
+  return {
+    roles: resolvedRoles.map((role) => ({
+      id: role.id,
+      name: role.name,
+    })),
+    primaryRole: primaryRole
+      ? {
+          id: primaryRole.id,
+          name: primaryRole.name,
+        }
+      : null,
+  };
+}
 
 const buildModuleUpdatesForPreset = (presetKey: DashboardPresetKey) => {
   if (presetKey === 'dev') {
@@ -2473,42 +2520,173 @@ export const startDashboardApi = (client: Client) => {
       if (parts[0] === 'api' && parts[1] === 'public' && parts[2] === 'profile' && parts[3] && req.method === 'GET') {
         const userId = parts[3];
         try {
-          const profile = await prisma.memberProfile.findFirst({
-            where: { userId },
-            orderBy: { updatedAt: 'desc' }
-          });
+          const snapshot = await getPublicProfileSnapshot(userId);
 
-          if (!profile) {
+          if (!snapshot) {
             json(res, 404, { error: 'Profil introuvable' });
             return;
           }
 
-          const guildId = profile.guildId;
-          const algoProfile = await getDailyAlgoUserProfile(guildId, userId);
-          const participations = await getDailyAlgoUserParticipations(guildId, userId, 10);
+          const profile = snapshot.memberProfile;
+          const roleDisplay = await resolveProfileRoleDisplay(client, profile.guildId, profile.rolesSnapshot);
+          const authUser = verifyAuth(req);
+          const viewerGuildAccess = authUser
+            ? await resolveDashboardAccess(client, profile.guildId, authUser.userId).catch(() => null)
+            : null;
+          const canViewPrivate = !profile.isProfilePrivate || authUser?.userId === userId || !!viewerGuildAccess?.level && viewerGuildAccess.level !== 'none';
 
-          const roles = profile.rolesSnapshot.map((roleName) => ({ name: roleName }));
-
-          const response = {
-            username: profile.username,
-            displayName: profile.displayName || profile.globalName || profile.username,
-            avatar: profile.avatarUrl,
-            banner: profile.bannerUrl,
-            roles: roles,
-            points: algoProfile?.totalPoints || 0,
-            tier: algoProfile?.tier || 'Débutant',
-            streak: algoProfile?.currentStreak || 0,
-            rank: algoProfile ? algoProfile.rank - 1 : 0, // 0-indexed for frontend
-            recentAlgos: participations.map((p) => ({
-              title: p.problemTitle,
-              date: p.submittedAt.toISOString()
-            }))
-          };
+          const response = canViewPrivate
+            ? {
+                userId: profile.userId,
+                username: profile.username,
+                globalName: profile.globalName,
+                displayName: profile.displayName || profile.globalName || profile.username,
+                avatar: profile.avatarUrl,
+                banner: profile.bannerUrl,
+                bio: profile.bio,
+                isPrivate: profile.isProfilePrivate,
+                roles: roleDisplay.roles,
+                primaryRole: roleDisplay.primaryRole,
+                accountCreatedAt: profile.accountCreatedAt,
+                guildJoinedAt: profile.guildJoinedAt,
+                guildLeftAt: profile.guildLeftAt,
+                lastSeenAt: profile.lastSeenAt,
+                messageCount: profile.messageCount,
+                voiceTimeSeconds: profile.voiceTimeSeconds,
+                invite: snapshot.invite,
+                // DailyAlgo / leveling removed from public profile responses.
+                recentAlgos: [],
+                eventParticipations: snapshot.eventParticipations.map((entry) => ({
+                  id: entry.id,
+                  eventId: entry.eventId,
+                  title: entry.eventTitle,
+                  type: entry.eventType,
+                  date: entry.createdAt.toISOString(),
+                  score: entry.score,
+                })),
+              }
+            : {
+                userId: profile.userId,
+                username: profile.username,
+                globalName: profile.globalName,
+                displayName: profile.displayName || profile.globalName || profile.username,
+                avatar: profile.avatarUrl,
+                banner: profile.bannerUrl,
+                bio: null,
+                isPrivate: true,
+                roles: roleDisplay.roles,
+                primaryRole: roleDisplay.primaryRole,
+                accountCreatedAt: null,
+                guildJoinedAt: null,
+                guildLeftAt: profile.guildLeftAt,
+                lastSeenAt: null,
+                messageCount: null,
+                voiceTimeSeconds: null,
+                invite: null,
+                recentAlgos: [],
+                eventParticipations: [],
+              };
 
           json(res, 200, response);
         } catch (err) {
           logger.error('PublicAPI', `Error fetching public profile for ${userId}:`, err);
           json(res, 500, { error: 'Erreur interne du serveur' });
+        }
+        return;
+      }
+
+      if (parts[0] === 'api' && parts[1] === 'public' && parts[2] === 'profile' && parts[3] && req.method === 'PATCH') {
+        const userId = parts[3];
+        const authUser = verifyAuth(req);
+        if (!authUser) {
+          json(res, 401, { error: 'Non authentifié' });
+          return;
+        }
+
+        try {
+          const snapshot = await getPublicProfileSnapshot(userId);
+          if (!snapshot) {
+            json(res, 404, { error: 'Profil introuvable' });
+            return;
+          }
+
+          if (authUser.userId !== userId) {
+            json(res, 403, { error: 'Seul le propriétaire du profil peut le modifier' });
+            return;
+          }
+
+          const body = await readJsonBody<{ bio?: string | null; isProfilePrivate?: boolean }>(req);
+          const updatedProfile = await prisma.memberProfile.update({
+            where: { id: snapshot.memberProfile.id },
+            data: {
+              bio: typeof body?.bio === 'string' ? body.bio.trim() : body?.bio === null ? null : snapshot.memberProfile.bio,
+              isProfilePrivate: typeof body?.isProfilePrivate === 'boolean'
+                ? body.isProfilePrivate
+                : snapshot.memberProfile.isProfilePrivate,
+            },
+          });
+
+          json(res, 200, {
+            ok: true,
+            profile: {
+              bio: updatedProfile.bio,
+              isProfilePrivate: updatedProfile.isProfilePrivate,
+            },
+          });
+        } catch (err) {
+          logger.error('PublicAPI', `Error updating public profile for ${userId}:`, err);
+          json(res, 500, { error: 'Erreur lors de la mise à jour du profil' });
+        }
+        return;
+      }
+
+      // Public activity image (aggregated across guilds)
+      if (
+        parts[0] === 'api' &&
+        parts[1] === 'public' &&
+        parts[2] === 'profile' &&
+        parts[3] &&
+        parts[4] === 'activity-image' &&
+        req.method === 'GET'
+      ) {
+        const userId = parts[3];
+        const url = new URL(req.url, `http://${req.headers.host}`);
+        const days = parseInt(url.searchParams.get('days') || '14', 10);
+        try {
+          const since = new Date();
+          since.setDate(since.getDate() - days + 1);
+          const startKey = `${since.getFullYear()}-${String(since.getMonth() + 1).padStart(2, '0')}-${String(since.getDate()).padStart(2, '0')}`;
+
+          const stats = await prisma.memberDailyStat.findMany({
+            where: { userId, dateKey: { gte: startKey } },
+            orderBy: { dateKey: 'asc' },
+          });
+
+          // Aggregate by dateKey across guilds
+          const map: Record<string, { messages: number; voice: number }> = {};
+          for (const s of stats) {
+            if (!map[s.dateKey]) map[s.dateKey] = { messages: 0, voice: 0 };
+            map[s.dateKey].messages += s.messagesCount;
+            map[s.dateKey].voice += s.voiceMinutes;
+          }
+
+          const dailyData = Object.keys(map)
+            .sort()
+            .map((date) => ({ date, messages: map[date].messages, voice: map[date].voice }));
+
+          const totalMessages = dailyData.reduce((a, b) => a + b.messages, 0);
+          const totalVoice = dailyData.reduce((a, b) => a + b.voice, 0);
+          const activeDays = dailyData.length;
+          const peakDayMessages = dailyData.reduce((a, b) => Math.max(a, b.messages), 0);
+
+          const { generateMemberStatsImage } = await import('../services/imageService.js');
+          const buffer = await generateMemberStatsImage(userId, days, { totalMessages, totalVoice, activeDays, peakDayMessages }, dailyData);
+
+          res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=300' });
+          res.end(buffer);
+        } catch (err) {
+          logger.error('PublicAPI', `Error generating activity image for ${parts[3]}:`, err);
+          json(res, 500, { error: 'Erreur lors de la génération du graphique' });
         }
         return;
       }
@@ -5127,6 +5305,7 @@ export const startDashboardApi = (client: Client) => {
                   guildJoinedAt: discordMember.joinedAt?.toISOString() ?? dbMember?.guildJoinedAt?.toISOString() ?? null,
                   guildLeftAt: null,
                   isOnServer: true,
+                  presenceStatus: discordMember.presence?.status ?? null,
                 });
               }
 
@@ -5143,7 +5322,8 @@ export const startDashboardApi = (client: Client) => {
                     messageCount: dbMember.messageCount || 0,
                     guildJoinedAt: dbMember.guildJoinedAt?.toISOString() ?? null,
                     guildLeftAt: dbMember.guildLeftAt?.toISOString() ?? null,
-                    isOnServer: false,
+                      isOnServer: false,
+                      presenceStatus: 'left',
                   });
                 }
               }
@@ -7943,19 +8123,31 @@ export const startDashboardApi = (client: Client) => {
 
           try {
             const guildId = url.searchParams.get('guildId');
-            let isDiscordAdmin = false;
-            if (guildId) {
-              const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
-              isDiscordAdmin = accessLevel.canManageSettings;
+            if (!guildId) {
+              json(res, 400, { error: 'guildId manquant' });
+              return;
             }
 
-            const staffMember = await getStaffMember('any', userId); // Get profile without guildId restriction
-            const apiKeys = staffMember ? await getAPIKeys(staffMember.guildId) : [];
-            const blacklist = staffMember ? await getActiveBlacklist(staffMember.guildId, userId) : null;
+            const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+            if (accessLevel.level === 'none') {
+              json(res, 403, { error: 'Accès refusé' });
+              return;
+            }
 
-            const grade = staffMember?.grade?.toLowerCase() || '';
-            const isHighStaff = isDiscordAdmin || grade.includes('admin') || grade.includes('direction') || grade.includes('fondateur') || grade.includes('manager') || grade.includes('responsable');
-            
+            const snapshot = await getStaffProfileSnapshot(guildId, userId);
+            if (!snapshot) {
+              json(res, 404, { error: 'Membre du staff introuvable' });
+              return;
+            }
+
+            const publicProfileRoleDisplay = snapshot.publicProfile
+              ? await resolveProfileRoleDisplay(client, snapshot.publicProfile.guildId, snapshot.publicProfile.rolesSnapshot)
+              : null;
+
+            const isHighStaff = accessLevel.canManageSettings
+              || ['admin', 'moderator'].includes(accessLevel.level)
+              || (snapshot.staffMember.grade ?? '').toLowerCase().includes('direction');
+
             const accessibleTools: string[] = [];
             if (isHighStaff) {
               accessibleTools.push('Générateur Daily Algo');
@@ -7964,28 +8156,36 @@ export const startDashboardApi = (client: Client) => {
               accessibleTools.push('Éditeur de Règlement');
             }
 
-            const participations = await prisma.eventParticipant.findMany({
-              where: { userId },
-              include: {
-                event: true,
-              },
-              orderBy: { event: { createdAt: 'desc' } }
-            });
-
             json(res, 200, {
-              staffMember,
-              apiKeys: apiKeys.map(k => ({
+              staffMember: snapshot.staffMember,
+              publicProfile: snapshot.publicProfile
+                ? {
+                    ...snapshot.publicProfile,
+                    roles: publicProfileRoleDisplay?.roles ?? [],
+                    primaryRole: publicProfileRoleDisplay?.primaryRole ?? null,
+                  }
+                : null,
+              apiKeys: snapshot.apiKeys.map((k) => ({
                 id: k.id,
                 displayKey: k.displayKey,
                 name: k.name,
                 permissions: k.permissions,
                 lastUsedAt: k.lastUsedAt,
               })),
-              isBlacklisted: !!blacklist,
-              blacklistReason: blacklist?.reason,
-              blacklistEndDate: blacklist?.endDate,
+              activeBlacklist: snapshot.activeBlacklist,
+              blacklistHistory: snapshot.blacklistHistory,
+              warnings: snapshot.warnings,
+              testingPeriods: snapshot.testingPeriods,
+              activities: snapshot.activities,
+              absences: snapshot.absences,
+              notesWritten: snapshot.notesWritten,
+              notesAbout: snapshot.notesAbout,
+              gradeHistory: snapshot.gradeHistory,
+              stats: snapshot.stats,
+              isBlacklisted: !!snapshot.activeBlacklist,
+              blacklistReason: snapshot.activeBlacklist?.reason,
+              blacklistEndDate: snapshot.activeBlacklist?.endDate,
               accessibleTools,
-              eventParticipations: participations,
             });
           } catch (err) {
             logger.error('StaffAPI', 'Error getting user profile:', err);

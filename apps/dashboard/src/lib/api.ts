@@ -698,6 +698,71 @@ export async function fetchMemberDetailedAnalytics(userId, period = 30, guildId 
   });
 }
 
+export async function fetchPublicProfile(userId: string) {
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (authStore.token) {
+    headers.Authorization = `Bearer ${authStore.token}`;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/public/profile/${userId}`, { headers });
+  if (!response.ok) {
+    const error = new Error(`Server error: ${response.status}`);
+    (error as any).status = response.status;
+    throw error;
+  }
+
+  return response.json();
+}
+
+export async function updatePublicProfile(userId: string, payload: { bio?: string | null; isProfilePrivate?: boolean }) {
+  if (!authStore.token) {
+    throw new Error('No auth token available');
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/public/profile/${userId}`, {
+    method: 'PATCH',
+    headers: {
+      ...JSON_HEADERS,
+      Authorization: `Bearer ${authStore.token}`,
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const error = new Error(`Server error: ${response.status}`);
+    (error as any).status = response.status;
+    throw error;
+  }
+
+  return response.json();
+}
+
+export async function fetchStaffProfile(userId: string, guildId = authStore.selectedGuildId) {
+  const selectedGuildId = getGuildId(guildId);
+  if (!selectedGuildId) return null;
+
+  if (!authStore.token) {
+    throw new Error('No auth token available');
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/dashboard/users/${userId}/profile?guildId=${selectedGuildId}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${authStore.token}`,
+      Accept: 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const error = new Error(`Server error: ${response.status}`);
+    (error as any).status = response.status;
+    throw error;
+  }
+
+  return response.json();
+}
+
 export async function fetchHourlyHeatmap(options: { days?: number, startDate?: string, endDate?: string } = {}, guildId = authStore.selectedGuildId) {
   const params = new URLSearchParams();
   if (options.days) params.append('days', options.days.toString());

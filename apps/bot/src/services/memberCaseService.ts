@@ -116,41 +116,51 @@ async function upsertMemberProfile(snapshot: MemberProfileSnapshot): Promise<voi
     updateData.voiceTimeSeconds = { increment: snapshot.voiceTimeSecondsDelta };
   }
 
-  await prisma.memberProfile.upsert({
-    where: {
-      guildId_userId: {
+  try {
+    await prisma.memberProfile.upsert({
+      where: {
+        guildId_userId: {
+          guildId: snapshot.guildId,
+          userId: snapshot.userId,
+        },
+      },
+      create: {
         guildId: snapshot.guildId,
         userId: snapshot.userId,
+        userTag: snapshot.userTag ?? null,
+        username: snapshot.username ?? null,
+        globalName: snapshot.globalName ?? null,
+        displayName: snapshot.displayName ?? null,
+        avatarUrl: snapshot.avatarUrl ?? null,
+        bannerUrl: snapshot.bannerUrl ?? null,
+        accentColor: snapshot.accentColor ?? null,
+        locale: snapshot.locale ?? null,
+        isBot: snapshot.isBot ?? false,
+        accountCreatedAt: snapshot.accountCreatedAt ?? null,
+        guildJoinedAt: snapshot.guildJoinedAt ?? null,
+        guildLeftAt: snapshot.guildLeftAt ?? null,
+        lastSeenAt: snapshot.lastSeenAt ?? now,
+        lastMessageAt: snapshot.lastMessageAt ?? null,
+        lastMessageChannelId: snapshot.lastMessageChannelId ?? null,
+        messageCount: snapshot.messageCountDelta && snapshot.messageCountDelta > 0 ? snapshot.messageCountDelta : 0,
+        voiceSessionCount: snapshot.voiceSessionCountDelta && snapshot.voiceSessionCountDelta > 0 ? snapshot.voiceSessionCountDelta : 0,
+        voiceTimeSeconds: snapshot.voiceTimeSecondsDelta && snapshot.voiceTimeSecondsDelta > 0 ? snapshot.voiceTimeSecondsDelta : 0,
+        voiceLastChannelId: snapshot.voiceLastChannelId ?? null,
+        voiceLastJoinedAt: snapshot.voiceLastJoinedAt ?? null,
+        voiceLastLeftAt: snapshot.voiceLastLeftAt ?? null,
+        rolesSnapshot: nextRolesSnapshot,
       },
-    },
-    create: {
-      guildId: snapshot.guildId,
-      userId: snapshot.userId,
-      userTag: snapshot.userTag ?? null,
-      username: snapshot.username ?? null,
-      globalName: snapshot.globalName ?? null,
-      displayName: snapshot.displayName ?? null,
-      avatarUrl: snapshot.avatarUrl ?? null,
-      bannerUrl: snapshot.bannerUrl ?? null,
-      accentColor: snapshot.accentColor ?? null,
-      locale: snapshot.locale ?? null,
-      isBot: snapshot.isBot ?? false,
-      accountCreatedAt: snapshot.accountCreatedAt ?? null,
-      guildJoinedAt: snapshot.guildJoinedAt ?? null,
-      guildLeftAt: snapshot.guildLeftAt ?? null,
-      lastSeenAt: snapshot.lastSeenAt ?? now,
-      lastMessageAt: snapshot.lastMessageAt ?? null,
-      lastMessageChannelId: snapshot.lastMessageChannelId ?? null,
-      messageCount: snapshot.messageCountDelta && snapshot.messageCountDelta > 0 ? snapshot.messageCountDelta : 0,
-      voiceSessionCount: snapshot.voiceSessionCountDelta && snapshot.voiceSessionCountDelta > 0 ? snapshot.voiceSessionCountDelta : 0,
-      voiceTimeSeconds: snapshot.voiceTimeSecondsDelta && snapshot.voiceTimeSecondsDelta > 0 ? snapshot.voiceTimeSecondsDelta : 0,
-      voiceLastChannelId: snapshot.voiceLastChannelId ?? null,
-      voiceLastJoinedAt: snapshot.voiceLastJoinedAt ?? null,
-      voiceLastLeftAt: snapshot.voiceLastLeftAt ?? null,
-      rolesSnapshot: nextRolesSnapshot,
-    },
-    update: updateData,
-  });
+      update: updateData,
+    });
+  } catch (err: any) {
+    // Defensive: if DB schema is not in sync with Prisma (missing columns), avoid crashing the whole flow.
+    // Log the error and continue. Migration should be applied to fix the root cause.
+    try {
+      const { logger } = await import('../utils/logger.js');
+      logger.error('MemberProfile', `Upsert failed for ${snapshot.guildId}/${snapshot.userId}: ${String(err)}`);
+    } catch {}
+    return;
+  }
 }
 
 async function fetchGuildUserContext(guild: Guild, userId: string, pageIndex = 0): Promise<MemberCaseContext> {

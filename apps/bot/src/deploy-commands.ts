@@ -16,7 +16,7 @@ import * as adminCmd from './commands/admin.js';
 import * as helpCmd from './commands/help.js';
 import * as postCmd from './commands/post.js';
 import * as dailyAlgoCmd from './commands/dailyAlgo.js';
-import * as profileCmd from './commands/profile.js';
+import * as profileCmd from './commands/profile.ts';
 import * as sanctionCmd from './commands/sanction.js';
 import * as casierCmd from './commands/casier.js';
 import * as absentCmd from './commands/absent.js';

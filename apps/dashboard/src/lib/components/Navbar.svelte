@@ -199,9 +199,9 @@
     >
       <div class="absolute inset-0 bg-linear-to-tr from-amber-400/0 to-indigo-500/0 group-hover/theme:from-amber-400/10 group-hover/theme:to-indigo-500/10 transition-all duration-500"></div>
       {#if themeStore.dark}
-        <Papicon icon="sun" size={18} class="text-amber-400 transition-all duration-500 group-hover/theme:rotate-[360deg] group-hover/theme:scale-110" />
+        <Papicon icon="sun" size={18} class="text-amber-400 transition-all duration-500 group-hover/theme:rotate-360 group-hover/theme:scale-110" />
       {:else}
-        <Papicon icon="moon" size={18} class="text-indigo-400 transition-all duration-500 group-hover/theme:-rotate-[20deg] group-hover/theme:scale-110" />
+        <Papicon icon="moon" size={18} class="text-indigo-400 transition-all duration-500 group-hover/theme:-rotate-20 group-hover/theme:scale-110" />
       {/if}
     </button>
 
@@ -243,7 +243,7 @@
           </div>
           <div class="py-1.5">
             <a 
-              href="/profile/{authStore.user?.id}" 
+              href={authStore.user?.id ? `/profile/${authStore.user.id}` : '/profile'} 
               class="flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-on-surface-variant transition-all hover:bg-primary/8 hover:text-primary"
               onclick={() => userMenuOpen = false}
             >

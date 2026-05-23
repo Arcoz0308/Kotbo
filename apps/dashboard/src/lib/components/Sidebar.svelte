@@ -5,12 +5,17 @@
   import { dashboardStore } from '../stores/dashboard.svelte';
   import { notificationsStore } from '../stores/notifications.svelte';
 
-  const dashboardItems = [
+  const dashboardItems = $derived.by(() => [
     { name: "Vue d'ensemble", icon: "grid", href: "/", featureKey: "dashboard" },
-    { name: "Mon Profil", icon: "user", href: "/profile/" + (authStore.user?.id || ""), featureKey: "dashboard" },
+    {
+      name: "Mon Profil",
+      icon: "user",
+      href: authStore.user?.id ? `/profile/${authStore.user.id}` : '/profile',
+      featureKey: "dashboard",
+    },
     { name: "Inbox", icon: "inbox", href: "/inbox", featureKey: "inbox" },
     { name: "Analytics", icon: "pie-chart", href: "/analytics", featureKey: "analytics" },
-  ];
+  ]);
 
   const moderationItems = [
     { name: "Daily Algo", icon: "code", href: "/dailyalgo", featureKey: "daily_algo" },
@@ -166,7 +171,7 @@
           <span class="text-[13px] tracking-tight">{item.name}</span>
           
           {#if item.name === 'Inbox' && notificationsStore.unreadCount > 0}
-            <div class="ml-auto min-w-[18px] h-[18px] px-1 bg-primary text-white text-[10px] font-black rounded-full flex items-center justify-center shadow-[0_0_10px_rgba(var(--color-primary),0.3)] animate-in zoom-in duration-300">
+            <div class="ml-auto min-w-5 h-5 px-1 bg-primary text-white text-[10px] font-black rounded-full flex items-center justify-center shadow-[0_0_10px_rgba(var(--color-primary),0.3)] animate-in zoom-in duration-300">
               {notificationsStore.unreadCount > 99 ? '99+' : notificationsStore.unreadCount}
             </div>
           {/if}
