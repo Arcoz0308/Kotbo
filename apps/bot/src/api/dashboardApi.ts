@@ -25,6 +25,7 @@ import {
   registerTimeoutSanction,
   registerWarnSanction,
   runGuildBan,
+  formatDurationFr,
 } from '../services/sanctionService.js';
 import {
   COMMAND_CATALOG,
@@ -5235,6 +5236,85 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
+          // GET /api/dashboard/guilds/:guildId/detections - List suspected DC detections
+          if (parts.length === 5 && parts[4] === 'detections' && req.method === 'GET') {
+            try {
+              if (!access.canManageSettings && !featureAccess.double_accounts?.canView) {
+                json(res, 403, { error: 'Accès refusé. Le module Détections n’est pas accessible.' });
+                return;
+              }
+
+              const discordGuild = client.guilds.cache.get(guildId);
+              let discordMembers: Map<string, any> = new Map();
+
+              if (discordGuild) {
+                const allServerMembers = await discordGuild.members.fetch({ limit: 1000 }).catch(() => null);
+                if (allServerMembers) {
+                  for (const member of allServerMembers.values()) {
+                    discordMembers.set(member.id, member);
+                  }
+                }
+              }
+
+              const suspiciousMembers = await prisma.memberProfile.findMany({
+                where: { guildId, isSuspectedDC: true },
+                orderBy: [{ lastSeenAt: 'desc' }, { guildJoinedAt: 'desc' }],
+                take: 200,
+                select: {
+                  userId: true,
+                  username: true,
+                  displayName: true,
+                  userTag: true,
+                  avatarUrl: true,
+                  isBot: true,
+                  accountCreatedAt: true,
+                  guildJoinedAt: true,
+                  guildLeftAt: true,
+                  lastSeenAt: true,
+                  messageCount: true,
+                  isSuspectedDC: true,
+                },
+              });
+
+              const detections = suspiciousMembers.map((member) => {
+                const discordMember = discordMembers.get(member.userId) ?? null;
+                const accountCreatedAt = member.accountCreatedAt?.toISOString() ?? null;
+                const guildJoinedAt = discordMember?.joinedAt?.toISOString() ?? member.guildJoinedAt?.toISOString() ?? null;
+                const createdTs = member.accountCreatedAt?.getTime() ?? null;
+                const joinedTs = discordMember?.joinedTimestamp ?? member.guildJoinedAt?.getTime() ?? null;
+                const accountAgeMs = createdTs !== null && joinedTs !== null ? Math.max(0, joinedTs - createdTs) : null;
+
+                return {
+                  id: member.userId,
+                  username: member.username ?? null,
+                  displayName: member.displayName ?? member.userTag ?? member.username ?? null,
+                  avatarUrl: member.avatarUrl ?? discordMember?.user.displayAvatarURL({ size: 256 }) ?? null,
+                  isBot: member.isBot,
+                  accountCreatedAt,
+                  guildJoinedAt,
+                  guildLeftAt: member.guildLeftAt?.toISOString() ?? null,
+                  lastSeenAt: member.lastSeenAt?.toISOString() ?? null,
+                  messageCount: member.messageCount ?? 0,
+                  isOnServer: !!discordMember,
+                  presenceStatus: discordMember?.presence?.status ?? (discordMember ? null : 'left'),
+                  accountAgeMs,
+                  accountAgeLabel: accountAgeMs !== null
+                    ? formatDurationFr(accountAgeMs)
+                    : 'Inconnue',
+                };
+              });
+
+              json(res, 200, {
+                total: detections.length,
+                detections,
+              });
+            } catch (err) {
+              logger.error('MembersAPI', 'Error fetching suspected detections:', err);
+              json(res, 500, { error: 'Erreur lors du chargement des détections' });
+            }
+            return;
+          }
+
           // GET /api/dashboard/guilds/:guildId/members/search - Search members from Discord + database
           if (parts.length === 6 && parts[4] === 'members' && parts[5] === 'search' && req.method === 'GET') {
             try {
@@ -7906,6 +7986,7 @@ export const startDashboardApi = (client: Client) => {
                 notifyViaDM: feature.notifyViaDM,
                 loggingEnabled: feature.loggingEnabled,
                 userActivityTracking: feature.userActivityTracking,
+                metadata: feature.metadata,
                 roleAccess: feature.roleAccess,
                 roleAccessByRole: feature.roleAccessByRole,
               })),
@@ -7935,6 +8016,7 @@ export const startDashboardApi = (client: Client) => {
             notifyViaDM?: boolean;
             loggingEnabled?: boolean;
             userActivityTracking?: boolean;
+            metadata?: Record<string, unknown>;
           }>(req);
 
           try {

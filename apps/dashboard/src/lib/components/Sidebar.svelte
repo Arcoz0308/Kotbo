@@ -22,6 +22,7 @@
     { name: "Membres", icon: "user", href: "/members", featureKey: "members" },
     { name: "Sanctions", icon: "alert-triangle", href: "/sanctions", featureKey: "sanctions" },
     { name: "Doubles Comptes", icon: "users", href: "/double-accounts", featureKey: "double_accounts" },
+    { name: "Détections", icon: "bell", href: "/detections", featureKey: "double_accounts" },
     { name: "Invitations", icon: "link", href: "/invitations", featureKey: "members" },
     { name: "Logs Discord", icon: "file-text", href: "/logs", featureKey: "logs" },
     { name: "Journal d'activité", icon: "history", href: "/activity", featureKey: "activity" },

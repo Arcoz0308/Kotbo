@@ -887,6 +887,14 @@ export async function fetchFeatureConfigurations(guildId = authStore.selectedGui
   });
 }
 
+export async function fetchSuspectedDetections(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/detections', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Suspected Detections):'
+  });
+}
+
 export async function updateFeatureConfiguration(featureKey, config, guildId = authStore.selectedGuildId) {
   return dashboardMutation(`/management/features/${featureKey}`, {
     method: 'PATCH',

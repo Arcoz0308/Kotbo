@@ -23,6 +23,7 @@
   import NotificationsSettings from './pages/NotificationsSettings.svelte';
   import CommandAccess from './pages/CommandAccess.svelte';
   import Sanctions from './pages/Sanctions.svelte';
+  import Detections from './pages/Detections.svelte';
   import Regulation from './pages/Regulation.svelte';
   import AdminOverview from './pages/AdminOverview.svelte';
   import Profile from './pages/Profile.svelte';
@@ -68,6 +69,7 @@
     if (path.startsWith('/events')) return 'events';
     if (path.startsWith('/members') || path.startsWith('/invitations')) return 'members';
     if (path.startsWith('/sanctions')) return 'sanctions';
+    if (path.startsWith('/detections')) return 'double_accounts';
     if (path.startsWith('/double-accounts')) return 'double_accounts';
     if (path.startsWith('/logs')) return 'logs';
     if (path.startsWith('/activity')) return 'activity';
@@ -256,6 +258,9 @@
       </Route>
       <Route path="/sanctions">
         <Sanctions />
+      </Route>
+      <Route path="/detections">
+        <Detections />
       </Route>
       <Route path="/regulation">
         <Regulation />
