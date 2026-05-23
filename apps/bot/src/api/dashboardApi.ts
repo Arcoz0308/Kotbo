@@ -5809,29 +5809,23 @@ export const startDashboardApi = (client: Client) => {
 
 
           // ---------------------------------------------------------------
-          // GET /api/dashboard/guilds/:guildId/nickname-moderation
+          // GET  /api/dashboard/guilds/:guildId/nickname-moderation
           // PATCH /api/dashboard/guilds/:guildId/nickname-moderation
+          // Gère uniquement le flag `enabled`. Les mots bannis sont gérés
+          // par les endpoints /banned-words ci-dessous.
           // ---------------------------------------------------------------
           if (parts.length === 5 && parts[4] === 'nickname-moderation') {
             if (req.method === 'GET') {
               try {
                 const guild = await prisma.guild.findUnique({
                   where: { id: guildId },
-                  select: {
-                    autoNicknameModerationEnabled: true,
-                    autoNicknameModerationWords: true,
-                  },
+                  select: { autoNicknameModerationEnabled: true },
                 });
-
                 if (!guild) {
                   json(res, 404, { error: 'Serveur introuvable' });
                   return;
                 }
-
-                json(res, 200, {
-                  enabled: guild.autoNicknameModerationEnabled,
-                  bannedWords: guild.autoNicknameModerationWords,
-                });
+                json(res, 200, { enabled: guild.autoNicknameModerationEnabled });
               } catch (err) {
                 logger.error('NicknameAPI', 'GET nickname-moderation error:', err);
                 json(res, 500, { error: 'Erreur lors de la récupération de la configuration' });
@@ -5840,42 +5834,18 @@ export const startDashboardApi = (client: Client) => {
             }
 
             if (req.method === 'PATCH') {
-              const body = await readJsonBody<{
-                enabled?: boolean;
-                bannedWords?: string[];
-              }>(req);
-
-              if (!body) {
-                json(res, 400, { error: 'Payload invalide' });
+              const body = await readJsonBody<{ enabled?: boolean }>(req);
+              if (!body || !Object.prototype.hasOwnProperty.call(body, 'enabled')) {
+                json(res, 400, { error: 'Payload invalide — champ `enabled` requis' });
                 return;
               }
 
               try {
-                const data: { autoNicknameModerationEnabled?: boolean; autoNicknameModerationWords?: string[] } = {};
+                await prisma.guild.update({
+                  where: { id: guildId },
+                  data: { autoNicknameModerationEnabled: !!body.enabled },
+                });
 
-                if (Object.prototype.hasOwnProperty.call(body, 'enabled')) {
-                  data.autoNicknameModerationEnabled = !!body.enabled;
-                }
-
-                if (Object.prototype.hasOwnProperty.call(body, 'bannedWords') && Array.isArray(body.bannedWords)) {
-                  // Nettoyage : trim, lowercase, dédoublonnage, max 200 mots, max 100 chars par mot
-                  data.autoNicknameModerationWords = [
-                    ...new Set(
-                      body.bannedWords
-                        .map((w: string) => String(w).trim().toLowerCase())
-                        .filter((w: string) => w.length > 0 && w.length <= 100),
-                    ),
-                  ].slice(0, 200);
-                }
-
-                if (Object.keys(data).length === 0) {
-                  json(res, 400, { error: 'Aucun champ à mettre à jour' });
-                  return;
-                }
-
-                await prisma.guild.update({ where: { id: guildId }, data });
-
-                // Invalider le cache bot pour que les changements prennent effet immédiatement
                 const { invalidateNicknameModerationCache } = await import('../events/nicknameModeration.js');
                 invalidateNicknameModerationCache(guildId);
 
@@ -5885,17 +5855,150 @@ export const startDashboardApi = (client: Client) => {
                   context: getGuildName(client, guildId),
                   module: 'Modération des pseudos',
                   eventType: 'Manuel',
-                  details: `Activé: ${data.autoNicknameModerationEnabled ?? '(inchangé)'}, Mots bannis: ${data.autoNicknameModerationWords?.length ?? '(inchangé)'} entrée(s)`,
+                  details: `Activé: ${body.enabled}`,
                   channelId: null,
                 });
 
                 json(res, 200, { ok: true });
               } catch (err) {
                 logger.error('NicknameAPI', 'PATCH nickname-moderation error:', err);
-                json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration' });
+                json(res, 500, { error: 'Erreur lors de la mise à jour' });
               }
               return;
             }
+          }
+
+          // ---------------------------------------------------------------
+          // CRUD /api/dashboard/guilds/:guildId/banned-words
+          // Service partagé : utilisable par automod pseudos, messages, etc.
+          // ---------------------------------------------------------------
+
+          // GET  /banned-words  → mots globaux + mots du serveur
+          if (parts.length === 5 && parts[4] === 'banned-words' && req.method === 'GET') {
+            try {
+              const [globalWords, guildWords] = await Promise.all([
+                prisma.bannedWord.findMany({
+                  where: { guildId: null },
+                  select: { id: true, word: true, category: true, enabled: true, guildId: true },
+                  orderBy: [{ category: 'asc' }, { word: 'asc' }],
+                }),
+                prisma.bannedWord.findMany({
+                  where: { guildId },
+                  select: { id: true, word: true, category: true, enabled: true, guildId: true },
+                  orderBy: [{ category: 'asc' }, { word: 'asc' }],
+                }),
+              ]);
+              json(res, 200, { global: globalWords, custom: guildWords });
+            } catch (err) {
+              logger.error('BannedWordsAPI', 'GET banned-words error:', err);
+              json(res, 500, { error: 'Erreur lors de la récupération des mots bannis' });
+            }
+            return;
+          }
+
+          // POST /banned-words  → ajouter un mot personnalisé au serveur
+          if (parts.length === 5 && parts[4] === 'banned-words' && req.method === 'POST') {
+            const body = await readJsonBody<{ word: string; category?: string }>(req);
+            if (!body?.word || typeof body.word !== 'string' || !body.word.trim()) {
+              json(res, 400, { error: 'Champ `word` requis' });
+              return;
+            }
+
+            const cleanWord = body.word.trim().toLowerCase().slice(0, 100);
+            const category = ['custom', 'racism', 'threat', 'sexual', 'lgbtphobia', 'hate', 'insult'].includes(body.category ?? '')
+              ? body.category!
+              : 'custom';
+
+            try {
+              const created = await prisma.bannedWord.create({
+                data: { guildId, word: cleanWord, category },
+              });
+
+              const { invalidateBannedWordsCache } = await import('../services/bannedWordsService.js');
+              invalidateBannedWordsCache(guildId);
+
+              await pushAudit(guildId, {
+                user: auditUser,
+                action: 'Ajout mot banni',
+                context: getGuildName(client, guildId),
+                module: 'Mots bannis',
+                eventType: 'Manuel',
+                details: `Mot "${cleanWord}" ajouté (catégorie: ${category})`,
+                channelId: null,
+              });
+
+              json(res, 201, { ok: true, id: created.id });
+            } catch (err: any) {
+              if (err?.code === 'P2002') {
+                json(res, 409, { error: 'Ce mot existe déjà sur ce serveur' });
+              } else {
+                logger.error('BannedWordsAPI', 'POST banned-words error:', err);
+                json(res, 500, { error: 'Erreur lors de l\'ajout du mot' });
+              }
+            }
+            return;
+          }
+
+          // PATCH /banned-words/:wordId  → activer/désactiver un mot du serveur
+          if (parts.length === 6 && parts[4] === 'banned-words' && req.method === 'PATCH') {
+            const wordId = parts[5];
+            const body = await readJsonBody<{ enabled: boolean }>(req);
+            if (!body || typeof body.enabled !== 'boolean') {
+              json(res, 400, { error: 'Champ `enabled` requis (boolean)' });
+              return;
+            }
+
+            try {
+              const existing = await prisma.bannedWord.findFirst({ where: { id: wordId, guildId } });
+              if (!existing) {
+                json(res, 404, { error: 'Mot introuvable' });
+                return;
+              }
+
+              await prisma.bannedWord.update({ where: { id: wordId }, data: { enabled: body.enabled } });
+
+              const { invalidateBannedWordsCache } = await import('../services/bannedWordsService.js');
+              invalidateBannedWordsCache(guildId);
+
+              json(res, 200, { ok: true });
+            } catch (err) {
+              logger.error('BannedWordsAPI', 'PATCH banned-words error:', err);
+              json(res, 500, { error: 'Erreur lors de la mise à jour' });
+            }
+            return;
+          }
+
+          // DELETE /banned-words/:wordId  → supprimer un mot personnalisé du serveur
+          if (parts.length === 6 && parts[4] === 'banned-words' && req.method === 'DELETE') {
+            const wordId = parts[5];
+            try {
+              const existing = await prisma.bannedWord.findFirst({ where: { id: wordId, guildId } });
+              if (!existing) {
+                json(res, 404, { error: 'Mot introuvable ou non modifiable' });
+                return;
+              }
+
+              await prisma.bannedWord.delete({ where: { id: wordId } });
+
+              const { invalidateBannedWordsCache } = await import('../services/bannedWordsService.js');
+              invalidateBannedWordsCache(guildId);
+
+              await pushAudit(guildId, {
+                user: auditUser,
+                action: 'Suppression mot banni',
+                context: getGuildName(client, guildId),
+                module: 'Mots bannis',
+                eventType: 'Manuel',
+                details: `Mot "${existing.word}" supprimé`,
+                channelId: null,
+              });
+
+              json(res, 200, { ok: true });
+            } catch (err) {
+              logger.error('BannedWordsAPI', 'DELETE banned-words error:', err);
+              json(res, 500, { error: 'Erreur lors de la suppression' });
+            }
+            return;
           }
 
           if (parts.length === 5 && parts[4] === 'notifications' && req.method === 'PUT') {

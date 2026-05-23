@@ -1,50 +1,47 @@
 import { EmbedBuilder, Events, PermissionFlagsBits, type Client, type GuildMember } from 'discord.js';
-import { isNicknameProblematic, SAFE_NICKNAME, buildRenameReason } from '../services/nicknameModerationService.js';
+import { isNicknameProblematic, SAFE_NICKNAME, buildRenameReason, loadBannedWords } from '../services/nicknameModerationService.js';
+import { invalidateBannedWordsCache } from '../services/bannedWordsService.js';
 import { logger } from '../utils/logger.js';
 
 // ---------------------------------------------------------------------------
-// Cache du statut d'activation par serveur (TTL 60s, même pattern que codePolice)
+// Cache du statut d'activation par serveur (TTL 60s)
 // ---------------------------------------------------------------------------
 
-type GuildNicknameModerationConfig = {
-  enabled: boolean;
-  customWords: string[];
-  expiresAt: number;
-};
-
-const configCache = new Map<string, GuildNicknameModerationConfig>();
+type EnabledCache = { enabled: boolean; expiresAt: number };
+const enabledCache = new Map<string, EnabledCache>();
 const CACHE_TTL_MS = 60_000;
 
+/**
+ * Invalide uniquement le cache d'activation (enabled).
+ * Pour les mots bannis, utiliser invalidateBannedWordsCache depuis bannedWordsService.
+ */
 export function invalidateNicknameModerationCache(guildId?: string): void {
   if (guildId) {
-    configCache.delete(guildId);
+    enabledCache.delete(guildId);
+    invalidateBannedWordsCache(guildId);
     return;
   }
-  configCache.clear();
+  enabledCache.clear();
+  invalidateBannedWordsCache();
 }
 
-async function getNicknameModerationConfig(guildId: string): Promise<{ enabled: boolean; customWords: string[] }> {
-  const cached = configCache.get(guildId);
-  const now = Date.now();
+// Re-export pour les usages existants dans dashboardApi.ts
+export { invalidateBannedWordsCache };
 
-  if (cached && cached.expiresAt > now) {
-    return { enabled: cached.enabled, customWords: cached.customWords };
-  }
+async function isNicknameModerationEnabled(guildId: string): Promise<boolean> {
+  const cached = enabledCache.get(guildId);
+  const now = Date.now();
+  if (cached && cached.expiresAt > now) return cached.enabled;
 
   const { default: prisma } = await import('../utils/db.js');
   const guild = await prisma.guild.findUnique({
     where: { id: guildId },
-    select: {
-      autoNicknameModerationEnabled: true,
-      autoNicknameModerationWords: true,
-    },
+    select: { autoNicknameModerationEnabled: true },
   });
 
   const enabled = guild?.autoNicknameModerationEnabled ?? false;
-  const customWords = guild?.autoNicknameModerationWords ?? [];
-
-  configCache.set(guildId, { enabled, customWords, expiresAt: now + CACHE_TTL_MS });
-  return { enabled, customWords };
+  enabledCache.set(guildId, { enabled, expiresAt: now + CACHE_TTL_MS });
+  return enabled;
 }
 
 // ---------------------------------------------------------------------------
@@ -55,7 +52,7 @@ async function checkAndRename(member: GuildMember): Promise<void> {
   if (member.user.bot) return;
 
   const guildId = member.guild.id;
-  const { enabled, customWords } = await getNicknameModerationConfig(guildId);
+  const enabled = await isNicknameModerationEnabled(guildId);
   if (!enabled) return;
 
   // Vérification des permissions du bot
@@ -69,7 +66,10 @@ async function checkAndRename(member: GuildMember): Promise<void> {
   const effectiveName = member.nickname ?? member.user.globalName ?? member.user.username;
   if (!effectiveName) return;
 
-  if (!isNicknameProblematic(effectiveName, customWords)) return;
+  // Chargement des mots bannis depuis le service générique (global + serveur)
+  const bannedWords = await loadBannedWords(guildId);
+
+  if (!isNicknameProblematic(effectiveName, bannedWords)) return;
 
   try {
     await member.setNickname(SAFE_NICKNAME, buildRenameReason(effectiveName));
@@ -124,25 +124,24 @@ async function checkAndRename(member: GuildMember): Promise<void> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Enregistrement des listeners
+// ---------------------------------------------------------------------------
+
 export function registerNicknameModerationListener(client: Client): void {
-  // Nouveau membre qui rejoint
   client.on(Events.GuildMemberAdd, async (member) => {
     await checkAndRename(member).catch((err) => {
       logger.error('NicknameAutomod', 'Erreur GuildMemberAdd:', err);
     });
   });
 
-  // Membre qui change son pseudo (ou dont le pseudo global change)
   client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
     if (oldMember.partial || newMember.partial) return;
 
     const oldName = oldMember.nickname ?? oldMember.user.globalName ?? oldMember.user.username;
     const newName = newMember.nickname ?? newMember.user.globalName ?? newMember.user.username;
 
-    // Ne rien faire si le pseudo n'a pas changé
     if (oldName === newName) return;
-
-    // Éviter une boucle infinie si le bot vient de poser le pseudo safe
     if (newName === SAFE_NICKNAME) return;
 
     await checkAndRename(newMember).catch((err) => {
