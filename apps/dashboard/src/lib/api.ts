@@ -543,6 +543,14 @@ export async function fetchStaffRoles(guildId = authStore.selectedGuildId) {
   });
 }
 
+export async function deleteStaffRole(roleId, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/staff/roles/${roleId}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Delete Staff Role):'
+  });
+}
+
 export async function fetchStaffConfig(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/staff/config', {
     method: 'GET',
@@ -582,6 +590,10 @@ export async function updateAbsenceConfig(managerRoleLevels: number[], guildId =
 
 export async function updateAbsenceStatus(absenceId, status, note, guildId = authStore.selectedGuildId) {
   return dashboardMutation(`/absences/${absenceId}`, { method: 'PATCH', payload: { status, note }, guildId });
+}
+
+export async function deleteAbsence(absenceId, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/absences/${absenceId}`, { method: 'DELETE', guildId });
 }
 
 export async function fetchMeetings(guildId = authStore.selectedGuildId) {

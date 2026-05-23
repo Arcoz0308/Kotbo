@@ -201,13 +201,13 @@ export const updateStaffGrade = async (
     // Essayer de déterminer si c'est une promotion ou un downgrade
     // On peut se baser sur les rôles configurés si besoin, mais ici on va faire simple par défaut
     // ou comparer avec une liste de grades connus.
-    const gradesHierarchy = ['Staff', 'Modérateur', 'Responsable', 'Manager', 'Admin', 'Administrateur', 'Direction', 'Fondateur'];
+    const gradesHierarchy = ['Modérateur', 'Responsable', 'Manager', 'Admin', 'Administrateur', 'Direction', 'Fondateur'];
     const oldIndex = gradesHierarchy.indexOf(oldMember.grade);
     const newIndex = gradesHierarchy.indexOf(newGrade);
 
     let title = 'Changement de grade';
     let message = `Votre grade a été mis à jour : **${newGrade}**.`;
-    let type = 'INFO';
+    let type: 'ERROR' | 'INFO' | 'WARNING' | 'SUCCESS' | 'CRITICAL' = 'INFO';
 
     if (oldIndex !== -1 && newIndex !== -1) {
       if (newIndex > oldIndex) {
@@ -631,6 +631,34 @@ export const reorderStaffRoles = async (guildId: string, orderedRoleIds: string[
       })
     )
   );
+};
+
+export const deleteStaffRole = async (guildId: string, roleId: string) => {
+  const roleToDelete = await prisma.staffRole.findFirst({
+    where: { id: roleId, guildId }
+  });
+  if (!roleToDelete) return null;
+
+  const deleted = await prisma.staffRole.delete({
+    where: { id: roleId }
+  });
+
+  // Reorder remaining roles to keep sortOrder contiguous
+  const remainingRoles = await prisma.staffRole.findMany({
+    where: { guildId },
+    orderBy: [{ sortOrder: 'asc' }, { level: 'asc' }, { createdAt: 'asc' }]
+  });
+
+  await prisma.$transaction(
+    remainingRoles.map((role, index) =>
+      prisma.staffRole.update({
+        where: { id: role.id },
+        data: { sortOrder: index }
+      })
+    )
+  );
+
+  return deleted;
 };
 
 export const createAPIKey = async (

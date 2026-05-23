@@ -50,6 +50,7 @@ import {
   getStaffRoles,
   createStaffRole,
   reorderStaffRoles,
+  deleteStaffRole,
   createAPIKey,
   getAPIKeys,
   deleteAPIKey,
@@ -62,6 +63,7 @@ import {
   castPollVote,
   getAbsences,
   createAbsence,
+  deleteAbsence,
   getMeetings,
   updateAbsenceStatus,
   getManagerNotes,
@@ -2207,6 +2209,17 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
     regulationMessageId: guild.regulationMessageId ?? null,
     meetingAnnouncementChannelId: guild.meetingAnnouncementChannelId ?? '',
     meetingVoiceChannelId: guild.meetingVoiceChannelId ?? '',
+    publicChannelId: guild.publicChannelId ?? '',
+    dailyAlgoChannelId: guild.dailyAlgoChannelId ?? '',
+    baseStaffRoleId: guild.baseStaffRoleId ?? '',
+    testStaffRoleId: guild.testStaffRoleId ?? '',
+    propagateSanctions: guild.propagateSanctions,
+    translationEnabled: guild.translationEnabled,
+    codePoliceEnabled: guild.codePoliceEnabled,
+    dailyAlgoEnabled: guild.dailyAlgoEnabled,
+    githubReleasesEnabled: guild.githubReleasesEnabled,
+    digestEnabled: guild.digestEnabled,
+    youtubeEnabled: getFeatureStatus('youtube', guild.youtubeEnabled) === 'active',
     recruitmentCategoryId: guild.recruitmentCategoryId ?? '',
     recruitmentLogChannelId: guild.recruitmentLogChannelId ?? '',
     recruitmentAutoRejectEnabled: isRecruitmentAutoRejectEnabled(guildId),
@@ -6151,7 +6164,7 @@ export const startDashboardApi = (client: Client) => {
               json(res, 201, { absence });
             } catch (err) {
               logger.error('StaffAPI', 'Error creating absence:', err);
-              json(res, 500, { error: 'Erreur lors de la création de l\'absence' });
+              json(res, 500, { error: err instanceof Error ? err.message : 'Erreur lors de la création de l\'absence' });
             }
             return;
           }
@@ -6191,6 +6204,45 @@ export const startDashboardApi = (client: Client) => {
             } catch (err) {
               logger.error('StaffAPI', 'Error updating absence status:', err);
               json(res, 500, { error: 'Erreur lors de la mise à jour de l\'absence' });
+            }
+            return;
+          }
+
+          if (parts.length === 6 && parts[4] === 'absences' && req.method === 'DELETE') {
+            const absenceId = parts[5];
+            try {
+              const absence = await prisma.staffAbsence.findUnique({
+                where: { id: absenceId },
+                include: { staffMember: true }
+              });
+
+              if (!absence) {
+                json(res, 404, { error: 'Absence introuvable' });
+                return;
+              }
+
+              const isOwner = absence.staffMember.userId === user.userId;
+              if (!isOwner && !access.canManageSettings) {
+                json(res, 403, { error: 'Vous ne pouvez supprimer que vos propres absences.' });
+                return;
+              }
+
+              await deleteAbsence(guildId, absenceId);
+
+              await pushAudit(guildId, {
+                user: auditUser,
+                action: 'Suppression absence',
+                context: getGuildName(client, guildId),
+                module: 'Staff Management',
+                eventType: 'Manuel',
+                details: `Absence ${absenceId} supprimée`,
+                channelId: null,
+              });
+
+              json(res, 200, { ok: true });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error deleting absence:', err);
+              json(res, 500, { error: 'Erreur lors de la suppression de l\'absence' });
             }
             return;
           }
@@ -6699,6 +6751,21 @@ export const startDashboardApi = (client: Client) => {
               regulationChannelId?: string | null;
               propagateSanctions?: boolean;
               messageTemplate?: string;
+
+              // Additional settings fields
+              configChannelId?: string | null;
+              publicChannelId?: string | null;
+              dailyAlgoChannelId?: string | null;
+              meetingAnnouncementChannelId?: string | null;
+              meetingVoiceChannelId?: string | null;
+              baseStaffRoleId?: string | null;
+              testStaffRoleId?: string | null;
+              translationEnabled?: boolean;
+              codePoliceEnabled?: boolean;
+              dailyAlgoEnabled?: boolean;
+              githubReleasesEnabled?: boolean;
+              digestEnabled?: boolean;
+              youtubeEnabled?: boolean;
             }>(req);
 
             if (!body) {
@@ -6706,44 +6773,103 @@ export const startDashboardApi = (client: Client) => {
               return;
             }
 
-            const data: {
-              statusCheckChannelId?: string | null;
-              logChannelId?: string | null;
-              moderatorRoleId?: string | null;
-              regulationChannelId?: string | null;
-              propagateSanctions?: boolean;
-            } = {};
+            const data: any = {};
             if (Object.prototype.hasOwnProperty.call(body, 'discordChannel')) {
-              data.statusCheckChannelId = body.discordChannel?.replace(/[^0-9]/g, '') || null;
+              data.statusCheckChannelId = extractDiscordSnowflake(body.discordChannel);
             }
-
             if (Object.prototype.hasOwnProperty.call(body, 'logChannelId')) {
-              const rawLogChannelId = body.logChannelId;
-              if (typeof rawLogChannelId === 'string' || rawLogChannelId === null) {
-                data.logChannelId = rawLogChannelId?.replace(/[^0-9]/g, '') || null;
-              }
+              data.logChannelId = extractDiscordSnowflake(body.logChannelId);
             }
-
             if (Object.prototype.hasOwnProperty.call(body, 'moderatorRoleId')) {
-              const rawModeratorRoleId = body.moderatorRoleId;
-              if (typeof rawModeratorRoleId === 'string' || rawModeratorRoleId === null) {
-                data.moderatorRoleId = rawModeratorRoleId?.replace(/[^0-9]/g, '') || null;
-              }
+              data.moderatorRoleId = extractDiscordSnowflake(body.moderatorRoleId);
             }
-
             if (Object.prototype.hasOwnProperty.call(body, 'regulationChannelId')) {
-              const rawRegulationChannelId = body.regulationChannelId;
-              if (typeof rawRegulationChannelId === 'string' || rawRegulationChannelId === null) {
-                data.regulationChannelId = rawRegulationChannelId?.replace(/[^0-9]/g, '') || null;
-              }
+              data.regulationChannelId = extractDiscordSnowflake(body.regulationChannelId);
             }
-
             if (Object.prototype.hasOwnProperty.call(body, 'propagateSanctions')) {
               data.propagateSanctions = !!body.propagateSanctions;
+              data.sanctionSyncEnabled = !!body.propagateSanctions;
+            }
+            if (Object.prototype.hasOwnProperty.call(body, 'configChannelId')) {
+              data.configChannelId = extractDiscordSnowflake(body.configChannelId);
+            }
+            if (Object.prototype.hasOwnProperty.call(body, 'publicChannelId')) {
+              data.publicChannelId = extractDiscordSnowflake(body.publicChannelId);
+            }
+            if (Object.prototype.hasOwnProperty.call(body, 'dailyAlgoChannelId')) {
+              data.dailyAlgoChannelId = extractDiscordSnowflake(body.dailyAlgoChannelId);
+            }
+            if (Object.prototype.hasOwnProperty.call(body, 'meetingAnnouncementChannelId')) {
+              data.meetingAnnouncementChannelId = extractDiscordSnowflake(body.meetingAnnouncementChannelId);
+            }
+            if (Object.prototype.hasOwnProperty.call(body, 'meetingVoiceChannelId')) {
+              data.meetingVoiceChannelId = extractDiscordSnowflake(body.meetingVoiceChannelId);
+            }
+            if (Object.prototype.hasOwnProperty.call(body, 'baseStaffRoleId')) {
+              data.baseStaffRoleId = extractDiscordSnowflake(body.baseStaffRoleId);
+            }
+            if (Object.prototype.hasOwnProperty.call(body, 'testStaffRoleId')) {
+              data.testStaffRoleId = extractDiscordSnowflake(body.testStaffRoleId);
+            }
+            if (Object.prototype.hasOwnProperty.call(body, 'translationEnabled')) {
+              data.translationEnabled = !!body.translationEnabled;
+            }
+            if (Object.prototype.hasOwnProperty.call(body, 'codePoliceEnabled')) {
+              data.codePoliceEnabled = !!body.codePoliceEnabled;
+            }
+            if (Object.prototype.hasOwnProperty.call(body, 'dailyAlgoEnabled')) {
+              data.dailyAlgoEnabled = !!body.dailyAlgoEnabled;
+            }
+            if (Object.prototype.hasOwnProperty.call(body, 'githubReleasesEnabled')) {
+              data.githubReleasesEnabled = !!body.githubReleasesEnabled;
+            }
+            if (Object.prototype.hasOwnProperty.call(body, 'digestEnabled')) {
+              data.digestEnabled = !!body.digestEnabled;
             }
 
             if (Object.keys(data).length > 0) {
               await prisma.guild.update({ where: { id: guildId }, data });
+            }
+
+            // Sync with DashboardFeatureConfig
+            const syncFeature = async (featureKey: string, featureName: string, enabled?: boolean, channelId?: string | null, secondaryChannelId?: string | null) => {
+              const updateData: any = {};
+              if (enabled !== undefined) updateData.enabled = enabled;
+              if (channelId !== undefined) updateData.channelId = channelId;
+              if (secondaryChannelId !== undefined) updateData.secondaryChannelId = secondaryChannelId;
+
+              if (Object.keys(updateData).length > 0) {
+                await prisma.dashboardFeatureConfig.upsert({
+                  where: { guildId_featureKey: { guildId, featureKey } },
+                  create: {
+                    guildId,
+                    featureKey,
+                    featureName,
+                    enabled: enabled ?? true,
+                    channelId: channelId ?? null,
+                    secondaryChannelId: secondaryChannelId ?? null,
+                    loggingEnabled: true,
+                    userActivityTracking: true,
+                    notifyViaDiscordChannel: true,
+                  },
+                  update: updateData,
+                });
+              }
+            };
+
+            await syncFeature('daily_algo', 'Daily Algo', data.dailyAlgoEnabled, data.dailyAlgoChannelId, undefined);
+            await syncFeature('digest', 'Digest', data.digestEnabled, undefined, undefined);
+            await syncFeature('translation', 'Translation', data.translationEnabled, undefined, undefined);
+            await syncFeature('codepolice', 'Code Police', data.codePoliceEnabled, undefined, undefined);
+            await syncFeature('logs', 'Logs Discord', undefined, data.logChannelId, undefined);
+            await syncFeature('regulation', 'Règlement', undefined, data.regulationChannelId, undefined);
+            await syncFeature('meetings', 'Réunions', undefined, data.meetingAnnouncementChannelId, data.meetingVoiceChannelId);
+            await syncFeature('settings', 'Paramètres', undefined, data.configChannelId, undefined);
+            await syncFeature('dashboard', 'Vue d\'ensemble', undefined, data.publicChannelId, undefined);
+            await syncFeature('sanctions', 'Sanctions', data.propagateSanctions, undefined, undefined);
+            
+            if (body.youtubeEnabled !== undefined) {
+              await syncFeature('youtube', 'YouTube', body.youtubeEnabled, undefined, undefined);
             }
 
             const runtime = await getOrCreateRuntime(guildId);
@@ -7633,6 +7759,43 @@ export const startDashboardApi = (client: Client) => {
 
           try {
             const updated = await updateFeatureConfig(guildId, featureKey, body || {});
+
+            // Synchronize back to Guild table
+            const guildUpdates: any = {};
+            if (featureKey === 'daily_algo') {
+              if (body?.enabled !== undefined) guildUpdates.dailyAlgoEnabled = body.enabled;
+              if (body?.channelId !== undefined) guildUpdates.dailyAlgoChannelId = body.channelId;
+            } else if (featureKey === 'digest') {
+              if (body?.enabled !== undefined) guildUpdates.digestEnabled = body.enabled;
+              if (body?.channelId !== undefined) guildUpdates.digestChannelId = body.channelId;
+            } else if (featureKey === 'translation') {
+              if (body?.enabled !== undefined) guildUpdates.translationEnabled = body.enabled;
+            } else if (featureKey === 'codepolice') {
+              if (body?.enabled !== undefined) guildUpdates.codePoliceEnabled = body.enabled;
+            } else if (featureKey === 'logs') {
+              if (body?.channelId !== undefined) guildUpdates.logChannelId = body.channelId;
+            } else if (featureKey === 'regulation') {
+              if (body?.channelId !== undefined) guildUpdates.regulationChannelId = body.channelId;
+            } else if (featureKey === 'meetings') {
+              if (body?.channelId !== undefined) guildUpdates.meetingAnnouncementChannelId = body.channelId;
+              if (body?.secondaryChannelId !== undefined) guildUpdates.meetingVoiceChannelId = body.secondaryChannelId;
+            } else if (featureKey === 'settings') {
+              if (body?.channelId !== undefined) guildUpdates.configChannelId = body.channelId;
+            } else if (featureKey === 'dashboard') {
+              if (body?.channelId !== undefined) guildUpdates.publicChannelId = body.channelId;
+            } else if (featureKey === 'sanctions') {
+              if (body?.enabled !== undefined) {
+                guildUpdates.propagateSanctions = body.enabled;
+                guildUpdates.sanctionSyncEnabled = body.enabled;
+              }
+            }
+
+            if (Object.keys(guildUpdates).length > 0) {
+              await prisma.guild.update({
+                where: { id: guildId },
+                data: guildUpdates,
+              });
+            }
 
             await pushAudit(guildId, {
               user: auditUser,
@@ -8558,6 +8721,34 @@ export const startDashboardApi = (client: Client) => {
             } catch (err) {
               logger.error('StaffAPI', 'Error reordering staff roles:', err);
               json(res, 500, { error: 'Erreur lors du réordonnancement des rôles staff' });
+            }
+            return;
+          }
+
+          // DELETE /api/dashboard/guilds/:guildId/staff/roles/:roleId - Delete staff role
+          if (parts[5] === 'roles' && parts[6] && req.method === 'DELETE') {
+            const roleId = parts[6];
+            try {
+              const deleted = await deleteStaffRole(guildId, roleId);
+              if (!deleted) {
+                json(res, 404, { error: 'Rôle staff introuvable' });
+                return;
+              }
+
+              await pushAudit(guildId, {
+                user: user.username ?? `User${user.userId}`,
+                action: 'Suppression rôle staff',
+                context: getGuildName(client, guildId),
+                module: 'Staff Management',
+                eventType: 'Manuel',
+                details: `Rôle staff supprimé: ${deleted.name} (${roleId})`,
+                channelId: null
+              });
+
+              json(res, 200, { ok: true });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error deleting staff role:', err);
+              json(res, 500, { error: 'Erreur lors de la suppression du rôle staff' });
             }
             return;
           }

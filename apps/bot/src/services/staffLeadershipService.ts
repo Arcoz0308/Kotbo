@@ -82,17 +82,28 @@ export const createAbsence = async (
 ) => {
   const [requester, superior, allRoles] = await Promise.all([
     prisma.staffMember.findUnique({ where: { id: params.staffMemberId } }),
-    prisma.staffMember.findUnique({ where: { userId: params.superiorUserId, guildId: params.guildId } }),
+    prisma.staffMember.findUnique({
+      where: {
+        guildId_userId: {
+          guildId: params.guildId,
+          userId: params.superiorUserId
+        }
+      },
+      include: { testingPeriods: { where: { status: 'ONGOING' } } }
+    }),
     prisma.staffRole.findMany({ where: { guildId: params.guildId, enabled: true } })
   ]);
+
+  if (superior && superior.testingPeriods && superior.testingPeriods.length > 0) {
+    throw new Error('Le responsable sélectionné ne doit pas être en tutorat.');
+  }
 
   if (requester && superior && allRoles.length > 0) {
     const myRole = allRoles.find(r => r.name === requester.grade);
     const sRole = allRoles.find(r => r.name === superior.grade);
     
     if (myRole && sRole) {
-      const isAdmin = myRole.level >= 100 || requester.grade === 'Admin'; // Fallback simplistic check
-      const isSuperior = isAdmin ? (sRole.sortOrder <= myRole.sortOrder) : (sRole.sortOrder < myRole.sortOrder);
+      const isSuperior = sRole.sortOrder >= myRole.sortOrder;
       
       if (!isSuperior) {
         throw new Error('Le responsable sélectionné doit avoir un grade supérieur ou égal au vôtre.');
@@ -210,6 +221,12 @@ export const updateAbsenceStatus = async (
   }
 
   return result;
+};
+
+export const deleteAbsence = async (guildId: string, id: string) => {
+  return prisma.staffAbsence.delete({
+    where: { id, guildId }
+  });
 };
 
 export const closeAbsence = async (

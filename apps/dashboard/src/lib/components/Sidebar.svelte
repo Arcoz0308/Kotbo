@@ -34,7 +34,7 @@
     { name: "Hiérarchie & Rôles", icon: "shield", href: "/staff-management?tab=roles", featureKey: "staff_roles" },
     { name: "Tutorat & Formation", icon: "book-open", href: "/tutoring", featureKey: "tutoring" },
     { name: "Réunions", icon: "calendar", href: "/meetings", featureKey: "meetings" },
-    { name: "Absences", icon: "sun", href: "/absences", featureKey: "absences" },
+    { name: "Planning", icon: "sun", href: "/absences", featureKey: "absences" },
     { name: "Sondages", icon: "bar-chart", href: "/staff-management?tab=polls", featureKey: "polls" },
     { name: "Discipline", icon: "alert-circle", href: "/staff-management?tab=warnings", featureKey: "discipline" },
   ];

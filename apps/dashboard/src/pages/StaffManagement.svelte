@@ -11,7 +11,8 @@
     fetchStaffWarnings,
     fetchFeatureConfigurations,
     updateFeatureConfiguration,
-    updateStaffConfig
+    updateStaffConfig,
+    deleteStaffRole
   } from '../lib/api';
   import DiscordMemberLookup from '../lib/components/DiscordMemberLookup.svelte';
   import MetricCard from '../lib/components/MetricCard.svelte';
@@ -818,6 +819,20 @@
     }
   }
 
+  async function removeStaffRole(roleId: string, roleName: string) {
+    if (!guildId || !authStore.token) return;
+    if (!confirm(`Voulez-vous vraiment supprimer le rôle "${roleName}" de la hiérarchie ?`)) return;
+
+    try {
+      const success = await deleteStaffRole(roleId, guildId);
+      if (success) {
+        await loadStaffRoles();
+      }
+    } catch (err) {
+      console.error('Erreur lors de la suppression du rôle:', err);
+    }
+  }
+
   async function issueWarning() {
     if (!guildId || !authStore.token || !warnTargetUserId || !warnReason) return;
 
@@ -1403,7 +1418,16 @@
                     </div>
                   </div>
                   
-                  <div class="flex items-center shrink-0">
+                  <div class="flex items-center gap-4 shrink-0">
+                    {#if rolesAccess.canConfigure}
+                      <button
+                        onclick={() => removeStaffRole(role.id, role.name)}
+                        class="inline-flex items-center justify-center rounded-xl p-2.5 text-rose-600 transition-colors hover:bg-rose-500/15 border border-rose-500/20 bg-rose-500/5"
+                        title="Supprimer le rôle"
+                      >
+                        <Papicon icon="trash-2" size={20} />
+                      </button>
+                    {/if}
                     <Papicon icon="repeat" size={20} class="text-on-surface-variant/20 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                 </div>
