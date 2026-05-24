@@ -47,7 +47,10 @@
   import Tickets from './pages/Tickets.svelte';
   import TranscriptDetail from './pages/TranscriptDetail.svelte';
 
-  const isPublicPage = $derived($router.path.startsWith('/profile/') || $router.path.startsWith('/transcripts/'));
+  const isPublicPage = $derived(
+    ($router.path.startsWith('/profile/') && !authStore.isAuthenticated) ||
+    $router.path.startsWith('/transcripts/')
+  );
 
   const featureAccess = $derived(dashboardStore.state.featureAccess || {});
   const fallbackCanView = $derived(
@@ -267,6 +270,9 @@
       </Route>
       <Route path="/profile">
         <Profile />
+      </Route>
+      <Route path="/profile/:userId" let:meta>
+        <Profile userId={meta.params.userId} />
       </Route>
       {#if canManageSettings}
         <Route path="/modules">

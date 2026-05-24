@@ -1,397 +1,397 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { API_BASE_URL } from '../lib/api';
+  import { authStore } from '../lib/stores/auth.svelte';
   import { router } from 'tinro';
   import Papicon from '../lib/components/Papicon.svelte';
-  import { authStore } from '../lib/stores/auth.svelte';
-  import { fetchPublicProfile, updatePublicProfile } from '../lib/api';
+  import MetricCard from '../lib/components/MetricCard.svelte';
 
   interface Props {
     userId: string;
   }
-
   let { userId }: Props = $props();
 
-  let profile = $state<any>(null);
+  let profile: any = $state(null);
   let loading = $state(true);
   let error = $state('');
-  let activeTab = $state('overview');
-  let bioDraft = $state('');
-  let privacyDraft = $state(false);
-  let saving = $state(false);
-  let saveMessage = $state('');
 
-  const isSelf = $derived(authStore.user?.id === userId);
-  const canEdit = $derived(!!authStore.token && isSelf);
+  onMount(async () => {
+    try {
+      // Fetch public profile snapshot
+      const res = await fetch(`${API_BASE_URL}/api/public/profile/${userId}`);
+      if (!res.ok) {
+        if (res.status === 404) throw new Error('Utilisateur introuvable');
+        throw new Error('Erreur lors de la récupération du profil');
+      }
+      profile = await res.json();
+    } catch (err: any) {
+      error = err.message || 'Impossible de charger le profil public';
+    } finally {
+      loading = false;
+    }
+  });
 
-  const tabs = $derived([
-    { id: 'overview', label: 'Vue d\'ensemble', icon: 'Grid' },
-    { id: 'activity', label: 'Activité', icon: 'TrendingUp' },
-    { id: 'events', label: 'Événements', icon: 'Calendar' },
-  ]);
+  function getTierColor(tier: string) {
+    const t = tier?.toLowerCase() || '';
+    if (t.includes('légende') || t.includes('legende')) return 'text-rose-400';
+    if (t.includes('maître') || t.includes('maitre')) return 'text-purple-400';
+    if (t.includes('expert')) return 'text-amber-400';
+    if (t.includes('apprenti')) return 'text-blue-400';
+    return 'text-emerald-400';
+  }
 
-  function formatDate(value: string | Date | null | undefined) {
-    if (!value) return '—';
-    return new Date(value).toLocaleDateString('fr-FR', {
+  function getTierBg(tier: string) {
+    const t = tier?.toLowerCase() || '';
+    if (t.includes('légende') || t.includes('legende')) return 'bg-rose-500/10 border-rose-500/20';
+    if (t.includes('maître') || t.includes('maitre')) return 'bg-purple-500/10 border-purple-500/20';
+    if (t.includes('expert')) return 'bg-amber-500/10 border-amber-500/20';
+    if (t.includes('apprenti')) return 'bg-blue-500/10 border-blue-500/20';
+    return 'bg-emerald-500/10 border-emerald-500/20';
+  }
+
+  const getRankSuffix = (rank: number) => {
+    if (rank === 1) return 'er';
+    return 'e';
+  };
+
+  function formatDate(date: string | Date | null | undefined) {
+    if (!date) return '—';
+    return new Date(date).toLocaleDateString('fr-FR', {
       day: '2-digit',
       month: 'long',
       year: 'numeric',
     });
   }
 
-  function formatDuration(seconds: number | null | undefined) {
-    if (!seconds || seconds <= 0) return '0m';
-    const totalMinutes = Math.floor(seconds / 60);
-    const hours = Math.floor(totalMinutes / 60);
-    const days = Math.floor(hours / 24);
-    const remainingHours = hours % 24;
-    const remainingMinutes = totalMinutes % 60;
-    if (days > 0) return `${days}j ${remainingHours}h`;
-    if (hours > 0) return `${hours}h ${remainingMinutes}m`;
-    return `${remainingMinutes}m`;
-  }
+  function formatTimeAgo(dateStr: string | null) {
+    if (!dateStr) return 'Jamais';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
 
-  function formatRank(rank: number | null | undefined) {
-    if (!rank) return '—';
-    if (rank === 1) return '🥇 #1';
-    if (rank === 2) return '🥈 #2';
-    if (rank === 3) return '🥉 #3';
-    return `#${rank}`;
-  }
-
-  function formatEventType(eventType: string) {
-    const upper = eventType.toUpperCase();
-    if (upper.includes('QUIZ')) return 'Quiz';
-    if (upper.includes('GAME')) return 'Jeu';
-    if (upper.includes('TALK')) return 'Talk';
-    return eventType;
-  }
-
-  function getPrimaryRole(profile: any) {
-    return profile?.primaryRole ?? profile?.roles?.[0] ?? null;
-  }
-
-  async function refreshProfile() {
-    loading = true;
-    error = '';
-
-    try {
-      profile = await fetchPublicProfile(userId);
-      bioDraft = profile.bio ?? '';
-      privacyDraft = !!profile.isPrivate;
-    } catch (err: any) {
-      error = err?.message || 'Erreur lors du chargement du profil';
-    } finally {
-      loading = false;
-    }
-  }
-
-  onMount(refreshProfile);
-
-  async function saveProfileSettings() {
-    if (!canEdit || !profile) return;
-    saving = true;
-    saveMessage = '';
-
-    try {
-      const response = await updatePublicProfile(userId, {
-        bio: bioDraft.trim() ? bioDraft.trim() : null,
-        isProfilePrivate: privacyDraft,
-      });
-
-      profile.bio = response.profile.bio;
-      profile.isPrivate = response.profile.isProfilePrivate;
-      saveMessage = 'Profil mis à jour.';
-    } catch (err: any) {
-      saveMessage = err?.message || 'Impossible de sauvegarder le profil.';
-    } finally {
-      saving = false;
-    }
+    if (diffMins < 1) return "À l'instant";
+    if (diffMins < 60) return `Il y a ${diffMins} min`;
+    if (diffHours < 24) return `Il y a ${diffHours}h`;
+    if (diffDays === 1) return "Hier";
+    return `Il y a ${diffDays} jours`;
   }
 </script>
 
-<div class="min-h-screen bg-surface-container-lowest pb-24">
-  <div class="mx-auto max-w-7xl px-6 pt-10 md:pt-14">
+<div class="min-h-screen bg-surface-container-lowest/30 pb-24 font-sans text-on-surface antialiased">
+  <!-- Decorative top background grid/neon -->
+  <div class="absolute top-0 inset-x-0 h-[500px] bg-linear-to-b from-primary/5 to-transparent blur-3xl pointer-events-none"></div>
+
+  <div class="max-w-6xl mx-auto px-6 pt-16 relative z-10">
+    <!-- Back Button -->
+    <div class="mb-8">
+      <button onclick={() => router.goto('/')} class="group inline-flex items-center gap-2 rounded-xl bg-surface-container-low/60 hover:bg-surface-container-high/80 border border-outline-variant/10 px-5 py-2.5 text-xs font-black uppercase tracking-wider text-on-surface-variant transition-all hover:scale-[1.02]">
+        <Papicon icon="ArrowLeft" size={14} class="transition-transform group-hover:-translate-x-1" />
+        Retour
+      </button>
+    </div>
+
     {#if loading}
-      <div class="space-y-8 animate-pulse">
-        <div class="h-72 rounded-[3rem] bg-surface-container-high"></div>
-        <div class="grid gap-6 md:grid-cols-4">
-          <div class="h-32 rounded-4xl bg-surface-container-high"></div>
-          <div class="h-32 rounded-4xl bg-surface-container-high"></div>
-          <div class="h-32 rounded-4xl bg-surface-container-high"></div>
-          <div class="h-32 rounded-4xl bg-surface-container-high"></div>
+      <!-- Loading Skeleton -->
+      <div class="space-y-10 animate-pulse">
+        <div class="h-64 bg-surface-container-high/40 rounded-[3rem] border border-outline-variant/5"></div>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-6">
+          <div class="h-32 bg-surface-container-high/40 rounded-3xl"></div>
+          <div class="h-32 bg-surface-container-high/40 rounded-3xl"></div>
+          <div class="h-32 bg-surface-container-high/40 rounded-3xl"></div>
+          <div class="h-32 bg-surface-container-high/40 rounded-3xl"></div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div class="lg:col-span-2 h-96 bg-surface-container-high/30 rounded-[2.5rem]"></div>
+          <div class="h-96 bg-surface-container-high/30 rounded-[2.5rem]"></div>
         </div>
       </div>
     {:else if error}
-      <div class="mx-auto flex max-w-2xl flex-col items-center justify-center rounded-[3rem] border border-rose-500/10 bg-rose-500/5 px-8 py-16 text-center">
-        <div class="mb-6 flex h-20 w-20 items-center justify-center rounded-4xl bg-rose-500/10 text-rose-500">
-          <Papicon icon="AlertTriangle" size={40} />
+      <!-- Error Panel -->
+      <div class="flex flex-col items-center justify-center py-24 text-center max-w-xl mx-auto">
+        <div class="w-20 h-20 rounded-[2rem] bg-rose-500/10 text-rose-500 border border-rose-500/20 flex items-center justify-center mb-6 shadow-lg shadow-rose-500/5">
+          <Papicon icon="AlertTriangle" size={36} />
         </div>
-        <h1 class="text-4xl font-black tracking-tight text-on-surface font-headline">Profil introuvable</h1>
-        <p class="mt-4 max-w-lg text-base font-semibold text-on-surface-variant/70">{error}</p>
-        <button onclick={() => router.goto('/')} class="mt-10 inline-flex items-center gap-3 rounded-2xl bg-surface-container-high px-6 py-4 text-xs font-black uppercase tracking-[0.2em] text-on-surface transition hover:bg-surface-container-highest">
-          <Papicon icon="ArrowLeft" size={18} />
-          Retour
+        <h3 class="text-3xl font-black tracking-tight text-on-surface font-headline">Profil Introuvable</h3>
+        <p class="mt-4 text-base font-bold text-on-surface-variant/60 leading-relaxed">
+          {error}. Vérifiez que l'identifiant est correct ou que le compte n'a pas été restreint.
+        </p>
+        <button onclick={() => router.goto('/')} class="mt-10 inline-flex items-center gap-3 rounded-2xl bg-primary px-8 py-4 text-xs font-black uppercase tracking-widest text-on-primary shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all">
+          <Papicon icon="Home" size={16} />
+          Retour à l'accueil
         </button>
       </div>
     {:else if profile}
-      <div class="overflow-hidden rounded-[3rem] border border-outline-variant/10 bg-surface-container-low shadow-2xl shadow-surface/20">
-        <div class="relative h-56 bg-linear-to-br from-primary/20 via-primary/5 to-transparent md:h-72">
+      
+      <!-- ── Hero Banner Section ──────────────────────────────────────── -->
+      <div class="relative overflow-hidden rounded-[3rem] border border-outline-variant/10 bg-surface-container-lowest shadow-2xl mb-8 group">
+        <!-- Banner Image/Gradient -->
+        <div class="relative h-48 md:h-64 overflow-hidden bg-surface-container-low">
           {#if profile.banner}
-            <img src={profile.banner} alt="Bannière" class="h-full w-full object-cover" />
+            <img src={profile.banner} alt="Banner" class="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105" />
+          {:else}
+            <!-- Elegant animated mesh gradient -->
+            <div class="absolute inset-0 bg-linear-to-br from-indigo-900/40 via-purple-950/20 to-surface-container-low blur-3xl scale-125"></div>
+            <div class="absolute -top-12 -left-12 w-64 h-64 bg-primary/10 rounded-full blur-3xl animate-pulse"></div>
+            <div class="absolute -bottom-12 -right-12 w-80 h-80 bg-secondary/5 rounded-full blur-3xl animate-pulse duration-5000"></div>
           {/if}
-          <div class="absolute inset-0 bg-linear-to-b from-transparent via-surface-container-low/20 to-surface-container-lowest"></div>
-          <div class="absolute right-6 top-6 rounded-full border border-white/15 bg-black/20 px-4 py-2 text-[10px] font-black uppercase tracking-[0.25em] text-white backdrop-blur-xl">
-            {#if profile.isPrivate}
-              Profil privé
-            {:else}
-              Profil public
-            {/if}
+          <!-- Fade Overlay -->
+          <div class="absolute inset-0 bg-linear-to-b from-transparent via-transparent to-surface-container-lowest"></div>
+          
+          <div class="absolute top-6 right-6 z-20">
+            <span class="inline-flex items-center gap-2 rounded-full bg-surface-container-lowest/30 backdrop-blur-xl border border-outline-variant/10 px-4 py-2 text-[9px] font-black text-white uppercase tracking-[0.2em] shadow-lg">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              Profil Communautaire
+            </span>
           </div>
         </div>
 
-        <div class="relative px-6 pb-8 md:px-10">
-          <div class="-mt-20 flex flex-col gap-8 md:-mt-24 md:flex-row md:items-end md:justify-between">
-            <div class="flex flex-col gap-6 md:flex-row md:items-end">
+        <!-- Avatar & User Info Overlap -->
+        <div class="relative px-8 pb-10 -mt-16 md:-mt-20">
+          <div class="flex flex-col md:flex-row items-center md:items-end justify-between gap-6 text-center md:text-left">
+            <div class="flex flex-col md:flex-row items-center md:items-end gap-6">
+              <!-- Avatar Frame -->
               <div class="relative shrink-0">
-                <div class="absolute -inset-4 rounded-[2.75rem] bg-primary/20 blur-2xl"></div>
-                <img src={profile.avatar} alt={profile.displayName || profile.username} class="relative h-40 w-40 rounded-[2.5rem] border-8 border-surface-container-lowest object-cover shadow-2xl md:h-48 md:w-48" />
+                <div class="absolute -inset-2.5 bg-linear-to-br from-primary to-secondary rounded-[2.2rem] blur-xl opacity-30 group-hover:opacity-40 transition-opacity"></div>
+                <div class="relative w-32 h-32 md:w-36 md:h-36 rounded-[2.2rem] border-[5px] border-surface-container-lowest shadow-2xl overflow-hidden bg-surface-container-low transition-transform duration-500 group-hover:scale-[1.02]">
+                  <img src={profile.avatar || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt={profile.username} class="w-full h-full object-cover" />
+                </div>
               </div>
 
-              <div class="space-y-3 pb-2">
-                <div>
-                  <h1 class="text-4xl font-black tracking-tight text-on-surface md:text-6xl font-headline">{profile.displayName || profile.globalName || profile.username}</h1>
-                  <p class="mt-2 text-lg font-semibold text-on-surface-variant/60">@{profile.username} · {profile.globalName || 'Nom global inconnu'}</p>
-                </div>
-
-                <div class="flex flex-wrap gap-2">
-                  {#if getPrimaryRole(profile)}
-                    <span class="inline-flex items-center gap-2 rounded-full border border-primary/10 bg-primary/5 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-primary">
-                      <Papicon icon="Award" size={14} />
-                      {getPrimaryRole(profile).name}
+              <!-- Name & User details -->
+              <div class="space-y-2 pb-2">
+                <h1 class="text-3xl md:text-5xl font-black text-on-surface tracking-tight font-headline leading-none">
+                  {profile.displayName || profile.username}
+                </h1>
+                <div class="flex flex-wrap items-center justify-center md:justify-start gap-2.5">
+                  <p class="text-base text-on-surface-variant/70 font-bold">@{profile.username}</p>
+                  {#if profile.isPrivate}
+                    <span class="inline-flex items-center gap-1.5 rounded-lg bg-yellow-500/10 border border-yellow-500/20 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-yellow-500">
+                      <Papicon icon="Lock" size={10} /> Privé
                     </span>
-                    {#if (profile.roles?.length ?? 0) > 1}
-                      <span class="inline-flex items-center gap-2 rounded-full border border-outline-variant/10 bg-surface-container-high px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-on-surface-variant/60">
-                        +{(profile.roles?.length ?? 0) - 1} autre{(profile.roles?.length ?? 0) > 2 ? 's' : ''} rôle{(profile.roles?.length ?? 0) > 2 ? 's' : ''}
-                      </span>
-                    {/if}
                   {/if}
                 </div>
               </div>
             </div>
 
-            <div class="flex flex-wrap gap-3 pb-2">
-              {#if authStore.token}
-                <button onclick={() => router.goto(`/profile?userId=${userId}`)} class="inline-flex items-center gap-3 rounded-2xl border border-outline-variant/10 bg-surface-container-high px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-on-surface transition hover:bg-surface-container-highest">
-                  <Papicon icon="ShieldUser" size={18} />
-                  Vue staff
+            <!-- Context CTA Button -->
+            {#if authStore.isAuthenticated && authStore.user?.id === userId}
+              <div class="pb-2">
+                <button onclick={() => router.goto('/profile')} class="group inline-flex items-center gap-2.5 rounded-2xl bg-primary hover:bg-primary-hover px-8 py-4 text-xs font-black uppercase tracking-widest text-on-primary shadow-xl shadow-primary/20 hover:scale-[1.03] active:scale-[0.97] transition-all">
+                  <Papicon icon="ShieldUser" size={16} class="transition-transform group-hover:rotate-6" />
+                  Mon Espace Staff
                 </button>
-              {/if}
-              <span class="inline-flex items-center gap-3 rounded-2xl bg-surface-container-high px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-on-surface-variant/70">
-                <Papicon icon="Sparkles" size={18} />
-                {profile.isPrivate ? 'Visible au staff seulement' : 'Visible à tous'}
-              </span>
-            </div>
+              </div>
+            {/if}
           </div>
+        </div>
+      </div>
 
-          {#if profile.bio || canEdit}
-            <div class="mt-8 rounded-[2.25rem] border border-outline-variant/10 bg-surface-container-low/60 p-6 md:p-8">
-              <div class="flex items-center gap-3">
-                <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                  <Papicon icon="FileText" size={22} />
+      {#if profile.isPrivate}
+        <!-- Private Profile View -->
+        <div class="bg-surface-container-low/40 rounded-[2.5rem] border border-outline-variant/10 p-10 text-center shadow-lg">
+          <div class="w-16 h-16 rounded-2xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center mx-auto mb-6 text-yellow-500">
+            <Papicon icon="Lock" size={28} />
+          </div>
+          <h3 class="text-xl font-black text-on-surface font-headline">Ce profil est privé</h3>
+          <p class="mt-2 text-sm text-on-surface-variant/60 max-w-md mx-auto leading-relaxed">
+            L'utilisateur a choisi de masquer ses statistiques et informations d'activité. Seuls les membres de l'équipe staff peuvent consulter ce dossier.
+          </p>
+        </div>
+      {:else}
+        <!-- Public Profile Content -->
+        
+        <!-- ── Metrics Section ──────────────────────────────────────── -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <MetricCard 
+            label="Points" 
+            value={profile.points?.toLocaleString() || '0'} 
+            note="Activité cumulée" 
+            icon="Trophy" 
+            toneClass="bg-amber-500/10 text-amber-500 border-amber-500/20" 
+          />
+          <MetricCard 
+            label="Badge / Tier" 
+            value={profile.tier || 'Débutant'} 
+            note="Niveau Daily Algo" 
+            icon="Zap" 
+            toneClass={`${getTierBg(profile.tier)} ${getTierColor(profile.tier)}`} 
+          />
+          <MetricCard 
+            label="Série (Streak)" 
+            value={`${profile.streak || 0}j`} 
+            note="Record actuel" 
+            icon="Flame" 
+            toneClass="bg-orange-500/10 text-orange-500 border-orange-500/20" 
+          />
+          <MetricCard 
+            label="Classement" 
+            value={profile.rank !== undefined ? `${profile.rank + 1}${getRankSuffix(profile.rank + 1)}` : '—'} 
+            note="Position serveur" 
+            icon="Medal" 
+            toneClass="bg-purple-500/10 text-purple-500 border-purple-500/20" 
+          />
+        </div>
+
+        <!-- ── Detailed Bento Grid ────────────────────────────────── -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+          <!-- Left Column: Biography & Metadata -->
+          <div class="lg:col-span-1 space-y-6">
+            <!-- Biography Card -->
+            <div class="rounded-[2rem] bg-surface-container-low/40 border border-outline-variant/10 p-8 shadow-sm relative overflow-hidden group">
+              <h4 class="text-sm font-black text-primary uppercase tracking-widest mb-4">Biographie</h4>
+              <p class="text-sm text-on-surface-variant leading-relaxed">
+                {profile.bio?.trim() || 'Aucune biographie rédigée.'}
+              </p>
+            </div>
+
+            <!-- Identity Card -->
+            <div class="rounded-[2rem] bg-surface-container-low/40 border border-outline-variant/10 p-8 shadow-sm relative overflow-hidden group">
+              <h4 class="text-sm font-black text-primary uppercase tracking-widest mb-6">Dossier</h4>
+              <div class="space-y-6">
+                <div class="flex items-center justify-between border-b border-outline-variant/5 pb-3">
+                  <span class="text-xs font-bold text-on-surface-variant/50 uppercase tracking-wider">Compte Discord créé</span>
+                  <span class="text-xs font-bold text-on-surface">{formatDate(profile.accountCreatedAt)}</span>
                 </div>
-                <div>
-                  <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Bio</p>
-                  <h2 class="text-xl font-black text-on-surface">Présentation du membre</h2>
+                <div class="flex items-center justify-between border-b border-outline-variant/5 pb-3">
+                  <span class="text-xs font-bold text-on-surface-variant/50 uppercase tracking-wider">Arrivée sur le serveur</span>
+                  <span class="text-xs font-bold text-on-surface">{formatDate(profile.guildJoinedAt)}</span>
+                </div>
+                <div class="flex items-center justify-between border-b border-outline-variant/5 pb-3">
+                  <span class="text-xs font-bold text-on-surface-variant/50 uppercase tracking-wider">Dernier message</span>
+                  <span class="text-xs font-bold text-on-surface">{formatTimeAgo(profile.lastSeenAt)}</span>
+                </div>
+                <div class="flex items-center justify-between border-b border-outline-variant/5 pb-3">
+                  <span class="text-xs font-bold text-on-surface-variant/50 uppercase tracking-wider">Messages envoyés</span>
+                  <span class="text-xs font-bold text-on-surface">{profile.messageCount?.toLocaleString() || 0}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-bold text-on-surface-variant/50 uppercase tracking-wider">Temps en vocal</span>
+                  <span class="text-xs font-bold text-on-surface">{Math.round((profile.voiceTimeSeconds || 0) / 60)} min</span>
                 </div>
               </div>
+            </div>
 
-              {#if canEdit}
-                <div class="mt-5 space-y-4">
-                  <textarea bind:value={bioDraft} rows="4" class="w-full rounded-3xl border border-outline-variant/10 bg-surface-container-high px-5 py-4 text-sm font-medium text-on-surface outline-none transition focus:border-primary/40" placeholder="Décris-toi en quelques mots."></textarea>
-                  <label class="flex items-center gap-3 text-sm font-semibold text-on-surface-variant/80">
-                    <input type="checkbox" bind:checked={privacyDraft} class="h-5 w-5 rounded border-outline-variant/20 text-primary focus:ring-primary" />
-                    Rendre ce profil privé pour les membres non staff
-                  </label>
-                  <div class="flex flex-wrap items-center gap-3">
-                    <button onclick={saveProfileSettings} disabled={saving} class="inline-flex items-center gap-3 rounded-2xl bg-primary px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-white transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-60">
-                      <Papicon icon="Save" size={18} />
-                      {saving ? 'Sauvegarde...' : 'Enregistrer'}
-                    </button>
-                    {#if saveMessage}
-                      <p class="text-sm font-semibold text-on-surface-variant/70">{saveMessage}</p>
-                    {/if}
-                  </div>
+            <!-- Badges/Roles Card -->
+            <div class="rounded-[2rem] bg-surface-container-low/40 border border-outline-variant/10 p-8 shadow-sm relative overflow-hidden group">
+              <h4 class="text-sm font-black text-primary uppercase tracking-widest mb-4">Badges & Rôles</h4>
+              {#if profile.roles && profile.roles.length > 0}
+                <div class="flex flex-wrap gap-2">
+                  {#each profile.roles as role}
+                    <span class="inline-flex items-center gap-1.5 rounded-lg bg-surface-container-high/60 border border-outline-variant/10 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider text-on-surface-variant">
+                      {role.name}
+                    </span>
+                  {/each}
                 </div>
               {:else}
-                <p class="mt-4 max-w-4xl text-base leading-7 font-medium text-on-surface-variant/75">{profile.bio || 'Aucune bio renseignée pour le moment.'}</p>
+                <p class="text-xs text-on-surface-variant/40 italic">Aucun badge de contribution répertorié.</p>
               {/if}
             </div>
-          {/if}
-        </div>
-      </div>
-
-      <div class="sticky top-4 z-30 mt-8 flex justify-center">
-        <div class="flex flex-wrap justify-center gap-2 rounded-4xl border border-outline-variant/10 bg-surface-container-lowest/90 p-2 shadow-2xl backdrop-blur-xl">
-          {#each tabs as tab}
-            <button onclick={() => activeTab = tab.id} class="inline-flex items-center gap-3 rounded-3xl px-6 py-3 text-[11px] font-black uppercase tracking-[0.18em] transition {activeTab === tab.id ? 'bg-on-surface text-surface shadow-lg' : 'text-on-surface-variant/60 hover:bg-surface-container-high hover:text-on-surface'}">
-              <Papicon icon={tab.icon} size={16} />
-              {tab.label}
-            </button>
-          {/each}
-        </div>
-      </div>
-
-      <div class="mt-10 space-y-8">
-        {#if activeTab === 'overview'}
-          <div class="space-y-6">
-            <div class="rounded-[2.5rem] border border-outline-variant/10 bg-surface-container-low p-6">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Activité</p>
-                  <h3 class="mt-2 text-2xl font-black text-on-surface">Activité agrégée</h3>
-                  <p class="mt-1 text-sm text-on-surface-variant/60">Graphique d'activité sur les serveurs où le bot est présent (14 derniers jours).</p>
-                </div>
-              </div>
-              <div class="mt-6">
-                <img alt="Graphique d'activité" src={`/api/public/profile/${userId}/activity-image?days=14`} class="w-full rounded-md shadow-md" />
-              </div>
-            </div>
-
-            <div class="grid gap-6 lg:grid-cols-3">
-              <div class="rounded-[2.5rem] border border-outline-variant/10 bg-surface-container-low p-8 lg:col-span-2">
-                <div class="flex items-center gap-4">
-                  <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                    <Papicon icon="User" size={22} />
-                  </div>
-                  <div>
-                    <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Informations</p>
-                    <h2 class="text-2xl font-black text-on-surface">Dossier public</h2>
-                  </div>
-                </div>
-
-                <div class="mt-8 grid gap-6 md:grid-cols-2">
-                  <div>
-                    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/40">Compte</p>
-                    <p class="mt-2 text-base font-bold text-on-surface">Créé le {formatDate(profile.accountCreatedAt)}</p>
-                  </div>
-                  <div>
-                    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/40">Arrivée serveur</p>
-                    <p class="mt-2 text-base font-bold text-on-surface">{formatDate(profile.guildJoinedAt)}</p>
-                  </div>
-                  <div>
-                    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/40">Dernière activité</p>
-                    <p class="mt-2 text-base font-bold text-on-surface">{formatDate(profile.lastSeenAt)}</p>
-                  </div>
-                  <div>
-                    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/40">Invitation</p>
-                    <p class="mt-2 text-base font-bold text-on-surface">{profile.invite ? `${profile.invite.inviterTag ?? profile.invite.inviterId ?? 'Inconnu'} · ${profile.invite.inviteCode ?? '—'}` : 'Aucune donnée'}</p>
-                  </div>
-                </div>
-
-                <div class="mt-8 rounded-4xl border border-outline-variant/10 bg-surface-container-lowest/70 p-6">
-                  <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Badges</p>
-                  <div class="mt-4 flex flex-wrap gap-3">
-                    {#each profile.roles || [] as role}
-                      <span class="rounded-full border border-primary/10 bg-primary/5 px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-primary">{role.name}</span>
-                    {/each}
-                    {#if !profile.roles || profile.roles.length === 0}
-                      <span class="text-sm font-semibold text-on-surface-variant/50">Aucun badge enregistré</span>
-                    {/if}
-                  </div>
-                </div>
-              </div>
-
-              <div class="space-y-6">
-                <div class="rounded-[2.5rem] border border-outline-variant/10 bg-surface-container-low p-8">
-                  <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Présence</p>
-                  <div class="mt-5 space-y-4 text-sm font-semibold text-on-surface-variant/75">
-                    <div class="flex items-center justify-between gap-4"><span>Messages</span><strong>{profile.messageCount?.toLocaleString('fr-FR') ?? '0'}</strong></div>
-                    <div class="flex items-center justify-between gap-4"><span>Vocal</span><strong>{formatDuration(profile.voiceTimeSeconds)}</strong></div>
-                    <div class="flex items-center justify-between gap-4"><span>Version privée</span><strong>{profile.isPrivate ? 'Oui' : 'Non'}</strong></div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
-        {:else if activeTab === 'activity'}
-          <div class="space-y-6">
-            <div class="rounded-[2.5rem] border border-outline-variant/10 bg-surface-container-low p-6 lg:col-span-2">
-              <div class="flex items-center gap-4">
-                <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Papicon icon="TrendingUp" size={22} /></div>
+
+          <!-- Right Column: Algo Submissions & Events -->
+          <div class="lg:col-span-2 space-y-6">
+            <!-- Algorithmique Card -->
+            <div class="rounded-[2.5rem] bg-surface-container-low/40 border border-outline-variant/10 p-10 shadow-sm">
+              <div class="flex items-center gap-3.5 mb-8 border-b border-outline-variant/5 pb-6">
+                <div class="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center">
+                  <Papicon icon="Terminal" size={24} />
+                </div>
                 <div>
-                  <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Activité</p>
-                  <h2 class="text-2xl font-black text-on-surface">Graphiques d'activité</h2>
+                  <h3 class="text-xl font-black text-on-surface font-headline leading-tight">Défis Validés</h3>
+                  <p class="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-wider mt-0.5">Historique algorithmique</p>
                 </div>
               </div>
 
-              <div class="mt-6">
-                <img alt="Graphique d'activité" src={`/api/public/profile/${userId}/activity-image?days=30`} class="w-full rounded-md shadow-md" />
-              </div>
-            </div>
-
-            <div class="grid gap-6 lg:grid-cols-1">
-              <div class="rounded-[2.5rem] border border-outline-variant/10 bg-surface-container-low p-8">
-                <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Résumé</p>
-                <div class="mt-5 space-y-4 text-sm font-semibold text-on-surface-variant/75">
-                  <div class="flex items-center justify-between gap-4"><span>Messages</span><strong>{profile.messageCount?.toLocaleString('fr-FR') ?? '0'}</strong></div>
-                  <div class="flex items-center justify-between gap-4"><span>Vocal</span><strong>{formatDuration(profile.voiceTimeSeconds)}</strong></div>
-                  <div class="flex items-center justify-between gap-4"><span>Jours actifs (est.)</span><strong>{profile.activeDays ?? '—'}</strong></div>
-                </div>
-              </div>
-
-              <div class="rounded-[2.5rem] border border-outline-variant/10 bg-surface-container-low p-8">
-                <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Confidentialité</p>
-                <p class="mt-4 text-sm font-medium leading-6 text-on-surface-variant/70">{profile.isPrivate ? 'Les membres non staff voient une version réduite du profil.' : 'Le profil est accessible à tous les membres du serveur.'}</p>
-              </div>
-            </div>
-          </div>
-        {:else if activeTab === 'events'}
-          <div class="grid gap-6 lg:grid-cols-3">
-            <div class="rounded-[2.5rem] border border-outline-variant/10 bg-surface-container-low p-8 lg:col-span-2">
-              <div class="flex items-center gap-4">
-                <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Papicon icon="Calendar" size={22} /></div>
-                <div>
-                  <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Événements</p>
-                  <h2 class="text-2xl font-black text-on-surface">Historique de participation</h2>
-                </div>
-              </div>
-
-              <div class="mt-8 space-y-4">
-                {#each profile.eventParticipations || [] as entry}
-                  <div class="rounded-[1.75rem] border border-outline-variant/10 bg-surface-container-lowest/80 p-5">
-                    <div class="flex items-start justify-between gap-4">
-                      <div>
-                        <p class="text-base font-black text-on-surface">{entry.eventTitle}</p>
-                        <p class="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-on-surface-variant/45">{formatDate(entry.createdAt)} · {formatEventType(entry.eventType)}</p>
+              {#if profile.recentAlgos && profile.recentAlgos.length > 0}
+                <div class="space-y-3.5">
+                  {#each profile.recentAlgos as algo}
+                    <div class="flex items-center justify-between p-4.5 rounded-2xl bg-surface-container-high/30 border border-outline-variant/5 hover:border-primary/25 hover:bg-surface-container-high/60 transition-all group/item">
+                      <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 rounded-lg bg-primary/5 text-primary flex items-center justify-center group-hover/item:scale-105 transition-transform">
+                          <Papicon icon="Check" size={16} />
+                        </div>
+                        <div>
+                          <h4 class="text-sm font-black text-on-surface leading-tight">{algo.title}</h4>
+                          <p class="text-[9px] font-bold text-on-surface-variant/40 uppercase tracking-wider mt-0.5">Kotbo Engine</p>
+                        </div>
                       </div>
-                      <span class="rounded-full bg-primary/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-primary">Score {entry.score}</span>
+                      <div class="text-right">
+                        {#if algo.points !== null && algo.points !== undefined}
+                          <span class="text-sm font-black text-emerald-400">+{algo.points} pts</span>
+                        {:else}
+                          <span class="text-[10px] font-bold text-emerald-400/80 uppercase">Validé</span>
+                        {/if}
+                        <p class="text-[9px] font-bold text-on-surface-variant/30 uppercase tracking-wider mt-0.5">{formatDate(algo.date)}</p>
+                      </div>
                     </div>
-                  </div>
-                {/each}
-                {#if !profile.eventParticipations || profile.eventParticipations.length === 0}
-                  <div class="rounded-[1.75rem] border border-dashed border-outline-variant/20 bg-surface-container-lowest/70 p-10 text-center text-sm font-semibold text-on-surface-variant/45">Aucune participation événementielle trouvée.</div>
-                {/if}
-              </div>
+                  {/each}
+                </div>
+              {:else}
+                <div class="py-16 text-center opacity-30">
+                  <Papicon icon="Terminal" size={48} class="mx-auto mb-4" />
+                  <p class="text-sm font-black uppercase tracking-widest">Aucune soumission validée</p>
+                </div>
+              {/if}
             </div>
 
-            <div class="space-y-6">
-              <div class="rounded-[2.5rem] border border-outline-variant/10 bg-surface-container-low p-8">
-                <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Synthèse</p>
-                <div class="mt-5 space-y-4 text-sm font-semibold text-on-surface-variant/75">
-                  <div class="flex items-center justify-between gap-4"><span>Événements</span><strong>{profile.eventParticipations?.length ?? 0}</strong></div>
-                  <div class="flex items-center justify-between gap-4"><span>Rôles</span><strong>{profile.roles?.length ?? 0}</strong></div>
-                  <div class="flex items-center justify-between gap-4"><span>Bio</span><strong>{profile.bio ? 'Oui' : 'Non'}</strong></div>
+            <!-- Events History -->
+            {#if profile.eventParticipations && profile.eventParticipations.length > 0}
+              <div class="rounded-[2.5rem] bg-surface-container-low/40 border border-outline-variant/10 p-10 shadow-sm">
+                <div class="flex items-center gap-3.5 mb-8 border-b border-outline-variant/5 pb-6">
+                  <div class="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center">
+                    <Papicon icon="Zap" size={24} />
+                  </div>
+                  <div>
+                    <h3 class="text-xl font-black text-on-surface font-headline leading-tight">Historique Événements</h3>
+                    <p class="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-wider mt-0.5">Participations communautaires</p>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {#each profile.eventParticipations as event}
+                    <div class="flex items-center justify-between p-4.5 rounded-2xl bg-surface-container-high/30 border border-outline-variant/5">
+                      <div>
+                        <h4 class="text-sm font-black text-on-surface leading-tight truncate max-w-[180px]">{event.title}</h4>
+                        <p class="text-[9px] font-bold text-primary uppercase tracking-wider mt-0.5">{event.type}</p>
+                      </div>
+                      <div class="text-right">
+                        <span class="text-sm font-black text-primary">{event.score} pts</span>
+                        <p class="text-[9px] font-bold text-on-surface-variant/30 uppercase tracking-wider mt-0.5">{formatDate(event.date)}</p>
+                      </div>
+                    </div>
+                  {/each}
                 </div>
               </div>
+            {/if}
+          </div>
+        </div>
 
-              <div class="rounded-[2.5rem] border border-outline-variant/10 bg-linear-to-br from-surface-container-low to-surface-container-high p-8">
-                <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Invitation</p>
-                <p class="mt-4 text-sm font-medium leading-6 text-on-surface-variant/70">{profile.invite ? `Invité par ${profile.invite.inviterTag ?? profile.invite.inviterId ?? 'Inconnu'} via ${profile.invite.inviteCode ?? 'un code inconnu'}.` : 'Aucune donnée d’invitation disponible.'}</p>
-              </div>
-            </div>
+        <!-- Log In Call-to-action (if not logged in) -->
+        {#if !authStore.isAuthenticated}
+          <div class="rounded-[2.5rem] bg-linear-to-br from-indigo-950/40 via-purple-950/20 to-surface-container-low border border-outline-variant/10 p-10 text-center relative overflow-hidden shadow-2xl">
+            <div class="absolute -right-6 -bottom-6 w-36 h-36 bg-primary/5 rounded-full blur-2xl pointer-events-none"></div>
+            <h3 class="text-2xl font-black text-on-surface font-headline tracking-tight leading-none mb-3">Vous faites partie de l'équipe staff ?</h3>
+            <p class="text-sm text-on-surface-variant/70 max-w-lg mx-auto mb-8 font-bold leading-relaxed">
+              Connectez-vous à votre compte Discord pour accéder aux dossiers internes, statistiques détaillées d'activité, absences et outils d'administration.
+            </p>
+            <a href={`${API_BASE_URL}/api/auth/discord/login`} class="inline-flex items-center gap-3 rounded-2xl bg-primary hover:bg-primary-hover px-10 py-5 text-sm font-black uppercase tracking-widest text-on-primary shadow-2xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all">
+              <Papicon icon="Lock" size={18} />
+              Se connecter avec Discord
+            </a>
           </div>
         {/if}
+      {/if}
+      
+      <!-- Footer details -->
+      <div class="mt-20 pt-8 border-t border-outline-variant/5 text-center">
+        <p class="text-[9px] font-black uppercase tracking-[0.3em] text-on-surface-variant/20 italic">
+          Kotbo Ecosystem • Verified Community Profile Snapshot
+        </p>
       </div>
+
     {/if}
   </div>
 </div>

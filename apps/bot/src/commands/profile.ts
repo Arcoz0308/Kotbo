@@ -1,4 +1,4 @@
-import { EmbedBuilder, SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
+import { EmbedBuilder, SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, type ChatInputCommandInteraction } from 'discord.js';
 import { getPublicProfileSnapshot } from '../services/profileService.js';
 import { getStaffMember } from '../services/staffManagementService.js';
 import { COLORS, truncate } from '../utils/embeds.js';
@@ -62,11 +62,50 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   await interaction.deferReply();
 
   const user = interaction.options.getUser('membre') ?? interaction.user;
-  const snapshot = await getPublicProfileSnapshot(user.id, guildId);
+  let snapshot = await getPublicProfileSnapshot(user.id, guildId);
 
   if (!snapshot) {
-    await interaction.editReply({ content: `❌ Aucun profil trouvé pour ${user.username}.` });
-    return;
+    // Generate fallback profile snapshot
+    snapshot = {
+      memberProfile: {
+        id: `${guildId}:${user.id}`,
+        guildId,
+        userId: user.id,
+        userTag: user.tag,
+        username: user.username,
+        globalName: user.globalName ?? null,
+        displayName: user.globalName ?? user.username,
+        avatarUrl: user.displayAvatarURL(),
+        bannerUrl: null,
+        accentColor: user.accentColor || null,
+        locale: null,
+        isBot: user.bot,
+        bio: null,
+        isProfilePrivate: false,
+        accountCreatedAt: user.createdAt,
+        guildJoinedAt: null,
+        guildLeftAt: null,
+        firstSeenAt: new Date(),
+        lastSeenAt: new Date(),
+        lastMessageAt: null,
+        lastMessageChannelId: null,
+        messageCount: 0,
+        voiceSessionCount: 0,
+        voiceTimeSeconds: 0,
+        voiceLastChannelId: null,
+        voiceLastJoinedAt: null,
+        voiceLastLeftAt: null,
+        rolesSnapshot: [],
+        isSuspectedDC: false,
+        moderatorNote: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      invite: null,
+      eventParticipations: [],
+      dailyAlgoProfile: null,
+      dailyAlgoParticipations: [],
+    };
   }
 
   const requesterStaff = await getStaffMember(guildId, interaction.user.id);
@@ -197,5 +236,16 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     });
   }
 
-  await interaction.editReply({ embeds: [embed] });
+  // Create Button linking to dashboard web page profile
+  const dashboardUrl = process.env.DASHBOARD_URL || 'http://localhost:5173';
+  const profileLink = `${dashboardUrl}/profile/${user.id}`;
+  
+  const button = new ButtonBuilder()
+    .setLabel('Voir le profil complet')
+    .setURL(profileLink)
+    .setStyle(ButtonStyle.Link);
+
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(button);
+
+  await interaction.editReply({ embeds: [embed], components: [row] });
 }

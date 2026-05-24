@@ -2521,14 +2521,65 @@ export const startDashboardApi = (client: Client) => {
       if (parts[0] === 'api' && parts[1] === 'public' && parts[2] === 'profile' && parts[3] && req.method === 'GET') {
         const userId = parts[3];
         try {
-          const snapshot = await getPublicProfileSnapshot(userId);
+          let snapshot = await getPublicProfileSnapshot(userId);
+          let profile = snapshot?.memberProfile;
 
-          if (!snapshot) {
-            json(res, 404, { error: 'Profil introuvable' });
-            return;
+          if (!snapshot || !profile) {
+            // Fallback: Fetch user details directly from Discord
+            const discordUser = await client.users.fetch(userId).catch(() => null);
+            if (!discordUser) {
+              json(res, 404, { error: 'Utilisateur introuvable' });
+              return;
+            }
+
+            // Try to find a guild where this user is present to get a guildId context
+            const sharedGuild = client.guilds.cache.find(g => g.members.cache.has(userId));
+            const fallbackGuildId = sharedGuild?.id || client.guilds.cache.first()?.id || '';
+
+            profile = {
+              id: `${fallbackGuildId}:${userId}`,
+              guildId: fallbackGuildId,
+              userId: userId,
+              userTag: discordUser.tag,
+              username: discordUser.username,
+              globalName: discordUser.globalName || null,
+              displayName: discordUser.globalName || discordUser.username,
+              avatarUrl: discordUser.displayAvatarURL(),
+              bannerUrl: null,
+              accentColor: discordUser.accentColor || null,
+              locale: null,
+              isBot: discordUser.bot,
+              bio: null,
+              isProfilePrivate: false,
+              accountCreatedAt: discordUser.createdAt,
+              guildJoinedAt: null,
+              guildLeftAt: null,
+              firstSeenAt: new Date(),
+              lastSeenAt: new Date(),
+              lastMessageAt: null,
+              lastMessageChannelId: null,
+              messageCount: 0,
+              voiceSessionCount: 0,
+              voiceTimeSeconds: 0,
+              voiceLastChannelId: null,
+              voiceLastJoinedAt: null,
+              voiceLastLeftAt: null,
+              rolesSnapshot: [],
+              isSuspectedDC: false,
+              moderatorNote: null,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            };
+
+            snapshot = {
+              memberProfile: profile,
+              invite: null,
+              eventParticipations: [],
+              dailyAlgoProfile: null,
+              dailyAlgoParticipations: [],
+            };
           }
 
-          const profile = snapshot.memberProfile;
           const roleDisplay = await resolveProfileRoleDisplay(client, profile.guildId, profile.rolesSnapshot);
           const authUser = verifyAuth(req);
           const viewerGuildAccess = authUser
@@ -2555,8 +2606,16 @@ export const startDashboardApi = (client: Client) => {
                 messageCount: profile.messageCount,
                 voiceTimeSeconds: profile.voiceTimeSeconds,
                 invite: snapshot.invite,
-                // DailyAlgo / leveling removed from public profile responses.
-                recentAlgos: [],
+                points: snapshot.dailyAlgoProfile?.totalPoints || 0,
+                tier: snapshot.dailyAlgoProfile?.tier || 'Débutant',
+                streak: snapshot.dailyAlgoProfile?.currentStreak || 0,
+                rank: snapshot.dailyAlgoProfile ? snapshot.dailyAlgoProfile.rank - 1 : 0, // 0-indexed for frontend
+                recentAlgos: snapshot.dailyAlgoParticipations.map((entry) => ({
+                  title: entry.problemTitle,
+                  date: entry.submittedAt ? entry.submittedAt.toISOString() : new Date().toISOString(),
+                  status: entry.status,
+                  points: entry.totalPoints,
+                })),
                 eventParticipations: snapshot.eventParticipations.map((entry) => ({
                   id: entry.id,
                   eventId: entry.eventId,
@@ -2584,6 +2643,10 @@ export const startDashboardApi = (client: Client) => {
                 messageCount: null,
                 voiceTimeSeconds: null,
                 invite: null,
+                points: 0,
+                tier: 'Débutant',
+                streak: 0,
+                rank: 0,
                 recentAlgos: [],
                 eventParticipations: [],
               };
@@ -8216,6 +8279,12 @@ export const startDashboardApi = (client: Client) => {
               return;
             }
 
+            const requesterStaff = await getStaffMember(guildId, user.userId);
+            if (!requesterStaff) {
+              json(res, 403, { error: "Accès refusé. Vous devez faire partie de l'équipe staff pour voir ce profil." });
+              return;
+            }
+
             const snapshot = await getStaffProfileSnapshot(guildId, userId);
             if (!snapshot) {
               json(res, 404, { error: 'Membre du staff introuvable' });
@@ -8238,6 +8307,10 @@ export const startDashboardApi = (client: Client) => {
               accessibleTools.push('Éditeur de Règlement');
             }
 
+            const isOwnProfile = userId === user.userId;
+            const isManagerOrAdmin = accessLevel.canManageSettings || ['admin', 'moderator'].includes(accessLevel.level);
+            const canSeeSensitive = isOwnProfile || isManagerOrAdmin;
+
             json(res, 200, {
               staffMember: snapshot.staffMember,
               publicProfile: snapshot.publicProfile
@@ -8247,26 +8320,32 @@ export const startDashboardApi = (client: Client) => {
                     primaryRole: publicProfileRoleDisplay?.primaryRole ?? null,
                   }
                 : null,
-              apiKeys: snapshot.apiKeys.map((k) => ({
-                id: k.id,
-                displayKey: k.displayKey,
-                name: k.name,
-                permissions: k.permissions,
-                lastUsedAt: k.lastUsedAt,
-              })),
-              activeBlacklist: snapshot.activeBlacklist,
-              blacklistHistory: snapshot.blacklistHistory,
-              warnings: snapshot.warnings,
-              testingPeriods: snapshot.testingPeriods,
+              apiKeys: isOwnProfile
+                ? snapshot.apiKeys.map((k) => ({
+                    id: k.id,
+                    displayKey: k.displayKey,
+                    name: k.name,
+                    permissions: k.permissions,
+                    lastUsedAt: k.lastUsedAt,
+                  }))
+                : [],
+              activeBlacklist: canSeeSensitive ? snapshot.activeBlacklist : null,
+              blacklistHistory: canSeeSensitive ? snapshot.blacklistHistory : [],
+              warnings: canSeeSensitive ? snapshot.warnings : [],
+              testingPeriods: canSeeSensitive ? snapshot.testingPeriods : [],
               activities: snapshot.activities,
-              absences: snapshot.absences,
-              notesWritten: snapshot.notesWritten,
-              notesAbout: snapshot.notesAbout,
-              gradeHistory: snapshot.gradeHistory,
-              stats: snapshot.stats,
-              isBlacklisted: !!snapshot.activeBlacklist,
-              blacklistReason: snapshot.activeBlacklist?.reason,
-              blacklistEndDate: snapshot.activeBlacklist?.endDate,
+              absences: canSeeSensitive ? snapshot.absences : [],
+              notesWritten: canSeeSensitive ? snapshot.notesWritten : [],
+              notesAbout: canSeeSensitive ? snapshot.notesAbout : [],
+              gradeHistory: canSeeSensitive ? snapshot.gradeHistory : [],
+              stats: {
+                ...snapshot.stats,
+                activeWarnings: canSeeSensitive ? snapshot.stats.activeWarnings : 0,
+                sanctionsIssued: canSeeSensitive ? snapshot.stats.sanctionsIssued : 0,
+              },
+              isBlacklisted: canSeeSensitive ? !!snapshot.activeBlacklist : false,
+              blacklistReason: canSeeSensitive ? snapshot.activeBlacklist?.reason : null,
+              blacklistEndDate: canSeeSensitive ? snapshot.activeBlacklist?.endDate : null,
               accessibleTools,
             });
           } catch (err) {
@@ -8376,7 +8455,7 @@ export const startDashboardApi = (client: Client) => {
           // GET /api/dashboard/guilds/:guildId/api-keys - List API keys
           if (req.method === 'GET') {
             try {
-              const keys = await getAPIKeys(guildId);
+              const keys = await getAPIKeys(guildId, user.userId);
               json(res, 200, { keys });
             } catch (err) {
               logger.error('StaffAPI', 'Error getting API keys:', err);
@@ -8389,6 +8468,17 @@ export const startDashboardApi = (client: Client) => {
           if (parts[5] && req.method === 'DELETE') {
             const keyId = parts[5];
             try {
+              const key = await prisma.aPIKey.findUnique({ where: { id: keyId } });
+              if (!key) {
+                json(res, 404, { error: 'Clé API introuvable' });
+                return;
+              }
+              const requesterStaff = await getStaffMember(guildId, user.userId);
+              if (!requesterStaff || (key.createdByUserId !== requesterStaff.id && accessLevel.level !== 'admin')) {
+                json(res, 403, { error: 'Non autorisé à supprimer cette clé API' });
+                return;
+              }
+
               await deleteAPIKey(keyId);
 
               await pushAudit(guildId, {
