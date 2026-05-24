@@ -48,6 +48,9 @@ model Guild {
 
   codePoliceEnabled        Boolean @default(false)
   codePoliceRules          CodePoliceRule[]
+
+  autoNicknameModerationEnabled Boolean   @default(false)
+  bannedWords              BannedWord[]
   
   dailyAlgoEnabled         Boolean @default(false)
   dailyAlgoChannelId       String?
@@ -183,6 +186,23 @@ model DashboardAuditLog {
 
   @@index([guildId, dateIso])
   @@map("dashboard_audit_logs")
+}
+
+model BannedWord {
+  id       String  @id @default(cuid())
+  guildId  String? // null = global (visible par tous les serveurs, read-only dashboard)
+  word     String
+  category String  @default("custom") // custom | racism | threat | sexual | lgbtphobia | etc.
+  enabled  Boolean @default(true)
+
+  guild Guild? @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, word])
+  @@index([guildId, enabled])
+  @@map("banned_words")
 }
 
 model CodePoliceRule {

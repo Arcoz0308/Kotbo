@@ -36,6 +36,7 @@
   import Inbox from './pages/Inbox.svelte';
   import Tutoring from './pages/Tutoring.svelte';
   import DoubleAccounts from './pages/DoubleAccounts.svelte';
+  import NicknameModeration from './pages/NicknameModeration.svelte';
   import GeneralSettings from './pages/GeneralSettings.svelte';
   import DailyAlgo from './pages/DailyAlgo.svelte';
   import DailyAlgoIDE from './pages/DailyAlgoIDE.svelte';
@@ -69,6 +70,7 @@
     if (path.startsWith('/events')) return 'events';
     if (path.startsWith('/members') || path.startsWith('/invitations')) return 'members';
     if (path.startsWith('/sanctions')) return 'sanctions';
+    if (path.startsWith('/nickname-moderation')) return 'nickname_moderation';
     if (path.startsWith('/detections')) return 'double_accounts';
     if (path.startsWith('/double-accounts')) return 'double_accounts';
     if (path.startsWith('/logs')) return 'logs';
@@ -319,6 +321,9 @@
       </Route>
       <Route path="/double-accounts">
         <DoubleAccounts />
+      </Route>
+      <Route path="/nickname-moderation">
+        <NicknameModeration />
       </Route>
       <Route path="/invitations">
         <Invitations />

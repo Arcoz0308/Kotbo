@@ -1174,4 +1174,76 @@ export async function purgeInviterMembers(userId: string, guildId = authStore.se
   });
 }
 
+// ==========================================
+// MODÉRATION DES PSEUDOS
+// ==========================================
 
+export async function fetchNicknameModerationConfig(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/nickname-moderation', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Nickname Moderation Config):'
+  });
+}
+
+export async function updateNicknameModerationConfig(
+  payload: { enabled: boolean },
+  guildId = authStore.selectedGuildId
+) {
+  return dashboardMutation('/nickname-moderation', {
+    method: 'PATCH',
+    payload,
+    guildId,
+    errorContext: 'API Error (Update Nickname Moderation Config):'
+  });
+}
+
+// ==========================================
+// MOTS BANNIS (service générique partagé)
+// ==========================================
+
+/** Retourne { global: BannedWord[], custom: BannedWord[] } */
+export async function fetchBannedWords(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/banned-words', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Banned Words):'
+  });
+}
+
+/** Ajoute un mot personnalisé pour le serveur */
+export async function addBannedWord(
+  word: string,
+  category = 'custom',
+  guildId = authStore.selectedGuildId
+) {
+  return dashboardMutation('/banned-words', {
+    method: 'POST',
+    payload: { word, category },
+    guildId,
+    errorContext: 'API Error (Add Banned Word):'
+  });
+}
+
+/** Active ou désactive un mot personnalisé */
+export async function toggleBannedWord(
+  id: string,
+  enabled: boolean,
+  guildId = authStore.selectedGuildId
+) {
+  return dashboardMutation(`/banned-words/${id}`, {
+    method: 'PATCH',
+    payload: { enabled },
+    guildId,
+    errorContext: 'API Error (Toggle Banned Word):'
+  });
+}
+
+/** Supprime un mot personnalisé */
+export async function deleteBannedWord(id: string, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/banned-words/${id}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Delete Banned Word):'
+  });
+}
