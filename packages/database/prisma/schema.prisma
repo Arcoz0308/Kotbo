@@ -48,6 +48,9 @@ model Guild {
 
   codePoliceEnabled        Boolean @default(false)
   codePoliceRules          CodePoliceRule[]
+
+  autoNicknameModerationEnabled Boolean   @default(false)
+  bannedWords              BannedWord[]
   
   dailyAlgoEnabled         Boolean @default(false)
   dailyAlgoChannelId       String?
@@ -71,6 +74,10 @@ model Guild {
   sanctionSyncEnabled      Boolean @default(false)
   sanctionAlertChannelId   String?
   newsChannelId            String?
+
+  activated                Boolean   @default(false)
+  activatedAt              DateTime?
+  activationCode           String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -99,12 +106,25 @@ model Guild {
   memberDailyStats MemberDailyStat[]
   memberInvites MemberInvite[]
   guildInvites  GuildInvite[]
+  suspendedInviters SuspendedInviter[]
   linkedAccounts LinkedAccount[]
 
   tutoringConfig TutoringConfig?
   tutoringItems TutoringItem[]
   dashboardFeatureConfigs DashboardFeatureConfig[]
   events Event[]
+
+  ticketCategoryId       String?
+  ticketLogChannelId     String?
+  ticketStaffRoleId      String?
+  ticketChannelId        String?
+  ticketEmbedTitle       String   @default("Support Technique")
+  ticketEmbedDesc        String   @default("Cliquez sur le bouton ci-dessous pour ouvrir un ticket d'assistance.")
+  ticketEmbedButtonText  String   @default("Ouvrir un ticket")
+  ticketEmbedColor       String   @default("#5865F2")
+  ticketAllowOverclaim        Boolean  @default(true)
+  ticketOverclaimPermission   String   @default("ANY") // "ANY", "SUPERIOR_OR_EQUAL", "NONE"
+  tickets                Ticket[]
 
   @@map("guilds")
 }
@@ -167,6 +187,23 @@ model DashboardAuditLog {
 
   @@index([guildId, dateIso])
   @@map("dashboard_audit_logs")
+}
+
+model BannedWord {
+  id       String  @id @default(cuid())
+  guildId  String? // null = global (visible par tous les serveurs, read-only dashboard)
+  word     String
+  category String  @default("custom") // custom | racism | threat | sexual | lgbtphobia | etc.
+  enabled  Boolean @default(true)
+
+  guild Guild? @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, word])
+  @@index([guildId, enabled])
+  @@map("banned_words")
 }
 
 model CodePoliceRule {
@@ -429,6 +466,8 @@ model MemberProfile {
   accentColor Int?
   locale String?
   isBot Boolean @default(false)
+  bio String?
+  isProfilePrivate Boolean @default(false)
 
   accountCreatedAt DateTime?
   guildJoinedAt DateTime?
@@ -1165,6 +1204,7 @@ model GuildInvite {
   
   isTemporary Boolean @default(false)
   isDeleted   Boolean @default(false)
+  isSuspended Boolean @default(false)
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -1173,6 +1213,21 @@ model GuildInvite {
   
   @@index([guildId, inviterId])
   @@map("guild_invites")
+}
+
+model SuspendedInviter {
+  id        String   @id @default(cuid())
+  guildId   String
+  userId    String   // ID Discord du créateur
+  userTag   String?  // Tag de l'utilisateur
+  reason    String?  // Raison de la suspension
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, userId])
+  @@map("suspended_inviters")
 }
 
 model GuildHourlyStat {
@@ -1426,6 +1481,18 @@ model GlobalAdmin {
   createdAt DateTime @default(now())
 
   @@map("global_admins")
+}
+
+model ActivationCode {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  createdAt     DateTime  @default(now())
+  createdById   String
+  usedAt        DateTime?
+  usedByGuildId String?   @unique
+  isActive      Boolean   @default(true)
+
+  @@map("activation_codes")
 }
 
 model GlobalBlacklist {

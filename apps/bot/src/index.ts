@@ -33,13 +33,16 @@ import * as adminCmd from './commands/admin.js';
 import * as helpCmd from './commands/help.js';
 import * as postCmd from './commands/post.js';
 import * as dailyAlgoCmd from './commands/dailyAlgo.js';
-import * as profileCmd from './commands/profile.js';
-import * as profilCmd from './commands/profil.js';
+import * as profileCmd from './commands/profile.ts';
+import * as profilCmd from './commands/profil.ts';
 import * as sanctionCmd from './commands/sanction.js';
+import * as dcCmd from './commands/dc.js';
 import * as casierCmd from './commands/casier.js';
 import * as absentCmd from './commands/absent.js';
 import * as meetingCmd from './commands/meeting.js';
 import * as noteCmd from './commands/note.js';
+import * as eventCmd from './commands/event.js';
+import * as transcriptCmd from './commands/transcript.js';
 import prisma from './utils/db.js';
 import {
   evaluateCommandRestriction,
@@ -50,6 +53,7 @@ import { registerCodePoliceListener } from './events/codePolice.js';
 import { registerModerationAuditListener } from './events/moderation.js';
 import { registerAdvancedLogsListener } from './events/advancedLogs.js';
 import { registerCloseSourceWarningListener } from './events/closeSourceWarning.js';
+import { registerNicknameModerationListener } from './events/nicknameModeration.js';
 import { registerDailyAlgoHandlers } from './handlers/dailyAlgoHandler.js';
 import { registerMeetingEvents } from './events/meetingEvents.js';
 import { registerAnalyticsListeners } from './events/analyticsEvents.js';
@@ -64,6 +68,9 @@ import * as leaderboardCmd from './commands/leaderboard.js';
 import * as serverstatsCmd from './commands/serverstats.js';
 import * as statsCmd from './commands/stats.js';
 import * as invitesCmd from './commands/invites.js';
+import * as activateCmd from './commands/activate.js';
+import * as sayCmd from './commands/say.js';
+import { loadActivatedGuilds, isGuildActivated } from './utils/activation.js';
 
 initBotSentry();
 
@@ -83,6 +90,69 @@ const client = new Client({
 });
 
 setClient(client);
+
+// ==========================================================
+// Guild Activation Central Event Interceptor Gate
+// ==========================================================
+const originalEmit = client.emit;
+client.emit = function (eventName, ...args) {
+  // Allow system/ready events
+  if (
+    eventName === Events.ClientReady ||
+    eventName === Events.ShardReady ||
+    eventName === Events.GuildCreate ||
+    eventName === Events.GuildDelete
+  ) {
+    return originalEmit.call(client, eventName, ...args);
+  }
+
+  // Detect associated guild
+  let guildId: string | null = null;
+  let isActivateCommand = false;
+  let isOwnerInteraction = false;
+
+  for (const arg of args) {
+    if (!arg) continue;
+    if (typeof arg === 'object') {
+      if (
+        eventName === Events.InteractionCreate &&
+        typeof arg.isChatInput === 'function' &&
+        arg.isChatInput() &&
+        arg.commandName === 'activate'
+      ) {
+        isActivateCommand = true;
+      }
+
+      if (arg.user && arg.user.id === process.env.DISCORD_CLIENT_OWNER_ID) {
+        isOwnerInteraction = true;
+      } else if (arg.author && arg.author.id === process.env.DISCORD_CLIENT_OWNER_ID) {
+        isOwnerInteraction = true;
+      }
+
+      if (arg.guild && typeof arg.guild.id === 'string') {
+        guildId = arg.guild.id;
+        break;
+      }
+      if (typeof arg.guildId === 'string') {
+        guildId = arg.guildId;
+        break;
+      }
+      if (typeof arg.id === 'string' && (arg.constructor?.name === 'Guild' || (arg.name && arg.roles))) {
+        guildId = arg.id;
+        break;
+      }
+    }
+  }
+
+  // Intercept and block unactivated guilds silently
+  if (guildId && !isActivateCommand && !isOwnerInteraction) {
+    if (!isGuildActivated(guildId)) {
+      return false;
+    }
+  }
+
+  return originalEmit.call(client, eventName, ...args);
+};
 
 startDashboardApi(client);
 
@@ -143,6 +213,11 @@ client.once(Events.ClientReady, async (c) => {
   logger.success('Bot', `Connecté en tant que ${c.user.tag}`);
   c.user.setActivity(`/help | v${botPackageJson.version}`, { type: ActivityType.Playing });
 
+  // Load activated guilds into cache at startup
+  await loadActivatedGuilds().catch((error) =>
+    logger.error('Activation', 'Impossible de charger les serveurs activés :', error)
+  );
+
   await initRedis();
   await startBackgroundQueueWorker();
   await checkTranslationProviderHealth();
@@ -164,6 +239,7 @@ client.once(Events.ClientReady, async (c) => {
   registerModerationAuditListener(client);
   registerAdvancedLogsListener(client);
   registerCloseSourceWarningListener(client);
+  registerNicknameModerationListener(client);
   registerDailyAlgoHandlers(client);
   registerMeetingEvents(client);
   registerAnalyticsListeners(client);
@@ -172,6 +248,24 @@ client.once(Events.ClientReady, async (c) => {
   );
   await registerCrons(client);
   logger.success('System', 'Bot opérationnel et synchronisé.');
+});
+
+client.on(Events.GuildCreate, async (guild) => {
+  logger.info('System', `Le bot a rejoint le serveur : ${guild.name} (${guild.id})`);
+  
+  if (!isGuildActivated(guild.id)) {
+    const channel = guild.systemChannel || guild.channels.cache.find(
+      (c) => c.isTextBased() && c.permissionsFor(guild.members.me!)?.has('SendMessages')
+    );
+
+    if (channel && channel.isTextBased()) {
+      const embed = errorEmbed(
+        '🔑 Activation Requise',
+        `Merci d'avoir invité **Kotbo** sur votre serveur !\n\nPour des raisons de sécurité, ce bot nécessite un code d'activation pour fonctionner.\n\n👉 **Comment faire ?**\n1. Récupérez un code auprès de l'administrateur global de Kotbo.\n2. Exécutez la commande slash suivante sur ce serveur : \`/activate <code>\`\n\n*Note : Tant que le serveur n'est pas activé, aucune fonctionnalité du bot ni du dashboard ne sera opérationnelle.*`
+      );
+      await channel.send({ embeds: [embed] }).catch(() => null);
+    }
+  }
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {

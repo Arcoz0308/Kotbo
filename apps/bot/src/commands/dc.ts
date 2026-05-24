@@ -11,6 +11,7 @@ import {
 import * as altAccountService from '../services/altAccountService.js';
 import prisma from '../utils/db.js';
 import { COLORS, successEmbed, errorEmbed, infoEmbed } from '../utils/embeds.js';
+import { scanGuildMembersForYoungAccounts } from '../services/dcDetectionService.js';
 
 export const data = new SlashCommandBuilder()
   .setName('dc')
@@ -41,10 +42,77 @@ export const data = new SlashCommandBuilder()
       .setDescription('Supprimer le lien entre deux comptes.')
       .addUserOption((opt) => opt.setName('compte1').setDescription('Premier compte').setRequired(true))
       .addUserOption((opt) => opt.setName('compte2').setDescription('Deuxième compte').setRequired(true))
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('scan')
+      .setDescription('Scanner les membres et signaler ceux dont le compte est trop récent à l’arrivée.')
+      .addIntegerOption((opt) =>
+        opt
+          .setName('seuil_jours')
+          .setDescription('Nombre de jours maximum entre création du compte et arrivée')
+          .setMinValue(1)
+          .setMaxValue(30)
+          .setRequired(false)
+      )
   );
+
+async function canUseModerationTools(interaction: ChatInputCommandInteraction): Promise<boolean> {
+  const guild = interaction.guild;
+  if (!guild || !interaction.guildId) return false;
+
+  const isStaffDb = await prisma.staffMember.findUnique({ where: { guildId_userId: { guildId: guild.id, userId: interaction.user.id } } });
+  const isAdmin = interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) || false;
+
+  return isAdmin || !!isStaffDb || interaction.memberPermissions?.has(PermissionFlagsBits.ModerateMembers);
+}
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   const subcommand = interaction.options.getSubcommand();
+
+  if (subcommand === 'scan') {
+    const guild = interaction.guild;
+    if (!guild || !interaction.guildId) {
+      return interaction.reply({ content: '❌ Cette commande doit être utilisée dans un serveur.', flags: [MessageFlags.Ephemeral] });
+    }
+
+    if (!(await canUseModerationTools(interaction))) {
+      return interaction.reply({ content: '❌ Tu n’as pas les permissions nécessaires pour lancer ce scan.', flags: [MessageFlags.Ephemeral] });
+    }
+
+    const thresholdDays = interaction.options.getInteger('seuil_jours') ?? 3;
+    const thresholdMs = thresholdDays * 24 * 60 * 60 * 1000;
+
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+    const result = await scanGuildMembersForYoungAccounts(guild, thresholdMs);
+    const preview = result.matches.slice(0, 10).map((match) => `• <@${match.userId}> — compte créé ${match.accountAgeLabel} avant l’arrivée`).join('\n');
+
+    const summaryLines = [
+      `Membres analysés : **${result.scannedCount}**`,
+      `Membres signalés : **${result.flaggedCount}**`,
+      `Seuil : **${thresholdDays} jour${thresholdDays > 1 ? 's' : ''}**`,
+    ];
+
+    if (result.flaggedCount > 0) {
+      summaryLines.push('');
+      summaryLines.push('Premiers signalements :');
+      summaryLines.push(preview);
+      if (result.matches.length > 10) {
+        summaryLines.push(`… et ${result.matches.length - 10} autre(s).`);
+      }
+    }
+
+    await interaction.editReply({
+      embeds: [
+        infoEmbed(
+          'Scan DC terminé',
+          summaryLines.join('\n')
+        )
+      ]
+    });
+    return;
+  }
 
   if (subcommand === 'link') {
     const u1 = interaction.options.getUser('compte1', true);

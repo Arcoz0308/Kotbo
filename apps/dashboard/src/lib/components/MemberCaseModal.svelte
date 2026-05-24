@@ -1,9 +1,12 @@
 <script lang="ts">
+  import { portal } from '../actions/portal';
   import FormInput from './FormInput.svelte';
   import { dashboardStore } from '../stores/dashboard.svelte.ts';
   import { authStore } from '../stores/auth.svelte.ts';
   import Papicon from './Papicon.svelte';
   import Chart from './charts/Chart.svelte';
+  import { router } from 'tinro';
+  import { inviteDetailsModal } from '../stores/inviteDetailsModal.svelte';
   import { fetchMemberCase, fetchMemberDetailedAnalytics, updateSanctionReport, linkMemberAccount, unlinkMemberAccount, updateMemberNote } from '../api';
   import { statusLabel, toDateTimeLocal, typeLabel as formatTypeLabel } from '../sanctions/formatters';
   import { buildReportRuleOptions, getRuleIdsFromBrokenRules, getRulesFromBrokenRules, buildBrokenRulesPayload } from '../sanctions/reportRules';
@@ -58,9 +61,10 @@
       code: string | null;
       inviterId: string | null;
       inviterTag: string | null;
+      inviterAvatarUrl: string | null;
       joinedAt: string | null;
     } | null;
-    roles: Array<{ id: string; name: string; mention: string; permissions: string[] }>;
+    roles: Array<{ id: string; name: string; mention: string; permissions: string[]; color?: string }>;
     effectivePermissions: string[];
     sanctions: Array<{
       id: string;
@@ -172,6 +176,7 @@
     actionIsError?: boolean;
     onClose?: (e: MouseEvent) => void;
     onAction?: (action: 'WARN' | 'KICK' | 'TIMEOUT' | 'BAN') => void;
+    onSelectUser?: (userId: string) => void;
   }>();
 
   let activeTab = $state<MemberCaseTab>('resume');
@@ -194,6 +199,17 @@
   let linkBusy = $state(false);
   let linkFeedback = $state('');
   let linkIsError = $state(false);
+
+  $effect(() => {
+    if (open) {
+      document.body.classList.add('overflow-hidden');
+    } else {
+      document.body.classList.remove('overflow-hidden');
+    }
+    return () => {
+      document.body.classList.remove('overflow-hidden');
+    };
+  });
 
   async function handleLinkAccount() {
     if (!targetAccountId.trim()) {
@@ -542,6 +558,7 @@
 
 {#if open}
   <div 
+    use:portal
     class="modal-backdrop" 
     role="button" 
     aria-label="Fermer le dossier"
@@ -611,7 +628,7 @@
                 </span>
               {/if}
               {#if caseData?.profile?.staffGrade}
-                <span class="badge bg-primary/15 text-primary border border-primary/30 shadow-sm animate-in zoom-in-95 duration-500">
+                <span class="badge bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 dark:border-amber-400/20 shadow-sm animate-in zoom-in-95 duration-500">
                   <Papicon icon="star" size={12} class="mr-1" />
                   {caseData?.profile?.staffGrade}
                 </span>
@@ -743,20 +760,61 @@
                      </div>
                      <div class="space-y-1">
                        <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Invité par</p>
-                       {#if caseData?.invite?.inviterTag}
-                         <div class="flex items-center gap-2">
-                           <div class="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
-                             {caseData?.invite.inviterTag.slice(0, 1).toUpperCase()}
-                           </div>
-                           <p class="text-sm font-black text-on-surface truncate">@{caseData?.invite.inviterTag}</p>
-                         </div>
-                       {:else}
-                         <p class="text-sm font-bold text-on-surface-variant/40 italic">Origine inconnue</p>
-                       {/if}
+                        {#if caseData?.invite?.inviterTag}
+                          {#if caseData?.invite?.inviterId}
+                            <button
+                              type="button"
+                              onclick={() => caseData?.invite?.inviterId && onSelectUser(caseData.invite.inviterId)}
+                              class="flex items-center gap-2 text-left hover:text-primary transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary/20 rounded-xl p-1 -ml-1 group/inviter w-full"
+                              title="Ouvrir la vue modérateur de l'inviteur"
+                            >
+                              {#if caseData.invite.inviterAvatarUrl}
+                                <img
+                                  src={caseData.invite.inviterAvatarUrl}
+                                  alt={caseData.invite.inviterTag}
+                                  class="h-6 w-6 rounded-full object-cover border border-primary/10 group-hover/inviter:border-primary transition-all duration-300"
+                                />
+                              {:else}
+                                <div class="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary group-hover/inviter:bg-primary group-hover/inviter:text-on-primary transition-all duration-300">
+                                  {caseData.invite.inviterTag.slice(0, 1).toUpperCase()}
+                                </div>
+                              {/if}
+                              <p class="text-sm font-black text-on-surface group-hover/inviter:text-primary truncate transition-colors">@{caseData.invite.inviterTag}</p>
+                            </button>
+                          {:else}
+                            <div class="flex items-center gap-2">
+                              {#if caseData.invite.inviterAvatarUrl}
+                                <img
+                                  src={caseData.invite.inviterAvatarUrl}
+                                  alt={caseData.invite.inviterTag}
+                                  class="h-6 w-6 rounded-full object-cover border border-primary/10"
+                                />
+                              {:else}
+                                <div class="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
+                                  {caseData.invite.inviterTag.slice(0, 1).toUpperCase()}
+                                </div>
+                              {/if}
+                              <p class="text-sm font-black text-on-surface truncate">@{caseData.invite.inviterTag}</p>
+                            </div>
+                          {/if}
+                        {:else}
+                          <p class="text-sm font-bold text-on-surface-variant/40 italic">Origine inconnue</p>
+                        {/if}
                      </div>
                      <div class="space-y-1">
                        <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Code d'invitation</p>
-                       <p class="text-sm font-black text-on-surface">{caseData?.invite?.code || '—'}</p>
+                       {#if caseData?.invite?.code}
+                         <button
+                           type="button"
+                           class="text-sm font-black text-primary bg-primary/10 px-3 py-1 rounded-xl hover:bg-primary/20 transition-colors"
+                           onclick={() => inviteDetailsModal.show(caseData.invite.code)}
+                           title="Ouvrir la vue Invitations"
+                         >
+                           {caseData.invite.code}
+                         </button>
+                       {:else}
+                         <p class="text-sm font-black text-on-surface">—</p>
+                       {/if}
                      </div>
                    </div>
                 </div>
@@ -916,7 +974,12 @@
                         <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-3">Rôles Principaux</p>
                         <div class="flex flex-wrap gap-2">
                           {#each caseData?.roles.slice(0, 4) as role}
-                            <span class="px-3 py-1.5 rounded-xl bg-surface-container-high text-[10px] font-bold text-on-surface border border-outline-variant/20">{role.name}</span>
+                            <span class="px-3 py-1.5 rounded-xl bg-surface-container-high text-[10px] font-bold text-on-surface border border-outline-variant/20 flex items-center gap-1.5">
+                              {#if role.color && role.color !== '#000000'}
+                                <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background-color: {role.color}"></span>
+                              {/if}
+                              {role.name}
+                            </span>
                           {/each}
                           {#if caseData?.roles.length > 4}
                             <span class="px-3 py-1.5 rounded-xl bg-primary/5 text-[10px] font-black text-primary border border-primary/10">+{caseData?.roles.length - 4}</span>
@@ -933,45 +996,6 @@
                           {/each}
                         </div>
                      </div>
-                   </div>
-                </div>
-
-                <!-- Moderation Console (Bento Side) -->
-                <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm transition-all hover:shadow-xl duration-500 group">
-                   <div class="flex items-center gap-3 mb-8">
-                     <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-500 group-hover:scale-110 transition-transform">
-                       <Papicon icon="hammer" size={24} />
-                     </div>
-                     <div>
-                       <p class="text-[10px] font-black uppercase tracking-[0.2em] text-rose-500">Modération</p>
-                       <p class="text-lg font-black text-on-surface">Console d'action</p>
-                     </div>
-                   </div>
-
-                   <div class="space-y-4">
-                     <div class="space-y-1.5">
-                        <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Raison</p>
-                        <input 
-                          type="text" 
-                          bind:value={actionReason} 
-                          placeholder="Motif de l'action..." 
-                          class="w-full rounded-2xl bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface placeholder:text-on-surface-variant/30 border border-outline-variant/10 focus:border-rose-500/50 outline-hidden transition-all"
-                        />
-                     </div>
-                     <div class="space-y-1.5">
-                        <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Durée (si applicable)</p>
-                        <input 
-                          type="text" 
-                          bind:value={actionDuration} 
-                          placeholder="Ex: 30m, 2h, 1j..." 
-                          class="w-full rounded-2xl bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface placeholder:text-on-surface-variant/30 border border-outline-variant/10 focus:border-rose-500/50 outline-hidden transition-all"
-                        />
-                     </div>
-                     {#if actionFeedback}
-                        <p class="text-[10px] font-black {actionIsError ? 'text-rose-500' : 'text-emerald-500'} animate-pulse px-1">
-                          {actionFeedback}
-                        </p>
-                     {/if}
                    </div>
                 </div>
 
@@ -1101,20 +1125,20 @@
 
                 {#if caseData?.profile?.staffGrade}
                   <!-- Staff Role Section -->
-                  <div class="rounded-[2.5rem] bg-primary/5 p-8 border border-primary/20 shadow-sm hover:bg-primary/10 transition-all duration-500 group">
+                  <div class="rounded-[2.5rem] bg-amber-500/5 dark:bg-amber-500/10 p-8 border border-amber-500/20 dark:border-amber-400/20 shadow-sm hover:bg-amber-500/10 dark:hover:bg-amber-500/15 transition-all duration-500 group">
                      <div class="flex items-center gap-3 mb-8">
-                       <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-on-primary group-hover:scale-110 transition-transform shadow-lg shadow-primary/20">
+                       <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500 text-white group-hover:scale-110 transition-transform shadow-lg shadow-amber-500/20">
                          <Papicon icon="star" size={24} />
                        </div>
                        <div>
-                         <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Administration</p>
+                         <p class="text-[10px] font-black uppercase tracking-[0.2em] text-amber-600 dark:text-amber-400">Administration</p>
                          <p class="text-lg font-black text-on-surface">Statut Staff</p>
                        </div>
                      </div>
                      <dl class="space-y-5">
-                       <div class="flex items-center justify-between border-b border-primary/10 pb-2">
+                       <div class="flex items-center justify-between border-b border-amber-500/15 pb-2">
                          <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Grade Actuel</dt>
-                         <dd class="text-sm font-black text-primary">{caseData?.profile?.staffGrade}</dd>
+                         <dd class="text-sm font-black text-amber-600 dark:text-amber-400">{caseData?.profile?.staffGrade}</dd>
                        </div>
                        <div class="flex items-center justify-between">
                          <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Statut Tuteur</dt>
@@ -1176,7 +1200,10 @@
                    </div>
                    <div class="flex flex-wrap gap-3">
                      {#each caseData?.roles as role}
-                       <span class="px-5 py-2.5 rounded-2xl bg-surface-container-high text-xs font-black text-on-surface border border-outline-variant/20 shadow-sm transition-all hover:scale-105 hover:bg-surface-container-highest">
+                       <span class="px-5 py-2.5 rounded-2xl bg-surface-container-high text-xs font-black text-on-surface border border-outline-variant/20 shadow-sm transition-all hover:scale-105 hover:bg-surface-container-highest flex items-center gap-2">
+                         {#if role.color && role.color !== '#000000'}
+                           <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: {role.color}"></span>
+                         {/if}
                          {role.name}
                        </span>
                      {/each}
@@ -1427,7 +1454,7 @@
                             {#if hasReport}
                               <button
                                 onclick={() => viewingReportSanctionId = sanction.id}
-                                class="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-[10px] font-black text-primary uppercase tracking-widest transition-all hover:bg-primary/20"
+                                class="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[10px] font-black text-on-primary uppercase tracking-widest transition-all hover:bg-primary-container hover:scale-[1.02] active:scale-[0.98] shadow-xs cursor-pointer"
                               >
                                 <Papicon icon="file-text" size={12} />
                                 Voir plus
@@ -1440,186 +1467,6 @@
                       {/each}
                     </tbody>
                   </table>
-
-                  {#if viewingReportSanctionId && selectedSanctionForReport}
-                    <div class="absolute inset-0 z-50 flex items-center justify-center bg-surface-container-lowest/90 backdrop-blur-sm animate-in fade-in duration-300">
-                      <div class="w-full max-w-2xl bg-surface-container-low rounded-[2.5rem] border border-outline-variant/10 shadow-2xl p-8 max-h-[90%] overflow-y-auto relative">
-                        <button
-                          onclick={() => viewingReportSanctionId = null}
-                          class="absolute top-6 right-6 h-10 w-10 flex items-center justify-center rounded-xl bg-on-surface/5 text-on-surface-variant transition-all hover:bg-on-surface/10 hover:text-on-surface"
-                        >
-                          <Papicon icon="x" size={20} />
-                        </button>
-
-                        <div class="mb-8">
-                          <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary mb-1">Rapport de sanction</p>
-                          <h4 class="text-2xl font-black text-on-surface font-headline">{formatTypeLabel(selectedSanctionForReport.type)}</h4>
-                          <p class="text-xs text-on-surface-variant/60 mt-1">Appliquée le {formatDateTime(selectedSanctionForReport.createdAt)} par @{selectedSanctionForReport.moderatorTag}</p>
-                        </div>
-
-                        {#if selectedReport}
-                          {#if isEditingReport}
-                            <!-- Edit Form -->
-                             <div class="space-y-6 animate-in fade-in duration-300">
-                               <div class="grid grid-cols-2 gap-4">
-                                 <div class="space-y-1.5">
-                                   <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Date de l'incident</p>
-                                   <input 
-                                     type="datetime-local" 
-                                     bind:value={editReportData.incidentAt} 
-                                     class="w-full rounded-2xl bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all"
-                                   />
-                                 </div>
-                                 <div class="space-y-1.5">
-                                   <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Durée appliquée</p>
-                                   <input 
-                                     type="text" 
-                                     bind:value={editReportData.sanctionDurationLabel} 
-                                     placeholder="Ex: 2h, Permanent..." 
-                                     class="w-full rounded-2xl bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all"
-                                   />
-                                 </div>
-                               </div>
-
-                               <div class="space-y-1.5">
-                                 <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Règles enfreintes</p>
-                                 <ReportRuleSelector
-                                   options={reportRuleOptions}
-                                   selectedIds={editReportData.selectedRuleIds}
-                                   onToggle={(id, checked) => {
-                                     if (checked) {
-                                       editReportData.selectedRuleIds = [...new Set([...editReportData.selectedRuleIds, id])];
-                                     } else {
-                                       editReportData.selectedRuleIds = editReportData.selectedRuleIds.filter(v => v !== id);
-                                     }
-                                   }}
-                                 />
-                                 <SelectedRuleChips selectedRules={editDraftRules} />
-                               </div>
-
-                               <div class="space-y-1.5">
-                                 <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Raison détaillée</p>
-                                 <textarea 
-                                   bind:value={editReportData.detailedReason} 
-                                   rows="4"
-                                   placeholder="Description précise des faits..." 
-                                   class="w-full rounded-2xl bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"
-                                 ></textarea>
-                               </div>
-
-                               <div class="space-y-1.5">
-                                 <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Preuves (URLs)</p>
-                                 <EvidenceInputList bind:links={editReportData.evidenceLinks} />
-                               </div>
-
-                               <div class="space-y-1.5">
-                                 <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Notes complémentaires</p>
-                                 <textarea 
-                                   bind:value={editReportData.additionalNotes} 
-                                   rows="2"
-                                   placeholder="Précisions facultatives..." 
-                                   class="w-full rounded-2xl bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"
-                                 ></textarea>
-                               </div>
-
-                               <div class="flex gap-3 pt-4">
-                                 <button
-                                   onclick={() => isEditingReport = false}
-                                   class="flex-1 py-3 rounded-xl bg-on-surface/5 text-xs font-black uppercase tracking-widest text-on-surface-variant transition-all hover:bg-on-surface/10"
-                                 >
-                                   Annuler
-                                 </button>
-                                 <button
-                                   onclick={handleUpdateReport}
-                                   disabled={updateReportBusy}
-                                   class="flex-1 py-3 rounded-xl bg-primary text-on-primary text-xs font-black uppercase tracking-widest transition-all hover:bg-primary-container hover:text-primary disabled:opacity-50"
-                                 >
-                                   {updateReportBusy ? 'Enregistrement...' : 'Enregistrer'}
-                                 </button>
-                               </div>
-                            </div>
-                          {:else}
-                            <!-- View Mode -->
-                            <div class="space-y-6">
-                              <div class="grid grid-cols-2 gap-4">
-                                <div class="space-y-1">
-                                  <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Incident</p>
-                                  <p class="text-sm font-bold text-on-surface">{formatDateTime(selectedReport.incidentAt)}</p>
-                                </div>
-                                <div class="space-y-1">
-                                  <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Durée</p>
-                                  <p class="text-sm font-bold text-on-surface">{selectedReport.sanctionDurationLabel || 'N/A'}</p>
-                                </div>
-                              </div>
-
-                              <div class="space-y-2">
-                                <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Règles enfreintes</p>
-                                <SelectedRuleChips selectedRules={selectedReportRules} />
-                              </div>
-
-                              <div class="space-y-2">
-                                <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Raison détaillée</p>
-                                <div class="rounded-2xl bg-surface-container-high/30 p-4 text-sm text-on-surface-variant leading-relaxed italic">
-                                  "{selectedReport.detailedReason}"
-                                </div>
-                              </div>
-
-                              {#if selectedReport.evidenceLinks && selectedReport.evidenceLinks.length > 0}
-                                <div class="space-y-2">
-                                  <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Preuves</p>
-                                  <div class="flex flex-wrap gap-2">
-                                    {#each selectedReport.evidenceLinks as link}
-                                      <a href={link} target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 rounded-xl bg-on-surface/5 px-4 py-2 text-xs font-bold text-primary transition-all hover:bg-primary/10">
-                                        <Papicon icon="external-link" size={14} />
-                                        Lien de preuve
-                                      </a>
-                                    {/each}
-                                  </div>
-                                </div>
-                              {/if}
-
-                              {#if selectedReport.additionalNotes}
-                                <div class="space-y-2">
-                                  <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Notes complémentaires</p>
-                                  <p class="text-xs text-on-surface-variant/70 leading-relaxed">{selectedReport.additionalNotes}</p>
-                                </div>
-                              {/if}
-
-                              <div class="pt-4 flex flex-col items-center gap-4 border-t border-outline-variant/10">
-                                <p class="text-[10px] font-bold text-on-surface-variant/30 text-center">Rapport créé par @{selectedReport.createdByTag || selectedReport.createdByUserId}</p>
-                                
-                                {#if selectedReport.createdByUserId === authStore.user?.userId || authStore.isAdmin}
-                                  <button
-                                    onclick={() => startEditingReport(selectedReport)}
-                                    class="inline-flex items-center gap-2 rounded-xl bg-primary/10 px-6 py-2.5 text-[10px] font-black text-primary uppercase tracking-widest transition-all hover:bg-primary/20"
-                                  >
-                                    <Papicon icon="edit-3" size={14} />
-                                    Modifier le rapport
-                                  </button>
-                                {/if}
-                              </div>
-                            </div>
-                          {/if}
-
-                        {:else}
-                          <div class="flex flex-col items-center justify-center py-10 text-center">
-                            <div class="h-16 w-16 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center mb-4">
-                              <Papicon icon="alert-triangle" size={32} />
-                            </div>
-                            <p class="text-sm font-black text-on-surface-variant">Rapport détaillé manquant</p>
-                            <p class="text-xs text-on-surface-variant/40 mt-1 max-w-xs">La sanction a été enregistrée mais le rapport détaillé n'a pas encore été rédigé par le modérateur.</p>
-                          </div>
-                        {/if}
-
-                        <button
-                          onclick={() => viewingReportSanctionId = null}
-                          class="w-full mt-8 py-4 rounded-2xl bg-on-surface/5 text-sm font-black uppercase tracking-widest text-on-surface-variant transition-all hover:bg-on-surface/10 hover:text-on-surface"
-                        >
-                          Fermer les détails
-                        </button>
-                      </div>
-                    </div>
-                  {/if}
                   {#if sanctions.length === 0}
                     <div class="flex flex-col items-center py-20 text-on-surface-variant/30">
                       <Papicon icon="check-circle" size={48} />
@@ -1633,8 +1480,51 @@
                    <div class="rounded-4xl bg-surface-container-low/50 p-6 border border-outline-variant/10">
                      <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-6">Source d'invitation</p>
                      <dl class="space-y-4">
-                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Code utilisé</dt><dd class="text-sm font-black text-on-surface font-mono">{caseData?.invite?.code ?? 'Inconnu'}</dd></div>
-                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Créateur</dt><dd class="text-sm font-black text-on-surface">@{caseData?.invite?.inviterTag ?? 'Inconnu'}</dd></div>
+                       <div class="flex items-center justify-between">
+                         <dt class="text-xs font-bold text-on-surface-variant/60">Code utilisé</dt>
+                         {#if caseData?.invite?.code}
+                           <button
+                             type="button"
+                             class="text-sm font-black text-primary bg-primary/10 px-3 py-1 rounded-xl hover:bg-primary/20 transition-colors font-mono"
+                             onclick={() => inviteDetailsModal.show(caseData.invite.code)}
+                             title="Ouvrir la vue Invitations"
+                           >
+                             {caseData.invite.code}
+                           </button>
+                         {:else}
+                           <dd class="text-sm font-black text-on-surface font-mono">Inconnu</dd>
+                         {/if}
+                       </div>
+                       <div class="flex items-center justify-between">
+                          <dt class="text-xs font-bold text-on-surface-variant/60">Créateur</dt>
+                          <dd class="text-sm font-black text-on-surface">
+                            {#if caseData?.invite?.inviterTag}
+                              <div class="flex items-center gap-2">
+                                {#if caseData.invite.inviterAvatarUrl}
+                                  <img
+                                    src={caseData.invite.inviterAvatarUrl}
+                                    alt={caseData.invite.inviterTag}
+                                    class="h-5 w-5 rounded-full object-cover border border-primary/10"
+                                  />
+                                {/if}
+                                {#if caseData?.invite?.inviterId}
+                                  <button
+                                    type="button"
+                                    onclick={() => caseData?.invite?.inviterId && onSelectUser(caseData.invite.inviterId)}
+                                    class="text-primary hover:underline focus:outline-none font-black text-left"
+                                    title="Ouvrir la vue modérateur de l'inviteur"
+                                  >
+                                    @{caseData.invite.inviterTag}
+                                  </button>
+                                {:else}
+                                  @{caseData.invite.inviterTag}
+                                {/if}
+                              </div>
+                            {:else}
+                              Inconnu
+                            {/if}
+                          </dd>
+                        </div>
                        <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Date d'utilisation</dt><dd class="text-sm font-black text-on-surface">{formatDateTime(caseData?.invite?.joinedAt ?? caseData?.profile?.guildJoinedAt)}</dd></div>
                      </dl>
                    </div>
@@ -1649,7 +1539,7 @@
                 </div>
 
               {:else if activeTab === 'connexions'}
-                <div class="space-y-6 h-[500px]">
+                <div class="space-y-6">
                   <div class="flex items-center justify-between px-2">
                     <div>
                       <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-1">Réseau Social</p>
@@ -1660,7 +1550,7 @@
                     </div>
                   </div>
                   
-                  <div class="flex-1 h-[400px]">
+                  <div class="w-full h-[520px]">
                     <InteractionTree 
                       nodes={caseData?.interactionGraph?.nodes || []} 
                       edges={caseData?.interactionGraph?.edges || []} 
@@ -1865,6 +1755,197 @@
       </div>
 
     </div>
+
+    {#if viewingReportSanctionId && selectedSanctionForReport}
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div 
+        class="fixed inset-0 z-[10010] flex items-center justify-center bg-surface-container-lowest/90 backdrop-blur-sm animate-in fade-in duration-300"
+        onclick={(e) => e.stopPropagation()}
+      >
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div 
+          class="w-full max-w-2xl bg-surface-container-low rounded-[2.5rem] border border-outline-variant/10 shadow-2xl p-8 max-h-[90%] overflow-y-auto relative"
+          onclick={(e) => e.stopPropagation()}
+        >
+          <button
+            onclick={() => viewingReportSanctionId = null}
+            class="absolute top-6 right-6 h-10 w-10 flex items-center justify-center rounded-xl bg-on-surface/5 text-on-surface-variant transition-all hover:bg-on-surface/10 hover:text-on-surface"
+          >
+            <Papicon icon="x" size={20} />
+          </button>
+
+          <div class="mb-8">
+            <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary mb-1">Rapport de sanction</p>
+            <h4 class="text-2xl font-black text-on-surface font-headline">{formatTypeLabel(selectedSanctionForReport.type)}</h4>
+            <p class="text-xs text-on-surface-variant/60 mt-1">Appliquée le {formatDateTime(selectedSanctionForReport.createdAt)} par @{selectedSanctionForReport.moderatorTag}</p>
+          </div>
+
+          {#if selectedReport}
+            {#if isEditingReport}
+              <!-- Edit Form -->
+               <div class="space-y-6 animate-in fade-in duration-300">
+                 <div class="grid grid-cols-2 gap-4">
+                   <div class="space-y-1.5">
+                     <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Date de l'incident</p>
+                     <input 
+                       type="datetime-local" 
+                       bind:value={editReportData.incidentAt} 
+                       class="w-full rounded-2xl bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all"
+                     />
+                   </div>
+                   <div class="space-y-1.5">
+                     <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Durée appliquée</p>
+                     <input 
+                       type="text" 
+                       bind:value={editReportData.sanctionDurationLabel} 
+                       placeholder="Ex: 2h, Permanent..." 
+                       class="w-full rounded-2xl bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all"
+                     />
+                   </div>
+                 </div>
+
+                 <div class="space-y-1.5">
+                   <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Règles enfreintes</p>
+                   <ReportRuleSelector
+                     options={reportRuleOptions}
+                     selectedIds={editReportData.selectedRuleIds}
+                     onToggle={(id, checked) => {
+                       if (checked) {
+                         editReportData.selectedRuleIds = [...new Set([...editReportData.selectedRuleIds, id])];
+                       } else {
+                         editReportData.selectedRuleIds = editReportData.selectedRuleIds.filter(v => v !== id);
+                       }
+                     }}
+                   />
+                   <SelectedRuleChips selectedRules={editDraftRules} />
+                 </div>
+
+                 <div class="space-y-1.5">
+                   <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Raison détaillée</p>
+                   <textarea 
+                     bind:value={editReportData.detailedReason} 
+                     rows="4"
+                     placeholder="Description précise des faits..." 
+                     class="w-full rounded-2xl bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"
+                   ></textarea>
+                 </div>
+
+                 <div class="space-y-1.5">
+                   <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Preuves (URLs)</p>
+                   <EvidenceInputList bind:links={editReportData.evidenceLinks} />
+                 </div>
+
+                 <div class="space-y-1.5">
+                   <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Notes complémentaires</p>
+                   <textarea 
+                     bind:value={editReportData.additionalNotes} 
+                     rows="2"
+                     placeholder="Précisions facultatives..." 
+                     class="w-full rounded-2xl bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"
+                   ></textarea>
+                 </div>
+
+                 <div class="flex gap-3 pt-4">
+                   <button
+                     onclick={() => isEditingReport = false}
+                     class="flex-1 py-3 rounded-xl bg-on-surface/5 text-xs font-black uppercase tracking-widest text-on-surface-variant transition-all hover:bg-on-surface/10"
+                   >
+                     Annuler
+                   </button>
+                   <button
+                     onclick={handleUpdateReport}
+                     disabled={updateReportBusy}
+                     class="flex-1 py-3 rounded-xl bg-primary text-on-primary text-xs font-black uppercase tracking-widest transition-all hover:bg-primary-container hover:text-primary disabled:opacity-50"
+                   >
+                     {updateReportBusy ? 'Enregistrement...' : 'Enregistrer'}
+                   </button>
+                 </div>
+               </div>
+            {:else}
+              <!-- View Mode -->
+              <div class="space-y-6">
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="space-y-1">
+                    <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Incident</p>
+                    <p class="text-sm font-bold text-on-surface">{formatDateTime(selectedReport.incidentAt)}</p>
+                  </div>
+                  <div class="space-y-1">
+                    <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Durée</p>
+                    <p class="text-sm font-bold text-on-surface">{selectedReport.sanctionDurationLabel || 'N/A'}</p>
+                  </div>
+                </div>
+
+                <div class="space-y-2">
+                  <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Règles enfreintes</p>
+                  <SelectedRuleChips selectedRules={selectedReportRules} />
+                </div>
+
+                <div class="space-y-2">
+                  <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Raison détaillée</p>
+                  <div class="rounded-2xl bg-surface-container-high/30 p-4 text-sm text-on-surface-variant leading-relaxed italic">
+                    "{selectedReport.detailedReason}"
+                  </div>
+                </div>
+
+                {#if selectedReport.evidenceLinks && selectedReport.evidenceLinks.length > 0}
+                  <div class="space-y-2">
+                    <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Preuves</p>
+                    <div class="flex flex-wrap gap-2">
+                      {#each selectedReport.evidenceLinks as link}
+                        <a href={link} target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 rounded-xl bg-on-surface/5 px-4 py-2 text-xs font-bold text-primary transition-all hover:bg-primary/10">
+                          <Papicon icon="external-link" size={14} />
+                          Lien de preuve
+                        </a>
+                      {/each}
+                    </div>
+                  </div>
+                {/if}
+
+                {#if selectedReport.additionalNotes}
+                  <div class="space-y-2">
+                    <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Notes complémentaires</p>
+                    <p class="text-xs text-on-surface-variant/70 leading-relaxed">{selectedReport.additionalNotes}</p>
+                  </div>
+                {/if}
+
+                <div class="pt-4 flex flex-col items-center gap-4 border-t border-outline-variant/10">
+                  <p class="text-[10px] font-bold text-on-surface-variant/30 text-center">Rapport créé par @{selectedReport.createdByTag || selectedReport.createdByUserId}</p>
+                  
+                  {#if selectedReport.createdByUserId === authStore.user?.userId || authStore.isAdmin}
+                    <button
+                      onclick={() => startEditingReport(selectedReport)}
+                      class="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-[10px] font-black text-on-primary uppercase tracking-widest transition-all hover:bg-primary-container hover:scale-[1.02] active:scale-[0.98] shadow-xs cursor-pointer"
+                    >
+                      <Papicon icon="edit-3" size={14} />
+                      Modifier le rapport
+                    </button>
+                  {/if}
+                </div>
+              </div>
+            {/if}
+
+          {:else}
+            <div class="flex flex-col items-center justify-center py-10 text-center">
+              <div class="h-16 w-16 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center mb-4">
+                <Papicon icon="alert-triangle" size={32} />
+              </div>
+              <p class="text-sm font-black text-on-surface-variant">Rapport détaillé manquant</p>
+              <p class="text-xs text-on-surface-variant/40 mt-1 max-w-xs">La sanction a été enregistrée mais le rapport détaillé n'a pas encore été rédigé par le modérateur.</p>
+            </div>
+          {/if}
+
+          <button
+            onclick={() => viewingReportSanctionId = null}
+            class="w-full mt-8 py-4 rounded-2xl bg-on-surface/5 text-sm font-black uppercase tracking-widest text-on-surface-variant transition-all hover:bg-on-surface/10 hover:text-on-surface"
+          >
+            Fermer les détails
+          </button>
+        </div>
+      </div>
+    {/if}
+
   </div>
 {/if}
 

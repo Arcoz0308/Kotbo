@@ -23,12 +23,13 @@ import { handleConfigButton, handleConfigModal } from './configHandler.js';
 import { sendSetupStep1, sendSetupStep2, sendSetupStep3, sendSetupFinish } from '../panels/setupPanel.js';
 import { reviewDailyAlgoSubmission } from '../services/dailyAlgoService.js';
 import { renderPanelTarget } from '../utils/interactionResponses.js';
-import { parseSetupStep, parseUserCaseRoute, parseValidateRoute, parseEventQuizRoute } from './interactionRoutes.js';
-import { handleQuizInteraction } from '../services/eventService.js';
+import { parseSetupStep, parseUserCaseRoute, parseValidateRoute, parseEventQuizRoute, parseEventResultRoute } from './interactionRoutes.js';
+import { handleQuizInteraction, buildEventResultsView, getEventStats } from '../services/eventService.js';
 import { toggleGuildBoolean } from '../utils/prismaToggles.js';
 import { requireSingleSelectedValue, validateTimeField } from '../utils/interactionValidation.js';
 import { buildMemberCasePanel, type MemberCaseSection } from '../services/memberCaseService.js';
 import { handleRecruitmentButton } from '../services/recruitmentService.js';
+import { handleTicketButton, handleTicketModalSubmit } from '../services/ticketService.js';
 import { checkInMeeting } from '../services/staffLeadershipService.js';
 import { handleDCInteraction } from '../services/dcDetectionService.js';
 import { showModeratorNoteModal } from '../commands/note.js';
@@ -147,6 +148,12 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   // Recruitment ticket buttons
   if (customId.startsWith('recruit:')) {
     await handleRecruitmentButton(client, customId, interaction);
+    return;
+  }
+
+  // Ticket system buttons
+  if (customId.startsWith('ticket:')) {
+    await handleTicketButton(client, customId, interaction);
     return;
   }
 
@@ -292,6 +299,87 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
+  const resultRoute = parseEventResultRoute(customId);
+  if (resultRoute) {
+    const results = await buildEventResultsView(interaction, resultRoute.eventId, resultRoute.page);
+    await interaction.update(results);
+    return;
+  }
+
+  if (customId.startsWith('event-stats:')) {
+    const parts = customId.split(':');
+    const eventId = parts[1];
+    if (!eventId) {
+      await interaction.reply({ content: '❌ Événement introuvable.', flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    try {
+      const stats = await getEventStats(eventId);
+      if (!stats) {
+        await interaction.reply({ content: '❌ Aucune statistique disponible pour cet événement.', flags: [MessageFlags.Ephemeral] });
+        return;
+      }
+
+      const embed = new EmbedBuilder()
+        .setTitle('📊 Statistiques de l\'événement')
+        .setDescription(stats.questionText ? truncate(stats.questionText, 200) : 'Distribution des réponses')
+        .setColor(COLORS.info)
+        .setTimestamp();
+
+      const total = Object.values(stats.distribution).reduce((s: number, v: any) => s + (v || 0), 0);
+
+      (Object.keys(stats.distribution) || []).forEach((k) => {
+        const idx = parseInt(k, 10);
+        const label = (stats.options && stats.options[idx]) ? stats.options[idx] : `Option ${idx + 1}`;
+        const count = stats.distribution[idx] ?? 0;
+        embed.addFields({ name: `${label}`, value: `${count} vote(s)`, inline: true });
+      });
+
+      embed.addFields({ name: 'Total réponses', value: `${total}`, inline: true });
+
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(`event-result-page:${eventId}:0`).setLabel('🔍 Voir les détails').setStyle(ButtonStyle.Secondary)
+      );
+
+      await interaction.reply({ embeds: [embed], components: [row], flags: [MessageFlags.Ephemeral] });
+    } catch (err) {
+      logger.error('Handler', 'Error showing event stats:', err);
+      await interaction.reply({ content: '❌ Erreur lors de la récupération des statistiques.', flags: [MessageFlags.Ephemeral] });
+    }
+
+    return;
+  }
+
+  if (customId === 'event-result-back') {
+    const events = await prisma.event.findMany({
+      where: {
+        guildId: guildId!,
+        participants: { some: { userId: interaction.user.id } }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 25
+    });
+    
+    const embed = new EmbedBuilder()
+      .setTitle('📈 Tes Résultats de Quiz')
+      .setDescription('Sélectionne un événement pour voir le détail de tes réponses.')
+      .setColor(COLORS.info);
+
+    const select = new StringSelectMenuBuilder()
+      .setCustomId('event-result-select')
+      .setPlaceholder('Sélectionne un quiz...')
+      .addOptions(events.map(e => ({
+        label: e.title.substring(0, 100),
+        value: e.id,
+        description: `Le ${e.createdAt.toLocaleDateString('fr-FR')}`
+      })));
+
+    const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
+    await interaction.update({ embeds: [embed], components: [row] });
+    return;
+  }
+
   if (!guildId) return;
 
   const setupStep = parseSetupStep(customId);
@@ -427,6 +515,13 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
 
     const panel = await buildMemberCasePanel(interaction.guild!, caseRoute.userId, section, caseRoute.pageIndex ?? 0);
     await interaction.update({ embeds: [panel.embed], components: panel.components, files: panel.files });
+    return;
+  }
+
+  if (customId === 'event-result-select') {
+    const eventId = interaction.values[0];
+    const results = await buildEventResultsView(interaction, eventId, 0);
+    await interaction.update(results);
     return;
   }
 
@@ -590,7 +685,6 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
     }
     return;
   }
-
   if (customId.startsWith('modal:ticket:')) {
     await handleTicketModalSubmit(client, customId, interaction);
     return;

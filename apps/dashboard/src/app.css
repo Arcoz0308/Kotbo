@@ -49,7 +49,18 @@
   --radius-lg: 0.5rem;
   --radius-xl: 0.75rem;
   --radius-full: 9999px;
+
+  --z-100: 100;
+  --z-110: 110;
 }
+
+.z-100 {
+  z-index: 100;
+}
+.z-110 {
+  z-index: 110;
+}
+
 
 :root {
   --background: #f8f9fa;
@@ -147,7 +158,7 @@
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 100;
+  z-index: 9999;
   display: flex;
   align-items: center;
   justify-content: center;

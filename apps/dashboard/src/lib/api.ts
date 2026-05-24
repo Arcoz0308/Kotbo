@@ -162,6 +162,12 @@ export async function fetchGuildState(guildId = authStore.selectedGuildId) {
     if (!response.ok) {
         const error = new Error(`Server error: ${response.status}`);
         (error as any).status = response.status;
+        try {
+          const body = await response.clone().json();
+          if (body?.needsActivation) {
+            (error as any).needsActivation = true;
+          }
+        } catch {}
         throw error;
     }
     return await response.json();
@@ -537,6 +543,14 @@ export async function fetchStaffRoles(guildId = authStore.selectedGuildId) {
   });
 }
 
+export async function deleteStaffRole(roleId, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/staff/roles/${roleId}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Delete Staff Role):'
+  });
+}
+
 export async function fetchStaffConfig(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/staff/config', {
     method: 'GET',
@@ -576,6 +590,10 @@ export async function updateAbsenceConfig(managerRoleLevels: number[], guildId =
 
 export async function updateAbsenceStatus(absenceId, status, note, guildId = authStore.selectedGuildId) {
   return dashboardMutation(`/absences/${absenceId}`, { method: 'PATCH', payload: { status, note }, guildId });
+}
+
+export async function deleteAbsence(absenceId, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/absences/${absenceId}`, { method: 'DELETE', guildId });
 }
 
 export async function fetchMeetings(guildId = authStore.selectedGuildId) {
@@ -650,11 +668,12 @@ export async function toggleTutorStatus(userId, guildId = authStore.selectedGuil
   return dashboardMutation(`/staff/members/${userId}/tutor`, { method: 'POST', guildId });
 }
 
-export async function fetchAnalytics(options: { period?: number, startDate?: string, endDate?: string } = {}, guildId = authStore.selectedGuildId) {
+export async function fetchAnalytics(options: { period?: number, startDate?: string, endDate?: string, granularity?: string } = {}, guildId = authStore.selectedGuildId) {
   const params = new URLSearchParams();
   if (options.period) params.append('period', options.period.toString());
   if (options.startDate) params.append('startDate', options.startDate);
   if (options.endDate) params.append('endDate', options.endDate);
+  if (options.granularity) params.append('granularity', options.granularity);
   
   return dashboardRequest(`/analytics?${params.toString()}`, {
     method: 'GET',
@@ -679,6 +698,71 @@ export async function fetchMemberDetailedAnalytics(userId, period = 30, guildId 
   });
 }
 
+export async function fetchPublicProfile(userId: string) {
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (authStore.token) {
+    headers.Authorization = `Bearer ${authStore.token}`;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/public/profile/${userId}`, { headers });
+  if (!response.ok) {
+    const error = new Error(`Server error: ${response.status}`);
+    (error as any).status = response.status;
+    throw error;
+  }
+
+  return response.json();
+}
+
+export async function updatePublicProfile(userId: string, payload: { bio?: string | null; isProfilePrivate?: boolean }) {
+  if (!authStore.token) {
+    throw new Error('No auth token available');
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/public/profile/${userId}`, {
+    method: 'PATCH',
+    headers: {
+      ...JSON_HEADERS,
+      Authorization: `Bearer ${authStore.token}`,
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const error = new Error(`Server error: ${response.status}`);
+    (error as any).status = response.status;
+    throw error;
+  }
+
+  return response.json();
+}
+
+export async function fetchStaffProfile(userId: string, guildId = authStore.selectedGuildId) {
+  const selectedGuildId = getGuildId(guildId);
+  if (!selectedGuildId) return null;
+
+  if (!authStore.token) {
+    throw new Error('No auth token available');
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/dashboard/users/${userId}/profile?guildId=${selectedGuildId}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${authStore.token}`,
+      Accept: 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const error = new Error(`Server error: ${response.status}`);
+    (error as any).status = response.status;
+    throw error;
+  }
+
+  return response.json();
+}
+
 export async function fetchHourlyHeatmap(options: { days?: number, startDate?: string, endDate?: string } = {}, guildId = authStore.selectedGuildId) {
   const params = new URLSearchParams();
   if (options.days) params.append('days', options.days.toString());
@@ -692,8 +776,11 @@ export async function fetchHourlyHeatmap(options: { days?: number, startDate?: s
   });
 }
 
-export async function fetchWeeklyComparison(guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/analytics/weekly-comparison', {
+export async function fetchWeeklyComparison(options: { offset?: number, mode?: 'week' | 'month' } = {}, guildId = authStore.selectedGuildId) {
+  const params = new URLSearchParams();
+  if (options.offset) params.append('offset', options.offset.toString());
+  if (options.mode) params.append('mode', options.mode);
+  return dashboardRequest(`/analytics/weekly-comparison?${params.toString()}`, {
     method: 'GET',
     guildId,
     errorContext: 'API Error (Weekly Comparison):'
@@ -723,6 +810,19 @@ export async function fetchDailyAlgoAnalytics(options: { days?: number, startDat
     method: 'GET',
     guildId,
     errorContext: 'API Error (Daily Algo Analytics):'
+  });
+}
+
+export async function fetchGlobalInteractions(options: { period?: number, startDate?: string, endDate?: string } = {}, guildId = authStore.selectedGuildId) {
+  const params = new URLSearchParams();
+  if (options.period) params.append('period', options.period.toString());
+  if (options.startDate) params.append('startDate', options.startDate);
+  if (options.endDate) params.append('endDate', options.endDate);
+
+  return dashboardRequest(`/analytics/interactions?${params.toString()}`, {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Global Interactions Graph):'
   });
 }
 
@@ -767,6 +867,10 @@ export async function deleteTestingPeriod(periodId, guildId = authStore.selected
   return dashboardMutation(`/tutoring/periods/${periodId}`, { method: 'DELETE', guildId });
 }
 
+export async function createTestingPeriod(payload, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/tutoring/periods', { method: 'POST', payload, guildId });
+}
+
 export async function addMentorReport(testingPeriodId, type, content, guildId = authStore.selectedGuildId) {
   return dashboardMutation('/mentor-reports', { method: 'POST', payload: { testingPeriodId, type, content }, guildId });
 }
@@ -784,6 +888,14 @@ export async function fetchFeatureConfigurations(guildId = authStore.selectedGui
     method: 'GET',
     guildId,
     errorContext: 'API Error (Fetch Feature Configurations):'
+  });
+}
+
+export async function fetchSuspectedDetections(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/detections', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Suspected Detections):'
   });
 }
 
@@ -946,5 +1058,224 @@ export async function updateRecruitmentConfig(payload: any, guildId: string = au
     payload,
     guildId,
     errorContext: 'API Error (Update Recruitment Config):'
+  });
+}
+
+export async function fetchActivationCodes() {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/activation-codes`, { method: 'GET' });
+  if (!response.ok) throw new Error('Erreur lors du chargement des codes d\'activation');
+  return response.json();
+}
+
+export async function createActivationCode() {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/activation-codes`, { method: 'POST' });
+  if (!response.ok) throw new Error('Erreur lors de la génération du code d\'activation');
+  return response.json();
+}
+
+export async function deleteActivationCode(id: string) {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/activation-codes/${id}`, { method: 'DELETE' });
+  if (!response.ok) throw new Error('Erreur lors de la suppression du code d\'activation');
+  return response.json();
+}
+
+export async function deactivateAdminGuild(guildId: string) {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/guilds/${guildId}/deactivate`, { method: 'POST' });
+  if (!response.ok) throw new Error('Erreur lors de la désactivation du serveur');
+  return response.json();
+}
+
+export async function activateAdminGuildAuto(guildId: string) {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/guilds/${guildId}/activate-auto`, { method: 'POST' });
+  if (!response.ok) throw new Error('Erreur lors de l\'activation automatique du serveur');
+  return response.json();
+}
+
+export async function activateGuildWithCode(code: string, guildId = authStore.selectedGuildId) {
+  const token = authStore.token;
+  if (!token) {
+    throw new Error('No auth token available');
+  }
+  const response = await fetch(`${BASE_URL}/guilds/${guildId}/activate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ code })
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || 'Erreur lors de l\'activation du serveur');
+  }
+  return response.json();
+}
+
+export async function fetchInvitations(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/invitations', { guildId });
+}
+
+export async function fetchInvitationDetails(code: string, options: { days?: number } = {}, guildId = authStore.selectedGuildId) {
+  const params = new URLSearchParams();
+  if (options.days) params.append('days', options.days.toString());
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  return dashboardRequest(`/invitations/${code}${suffix}`, { guildId });
+}
+
+export async function toggleInvitationSuspension(code: string, suspended: boolean, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/invitations/${code}/suspend`, {
+    method: 'PUT',
+    payload: { suspended },
+    guildId,
+    errorContext: 'Error toggling invite suspension'
+  });
+}
+
+export async function deleteInvitation(code: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/invitations/${code}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'Error deleting invitation'
+  });
+}
+
+export async function purgeInvitationMembers(code: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/invitations/${code}/purge`, {
+    method: 'POST',
+    guildId,
+    errorContext: 'Error purging invitation members'
+  });
+}
+
+export async function suspendInviter(
+  userId: string,
+  userTag: string,
+  reason: string,
+  options: { cascade?: boolean } = {},
+  guildId = authStore.selectedGuildId
+) {
+  return dashboardRequest('/invitations/suspended-inviters', {
+    method: 'POST',
+    payload: { userId, userTag, reason, cascade: options.cascade ?? false },
+    guildId,
+    errorContext: 'Error suspending inviter'
+  });
+}
+
+export async function removeSuspendedInviter(userId: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/invitations/suspended-inviters/${userId}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'Error removing suspended inviter'
+  });
+}
+
+export async function purgeInviterMembers(userId: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/invitations/inviters/${userId}/purge`, {
+    method: 'POST',
+    guildId,
+    errorContext: 'Error purging inviter members'
+  });
+}
+
+export async function reportDashboardError(errorData: {
+  error: string;
+  stack?: string;
+  url: string;
+  userAgent: string;
+  guildId?: string | null;
+}) {
+  const headers: Record<string, string> = { 
+    'Content-Type': 'application/json',
+    'Accept': 'application/json' 
+  };
+  if (authStore.token) {
+    headers.Authorization = `Bearer ${authStore.token}`;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/report-error`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(errorData)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Server error: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+
+// ==========================================
+// MODÉRATION DES PSEUDOS
+// ==========================================
+export async function fetchNicknameModerationConfig(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/nickname-moderation', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Nickname Moderation Config):'
+  });
+}
+
+export async function updateNicknameModerationConfig(
+  payload: { enabled: boolean },
+  guildId = authStore.selectedGuildId
+) {
+  return dashboardMutation('/nickname-moderation', {
+    method: 'PATCH',
+    payload,
+    guildId,
+    errorContext: 'API Error (Update Nickname Moderation Config):'
+  });
+}
+
+// ==========================================
+// MOTS BANNIS (service générique partagé)
+// ==========================================
+
+/** Retourne { global: BannedWord[], custom: BannedWord[] } */
+export async function fetchBannedWords(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/banned-words', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Banned Words):'
+  });
+}
+
+/** Ajoute un mot personnalisé pour le serveur */
+export async function addBannedWord(
+  word: string,
+  category = 'custom',
+  guildId = authStore.selectedGuildId
+) {
+  return dashboardMutation('/banned-words', {
+    method: 'POST',
+    payload: { word, category },
+    guildId,
+    errorContext: 'API Error (Add Banned Word):'
+  });
+}
+
+/** Active ou désactive un mot personnalisé */
+export async function toggleBannedWord(
+  id: string,
+  enabled: boolean,
+  guildId = authStore.selectedGuildId
+) {
+  return dashboardMutation(`/banned-words/${id}`, {
+    method: 'PATCH',
+    payload: { enabled },
+    guildId,
+    errorContext: 'API Error (Toggle Banned Word):'
+  });
+}
+
+/** Supprime un mot personnalisé */
+export async function deleteBannedWord(id: string, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/banned-words/${id}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Delete Banned Word):'
   });
 }

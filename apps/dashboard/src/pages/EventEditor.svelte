@@ -207,16 +207,18 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div class="space-y-2">
-            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">Titre de l'événement</label>
+            <label for="event-title" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">Titre de l'événement</label>
             <FormInput 
+              id="event-title"
               bind:value={event.title} 
               placeholder="Quiz Culture G" 
               className="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/30 transition-all text-on-surface"
             />
           </div>
           <div class="space-y-2">
-            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">ID du Salon Discord</label>
+            <label for="event-channel-id" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">ID du Salon Discord</label>
             <FormInput 
+              id="event-channel-id"
               bind:value={event.channelId} 
               placeholder="1234567890..." 
               className="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/30 transition-all text-on-surface"
@@ -225,8 +227,9 @@
         </div>
 
         <div class="space-y-2">
-          <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">Description</label>
+          <label for="event-description" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">Description</label>
           <FormTextarea 
+            id="event-description"
             bind:value={event.description} 
             placeholder="Participez à notre quiz hebdomadaire !" 
             className="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/30 transition-all text-on-surface resize-none"
@@ -273,16 +276,18 @@
                   </div>
                   
                   <div class="space-y-2">
-                    <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">Énoncé de la question</label>
+                    <label for={`question-${qIdx}-text`} class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">Énoncé de la question</label>
                     <FormInput 
+                      id={`question-${qIdx}-text`}
                       bind:value={question.text} 
                       placeholder="Quelle est la capitale de la France ?" 
                       className="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/30 transition-all text-on-surface"
                     />
                   </div>
                   <div class="space-y-2">
-                    <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">URL de l'image (optionnel)</label>
+                    <label for={`question-${qIdx}-image-url`} class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">URL de l'image (optionnel)</label>
                     <FormInput 
+                      id={`question-${qIdx}-image-url`}
                       bind:value={question.imageUrl} 
                       placeholder="https://..." 
                       className="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/30 transition-all text-on-surface"

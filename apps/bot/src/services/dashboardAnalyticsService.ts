@@ -5,13 +5,12 @@ export const getDashboardAnalytics = async (guildId: string, options: { days?: n
   const endKey = options.endDate || new Date().toISOString().split('T')[0];
   let startKey = options.startDate;
 
+  const finalEndKey = endKey.split('T')[0];
   if (!startKey) {
-    const startDate = new Date(endKey);
+    const startDate = new Date(finalEndKey);
     startDate.setDate(startDate.getDate() - days);
     startKey = startDate.toISOString().split('T')[0];
   }
-
-  const finalEndKey = endKey.split('T')[0];
   const finalStartKey = startKey.split('T')[0];
 
   let dailyStats: any[] = [];
@@ -46,16 +45,35 @@ export const getDashboardAnalytics = async (guildId: string, options: { days?: n
       take: options.startDate ? 200 : 24 
     });
     
-    dailyStats = hourlyStats.map(h => ({
-      dateKey: `${h.dateKey} ${h.hour}h`,
-      messagesCount: h.messagesCount,
-      voiceMinutes: h.voiceMinutes,
-      membersJoined: h.joinsCount,
-      membersLeft: h.leavesCount,
-      activeMembers: h.activeMembers,
-      totalMembers: 0, 
-      onlineMembers: h.onlineMembers,
-    }));
+    const stats: any[] = [];
+    for (const h of hourlyStats) {
+      const hourStr = String(h.hour).padStart(2, '0');
+      
+      // Bucket 1: :00
+      stats.push({
+        dateKey: `${h.dateKey} ${hourStr}h00`,
+        messagesCount: Math.round(h.messagesCount / 2),
+        voiceMinutes: Math.round(h.voiceMinutes / 2),
+        membersJoined: Math.round(h.joinsCount / 2),
+        membersLeft: Math.round(h.leavesCount / 2),
+        activeMembers: h.activeMembers,
+        totalMembers: 0,
+        onlineMembers: h.onlineMembers,
+      });
+      
+      // Bucket 2: :30
+      stats.push({
+        dateKey: `${h.dateKey} ${hourStr}h30`,
+        messagesCount: Math.floor(h.messagesCount / 2),
+        voiceMinutes: Math.floor(h.voiceMinutes / 2),
+        membersJoined: Math.floor(h.joinsCount / 2),
+        membersLeft: Math.floor(h.leavesCount / 2),
+        activeMembers: h.activeMembers,
+        totalMembers: 0,
+        onlineMembers: h.onlineMembers,
+      });
+    }
+    dailyStats = stats;
   } else {
     // Daily resolution
     dailyStats = await prisma.guildDailyStat.findMany({
@@ -138,8 +156,8 @@ export const getDashboardAnalytics = async (guildId: string, options: { days?: n
   const topVoiceMembers = [...memberTotalsArray]
     .sort((a, b) => b.voiceTimeSeconds - a.voiceTimeSeconds);
 
-  const startISO = new Date(startKey).toISOString();
-  const endISO = new Date(endKey + 'T23:59:59.999Z').toISOString();
+  const startISO = new Date(finalStartKey + 'T00:00:00.000Z').toISOString();
+  const endISO = new Date(finalEndKey + 'T23:59:59.999Z').toISOString();
 
   const sanctions = await prisma.sanction.findMany({
     where: {
@@ -298,12 +316,14 @@ export const getDashboardAnalytics = async (guildId: string, options: { days?: n
  * Get command usage analytics
  */
 export const getCommandUsageAnalytics = async (guildId: string, options: { startDate?: string, endDate?: string } = {}) => {
+  const gte = options.startDate ? new Date(options.startDate) : undefined;
+  const lte = options.endDate ? new Date(options.endDate) : undefined;
   const usages = await prisma.dashboardCommandUsage.findMany({
     where: {
       guildId,
       lastUsedAt: {
-        gte: options.startDate,
-        lte: options.endDate
+        gte,
+        lte
       }
     },
     orderBy: { count: 'desc' }
@@ -328,12 +348,14 @@ export const getStaffPerformanceAnalytics = async (guildId: string, options: { s
     where: { guildId }
   });
 
+  const gte = options.startDate ? new Date(options.startDate) : undefined;
+  const lte = options.endDate ? new Date(options.endDate) : undefined;
   const sanctions = await prisma.sanction.findMany({
     where: {
       guildId,
       createdAt: {
-        gte: options.startDate,
-        lte: options.endDate
+        gte,
+        lte
       }
     }
   });
@@ -342,8 +364,8 @@ export const getStaffPerformanceAnalytics = async (guildId: string, options: { s
     where: {
       guildId,
       createdAt: {
-        gte: options.startDate,
-        lte: options.endDate
+        gte,
+        lte
       }
     }
   });
@@ -400,18 +422,20 @@ export const getHourlyHeatmapData = async (guildId: string, options: { days?: nu
   const endKey = options.endDate || new Date().toISOString().split('T')[0];
   let startKey = options.startDate;
 
+  const finalEndKey = endKey.split('T')[0];
   if (!startKey) {
-    const startDate = new Date(endKey);
+    const startDate = new Date(finalEndKey);
     startDate.setDate(startDate.getDate() - days);
     startKey = startDate.toISOString().split('T')[0];
   }
+  const finalStartKey = startKey.split('T')[0];
 
   const hourlyStats = await prisma.guildHourlyStat.findMany({
     where: {
       guildId,
       dateKey: {
-        gte: startKey,
-        lte: endKey
+        gte: finalStartKey,
+        lte: finalEndKey
       }
     },
     orderBy: [{ dateKey: 'asc' }, { hour: 'asc' }]
@@ -459,41 +483,59 @@ export const getHourlyHeatmapData = async (guildId: string, options: { days?: nu
 /**
  * Get week-over-week comparison
  */
-export const getWeekOverWeekComparison = async (guildId: string) => {
+export const getWeekOverWeekComparison = async (guildId: string, options: { offset?: number, mode?: 'week' | 'month' } = {}) => {
+  const { offset = 1, mode = 'week' } = options;
   const now = new Date();
-  const thisWeekStart = new Date(now);
-  thisWeekStart.setDate(now.getDate() - now.getUTCDay());
-  thisWeekStart.setHours(0, 0, 0, 0);
+  
+  let currentStart = new Date(now);
+  let currentEnd = new Date(now);
+  let previousStart = new Date(now);
+  let previousEnd = new Date(now);
 
-  const lastWeekStart = new Date(thisWeekStart);
-  lastWeekStart.setDate(thisWeekStart.getDate() - 7);
+  if (mode === 'month') {
+    // Current month
+    currentStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    currentEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999));
+    
+    // Previous month (offset)
+    previousStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - offset, 1));
+    previousEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - offset + 1, 0, 23, 59, 59, 999));
+  } else {
+    // Current week (starting Sunday)
+    currentStart.setUTCDate(now.getUTCDate() - now.getUTCDay());
+    currentStart.setUTCHours(0, 0, 0, 0);
+    currentEnd = new Date(currentStart);
+    currentEnd.setUTCDate(currentStart.getUTCDate() + 6);
+    currentEnd.setUTCHours(23, 59, 59, 999);
+    
+    // Previous week (offset)
+    previousStart = new Date(currentStart);
+    previousStart.setUTCDate(currentStart.getUTCDate() - (7 * offset));
+    previousEnd = new Date(previousStart);
+    previousEnd.setUTCDate(previousStart.getUTCDate() + 6);
+    previousEnd.setUTCHours(23, 59, 59, 999);
+  }
 
-  const thisWeekEnd = new Date(thisWeekStart);
-  thisWeekEnd.setDate(thisWeekStart.getDate() + 6);
+  const currentKeyStart = currentStart.toISOString().split('T')[0];
+  const currentKeyEnd = currentEnd.toISOString().split('T')[0];
+  const previousKeyStart = previousStart.toISOString().split('T')[0];
+  const previousKeyEnd = previousEnd.toISOString().split('T')[0];
 
-  const thisWeekKey = thisWeekStart.toISOString().split('T')[0];
-  const lastWeekKey = lastWeekStart.toISOString().split('T')[0];
-  const thisWeekEndKey = thisWeekEnd.toISOString().split('T')[0];
-
-  const thisWeekStats = await prisma.guildDailyStat.findMany({
+  const currentStats = await prisma.guildDailyStat.findMany({
     where: {
       guildId,
-      dateKey: { gte: thisWeekKey, lte: thisWeekEndKey }
+      dateKey: { gte: currentKeyStart, lte: currentKeyEnd }
     }
   });
 
-  const lastWeekEndKey = new Date(lastWeekStart);
-  lastWeekEndKey.setDate(lastWeekStart.getDate() + 6);
-  const lastWeekEndKeyStr = lastWeekEndKey.toISOString().split('T')[0];
-
-  const lastWeekStats = await prisma.guildDailyStat.findMany({
+  const previousStats = await prisma.guildDailyStat.findMany({
     where: {
       guildId,
-      dateKey: { gte: lastWeekKey, lte: lastWeekEndKeyStr }
+      dateKey: { gte: previousKeyStart, lte: previousKeyEnd }
     }
   });
 
-  const sumStats = (stats: typeof thisWeekStats) => ({
+  const sumStats = (stats: typeof currentStats) => ({
     messages: stats.reduce((sum, s) => sum + s.messagesCount, 0),
     voiceMinutes: stats.reduce((sum, s) => sum + s.voiceMinutes, 0),
     joins: stats.reduce((sum, s) => sum + s.membersJoined, 0),
@@ -501,8 +543,8 @@ export const getWeekOverWeekComparison = async (guildId: string) => {
     sanctions: stats.reduce((sum, s) => sum + (s.sanctionsCount || 0), 0)
   });
 
-  const thisWeek = sumStats(thisWeekStats);
-  const lastWeek = sumStats(lastWeekStats);
+  const thisPeriod = sumStats(currentStats);
+  const lastPeriod = sumStats(previousStats);
 
   const getChange = (current: number, previous: number) => {
     if (previous === 0) return current > 0 ? 100 : 0;
@@ -510,14 +552,14 @@ export const getWeekOverWeekComparison = async (guildId: string) => {
   };
 
   return {
-    thisWeek,
-    lastWeek,
+    thisWeek: thisPeriod, // keeping keys same for compatibility
+    lastWeek: lastPeriod,
     changes: {
-      messagesChange: getChange(thisWeek.messages, lastWeek.messages),
-      voiceChange: getChange(thisWeek.voiceMinutes, lastWeek.voiceMinutes),
-      joinsChange: getChange(thisWeek.joins, lastWeek.joins),
-      leavesChange: getChange(thisWeek.leaves, lastWeek.leaves),
-      sanctionsChange: getChange(thisWeek.sanctions, lastWeek.sanctions)
+      messagesChange: getChange(thisPeriod.messages, lastPeriod.messages),
+      voiceChange: getChange(thisPeriod.voiceMinutes, lastPeriod.voiceMinutes),
+      joinsChange: getChange(thisPeriod.joins, lastPeriod.joins),
+      leavesChange: getChange(thisPeriod.leaves, lastPeriod.leaves),
+      sanctionsChange: getChange(thisPeriod.sanctions, lastPeriod.sanctions)
     }
   };
 };
@@ -589,20 +631,22 @@ export const getDailyAlgoAnalytics = async (guildId: string, options: { days?: n
   const endKey = options.endDate || new Date().toISOString().split('T')[0];
   let startKey = options.startDate;
 
+  const finalEndKey = endKey.split('T')[0];
   if (!startKey) {
-    const startDate = new Date(endKey);
+    const startDate = new Date(finalEndKey);
     startDate.setDate(startDate.getDate() - days);
     startKey = startDate.toISOString().split('T')[0];
   }
+  const finalStartKey = startKey.split('T')[0];
 
-  const startISO = new Date(startKey).toISOString();
-  const endISO = new Date(endKey + 'T23:59:59.999Z').toISOString();
+  const startISO = new Date(finalStartKey + 'T00:00:00.000Z').toISOString();
+  const endISO = new Date(finalEndKey + 'T23:59:59.999Z').toISOString();
 
   // Get recent daily algo runs
   const runs = await prisma.dailyAlgoRun.findMany({
     where: {
       guildId,
-      createdAt: { gte: startISO, lte: endISO }
+      createdAt: { gte: new Date(startISO), lte: new Date(endISO) }
     },
     include: {
       problem: true,
@@ -691,4 +735,160 @@ export const getDailyAlgoAnalytics = async (guildId: string, options: { days?: n
     difficultyDistribution: Object.entries(difficultyMap).map(([difficulty, count]) => ({ difficulty, count })),
     trend
   };
+};
+
+/**
+ * Get global member-to-member interaction graph
+ */
+export const getGlobalInteractions = async (guildId: string, options: { days?: number, startDate?: string, endDate?: string } = {}) => {
+  const days = options.days || 30;
+  const endKey = options.endDate || new Date().toISOString().split('T')[0];
+  let startKey = options.startDate;
+
+  const endKeyOnly = endKey.split('T')[0];
+  if (!startKey) {
+    const startDate = new Date(endKeyOnly);
+    startDate.setDate(startDate.getDate() - days);
+    startKey = startDate.toISOString().split('T')[0];
+  }
+  const startKeyOnly = startKey.split('T')[0];
+
+  const finalEndKey = new Date(endKeyOnly + 'T23:59:59.999Z');
+  const finalStartKey = new Date(startKeyOnly + 'T00:00:00.000Z');
+
+  // Fetch audit logs in the timeframe
+  const logs = await prisma.dashboardAuditLog.findMany({
+    where: {
+      guildId,
+      dateIso: {
+        gte: finalStartKey,
+        lte: finalEndKey
+      },
+      module: { in: ['Messages', 'Interactions'] },
+      action: { in: ['Message envoyé', 'Réaction ajoutée'] }
+    },
+    select: {
+      user: true,
+      action: true,
+      details: true
+    }
+  });
+
+  const extractIdFromUserStr = (str: string | null | undefined): string | null => {
+    if (!str) return null;
+    const match = str.match(/\(<@(\d+)>\)/);
+    if (match) return match[1];
+    const rawIdMatch = str.match(/^(\d+)$/);
+    return rawIdMatch ? rawIdMatch[1] : null;
+  };
+
+  // Maps to aggregate counts
+  const userActivity = new Map<string, number>();
+  const edgeMap = new Map<string, { from: string; to: string; mention: number; reply: number; reaction: number }>();
+
+  const addEdge = (from: string, to: string, type: 'mention' | 'reply' | 'reaction') => {
+    if (from === to) return; // ignore self-interactions
+    const key = from < to ? `${from}-${to}` : `${to}-${from}`;
+    let edge = edgeMap.get(key);
+    if (!edge) {
+      edge = { from, to, mention: 0, reply: 0, reaction: 0 };
+      edgeMap.set(key, edge);
+    }
+    edge[type] += 1;
+
+    userActivity.set(from, (userActivity.get(from) || 0) + 1);
+    userActivity.set(to, (userActivity.get(to) || 0) + 1);
+  };
+
+  for (const log of logs) {
+    const logUserId = extractIdFromUserStr(log.user);
+    if (!logUserId) continue;
+
+    if (log.action === 'Message envoyé') {
+      const details = log.details || '';
+      
+      // Parse mentions
+      const mentionRegex = /<@!?(\d+)>/g;
+      let match;
+      const processedMentions = new Set<string>();
+      while ((match = mentionRegex.exec(details)) !== null) {
+        const targetId = match[1];
+        if (processedMentions.has(targetId)) continue;
+        processedMentions.add(targetId);
+        addEdge(logUserId, targetId, 'mention');
+      }
+
+      // Parse replies
+      const replyMatch = details.match(/Réponse à:\s*<@!?(\d+)>/i);
+      if (replyMatch) {
+        const targetId = replyMatch[1];
+        addEdge(logUserId, targetId, 'reply');
+      }
+    } else if (log.action === 'Réaction ajoutée') {
+      const details = log.details || '';
+      const targetMatch = details.match(/Cible:\s*.*?\(<@!?(\d+)>\)/i);
+      if (targetMatch) {
+        const targetId = targetMatch[1];
+        addEdge(logUserId, targetId, 'reaction');
+      }
+    }
+  }
+
+  // Take 100% of active users in the timeframe
+  const topUsers = [...userActivity.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(entry => entry[0]);
+
+  const topUserSet = new Set(topUsers);
+
+  // Filter edges to only include top users
+  const filteredEdges: any[] = [];
+  for (const edge of edgeMap.values()) {
+    if (topUserSet.has(edge.from) && topUserSet.has(edge.to)) {
+      if (edge.mention > 0) {
+        filteredEdges.push({ from: edge.from, to: edge.to, type: 'mention', count: edge.mention });
+      }
+      if (edge.reply > 0) {
+        filteredEdges.push({ from: edge.from, to: edge.to, type: 'reply', count: edge.reply });
+      }
+      if (edge.reaction > 0) {
+        filteredEdges.push({ from: edge.from, to: edge.to, type: 'reaction', count: edge.reaction });
+      }
+    }
+  }
+
+  // Get user details for top users
+  const profiles = await prisma.memberProfile.findMany({
+    where: {
+      guildId,
+      userId: { in: topUsers }
+    },
+    select: {
+      userId: true,
+      displayName: true,
+      username: true,
+      globalName: true,
+      avatarUrl: true,
+      isBot: true
+    }
+  });
+
+  const profileMap = new Map(profiles.map(p => [p.userId, p]));
+
+  const nodes = topUsers
+    .filter(userId => {
+      const p = profileMap.get(userId);
+      return p ? !p.isBot : true; // filter out bots
+    })
+    .map(userId => {
+      const p = profileMap.get(userId);
+      return {
+        id: userId,
+        label: p?.displayName || p?.globalName || p?.username || `User ${userId}`,
+        avatar: p?.avatarUrl || null,
+        activityCount: userActivity.get(userId) || 0
+      };
+    });
+
+  return { nodes, edges: filteredEdges };
 };

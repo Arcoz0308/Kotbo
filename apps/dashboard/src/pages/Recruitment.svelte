@@ -31,9 +31,19 @@
   const saveAction = createAsyncActionState();
 
   const guildData = $derived(dashboardStore.state.guild);
-  let recruitmentCategoryId = $state<string | null>(guildData?.recruitmentCategoryId || null);
-  let recruitmentLogChannelId = $state<string | null>(guildData?.recruitmentLogChannelId || null);
+  let recruitmentCategoryId = $state<string | null>(null);
+  let recruitmentLogChannelId = $state<string | null>(null);
   let recruitmentAutoRejectEnabled = $state<boolean>(dashboardStore.state.modules?.recruitment?.enabled ?? true);
+
+  $effect(() => {
+    if (!guildData) return;
+    if (recruitmentCategoryId === null) {
+      recruitmentCategoryId = guildData.recruitmentCategoryId ?? null;
+    }
+    if (recruitmentLogChannelId === null) {
+      recruitmentLogChannelId = guildData.recruitmentLogChannelId ?? null;
+    }
+  });
 
   const availableChannels = $derived(dashboardStore.state.guild?.discordChannels || []);
   const availableCategories = $derived(dashboardStore.state.guild?.discordCategories || []);

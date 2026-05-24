@@ -16,6 +16,10 @@
 
   let activeTab = $state<'stats' | 'participants'>('stats');
 
+  const currentQuestion = $derived(event?.questions?.find((q: any) => q.id === stats?.questionId) || event?.questions?.[event?.questions?.length - 1]);
+  const currentQIdx = $derived(event?.questions?.findIndex((q: any) => q.id === stats?.questionId) + 1);
+  const totalQ = $derived(event?.questions?.length || 0);
+
   onMount(async () => {
     await loadEvent();
     await loadStats();
@@ -60,9 +64,53 @@
         headers: { 'Authorization': `Bearer ${authStore.token}` }
       });
       if (res.ok) {
-        toast.success('Question suivante lancée !');
-        await loadEvent();
+        const data = await res.json();
+        if (data.status === 'completed') {
+          toast.success('Événement terminé !');
+          router.goto('/events');
+        } else {
+          toast.success('Question suivante lancée !');
+          await loadStats();
+        }
+      } else {
+        const data = await res.json();
+        toast.error(data.error || 'Erreur');
+      }
+    } catch (err) {
+      toast.error('Erreur réseau');
+    }
+  }
+
+  async function prevQuestion() {
+    try {
+      const guildId = authStore.selectedGuildId;
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/events/${eventId}/prev`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authStore.token}` }
+      });
+      if (res.ok) {
+        toast.success('Question précédente rétablie !');
         await loadStats();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || 'Erreur');
+      }
+    } catch (err) {
+      toast.error('Erreur réseau');
+    }
+  }
+
+  async function finishEvent() {
+    if (!confirm('Voulez-vous vraiment terminer cet événement ?')) return;
+    try {
+      const guildId = authStore.selectedGuildId;
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/events/${eventId}/finish`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authStore.token}` }
+      });
+      if (res.ok) {
+        toast.success('Événement terminé !');
+        router.goto('/events');
       } else {
         const data = await res.json();
         toast.error(data.error || 'Erreur');
@@ -88,10 +136,23 @@
         Retour
       </button>
       <button
+        onclick={prevQuestion}
+        class="px-5 py-2.5 bg-surface-container-high rounded-xl font-black text-[10px] uppercase tracking-widest border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2 disabled:opacity-30"
+        disabled={currentQIdx <= 1}
+      >
+        <Papicon icon="SkipBack" size={12} /> Précédente
+      </button>
+      <button
         onclick={nextQuestion}
         class="px-5 py-2.5 bg-emerald-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:scale-105 transition-transform flex items-center gap-2"
       >
-        <Papicon icon="SkipForward" size={12} /> Question Suivante
+        <Papicon icon="SkipForward" size={12} /> {currentQIdx === totalQ ? 'Terminer Quiz' : 'Question Suivante'}
+      </button>
+      <button
+        onclick={finishEvent}
+        class="px-5 py-2.5 bg-red-500/10 text-red-500 rounded-xl font-black text-[10px] uppercase tracking-widest border border-red-500/20 hover:bg-red-500/20 transition-colors"
+      >
+        Terminer
       </button>
     </div>
   {/snippet}
@@ -100,9 +161,16 @@
     <div class="space-y-10 pb-20">
       <section class="bg-primary/5 rounded-[3rem] p-10 border border-primary/10">
         <div class="flex items-center justify-between">
-          <div>
-            <span class="text-[10px] font-black uppercase tracking-widest text-primary">Événement en cours</span>
-            <h3 class="text-3xl font-black text-on-surface mt-2">{event.title}</h3>
+          <div class="flex items-center gap-8">
+            <div>
+              <span class="text-[10px] font-black uppercase tracking-widest text-primary">Événement en cours</span>
+              <h3 class="text-3xl font-black text-on-surface mt-2">{event.title}</h3>
+            </div>
+            <div class="h-12 w-px bg-outline-variant/20 hidden md:block"></div>
+            <div class="hidden md:block">
+              <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Progression</span>
+              <p class="text-2xl font-black text-on-surface mt-1">Question {currentQIdx || 1} / {totalQ}</p>
+            </div>
           </div>
           <div class="text-right">
             <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Participants</span>
@@ -134,17 +202,22 @@
           
           {#if stats}
             {@const total = Object.values(stats.distribution).reduce((a, b) => Number(a) + Number(b), 0) || 1}
-            {@const colors = ['#334557', '#48626e', '#6c3400', '#ba1a1a', '#10b981', '#f59e0b']}
-            {@const bgColors = ['bg-primary', 'bg-secondary', 'bg-tertiary', 'bg-error', 'bg-emerald-500', 'bg-amber-500']}
-
-            {@const currentQIdx = event.questions.findIndex(q => q.id === stats?.questionId) + 1}
-            {@const totalQ = event.questions.length}
-            {@const currentQuestion = event.questions.find(q => q.id === stats?.questionId)}
+            {@const colors = [
+              '#6366f1', '#ec4899', '#06b6d4', '#f59e0b', '#10b981', '#8b5cf6', 
+              '#f43f5e', '#f97316', '#84cc16', '#14b8a6', '#3b82f6', '#d946ef',
+              '#a855f7', '#0ea5e9', '#facc15', '#fb923c', '#4ade80', '#2dd4bf',
+              '#38bdf8', '#818cf8', '#c084fc', '#f472b6', '#fb7185'
+            ]}
+            {@const bgColors = [
+              'bg-indigo-500', 'bg-pink-500', 'bg-cyan-500', 'bg-amber-500', 'bg-emerald-500', 'bg-violet-500',
+              'bg-rose-500', 'bg-orange-500', 'bg-lime-500', 'bg-teal-500', 'bg-blue-500', 'bg-fuchsia-500',
+              'bg-purple-500', 'bg-sky-500', 'bg-yellow-500', 'bg-orange-400', 'bg-green-400', 'bg-teal-400',
+              'bg-sky-400', 'bg-indigo-400', 'bg-purple-400', 'bg-pink-400', 'bg-rose-400'
+            ]}
 
             <div class="text-center mb-12">
               <div class="flex items-center justify-center gap-3 mb-4">
-                <span class="px-3 py-1 bg-primary/10 text-primary rounded-lg text-[9px] font-black uppercase tracking-widest">Direct</span>
-                <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Question {currentQIdx || 1} / {totalQ}</span>
+                <span class="px-3 py-1 bg-primary/10 text-primary rounded-lg text-[9px] font-black uppercase tracking-widest">En direct</span>
               </div>
               <h4 class="text-2xl font-black text-on-surface">{stats.questionText}</h4>
             </div>
@@ -159,6 +232,7 @@
                       {@const percentage = (value / total) * 100}
                       {@const prevValues = Object.values(stats.distribution).slice(0, i).reduce((a, b) => Number(a) + Number(b), 0)}
                       {@const offset = (prevValues / total) * 100}
+                      {@const isCorrect = i === currentQuestion?.correctOptionIndex}
                       
                       {#if percentage > 0}
                         <circle
@@ -166,7 +240,7 @@
                           cx="50"
                           cy="50"
                           fill="transparent"
-                          stroke={colors[i % colors.length]}
+                          stroke={isCorrect ? '#10b981' : colors[i % colors.length]}
                           stroke-width="20"
                           stroke-dasharray="{percentage * 2.51} 251.2"
                           stroke-dashoffset="-{offset * 2.51}"
@@ -233,7 +307,7 @@
             </thead>
             <tbody class="divide-y divide-outline-variant/5">
               {#each event.participants || [] as p}
-                {@const lastResp = stats?.responses?.find((r: any) => r.userId === p.userId)}
+                {@const lastResp = stats?.latestResponses?.find((r: any) => r.userId === p.userId) ?? stats?.responses?.find((r: any) => r.userId === p.userId)}
                 <tr class="hover:bg-surface-container-low/50 transition-colors">
                   <td class="px-8 py-5">
                     <button 
@@ -248,8 +322,9 @@
                   </td>
                   <td class="px-8 py-5">
                     {#if lastResp}
+                      {@const respText = lastResp.optionLabel || (currentQuestion?.options as string[])?.[lastResp.optionIndex] || `Option ${lastResp.optionIndex + 1}`}
                       <span class="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest {lastResp.isCorrect ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600'}">
-                        Option {lastResp.optionIndex + 1}
+                        {respText}
                       </span>
                     {:else}
                       <span class="text-[10px] text-on-surface-variant/40">Pas encore répondu</span>

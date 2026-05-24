@@ -17,6 +17,7 @@ import {
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { recordStaffActivity } from '../services/staffManagementService.js';
+import { resolveOnlineMembersCount } from '../services/presenceDetectionService.js';
 import {
   syncGuildInvites,
   markInviteAsDeleted,
@@ -234,17 +235,19 @@ async function processSingleGuildSnapshot(guild: Guild, dateKey: string, hour: n
     let voiceMembers = guild.voiceStates.cache.size;
 
     // If we have 0 online members in cache but the guild has many members, something is likely wrong with the cache
-    if (onlineMembers === 0 && totalMembers > 1) {
-      try {
-        const fetchedGuild = await guild.fetch();
-        // approximatePresenceCount is only available if the bot has specific permissions or if fetched correctly
-        if (fetchedGuild.approximatePresenceCount !== null && fetchedGuild.approximatePresenceCount !== undefined) {
-          onlineMembers = fetchedGuild.approximatePresenceCount;
+    onlineMembers = await resolveOnlineMembersCount({
+      totalMembers,
+      onlineMembersFromCache: onlineMembers,
+      fetchApproximatePresenceCount: async () => {
+        try {
+          const fetchedGuild = await guild.client.guilds.fetch({ guild: guild.id, withCounts: true, force: true });
+          return fetchedGuild.approximatePresenceCount;
+        } catch (e) {
+          logger.debug('Analytics', `Failed to fetch approximate counts for ${guild.id}: ${String(e)}`);
+          return null;
         }
-      } catch (e) {
-        logger.debug('Analytics', `Failed to fetch approximate counts for ${guild.id}: ${String(e)}`);
-      }
-    }
+      },
+    });
     
     const idleMembers = guild.members.cache.filter(m => m.presence?.status === 'idle').size;
     const dndMembers = guild.members.cache.filter(m => m.presence?.status === 'dnd').size;
@@ -1145,6 +1148,71 @@ export function registerAdvancedLogsListener(client: Client): void {
 
   client.on(Events.GuildMemberAdd, async (member) => {
     const usedInvite = await resolveUsedInviteOnJoin(member.guild);
+
+    // 🛡️ Security Check: Suspension d'invitation ou de créateur
+    let isInviteSuspended = false;
+    let isCreatorSuspended = false;
+    let suspensionReason = '';
+
+    if (usedInvite) {
+      // 1. Check if the invitation code itself is suspended
+      const dbInvite = await prisma.guildInvite.findUnique({
+        where: { code: usedInvite.code },
+        select: { isSuspended: true }
+      }).catch(() => null);
+
+      if (dbInvite?.isSuspended) {
+        isInviteSuspended = true;
+        suspensionReason = "Code d'invitation suspendu";
+      }
+
+      // 2. Check if the inviter (creator) is globally suspended in the guild
+      if (usedInvite.inviterId) {
+        const dbSuspendedInviter = await prisma.suspendedInviter.findUnique({
+          where: {
+            guildId_userId: {
+              guildId: member.guild.id,
+              userId: usedInvite.inviterId
+            }
+          },
+          select: { reason: true }
+        }).catch(() => null);
+
+        if (dbSuspendedInviter) {
+          isCreatorSuspended = true;
+          suspensionReason = dbSuspendedInviter.reason || "Créateur d'invitations suspendu";
+        }
+      }
+    }
+
+    if (isInviteSuspended || isCreatorSuspended) {
+      logger.info('Sécurité', `Expulsion automatique du membre ${member.user.tag} (${member.id}) : ${suspensionReason}`);
+      
+      const kickReason = `[Kotbo Sécurité] ${suspensionReason}`;
+      
+      // Kick member immediately
+      await member.kick(kickReason).catch((error) => {
+        logger.error('Sécurité', `Impossible de kicker le membre suspendu ${member.id}:`, error);
+      });
+
+      // Send a high-quality rich security embed in logs
+      const embed = new EmbedBuilder()
+        .setTitle('🚫 Arrivée Bloquée - Expulsion Automatique')
+        .setColor(0xd90429) // Deep crimson red
+        .setThumbnail(member.user.displayAvatarURL({ size: 256 }) || null)
+        .setDescription(`Le membre **${member.user.tag}** (<@${member.id}>) a été automatiquement exclu dès son arrivée suite à une politique de sécurité.`)
+        .addFields(
+          { name: 'Motif du blocage', value: suspensionReason, inline: false },
+          { name: 'Code d\'invitation utilisé', value: usedInvite?.code ? `\`${usedInvite.code}\`` : 'Inconnu', inline: true },
+          { name: 'Créateur de l\'invite', value: usedInvite ? formatInviteCreator(usedInvite) : 'Inconnu', inline: true },
+          { name: 'ID du créateur', value: usedInvite?.inviterId ? `\`${usedInvite.inviterId}\`` : 'Inconnu', inline: true }
+        )
+        .setTimestamp()
+        .setFooter({ text: 'Kotbo Security Suite', iconURL: member.guild.iconURL() || undefined });
+
+      await sendLogEmbed(member.guild, embed);
+      return; // Stop join operations
+    }
 
     void touchMemberJoin(member).catch((error) => {
       logger.warn('Casier', `Impossible de synchroniser l'arrivée du membre ${member.id}: ${String(error)}`);

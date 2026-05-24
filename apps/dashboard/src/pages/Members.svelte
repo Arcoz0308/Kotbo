@@ -23,6 +23,7 @@
     guildJoinedAt: string | null;
     guildLeftAt: string | null;
     isOnServer: boolean;
+    presenceStatus?: string | null;
   };
 
   type MembersSearchResponse = {
@@ -443,7 +444,7 @@
         {#each members as member (member.id)}
           <button
             onclick={() => openMemberCase(member)}
-            class="group flex flex-col rounded-3xl border border-outline-variant/10 bg-surface-container-low/40 p-4 text-left transition-all duration-300 hover:border-primary/20 hover:bg-surface-container-low hover:shadow-xl hover:shadow-primary/5"
+            class={`group flex flex-col rounded-3xl border ${member.isOnServer ? 'border-outline-variant/10 bg-surface-container-low/40' : 'border-rose-500/10 bg-rose-500/5'} p-4 text-left transition-all duration-300 hover:border-primary/20 hover:bg-surface-container-low hover:shadow-xl hover:shadow-primary/5`}
           >
             <div class="flex items-start gap-4">
               <div class="relative">
@@ -457,7 +458,7 @@
                     <Papicon icon="bot" size={10} />
                   </div>
                 {/if}
-                <div class={`absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border-2 border-surface-container-low ${member.isOnServer ? 'bg-emerald-500' : 'bg-amber-500'}`}></div>
+                <div class={`absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full border-2 border-surface-container-low ${member.presenceStatus === 'online' ? 'bg-emerald-500' : member.presenceStatus === 'idle' ? 'bg-amber-500' : member.presenceStatus === 'dnd' ? 'bg-rose-500' : 'bg-slate-400'}`}></div>
               </div>
 
               <div class="min-w-0 flex-1">

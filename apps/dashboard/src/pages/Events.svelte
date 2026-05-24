@@ -87,6 +87,32 @@
       toast.error('Erreur lors de la création');
     }
   }
+
+  async function deleteEvent(eventId: string, title: string) {
+    const guildId = authStore.selectedGuildId;
+    if (!guildId) return;
+
+    const confirmDelete = confirm(`Êtes-vous sûr de vouloir supprimer l'événement "${title}" ? Cette action est irréversible et supprimera toutes les questions, réponses et participants associés.`);
+    if (!confirmDelete) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/events/${eventId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${authStore.token}`
+        }
+      });
+      if (res.ok) {
+        toast.success('Événement supprimé avec succès');
+        await loadEvents();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || 'Erreur lors de la suppression');
+      }
+    } catch (err) {
+      toast.error('Erreur de connexion avec le serveur');
+    }
+  }
 </script>
 
 <ModulePage 
@@ -167,12 +193,28 @@
                   <Papicon icon="Play" size={12} /> Piloter
                 </button>
               {/if}
+              {#if event.status === 'COMPLETED'}
+                <button 
+                  onclick={() => router.goto(`/events/control/${event.id}`)}
+                  class="px-6 py-3 bg-primary/10 text-primary rounded-2xl text-[10px] font-black uppercase tracking-widest border border-primary/20 hover:bg-primary/20 transition-colors flex items-center gap-2"
+                >
+                  <Papicon icon="ChartLineUp" size={12} /> Stats
+                </button>
+              {/if}
               <button 
                 onclick={() => router.goto(`/events/edit/${event.id}`)}
                 class="px-6 py-3 bg-surface-container-high rounded-2xl text-[10px] font-black uppercase tracking-widest border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2"
               >
                 <Papicon icon="Edit3" size={12} /> Éditer
               </button>
+              {#if canManageEvents}
+                <button 
+                  onclick={() => deleteEvent(event.id, event.title)}
+                  class="px-6 py-3 bg-red-500/10 text-red-500 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-red-500/20 hover:bg-red-500/20 transition-colors flex items-center gap-2"
+                >
+                  <Papicon icon="Trash" size={12} /> Supprimer
+                </button>
+              {/if}
             </div>
           </div>
         {:else}

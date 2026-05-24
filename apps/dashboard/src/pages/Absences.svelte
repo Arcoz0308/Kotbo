@@ -5,6 +5,7 @@
     fetchAbsences, 
     createAbsence, 
     updateAbsenceStatus, 
+    deleteAbsence,
     fetchStaffMembers, 
     fetchStaffRoles,
     fetchStaffCalendarData,
@@ -31,7 +32,7 @@
   
   // Selection states
   let selectedStaffIds = $state<string[]>([]);
-  let visibleTypes = $state<string[]>(['absence', 'vocal', 'meeting']);
+  let visibleTypes = $state<string[]>(['absence', 'meeting']);
 
   // Modal states
   let modalOpen = $state(false);
@@ -70,13 +71,8 @@
       const sRole = allRoles.find(r => r.name === s.grade);
       if (!sRole) return false;
       
-      // Pour les admins: supérieur ou égal (plus petit ou égal sortOrder)
-      // Pour les non-admins: strictement supérieur uniquement (strictement plus petit sortOrder)
-      if (isAdmin) {
-        return (sRole.sortOrder ?? 0) <= (myRole.sortOrder ?? 0);
-      } else {
-        return (sRole.sortOrder ?? 0) < (myRole.sortOrder ?? 0);
-      }
+      // Responsable de grade supérieur ou égal (plus grand ou égal sortOrder)
+      return (sRole.sortOrder ?? 0) >= (myRole.sortOrder ?? 0);
     }).sort((a, b) => {
        const roleA = allRoles.find(r => r.name === a.grade);
        const roleB = allRoles.find(r => r.name === b.grade);
@@ -172,7 +168,7 @@
       calendarData.voiceSessions.forEach(vs => {
         events.push({
           id: vs.id,
-          title: `${vs.staffMember?.displayName || vs.staffMember?.username || 'Staff'}: ${vs.channelName || 'Vocal'}`,
+          title: vs.channelName || 'Vocal',
           start: new Date(vs.joinedAt),
           end: vs.leftAt ? new Date(vs.leftAt) : new Date(),
           type: 'vocal',
@@ -211,17 +207,14 @@
     try {
       if (data.type === 'RÉUNION') {
         if (!isAdmin) throw new Error("Seuls les admins peuvent créer des réunions.");
-        const start = new Date(data.startDate + 'T' + data.startTime).toISOString();
-        const end = data.endDate ? new Date(data.endDate + 'T' + data.endTime).toISOString() : undefined;
+        const start = data.startDate.toISOString();
+        const end = data.endDate ? data.endDate.toISOString() : undefined;
         await createMeeting(data.reason, '', start, end);
       } else {
         await createAbsence({
           ...data,
-          staffMemberId: data.staffUserId || myStaffRecord.id,
-          startDate: new Date(data.startDate + 'T' + data.startTime),
-          endDate: data.endDate ? new Date(data.endDate + 'T' + data.endTime) : undefined,
+          staffUserId: myStaffRecord.userId,
         });
-
       }
       modalOpen = false;
       await refreshCalendar();
@@ -450,19 +443,39 @@
         />
 
         {#snippet modalActions()}
-          {#if selectedEvent?.type === 'absence' && isManager && selectedEvent.status === 'PENDING'}
-            <ActionButton 
-              variant="primary" 
-              onClick={() => {
-                selectedAbsenceForDecision = selectedEvent.originalData;
-                decisionStatus = 'APPROVED';
-                decisionNote = '';
-                decisionModalOpen = true;
-                detailModalOpen = false;
-              }} 
-              label="Prendre une décision" 
-              icon="check-circle"
-            />
+          {#if selectedEvent?.type === 'absence'}
+            {#if isManager && selectedEvent.status === 'PENDING'}
+              <ActionButton 
+                variant="primary" 
+                onClick={() => {
+                  selectedAbsenceForDecision = selectedEvent.originalData;
+                  decisionStatus = 'APPROVED';
+                  decisionNote = '';
+                  decisionModalOpen = true;
+                  detailModalOpen = false;
+                }} 
+                label="Prendre une décision" 
+                icon="check-circle"
+              />
+            {/if}
+            {#if isManager || selectedEvent.originalData.staffMember?.userId === authStore.user?.id}
+              <ActionButton 
+                variant="danger" 
+                onClick={async () => {
+                  if (confirm('Voulez-vous vraiment supprimer cette absence ?')) {
+                    try {
+                      await deleteAbsence(selectedEvent.id);
+                      detailModalOpen = false;
+                      await refreshCalendar();
+                    } catch (e) {
+                      console.error('Failed to delete absence:', e);
+                    }
+                  }
+                }} 
+                label="Supprimer" 
+                icon="trash-2"
+              />
+            {/if}
           {/if}
         {/snippet}
       </main>
