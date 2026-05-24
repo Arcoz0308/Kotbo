@@ -2,6 +2,7 @@ import { type Client, Events } from 'discord.js';
 import cron from 'node-cron';
 import prisma from '../utils/db.js';
 import { runDailyAlgoForAllGuilds, runDailyAlgoSummariesForAllGuilds } from '../services/dailyAlgoService.js';
+import { scanGuildMembersForYoungAccounts, JOIN_TO_ACCOUNT_CREATION_PROXIMITY_MS } from '../services/dcDetectionService.js';
 import { processScheduledSanctions, checkMissingReports } from '../services/sanctionService.js';
 import { processMeetingNotifications } from '../services/staffLeadershipService.js';
 import { logger } from '../utils/logger.js';
@@ -119,6 +120,35 @@ export async function registerCrons(client: Client): Promise<void> {
     'meeting-notifications': async () => {
       await processMeetingNotifications();
     },
+    'dc-scan': async () => {
+      // Parcours des guildes et lancement du scan si la feature double_accounts active l'auto-détection
+      const featureConfigs = await prisma.dashboardFeatureConfig.findMany({
+        where: { featureKey: 'double_accounts', enabled: true },
+        select: { guildId: true, metadata: true }
+      });
+
+      for (const cfg of featureConfigs) {
+        try {
+          const meta = cfg.metadata as any;
+          const autoEnabled = meta?.workflowDraft?.autoDetectionEnabled ?? meta?.autoDetectionEnabled ?? false;
+          if (!autoEnabled) continue;
+
+          const guild = await client.guilds.fetch(cfg.guildId).catch(() => null);
+          if (!guild) continue;
+
+          const res = await scanGuildMembersForYoungAccounts(guild, JOIN_TO_ACCOUNT_CREATION_PROXIMITY_MS).catch((e) => {
+            logger.error('Cron', `Erreur pendant dc-scan pour guild ${cfg.guildId}:`, e);
+            return null;
+          });
+
+          if (res && res.flaggedCount > 0) {
+            logger.info('Cron', `dc-scan: ${res.flaggedCount} détection(s) sur la guilde ${cfg.guildId}`);
+          }
+        } catch (e) {
+          logger.error('Cron', 'Erreur dc-scan boucle:', e);
+        }
+      }
+    },
   });
 
 
@@ -172,6 +202,34 @@ export async function registerCrons(client: Client): Promise<void> {
       await processMeetingNotifications();
     }, 3000);
 
+  });
+
+  // 🔍 DC Scan: Toutes les heures (vérifie les guildes qui ont activé l'auto-détection)
+  cron.schedule('0 * * * *', async () => {
+    await runCronJob('dc-scan', async () => {
+      const featureConfigs = await prisma.dashboardFeatureConfig.findMany({
+        where: { featureKey: 'double_accounts', enabled: true },
+        select: { guildId: true, metadata: true }
+      });
+
+      for (const cfg of featureConfigs) {
+        try {
+          const meta = cfg.metadata as any;
+          const autoEnabled = meta?.workflowDraft?.autoDetectionEnabled ?? meta?.autoDetectionEnabled ?? false;
+          if (!autoEnabled) continue;
+
+          const guild = await client.guilds.fetch(cfg.guildId).catch(() => null);
+          if (!guild) continue;
+
+          await scanGuildMembersForYoungAccounts(guild, JOIN_TO_ACCOUNT_CREATION_PROXIMITY_MS).catch((e) => {
+            logger.error('Cron', `Erreur pendant dc-scan pour guild ${cfg.guildId}:`, e);
+            return null;
+          });
+        } catch (e) {
+          logger.error('Cron', 'Erreur dc-scan cron:', e);
+        }
+      }
+    }, 5000);
   });
 
   logger.success('Cron', 'Tous les jobs cron sont enregistrés (Suivi d\'activité minute activé)');

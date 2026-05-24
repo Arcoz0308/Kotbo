@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
-  import ActionButton from '../lib/components/ActionButton.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -157,9 +156,6 @@
   icon="filter"
   featureKey="nickname_moderation"
 >
-  {#snippet actions()}
-    <ActionButton onClick={saveToggle} label={enabled ? 'Désactiver' : 'Activer'} disabled={loading || saveToggleAction.state.loading} />
-
   <InlineFeedback state={saveToggleAction} />
 
   {#if loading}

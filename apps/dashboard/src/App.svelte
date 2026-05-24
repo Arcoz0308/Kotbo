@@ -322,9 +322,6 @@
       <Route path="/double-accounts">
         <DoubleAccounts />
       </Route>
-      <Route path="/nickname-moderation">
-        <NicknameModeration />
-      </Route>
       <Route path="/invitations">
         <Invitations />
       </Route>
@@ -446,6 +443,9 @@
           </Route>
           <Route path="/tutoring">
             <Tutoring />
+          </Route>
+          <Route path="/nickname-moderation">
+            <NicknameModeration />
           </Route>
           <Route path="/double-accounts">
             <DoubleAccounts />

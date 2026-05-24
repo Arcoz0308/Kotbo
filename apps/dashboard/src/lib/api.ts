@@ -106,6 +106,7 @@ async function dashboardRequest(path: string, options: {
   payload?: any;
   guildId?: string;
   errorContext?: string;
+  silent?: boolean;
 } = {}): Promise<any> {
   const selectedGuildId = getGuildId(options.guildId);
   if (!selectedGuildId) return null;
@@ -144,8 +145,10 @@ async function dashboardRequest(path: string, options: {
 
     return await response.json();
   } catch (error) {
-    console.error(errorContext, error);
-    toast.error(error.message || 'Erreur réseau ou serveur');
+    if (!options.silent) {
+      console.error(errorContext, error);
+      toast.error(error.message || 'Erreur réseau ou serveur');
+    }
     throw error;
   }
 }
@@ -1214,7 +1217,8 @@ export async function fetchNicknameModerationConfig(guildId = authStore.selected
   return dashboardRequest('/nickname-moderation', {
     method: 'GET',
     guildId,
-    errorContext: 'API Error (Fetch Nickname Moderation Config):'
+    errorContext: 'API Error (Fetch Nickname Moderation Config):',
+    silent: true,
   });
 }
 
@@ -1239,7 +1243,8 @@ export async function fetchBannedWords(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/banned-words', {
     method: 'GET',
     guildId,
-    errorContext: 'API Error (Fetch Banned Words):'
+    errorContext: 'API Error (Fetch Banned Words):',
+    silent: true,
   });
 }
 
@@ -1278,4 +1283,73 @@ export async function deleteBannedWord(id: string, guildId = authStore.selectedG
     guildId,
     errorContext: 'API Error (Delete Banned Word):'
   });
+}
+
+// ==========================================
+// MOTS BANNIS GLOBAUX (admin bot)
+// ==========================================
+
+export async function fetchGlobalBannedWords() {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/banned-words`, { method: 'GET' });
+  if (!response.ok) throw new Error('Erreur lors du chargement des mots globaux');
+  return response.json();
+}
+
+export async function saveGlobalBannedWords(
+  words: Array<{ word: string; category?: string; enabled?: boolean }>
+) {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/banned-words`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ words })
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || 'Erreur lors de l\'enregistrement des mots globaux');
+  }
+
+  return response.json();
+}
+
+export async function cleanupGlobalBannedWords() {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/banned-words/cleanup`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || 'Erreur lors du nettoyage des mots globaux');
+  }
+
+  return response.json();
+}
+
+export async function updateGlobalBannedWord(
+  id: string,
+  payload: { word?: string; category?: string; enabled?: boolean }
+) {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/banned-words/${id}`, {
+    method: 'PATCH',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || 'Erreur lors de la mise à jour du mot global');
+  }
+
+  return response.json();
+}
+
+export async function toggleGlobalBannedWord(id: string, enabled: boolean) {
+  return updateGlobalBannedWord(id, { enabled });
+}
+
+export async function deleteGlobalBannedWord(id: string) {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/banned-words/${id}`, { method: 'DELETE' });
+  if (!response.ok) throw new Error('Erreur lors de la suppression du mot global');
+  return response.json();
 }

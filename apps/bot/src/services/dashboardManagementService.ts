@@ -58,6 +58,12 @@ export const defaultFeatures = [
     category: 'moderation',
   },
   {
+    featureKey: 'nickname_moderation',
+    featureName: 'Modération des pseudos',
+    description: 'Renommage automatique des pseudos non conformes',
+    category: 'moderation',
+  },
+  {
     featureKey: 'activity',
     featureName: 'Journal d\'activité',
     description: 'Suivi de l\'activité utilisateur',

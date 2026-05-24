@@ -1210,6 +1210,83 @@ const pushAudit = async (guildId: string, entry: Omit<AuditEntry, 'id' | 'dateIs
   });
 };
 
+const GLOBAL_BANNED_WORD_CATEGORIES = new Set([
+  'custom',
+  'racism',
+  'threat',
+  'sexual',
+  'lgbtphobia',
+  'hate',
+  'insult',
+]);
+
+const normalizeGlobalBannedWordCategory = (value: unknown): string => {
+  if (typeof value !== 'string') return 'custom';
+  return GLOBAL_BANNED_WORD_CATEGORIES.has(value) ? value : 'custom';
+};
+
+const normalizeGlobalBannedWord = (value: unknown): string => {
+  if (typeof value !== 'string') return '';
+  return value.trim().toLowerCase().slice(0, 100);
+};
+
+const normalizeGlobalBannedWordKey = (value: string): string => {
+  return normalizeGlobalBannedWord(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+};
+
+const cleanupGlobalBannedWords = async () => {
+  const words = await prisma.bannedWord.findMany({
+    where: { guildId: null },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+  });
+
+  const seen = new Map<string, (typeof words)[number]>();
+  const duplicates: string[] = [];
+
+  for (const word of words) {
+    const key = normalizeGlobalBannedWordKey(word.word);
+    if (!key) continue;
+
+    if (seen.has(key)) {
+      duplicates.push(word.id);
+      continue;
+    }
+
+    seen.set(key, {
+      ...word,
+      word: normalizeGlobalBannedWord(word.word),
+    });
+  }
+
+  const updates = Array.from(seen.values()).map((word) => {
+    return prisma.bannedWord.update({
+      where: { id: word.id },
+      data: {
+        word: word.word,
+      },
+    });
+  });
+
+  if (duplicates.length > 0) {
+    await prisma.bannedWord.deleteMany({ where: { id: { in: duplicates } } });
+  }
+
+  await Promise.all(updates);
+
+  return {
+    cleanedCount: seen.size,
+    duplicateCount: duplicates.length,
+    words: await prisma.bannedWord.findMany({
+      where: { guildId: null },
+      orderBy: [{ word: 'asc' }],
+      select: { id: true, word: true, category: true, enabled: true, guildId: true },
+    }),
+  };
+};
+
 function formatChannelName(guild: { channels: { cache: Map<string, { id: string; name?: string }> } } | null, channelId: string | null): string {
   if (!channelId) return 'Aucun';
   const channel = guild?.channels.cache.get(channelId);
@@ -1384,6 +1461,8 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
   }
 
   try {
+    const linkedUserIds = await altAccountService.getAllLinkedUserIds(guildId, actualUserId);
+
     const [user, member, profile, sanctions, auditLogs, inviteConnections, staffMember, candidatureHistory, sanctionReports, dbInvite] = await Promise.all([
       Promise.race([
         client.users.fetch(actualUserId).catch(() => null),
@@ -1402,7 +1481,7 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
         },
       }).catch(() => null),
       prisma.sanction.findMany({
-        where: { guildId, targetUserId: actualUserId },
+        where: { guildId, targetUserId: { in: linkedUserIds } },
         orderBy: { createdAt: 'desc' },
         take: 200,
       }).catch(() => []),
@@ -1421,7 +1500,7 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
       getStaffMember(guildId, actualUserId).catch(() => null),
       getCandidatureHistory(guildId, actualUserId).catch(() => []),
       prisma.sanctionReport.findMany({
-        where: { guildId, memberReference: actualUserId },
+        where: { guildId, memberReference: { in: linkedUserIds } },
         orderBy: { createdAt: 'desc' },
         take: 200,
       }).catch(() => []),
@@ -1433,7 +1512,7 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
   const effectivePermissions = member?.permissions?.toArray() ?? [];
   const roles = member
     ? [...member.roles.cache.values()]
-        .filter((role) => role.id !== discordGuild.id)
+        .filter((role) => !!role && role.id !== discordGuild.id)
         .map((role) => mapGuildRolePermissions(role, `<@&${role.id}>`))
         .sort((left, right) => {
           const positionLeft = discordGuild.roles.cache.get(left.id)?.position ?? 0;
@@ -1778,7 +1857,7 @@ async function buildMemberCaseData(client: Client, guildId: string, userId: stri
         createdAt: safeIsoDate(entry.createdAt) || new Date().toISOString(),
       })),
       linkedAccounts: await Promise.all(
-        (await altAccountService.getAllLinkedUserIds(guildId, actualUserId))
+        linkedUserIds
           .filter(id => id !== actualUserId)
           .map(async (lid) => {
             try {
@@ -2157,6 +2236,15 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
       lastSync: guild.updatedAt.toISOString()
     },
     {
+      id: 'nickname_moderation',
+      name: 'Modération des pseudos',
+      description: MODULE_DESCRIPTIONS.nickname_moderation,
+      status: getFeatureStatus('nickname_moderation', guild.autoNicknameModerationEnabled),
+      uptime: guild.autoNicknameModerationEnabled ? 100 : 100,
+      interactions: 0,
+      lastSync: guild.updatedAt.toISOString()
+    },
+    {
       id: 'recruitment',
       name: 'Recrutement',
       description: MODULE_DESCRIPTIONS.recruitment,
@@ -2225,7 +2313,11 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
 
   const discordGuild = client.guilds.cache.get(guildId);
   const currentMember = userId && discordGuild ? await discordGuild.members.fetch(userId).catch(() => null) : null;
-  const currentRoleIds = currentMember?.roles.cache.map((role) => role.id) ?? [];
+  const currentRoleIds = currentMember
+    ? currentMember.roles.cache
+        .map((role) => role?.id)
+        .filter((roleId): roleId is string => !!roleId)
+    : [];
   const featureAccess = await resolveFeatureAccessMap(client, guildId, access, userId ?? null, currentRoleIds);
   const discordChannels: DashboardChannel[] = discordGuild
     ? discordGuild.channels.cache
@@ -3091,7 +3183,7 @@ export const startDashboardApi = (client: Client) => {
                 const sourceGuild = userGuildsById.get(guildId);
                 accessibleGuildsList.push({
                   id: guildId,
-                  name: sourceGuild ? sourceGuild.name : botGuild.name,
+                  name: sourceGuild?.name ?? botGuild.name ?? guildId,
                   icon: sourceGuild ? (sourceGuild.icon ?? null) : (botGuild.icon ?? null),
                   owner: sourceGuild ? !!sourceGuild.owner : false,
                   botPresent: true,
@@ -3100,7 +3192,7 @@ export const startDashboardApi = (client: Client) => {
               }
             }
 
-            const payload = accessibleGuildsList.sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+            const payload = accessibleGuildsList.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '', 'fr'));
             json(res, 200, { guilds: payload });
           } catch (err) {
             logger.error('API', 'Unexpected error in /api/user/guilds:', err);
@@ -3308,6 +3400,168 @@ export const startDashboardApi = (client: Client) => {
              json(res, 200, { success: true });
              return;
           }
+        }
+
+        if (parts[2] === 'banned-words') {
+          if (req.method === 'GET' && parts.length === 3) {
+            const words = await prisma.bannedWord.findMany({
+              where: { guildId: null },
+              orderBy: [{ word: 'asc' }],
+            });
+            json(res, 200, { words });
+            return;
+          }
+
+          if (req.method === 'POST' && parts.length === 3) {
+            const body = await readJsonBody<{ words?: Array<{ word: string; category?: string; enabled?: boolean }> }>(req);
+            const entries = Array.isArray(body?.words) ? body.words : [];
+
+            if (entries.length === 0) {
+              json(res, 400, { error: 'Aucun mot à enregistrer' });
+              return;
+            }
+
+            const seen = new Map<string, { word: string; category: string; enabled: boolean }>();
+            for (const entry of entries) {
+              const word = normalizeGlobalBannedWord(entry?.word);
+              if (!word) continue;
+              seen.set(word, {
+                word,
+                category: normalizeGlobalBannedWordCategory(entry?.category),
+                enabled: typeof entry?.enabled === 'boolean' ? entry.enabled : true,
+              });
+            }
+
+            if (seen.size === 0) {
+              json(res, 400, { error: 'Aucun mot valide à enregistrer' });
+              return;
+            }
+
+            const created: any[] = [];
+            const updated: any[] = [];
+
+            for (const entry of seen.values()) {
+              const existing = await prisma.bannedWord.findFirst({ where: { guildId: null, word: entry.word } });
+              if (existing) {
+                const next = await prisma.bannedWord.update({
+                  where: { id: existing.id },
+                  data: { category: entry.category, enabled: entry.enabled },
+                });
+                updated.push(next);
+              } else {
+                const next = await prisma.bannedWord.create({
+                  data: {
+                    guildId: null,
+                    word: entry.word,
+                    category: entry.category,
+                    enabled: entry.enabled,
+                  },
+                });
+                created.push(next);
+              }
+            }
+
+            const words = await prisma.bannedWord.findMany({
+              where: { guildId: null },
+              orderBy: [{ word: 'asc' }],
+            });
+
+            json(res, 200, {
+              ok: true,
+              createdCount: created.length,
+              updatedCount: updated.length,
+              words,
+            });
+            return;
+          }
+
+          if (req.method === 'POST' && parts.length === 4 && parts[3] === 'cleanup') {
+            try {
+              const result = await cleanupGlobalBannedWords();
+              json(res, 200, { ok: true, ...result });
+            } catch (err) {
+              logger.error('BannedWordsAPI', 'POST banned-words cleanup error:', err);
+              json(res, 500, { error: 'Erreur lors du nettoyage des mots globaux' });
+            }
+            return;
+          }
+
+          if (parts.length === 4) {
+            const wordId = parts[3];
+
+            if (req.method === 'PATCH') {
+              const body = await readJsonBody<{ enabled?: boolean; word?: string; category?: string }>(req);
+              const hasEnabled = typeof body?.enabled === 'boolean';
+              const hasWord = typeof body?.word === 'string';
+              const hasCategory = typeof body?.category === 'string';
+
+              if (!hasEnabled && !hasWord && !hasCategory) {
+                json(res, 400, { error: 'Au moins un champ doit être fourni' });
+                return;
+              }
+
+              try {
+                const existing = await prisma.bannedWord.findFirst({ where: { id: wordId, guildId: null } });
+                if (!existing) {
+                  json(res, 404, { error: 'Mot global introuvable' });
+                  return;
+                }
+
+                const nextWord = hasWord ? normalizeGlobalBannedWord(body.word) : existing.word;
+                const nextCategory = hasCategory ? normalizeGlobalBannedWordCategory(body.category) : existing.category;
+                const nextEnabled = hasEnabled ? body.enabled : existing.enabled;
+
+                if (!nextWord) {
+                  json(res, 400, { error: 'Le mot ne peut pas être vide' });
+                  return;
+                }
+
+                const duplicate = await prisma.bannedWord.findFirst({
+                  where: {
+                    guildId: null,
+                    word: nextWord,
+                    NOT: { id: wordId },
+                  },
+                });
+
+                if (duplicate) {
+                  json(res, 409, { error: 'Ce mot global existe déjà' });
+                  return;
+                }
+
+                const updated = await prisma.bannedWord.update({
+                  where: { id: wordId },
+                  data: { word: nextWord, category: nextCategory, enabled: nextEnabled },
+                });
+
+                json(res, 200, { ok: true, word: updated });
+              } catch (err) {
+                logger.error('BannedWordsAPI', 'PATCH global banned-word error:', err);
+                json(res, 500, { error: 'Erreur lors de la mise à jour' });
+              }
+              return;
+            }
+
+            if (req.method === 'DELETE') {
+              try {
+                const existing = await prisma.bannedWord.findFirst({ where: { id: wordId, guildId: null } });
+                if (!existing) {
+                  json(res, 404, { error: 'Mot global introuvable' });
+                  return;
+                }
+
+                await prisma.bannedWord.delete({ where: { id: wordId } });
+                json(res, 200, { ok: true });
+              } catch (err) {
+                logger.error('BannedWordsAPI', 'DELETE global banned-word error:', err);
+                json(res, 500, { error: 'Erreur lors de la suppression' });
+              }
+              return;
+            }
+          }
+
+          json(res, 405, { error: 'Méthode non autorisée' });
+          return;
         }
 
         if (parts[2] === 'config') {
@@ -6803,12 +7057,17 @@ export const startDashboardApi = (client: Client) => {
             if (moduleId === 'dailyalgo' || moduleId === 'daily_algo') updates.dailyAlgoEnabled = body.status === 'active';
             if (moduleId === 'traduction' || moduleId === 'translation') updates.translationEnabled = body.status === 'active';
             if (moduleId === 'sanctions') updates.sanctionSyncEnabled = body.status === 'active';
+            if (moduleId === 'nickname_moderation') updates.autoNicknameModerationEnabled = body.status === 'active';
 
             if (Object.keys(updates).length > 0) {
               await prisma.guild.update({ where: { id: guildId }, data: updates });
             }
 
-            const normalizedKey = moduleId === 'dailyalgo' ? 'daily_algo' : (moduleId === 'traduction' ? 'translation' : moduleId);
+            const normalizedKey = moduleId === 'dailyalgo'
+              ? 'daily_algo'
+              : moduleId === 'traduction'
+                ? 'translation'
+                : moduleId;
             await prisma.dashboardFeatureConfig.upsert({
               where: { guildId_featureKey: { guildId, featureKey: normalizedKey } },
               create: {
@@ -6855,7 +7114,11 @@ export const startDashboardApi = (client: Client) => {
             }
 
             const member = await discordGuild.members.fetch(user.userId).catch(() => null);
-            const roleIds = member?.roles.cache.map((role) => role.id) ?? [];
+            const roleIds = member
+              ? member.roles.cache
+                  .map((role) => role?.id)
+                  .filter((roleId): roleId is string => !!roleId)
+              : [];
             const featureAccess = await resolveFeatureAccessMap(client, guildId, access, user.userId, roleIds);
 
             if (!access.canManageSettings && !(featureAccess.modules?.canConfigure && featureAccess.commands?.canConfigure)) {
@@ -6869,13 +7132,13 @@ export const startDashboardApi = (client: Client) => {
             });
 
             const adminRoleIds = discordGuild.roles.cache
-              .filter((role) => role.permissions.has(PermissionFlagsBits.Administrator))
+              .filter((role) => !!role && role.permissions.has(PermissionFlagsBits.Administrator))
               .map((role) => role.id);
             const modRoleIds = discordGuild.roles.cache
-              .filter((role) => role.permissions.has(PermissionFlagsBits.ModerateMembers)
+              .filter((role) => !!role && (role.permissions.has(PermissionFlagsBits.ModerateMembers)
                 || role.permissions.has(PermissionFlagsBits.ManageMessages)
                 || role.permissions.has(PermissionFlagsBits.KickMembers)
-                || role.permissions.has(PermissionFlagsBits.BanMembers))
+                || role.permissions.has(PermissionFlagsBits.BanMembers)))
               .map((role) => role.id);
 
             const moduleUpdates = buildModuleUpdatesForPreset(presetKey);
@@ -8306,7 +8569,11 @@ export const startDashboardApi = (client: Client) => {
         const access = await resolveDashboardAccess(client, guildId, user.userId);
         const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
         const member = discordGuild ? await discordGuild.members.fetch(user.userId).catch(() => null) : null;
-        const roleIds = member?.roles.cache.map((role) => role.id) ?? [];
+        const roleIds = member
+          ? member.roles.cache
+              .map((role) => role?.id)
+              .filter((roleId): roleId is string => !!roleId)
+          : [];
         const featureAccess = await resolveFeatureAccessMap(client, guildId, access, user.userId, roleIds);
 
         const isGetMethod = req.method === 'GET';
@@ -9313,11 +9580,12 @@ export const startDashboardApi = (client: Client) => {
           if (parts[5] === 'blacklist' && parts[6] && req.method === 'DELETE') {
             const targetUserId = parts[6];
             try {
-              const member = await prisma.staffMember.findUnique({
-                where: { guildId_userId: { guildId, userId: targetUserId } }
+              const linkedUserIds = await altAccountService.getAllLinkedUserIds(guildId, targetUserId);
+              const members = await prisma.staffMember.findMany({
+                where: { guildId, userId: { in: linkedUserIds } }
               });
 
-              if (!member) {
+              if (members.length === 0) {
                 json(res, 404, { error: 'Membre staff introuvable' });
                 return;
               }
@@ -9325,7 +9593,7 @@ export const startDashboardApi = (client: Client) => {
               await prisma.staffBlacklist.updateMany({
                 where: {
                   guildId,
-                  staffUserId: member.id,
+                  staffUserId: { in: members.map((member) => member.id) },
                   isActive: true
                 },
                 data: {
@@ -9333,12 +9601,12 @@ export const startDashboardApi = (client: Client) => {
                 }
               });
 
-              // Si le grade est 'Blacklisted', on peut supprimer le profil staff fictif
-              if (member.grade === 'Blacklisted') {
-                await prisma.staffMember.delete({
-                  where: { id: member.id }
-                }).catch(() => null);
-              }
+              // Si le grade est 'Blacklisted', on peut supprimer les profils staff fictifs
+              await Promise.all(
+                members
+                  .filter((member) => member.grade === 'Blacklisted')
+                  .map((member) => prisma.staffMember.delete({ where: { id: member.id } }).catch(() => null))
+              );
 
               await pushAudit(guildId, {
                 user: user.username ?? `User${user.userId}`,
@@ -9346,7 +9614,7 @@ export const startDashboardApi = (client: Client) => {
                 context: getGuildName(client, guildId),
                 module: 'Staff Management',
                 eventType: 'Manuel',
-                details: `Blacklist retirée pour ${member.username || targetUserId}`,
+                details: `Blacklist retirée pour ${members.map((member) => member.username || member.userId).join(', ')}`,
                 channelId: null
               });
 

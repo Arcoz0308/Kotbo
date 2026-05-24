@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { createNotification } from './staffLeadershipService.js';
 import { getClient } from '../utils/client.js';
 import { logger } from '../utils/logger.js';
+import * as altAccountService from './altAccountService.js';
 
 /**
  * Service de gestion du personnel staff
@@ -392,24 +393,29 @@ export const blacklistStaff = async (
   reason: string,
   endDate?: Date
 ) => {
-  let resolvedStaffMemberId = await resolveStaffMemberId(guildId, staffUserId);
-  if (!resolvedStaffMemberId) {
-    // Si la personne n'est pas dans l'annuaire staff, on l'y ajoute à la volée avec le grade 'Blacklisted'
+  const linkedUserIds = await altAccountService.getAllLinkedUserIds(guildId, staffUserId);
+
+  const resolveOrCreateBlacklistedStaffMember = async (userId: string) => {
+    let resolvedStaffMemberId = await resolveStaffMemberId(guildId, userId);
+    if (resolvedStaffMemberId) {
+      return resolvedStaffMemberId;
+    }
+
     const client = getClient();
-    let username = `User_${staffUserId}`;
-    let displayName = `User ${staffUserId}`;
+    let username = `User_${userId}`;
+    let displayName = `User ${userId}`;
     let avatarUrl = '';
 
     try {
       const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
       if (discordGuild) {
-        const member = await discordGuild.members.fetch(staffUserId).catch(() => null);
+        const member = await discordGuild.members.fetch(userId).catch(() => null);
         if (member) {
           username = member.user.username;
           displayName = member.displayName || member.user.globalName || username;
           avatarUrl = member.user.displayAvatarURL() || '';
         } else {
-          const userObj = await client.users.fetch(staffUserId).catch(() => null);
+          const userObj = await client.users.fetch(userId).catch(() => null);
           if (userObj) {
             username = userObj.username;
             displayName = userObj.globalName || username;
@@ -418,31 +424,50 @@ export const blacklistStaff = async (
         }
       }
     } catch (err) {
-      logger.error('StaffManagement', `Erreur lors de la récupération des infos Discord pour blacklist de ${staffUserId}: ${err}`);
+      logger.error('StaffManagement', `Erreur lors de la récupération des infos Discord pour blacklist de ${userId}: ${err}`);
     }
 
     const newStaff = await prisma.staffMember.create({
       data: {
         guildId,
-        userId: staffUserId,
+        userId,
         grade: 'Blacklisted',
         username,
         displayName,
         avatarUrl,
       }
     });
-    resolvedStaffMemberId = newStaff.id;
-  }
+
+    return newStaff.id;
+  };
+
+  const blacklistedStaffMemberIds = await Promise.all(linkedUserIds.map((userId) => resolveOrCreateBlacklistedStaffMember(userId)));
+
+  const primaryStaffMemberId = blacklistedStaffMemberIds[linkedUserIds.indexOf(staffUserId)] ?? await resolveOrCreateBlacklistedStaffMember(staffUserId);
 
   const blacklist = await prisma.staffBlacklist.create({
     data: {
       guildId,
-      staffUserId: resolvedStaffMemberId,
+      staffUserId: primaryStaffMemberId,
       issuedByUserId,
       reason,
       endDate,
     },
   });
+
+  if (blacklistedStaffMemberIds.length > 1) {
+    await prisma.staffBlacklist.createMany({
+      data: blacklistedStaffMemberIds
+        .filter((staffMemberId) => staffMemberId !== primaryStaffMemberId)
+        .map((staffMemberId) => ({
+          guildId,
+          staffUserId: staffMemberId,
+          issuedByUserId,
+          reason,
+          endDate,
+        })),
+    }).catch(() => null);
+  }
 
   // Retirer les rôles staff sur Discord si l'utilisateur est présent sur le serveur
   try {
@@ -454,21 +479,23 @@ export const blacklistStaff = async (
     if (guildConfig) {
       const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
       if (discordGuild) {
-        const discordMember = await discordGuild.members.fetch(staffUserId).catch(() => null);
-        if (discordMember) {
-          const rolesToRemove: string[] = [];
-          if (guildConfig.baseStaffRoleId) rolesToRemove.push(guildConfig.baseStaffRoleId);
-          if (guildConfig.testStaffRoleId) rolesToRemove.push(guildConfig.testStaffRoleId);
-          for (const r of staffRoles) {
-            if (r.discordRoleId) rolesToRemove.push(r.discordRoleId);
-          }
+        const rolesToRemove: string[] = [];
+        if (guildConfig.baseStaffRoleId) rolesToRemove.push(guildConfig.baseStaffRoleId);
+        if (guildConfig.testStaffRoleId) rolesToRemove.push(guildConfig.testStaffRoleId);
+        for (const r of staffRoles) {
+          if (r.discordRoleId) rolesToRemove.push(r.discordRoleId);
+        }
+
+        for (const userId of linkedUserIds) {
+          const discordMember = await discordGuild.members.fetch(userId).catch(() => null);
+          if (!discordMember) continue;
 
           const currentRoleIds = discordMember.roles.cache.map(r => r.id);
           const finalRolesToRemove = rolesToRemove.filter(id => currentRoleIds.includes(id));
 
           if (finalRolesToRemove.length > 0) {
             await discordMember.roles.remove(finalRolesToRemove).catch((err) => {
-              logger.error('StaffManagement', `Erreur retrait rôles Discord post-blacklist pour ${staffUserId}: ${err.message}`);
+              logger.error('StaffManagement', `Erreur retrait rôles Discord post-blacklist pour ${userId}: ${err.message}`);
             });
           }
         }
@@ -479,8 +506,10 @@ export const blacklistStaff = async (
   }
 
   // Notifier le membre
-  const member = await prisma.staffMember.findUnique({ where: { id: resolvedStaffMemberId } });
-  if (member) {
+  for (const staffMemberId of blacklistedStaffMemberIds) {
+    const member = await prisma.staffMember.findUnique({ where: { id: staffMemberId } });
+    if (!member) continue;
+
     await createNotification(
       guildId,
       member.userId,

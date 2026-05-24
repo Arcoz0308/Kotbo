@@ -822,11 +822,24 @@ async function processTempBans(client: Client): Promise<void> {
   }
 }
 
-export async function countWarns(guildId: string, targetUserId: string): Promise<number> {
+function normalizeTargetUserIds(targetUserId: string, targetUserIds?: string[]): string[] {
+  const ids = (targetUserIds && targetUserIds.length > 0 ? targetUserIds : [targetUserId])
+    .map((id) => id.trim())
+    .filter((id) => id.length > 0);
+
+  return Array.from(new Set(ids));
+}
+
+function buildTargetUserWhere(targetUserId: string, targetUserIds?: string[]) {
+  const ids = normalizeTargetUserIds(targetUserId, targetUserIds);
+  return ids.length === 1 ? { targetUserId: ids[0] } : { targetUserId: { in: ids } };
+}
+
+export async function countWarns(guildId: string, targetUserId: string, targetUserIds?: string[]): Promise<number> {
   return prisma.sanction.count({
     where: {
       guildId,
-      targetUserId,
+      ...buildTargetUserWhere(targetUserId, targetUserIds),
       type: SanctionType.WARN
     }
   });
@@ -848,23 +861,25 @@ export interface ListedSanction {
 export async function listSanctionsByMember(params: {
   guildId: string;
   targetUserId: string;
+  targetUserIds?: string[];
   page: number;
   pageSize: number;
 }): Promise<{ total: number; sanctions: ListedSanction[] }> {
   const page = Math.max(0, params.page);
   const pageSize = Math.max(1, Math.min(20, params.pageSize));
+  const targetUserWhere = buildTargetUserWhere(params.targetUserId, params.targetUserIds);
 
   const [total, sanctions] = await prisma.$transaction([
     prisma.sanction.count({
       where: {
         guildId: params.guildId,
-        targetUserId: params.targetUserId,
+        ...targetUserWhere,
       },
     }),
     prisma.sanction.findMany({
       where: {
         guildId: params.guildId,
-        targetUserId: params.targetUserId,
+        ...targetUserWhere,
       },
       orderBy: { createdAt: 'desc' },
       skip: page * pageSize,
@@ -887,12 +902,14 @@ export async function listSanctionsByMember(params: {
   return { total, sanctions };
 }
 
-export async function getSanctionTypeBreakdown(guildId: string, targetUserId: string): Promise<Record<SanctionType, number>> {
+export async function getSanctionTypeBreakdown(guildId: string, targetUserId: string, targetUserIds?: string[]): Promise<Record<SanctionType, number>> {
+  const targetUserWhere = buildTargetUserWhere(targetUserId, targetUserIds);
+
   const rows = await prisma.sanction.groupBy({
     by: ['type'],
     where: {
       guildId,
-      targetUserId,
+      ...targetUserWhere,
     },
     _count: {
       type: true,

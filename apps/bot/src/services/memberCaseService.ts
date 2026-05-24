@@ -14,6 +14,7 @@ import { Prisma, SanctionType, type MemberProfile } from '@prisma/client';
 import prisma from '../utils/db.js';
 import { truncate } from '../utils/embeds.js';
 import { formatDurationFr, getSanctionTypeBreakdown, listSanctionsByMember, type ListedSanction } from './sanctionService.js';
+import * as altAccountService from './altAccountService.js';
 import { generateMemberStatsImage } from './imageService.js';
 
 export type MemberCaseSection = 'resume' | 'sanctions' | 'identite' | 'activite';
@@ -164,6 +165,8 @@ async function upsertMemberProfile(snapshot: MemberProfileSnapshot): Promise<voi
 }
 
 async function fetchGuildUserContext(guild: Guild, userId: string, pageIndex = 0): Promise<MemberCaseContext> {
+  const linkedUserIds = await altAccountService.getAllLinkedUserIds(guild.id, userId);
+
   const [user, member, profile, bans, sanctions] = await Promise.all([
     guild.client.users.fetch(userId).catch(() => null),
     guild.members.fetch(userId).catch(() => null),
@@ -179,12 +182,13 @@ async function fetchGuildUserContext(guild: Guild, userId: string, pageIndex = 0
     listSanctionsByMember({
       guildId: guild.id,
       targetUserId: userId,
+      targetUserIds: linkedUserIds,
       page: pageIndex,
       pageSize: MEMBER_CASE_PAGE_SIZE,
     }),
   ]);
 
-  const sanctionsBreakdown = await getSanctionTypeBreakdown(guild.id, userId);
+  const sanctionsBreakdown = await getSanctionTypeBreakdown(guild.id, userId, linkedUserIds);
   const totalPages = Math.max(1, Math.ceil(sanctions.total / MEMBER_CASE_PAGE_SIZE));
   const safePageIndex = Math.min(Math.max(0, pageIndex), totalPages - 1);
   const pageSanctions = safePageIndex === pageIndex
@@ -192,6 +196,7 @@ async function fetchGuildUserContext(guild: Guild, userId: string, pageIndex = 0
     : (await listSanctionsByMember({
         guildId: guild.id,
         targetUserId: userId,
+        targetUserIds: linkedUserIds,
         page: safePageIndex,
         pageSize: MEMBER_CASE_PAGE_SIZE,
       })).sanctions;

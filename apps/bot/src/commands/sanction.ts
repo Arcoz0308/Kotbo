@@ -29,6 +29,7 @@ import {
   registerWarnSanction,
   runGuildBan,
 } from '../services/sanctionService.js';
+import * as altAccountService from '../services/altAccountService.js';
 import { buildMemberCaseActionRow } from '../services/memberCaseService.js';
 
 const DURATION_HELP = 'Exemples: 30m, 2h, 3j, 1 semaine';
@@ -196,9 +197,11 @@ function sanitizeReason(reason: string): string {
 }
 
 async function buildSanctionListView(guildId: string, targetUserId: string, targetLabel: string, pageIndex: number) {
+  const linkedUserIds = await altAccountService.getAllLinkedUserIds(guildId, targetUserId);
+
   const [listResult, typeBreakdown] = await Promise.all([
-    listSanctionsByMember({ guildId, targetUserId, page: pageIndex, pageSize: SANCTION_PAGE_SIZE }),
-    getSanctionTypeBreakdown(guildId, targetUserId),
+    listSanctionsByMember({ guildId, targetUserId, targetUserIds: linkedUserIds, page: pageIndex, pageSize: SANCTION_PAGE_SIZE }),
+    getSanctionTypeBreakdown(guildId, targetUserId, linkedUserIds),
   ]);
 
   const total = listResult.total;
@@ -207,7 +210,7 @@ async function buildSanctionListView(guildId: string, targetUserId: string, targ
 
   const finalList = safePageIndex === pageIndex
     ? listResult
-    : await listSanctionsByMember({ guildId, targetUserId, page: safePageIndex, pageSize: SANCTION_PAGE_SIZE });
+    : await listSanctionsByMember({ guildId, targetUserId, targetUserIds: linkedUserIds, page: safePageIndex, pageSize: SANCTION_PAGE_SIZE });
 
   const embed = new EmbedBuilder()
     .setColor(0x5865f2)
@@ -372,7 +375,8 @@ export async function execute(interaction: ChatInputCommandInteraction | UserCon
       const reason = interaction.options.getString('raison', true).trim();
 
       const sanction = await registerWarnSanction({ guildId: interaction.guildId, target, moderator, reason, client: interaction.client });
-      const warnCount = await countWarns(interaction.guildId, targetUser.id);
+      const linkedUserIds = await altAccountService.getAllLinkedUserIds(interaction.guildId, targetUser.id);
+      const warnCount = await countWarns(interaction.guildId, targetUser.id, linkedUserIds);
 
       await interaction.reply({
         embeds: [
