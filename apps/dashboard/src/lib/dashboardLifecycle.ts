@@ -92,6 +92,11 @@ class DashboardLifecycleManager {
       this.socket.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
+          
+          // Emettre un événement global Svelte/JS pour tout composant intéressé
+          const customEvent = new CustomEvent('kotbo-ws-message', { detail: payload });
+          window.dispatchEvent(customEvent);
+
           const shouldRefresh =
             payload?.type === 'dashboard_state_changed' &&
             payload?.guildId === authStore.selectedGuildId;

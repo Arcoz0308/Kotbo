@@ -11,7 +11,8 @@
     fetchStaffWarnings,
     fetchFeatureConfigurations,
     updateFeatureConfiguration,
-    updateStaffConfig
+    updateStaffConfig,
+    deleteStaffRole
   } from '../lib/api';
   import DiscordMemberLookup from '../lib/components/DiscordMemberLookup.svelte';
   import MetricCard from '../lib/components/MetricCard.svelte';
@@ -345,51 +346,49 @@
 
   // Loadings
 
-  onMount(async () => {
+  onMount(() => {
     const initialTab = getTabFromSearch(window.location.search);
     if (initialTab) {
       activeTab = initialTab;
     }
+  });
+
+  $effect(() => {
+    const currentGuildId = authStore.selectedGuildId;
+    if (!currentGuildId) return;
 
     if (!authStore.token) {
       error = 'Non authentifié';
       return;
     }
 
-    try {
-      // Récupérer les serveurs accessibles au dashboard
-      const guildsRes = await fetch(`${API_BASE_URL}/api/dashboard/guilds`, {
-        headers: { Authorization: `Bearer ${authStore.token}` }
-      });
-      const guildsData = await guildsRes.json();
+    guildId = currentGuildId;
+    const activeGuild = authStore.guilds.find((g: any) => g.id === currentGuildId);
+    accessLevel = activeGuild?.accessLevel || 'none';
 
-      const adminGuild = Array.isArray(guildsData.guilds)
-        ? guildsData.guilds.find((guild: { accessLevel?: string }) => guild.accessLevel === 'admin')
-        : null;
-
-      if (adminGuild) {
-        guildId = adminGuild.id;
-        accessLevel = adminGuild.accessLevel;
-      }
-
-      if (accessLevel !== 'admin' && !directoryAccess.canView && !rolesAccess.canView) {
-        error = 'Accès insuffisant pour cette page';
-        return;
-      }
-
-      const dashboardState = await fetchGuildState(guildId);
-      availableDiscordRoles = dashboardState?.discordRoles || [];
-      availableDiscordChannels = dashboardState?.discordChannels || [];
-      availableDiscordVoiceChannels = dashboardState?.discordVoiceChannels || [];
-
-      // Démarrage du chargement intelligent
-      console.log('--- PRIORITIZED LOADING START ---');
-      await loadInitialData();
-      console.log('--- PRIORITIZED LOADING END ---');
-    } catch (err) {
-      console.error('Erreur:', err);
-      error = 'Erreur lors du chargement';
+    if (accessLevel !== 'admin' && !directoryAccess.canView && !rolesAccess.canView) {
+      error = 'Accès insuffisant pour cette page';
+      return;
+    } else {
+      error = '';
     }
+
+    void (async () => {
+      try {
+        const dashboardState = await fetchGuildState(currentGuildId);
+        availableDiscordRoles = dashboardState?.discordRoles || [];
+        availableDiscordChannels = dashboardState?.discordChannels || [];
+        availableDiscordVoiceChannels = dashboardState?.discordVoiceChannels || [];
+
+        // Démarrage du chargement intelligent
+        console.log('--- PRIORITIZED LOADING START ---');
+        await loadInitialData();
+        console.log('--- PRIORITIZED LOADING END ---');
+      } catch (err) {
+        console.error('Erreur:', err);
+        error = 'Erreur lors du chargement';
+      }
+    })();
   });
 
   async function loadInitialData() {
@@ -820,6 +819,20 @@
     }
   }
 
+  async function removeStaffRole(roleId: string, roleName: string) {
+    if (!guildId || !authStore.token) return;
+    if (!confirm(`Voulez-vous vraiment supprimer le rôle "${roleName}" de la hiérarchie ?`)) return;
+
+    try {
+      const success = await deleteStaffRole(roleId, guildId);
+      if (success) {
+        await loadStaffRoles();
+      }
+    } catch (err) {
+      console.error('Erreur lors de la suppression du rôle:', err);
+    }
+  }
+
   async function issueWarning() {
     if (!guildId || !authStore.token || !warnTargetUserId || !warnReason) return;
 
@@ -1109,7 +1122,7 @@
                     </div>
                     <div>
                       <h4 class="text-lg font-black text-on-surface leading-tight hover:text-primary transition-colors cursor-pointer">
-                        <a href="/profile/{member.userId}">{member.displayName || member.username || 'Utilisateur inconnu'}</a>
+                        <a href="/profile?userId={member.userId}">{member.displayName || member.username || 'Utilisateur inconnu'}</a>
                       </h4>
                       <div class="flex items-center gap-3 mt-1.5 flex-wrap">
                         <span class="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-primary">
@@ -1405,7 +1418,16 @@
                     </div>
                   </div>
                   
-                  <div class="flex items-center shrink-0">
+                  <div class="flex items-center gap-4 shrink-0">
+                    {#if rolesAccess.canConfigure}
+                      <button
+                        onclick={() => removeStaffRole(role.id, role.name)}
+                        class="inline-flex items-center justify-center rounded-xl p-2.5 text-rose-600 transition-colors hover:bg-rose-500/15 border border-rose-500/20 bg-rose-500/5"
+                        title="Supprimer le rôle"
+                      >
+                        <Papicon icon="trash-2" size={20} />
+                      </button>
+                    {/if}
                     <Papicon icon="repeat" size={20} class="text-on-surface-variant/20 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                 </div>
@@ -1613,6 +1635,7 @@
                     {guildId}
                     bind:query={blacklistLookupQuery}
                     bind:selectedId={blacklistTargetUserId}
+                    staffOnly={true}
                     placeholder="@mention, pseudo ou ID Discord"
                     selectedIdPlaceholder="ID Discord du staff (auto-rempli)"
                   />
@@ -1849,7 +1872,7 @@
                 </div>
                 <h4 class="text-sm font-black text-on-surface uppercase tracking-widest">Distribution des Scores</h4>
               </div>
-              <div class="h-[200px]">
+              <div class="h-50">
                 <Chart data={progressionChartData} type="bar" height={200} options={{ indexAxis: 'y', scales: { x: { beginAtZero: true, max: 100 } } }} />
               </div>
             </div>
@@ -1861,7 +1884,7 @@
                 </div>
                 <h4 class="text-sm font-black text-on-surface uppercase tracking-widest">Comparaison d'Activité</h4>
               </div>
-              <div class="h-[200px]">
+              <div class="h-50">
                 <Chart data={activityChartData} type="bar" height={200} options={{ indexAxis: 'y', scales: { x: { beginAtZero: true } } }} />
               </div>
             </div>
@@ -1912,7 +1935,7 @@
                     </td>
                     <td class="px-8 py-5">
                       <div class="flex items-center gap-4">
-                        <div class="flex-1 h-2 bg-surface-container-high rounded-full overflow-hidden max-w-[100px]">
+                        <div class="flex-1 h-2 bg-surface-container-high rounded-full overflow-hidden max-w-25">
                           <div class="h-full bg-primary" style="width: {metric.progressionScore}%"></div>
                         </div>
                         <span class="text-xs font-black text-primary">{metric.progressionScore}/100</span>
@@ -1999,7 +2022,20 @@
 <!-- Modal Configuration -->
 {#if showConfigMenu}
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-    <div class="absolute inset-0 bg-surface-container-lowest/80 backdrop-blur-sm transition-opacity" onclick={() => showConfigMenu = false}></div>
+    <div
+      class="absolute inset-0 bg-surface-container-lowest/80 backdrop-blur-sm transition-opacity"
+      role="button"
+      tabindex="0"
+      aria-label="Fermer la configuration"
+      onclick={() => showConfigMenu = false}
+      onkeydown={(e) => {
+        if (e.key === 'Escape') showConfigMenu = false;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          showConfigMenu = false;
+        }
+      }}
+    ></div>
     
     <div class="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[3rem] border border-outline-variant/30 bg-surface shadow-2xl">
       <div class="sticky top-0 z-10 flex items-center justify-between border-b border-outline-variant/20 bg-surface/80 p-6 backdrop-blur-xl md:px-8">

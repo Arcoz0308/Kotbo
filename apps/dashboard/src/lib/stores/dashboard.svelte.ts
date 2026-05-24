@@ -10,10 +10,22 @@ class DashboardStore {
     regulationMessageId: null,
     meetingAnnouncementChannelId: '',
     meetingVoiceChannelId: '',
+    publicChannelId: '',
+    dailyAlgoChannelId: '',
+    baseStaffRoleId: '',
+    testStaffRoleId: '',
     discordChannels: [],
     discordVoiceChannels: [],
+    discordCategories: [],
     discordRoles: [],
     moderatorRoleId: '',
+    propagateSanctions: false,
+    translationEnabled: false,
+    codePoliceEnabled: false,
+    dailyAlgoEnabled: false,
+    githubReleasesEnabled: false,
+    digestEnabled: false,
+    youtubeEnabled: false,
     commandRestrictions: [],
     commandCatalog: [],
     access: {
@@ -36,10 +48,16 @@ class DashboardStore {
     auditTrail: [],
     sanctions: [],
     sanctionReports: [],
+    statusCheckChannelId: '',
     regulationRules: [],
     messageTemplate: '',
     analytics: {
       activityTrend: [0, 0, 0, 0, 0, 0, 0],
+      messagesTrend: [0, 0, 0, 0, 0, 0, 0],
+      voiceTrend: [0, 0, 0, 0, 0, 0, 0],
+      joinsTrend: [0, 0, 0, 0, 0, 0, 0],
+      leavesTrend: [0, 0, 0, 0, 0, 0, 0],
+      sanctionsTrend: [0, 0, 0, 0, 0, 0, 0],
       totalAutomations: 0,
       healthStatus: 100
     },
@@ -95,10 +113,22 @@ class DashboardStore {
         this.state.regulationMessageId = data.regulationMessageId || null;
         this.state.meetingAnnouncementChannelId = data.meetingAnnouncementChannelId || '';
         this.state.meetingVoiceChannelId = data.meetingVoiceChannelId || '';
+        this.state.publicChannelId = data.publicChannelId || '';
+        this.state.dailyAlgoChannelId = data.dailyAlgoChannelId || '';
+        this.state.baseStaffRoleId = data.baseStaffRoleId || '';
+        this.state.testStaffRoleId = data.testStaffRoleId || '';
         this.state.discordChannels = data.discordChannels || [];
         this.state.discordVoiceChannels = data.discordVoiceChannels || [];
+        this.state.discordCategories = data.discordCategories || [];
         this.state.discordRoles = data.discordRoles || [];
         this.state.moderatorRoleId = data.moderatorRoleId || '';
+        this.state.propagateSanctions = data.propagateSanctions || false;
+        this.state.translationEnabled = data.translationEnabled || false;
+        this.state.codePoliceEnabled = data.codePoliceEnabled || false;
+        this.state.dailyAlgoEnabled = data.dailyAlgoEnabled || false;
+        this.state.githubReleasesEnabled = data.githubReleasesEnabled || false;
+        this.state.digestEnabled = data.digestEnabled || false;
+        this.state.youtubeEnabled = data.youtubeEnabled || false;
         this.state.commandRestrictions = data.commandRestrictions || [];
         this.state.commandCatalog = data.commandCatalog || [];
         this.state.access = data.access || {

@@ -48,12 +48,21 @@
     }, { successMessage: 'Permissions mises à jour.' });
   }
 
-  const permissions = [
-    { key: 'canView', label: 'Voir', icon: 'eye' },
-    { key: 'canModerate', label: 'Modérer', icon: 'shield' },
-    { key: 'canConfigure', label: 'Configurer', icon: 'settings' },
-    { key: 'canDelete', label: 'Supprimer', icon: 'trash-2' }
-  ];
+  const permissions = $derived(
+    featureKey === 'double_accounts'
+      ? [
+          { key: 'canView', label: 'Voir', icon: 'eye' },
+          { key: 'canModerate', label: 'Valider', icon: 'check-circle' },
+          { key: 'canConfigure', label: 'Mettre en DS', icon: 'shield' },
+          { key: 'canDelete', label: 'Sanctionner', icon: 'alert-triangle' }
+        ]
+      : [
+          { key: 'canView', label: 'Voir', icon: 'eye' },
+          { key: 'canModerate', label: 'Modérer', icon: 'shield' },
+          { key: 'canConfigure', label: 'Configurer', icon: 'settings' },
+          { key: 'canDelete', label: 'Supprimer', icon: 'trash-2' }
+        ]
+  );
 </script>
 
 <div class="space-y-6">

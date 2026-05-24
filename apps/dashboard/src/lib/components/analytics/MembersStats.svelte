@@ -149,6 +149,69 @@
     </div>
   </div>
 
+  <!-- Clan Tag Growth Chart -->
+  {#if data?.clanTag}
+    {@const growth = (chartLabels[chartLabels.length - 1]?.taggedMembersCount || 0) - (chartLabels[0]?.taggedMembersCount || 0)}
+    <div class="premium-card p-8 rounded-[2.5rem] space-y-6">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <div class="bg-indigo-500/10 p-3 rounded-2xl text-indigo-500">
+            <Papicon icon="Award" size={24} />
+          </div>
+          <div>
+            <h3 class="text-xl font-black text-on-surface">Membres avec le Tag [{data.clanTag}]</h3>
+            <p class="text-xs font-bold text-on-surface-variant/40">Évolution du nombre de membres arborant le tag du serveur</p>
+          </div>
+        </div>
+        <div class="flex flex-col items-end">
+          <span class="text-2xl font-black text-indigo-500">{data.clanTaggedMembersCount || 0}</span>
+          <span class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40">Membres Actuels</span>
+        </div>
+      </div>
+
+      <div class="h-[250px]">
+        <Chart 
+          data={{
+            labels: chartLabels.map(l => l.label),
+            datasets: [{
+              label: `Membres [${data.clanTag}]`,
+              data: chartLabels.map(l => l.taggedMembersCount || 0),
+              borderColor: '#6366f1',
+              backgroundColor: 'rgba(99, 102, 241, 0.1)',
+              fill: true,
+              tension: 0.4,
+              pointRadius: 0,
+              gradient: {
+                backgroundColor: {
+                  axis: 'y',
+                  colors: { 0: 'rgba(99, 102, 241, 0)', 100: 'rgba(99, 102, 241, 0.2)' }
+                }
+              }
+            }]
+          }}
+          height={250}
+        />
+      </div>
+
+      <div class="grid grid-cols-3 gap-4 border-t border-outline-variant/10 pt-6">
+        <div class="space-y-1">
+          <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40">Début de Période</p>
+          <p class="text-2xl font-black text-indigo-500">{chartLabels[0]?.taggedMembersCount || 0}</p>
+        </div>
+        <div class="space-y-1">
+          <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40">Fin de Période</p>
+          <p class="text-2xl font-black text-indigo-500">{chartLabels[chartLabels.length - 1]?.taggedMembersCount || 0}</p>
+        </div>
+        <div class="space-y-1">
+          <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40">Croissance</p>
+          <p class="text-2xl font-black {growth >= 0 ? 'text-emerald-500' : 'text-rose-500'}">
+            {growth >= 0 ? `+${growth}` : growth}
+          </p>
+        </div>
+      </div>
+    </div>
+  {/if}
+
   <!-- Top Members -->
   <div class="premium-card p-8 rounded-[2.5rem] space-y-6">
     <div class="flex items-center gap-4">

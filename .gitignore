@@ -6,5 +6,4 @@ dist/
 .svelte-kit/
 build/
 .DS_Store
-bun.lockb
 .vscode/

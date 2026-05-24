@@ -205,30 +205,36 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
     }
 
-    const absence = await createAbsence({
-      guildId: interaction.guildId,
-      staffMemberId: staff.id,
-      startDate,
-      endDate: endDate ?? undefined,
-      reason,
-      type,
-      message,
-      superiorUserId: superior.id,
-    });
-
-    const isIndefinite = !endDate;
-    await replyInteraction.editReply({
-      content: isIndefinite
-        ? `✅ Absence déclarée en **indéterminé**. Supérieur notifié: <@${superior.id}>. ID: \`${absence.id}\`.`
-        : `✅ Absence déclarée du **${debutRaw}** au **${finRaw}**. Supérieur notifié: <@${superior.id}>. ID: \`${absence.id}\`.`,
-    });
-
     try {
-      await superior.send(
-        `📣 Nouvelle absence staff\n- Staff: ${interaction.user.tag} (${interaction.user.id})\n- Type: ${type}\n- Début: ${debutRaw}\n- Fin: ${finRaw ?? 'Indéterminée'}\n- Motif: ${reason}${message ? `\n- Message: ${message}` : ''}\n- ID: ${absence.id}`,
-      );
-    } catch {
-      // Le DM peut échouer selon les préférences utilisateur, ce n'est pas bloquant.
+      const absence = await createAbsence({
+        guildId: interaction.guildId,
+        staffMemberId: staff.id,
+        startDate,
+        endDate: endDate ?? undefined,
+        reason,
+        type,
+        message,
+        superiorUserId: superior.id,
+      });
+
+      const isIndefinite = !endDate;
+      await replyInteraction.editReply({
+        content: isIndefinite
+          ? `✅ Absence déclarée en **indéterminé**. Supérieur notifié: <@${superior.id}>. ID: \`${absence.id}\`.`
+          : `✅ Absence déclarée du **${debutRaw}** au **${finRaw}**. Supérieur notifié: <@${superior.id}>. ID: \`${absence.id}\`.`,
+      });
+
+      try {
+        await superior.send(
+          `📣 Nouvelle absence staff\n- Staff: ${interaction.user.tag} (${interaction.user.id})\n- Type: ${type}\n- Début: ${debutRaw}\n- Fin: ${finRaw ?? 'Indéterminée'}\n- Motif: ${reason}${message ? `\n- Message: ${message}` : ''}\n- ID: ${absence.id}`,
+        );
+      } catch {
+        // Le DM peut échouer selon les préférences utilisateur, ce n'est pas bloquant.
+      }
+    } catch (err: any) {
+      await replyInteraction.editReply({
+        content: `❌ ${err.message || 'Une erreur est survenue lors de la création de l\'absence.'}`,
+      });
     }
     return;
   }

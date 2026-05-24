@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { portal } from '../actions/portal';
   import FormInput from './FormInput.svelte';
   import { dashboardStore } from '../stores/dashboard.svelte.ts';
   import { authStore } from '../stores/auth.svelte.ts';
@@ -63,7 +64,7 @@
       inviterAvatarUrl: string | null;
       joinedAt: string | null;
     } | null;
-    roles: Array<{ id: string; name: string; mention: string; permissions: string[] }>;
+    roles: Array<{ id: string; name: string; mention: string; permissions: string[]; color?: string }>;
     effectivePermissions: string[];
     sanctions: Array<{
       id: string;
@@ -557,6 +558,7 @@
 
 {#if open}
   <div 
+    use:portal
     class="modal-backdrop" 
     role="button" 
     aria-label="Fermer le dossier"
@@ -626,7 +628,7 @@
                 </span>
               {/if}
               {#if caseData?.profile?.staffGrade}
-                <span class="badge bg-primary/15 text-primary border border-primary/30 shadow-sm animate-in zoom-in-95 duration-500">
+                <span class="badge bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 dark:border-amber-400/20 shadow-sm animate-in zoom-in-95 duration-500">
                   <Papicon icon="star" size={12} class="mr-1" />
                   {caseData?.profile?.staffGrade}
                 </span>
@@ -972,7 +974,12 @@
                         <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-3">Rôles Principaux</p>
                         <div class="flex flex-wrap gap-2">
                           {#each caseData?.roles.slice(0, 4) as role}
-                            <span class="px-3 py-1.5 rounded-xl bg-surface-container-high text-[10px] font-bold text-on-surface border border-outline-variant/20">{role.name}</span>
+                            <span class="px-3 py-1.5 rounded-xl bg-surface-container-high text-[10px] font-bold text-on-surface border border-outline-variant/20 flex items-center gap-1.5">
+                              {#if role.color && role.color !== '#000000'}
+                                <span class="w-1.5 h-1.5 rounded-full shrink-0" style="background-color: {role.color}"></span>
+                              {/if}
+                              {role.name}
+                            </span>
                           {/each}
                           {#if caseData?.roles.length > 4}
                             <span class="px-3 py-1.5 rounded-xl bg-primary/5 text-[10px] font-black text-primary border border-primary/10">+{caseData?.roles.length - 4}</span>
@@ -1118,20 +1125,20 @@
 
                 {#if caseData?.profile?.staffGrade}
                   <!-- Staff Role Section -->
-                  <div class="rounded-[2.5rem] bg-primary/5 p-8 border border-primary/20 shadow-sm hover:bg-primary/10 transition-all duration-500 group">
+                  <div class="rounded-[2.5rem] bg-amber-500/5 dark:bg-amber-500/10 p-8 border border-amber-500/20 dark:border-amber-400/20 shadow-sm hover:bg-amber-500/10 dark:hover:bg-amber-500/15 transition-all duration-500 group">
                      <div class="flex items-center gap-3 mb-8">
-                       <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-on-primary group-hover:scale-110 transition-transform shadow-lg shadow-primary/20">
+                       <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500 text-white group-hover:scale-110 transition-transform shadow-lg shadow-amber-500/20">
                          <Papicon icon="star" size={24} />
                        </div>
                        <div>
-                         <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Administration</p>
+                         <p class="text-[10px] font-black uppercase tracking-[0.2em] text-amber-600 dark:text-amber-400">Administration</p>
                          <p class="text-lg font-black text-on-surface">Statut Staff</p>
                        </div>
                      </div>
                      <dl class="space-y-5">
-                       <div class="flex items-center justify-between border-b border-primary/10 pb-2">
+                       <div class="flex items-center justify-between border-b border-amber-500/15 pb-2">
                          <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Grade Actuel</dt>
-                         <dd class="text-sm font-black text-primary">{caseData?.profile?.staffGrade}</dd>
+                         <dd class="text-sm font-black text-amber-600 dark:text-amber-400">{caseData?.profile?.staffGrade}</dd>
                        </div>
                        <div class="flex items-center justify-between">
                          <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Statut Tuteur</dt>
@@ -1193,7 +1200,10 @@
                    </div>
                    <div class="flex flex-wrap gap-3">
                      {#each caseData?.roles as role}
-                       <span class="px-5 py-2.5 rounded-2xl bg-surface-container-high text-xs font-black text-on-surface border border-outline-variant/20 shadow-sm transition-all hover:scale-105 hover:bg-surface-container-highest">
+                       <span class="px-5 py-2.5 rounded-2xl bg-surface-container-high text-xs font-black text-on-surface border border-outline-variant/20 shadow-sm transition-all hover:scale-105 hover:bg-surface-container-highest flex items-center gap-2">
+                         {#if role.color && role.color !== '#000000'}
+                           <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: {role.color}"></span>
+                         {/if}
                          {role.name}
                        </span>
                      {/each}

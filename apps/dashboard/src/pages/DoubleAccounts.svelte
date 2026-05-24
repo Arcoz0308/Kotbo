@@ -9,6 +9,7 @@
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
+  import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
 
   let linkedAccounts = $state<any[]>([]);
   let loading = $state(true);
@@ -24,6 +25,12 @@
 
   let doubleAccountsConfig = $state<any>(null);
   let loadingConfig = $state(false);
+  let workflowDraft = $state({
+    validationRoleId: '',
+    sanctionRoleId: '',
+    dsRoleId: '',
+    autoDetectionEnabled: true,
+  });
   const saveAction = createAsyncActionState();
 
   const filteredAccounts = $derived(
@@ -51,11 +58,40 @@
     try {
       const configs = await fetchFeatureConfigurations();
       doubleAccountsConfig = configs?.features?.find((c: any) => c.featureKey === 'double_accounts') || null;
+      const metadata = doubleAccountsConfig?.metadata || {};
+      workflowDraft = {
+        validationRoleId: metadata.validationRoleId || '',
+        sanctionRoleId: metadata.sanctionRoleId || '',
+        dsRoleId: metadata.dsRoleId || '',
+        autoDetectionEnabled: metadata.autoDetectionEnabled ?? true,
+      };
     } catch (err) {
       console.error('Error fetching double accounts config:', err);
     } finally {
       loadingConfig = false;
     }
+  }
+
+  async function saveConfig() {
+    if (!doubleAccountsConfig) return;
+
+    await saveAction.run(async () => {
+      const ok = await updateFeatureConfiguration('double_accounts', {
+        enabled: doubleAccountsConfig.enabled,
+        channelId: doubleAccountsConfig.channelId,
+        secondaryChannelId: doubleAccountsConfig.secondaryChannelId,
+        requiredRoleId: doubleAccountsConfig.requiredRoleId,
+        notificationRoleId: doubleAccountsConfig.notificationRoleId,
+        notifyViaDiscordChannel: doubleAccountsConfig.notifyViaDiscordChannel,
+        notifyViaDM: doubleAccountsConfig.notifyViaDM,
+        loggingEnabled: doubleAccountsConfig.loggingEnabled,
+        userActivityTracking: doubleAccountsConfig.userActivityTracking,
+        metadata: workflowDraft,
+      });
+      if (!ok) throw new Error('Erreur API');
+      await loadConfig();
+      return true;
+    }, { successMessage: 'Configuration des doubles comptes mise à jour.' });
   }
 
   async function handleUpdateStatus(id: string, status: 'VALIDATED' | 'REJECTED') {
@@ -101,10 +137,92 @@
 
 <ModulePage 
   title="Doubles Comptes" 
-  description="Gérez les liaisons entre comptes et validez les déclarations." 
+  description="Gérez les liaisons entre comptes, les détections et les workflows de validation." 
   icon="users"
   featureKey="double_accounts"
 >
+  {#if doubleAccountsConfig}
+    <div class="mb-10 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+      <div class="rounded-[2.5rem] border border-outline-variant/10 bg-surface-container-low/30 p-8 space-y-6">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <h3 class="text-2xl font-black">Configuration du module</h3>
+            <p class="mt-1 text-sm text-on-surface-variant/60">Activez le module et définissez les rôles responsables des décisions automatiques.</p>
+          </div>
+          <ToggleSwitch
+            checked={doubleAccountsConfig.enabled}
+            onToggle={(checked) => (doubleAccountsConfig.enabled = checked)}
+            activeClass="peer-checked:bg-emerald-500"
+          />
+        </div>
+
+        <div class="grid gap-4 md:grid-cols-3">
+          <label class="space-y-2 text-sm">
+            <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Rôle validation</span>
+            <select bind:value={workflowDraft.validationRoleId} class="w-full rounded-2xl border border-outline-variant/10 bg-surface-container-high/40 px-4 py-3 text-sm">
+              <option value="">Aucun rôle</option>
+              {#each dashboardStore.state.discordRoles as role}
+                <option value={role.id}>@{role.name}</option>
+              {/each}
+            </select>
+          </label>
+
+          <label class="space-y-2 text-sm">
+            <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Rôle sanction</span>
+            <select bind:value={workflowDraft.sanctionRoleId} class="w-full rounded-2xl border border-outline-variant/10 bg-surface-container-high/40 px-4 py-3 text-sm">
+              <option value="">Aucun rôle</option>
+              {#each dashboardStore.state.discordRoles as role}
+                <option value={role.id}>@{role.name}</option>
+              {/each}
+            </select>
+          </label>
+
+          <label class="space-y-2 text-sm">
+            <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Rôle DS</span>
+            <select bind:value={workflowDraft.dsRoleId} class="w-full rounded-2xl border border-outline-variant/10 bg-surface-container-high/40 px-4 py-3 text-sm">
+              <option value="">Aucun rôle</option>
+              {#each dashboardStore.state.discordRoles as role}
+                <option value={role.id}>@{role.name}</option>
+              {/each}
+            </select>
+          </label>
+        </div>
+
+        <div class="flex items-center justify-between gap-4 rounded-2xl border border-outline-variant/10 bg-surface-container-high/30 px-4 py-3">
+          <div>
+            <p class="font-bold text-on-surface">Détection automatique</p>
+            <p class="text-xs text-on-surface-variant/60">Autorise le bot à signaler les comptes trop récents à l’arrivée.</p>
+          </div>
+          <ToggleSwitch
+            checked={workflowDraft.autoDetectionEnabled}
+            onToggle={(checked) => (workflowDraft.autoDetectionEnabled = checked)}
+            activeClass="peer-checked:bg-primary"
+          />
+        </div>
+
+        <div class="flex justify-end">
+          <button
+            onclick={saveConfig}
+            class="rounded-2xl bg-primary px-5 py-3 text-[10px] font-black uppercase tracking-widest text-on-primary transition-transform hover:scale-[1.02]"
+          >
+            Enregistrer la configuration
+          </button>
+        </div>
+      </div>
+
+      <div class="rounded-[2.5rem] border border-amber-500/20 bg-amber-500/5 p-8 space-y-4">
+        <h3 class="text-2xl font-black">Détections</h3>
+        <p class="text-sm text-on-surface-variant/70">
+          Les comptes marqués suspects sont visibles dans la page dédiée Détections. Cette page sert de console d’alerte et garde les liaisons à portée de main.
+        </p>
+        <a href="/detections" class="inline-flex items-center gap-2 rounded-2xl border border-amber-500/20 bg-surface-container-low px-4 py-3 text-[10px] font-black uppercase tracking-widest text-amber-500 transition-colors hover:bg-amber-500 hover:text-white">
+          <Papicon icon="Bell" size={14} />
+          Ouvrir les détections
+        </a>
+      </div>
+    </div>
+  {/if}
+
   {#if doubleAccountsConfig}
     <div class="bg-surface-container-low/30 p-8 rounded-[2.5rem] border border-outline-variant/10 mb-10 animate-in fade-in duration-500">
       <RolePermissionSettings 

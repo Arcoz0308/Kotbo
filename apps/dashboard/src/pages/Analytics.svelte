@@ -72,7 +72,7 @@ import GlobalInteractionGraph from '../lib/components/charts/GlobalInteractionGr
     loading = true; error = '';
     const options = isCustomPeriod 
       ? { startDate, endDate } 
-      : { period };
+      : { period, ...(period === 1 ? { granularity: '30' } : {}) };
 
     try { 
       const [mainData, invites, heatmap, weekly, algo] = await Promise.all([

@@ -1,4 +1,4 @@
-import { type GuildMember, type Message, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } from 'discord.js';
+import { type Guild, type GuildMember, type Message, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { LinkedAccountType, LinkedAccountStatus } from '@prisma/client';
@@ -11,8 +11,80 @@ import { createNotification } from './staffLeadershipService.js';
 
 // Heuristique : Proximité de création de compte (ex: moins de 15 mins)
 const ACCOUNT_CREATION_PROXIMITY_MS = 15 * 60 * 1000;
+export const JOIN_TO_ACCOUNT_CREATION_PROXIMITY_MS = 3 * 24 * 60 * 60 * 1000;
 // Heuristique : Similitude de pseudo (Levenshtein distance relative)
 const USERNAME_SIMILARITY_THRESHOLD = 0.8;
+
+export type YoungAccountScanMatch = {
+  userId: string;
+  username: string | null;
+  displayName: string | null;
+  accountCreatedAt: string;
+  guildJoinedAt: string;
+  accountAgeMs: number;
+  accountAgeLabel: string;
+};
+
+export type YoungAccountScanResult = {
+  scannedCount: number;
+  flaggedCount: number;
+  thresholdMs: number;
+  matches: YoungAccountScanMatch[];
+};
+
+function formatAgeLabel(durationMs: number): string {
+  const totalSeconds = Math.max(1, Math.floor(durationMs / 1000));
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  const parts: string[] = [];
+  if (days > 0) parts.push(`${days} jour${days > 1 ? 's' : ''}`);
+  if (hours > 0) parts.push(`${hours} heure${hours > 1 ? 's' : ''}`);
+  if (minutes > 0) parts.push(`${minutes} minute${minutes > 1 ? 's' : ''}`);
+  if (seconds > 0 && parts.length === 0) parts.push(`${seconds} seconde${seconds > 1 ? 's' : ''}`);
+
+  return parts.join(' ');
+}
+
+function buildYoungAccountSuspicion(member: GuildMember, thresholdMs: number): { reason: string; accountAgeMs: number; accountAgeLabel: string } | null {
+  const joinedTimestamp = member.joinedTimestamp;
+  const createdTimestamp = member.user.createdTimestamp;
+
+  if (!joinedTimestamp || !createdTimestamp) return null;
+
+  const accountAgeMs = joinedTimestamp - createdTimestamp;
+  if (accountAgeMs < 0 || accountAgeMs > thresholdMs) return null;
+
+  const accountAgeLabel = formatAgeLabel(accountAgeMs);
+  return {
+    reason: `Compte créé ${accountAgeLabel} avant l'arrivée sur le serveur.`,
+    accountAgeMs,
+    accountAgeLabel,
+  };
+}
+
+async function notifyManagersOfSuspectedDC(guildId: string, member: GuildMember): Promise<void> {
+  const managers = await prisma.staffMember.findMany({
+    where: {
+      guildId,
+      grade: { in: ['Manager', 'Admin', 'Administrateur', 'Fondateur', 'Direction'] }
+    }
+  });
+
+  if (managers.length === 0) return;
+
+  await Promise.all(managers.map(m => createNotification(
+    guildId,
+    m.userId,
+    '⚠️ Alerte DC suspect',
+    `Un double compte potentiel a été détecté : ${member.user.tag}.`,
+    'WARNING',
+    `/members/${member.id}`,
+    false
+  ).catch(() => null)));
+}
 
 /**
  * Calcule la distance de Levenshtein entre deux chaînes
@@ -116,25 +188,57 @@ export async function analyzeMemberJoin(member: GuildMember): Promise<void> {
     await reportSuspectedDC(member, Array.from(suspectedAlts), reasons);
 
     // Notification Dashboard pour le staff (sans MP)
-    const managers = await prisma.staffMember.findMany({
-      where: {
-        guildId,
-        grade: { in: ['Manager', 'Admin', 'Administrateur', 'Fondateur', 'Direction'] }
-      }
-    });
-
-    if (managers.length > 0) {
-      await Promise.all(managers.map(m => createNotification(
-        guildId,
-        m.userId,
-        '⚠️ Alerte DC suspect',
-        `Un double compte potentiel a été détecté : ${member.user.tag}.`,
-        'WARNING',
-        `/members/${member.id}`,
-        false // Pas de notification MP pour les alertes DC (à la demande de l'utilisateur)
-      ).catch(() => null)));
-    }
+    await notifyManagersOfSuspectedDC(guildId, member);
   }
+}
+
+export async function scanGuildMembersForYoungAccounts(guild: Guild, thresholdMs = JOIN_TO_ACCOUNT_CREATION_PROXIMITY_MS): Promise<YoungAccountScanResult> {
+  const fetchedMembers = await guild.members.fetch().catch(() => null);
+
+  if (!fetchedMembers) {
+    return {
+      scannedCount: 0,
+      flaggedCount: 0,
+      thresholdMs,
+      matches: [],
+    };
+  }
+
+  const matches: YoungAccountScanMatch[] = [];
+  let scannedCount = 0;
+
+  for (const member of fetchedMembers.values()) {
+    if (member.user.bot) continue;
+    scannedCount++;
+
+    const suspicion = buildYoungAccountSuspicion(member, thresholdMs);
+    if (!suspicion) continue;
+
+    await prisma.memberProfile.update({
+      where: { guildId_userId: { guildId: guild.id, userId: member.id } },
+      data: { isSuspectedDC: true }
+    }).catch(() => null);
+
+    await reportSuspectedDC(member, [], [suspicion.reason]);
+    await notifyManagersOfSuspectedDC(guild.id, member);
+
+    matches.push({
+      userId: member.id,
+      username: member.user.username,
+      displayName: member.displayName,
+      accountCreatedAt: member.user.createdAt.toISOString(),
+      guildJoinedAt: member.joinedAt?.toISOString() ?? new Date(member.joinedTimestamp ?? Date.now()).toISOString(),
+      accountAgeMs: suspicion.accountAgeMs,
+      accountAgeLabel: suspicion.accountAgeLabel,
+    });
+  }
+
+  return {
+    scannedCount,
+    flaggedCount: matches.length,
+    thresholdMs,
+    matches,
+  };
 }
 
 /**
@@ -162,7 +266,7 @@ async function reportSuspectedDC(member: GuildMember, altIds: string[], reasons:
       { name: 'Raisons de la suspicion', value: reasons.map(r => `• ${r}`).join('\n') },
       { name: 'Comptes suspects associés', value: altIds.length > 0 ? altIds.map(id => `<@${id}>`).join(', ') : 'Aucun' },
       { name: 'Date de création', value: `<t:${Math.floor(member.user.createdTimestamp / 1000)}:R>`, inline: true },
-      { name: 'Arrivée', value: `<t:${Math.floor(member.joinedTimestamp! / 1000)}:R>`, inline: true }
+      { name: 'Arrivée', value: member.joinedTimestamp ? `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>` : 'Inconnue', inline: true }
     )
     .setTimestamp();
 

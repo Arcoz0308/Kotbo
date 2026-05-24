@@ -54,11 +54,10 @@
   let loadingConfig = $state(false);
 
   // Derived from dashboardStore for real-time sync
-  const guildState = $derived(dashboardStore.state.guild);
-  const meetingAnnouncementChannelId = $derived(guildState?.meetingAnnouncementChannelId || null);
-  const meetingVoiceChannelId = $derived(guildState?.meetingVoiceChannelId || null);
-  const availableDiscordChannels = $derived(dashboardStore.state.guild?.discordChannels || []);
-  const availableDiscordVoiceChannels = $derived(dashboardStore.state.guild?.discordVoiceChannels || []);
+  const meetingAnnouncementChannelId = $derived(dashboardStore.state.meetingAnnouncementChannelId || null);
+  const meetingVoiceChannelId = $derived(dashboardStore.state.meetingVoiceChannelId || null);
+  const availableDiscordChannels = $derived(dashboardStore.state.discordChannels || []);
+  const availableDiscordVoiceChannels = $derived(dashboardStore.state.discordVoiceChannels || []);
 
   const canView = $derived(isAdmin || !!featureAccess.canView);
 
@@ -276,8 +275,9 @@
           <h4 class="text-xs font-black text-on-surface-variant uppercase tracking-widest mb-4">Canaux de Réunion</h4>
           <div class="space-y-4">
             <div>
-              <label class="block text-[10px] font-black text-on-surface-variant uppercase mb-2 ml-1">Salon d'annonce</label>
+              <label for="meeting-announcement-channel" class="block text-[10px] font-black text-on-surface-variant uppercase mb-2 ml-1">Salon d'annonce</label>
               <select 
+                id="meeting-announcement-channel"
                 value={meetingAnnouncementChannelId} 
                 onchange={async (e) => {
                   const val = (e.target as HTMLSelectElement).value;
@@ -293,8 +293,9 @@
               </select>
             </div>
             <div>
-              <label class="block text-[10px] font-black text-on-surface-variant uppercase mb-2 ml-1">Salon vocal</label>
+              <label for="meeting-voice-channel" class="block text-[10px] font-black text-on-surface-variant uppercase mb-2 ml-1">Salon vocal</label>
               <select 
+                id="meeting-voice-channel"
                 value={meetingVoiceChannelId} 
                 onchange={async (e) => {
                   const val = (e.target as HTMLSelectElement).value;

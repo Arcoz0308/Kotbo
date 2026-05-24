@@ -543,6 +543,14 @@ export async function fetchStaffRoles(guildId = authStore.selectedGuildId) {
   });
 }
 
+export async function deleteStaffRole(roleId, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/staff/roles/${roleId}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Delete Staff Role):'
+  });
+}
+
 export async function fetchStaffConfig(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/staff/config', {
     method: 'GET',
@@ -582,6 +590,10 @@ export async function updateAbsenceConfig(managerRoleLevels: number[], guildId =
 
 export async function updateAbsenceStatus(absenceId, status, note, guildId = authStore.selectedGuildId) {
   return dashboardMutation(`/absences/${absenceId}`, { method: 'PATCH', payload: { status, note }, guildId });
+}
+
+export async function deleteAbsence(absenceId, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/absences/${absenceId}`, { method: 'DELETE', guildId });
 }
 
 export async function fetchMeetings(guildId = authStore.selectedGuildId) {
@@ -656,11 +668,12 @@ export async function toggleTutorStatus(userId, guildId = authStore.selectedGuil
   return dashboardMutation(`/staff/members/${userId}/tutor`, { method: 'POST', guildId });
 }
 
-export async function fetchAnalytics(options: { period?: number, startDate?: string, endDate?: string } = {}, guildId = authStore.selectedGuildId) {
+export async function fetchAnalytics(options: { period?: number, startDate?: string, endDate?: string, granularity?: string } = {}, guildId = authStore.selectedGuildId) {
   const params = new URLSearchParams();
   if (options.period) params.append('period', options.period.toString());
   if (options.startDate) params.append('startDate', options.startDate);
   if (options.endDate) params.append('endDate', options.endDate);
+  if (options.granularity) params.append('granularity', options.granularity);
   
   return dashboardRequest(`/analytics?${params.toString()}`, {
     method: 'GET',
@@ -685,6 +698,71 @@ export async function fetchMemberDetailedAnalytics(userId, period = 30, guildId 
   });
 }
 
+export async function fetchPublicProfile(userId: string) {
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (authStore.token) {
+    headers.Authorization = `Bearer ${authStore.token}`;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/public/profile/${userId}`, { headers });
+  if (!response.ok) {
+    const error = new Error(`Server error: ${response.status}`);
+    (error as any).status = response.status;
+    throw error;
+  }
+
+  return response.json();
+}
+
+export async function updatePublicProfile(userId: string, payload: { bio?: string | null; isProfilePrivate?: boolean }) {
+  if (!authStore.token) {
+    throw new Error('No auth token available');
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/public/profile/${userId}`, {
+    method: 'PATCH',
+    headers: {
+      ...JSON_HEADERS,
+      Authorization: `Bearer ${authStore.token}`,
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const error = new Error(`Server error: ${response.status}`);
+    (error as any).status = response.status;
+    throw error;
+  }
+
+  return response.json();
+}
+
+export async function fetchStaffProfile(userId: string, guildId = authStore.selectedGuildId) {
+  const selectedGuildId = getGuildId(guildId);
+  if (!selectedGuildId) return null;
+
+  if (!authStore.token) {
+    throw new Error('No auth token available');
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/dashboard/users/${userId}/profile?guildId=${selectedGuildId}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${authStore.token}`,
+      Accept: 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const error = new Error(`Server error: ${response.status}`);
+    (error as any).status = response.status;
+    throw error;
+  }
+
+  return response.json();
+}
+
 export async function fetchHourlyHeatmap(options: { days?: number, startDate?: string, endDate?: string } = {}, guildId = authStore.selectedGuildId) {
   const params = new URLSearchParams();
   if (options.days) params.append('days', options.days.toString());
@@ -698,8 +776,11 @@ export async function fetchHourlyHeatmap(options: { days?: number, startDate?: s
   });
 }
 
-export async function fetchWeeklyComparison(guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/analytics/weekly-comparison', {
+export async function fetchWeeklyComparison(options: { offset?: number, mode?: 'week' | 'month' } = {}, guildId = authStore.selectedGuildId) {
+  const params = new URLSearchParams();
+  if (options.offset) params.append('offset', options.offset.toString());
+  if (options.mode) params.append('mode', options.mode);
+  return dashboardRequest(`/analytics/weekly-comparison?${params.toString()}`, {
     method: 'GET',
     guildId,
     errorContext: 'API Error (Weekly Comparison):'
@@ -803,6 +884,14 @@ export async function fetchFeatureConfigurations(guildId = authStore.selectedGui
     method: 'GET',
     guildId,
     errorContext: 'API Error (Fetch Feature Configurations):'
+  });
+}
+
+export async function fetchSuspectedDetections(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/detections', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Suspected Detections):'
   });
 }
 

@@ -17,6 +17,7 @@ import {
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { recordStaffActivity } from '../services/staffManagementService.js';
+import { resolveOnlineMembersCount } from '../services/presenceDetectionService.js';
 import {
   syncGuildInvites,
   markInviteAsDeleted,
@@ -234,17 +235,19 @@ async function processSingleGuildSnapshot(guild: Guild, dateKey: string, hour: n
     let voiceMembers = guild.voiceStates.cache.size;
 
     // If we have 0 online members in cache but the guild has many members, something is likely wrong with the cache
-    if (onlineMembers === 0 && totalMembers > 1) {
-      try {
-        const fetchedGuild = await guild.fetch();
-        // approximatePresenceCount is only available if the bot has specific permissions or if fetched correctly
-        if (fetchedGuild.approximatePresenceCount !== null && fetchedGuild.approximatePresenceCount !== undefined) {
-          onlineMembers = fetchedGuild.approximatePresenceCount;
+    onlineMembers = await resolveOnlineMembersCount({
+      totalMembers,
+      onlineMembersFromCache: onlineMembers,
+      fetchApproximatePresenceCount: async () => {
+        try {
+          const fetchedGuild = await guild.client.guilds.fetch({ guild: guild.id, withCounts: true, force: true });
+          return fetchedGuild.approximatePresenceCount;
+        } catch (e) {
+          logger.debug('Analytics', `Failed to fetch approximate counts for ${guild.id}: ${String(e)}`);
+          return null;
         }
-      } catch (e) {
-        logger.debug('Analytics', `Failed to fetch approximate counts for ${guild.id}: ${String(e)}`);
-      }
-    }
+      },
+    });
     
     const idleMembers = guild.members.cache.filter(m => m.presence?.status === 'idle').size;
     const dndMembers = guild.members.cache.filter(m => m.presence?.status === 'dnd').size;

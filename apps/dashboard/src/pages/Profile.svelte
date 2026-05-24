@@ -1,649 +1,511 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { authStore } from '../lib/stores/auth.svelte';
-  import { API_BASE_URL, fetchMemberDetailedAnalytics, fetchMyApiKeys, deleteMyApiKey } from '../lib/api';
-  import type { APIKey, StaffMember } from '../lib/types';
-  import MetricCard from '../lib/components/MetricCard.svelte';
-  import FormInput from '../lib/components/FormInput.svelte';
+  import { router } from 'tinro';
   import Papicon from '../lib/components/Papicon.svelte';
-  import Chart from '../lib/components/charts/Chart.svelte';
+  import DiscordMemberLookup from '../lib/components/DiscordMemberLookup.svelte';
+  import { authStore } from '../lib/stores/auth.svelte';
+  import { fetchStaffProfile } from '../lib/api';
 
-  let user: any = $state(null);
-  let staffMember: StaffMember | null = $state(null);
-  let apiKeys: APIKey[] = $state([]);
-  let isBlacklisted = $state(false);
-  let blacklistReason = $state('');
-  let blacklistEndDate: string | null = $state(null);
-  let accessibleTools: string[] = $state([]);
-  let stats: any = $state(null);
-  let analyticsData: any = $state(null);
+  let currentUser = $state<any>(null);
+  let profile = $state<any>(null);
   let loading = $state(true);
   let error = $state('');
   let activeTab = $state('overview');
-  let showNewKeyForm = $state(false);
-  let newKeyName = $state('Ma clé API');
-  let copiedKeyId = $state('');
+  let searchUserId = $state('');
+  let searchQuery = $state('');
+  let searchSelectedId = $state('');
+  let searchSelectedUsername = $state('');
+  let searchSelectedAvatarUrl = $state('');
 
-  const tabs = [
+  const tabs = $derived([
     { id: 'overview', label: 'Vue d\'ensemble', icon: 'Grid' },
     { id: 'activity', label: 'Activité', icon: 'TrendingUp' },
-    { id: 'security', label: 'Sécurité', icon: 'Lock' },
-    { id: 'events', label: 'Événements', icon: 'Zap' },
-    { id: 'tools', label: 'Outils', icon: 'Gears' },
-  ];
+    { id: 'discipline', label: 'Discipline', icon: 'ShieldAlert' },
+    { id: 'tests', label: 'Tests', icon: 'ClipboardCheck' },
+    { id: 'history', label: 'Historique', icon: 'History' },
+  ]);
 
-  const getUserAvatar = () => {
-    if (staffMember?.avatarUrl) return staffMember.avatarUrl;
-    if (!user?.id || !user?.avatar) return 'https://cdn.discordapp.com/embed/avatars/0.png';
-    return `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png`;
-  };
+  function formatDate(value: string | Date | null | undefined) {
+    if (!value) return '—';
+    return new Date(value).toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
+  }
 
-  const gradeIcon = (grade: string) => {
-    const g = grade?.toLowerCase();
-    if (g?.includes('fondateur') || g?.includes('direction')) return 'Crown';
-    if (g?.includes('admin')) return 'Shield';
-    if (g?.includes('manager') || g?.includes('responsable')) return 'ShieldCheck';
-    if (g?.includes('mod')) return 'ShieldHalf';
-    if (g?.includes('dev')) return 'Code';
-    if (g?.includes('helper') || g?.includes('test')) return 'LifeBuoy';
-    return 'Badge';
-  };
+  function formatDuration(seconds: number | null | undefined) {
+    if (!seconds || seconds <= 0) return '0m';
+    const totalMinutes = Math.floor(seconds / 60);
+    const hours = Math.floor(totalMinutes / 60);
+    const days = Math.floor(hours / 24);
+    const remainingHours = hours % 24;
+    const remainingMinutes = totalMinutes % 60;
+    if (days > 0) return `${days}j ${remainingHours}h`;
+    if (hours > 0) return `${hours}h ${remainingMinutes}m`;
+    return `${remainingMinutes}m`;
+  }
 
-  const gradeColor = (grade: string) => {
-    const g = grade?.toLowerCase();
-    if (g?.includes('fondateur') || g?.includes('direction')) return 'from-amber-400 via-orange-500 to-rose-600';
-    if (g?.includes('admin')) return 'from-rose-500 to-orange-500';
-    if (g?.includes('manager') || g?.includes('responsable')) return 'from-purple-500 to-indigo-600';
-    if (g?.includes('mod')) return 'from-blue-500 to-cyan-500';
-    if (g?.includes('dev')) return 'from-emerald-500 to-teal-500';
-    return 'from-primary to-primary-container';
-  };
+  function formatGrade(grade: string) {
+    const value = grade.toLowerCase();
+    if (value.includes('owner')) return '👑 Propriétaire';
+    if (value.includes('admin')) return '⚙️ Admin';
+    if (value.includes('moderator') || value.includes('mod')) return '🛡️ Modérateur';
+    if (value.includes('helper')) return '🤝 Helper';
+    return grade;
+  }
 
-  const gradeBorderColor = (grade: string) => {
-    const g = grade?.toLowerCase();
-    if (g?.includes('fondateur') || g?.includes('direction')) return 'border-amber-500/20';
-    if (g?.includes('admin')) return 'border-rose-500/20';
-    if (g?.includes('manager') || g?.includes('responsable')) return 'border-purple-500/20';
-    if (g?.includes('mod')) return 'border-blue-500/20';
-    if (g?.includes('dev')) return 'border-emerald-500/20';
-    return 'border-primary/20';
-  };
+  function getPrimaryRole(profileData: any) {
+    return profileData?.primaryRole ?? profileData?.roles?.[0] ?? null;
+  }
+
+  function formatTestingPeriodStatus(status: string) {
+    if (status === 'PASSED') return '✅ Validée';
+    if (status === 'FAILED') return '❌ Échouée';
+    return '⏳ En cours';
+  }
+
+  function normalizeDiscordUserId(value: string) {
+    const trimmed = value.trim();
+    const mentionMatch = trimmed.match(/^<@!?([0-9]+)>$/);
+    if (mentionMatch) return mentionMatch[1];
+    return trimmed;
+  }
+
+  function getSelectedUserId() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('userId')?.trim() || currentUser?.id || authStore.user?.id || '';
+  }
+
+  async function loadProfile(userId: string) {
+    if (!userId) return;
+
+    loading = true;
+    error = '';
+
+    try {
+      profile = await fetchStaffProfile(userId);
+      searchUserId = userId;
+      searchQuery = userId;
+      searchSelectedId = userId;
+    } catch (err: any) {
+      error = err?.message || 'Impossible de charger le profil staff';
+      profile = null;
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function reloadProfile() {
+    await loadProfile(getSelectedUserId());
+  }
+
+  async function openUserProfile() {
+    const trimmed = normalizeDiscordUserId(searchSelectedId || searchQuery || searchUserId);
+    if (!trimmed) return;
+    router.goto(`/profile?userId=${encodeURIComponent(trimmed)}`);
+    await loadProfile(trimmed);
+  }
 
   onMount(async () => {
-    if (!authStore.token) {
-      error = 'Non authentifié';
-      loading = false;
-      return;
-    }
+    if (authStore.token) {
+      const meResponse = await fetch(`${import.meta.env.VITE_API_URL}/api/user/me`, {
+        headers: { Authorization: `Bearer ${authStore.token}` },
+      }).catch(() => null);
 
-    try {
-      // Récupérer l'utilisateur actuel
-      const meRes = await fetch(`${API_BASE_URL}/api/user/me`, {
-        headers: { Authorization: `Bearer ${authStore.token}` }
-      });
-      if (!meRes.ok) throw new Error('Impossible de récupérer le profil utilisateur');
-      user = await meRes.json();
-
-      // Récupérer le profil staff et les clés API
-      const guildId = authStore.selectedGuildId;
-      const profileRes = await fetch(`${API_BASE_URL}/api/dashboard/users/${user.id}/profile${guildId ? `?guildId=${guildId}` : ''}`, {
-        headers: { Authorization: `Bearer ${authStore.token}` }
-      });
-      if (!profileRes.ok) throw new Error('Impossible de récupérer le profil staff');
-      
-      const profileData = await profileRes.json();
-      staffMember = profileData.staffMember;
-      apiKeys = profileData.apiKeys || [];
-      isBlacklisted = profileData.isBlacklisted;
-      blacklistReason = profileData.blacklistReason;
-      blacklistEndDate = profileData.blacklistEndDate;
-      accessibleTools = profileData.accessibleTools || [];
-      const eventParticipations = profileData.eventParticipations || [];
-      user = { ...user, eventParticipations };
-
-      // Récupérer les stats et analytics
-      if (staffMember) {
-        const [statsRes, analytics] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/dashboard/users/${user.id}/staff-stats`, {
-            headers: { Authorization: `Bearer ${authStore.token}` }
-          }),
-          fetchMemberDetailedAnalytics(user.id, 30)
-        ]);
-
-        if (statsRes.ok) {
-          const statsData = await statsRes.json();
-          stats = statsData.stats;
-        }
-        analyticsData = analytics;
+      if (meResponse?.ok) {
+        currentUser = await meResponse.json();
       }
-
-      loading = false;
-    } catch (err) {
-      console.error('Erreur lors du chargement du profil:', err);
-      error = 'Erreur lors du chargement du profil';
-      loading = false;
     }
+
+    await loadProfile(getSelectedUserId());
   });
-
-  async function createNewAPIKey() {
-    if (!user || !staffMember) return;
-
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${staffMember.guildId}/api-keys`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authStore.token}`
-        },
-        body: JSON.stringify({
-          name: newKeyName,
-          permissions: ['daily_algo:create_exercise']
-        })
-      });
-
-      if (!res.ok) throw new Error('Erreur lors de la création de la clé API');
-
-      const data = await res.json();
-      alert(`Votre clé API a été créée:\n\n${data.fullKey}\n\nCopie-la maintenant, tu ne pourras pas la revoir!`);
-      
-      // Recharger les clés API
-      const keysRes = await fetchMyApiKeys(staffMember.guildId);
-      apiKeys = keysRes?.keys || [];
-      showNewKeyForm = false;
-      newKeyName = 'Ma clé API';
-    } catch (err) {
-      console.error('Erreur:', err);
-      alert('Erreur lors de la création de la clé API');
-    }
-  }
-
-  async function deleteKey(keyId: string) {
-    if (!confirm('Tu es sûr de vouloir supprimer cette clé API?')) return;
-    try {
-      const success = await deleteMyApiKey(keyId, staffMember?.guildId);
-      if (success) {
-        const keysRes = await fetchMyApiKeys(staffMember?.guildId);
-        apiKeys = keysRes?.keys || [];
-      }
-    } catch (err) {
-      console.error('Erreur:', err);
-      alert('Erreur lors de la suppression');
-    }
-  }
-
-  function copyToClipboard(text: string, keyId: string) {
-    navigator.clipboard.writeText(text);
-    copiedKeyId = keyId;
-    setTimeout(() => { copiedKeyId = ''; }, 2000);
-  }
-
-  function formatDate(date: string | Date | null | undefined) {
-    if (!date) return '—';
-    return new Date(date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
-  }
-
-  function getDurationSince(value: string | null | undefined) {
-    if (!value) return 'Inconnu';
-    const start = new Date(value);
-    const now = new Date();
-    let years = now.getFullYear() - start.getFullYear();
-    let months = now.getMonth() - start.getMonth();
-    if (months < 0) { years--; months += 12; }
-
-    const parts: string[] = [];
-    if (years > 0) parts.push(`${years} an${years > 1 ? 's' : ''}`);
-    if (months > 0) parts.push(`${months} mois`);
-    if (parts.length === 0) {
-       const days = Math.floor((now.getTime() - start.getTime()) / 86400000);
-       return days <= 0 ? "Aujourd'hui" : `${days} j`;
-    }
-    return parts.join(', ');
-  }
 </script>
 
-<div class="space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-1000 pb-24">
-  {#if loading}
-    <div class="flex flex-col gap-10 animate-pulse w-full">
-      <div class="h-64 w-full bg-surface-variant/20 rounded-[3rem]"></div>
-      <div class="flex justify-center h-16 w-full max-w-2xl mx-auto bg-surface-variant/20 rounded-full"></div>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="h-80 bg-surface-variant/20 rounded-[2.5rem]"></div>
-        <div class="h-80 bg-surface-variant/20 rounded-[2.5rem]"></div>
-        <div class="h-80 bg-surface-variant/20 rounded-[2.5rem]"></div>
+<div class="min-h-screen bg-surface-container-lowest pb-24">
+  <div class="mx-auto max-w-7xl px-6 pt-10 md:pt-14">
+    {#if loading}
+      <div class="space-y-8 animate-pulse">
+        <div class="h-72 rounded-[3rem] bg-surface-container-high"></div>
+        <div class="grid gap-6 md:grid-cols-4">
+          <div class="h-32 rounded-4xl bg-surface-container-high"></div>
+          <div class="h-32 rounded-4xl bg-surface-container-high"></div>
+          <div class="h-32 rounded-4xl bg-surface-container-high"></div>
+          <div class="h-32 rounded-4xl bg-surface-container-high"></div>
+        </div>
       </div>
-    </div>
-  {:else if error}
-    <div class="rounded-[2.5rem] border-2 border-dashed border-rose-500/20 bg-rose-500/5 px-8 py-12 text-center max-w-2xl mx-auto">
-      <div class="w-20 h-20 rounded-3xl bg-rose-500/10 text-rose-500 flex items-center justify-center mx-auto mb-6">
-        <Papicon icon="AlertTriangle" size={40} />
+    {:else if error}
+      <div class="mx-auto flex max-w-2xl flex-col items-center justify-center rounded-[3rem] border border-rose-500/10 bg-rose-500/5 px-8 py-16 text-center">
+        <div class="mb-6 flex h-20 w-20 items-center justify-center rounded-4xl bg-rose-500/10 text-rose-500">
+          <Papicon icon="AlertTriangle" size={40} />
+        </div>
+        <h1 class="text-4xl font-black tracking-tight text-on-surface font-headline">Profil staff indisponible</h1>
+        <p class="mt-4 max-w-lg text-base font-semibold text-on-surface-variant/70">{error}</p>
+        <button onclick={() => router.goto('/')} class="mt-10 inline-flex items-center gap-3 rounded-2xl bg-surface-container-high px-6 py-4 text-xs font-black uppercase tracking-[0.2em] text-on-surface transition hover:bg-surface-container-highest">
+          <Papicon icon="ArrowLeft" size={18} />
+          Retour
+        </button>
       </div>
-      <h3 class="text-2xl font-black text-rose-700 font-headline">Oups !</h3>
-      <p class="mt-2 text-rose-600/70 font-bold">{error}</p>
-    </div>
-  {:else if user && staffMember}
-
-    <!-- ── Hero Section (Immersive) ──────────────────────────────────────── -->
-    <div class="relative overflow-hidden rounded-[3.5rem] border border-outline-variant/10 bg-surface-container-lowest shadow-2xl">
-      <!-- Dynamic Banner -->
-      <div class="relative h-48 md:h-64 overflow-hidden">
-        <div class="absolute inset-0 bg-linear-to-br {gradeColor(staffMember.grade)} opacity-40 blur-3xl scale-150"></div>
-        <div class="absolute inset-0 bg-linear-to-b from-transparent to-surface-container-lowest"></div>
-        
-        {#if isBlacklisted}
-          <div class="absolute top-6 right-6 z-20">
-            <span class="inline-flex items-center gap-2 rounded-full bg-rose-500 px-4 py-2 text-[10px] font-black text-white uppercase tracking-widest shadow-lg shadow-rose-500/40">
-              <Papicon icon="Slash" size={14} />
-              Compte Blacklisté
-            </span>
+    {:else if profile}
+      <div class="overflow-hidden rounded-[3rem] border border-outline-variant/10 bg-surface-container-low shadow-2xl shadow-surface/20">
+        <div class="relative h-56 bg-linear-to-br from-primary/25 via-primary/10 to-transparent md:h-72">
+          {#if profile.publicProfile?.bannerUrl}
+            <img src={profile.publicProfile.bannerUrl} alt="Bannière" class="h-full w-full object-cover" />
+          {/if}
+          <div class="absolute inset-0 bg-linear-to-b from-transparent via-surface-container-low/10 to-surface-container-lowest"></div>
+          <div class="absolute right-6 top-6 rounded-full border border-white/15 bg-black/20 px-4 py-2 text-[10px] font-black uppercase tracking-[0.25em] text-white backdrop-blur-xl">
+            Dashboard staff
           </div>
-        {/if}
-      </div>
+        </div>
 
-      <!-- Identity & Stats Overlap -->
-      <div class="relative px-8 pb-10 -mt-20 md:-mt-24">
-        <div class="flex flex-col md:flex-row items-end justify-between gap-8">
-          <div class="flex flex-col md:flex-row items-end gap-6">
-            <!-- Avatar -->
-            <div class="relative shrink-0">
-              <div class="absolute -inset-2 bg-linear-to-br {gradeColor(staffMember.grade)} rounded-[2.5rem] blur-2xl opacity-30"></div>
-              <div class="relative w-32 h-32 md:w-40 md:h-40 rounded-[2.5rem] border-[6px] border-surface-container-lowest shadow-2xl overflow-hidden group">
-                <img src={getUserAvatar()} alt="Avatar" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+        <div class="relative px-6 pb-8 md:px-10">
+          <div class="-mt-20 flex flex-col gap-8 md:-mt-24 md:flex-row md:items-end md:justify-between">
+            <div class="flex flex-col gap-6 md:flex-row md:items-end">
+              <div class="relative shrink-0">
+                <div class="absolute -inset-4 rounded-[2.75rem] bg-primary/20 blur-2xl"></div>
+                <img src={profile.publicProfile?.avatarUrl ?? `https://cdn.discordapp.com/embed/avatars/0.png`} alt={profile.staffMember.displayName ?? profile.staffMember.username ?? 'Staff'} class="relative h-40 w-40 rounded-[2.5rem] border-8 border-surface-container-lowest object-cover shadow-2xl md:h-48 md:w-48" />
+              </div>
+
+              <div class="space-y-3 pb-2">
+                <div>
+                  <h1 class="text-4xl font-black tracking-tight text-on-surface md:text-6xl font-headline">{profile.staffMember.displayName ?? profile.publicProfile?.displayName ?? profile.staffMember.username}</h1>
+                  <p class="mt-2 text-lg font-semibold text-on-surface-variant/60">{profile.publicProfile?.userTag ?? profile.staffMember.userTag ?? 'Tag Discord inconnu'} · {formatGrade(profile.staffMember.grade)}</p>
+                </div>
+
+                <div class="flex flex-wrap gap-2">
+                  {#if getPrimaryRole(profile.publicProfile)}
+                    <span class="inline-flex items-center gap-2 rounded-full border border-primary/10 bg-primary/5 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-primary">
+                      <Papicon icon="Award" size={14} />
+                      {getPrimaryRole(profile.publicProfile).name}
+                    </span>
+                    {#if (profile.publicProfile?.roles?.length ?? 0) > 1}
+                      <span class="inline-flex items-center gap-2 rounded-full border border-outline-variant/10 bg-surface-container-high px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-on-surface-variant/60">
+                        +{(profile.publicProfile?.roles?.length ?? 0) - 1} autre{(profile.publicProfile?.roles?.length ?? 0) > 2 ? 's' : ''} rôle{(profile.publicProfile?.roles?.length ?? 0) > 2 ? 's' : ''}
+                      </span>
+                    {/if}
+                  {/if}
+                </div>
               </div>
             </div>
 
-            <div class="space-y-2 pb-2">
-              <div class="flex flex-wrap items-center gap-3">
-                <h2 class="text-3xl md:text-5xl font-black text-on-surface tracking-tighter font-headline leading-none">
-                  {staffMember.displayName || staffMember.username || user.username}
-                </h2>
-                <span class="inline-flex items-center gap-2 rounded-full border-2 {gradeBorderColor(staffMember.grade)} bg-surface-container-low/60 backdrop-blur-md px-4 py-2 text-[10px] font-black uppercase tracking-widest text-on-surface-variant shadow-sm">
-                  <Papicon icon={gradeIcon(staffMember.grade)} size={14} class="text-primary" />
-                  {staffMember.grade}
-                </span>
-              </div>
-              <p class="text-base text-on-surface-variant/60 font-bold">
-                @{user.username} • <span class="font-mono text-xs opacity-50">{user.id}</span>
-              </p>
+            <div class="flex flex-wrap gap-3 pb-2">
+              <button onclick={() => router.goto(`/profile/${profile.staffMember.userId}`)} class="inline-flex items-center gap-3 rounded-2xl border border-outline-variant/10 bg-surface-container-high px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-on-surface transition hover:bg-surface-container-highest">
+                <Papicon icon="ExternalLink" size={18} />
+                Profil public
+              </button>
+              <button onclick={() => router.goto(`/profile?userId=${profile.staffMember.userId}`)} class="inline-flex items-center gap-3 rounded-2xl bg-primary px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-white transition hover:scale-[1.01]">
+                <Papicon icon="ShieldUser" size={18} />
+                Vue staff
+              </button>
             </div>
           </div>
 
-          <div class="flex items-center gap-3 pb-2">
-            <a href="/profile/{user.id}" class="group relative inline-flex items-center gap-3 rounded-2xl bg-on-surface text-surface px-8 py-4 text-xs font-black uppercase tracking-widest transition-all hover:scale-[1.05] active:scale-[0.95] shadow-xl shadow-surface/20">
-              <Papicon icon="Eye" size={18} class="transition-transform group-hover:rotate-12" />
-              Aperçu Public
-            </a>
+          <div class="mt-8 grid gap-4 rounded-[2.25rem] border border-outline-variant/10 bg-surface-container-low/60 p-5 md:grid-cols-[1fr_auto] md:items-end md:p-6">
+            <div>
+              <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Accès rapide</p>
+              <div class="mt-4 flex flex-col gap-3 md:flex-row md:items-center">
+                <div class="w-full md:max-w-xl">
+                  <DiscordMemberLookup
+                    guildId={profile.staffMember.guildId}
+                    bind:query={searchQuery}
+                    bind:selectedId={searchSelectedId}
+                    bind:selectedUsername={searchSelectedUsername}
+                    bind:selectedAvatarUrl={searchSelectedAvatarUrl}
+                    placeholder="@mention, pseudo ou ID Discord"
+                    selectedIdPlaceholder="ID Discord du staff"
+                    staffOnly={true}
+                  />
+                </div>
+                <button onclick={openUserProfile} class="inline-flex items-center justify-center gap-3 rounded-2xl bg-on-surface px-5 py-4 text-xs font-black uppercase tracking-[0.18em] text-surface transition hover:opacity-95">
+                  <Papicon icon="Search" size={18} />
+                  Ouvrir
+                </button>
+              </div>
+            </div>
+            <div class="rounded-2xl bg-surface-container-high px-5 py-4 text-sm font-semibold text-on-surface-variant/75">
+              {searchSelectedUsername ? `Sélection: ${searchSelectedUsername}` : profile.accessibleTools?.length ? `${profile.accessibleTools.length} outil(s) accessible(s)` : 'Aucun outil supplémentaire'}
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <!-- ── Navigation ────────────────────────────────────── -->
-    <div class="sticky top-6 z-40 flex justify-center">
-      <div class="flex gap-1 bg-surface-container-lowest/80 backdrop-blur-2xl p-1.5 rounded-4xl border border-outline-variant/10 shadow-2xl shadow-surface/10 overflow-x-auto no-scrollbar">
-        {#each tabs as tab}
-          <button 
-            onclick={() => activeTab = tab.id} 
-            class="flex items-center gap-2.5 px-6 py-3.5 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all duration-400 whitespace-nowrap group {activeTab === tab.id ? 'bg-primary text-on-primary shadow-lg shadow-primary/25 scale-[1.05]' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
-          >
-            <Papicon icon={tab.icon} size={16} class={activeTab === tab.id ? 'text-on-primary' : 'text-primary'} />
-            {tab.label}
-          </button>
-        {/each}
+      <div class="sticky top-4 z-30 mt-8 flex justify-center">
+        <div class="flex flex-wrap justify-center gap-2 rounded-4xl border border-outline-variant/10 bg-surface-container-lowest/90 p-2 shadow-2xl backdrop-blur-xl">
+          {#each tabs as tab}
+            <button onclick={() => activeTab = tab.id} class="inline-flex items-center gap-3 rounded-3xl px-6 py-3 text-[11px] font-black uppercase tracking-[0.18em] transition {activeTab === tab.id ? 'bg-on-surface text-surface shadow-lg' : 'text-on-surface-variant/60 hover:bg-surface-container-high hover:text-on-surface'}">
+              <Papicon icon={tab.icon} size={16} />
+              {tab.label}
+            </button>
+          {/each}
+        </div>
       </div>
-    </div>
 
-    <!-- ── Content Area ──────────────────────────────────── -->
-    <div class="animate-in fade-in slide-in-from-bottom-4 duration-700">
-      
-      {#if activeTab === 'overview'}
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <!-- Summary Cards -->
-          <div class="lg:col-span-2 grid grid-cols-2 gap-6">
-            <MetricCard label="Messages" value={`${stats?.totalMessages ?? 0}`} note="Total envoyé" icon="MessageSquare" toneClass="bg-primary/10 text-primary" />
-            <MetricCard label="Vocal" value={`${Math.round((stats?.totalVoiceMinutes ?? 0))}m`} note="Temps passé" icon="Mic" toneClass="bg-secondary/10 text-secondary" />
-            <MetricCard label="Sanctions" value={`${stats?.sanctionsIssued ?? 0}`} note="Émises" icon="Hammer" toneClass="bg-rose-500/10 text-rose-500" />
-            <MetricCard label="Avertissements" value={`${stats?.activeWarnings ?? 0}`} note="Reçus (actifs)" icon="ShieldAlert" toneClass="bg-amber-500/10 text-amber-500" />
+      <div class="mt-10 space-y-8">
+        {#if activeTab === 'overview'}
+          <div class="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+            <div class="rounded-[2.25rem] border border-outline-variant/10 bg-surface-container-low p-6">
+              <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Messages</p>
+              <h3 class="mt-3 text-4xl font-black text-on-surface">{profile.stats.totalMessages.toLocaleString('fr-FR')}</h3>
+              <p class="mt-2 text-sm font-semibold text-on-surface-variant/60">Messages cumulés</p>
+            </div>
+            <div class="rounded-[2.25rem] border border-outline-variant/10 bg-surface-container-low p-6">
+              <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Vocal</p>
+              <h3 class="mt-3 text-4xl font-black text-on-surface">{profile.stats.totalVoiceMinutes.toLocaleString('fr-FR')}m</h3>
+              <p class="mt-2 text-sm font-semibold text-on-surface-variant/60">Temps de présence vocal</p>
+            </div>
+            <div class="rounded-[2.25rem] border border-outline-variant/10 bg-surface-container-low p-6">
+              <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Warns</p>
+              <h3 class="mt-3 text-4xl font-black text-on-surface">{profile.stats.activeWarnings}</h3>
+              <p class="mt-2 text-sm font-semibold text-on-surface-variant/60">Avertissements actifs</p>
+            </div>
+            <div class="rounded-[2.25rem] border border-outline-variant/10 bg-surface-container-low p-6">
+              <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Sanctions</p>
+              <h3 class="mt-3 text-4xl font-black text-on-surface">{profile.stats.sanctionsIssued}</h3>
+              <p class="mt-2 text-sm font-semibold text-on-surface-variant/60">Warnings + blacklist</p>
+            </div>
           </div>
 
-          <!-- Staff Identity Bento -->
-          <div class="lg:col-span-2 rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm relative overflow-hidden group">
-            <div class="absolute -right-12 -bottom-12 opacity-[0.03] rotate-12 pointer-events-none group-hover:scale-110 transition-transform duration-1000">
-              <Papicon icon="User" size={240} />
-            </div>
-            
-            <div class="flex items-center gap-4 mb-8">
-              <div class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
-                <Papicon icon="Badge" size={24} />
-              </div>
-              <div>
-                <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Carrière Staff</p>
-                <h4 class="text-xl font-black text-on-surface">Identité & Ancienneté</h4>
-              </div>
-            </div>
-
-            <div class="grid grid-cols-2 gap-8">
-              <div class="space-y-1">
-                <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Staff depuis</p>
-                <p class="text-xl font-black text-on-surface">{getDurationSince(stats?.joinedStaffAt)}</p>
-                <p class="text-[10px] font-bold text-on-surface-variant/60">{formatDate(stats?.joinedStaffAt)}</p>
-              </div>
-              <div class="space-y-1">
-                <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Grade actuel</p>
-                <p class="text-xl font-black text-on-surface">{getDurationSince(stats?.currentRoleStartedAt)}</p>
-                <p class="text-[10px] font-bold text-on-surface-variant/60">Obtenu le {formatDate(stats?.currentRoleStartedAt)}</p>
-              </div>
-              <div class="space-y-1">
-                <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Rapports</p>
-                <div class="flex items-baseline gap-2">
-                  <p class="text-xl font-black text-on-surface">{stats?.pendingReports ?? 0}</p>
-                  <span class="text-[10px] font-bold text-on-surface-variant/40 uppercase">en attente</span>
+          <div class="grid gap-6 lg:grid-cols-3">
+            <div class="rounded-[2.5rem] border border-outline-variant/10 bg-surface-container-low p-8 lg:col-span-2">
+              <div class="flex items-center gap-4">
+                <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Papicon icon="User" size={22} /></div>
+                <div>
+                  <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Contact</p>
+                  <h2 class="text-2xl font-black text-on-surface">Informations staff</h2>
                 </div>
               </div>
-              <div class="space-y-1">
-                <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">ID Serveur</p>
-                <p class="text-xs font-mono font-bold text-on-surface-variant truncate">{staffMember.guildId}</p>
+
+              <div class="mt-8 grid gap-6 md:grid-cols-2">
+                <div>
+                  <p class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/40">Grade</p>
+                  <p class="mt-2 text-base font-bold text-on-surface">{formatGrade(profile.staffMember.grade)}</p>
+                </div>
+                <div>
+                  <p class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/40">Depuis le grade actuel</p>
+                  <p class="mt-2 text-base font-bold text-on-surface">{formatDuration(Date.now() - new Date(profile.staffMember.currentRoleStartedAt).getTime())}</p>
+                </div>
+                <div>
+                  <p class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/40">Entrée dans le staff</p>
+                  <p class="mt-2 text-base font-bold text-on-surface">{formatDate(profile.staffMember.joinedStaffAt)}</p>
+                </div>
+                <div>
+                  <p class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/40">Dernière montée / descente</p>
+                  <p class="mt-2 text-base font-bold text-on-surface">{profile.gradeHistory?.[0] ? formatDate(profile.gradeHistory[0].dateIso) : '—'}</p>
+                </div>
+              </div>
+
+              <div class="mt-8 rounded-4xl border border-outline-variant/10 bg-surface-container-lowest/70 p-6">
+                <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Profil public lié</p>
+                <p class="mt-3 text-sm font-semibold text-on-surface-variant/75">{profile.publicProfile?.bio || 'Aucune bio publique renseignée.'}</p>
+              </div>
+            </div>
+
+            <div class="space-y-6">
+              <div class="rounded-[2.5rem] border border-outline-variant/10 bg-linear-to-br from-primary to-primary-container p-8 text-on-primary shadow-xl shadow-primary/20">
+                <p class="text-[10px] font-black uppercase tracking-[0.25em] text-white/70">Aperçu</p>
+                <h3 class="mt-3 text-2xl font-black">Lecture rapide</h3>
+                <div class="mt-6 space-y-3 text-sm font-semibold text-white/80">
+                  <div class="flex items-center justify-between gap-4"><span>Notes écrites</span><strong>{profile.notesWritten.length}</strong></div>
+                  <div class="flex items-center justify-between gap-4"><span>Notes reçues</span><strong>{profile.notesAbout.length}</strong></div>
+                  <div class="flex items-center justify-between gap-4"><span>Périodes de test</span><strong>{profile.testingPeriods.length}</strong></div>
+                  <div class="flex items-center justify-between gap-4"><span>Absences</span><strong>{profile.absences.length}</strong></div>
+                </div>
+              </div>
+
+              <div class="rounded-[2.5rem] border border-outline-variant/10 bg-surface-container-low p-8">
+                <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Clés API</p>
+                <div class="mt-4 space-y-3">
+                  {#each profile.apiKeys.slice(0, 4) as key}
+                    <div class="rounded-2xl border border-outline-variant/10 bg-surface-container-lowest/70 px-4 py-3 text-sm font-semibold text-on-surface-variant/75">{key.displayKey} · {key.name}</div>
+                  {/each}
+                  {#if profile.apiKeys.length === 0}
+                    <p class="text-sm font-semibold text-on-surface-variant/45">Aucune clé API.</p>
+                  {/if}
+                </div>
               </div>
             </div>
           </div>
-
-          <!-- Blacklist info if relevant -->
-          {#if isBlacklisted}
-            <div class="md:col-span-4 rounded-[2.5rem] border-2 border-rose-500/20 bg-rose-500/5 p-8 flex items-start gap-6">
-              <div class="w-14 h-14 rounded-3xl bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
-                <Papicon icon="AlertTriangle" size={28} />
+        {:else if activeTab === 'activity'}
+          <div class="grid gap-6 lg:grid-cols-3">
+            <div class="rounded-[2.5rem] border border-outline-variant/10 bg-surface-container-low p-8 lg:col-span-2">
+              <div class="flex items-center gap-4">
+                <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Papicon icon="TrendingUp" size={22} /></div>
+                <div>
+                  <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Activité</p>
+                  <h2 class="text-2xl font-black text-on-surface">Dernières actions</h2>
+                </div>
               </div>
-              <div class="space-y-1">
-                <h4 class="text-lg font-black text-rose-700">Votre compte est restreint</h4>
-                <p class="text-sm text-rose-600/80 font-bold leading-relaxed">{blacklistReason}</p>
-                {#if blacklistEndDate}
-                  <p class="text-[10px] font-black uppercase tracking-widest text-rose-500 mt-2">Fin de la restriction : {formatDate(blacklistEndDate)}</p>
-                {:else}
-                  <p class="text-[10px] font-black uppercase tracking-widest text-rose-500 mt-2">Restriction permanente</p>
+
+              <div class="mt-8 space-y-4">
+                {#each profile.activities.slice(0, 12) as activity}
+                  <div class="rounded-[1.75rem] border border-outline-variant/10 bg-surface-container-lowest/80 p-5">
+                    <div class="flex items-start justify-between gap-4">
+                      <div>
+                        <p class="text-base font-black text-on-surface">{formatDate(activity.activityDate)}</p>
+                        <p class="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-on-surface-variant/45">Messages · Vocal</p>
+                      </div>
+                      <span class="rounded-full bg-primary/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-primary">{activity.messageCount} / {activity.voiceMinutes}m</span>
+                    </div>
+                  </div>
+                {/each}
+                {#if profile.activities.length === 0}
+                  <div class="rounded-[1.75rem] border border-dashed border-outline-variant/20 bg-surface-container-lowest/70 p-10 text-center text-sm font-semibold text-on-surface-variant/45">Aucune activité staff enregistrée.</div>
                 {/if}
               </div>
             </div>
-          {/if}
-        </div>
 
-      {:else if activeTab === 'activity'}
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <!-- Activity Chart -->
-          <div class="lg:col-span-2 rounded-[3rem] bg-surface-container-low/30 p-10 border border-outline-variant/10 shadow-sm">
-            <div class="flex items-center justify-between mb-10">
-              <div class="flex items-center gap-4">
-                <div class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
-                  <Papicon icon="TrendingUp" size={24} />
-                </div>
-                <div>
-                  <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Performances</p>
-                  <h4 class="text-2xl font-black text-on-surface font-headline">Tendance d'activité (30j)</h4>
+            <div class="space-y-6">
+              <div class="rounded-[2.5rem] border border-outline-variant/10 bg-surface-container-low p-8">
+                <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Synthèse</p>
+                <div class="mt-5 space-y-4 text-sm font-semibold text-on-surface-variant/75">
+                  <div class="flex items-center justify-between gap-4"><span>Messages</span><strong>{profile.stats.totalMessages.toLocaleString('fr-FR')}</strong></div>
+                  <div class="flex items-center justify-between gap-4"><span>Vocal</span><strong>{profile.stats.totalVoiceMinutes.toLocaleString('fr-FR')}m</strong></div>
+                  <div class="flex items-center justify-between gap-4"><span>Warns</span><strong>{profile.stats.activeWarnings}</strong></div>
                 </div>
               </div>
-            </div>
 
-            {#if analyticsData?.dailyTrend?.length > 0}
-              <div class="h-[300px] w-full">
-                <Chart 
-                  data={{
-                    labels: analyticsData.dailyTrend.map(d => d.dateKey.slice(5)),
-                    datasets: [
-                      {
-                        label: 'Messages',
-                        data: analyticsData.dailyTrend.map(d => d.messages),
-                        borderColor: 'rgb(var(--color-primary))',
-                        backgroundColor: 'rgba(var(--color-primary), 0.1)',
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 0
-                      },
-                      {
-                        label: 'Vocal (min)',
-                        data: analyticsData.dailyTrend.map(d => d.voiceMinutes || 0),
-                        borderColor: 'rgb(var(--color-secondary))',
-                        backgroundColor: 'rgba(var(--color-secondary), 0.1)',
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 0
-                      }
-                    ]
-                  }} 
-                  height={300} 
-                />
+              <div class="rounded-[2.5rem] border border-outline-variant/10 bg-surface-container-low p-8">
+                <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Période de test</p>
+                <p class="mt-4 text-sm font-medium leading-6 text-on-surface-variant/70">{profile.testingPeriods.length ? 'Une ou plusieurs périodes de test existent pour ce membre.' : 'Aucune période de test enregistrée.'}</p>
               </div>
-            {:else}
-              <div class="h-[300px] flex flex-col items-center justify-center text-center">
-                <Papicon icon="BarChart" size={48} class="text-on-surface-variant/20 mb-4" />
-                <p class="text-sm font-bold text-on-surface-variant/40">Pas encore assez de données d'activité</p>
-              </div>
-            {/if}
-          </div>
-
-          <!-- Activity Stats -->
-          <div class="space-y-6">
-            <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm">
-              <h5 class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-6">Récapitulatif</h5>
-              <div class="space-y-6">
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
-                      <Papicon icon="Calendar" size={16} />
-                    </div>
-                    <span class="text-sm font-bold text-on-surface-variant">Jours actifs</span>
-                  </div>
-                  <span class="text-lg font-black text-on-surface">{analyticsData?.activeDays ?? 0}j</span>
-                </div>
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center">
-                      <Papicon icon="MessageSquare" size={16} />
-                    </div>
-                    <span class="text-sm font-bold text-on-surface-variant">Messages totaux</span>
-                  </div>
-                  <span class="text-lg font-black text-on-surface">{analyticsData?.totalMessages?.toLocaleString() ?? 0}</span>
-                </div>
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-500 flex items-center justify-center">
-                      <Papicon icon="Mic" size={16} />
-                    </div>
-                    <span class="text-sm font-bold text-on-surface-variant">Moyenne vocal / jour</span>
-                  </div>
-                  <span class="text-lg font-black text-on-surface">{Math.round((analyticsData?.totalVoiceMinutes ?? 0) / (analyticsData?.activeDays || 1))}m</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="rounded-[2.5rem] bg-linear-to-br from-primary to-primary-container p-8 text-on-primary shadow-xl shadow-primary/20">
-               <Papicon icon="Sparkles" size={32} class="mb-4 opacity-50" />
-               <h5 class="text-lg font-black tracking-tight leading-tight mb-2">Continue comme ça !</h5>
-               <p class="text-xs font-bold opacity-80 leading-relaxed">Ton activité régulière aide à maintenir la communauté dynamique et sécurisée.</p>
             </div>
           </div>
-        </div>
-
-      {:else if activeTab === 'security'}
-        <div class="grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-8">
-          <!-- API Keys Section -->
-          <div class="rounded-[3rem] bg-surface-container-low/30 p-10 border border-outline-variant/10 shadow-sm">
-            <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+        {:else if activeTab === 'discipline'}
+          <div class="grid gap-6 lg:grid-cols-3">
+            <div class="rounded-[2.5rem] border border-outline-variant/10 bg-surface-container-low p-8 lg:col-span-2">
               <div class="flex items-center gap-4">
-                <div class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
-                  <Papicon icon="Lock" size={24} />
-                </div>
+                <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Papicon icon="ShieldAlert" size={22} /></div>
                 <div>
-                  <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Sécurité</p>
-                  <h4 class="text-2xl font-black text-on-surface font-headline">Clés API</h4>
+                  <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Discipline</p>
+                  <h2 class="text-2xl font-black text-on-surface">Warns et blacklist</h2>
                 </div>
               </div>
-              <button 
-                onclick={() => showNewKeyForm = !showNewKeyForm}
-                class="inline-flex items-center gap-2 rounded-2xl px-6 py-3.5 text-[10px] font-black uppercase tracking-widest transition-all {showNewKeyForm ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20' : 'bg-primary text-on-primary shadow-lg shadow-primary/20 hover:scale-[1.02]'}"
-              >
-                <Papicon icon={showNewKeyForm ? 'Cross' : 'Plus'} size={14} />
-                {showNewKeyForm ? 'Annuler' : 'Créer une clé'}
-              </button>
-            </div>
 
-            {#if showNewKeyForm}
-              <div class="mb-10 p-6 rounded-3xl bg-surface-container-high/40 border border-outline-variant/10 animate-in zoom-in-95 duration-500">
-                <div class="flex flex-col md:flex-row gap-4 items-end">
-                  <div class="flex-1 w-full">
-                    <label for="key-name" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-2 block px-1">Nom de la clé</label>
-                    <FormInput id="key-name" bind:value={newKeyName} placeholder="Mon application..." className="w-full" />
-                  </div>
-                  <button 
-                    onclick={createNewAPIKey}
-                    class="w-full md:w-auto inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 text-white px-8 py-4 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all"
-                  >
-                    <Papicon icon="Check" size={14} /> Confirmer
-                  </button>
-                </div>
-              </div>
-            {/if}
-
-            {#if apiKeys.length > 0}
-              <div class="grid gap-4">
-                {#each apiKeys as key (key.id)}
-                  <div class="group flex items-center justify-between gap-4 rounded-3xl border border-outline-variant/10 bg-surface-container-low/60 p-6 transition-all hover:bg-surface-container-low hover:border-primary/20">
-                    <div class="min-w-0 flex-1">
-                      <div class="flex items-center gap-3 mb-2">
-                        <span class="text-sm font-black text-on-surface">{key.name}</span>
-                        <div class="flex gap-1">
-                          {#each key.permissions as perm}
-                            <span class="px-2 py-0.5 rounded-lg bg-primary/5 text-[9px] font-black text-primary uppercase tracking-tighter border border-primary/10">{perm}</span>
-                          {/each}
-                        </div>
+              <div class="mt-8 space-y-4">
+                {#each profile.warnings as warning}
+                  <div class="rounded-[1.75rem] border border-outline-variant/10 bg-surface-container-lowest/80 p-5">
+                    <div class="flex items-start justify-between gap-4">
+                      <div>
+                        <p class="text-base font-black text-on-surface">{warning.reason}</p>
+                        <p class="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-on-surface-variant/45">{formatDate(warning.createdAt)} · {warning.isActive ? 'Actif' : 'Inactif'}</p>
                       </div>
-                      <div class="flex items-center gap-3">
-                        <code class="text-xs font-mono text-on-surface-variant/60 bg-surface-container-high px-3 py-1 rounded-xl">{key.displayKey}</code>
-                        <button 
-                          onclick={() => copyToClipboard(key.displayKey, key.id)}
-                          class="p-2 rounded-lg hover:bg-surface-container-high transition-colors text-on-surface-variant/40 hover:text-primary"
-                        >
-                          <Papicon icon={copiedKeyId === key.id ? 'Check' : 'Paper'} size={14} />
-                        </button>
-                      </div>
+                      <span class="rounded-full bg-primary/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-primary">Warn</span>
                     </div>
-                    <button 
-                      onclick={() => deleteKey(key.id)}
-                      class="opacity-0 group-hover:opacity-100 p-3 rounded-xl bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white transition-all duration-300"
-                    >
-                      <Papicon icon="Trash" size={18} />
-                    </button>
                   </div>
                 {/each}
+                {#if profile.warnings.length === 0}
+                  <div class="rounded-[1.75rem] border border-dashed border-outline-variant/20 bg-surface-container-lowest/70 p-10 text-center text-sm font-semibold text-on-surface-variant/45">Aucun avertissement staff enregistré.</div>
+                {/if}
               </div>
-            {:else}
-              <div class="py-20 flex flex-col items-center justify-center text-center bg-surface-container-low/20 rounded-3xl border-2 border-dashed border-outline-variant/10">
-                <div class="w-16 h-16 rounded-3xl bg-on-surface/5 flex items-center justify-center text-on-surface-variant/20 mb-6">
-                  <Papicon icon="Lock" size={32} />
-                </div>
-                <h5 class="text-lg font-black text-on-surface-variant/60">Aucune clé API active</h5>
-                <p class="mt-1 text-sm font-bold text-on-surface-variant/30">Créez-en une pour automatiser vos tâches Kotbo.</p>
-              </div>
-            {/if}
-          </div>
+            </div>
 
-          <!-- Security Sidebar -->
-          <div class="space-y-6">
-            <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm">
-               <div class="flex items-center gap-3 mb-6">
-                  <div class="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center">
-                    <Papicon icon="ShieldAlert" size={20} />
-                  </div>
-                  <h5 class="text-sm font-black uppercase tracking-widest text-on-surface">Conseils de sécurité</h5>
-               </div>
-               <ul class="space-y-4">
-                 <li class="flex gap-3 text-xs font-bold text-on-surface-variant/60 leading-relaxed">
-                   <span class="text-amber-500">•</span>
-                   Ne partagez jamais vos clés API avec des tiers.
-                 </li>
-                 <li class="flex gap-3 text-xs font-bold text-on-surface-variant/60 leading-relaxed">
-                   <span class="text-amber-500">•</span>
-                   Une clé compromise doit être supprimée immédiatement.
-                 </li>
-                 <li class="flex gap-3 text-xs font-bold text-on-surface-variant/60 leading-relaxed">
-                   <span class="text-amber-500">•</span>
-                   Utilisez des noms de clés explicites pour faciliter leur gestion.
-                 </li>
-               </ul>
+            <div class="space-y-6">
+              <div class="rounded-[2.5rem] border border-outline-variant/10 bg-surface-container-low p-8">
+                <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Blacklist</p>
+                {#if profile.activeBlacklist}
+                  <p class="mt-4 text-sm font-semibold text-on-surface-variant/75">{profile.activeBlacklist.reason}</p>
+                  <p class="mt-3 text-xs font-black uppercase tracking-[0.18em] text-primary">Depuis {formatDate(profile.activeBlacklist.startDate)}</p>
+                {:else}
+                  <p class="mt-4 text-sm font-semibold text-on-surface-variant/45">Aucune blacklist active.</p>
+                {/if}
+              </div>
+
+              <div class="rounded-[2.5rem] border border-outline-variant/10 bg-surface-container-low p-8">
+                <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Absences</p>
+                <p class="mt-4 text-sm font-semibold text-on-surface-variant/70">{profile.absences.length} absence(s) consignée(s).</p>
+              </div>
             </div>
           </div>
-        </div>
-      {:else if activeTab === 'events'}
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {#each user.eventParticipations || [] as part}
-            <div class="bg-surface-container-low/50 rounded-[2.5rem] p-8 border border-outline-variant/10 flex items-center justify-between">
-              <div class="flex items-center gap-6">
-                <div class="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
-                  <Papicon icon="Zap" size={24} />
-                </div>
+        {:else if activeTab === 'tests'}
+          <div class="grid gap-6 lg:grid-cols-3">
+            <div class="rounded-[2.5rem] border border-outline-variant/10 bg-surface-container-low p-8 lg:col-span-2">
+              <div class="flex items-center gap-4">
+                <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Papicon icon="ClipboardCheck" size={22} /></div>
                 <div>
-                  <h5 class="text-lg font-black text-on-surface">{part.event.title}</h5>
-                  <p class="text-[10px] text-on-surface-variant/40 mt-1 uppercase tracking-widest font-black">
-                    {formatDate(part.event.createdAt)}
-                  </p>
+                  <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Tests</p>
+                  <h2 class="text-2xl font-black text-on-surface">Périodes de test et rapports</h2>
                 </div>
               </div>
-              <div class="text-right">
-                <p class="text-2xl font-black text-primary">{part.score} pts</p>
-                <p class="text-[10px] text-on-surface-variant/40 uppercase font-black">Score final</p>
-              </div>
-            </div>
-          {:else}
-             <div class="md:col-span-2 py-24 flex flex-col items-center justify-center text-center bg-surface-container-low/10 rounded-[3rem] border-2 border-dashed border-outline-variant/10">
-               <Papicon icon="Zap" size={64} class="text-on-surface-variant/10 mb-6" />
-               <h5 class="text-xl font-black text-on-surface-variant/40">Aucune participation</h5>
-               <p class="mt-2 text-sm font-bold text-on-surface-variant/20">Vous n'avez pas encore participé à un événement.</p>
-            </div>
-          {/each}
-        </div>
-      {:else if activeTab === 'tools'}
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          <!-- Tools Grid -->
-          {#if accessibleTools.length > 0}
-            {#each accessibleTools as tool}
-              <div class="group relative rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm transition-all hover:shadow-xl hover:-translate-y-1 hover:border-primary/20 overflow-hidden">
-                <div class="absolute -right-6 -top-6 w-24 h-24 bg-primary/5 rounded-full blur-2xl group-hover:bg-primary/10 transition-colors"></div>
-                <div class="relative z-10">
-                  <div class="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                    <Papicon icon="Gears" size={28} />
-                  </div>
-                  <h5 class="text-lg font-black text-on-surface mb-2">{tool}</h5>
-                  <p class="text-xs font-bold text-on-surface-variant/60">Outil de gestion Kotbo activé pour votre grade.</p>
-                </div>
-              </div>
-            {/each}
-          {:else}
-            <div class="md:col-span-4 py-24 flex flex-col items-center justify-center text-center bg-surface-container-low/10 rounded-[3rem] border-2 border-dashed border-outline-variant/10">
-               <Papicon icon="Gears" size={64} class="text-on-surface-variant/10 mb-6" />
-               <h5 class="text-xl font-black text-on-surface-variant/40">Aucun outil spécifique</h5>
-               <p class="mt-2 text-sm font-bold text-on-surface-variant/20">Votre grade actuel ne vous donne pas accès à des outils externes.</p>
-            </div>
-          {/if}
-        </div>
-      {/if}
-    </div>
 
-  {:else}
-    <!-- Empty / Unauthorized State -->
-    <div class="flex flex-col items-center justify-center py-32 text-center">
-      <div class="w-24 h-24 rounded-[2.5rem] bg-amber-500/10 text-amber-500 flex items-center justify-center shadow-inner mb-8">
-        <Papicon icon="UserCross" size={48} />
+              <div class="mt-8 space-y-4">
+                {#each profile.testingPeriods as period}
+                  <div class="rounded-[1.75rem] border border-outline-variant/10 bg-surface-container-lowest/80 p-5">
+                    <div class="flex items-start justify-between gap-4">
+                      <div>
+                        <p class="text-base font-black text-on-surface">{formatTestingPeriodStatus(period.status)}</p>
+                        <p class="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-on-surface-variant/45">Début {formatDate(period.startDate)} · Cible {period.targetGrade ?? '—'}</p>
+                      </div>
+                      <span class="rounded-full bg-primary/5 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-primary">{period.plannedDurationDays}j</span>
+                    </div>
+
+                    <div class="mt-4 grid gap-3 md:grid-cols-2">
+                      <div class="rounded-2xl bg-surface-container-low px-4 py-3 text-sm font-semibold text-on-surface-variant/75">Mentor: {period.mentor ? period.mentor.displayName ?? period.mentor.username : '—'}</div>
+                      <div class="rounded-2xl bg-surface-container-low px-4 py-3 text-sm font-semibold text-on-surface-variant/75">Rapports: {period.reports?.length ?? 0}</div>
+                    </div>
+                  </div>
+                {/each}
+
+                {#if profile.testingPeriods.length === 0}
+                  <div class="rounded-[1.75rem] border border-dashed border-outline-variant/20 bg-surface-container-lowest/70 p-10 text-center text-sm font-semibold text-on-surface-variant/45">Aucune période de test enregistrée.</div>
+                {/if}
+              </div>
+            </div>
+
+            <div class="space-y-6">
+              <div class="rounded-[2.5rem] border border-outline-variant/10 bg-surface-container-low p-8">
+                <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Historique des rapports</p>
+                <p class="mt-4 text-sm font-semibold text-on-surface-variant/70">Les rapports de tutorat et de suivi sont visibles dans les périodes détaillées.</p>
+              </div>
+            </div>
+          </div>
+        {:else if activeTab === 'history'}
+          <div class="grid gap-6 lg:grid-cols-3">
+            <div class="rounded-[2.5rem] border border-outline-variant/10 bg-surface-container-low p-8 lg:col-span-2">
+              <div class="flex items-center gap-4">
+                <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Papicon icon="History" size={22} /></div>
+                <div>
+                  <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Historique</p>
+                  <h2 class="text-2xl font-black text-on-surface">Grades et notes récentes</h2>
+                </div>
+              </div>
+
+              <div class="mt-8 space-y-4">
+                {#each profile.gradeHistory as entry}
+                  <div class="rounded-[1.75rem] border border-outline-variant/10 bg-surface-container-lowest/80 p-5">
+                    <p class="text-base font-black text-on-surface">{entry.action}</p>
+                    <p class="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-on-surface-variant/45">{formatDate(entry.dateIso)} · {entry.module}</p>
+                    <p class="mt-3 text-sm font-medium leading-6 text-on-surface-variant/75">{entry.details}</p>
+                  </div>
+                {/each}
+
+                {#if profile.gradeHistory.length === 0}
+                  <div class="rounded-[1.75rem] border border-dashed border-outline-variant/20 bg-surface-container-lowest/70 p-10 text-center text-sm font-semibold text-on-surface-variant/45">Aucun historique de grade disponible.</div>
+                {/if}
+              </div>
+            </div>
+
+            <div class="space-y-6">
+              <div class="rounded-[2.5rem] border border-outline-variant/10 bg-surface-container-low p-8">
+                <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Notes de management</p>
+                <p class="mt-4 text-sm font-semibold text-on-surface-variant/70">{profile.notesAbout.length} note(s) reçue(s), {profile.notesWritten.length} note(s) rédigée(s).</p>
+              </div>
+              <div class="rounded-[2.5rem] border border-outline-variant/10 bg-surface-container-low p-8">
+                <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Raccourcis</p>
+                <button onclick={() => router.goto(`/profile/${profile.staffMember.userId}`)} class="mt-4 inline-flex w-full items-center justify-center gap-3 rounded-2xl bg-primary px-5 py-4 text-xs font-black uppercase tracking-[0.18em] text-white transition hover:scale-[1.01]">
+                  <Papicon icon="ExternalLink" size={18} />
+                  Voir le profil public
+                </button>
+              </div>
+            </div>
+          </div>
+        {/if}
       </div>
-      <h3 class="text-3xl font-black tracking-tighter text-on-surface font-headline">Profil Non Trouvé</h3>
-      <p class="mt-4 max-w-md text-base leading-relaxed text-on-surface-variant/60 font-bold">
-        Vous ne semblez pas faire partie de l'équipe staff sur ce serveur. 
-        Si c'est une erreur, contactez un administrateur.
-      </p>
-      <div class="mt-12">
-        <a href="/" class="inline-flex items-center gap-3 rounded-2xl bg-primary px-10 py-5 text-sm font-black uppercase tracking-widest text-on-primary shadow-2xl shadow-primary/30 transition-all hover:scale-[1.05] active:scale-[0.95]">
-          <Papicon icon="ArrowLeft" size={20} />
-          Retour au Dashboard
-        </a>
-      </div>
-    </div>
-  {/if}
+    {/if}
+  </div>
 </div>
 
-
+<style>
+  :global(.font-headline) {
+    font-family: 'Outfit', 'Inter', sans-serif;
+  }
+</style>

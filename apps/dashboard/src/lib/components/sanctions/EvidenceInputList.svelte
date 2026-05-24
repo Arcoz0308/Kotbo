@@ -4,11 +4,15 @@
   let { 
     links = $bindable([]),
     disabled = false,
-    placeholder = "Lien de preuve (https://...)"
+    placeholder = "Lien de preuve (https://...)",
+    labelId = '',
+    inputIdPrefix = ''
   } = $props<{
     links: string[];
     disabled?: boolean;
     placeholder?: string;
+    labelId?: string;
+    inputIdPrefix?: string;
   }>();
 
   if (links.length === 0) {
@@ -32,7 +36,7 @@
   }
 </script>
 
-<div class="space-y-3">
+<div class="space-y-3" role={labelId ? 'group' : undefined} aria-labelledby={labelId || undefined}>
   {#each links as link, index (index)}
     <div class="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
       <div class="relative flex-1 group">
@@ -40,6 +44,7 @@
           <Papicon icon="link" size={14} />
         </div>
         <input
+          id={inputIdPrefix ? `${inputIdPrefix}-${index}` : undefined}
           type="url"
           value={link}
           oninput={(e) => handleInput(index, e.currentTarget.value)}

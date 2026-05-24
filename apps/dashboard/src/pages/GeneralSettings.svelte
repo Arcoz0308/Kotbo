@@ -17,12 +17,13 @@
   );
 
   const availableChannels = $derived(dashboardStore.state.discordChannels || []);
+  const availableVoiceChannels = $derived(dashboardStore.state.discordVoiceChannels || []);
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
 
   let guildSettings = $state({
     configChannelId: '',
     publicChannelId: '',
-    digestChannelId: '',
+    dailyAlgoChannelId: '',
     meetingVoiceChannelId: '',
     baseStaffRoleId: '',
     testStaffRoleId: '',
@@ -42,7 +43,7 @@
       guildSettings = {
         configChannelId: s.configChannelId || '',
         publicChannelId: s.publicChannelId || '',
-        digestChannelId: s.digestChannelId || '',
+        dailyAlgoChannelId: s.dailyAlgoChannelId || '',
         meetingVoiceChannelId: s.meetingVoiceChannelId || '',
         baseStaffRoleId: s.baseStaffRoleId || '',
         testStaffRoleId: s.testStaffRoleId || '',
@@ -66,11 +67,6 @@
     await saveAction.run(async () => {
       const ok = await updateGlobalSettings(guildSettings);
       if (!ok) throw new Error('Erreur API');
-      
-      // Also update the feature config channelId for logs
-      if (guildSettings.logChannelId) {
-        await updateFeatureConfiguration('logs', { channelId: guildSettings.logChannelId });
-      }
 
       await dashboardStore.refresh();
       return true;
@@ -78,8 +74,8 @@
   }
 
   const channelFields = [
-    { key: 'meetingVoiceChannelId', label: 'Vocal Réunions', desc: 'Salon vocal par défaut' },
-    { key: 'digestChannelId', label: 'Salon Digest', desc: 'Publication du digest de news' },
+    { key: 'meetingVoiceChannelId', label: 'Vocal Réunions', desc: 'Salon vocal par défaut', isVoice: true },
+    { key: 'dailyAlgoChannelId', label: 'Salon Daily Algo', desc: 'Salon de publication des exercices quotidiens' },
     { key: 'publicChannelId', label: 'Salon Public', desc: 'Salon public général' },
     { key: 'configChannelId', label: 'Salon Config', desc: 'Salon de configuration interne' },
     { key: 'logChannelId', label: 'Salon Logs', desc: 'Salon des logs d\'activité' },
@@ -153,7 +149,11 @@
                 <label for={field.key} class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{field.label}</label>
                 <FormSelect id={field.key} bind:value={guildSettings[field.key]} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all">
                   <option value="">— Aucun —</option>
-                  {#each availableChannels as c}<option value={c.id}>#{c.name}</option>{/each}
+                  {#if field.isVoice}
+                    {#each availableVoiceChannels as c}<option value={c.id}>🔊 {c.name}</option>{/each}
+                  {:else}
+                    {#each availableChannels as c}<option value={c.id}>#{c.name}</option>{/each}
+                  {/if}
                 </FormSelect>
                 <p class="text-[9px] text-on-surface-variant/40 ml-2">{field.desc}</p>
               </div>

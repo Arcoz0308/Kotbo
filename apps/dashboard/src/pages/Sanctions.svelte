@@ -1,5 +1,6 @@
 <script lang="ts">
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { portal } from '../lib/actions/portal';
   import { authStore } from '../lib/stores/auth.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
@@ -928,6 +929,7 @@
 
 {#if modalOpen && selectedSanction}
   <div 
+    use:portal
     class="modal-backdrop" 
     onclick={closeModal}
     onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && closeModal()}
@@ -1080,8 +1082,12 @@
             </div>
 
             <div class="space-y-3">
-              <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Preuves (URLs)</label>
-              <EvidenceInputList bind:links={evidenceLinks} />
+              <p id="report-evidence-label" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Preuves (URLs)</p>
+              <EvidenceInputList
+                bind:links={evidenceLinks}
+                labelId="report-evidence-label"
+                inputIdPrefix="report-evidence"
+              />
             </div>
 
             <div class="space-y-1.5">
@@ -1129,6 +1135,7 @@
 
 {#if deleteModalOpen && pendingDeletion}
   <div 
+    use:portal
     class="modal-backdrop" 
     onclick={closeDeleteModal}
     onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && closeDeleteModal()}

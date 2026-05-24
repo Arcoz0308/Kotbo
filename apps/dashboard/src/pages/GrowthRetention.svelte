@@ -25,8 +25,8 @@
     
     try {
       const [growth, heatmap, weekly] = await Promise.all([
-        fetchGrowthAndRetention(period),
-        fetchHourlyHeatmap(heatmapDays),
+        fetchGrowthAndRetention({ days: period }),
+        fetchHourlyHeatmap({ days: heatmapDays }),
         fetchWeeklyComparison()
       ]);
 

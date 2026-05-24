@@ -23,6 +23,7 @@
   import NotificationsSettings from './pages/NotificationsSettings.svelte';
   import CommandAccess from './pages/CommandAccess.svelte';
   import Sanctions from './pages/Sanctions.svelte';
+  import Detections from './pages/Detections.svelte';
   import Regulation from './pages/Regulation.svelte';
   import AdminOverview from './pages/AdminOverview.svelte';
   import Profile from './pages/Profile.svelte';
@@ -44,8 +45,10 @@
   import EventControl from './pages/EventControl.svelte';
   import Invitations from './pages/Invitations.svelte';
   import InvitationDetail from './pages/InvitationDetail.svelte';
+  import Tickets from './pages/Tickets.svelte';
+  import TranscriptDetail from './pages/TranscriptDetail.svelte';
 
-  const isPublicPage = $derived($router.path.startsWith('/profile/'));
+  const isPublicPage = $derived($router.path.startsWith('/profile/') || $router.path.startsWith('/transcripts/'));
 
   const featureAccess = $derived(dashboardStore.state.featureAccess || {});
   const fallbackCanView = $derived(
@@ -68,10 +71,12 @@
     if (path.startsWith('/members') || path.startsWith('/invitations')) return 'members';
     if (path.startsWith('/sanctions')) return 'sanctions';
     if (path.startsWith('/nickname-moderation')) return 'nickname_moderation';
+    if (path.startsWith('/detections')) return 'double_accounts';
     if (path.startsWith('/double-accounts')) return 'double_accounts';
     if (path.startsWith('/logs')) return 'logs';
     if (path.startsWith('/activity')) return 'activity';
     if (path.startsWith('/recruitment')) return 'recruitment';
+    if (path.startsWith('/tickets')) return 'tickets';
     if (path.startsWith('/tutoring')) return 'tutoring';
     if (path.startsWith('/meetings')) return 'meetings';
     if (path.startsWith('/absences')) return 'absences';
@@ -119,19 +124,62 @@
       router.goto('/login');
     }
 
-    // Global error handling
-    const handleError = (event: ErrorEvent | PromiseRejectionEvent) => {
-      const message = 'message' in event ? event.message : (event as PromiseRejectionEvent).reason?.message || 'Une erreur est survenue';
-      console.error('Global error:', event);
-      toast.error(message);
+    // Global error handling — ignores network/abort errors from WS reconnections
+    // and Vite dev-server internal errors to avoid infinite feedback loops
+    const IGNORED_MESSAGES = [
+      'Failed to fetch',
+      'NetworkError',
+      'Load failed',
+      'AbortError',
+      'The operation was aborted',
+      // Vite dev-server WS errors (would cause infinite loop if logged via console)
+      'send was called before connect',
+      'WebSocket is closed',
+    ];
+
+    // Re-entrancy guard: prevents the handler from triggering itself
+    let isHandlingRejection = false;
+    
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      if (isHandlingRejection) {
+        event.preventDefault();
+        return;
+      }
+
+      const reason = event.reason;
+      const message: string = reason?.message || String(reason) || '';
+      
+      // Silently ignore network errors (e.g. from WS reconnect / API temporarily down)
+      if (IGNORED_MESSAGES.some(ignored => message.includes(ignored))) {
+        event.preventDefault(); // Suppress browser console error too
+        return;
+      }
+
+      isHandlingRejection = true;
+      try {
+        // Use queueMicrotask to avoid calling toast synchronously during Vite init
+        queueMicrotask(() => {
+          toast.error(message || 'Une erreur inattendue est survenue');
+          isHandlingRejection = false;
+        });
+      } catch {
+        isHandlingRejection = false;
+      }
+    };
+
+    const handleError = (event: ErrorEvent) => {
+      // Only show toast for non-script-load errors
+      if (event.message && !IGNORED_MESSAGES.some(m => event.message.includes(m))) {
+        toast.error(event.message || 'Une erreur est survenue');
+      }
     };
 
     window.addEventListener('error', handleError);
-    window.addEventListener('unhandledrejection', handleError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
 
     return () => {
       window.removeEventListener('error', handleError);
-      window.removeEventListener('unhandledrejection', handleError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
     };
   });
 
@@ -157,6 +205,7 @@
     'sanctions': '/sanctions',
     'logs': '/logs',
     'recruitment': '/recruitment',
+    'tickets': '/tickets',
     'meetings': '/meetings',
     'dailyalgo': $router.query.submissionId ? `/dailyalgo/ide?submissionId=${$router.query.submissionId}` : '/dailyalgo'
   }}
@@ -167,6 +216,9 @@
 {#if isPublicPage}
   <Route path="/profile/:userId" let:meta>
     <PublicProfile userId={meta.params.userId} />
+  </Route>
+  <Route path="/transcripts/:transcriptId" let:meta>
+    <TranscriptDetail transcriptId={meta.params.transcriptId} />
   </Route>
   <Route fallback>
     <NotFound />
@@ -209,6 +261,9 @@
       <Route path="/sanctions">
         <Sanctions />
       </Route>
+      <Route path="/detections">
+        <Detections />
+      </Route>
       <Route path="/regulation">
         <Regulation />
       </Route>
@@ -248,6 +303,9 @@
       </Route>
       <Route path="/recruitment">
         <Recruitment />
+      </Route>
+      <Route path="/tickets">
+        <Tickets />
       </Route>
       <Route path="/meetings">
         <Meetings />

@@ -33,14 +33,16 @@ import * as adminCmd from './commands/admin.js';
 import * as helpCmd from './commands/help.js';
 import * as postCmd from './commands/post.js';
 import * as dailyAlgoCmd from './commands/dailyAlgo.js';
-import * as profileCmd from './commands/profile.js';
-import * as profilCmd from './commands/profil.js';
+import * as profileCmd from './commands/profile.ts';
+import * as profilCmd from './commands/profil.ts';
 import * as sanctionCmd from './commands/sanction.js';
+import * as dcCmd from './commands/dc.js';
 import * as casierCmd from './commands/casier.js';
 import * as absentCmd from './commands/absent.js';
 import * as meetingCmd from './commands/meeting.js';
 import * as noteCmd from './commands/note.js';
 import * as eventCmd from './commands/event.js';
+import * as transcriptCmd from './commands/transcript.js';
 import prisma from './utils/db.js';
 import {
   evaluateCommandRestriction,
@@ -67,6 +69,7 @@ import * as serverstatsCmd from './commands/serverstats.js';
 import * as statsCmd from './commands/stats.js';
 import * as invitesCmd from './commands/invites.js';
 import * as activateCmd from './commands/activate.js';
+import * as sayCmd from './commands/say.js';
 import { loadActivatedGuilds, isGuildActivated } from './utils/activation.js';
 
 initBotSentry();
@@ -161,7 +164,7 @@ type SlashCommand = {
 };
 
 const commands = new Collection<string, SlashCommand>();
-[setupCmd, configCmd, pingCmd, infoCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd, postCmd, dailyAlgoCmd, profileCmd, profilCmd, sanctionCmd, casierCmd, absentCmd, meetingCmd, statsCmd, invitesCmd, leaderboardCmd, serverstatsCmd, noteCmd, eventCmd, activateCmd].forEach((cmd) => {
+[setupCmd, configCmd, pingCmd, infoCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd, postCmd, dailyAlgoCmd, profileCmd, profilCmd, sanctionCmd, dcCmd, casierCmd, absentCmd, meetingCmd, statsCmd, invitesCmd, leaderboardCmd, serverstatsCmd, noteCmd, eventCmd, activateCmd, transcriptCmd, sayCmd].forEach((cmd) => {
   commands.set(cmd.data.name, cmd as SlashCommand);
 });
 commands.set(noteCmd.contextData.name, noteCmd as unknown as SlashCommand);

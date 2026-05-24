@@ -2,6 +2,8 @@ import prisma from '../utils/db.js';
 import type { StaffMember, TestingPeriod, APIKey } from '@prisma/client';
 import crypto from 'node:crypto';
 import { createNotification } from './staffLeadershipService.js';
+import { getClient } from '../utils/client.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Service de gestion du personnel staff
@@ -61,6 +63,84 @@ const resolveStaffMemberId = async (guildId: string, staffIdentifier: string) =>
   return byUserId?.id ?? null;
 };
 
+export const syncStaffDiscordRoles = async (
+  guildId: string,
+  userId: string,
+  gradeName: string
+) => {
+  try {
+    const client = getClient();
+    const [guildConfig, staffRoles] = await Promise.all([
+      prisma.guild.findUnique({ where: { id: guildId } }),
+      prisma.staffRole.findMany({ where: { guildId, enabled: true } })
+    ]);
+
+    if (!guildConfig) return;
+
+    const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
+    if (!discordGuild) {
+      logger.warn('StaffManagement', `Serveur Discord non trouvé pour la synchro des rôles de ${userId} (Guild ID: ${guildId})`);
+      return;
+    }
+
+    const discordMember = await discordGuild.members.fetch(userId).catch(() => null);
+    if (!discordMember) {
+      logger.warn('StaffManagement', `Membre Discord non trouvé pour la synchro des rôles de ${userId} (Guild ID: ${guildId})`);
+      return;
+    }
+
+    const targetStaffRole = staffRoles.find(r => r.name.toLowerCase() === gradeName.toLowerCase());
+    const targetRoleId = targetStaffRole?.discordRoleId;
+
+    // Roles to add
+    const rolesToAdd: string[] = [];
+    if (targetRoleId) rolesToAdd.push(targetRoleId);
+    if (guildConfig.baseStaffRoleId) rolesToAdd.push(guildConfig.baseStaffRoleId);
+
+    // If grade is a test grade (contains 'test' or 'helper' case insensitive), add testStaffRoleId
+    const isTestGrade = gradeName.toLowerCase().includes('test') || gradeName.toLowerCase().includes('helper');
+    if (isTestGrade && guildConfig.testStaffRoleId) {
+      rolesToAdd.push(guildConfig.testStaffRoleId);
+    }
+
+    // Roles to remove
+    const rolesToRemove: string[] = [];
+    
+    // Remove other grade-specific roles
+    for (const r of staffRoles) {
+      if (r.discordRoleId && (!targetRoleId || r.discordRoleId !== targetRoleId)) {
+        rolesToRemove.push(r.discordRoleId);
+      }
+    }
+
+    // If it's not a test grade anymore, remove testStaffRoleId
+    if (!isTestGrade && guildConfig.testStaffRoleId) {
+      rolesToRemove.push(guildConfig.testStaffRoleId);
+    }
+
+    // Filter out roles that member already has / doesn't have to avoid unnecessary Discord API calls
+    const currentRoleIds = discordMember.roles.cache.map(r => r.id);
+    const finalRolesToRemove = rolesToRemove.filter(id => currentRoleIds.includes(id));
+    const finalRolesToAdd = rolesToAdd.filter(id => !currentRoleIds.includes(id));
+
+    if (finalRolesToRemove.length > 0) {
+      await discordMember.roles.remove(finalRolesToRemove).catch(err => {
+        logger.error('StaffManagement', `Erreur retrait rôles pour ${userId}: ${err.message}`);
+      });
+    }
+
+    if (finalRolesToAdd.length > 0) {
+      await discordMember.roles.add(finalRolesToAdd).catch(err => {
+        logger.error('StaffManagement', `Erreur ajout rôles pour ${userId}: ${err.message}`);
+      });
+    }
+
+    logger.success('StaffManagement', `Synchro des rôles Discord réussie pour ${userId} (Grade: ${gradeName})`);
+  } catch (err) {
+    logger.error('StaffManagement', `Erreur lors de syncStaffDiscordRoles pour ${userId}: ${err instanceof Error ? err.message : err}`);
+  }
+};
+
 export const addStaffMember = async (
   guildId: string,
   userId: string,
@@ -70,7 +150,7 @@ export const addStaffMember = async (
   displayName?: string,
   avatarUrl?: string
 ) => {
-  return prisma.staffMember.upsert({
+  const result = await prisma.staffMember.upsert({
     where: { guildId_userId: { guildId, userId } },
     update: {
       grade,
@@ -89,6 +169,11 @@ export const addStaffMember = async (
       avatarUrl,
     },
   });
+
+  // Sync Discord roles in background
+  void syncStaffDiscordRoles(guildId, userId, grade).catch(() => null);
+
+  return result;
 };
 
 
@@ -109,17 +194,20 @@ export const updateStaffGrade = async (
     },
   });
 
+  // Sync Discord roles in background
+  void syncStaffDiscordRoles(guildId, userId, newGrade).catch(() => null);
+
   if (oldMember && oldMember.grade !== newGrade) {
     // Essayer de déterminer si c'est une promotion ou un downgrade
     // On peut se baser sur les rôles configurés si besoin, mais ici on va faire simple par défaut
     // ou comparer avec une liste de grades connus.
-    const gradesHierarchy = ['Staff', 'Modérateur', 'Responsable', 'Manager', 'Admin', 'Administrateur', 'Direction', 'Fondateur'];
+    const gradesHierarchy = ['Modérateur', 'Responsable', 'Manager', 'Admin', 'Administrateur', 'Direction', 'Fondateur'];
     const oldIndex = gradesHierarchy.indexOf(oldMember.grade);
     const newIndex = gradesHierarchy.indexOf(newGrade);
 
     let title = 'Changement de grade';
     let message = `Votre grade a été mis à jour : **${newGrade}**.`;
-    let type = 'INFO';
+    let type: 'ERROR' | 'INFO' | 'WARNING' | 'SUCCESS' | 'CRITICAL' = 'INFO';
 
     if (oldIndex !== -1 && newIndex !== -1) {
       if (newIndex > oldIndex) {
@@ -166,10 +254,45 @@ export const toggleTutorStatus = async (
 };
 
 export const removeStaffMember = async (guildId: string, userId: string) => {
+  try {
+    const client = getClient();
+    const [guildConfig, staffRoles] = await Promise.all([
+      prisma.guild.findUnique({ where: { id: guildId } }),
+      prisma.staffRole.findMany({ where: { guildId, enabled: true } })
+    ]);
+
+    if (guildConfig) {
+      const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
+      if (discordGuild) {
+        const discordMember = await discordGuild.members.fetch(userId).catch(() => null);
+        if (discordMember) {
+          const rolesToRemove: string[] = [];
+          if (guildConfig.baseStaffRoleId) rolesToRemove.push(guildConfig.baseStaffRoleId);
+          if (guildConfig.testStaffRoleId) rolesToRemove.push(guildConfig.testStaffRoleId);
+          for (const r of staffRoles) {
+            if (r.discordRoleId) rolesToRemove.push(r.discordRoleId);
+          }
+
+          const currentRoleIds = discordMember.roles.cache.map(r => r.id);
+          const finalRolesToRemove = rolesToRemove.filter(id => currentRoleIds.includes(id));
+
+          if (finalRolesToRemove.length > 0) {
+            await discordMember.roles.remove(finalRolesToRemove).catch(err => {
+              logger.error('StaffManagement', `Erreur retrait rôles lors du renvoi de ${userId}: ${err.message}`);
+            });
+          }
+        }
+      }
+    }
+  } catch (err) {
+    logger.error('StaffManagement', `Erreur lors du retrait des rôles de ${userId}: ${err instanceof Error ? err.message : err}`);
+  }
+
   return prisma.staffMember.delete({
     where: { guildId_userId: { guildId, userId } },
   });
 };
+
 
 export const getStaffMemberStats = async (guildId: string, userId: string) => {
   const resolvedStaffMemberId = await resolveStaffMemberId(guildId, userId);
@@ -381,22 +504,31 @@ export const addMentorReport = async (
   type: 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL',
   content: string
 ) => {
+  const period = await prisma.testingPeriod.findUnique({
+    where: { id: testingPeriodId },
+    include: { staffMember: true }
+  });
+
+  if (!period) {
+    throw new Error('Période de test introuvable');
+  }
+
+  const resolvedAuthorId = await resolveStaffMemberId(period.guildId, authorId);
+  if (!resolvedAuthorId) {
+    throw new Error('Auteur introuvable dans le staff');
+  }
+
   const report = await prisma.mentorReport.create({
     data: {
       testingPeriodId,
-      authorId,
+      authorId: resolvedAuthorId,
       type,
       content,
     },
   });
 
   // Notifier le membre en test
-  const period = await prisma.testingPeriod.findUnique({
-    where: { id: testingPeriodId },
-    include: { staffMember: true }
-  });
-
-  if (period?.staffMember) {
+  if (period.staffMember) {
     await createNotification(
       period.guildId,
       period.staffMember.userId,
@@ -499,6 +631,34 @@ export const reorderStaffRoles = async (guildId: string, orderedRoleIds: string[
       })
     )
   );
+};
+
+export const deleteStaffRole = async (guildId: string, roleId: string) => {
+  const roleToDelete = await prisma.staffRole.findFirst({
+    where: { id: roleId, guildId }
+  });
+  if (!roleToDelete) return null;
+
+  const deleted = await prisma.staffRole.delete({
+    where: { id: roleId }
+  });
+
+  // Reorder remaining roles to keep sortOrder contiguous
+  const remainingRoles = await prisma.staffRole.findMany({
+    where: { guildId },
+    orderBy: [{ sortOrder: 'asc' }, { level: 'asc' }, { createdAt: 'asc' }]
+  });
+
+  await prisma.$transaction(
+    remainingRoles.map((role, index) =>
+      prisma.staffRole.update({
+        where: { id: role.id },
+        data: { sortOrder: index }
+      })
+    )
+  );
+
+  return deleted;
 };
 
 export const createAPIKey = async (
