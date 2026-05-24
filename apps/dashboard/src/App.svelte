@@ -39,6 +39,7 @@
   import Inbox from './pages/Inbox.svelte';
   import Tutoring from './pages/Tutoring.svelte';
   import DoubleAccounts from './pages/DoubleAccounts.svelte';
+  import NicknameModeration from './pages/NicknameModeration.svelte';
   import GeneralSettings from './pages/GeneralSettings.svelte';
   import DailyAlgo from './pages/DailyAlgo.svelte';
   import DailyAlgoIDE from './pages/DailyAlgoIDE.svelte';
@@ -75,6 +76,7 @@
     if (path.startsWith('/events')) return 'events';
     if (path.startsWith('/members') || path.startsWith('/invitations')) return 'members';
     if (path.startsWith('/sanctions')) return 'sanctions';
+    if (path.startsWith('/nickname-moderation')) return 'nickname_moderation';
     if (path.startsWith('/detections')) return 'double_accounts';
     if (path.startsWith('/double-accounts')) return 'double_accounts';
     if (path.startsWith('/logs')) return 'logs';
@@ -241,6 +243,108 @@
       <Route path="/transcripts/:transcriptId" let:meta>
         <TranscriptDetail transcriptId={meta.params.transcriptId} />
       </Route>
+
+      <Route path="/analytics">
+        <Analytics />
+      </Route>
+      <Route path="/activity">
+        <ActivityLog />
+      </Route>
+      {#if authStore.isBotAdmin}
+        <Route path="/admin">
+          <AdminOverview />
+        </Route>
+      {/if}
+      <Route path="/logs">
+        <Logs />
+      </Route>
+      <Route path="/sanctions">
+        <Sanctions />
+      </Route>
+      <Route path="/detections">
+        <Detections />
+      </Route>
+      <Route path="/regulation">
+        <Regulation />
+      </Route>
+      <Route path="/profile">
+        <Profile />
+      </Route>
+      {#if canManageSettings}
+        <Route path="/modules">
+          <ModuleCatalog />
+        </Route>
+        <Route path="/module-settings/:moduleId" let:meta>
+          <!-- Simple redirect logic for legacy URLs -->
+          {@render handleLegacyRedirect(meta.params.moduleId)}
+        </Route>
+        <Route path="/notifications">
+          <NotificationsSettings />
+        </Route>
+        <Route path="/command-access">
+          <CommandAccess />
+        </Route>
+        <Route path="/settings">
+          <GeneralSettings />
+        </Route>
+        <Route path="/automations">
+          <ModuleCatalog />
+        </Route>
+        <Route path="/staff-management">
+          <StaffManagement />
+        </Route>
+      {/if}
+
+      <Route path="/dailyalgo">
+        <DailyAlgo />
+      </Route>
+      <Route path="/members/*">
+        <Members />
+      </Route>
+      <Route path="/recruitment">
+        <Recruitment />
+      </Route>
+      <Route path="/tickets">
+        <Tickets />
+      </Route>
+      <Route path="/meetings">
+        <Meetings />
+      </Route>
+      <Route path="/absences">
+        <Absences />
+      </Route>
+      <Route path="/inbox">
+        <Inbox />
+      </Route>
+      <Route path="/tutoring">
+        <Tutoring />
+      </Route>
+      <Route path="/double-accounts">
+        <DoubleAccounts />
+      </Route>
+      <Route path="/nickname-moderation">
+        <NicknameModeration />
+      </Route>
+      <Route path="/invitations">
+        <Invitations />
+      </Route>
+      <Route path="/invitations/:code" let:meta>
+        {#key meta.params.code}
+          <InvitationDetail code={meta.params.code} />
+        {/key}
+      </Route>
+
+      <Route path="/events">
+        <Events />
+      </Route>
+      <Route path="/events/edit/:eventId" let:meta>
+        <EventEditor eventId={meta.params.eventId} />
+      </Route>
+      <Route path="/events/control/:eventId" let:meta>
+        <EventControl eventId={meta.params.eventId} />
+      </Route>
+      
+      <!-- Fallback for authenticated users -->
       <Route fallback>
         <NotFound />
       </Route>
