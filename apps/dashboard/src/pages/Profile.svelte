@@ -51,6 +51,8 @@
   let newKeyName = $state('Ma clé API');
   let copiedKeyId = $state('');
   let newKeyCreatedValue = $state('');
+  let permRecruitment = $state(false);
+  let permDailyAlgo = $state(true);
 
   // Manager Notes Form
   let newNoteContent = $state('');
@@ -180,6 +182,16 @@
 
   async function createNewAPIKey() {
     if (!staffMember) return;
+    
+    const permissions: string[] = [];
+    if (permRecruitment) permissions.push('recruitment:forms');
+    if (permDailyAlgo) permissions.push('daily_algo:create_exercise');
+
+    if (permissions.length === 0) {
+      toast.error('Veuillez sélectionner au moins une permission.');
+      return;
+    }
+
     try {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${staffMember.guildId}/api-keys`, {
         method: 'POST',
@@ -189,7 +201,7 @@
         },
         body: JSON.stringify({
           name: newKeyName,
-          permissions: ['daily_algo:create_exercise']
+          permissions
         })
       });
 
@@ -203,6 +215,8 @@
       apiKeys = keysRes?.keys || [];
       showNewKeyForm = false;
       newKeyName = 'Ma clé API';
+      permRecruitment = false;
+      permDailyAlgo = true;
       toast.success('Clé API générée avec succès');
     } catch (err) {
       console.error(err);
@@ -269,6 +283,45 @@
   function formatDate(date: string | Date | null | undefined) {
     if (!date) return '—';
     return new Date(date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+  }
+
+  function getTierColor(tier: string) {
+    const t = tier?.toLowerCase() || '';
+    if (t.includes('légende') || t.includes('legende')) return 'text-rose-400';
+    if (t.includes('maître') || t.includes('maitre')) return 'text-purple-400';
+    if (t.includes('expert')) return 'text-amber-400';
+    if (t.includes('apprenti')) return 'text-blue-400';
+    return 'text-emerald-400';
+  }
+
+  function getTierBg(tier: string) {
+    const t = tier?.toLowerCase() || '';
+    if (t.includes('légende') || t.includes('legende')) return 'bg-rose-500/10 border-rose-500/20';
+    if (t.includes('maître') || t.includes('maitre')) return 'bg-purple-500/10 border-purple-500/20';
+    if (t.includes('expert')) return 'bg-amber-500/10 border-amber-500/20';
+    if (t.includes('apprenti')) return 'bg-blue-500/10 border-blue-500/20';
+    return 'bg-emerald-500/10 border-emerald-500/20';
+  }
+
+  const getRankSuffix = (rank: number) => {
+    if (rank === 1) return 'er';
+    return 'e';
+  };
+
+  function formatTimeAgo(dateStr: string | null) {
+    if (!dateStr) return 'Jamais';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return "À l'instant";
+    if (diffMins < 60) return `Il y a ${diffMins} min`;
+    if (diffHours < 24) return `Il y a ${diffHours}h`;
+    if (diffDays === 1) return "Hier";
+    return `Il y a ${diffDays} jours`;
   }
 
   function getDurationSince(value: string | null | undefined) {
@@ -716,10 +769,10 @@
         <!-- Community Profile View -->
         <div class="space-y-8">
           <div class="grid grid-cols-2 lg:grid-cols-4 gap-6">
-            <MetricCard label="Points" value={publicProfile.points?.toLocaleString() || '0'} note="Score global" icon="Trophy" toneClass="bg-amber-500/10 text-amber-500" />
-            <MetricCard label="Badge / Tier" value={publicProfile.tier || 'Débutant'} note="Niveau actuel" icon="Zap" toneClass={`${getTierBg(publicProfile.tier)} ${getTierColor(publicProfile.tier)}`} />
-            <MetricCard label="Série (Streak)" value={`${publicProfile.streak || 0}j`} note="Record actuel" icon="Flame" toneClass="bg-orange-500/10 text-orange-500" />
-            <MetricCard label="Classement" value={publicProfile.rank !== undefined ? `${publicProfile.rank + 1}${getRankSuffix(publicProfile.rank + 1)}` : '—'} note="Position serveur" icon="Medal" toneClass="bg-purple-500/10 text-purple-500" />
+            <MetricCard label="Messages" value={publicProfile.messageCount?.toLocaleString() || '0'} note="Total envoyés" icon="MessageSquare" toneClass="bg-blue-500/10 text-blue-500" />
+            <MetricCard label="Vocal" value={`${Math.round((publicProfile.voiceTimeSeconds || 0) / 60)} min`} note="Temps passé" icon="Mic" toneClass="bg-emerald-500/10 text-emerald-500" />
+            <MetricCard label="Événements" value={`${publicProfile.eventParticipations?.length || 0}`} note="Participations" icon="Zap" toneClass="bg-amber-500/10 text-amber-500" />
+            <MetricCard label="Ancienneté" value={getDurationSince(publicProfile.guildJoinedAt)} note="Depuis l'arrivée" icon="Calendar" toneClass="bg-purple-500/10 text-purple-500" />
           </div>
 
           <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -764,47 +817,38 @@
               {/if}
             </div>
 
-            <!-- Right column algo participations -->
+            <!-- Right column event participations -->
             <div class="lg:col-span-2 space-y-6">
               <div class="rounded-[2.5rem] bg-surface-container-low/40 border border-outline-variant/10 p-10 shadow-sm">
                 <div class="flex items-center gap-3.5 mb-8 border-b border-outline-variant/5 pb-6">
                   <div class="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center">
-                    <Papicon icon="Terminal" size={24} />
+                    <Papicon icon="Zap" size={24} />
                   </div>
                   <div>
-                    <h3 class="text-xl font-black text-on-surface font-headline leading-tight">Défis Validés</h3>
-                    <p class="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-wider mt-0.5">Activité algorithmique récente</p>
+                    <h3 class="text-xl font-black text-on-surface font-headline leading-tight">Historique Événements</h3>
+                    <p class="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-wider mt-0.5">Participations communautaires récentes</p>
                   </div>
                 </div>
 
-                {#if publicProfile.recentAlgos && publicProfile.recentAlgos.length > 0}
-                  <div class="space-y-3.5">
-                    {#each publicProfile.recentAlgos as algo}
-                      <div class="flex items-center justify-between p-4.5 rounded-2xl bg-surface-container-high/30 border border-outline-variant/5 hover:border-primary/25 hover:bg-surface-container-high/60 transition-all group/item">
-                        <div class="flex items-center gap-4">
-                          <div class="w-10 h-10 rounded-lg bg-primary/5 text-primary flex items-center justify-center group-hover/item:scale-105 transition-transform">
-                            <Papicon icon="Check" size={16} />
-                          </div>
-                          <div>
-                            <h4 class="text-sm font-black text-on-surface leading-tight">{algo.title}</h4>
-                            <p class="text-[9px] font-bold text-on-surface-variant/40 uppercase tracking-wider mt-0.5">Kotbo Engine</p>
-                          </div>
+                {#if publicProfile.eventParticipations && publicProfile.eventParticipations.length > 0}
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {#each publicProfile.eventParticipations as event}
+                      <div class="flex items-center justify-between p-4.5 rounded-2xl bg-surface-container-high/30 border border-outline-variant/5 hover:border-primary/25 hover:bg-surface-container-high/60 transition-all">
+                        <div>
+                          <h4 class="text-sm font-black text-on-surface leading-tight truncate max-w-[180px]">{event.title}</h4>
+                          <p class="text-[9px] font-bold text-primary uppercase tracking-wider mt-0.5">{event.type}</p>
                         </div>
                         <div class="text-right">
-                          {#if algo.points !== null && algo.points !== undefined}
-                            <span class="text-sm font-black text-emerald-400">+{algo.points} pts</span>
-                          {:else}
-                            <span class="text-[10px] font-bold text-emerald-400/80 uppercase">Validé</span>
-                          {/if}
-                          <p class="text-[9px] font-bold text-on-surface-variant/30 uppercase tracking-wider mt-0.5">{formatDate(algo.date)}</p>
+                          <span class="text-sm font-black text-primary">{event.score} pts</span>
+                          <p class="text-[9px] font-bold text-on-surface-variant/30 uppercase tracking-wider mt-0.5">{formatDate(event.date)}</p>
                         </div>
                       </div>
                     {/each}
                   </div>
                 {:else}
                   <div class="py-16 text-center opacity-30">
-                    <Papicon icon="Terminal" size={48} class="mx-auto mb-4" />
-                    <p class="text-sm font-black uppercase tracking-widest">Aucune soumission validée</p>
+                    <Papicon icon="Zap" size={48} class="mx-auto mb-4" />
+                    <p class="text-sm font-black uppercase tracking-widest">Aucune participation répertoriée</p>
                   </div>
                 {/if}
               </div>
@@ -855,17 +899,49 @@
 
             {#if showNewKeyForm}
               <div class="mb-10 p-6 rounded-3xl bg-surface-container-high/40 border border-outline-variant/10 animate-in zoom-in-95 duration-500">
-                <div class="flex flex-col md:flex-row gap-4 items-end">
-                  <div class="flex-1 w-full">
-                    <label for="key-name" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-2 block px-1">Nom descriptif de la clé</label>
-                    <FormInput id="key-name" bind:value={newKeyName} placeholder="Mon script de backup..." className="w-full" />
+                <div class="flex flex-col gap-6">
+                  <div class="flex flex-col md:flex-row gap-4 items-end">
+                    <div class="flex-1 w-full">
+                      <label for="key-name" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-2 block px-1">Nom descriptif de la clé</label>
+                      <FormInput id="key-name" bind:value={newKeyName} placeholder="Mon script de backup..." className="w-full" />
+                    </div>
                   </div>
-                  <button 
-                    onclick={createNewAPIKey}
-                    class="w-full md:w-auto inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 text-white px-8 py-4 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all"
-                  >
-                    <Papicon icon="Check" size={14} /> Confirmer
-                  </button>
+
+                  <div>
+                    <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 block mb-3 px-1">Permissions de la clé</span>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <!-- Recruitment Checkbox -->
+                      <label class="flex items-start gap-3 p-4 rounded-2xl border border-outline-variant/10 bg-surface-container-low/50 hover:bg-surface-container-low cursor-pointer select-none transition-colors">
+                        <input type="checkbox" bind:checked={permRecruitment} class="mt-1 accent-primary" />
+                        <div>
+                          <p class="text-xs font-black text-on-surface">Module Recrutement</p>
+                          <p class="text-[10px] font-bold text-on-surface-variant/50 mt-1 leading-relaxed">
+                            Lier un formulaire externe (ex: Google Forms) pour enregistrer les candidatures sur Kotbo.
+                          </p>
+                        </div>
+                      </label>
+
+                      <!-- Daily Algo Checkbox -->
+                      <label class="flex items-start gap-3 p-4 rounded-2xl border border-outline-variant/10 bg-surface-container-low/50 hover:bg-surface-container-low cursor-pointer select-none transition-colors">
+                        <input type="checkbox" bind:checked={permDailyAlgo} class="mt-1 accent-primary" />
+                        <div>
+                          <p class="text-xs font-black text-on-surface">Daily Algo API</p>
+                          <p class="text-[10px] font-bold text-on-surface-variant/50 mt-1 leading-relaxed">
+                            Accéder aux fonctionnalités de l'API Daily Algo (ex: création d'exercices).
+                          </p>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="flex justify-end border-t border-outline-variant/5 pt-4">
+                    <button 
+                      onclick={createNewAPIKey}
+                      class="w-full md:w-auto inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 text-white px-8 py-4 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all"
+                    >
+                      <Papicon icon="Check" size={14} /> Confirmer la création
+                    </button>
+                  </div>
                 </div>
               </div>
             {/if}
@@ -879,7 +955,9 @@
                         <span class="text-sm font-black text-on-surface">{key.name}</span>
                         <div class="flex gap-1">
                           {#each key.permissions as perm}
-                            <span class="px-2 py-0.5 rounded-lg bg-primary/5 text-[9px] font-black text-primary uppercase tracking-tighter border border-primary/10">{perm}</span>
+                            <span class="px-2 py-0.5 rounded-lg bg-primary/5 text-[9px] font-black text-primary uppercase tracking-tighter border border-primary/10">
+                              {perm === 'recruitment:forms' ? 'Recrutement' : perm === 'daily_algo:create_exercise' ? 'Daily Algo' : perm}
+                            </span>
                           {/each}
                         </div>
                       </div>

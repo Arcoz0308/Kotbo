@@ -867,6 +867,10 @@ export async function deleteTestingPeriod(periodId, guildId = authStore.selected
   return dashboardMutation(`/tutoring/periods/${periodId}`, { method: 'DELETE', guildId });
 }
 
+export async function createTestingPeriod(payload, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/tutoring/periods', { method: 'POST', payload, guildId });
+}
+
 export async function addMentorReport(testingPeriodId, type, content, guildId = authStore.selectedGuildId) {
   return dashboardMutation('/mentor-reports', { method: 'POST', payload: { testingPeriodId, type, content }, guildId });
 }
@@ -1173,5 +1177,34 @@ export async function purgeInviterMembers(userId: string, guildId = authStore.se
     errorContext: 'Error purging inviter members'
   });
 }
+
+export async function reportDashboardError(errorData: {
+  error: string;
+  stack?: string;
+  url: string;
+  userAgent: string;
+  guildId?: string | null;
+}) {
+  const headers: Record<string, string> = { 
+    'Content-Type': 'application/json',
+    'Accept': 'application/json' 
+  };
+  if (authStore.token) {
+    headers.Authorization = `Bearer ${authStore.token}`;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/report-error`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(errorData)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Server error: ${response.status}`);
+  }
+
+  return response.json();
+}
+
 
 

@@ -16,10 +16,87 @@
     addMentorReport,
     endTestingPeriod,
     fetchFeatureConfigurations,
-    updateFeatureConfiguration
+    updateFeatureConfiguration,
+    createTestingPeriod,
+    fetchStaffMembers,
+    fetchStaffRoles
   } from '../lib/api';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
+
+  let createTutoringModalOpen = $state(false);
+  let createTutoringForm = $state({
+    staffUserId: '',
+    mentorId: '',
+    plannedDurationDays: 14,
+    targetGrade: ''
+  });
+  let allStaffMembers = $state<any[]>([]);
+  let allStaffRoles = $state<any[]>([]);
+  let loadingStaffInfo = $state(false);
+
+  async function openCreateTutoringModal() {
+    createTutoringModalOpen = true;
+    loadingStaffInfo = true;
+    try {
+      const [membersData, rolesData] = await Promise.all([
+        fetchStaffMembers().catch(() => ({ members: [] })),
+        fetchStaffRoles().catch(() => ({ roles: [] }))
+      ]);
+      allStaffMembers = membersData?.members || [];
+      allStaffRoles = rolesData?.roles || [];
+      
+      // Select default values
+      const potentialApprentices = allStaffMembers.filter(m => !tutorApprentices.some(a => a.staffMember?.userId === m.userId));
+      if (potentialApprentices.length > 0) {
+        createTutoringForm.staffUserId = potentialApprentices[0].userId;
+      } else if (allStaffMembers.length > 0) {
+        createTutoringForm.staffUserId = allStaffMembers[0].userId;
+      }
+      
+      const tutors = allStaffMembers.filter(m => m.isTutor);
+      if (tutors.length > 0) {
+        createTutoringForm.mentorId = tutors[0].userId;
+      } else {
+        createTutoringForm.mentorId = '';
+      }
+      
+      if (allStaffRoles.length > 0) {
+        createTutoringForm.targetGrade = allStaffRoles[0].name;
+      } else {
+        createTutoringForm.targetGrade = '';
+      }
+      
+      if (config) {
+        createTutoringForm.plannedDurationDays = config.minTestDays || 14;
+      }
+    } catch (err) {
+      console.error('Error fetching staff info for tutoring creation:', err);
+    } finally {
+      loadingStaffInfo = false;
+    }
+  }
+
+  async function submitCreateTutoring() {
+    if (!createTutoringForm.staffUserId) {
+      alert('Veuillez sélectionner un apprenti.');
+      return;
+    }
+    try {
+      const ok = await createTestingPeriod({
+        staffUserId: createTutoringForm.staffUserId,
+        mentorId: createTutoringForm.mentorId || undefined,
+        plannedDurationDays: Number(createTutoringForm.plannedDurationDays),
+        targetGrade: createTutoringForm.targetGrade || undefined
+      });
+      if (!ok) throw new Error('Erreur de l\'API');
+      createTutoringModalOpen = false;
+      fetchData();
+    } catch (err: any) {
+      console.error('Error creating tutoring relation:', err);
+      alert(err.message || 'Erreur lors de la création du tutorat.');
+    }
+  }
   
   let activeTab = $state('dashboard'); // dashboard, progress, config
   let config = $state<any>(null);
@@ -292,28 +369,40 @@
   featureKey="tutoring"
 >
   {#snippet actions()}
-    <div class="flex items-center gap-2 p-1 bg-surface-container-high/50 rounded-2xl border border-outline-variant/20 relative backdrop-blur-xl">
-      <button 
-        onclick={() => activeTab = 'dashboard'}
-        class="flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-300 {activeTab === 'dashboard' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-surface-hover hover:text-on-surface'}"
-      >
-        <Papicon icon="grid" size={18} />
-        <span class="text-sm font-bold">Dashboard Tuteur</span>
-      </button>
-      <button 
-        onclick={() => activeTab = 'progress'}
-        class="flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-300 {activeTab === 'progress' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-surface-hover hover:text-on-surface'}"
-      >
-        <Papicon icon="trending-up" size={18} />
-        <span class="text-sm font-bold">Ma Progression</span>
-      </button>
-      {#if authStore.isAdmin || tutorApprentices.length > 0}
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-2 p-1 bg-surface-container-high/50 rounded-2xl border border-outline-variant/20 relative backdrop-blur-xl">
         <button 
-          onclick={() => activeTab = 'config'}
-          class="flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-300 {activeTab === 'config' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-surface-hover hover:text-on-surface'}"
+          onclick={() => activeTab = 'dashboard'}
+          class="flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-300 {activeTab === 'dashboard' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-surface-hover hover:text-on-surface'}"
         >
-          <Papicon icon="settings" size={18} />
-          <span class="text-sm font-bold">Configuration</span>
+          <Papicon icon="grid" size={18} />
+          <span class="text-sm font-bold">Dashboard Tuteur</span>
+        </button>
+        <button 
+          onclick={() => activeTab = 'progress'}
+          class="flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-300 {activeTab === 'progress' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-surface-hover hover:text-on-surface'}"
+        >
+          <Papicon icon="trending-up" size={18} />
+          <span class="text-sm font-bold">Ma Progression</span>
+        </button>
+        {#if authStore.isAdmin || tutorApprentices.length > 0}
+          <button 
+            onclick={() => activeTab = 'config'}
+            class="flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all duration-300 {activeTab === 'config' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-surface-hover hover:text-on-surface'}"
+          >
+            <Papicon icon="settings" size={18} />
+            <span class="text-sm font-bold">Configuration</span>
+          </button>
+        {/if}
+      </div>
+
+      {#if authStore.isAdmin}
+        <button 
+          onclick={openCreateTutoringModal}
+          class="flex items-center gap-2 px-5 py-3 rounded-2xl transition-all duration-300 bg-primary text-white shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98]"
+        >
+          <Papicon icon="plus" size={18} />
+          <span class="text-sm font-black uppercase tracking-wider">Créer un tutorat</span>
         </button>
       {/if}
     </div>
@@ -1030,6 +1119,98 @@
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if createTutoringModalOpen}
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-surface-container-lowest/80 backdrop-blur-md animate-in fade-in duration-300">
+    <div class="w-full max-w-lg bg-surface-container-low rounded-[31px] border border-outline-variant/30 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+      <div class="p-8">
+        <h2 class="text-2xl font-black text-on-surface mb-2">Créer un nouveau Tutorat</h2>
+        <p class="text-on-surface-variant mb-6 font-medium text-sm">Assignez un tuteur à un membre du staff en période de test.</p>
+        
+        {#if loadingStaffInfo}
+          <div class="flex flex-col items-center justify-center py-10">
+            <div class="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            <p class="text-sm text-on-surface-variant mt-4 font-medium">Chargement des membres du staff...</p>
+          </div>
+        {:else}
+          <div class="flex flex-col gap-6">
+            <div class="flex flex-col gap-2">
+              <label for="apprentice" class="text-xs font-black uppercase text-on-surface-variant tracking-widest pl-2">Apprenti (Membre Staff)</label>
+              <select 
+                id="apprentice"
+                bind:value={createTutoringForm.staffUserId}
+                class="bg-surface-container px-6 py-4 rounded-2xl border border-outline-variant/30 focus:border-primary outline-none transition-all text-on-surface"
+              >
+                <option value="">-- Choisir un apprenti --</option>
+                {#each allStaffMembers as member}
+                  <option value={member.userId}>
+                    {member.displayName || member.username} ({member.grade})
+                  </option>
+                {/each}
+              </select>
+            </div>
+
+            <div class="flex flex-col gap-2">
+              <label for="mentor" class="text-xs font-black uppercase text-on-surface-variant tracking-widest pl-2">Tuteur (Facultatif)</label>
+              <select 
+                id="mentor"
+                bind:value={createTutoringForm.mentorId}
+                class="bg-surface-container px-6 py-4 rounded-2xl border border-outline-variant/30 focus:border-primary outline-none transition-all text-on-surface"
+              >
+                <option value="">-- Aucun tuteur (Période autonome) --</option>
+                {#each allStaffMembers.filter(m => m.isTutor) as member}
+                  <option value={member.userId}>
+                    {member.displayName || member.username}
+                  </option>
+                {/each}
+              </select>
+            </div>
+
+            <div class="flex flex-col gap-2">
+              <label for="target-grade" class="text-xs font-black uppercase text-on-surface-variant tracking-widest pl-2">Grade Visé (Facultatif)</label>
+              <select 
+                id="target-grade"
+                bind:value={createTutoringForm.targetGrade}
+                class="bg-surface-container px-6 py-4 rounded-2xl border border-outline-variant/30 focus:border-primary outline-none transition-all text-on-surface"
+              >
+                <option value="">-- Aucun --</option>
+                {#each allStaffRoles as role}
+                  <option value={role.name}>{role.name}</option>
+                {/each}
+              </select>
+            </div>
+
+            <div class="flex flex-col gap-2">
+              <label for="duration" class="text-xs font-black uppercase text-on-surface-variant tracking-widest pl-2">Durée planifiée (jours)</label>
+              <input 
+                id="duration"
+                type="number" 
+                bind:value={createTutoringForm.plannedDurationDays}
+                min="1"
+                class="bg-surface-container px-6 py-4 rounded-2xl border border-outline-variant/30 focus:border-primary outline-none transition-all text-on-surface"
+              />
+            </div>
+
+            <div class="flex gap-4">
+              <button 
+                onclick={() => createTutoringModalOpen = false}
+                class="flex-1 py-4 rounded-2xl border-2 border-outline-variant/30 text-on-surface-variant font-black hover:bg-surface-hover transition-all"
+              >
+                Annuler
+              </button>
+              <button 
+                onclick={submitCreateTutoring}
+                class="flex-1 py-4 bg-primary text-white rounded-2xl font-black shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all"
+              >
+                Créer
+              </button>
+            </div>
+          </div>
+        {/if}
       </div>
     </div>
   </div>

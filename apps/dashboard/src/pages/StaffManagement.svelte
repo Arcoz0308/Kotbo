@@ -120,6 +120,9 @@
   const canManageSettings = $derived(isAdmin || !!dashboardStore.state.access?.canManageSettings || !!directoryAccess.canConfigure || !!rolesAccess.canConfigure);
   const canModerate = $derived(canManageSettings || !!directoryAccess.canModerate || !!rolesAccess.canModerate);
 
+  const activeStaffMembers = $derived(staffMembers.filter(m => !m.blacklistEntries || m.blacklistEntries.length === 0));
+  const blacklistedStaffMembers = $derived(staffMembers.filter(m => m.blacklistEntries && m.blacklistEntries.length > 0));
+
   // Forms
   let showAddMemberForm = $state(false);
   let addMemberLookupQuery = $state('');
@@ -127,6 +130,7 @@
   let newMemberGrade = $state('');
   let newMemberUsername = $state('');
   let newMemberAvatarUrl = $state('');
+  let newMemberCreateTutoring = $state(true);
 
   let showAddRoleForm = $state(false);
   let newRoleName = $state('');
@@ -325,6 +329,7 @@
       newMemberUserId = '';
       newMemberUsername = '';
       newMemberAvatarUrl = '';
+      newMemberCreateTutoring = true;
     }
   }
 
@@ -653,7 +658,8 @@
           userId: newMemberUserId.trim(),
           grade: newMemberGrade,
           username: newMemberUsername,
-          avatarUrl: newMemberAvatarUrl
+          avatarUrl: newMemberAvatarUrl,
+          createTestingPeriod: newMemberCreateTutoring
         })
       });
 
@@ -665,6 +671,7 @@
       newMemberGrade = 'HELPER';
       newMemberUsername = '';
       newMemberAvatarUrl = '';
+      newMemberCreateTutoring = true;
       await loadStaffMembers();
     } catch (err) {
       console.error('Erreur:', err);
@@ -911,6 +918,25 @@
     }
   }
 
+  async function removeStaffBlacklist(userId: string) {
+    if (!guildId || !authStore.token || !confirm('Voulez-vous retirer cette personne de la blacklist ?')) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/blacklist/${userId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${authStore.token}`
+        }
+      });
+
+      if (!res.ok) throw new Error('Erreur');
+
+      await loadStaffMembers();
+    } catch (err) {
+      alert('Erreur lors du retrait de la blacklist');
+    }
+  }
+
   const stats = $derived([
     {
       label: "Membres",
@@ -1078,6 +1104,13 @@
                   </select>
                 </label>
               </div>
+              <div class="flex items-center gap-3 shrink-0 mb-3 md:mb-0">
+                <ToggleSwitch
+                  checked={newMemberCreateTutoring}
+                  onToggle={(v) => newMemberCreateTutoring = v}
+                />
+                <span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant/70">Créer un tutorat</span>
+              </div>
               <button onclick={addStaffMember} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-primary px-8 py-3 text-xs font-black uppercase tracking-[0.18em] text-white shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]">
                 Ajouter
               </button>
@@ -1107,9 +1140,9 @@
               </div>
             {/each}
           </div>
-        {:else if staffMembers.length > 0}
+        {:else if activeStaffMembers.length > 0}
           <div class="divide-y divide-outline-variant/10">
-            {#each staffMembers as member (member.id)}
+            {#each activeStaffMembers as member (member.id)}
               <article class="group bg-transparent px-6 py-6 md:px-8 transition-all hover:bg-primary/4">
                 <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
                   <div class="flex items-center gap-4 flex-1">
@@ -1635,9 +1668,9 @@
                     {guildId}
                     bind:query={blacklistLookupQuery}
                     bind:selectedId={blacklistTargetUserId}
-                    staffOnly={true}
+                    staffOnly={false}
                     placeholder="@mention, pseudo ou ID Discord"
-                    selectedIdPlaceholder="ID Discord du staff (auto-rempli)"
+                    selectedIdPlaceholder="ID Discord (auto-rempli)"
                   />
                 </label>
               </div>
@@ -1675,17 +1708,72 @@
           </div>
         {/if}
 
-        <div class="p-16 flex flex-col items-center justify-center text-center">
-            <div class="w-20 h-20 rounded-4xl bg-rose-500/10 text-rose-500 flex items-center justify-center shadow-inner">
+        {#if blacklistedStaffMembers.length === 0}
+          <div class="p-16 flex flex-col items-center justify-center text-center opacity-40">
+            <div class="w-20 h-20 rounded-4xl bg-rose-500/10 text-rose-500 flex items-center justify-center shadow-inner mb-6">
               <Papicon icon="user-x" size={40} />
             </div>
-            <h3 class="mt-6 text-2xl font-black tracking-tighter text-on-surface">
-              Section Blacklist
-            </h3>
+            <h3 class="text-2xl font-black tracking-tighter text-on-surface">Section Blacklist</h3>
             <p class="mt-3 max-w-xl text-sm leading-relaxed text-on-surface-variant/65">
-               Les membres inscrits ici ne pourront plus jamais intégrer l'équipe de modération du serveur.
+               Aucun utilisateur n'est actuellement inscrit dans la blacklist staff.
             </p>
-        </div>
+          </div>
+        {:else}
+          <div class="divide-y divide-outline-variant/10">
+            {#each blacklistedStaffMembers as member (member.id)}
+              <article class="group bg-transparent px-6 py-6 md:px-8 transition-all hover:bg-rose-500/4">
+                <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                  <div class="flex items-center gap-4 flex-1">
+                    <div class="h-12 w-12 shrink-0 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant/70 border border-outline-variant/20 shadow-sm overflow-hidden">
+                      {#if member.avatarUrl}
+                        <img src={member.avatarUrl} alt="" class="h-full w-full object-cover" />
+                      {:else}
+                        <Papicon icon="user" size={24} />
+                      {/if}
+                    </div>
+                    <div>
+                      <h4 class="text-lg font-black text-on-surface leading-tight">
+                        {member.displayName || member.username || 'Utilisateur inconnu'}
+                      </h4>
+                      <div class="flex items-center gap-3 mt-1.5 flex-wrap">
+                        <span class="inline-flex items-center rounded-full border border-rose-500/20 bg-rose-500/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-rose-700">
+                          Blacklisté
+                        </span>
+                        {#if member.blacklistEntries?.[0]?.reason}
+                          <span class="text-xs font-medium text-rose-700/80">
+                            Raison: {member.blacklistEntries[0].reason}
+                          </span>
+                        {/if}
+                        {#if member.blacklistEntries?.[0]?.endDate}
+                          <span class="text-[11px] font-medium text-on-surface-variant/70">
+                            Jusqu'au {new Date(member.blacklistEntries[0].endDate).toLocaleDateString()}
+                          </span>
+                        {:else}
+                          <span class="text-[11px] font-medium text-on-surface-variant/70">
+                            Permanent
+                          </span>
+                        {/if}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-2 shrink-0">
+                    {#if canModerate}
+                      <button
+                        onclick={() => removeStaffBlacklist(member.userId)}
+                        class="inline-flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-xs font-black uppercase tracking-[0.1em] text-rose-700 transition-colors hover:bg-rose-600 hover:text-white"
+                        title="Retirer de la blacklist"
+                      >
+                        <Papicon icon="trash-2" size={16} />
+                        Retirer la blacklist
+                      </button>
+                    {/if}
+                  </div>
+                </div>
+              </article>
+            {/each}
+          </div>
+        {/if}
 
 
       {:else if activeTab === 'polls'}

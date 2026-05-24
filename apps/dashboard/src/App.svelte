@@ -10,6 +10,9 @@
   import ToastContainer from './lib/components/ToastContainer.svelte';
   import InviteDetailsModal from './lib/components/invitations/InviteDetailsModal.svelte';
   import NotFound from './pages/NotFound.svelte';
+  import GlobalErrorOverlay from './lib/components/GlobalErrorOverlay.svelte';
+
+  let globalError = $state<{ message: string; stack?: string } | null>(null);
   
   
   import Login from './pages/Login.svelte';
@@ -125,6 +128,10 @@
       router.goto('/login');
     }
 
+    const timer = setTimeout(() => {
+      sessionStorage.removeItem('error_refreshed');
+    }, 5000);
+
     // Global error handling — ignores network/abort errors from WS reconnections
     // and Vite dev-server internal errors to avoid infinite feedback loops
     const IGNORED_MESSAGES = [
@@ -160,6 +167,10 @@
       try {
         // Use queueMicrotask to avoid calling toast synchronously during Vite init
         queueMicrotask(() => {
+          globalError = {
+            message: message || 'Une erreur inattendue est survenue (Promesse rejetée)',
+            stack: reason?.stack || undefined
+          };
           toast.error(message || 'Une erreur inattendue est survenue');
           isHandlingRejection = false;
         });
@@ -171,6 +182,10 @@
     const handleError = (event: ErrorEvent) => {
       // Only show toast for non-script-load errors
       if (event.message && !IGNORED_MESSAGES.some(m => event.message.includes(m))) {
+        globalError = {
+          message: event.message || 'Une erreur est survenue',
+          stack: event.error?.stack || undefined
+        };
         toast.error(event.message || 'Une erreur est survenue');
       }
     };
@@ -179,6 +194,7 @@
     window.addEventListener('unhandledrejection', handleUnhandledRejection);
 
     return () => {
+      clearTimeout(timer);
       window.removeEventListener('error', handleError);
       window.removeEventListener('unhandledrejection', handleUnhandledRejection);
     };
@@ -214,152 +230,162 @@
   <div use:navigate={target}></div>
 {/snippet}
 
-{#if isPublicPage}
-  <Route path="/profile/:userId" let:meta>
-    <PublicProfile userId={meta.params.userId} />
-  </Route>
-  <Route path="/transcripts/:transcriptId" let:meta>
-    <TranscriptDetail transcriptId={meta.params.transcriptId} />
-  </Route>
-  <Route fallback>
-    <NotFound />
-  </Route>
+{#if globalError}
+  <GlobalErrorOverlay errorMsg={globalError.message} errorStack={globalError.stack} />
 {:else}
-  <Route path="/login">
-    <Login />
-  </Route>
-
-  {#if authStore.isAuthenticated}
-    {#if dashboardStore.state.error === 'activation_requise'}
-      <Route path="/*">
-        <Activation />
-      </Route>
-    {:else}
-      {#if $router.path === '/dailyalgo/ide'}
-        <Route path="/dailyalgo/ide">
-          <DailyAlgoIDE />
-        </Route>
-      {:else}
-        <MainLayout>
-        <Route path="/">
-        <Overview />
-      </Route>
-
-      <Route path="/analytics">
-        <Analytics />
-      </Route>
-      <Route path="/activity">
-        <ActivityLog />
-      </Route>
-      {#if authStore.isBotAdmin}
-        <Route path="/admin">
-          <AdminOverview />
-        </Route>
-      {/if}
-      <Route path="/logs">
-        <Logs />
-      </Route>
-      <Route path="/sanctions">
-        <Sanctions />
-      </Route>
-      <Route path="/detections">
-        <Detections />
-      </Route>
-      <Route path="/regulation">
-        <Regulation />
-      </Route>
-      <Route path="/profile">
-        <Profile />
-      </Route>
+  <svelte:boundary>
+    {#if isPublicPage}
       <Route path="/profile/:userId" let:meta>
-        <Profile userId={meta.params.userId} />
+        <PublicProfile userId={meta.params.userId} />
       </Route>
-      {#if canManageSettings}
-        <Route path="/modules">
-          <ModuleCatalog />
-        </Route>
-        <Route path="/module-settings/:moduleId" let:meta>
-          <!-- Simple redirect logic for legacy URLs -->
-          {@render handleLegacyRedirect(meta.params.moduleId)}
-        </Route>
-        <Route path="/notifications">
-          <NotificationsSettings />
-        </Route>
-        <Route path="/command-access">
-          <CommandAccess />
-        </Route>
-        <Route path="/settings">
-          <GeneralSettings />
-        </Route>
-        <Route path="/automations">
-          <ModuleCatalog />
-        </Route>
-        <Route path="/staff-management">
-          <StaffManagement />
-        </Route>
-      {/if}
-
-      <Route path="/dailyalgo">
-        <DailyAlgo />
+      <Route path="/transcripts/:transcriptId" let:meta>
+        <TranscriptDetail transcriptId={meta.params.transcriptId} />
       </Route>
-      <Route path="/members/*">
-        <Members />
-      </Route>
-      <Route path="/recruitment">
-        <Recruitment />
-      </Route>
-      <Route path="/tickets">
-        <Tickets />
-      </Route>
-      <Route path="/meetings">
-        <Meetings />
-      </Route>
-      <Route path="/absences">
-        <Absences />
-      </Route>
-      <Route path="/inbox">
-        <Inbox />
-      </Route>
-      <Route path="/tutoring">
-        <Tutoring />
-      </Route>
-      <Route path="/double-accounts">
-        <DoubleAccounts />
-      </Route>
-      <Route path="/invitations">
-        <Invitations />
-      </Route>
-      <Route path="/invitations/:code" let:meta>
-        {#key meta.params.code}
-          <InvitationDetail code={meta.params.code} />
-        {/key}
-      </Route>
-
-      <Route path="/events">
-        <Events />
-      </Route>
-      <Route path="/events/edit/:eventId" let:meta>
-        <EventEditor eventId={meta.params.eventId} />
-      </Route>
-      <Route path="/events/control/:eventId" let:meta>
-        <EventControl eventId={meta.params.eventId} />
-      </Route>
-      
-      <!-- Fallback for authenticated users -->
       <Route fallback>
         <NotFound />
       </Route>
-    </MainLayout>
+    {:else}
+      <Route path="/login">
+        <Login />
+      </Route>
+
+      {#if authStore.isAuthenticated}
+        {#if dashboardStore.state.error === 'activation_requise'}
+          <Route path="/*">
+            <Activation />
+          </Route>
+        {:else}
+          {#if $router.path === '/dailyalgo/ide'}
+            <Route path="/dailyalgo/ide">
+              <DailyAlgoIDE />
+            </Route>
+          {:else}
+            <MainLayout>
+            <Route path="/">
+            <Overview />
+          </Route>
+
+          <Route path="/analytics">
+            <Analytics />
+          </Route>
+          <Route path="/activity">
+            <ActivityLog />
+          </Route>
+          {#if authStore.isBotAdmin}
+            <Route path="/admin">
+              <AdminOverview />
+            </Route>
+          {/if}
+          <Route path="/logs">
+            <Logs />
+          </Route>
+          <Route path="/sanctions">
+            <Sanctions />
+          </Route>
+          <Route path="/detections">
+            <Detections />
+          </Route>
+          <Route path="/regulation">
+            <Regulation />
+          </Route>
+          <Route path="/profile">
+            <Profile />
+          </Route>
+          <Route path="/profile/:userId" let:meta>
+            <Profile userId={meta.params.userId} />
+          </Route>
+          {#if canManageSettings}
+            <Route path="/modules">
+              <ModuleCatalog />
+            </Route>
+            <Route path="/module-settings/:moduleId" let:meta>
+              <!-- Simple redirect logic for legacy URLs -->
+              {@render handleLegacyRedirect(meta.params.moduleId)}
+            </Route>
+            <Route path="/notifications">
+              <NotificationsSettings />
+            </Route>
+            <Route path="/command-access">
+              <CommandAccess />
+            </Route>
+            <Route path="/settings">
+              <GeneralSettings />
+            </Route>
+            <Route path="/automations">
+              <ModuleCatalog />
+            </Route>
+            <Route path="/staff-management">
+              <StaffManagement />
+            </Route>
+          {/if}
+
+          <Route path="/dailyalgo">
+            <DailyAlgo />
+          </Route>
+          <Route path="/members/*">
+            <Members />
+          </Route>
+          <Route path="/recruitment">
+            <Recruitment />
+          </Route>
+          <Route path="/tickets">
+            <Tickets />
+          </Route>
+          <Route path="/meetings">
+            <Meetings />
+          </Route>
+          <Route path="/absences">
+            <Absences />
+          </Route>
+          <Route path="/inbox">
+            <Inbox />
+          </Route>
+          <Route path="/tutoring">
+            <Tutoring />
+          </Route>
+          <Route path="/double-accounts">
+            <DoubleAccounts />
+          </Route>
+          <Route path="/invitations">
+            <Invitations />
+          </Route>
+          <Route path="/invitations/:code" let:meta>
+            {#key meta.params.code}
+              <InvitationDetail code={meta.params.code} />
+            {/key}
+          </Route>
+
+          <Route path="/events">
+            <Events />
+          </Route>
+          <Route path="/events/edit/:eventId" let:meta>
+            <EventEditor eventId={meta.params.eventId} />
+          </Route>
+          <Route path="/events/control/:eventId" let:meta>
+            <EventControl eventId={meta.params.eventId} />
+          </Route>
+          
+          <!-- Fallback for authenticated users -->
+          <Route fallback>
+            <NotFound />
+          </Route>
+        </MainLayout>
+        {/if}
+        {/if}
+      {:else if $router.path !== '/login'}
+        <!-- Fallback for unauthenticated users -->
+        <Route path="/*">
+          <div class="flex items-center justify-center min-h-screen">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          </div>
+        </Route>
+      {/if}
     {/if}
-    {/if}
-  {:else if $router.path !== '/login'}
-    <!-- Fallback for unauthenticated users -->
-    <Route path="/*">
-      <div class="flex items-center justify-center min-h-screen">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    </Route>
-  {/if}
+
+    {#snippet fallback(error)}
+      <GlobalErrorOverlay errorMsg={error.message || String(error)} errorStack={error.stack} />
+    {/snippet}
+  </svelte:boundary>
 {/if}
 
 <ToastContainer />

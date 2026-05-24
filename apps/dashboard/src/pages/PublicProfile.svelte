@@ -31,29 +31,6 @@
     }
   });
 
-  function getTierColor(tier: string) {
-    const t = tier?.toLowerCase() || '';
-    if (t.includes('légende') || t.includes('legende')) return 'text-rose-400';
-    if (t.includes('maître') || t.includes('maitre')) return 'text-purple-400';
-    if (t.includes('expert')) return 'text-amber-400';
-    if (t.includes('apprenti')) return 'text-blue-400';
-    return 'text-emerald-400';
-  }
-
-  function getTierBg(tier: string) {
-    const t = tier?.toLowerCase() || '';
-    if (t.includes('légende') || t.includes('legende')) return 'bg-rose-500/10 border-rose-500/20';
-    if (t.includes('maître') || t.includes('maitre')) return 'bg-purple-500/10 border-purple-500/20';
-    if (t.includes('expert')) return 'bg-amber-500/10 border-amber-500/20';
-    if (t.includes('apprenti')) return 'bg-blue-500/10 border-blue-500/20';
-    return 'bg-emerald-500/10 border-emerald-500/20';
-  }
-
-  const getRankSuffix = (rank: number) => {
-    if (rank === 1) return 'er';
-    return 'e';
-  };
-
   function formatDate(date: string | Date | null | undefined) {
     if (!date) return '—';
     return new Date(date).toLocaleDateString('fr-FR', {
@@ -61,6 +38,24 @@
       month: 'long',
       year: 'numeric',
     });
+  }
+
+  function getDurationSince(value: string | null | undefined) {
+    if (!value) return 'Inconnu';
+    const start = new Date(value);
+    const now = new Date();
+    let years = now.getFullYear() - start.getFullYear();
+    let months = now.getMonth() - start.getMonth();
+    if (months < 0) { years--; months += 12; }
+
+    const parts: string[] = [];
+    if (years > 0) parts.push(`${years} an${years > 1 ? 's' : ''}`);
+    if (months > 0) parts.push(`${months} mois`);
+    if (parts.length === 0) {
+       const days = Math.floor((now.getTime() - start.getTime()) / 86400000);
+       return days <= 0 ? "Aujourd'hui" : `${days} j`;
+    }
+    return parts.join(', ');
   }
 
   function formatTimeAgo(dateStr: string | null) {
@@ -206,31 +201,31 @@
         <!-- ── Metrics Section ──────────────────────────────────────── -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <MetricCard 
-            label="Points" 
-            value={profile.points?.toLocaleString() || '0'} 
-            note="Activité cumulée" 
-            icon="Trophy" 
+            label="Messages" 
+            value={profile.messageCount?.toLocaleString() || '0'} 
+            note="Total envoyés" 
+            icon="MessageSquare" 
+            toneClass="bg-blue-500/10 text-blue-500 border-blue-500/20" 
+          />
+          <MetricCard 
+            label="Vocal" 
+            value={`${Math.round((profile.voiceTimeSeconds || 0) / 60)} min`} 
+            note="Temps passé" 
+            icon="Mic" 
+            toneClass="bg-emerald-500/10 text-emerald-500 border-emerald-500/20" 
+          />
+          <MetricCard 
+            label="Événements" 
+            value={`${profile.eventParticipations?.length || 0}`} 
+            note="Participations" 
+            icon="Zap" 
             toneClass="bg-amber-500/10 text-amber-500 border-amber-500/20" 
           />
           <MetricCard 
-            label="Badge / Tier" 
-            value={profile.tier || 'Débutant'} 
-            note="Niveau Daily Algo" 
-            icon="Zap" 
-            toneClass={`${getTierBg(profile.tier)} ${getTierColor(profile.tier)}`} 
-          />
-          <MetricCard 
-            label="Série (Streak)" 
-            value={`${profile.streak || 0}j`} 
-            note="Record actuel" 
-            icon="Flame" 
-            toneClass="bg-orange-500/10 text-orange-500 border-orange-500/20" 
-          />
-          <MetricCard 
-            label="Classement" 
-            value={profile.rank !== undefined ? `${profile.rank + 1}${getRankSuffix(profile.rank + 1)}` : '—'} 
-            note="Position serveur" 
-            icon="Medal" 
+            label="Ancienneté" 
+            value={getDurationSince(profile.guildJoinedAt)} 
+            note="Depuis l'arrivée" 
+            icon="Calendar" 
             toneClass="bg-purple-500/10 text-purple-500 border-purple-500/20" 
           />
         </div>
@@ -291,68 +286,23 @@
             </div>
           </div>
 
-          <!-- Right Column: Algo Submissions & Events -->
+          <!-- Right Column: Events History -->
           <div class="lg:col-span-2 space-y-6">
-            <!-- Algorithmique Card -->
             <div class="rounded-[2.5rem] bg-surface-container-low/40 border border-outline-variant/10 p-10 shadow-sm">
               <div class="flex items-center gap-3.5 mb-8 border-b border-outline-variant/5 pb-6">
                 <div class="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center">
-                  <Papicon icon="Terminal" size={24} />
+                  <Papicon icon="Zap" size={24} />
                 </div>
                 <div>
-                  <h3 class="text-xl font-black text-on-surface font-headline leading-tight">Défis Validés</h3>
-                  <p class="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-wider mt-0.5">Historique algorithmique</p>
+                  <h3 class="text-xl font-black text-on-surface font-headline leading-tight">Historique Événements</h3>
+                  <p class="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-wider mt-0.5">Participations communautaires récentes</p>
                 </div>
               </div>
 
-              {#if profile.recentAlgos && profile.recentAlgos.length > 0}
-                <div class="space-y-3.5">
-                  {#each profile.recentAlgos as algo}
-                    <div class="flex items-center justify-between p-4.5 rounded-2xl bg-surface-container-high/30 border border-outline-variant/5 hover:border-primary/25 hover:bg-surface-container-high/60 transition-all group/item">
-                      <div class="flex items-center gap-4">
-                        <div class="w-10 h-10 rounded-lg bg-primary/5 text-primary flex items-center justify-center group-hover/item:scale-105 transition-transform">
-                          <Papicon icon="Check" size={16} />
-                        </div>
-                        <div>
-                          <h4 class="text-sm font-black text-on-surface leading-tight">{algo.title}</h4>
-                          <p class="text-[9px] font-bold text-on-surface-variant/40 uppercase tracking-wider mt-0.5">Kotbo Engine</p>
-                        </div>
-                      </div>
-                      <div class="text-right">
-                        {#if algo.points !== null && algo.points !== undefined}
-                          <span class="text-sm font-black text-emerald-400">+{algo.points} pts</span>
-                        {:else}
-                          <span class="text-[10px] font-bold text-emerald-400/80 uppercase">Validé</span>
-                        {/if}
-                        <p class="text-[9px] font-bold text-on-surface-variant/30 uppercase tracking-wider mt-0.5">{formatDate(algo.date)}</p>
-                      </div>
-                    </div>
-                  {/each}
-                </div>
-              {:else}
-                <div class="py-16 text-center opacity-30">
-                  <Papicon icon="Terminal" size={48} class="mx-auto mb-4" />
-                  <p class="text-sm font-black uppercase tracking-widest">Aucune soumission validée</p>
-                </div>
-              {/if}
-            </div>
-
-            <!-- Events History -->
-            {#if profile.eventParticipations && profile.eventParticipations.length > 0}
-              <div class="rounded-[2.5rem] bg-surface-container-low/40 border border-outline-variant/10 p-10 shadow-sm">
-                <div class="flex items-center gap-3.5 mb-8 border-b border-outline-variant/5 pb-6">
-                  <div class="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center">
-                    <Papicon icon="Zap" size={24} />
-                  </div>
-                  <div>
-                    <h3 class="text-xl font-black text-on-surface font-headline leading-tight">Historique Événements</h3>
-                    <p class="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-wider mt-0.5">Participations communautaires</p>
-                  </div>
-                </div>
-
+              {#if profile.eventParticipations && profile.eventParticipations.length > 0}
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {#each profile.eventParticipations as event}
-                    <div class="flex items-center justify-between p-4.5 rounded-2xl bg-surface-container-high/30 border border-outline-variant/5">
+                    <div class="flex items-center justify-between p-4.5 rounded-2xl bg-surface-container-high/30 border border-outline-variant/5 hover:border-primary/25 hover:bg-surface-container-high/60 transition-all">
                       <div>
                         <h4 class="text-sm font-black text-on-surface leading-tight truncate max-w-[180px]">{event.title}</h4>
                         <p class="text-[9px] font-bold text-primary uppercase tracking-wider mt-0.5">{event.type}</p>
@@ -364,8 +314,13 @@
                     </div>
                   {/each}
                 </div>
-              </div>
-            {/if}
+              {:else}
+                <div class="py-16 text-center opacity-30">
+                  <Papicon icon="Zap" size={48} class="mx-auto mb-4" />
+                  <p class="text-sm font-black uppercase tracking-widest">Aucune participation répertoriée</p>
+                </div>
+              {/if}
+            </div>
           </div>
         </div>
 

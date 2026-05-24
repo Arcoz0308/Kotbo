@@ -10,6 +10,8 @@ import {
   PermissionFlagsBits,
   type Client,
   TextChannel,
+  Collection,
+  GuildMember,
 } from 'discord.js';
 import { SanctionType, TutoringItemState } from '@prisma/client';
 import jwt from 'jsonwebtoken';
@@ -179,6 +181,39 @@ type RoleDisplay = {
 };
 
 type PrimaryRoleDisplay = RoleDisplay | null;
+
+interface CachedMembers {
+  members: Collection<string, GuildMember>;
+  timestamp: number;
+}
+
+const guildMembersCache = new Map<string, CachedMembers>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
+
+async function getGuildMembers(discordGuild: any): Promise<Collection<string, GuildMember>> {
+  const guildId = discordGuild.id;
+  const cached = guildMembersCache.get(guildId);
+  if (cached && (Date.now() - cached.timestamp < CACHE_DURATION)) {
+    return cached.members;
+  }
+
+  try {
+    const allMembers = await discordGuild.members.fetch();
+    guildMembersCache.set(guildId, {
+      members: allMembers,
+      timestamp: Date.now(),
+    });
+    return allMembers;
+  } catch (fetchErr) {
+    logger.warn('AnalyticsAPI', `Error fetching guild members for guild ${guildId}: ${String(fetchErr)}`);
+    if (cached) {
+      logger.info('AnalyticsAPI', `Using stale member cache for guild ${guildId} due to fetch error.`);
+      return cached.members;
+    }
+    logger.info('AnalyticsAPI', `Falling back to members cache for guild ${guildId}.`);
+    return discordGuild.members.cache;
+  }
+}
 
 function isDisplayableRoleName(name: string): boolean {
   const trimmedName = name.trim();
@@ -969,6 +1004,10 @@ const verifyRecruitmentWebhookAuth = async (req: IncomingMessage, guildId: strin
 
   const key = await verifyAPIKey(hashAPIKey(apiKeyValue.trim()), guildId);
   if (!key) return { auth: null, reason: 'invalid_api_key' };
+
+  if (!key.permissions || (!key.permissions.includes('recruitment:forms') && !key.permissions.includes('recruitment:manage'))) {
+    return { auth: null, reason: 'insufficient_permissions' };
+  }
 
   return {
     auth: {
@@ -2879,6 +2918,68 @@ export const startDashboardApi = (client: Client) => {
           }
         }
       }
+      if (parts[0] === 'api' && parts[1] === 'report-error' && req.method === 'POST') {
+        try {
+          const payload = await readJsonBody<{
+            error: string;
+            stack?: string;
+            url: string;
+            userAgent: string;
+            guildId?: string | null;
+          }>(req);
+
+          if (!payload || !payload.error) {
+            json(res, 400, { error: 'Payload invalide' });
+            return;
+          }
+
+          const user = verifyAuth(req);
+          const userInfo = user
+            ? `**Utilisateur:** <@${user.userId}> (${user.username} - ID: ${user.userId})`
+            : `**Utilisateur:** Non connecté / Inconnu`;
+
+          const ownerId = process.env.DISCORD_CLIENT_OWNER_ID;
+          if (!ownerId) {
+            logger.error('DISCORD_CLIENT_OWNER_ID non configuré. Impossible d\'envoyer le rapport d\'erreur.');
+            json(res, 500, { error: 'DISCORD_CLIENT_OWNER_ID non configuré' });
+            return;
+          }
+
+          const owner = await client.users.fetch(ownerId).catch(() => null);
+          if (!owner) {
+            logger.error(`Impossible de trouver l'owner avec l'ID ${ownerId}`);
+            json(res, 500, { error: 'Owner introuvable' });
+            return;
+          }
+
+          // Format embed for Discord DM
+          const embed = new EmbedBuilder()
+            .setTitle('🚨 Rapport d\'erreur du Dashboard')
+            .setColor(0xFF0000)
+            .setTimestamp()
+            .addFields(
+              { name: '👤 Utilisateur', value: userInfo },
+              { name: '🌐 Page / URL', value: `\`${payload.url}\`` },
+              { name: '💻 Navigateur', value: `\`${payload.userAgent || 'Inconnu'}\`` },
+              { name: '🏰 Serveur sélectionné (Guild ID)', value: `\`${payload.guildId || 'Aucun'}\`` },
+              { name: '❌ Erreur', value: `\`\`\`\n${payload.error}\n\`\`\`` }
+            );
+
+          if (payload.stack) {
+            const truncatedStack = payload.stack.length > 1000 
+              ? payload.stack.slice(0, 1000) + '...' 
+              : payload.stack;
+            embed.addFields({ name: '🥞 Stack Trace', value: `\`\`\`javascript\n${truncatedStack}\n\`\`\`` });
+          }
+
+          await owner.send({ embeds: [embed] });
+          json(res, 200, { success: true });
+        } catch (err: any) {
+          logger.error('ReportError', `Erreur lors de la transmission du rapport d'erreur: ${err.message}`);
+          json(res, 500, { error: 'Erreur lors de la transmission' });
+        }
+        return;
+      }
 
       if (parts.length >= 2 && parts[0] === 'api' && parts[1] === 'user') {
         const user = verifyAuth(req);
@@ -4673,7 +4774,7 @@ export const startDashboardApi = (client: Client) => {
                 }
 
                 try {
-                  const allMembers = await discordGuild.members.fetch();
+                  const allMembers = await getGuildMembers(discordGuild);
                   
                   // If tag is still unresolved, scan members' primaryGuild
                   if (!clanTag) {
@@ -8673,6 +8774,7 @@ export const startDashboardApi = (client: Client) => {
               username?: string;
               displayName?: string;
               avatarUrl?: string;
+              createTestingPeriod?: boolean;
             }>(req);
 
             if (!body?.userId || !body?.grade) {
@@ -8691,8 +8793,10 @@ export const startDashboardApi = (client: Client) => {
                 body.avatarUrl
               );
 
-              // Créer une période de test initiale
-              await createTestingPeriod(guildId, body.userId);
+              // Créer une période de test initiale si demandé
+              if (body.createTestingPeriod !== false) {
+                await createTestingPeriod(guildId, body.userId);
+              }
 
               await pushAudit(guildId, {
                 user: user.username ?? `User${user.userId}`,
@@ -8700,7 +8804,7 @@ export const startDashboardApi = (client: Client) => {
                 context: getGuildName(client, guildId),
                 module: 'Staff Management',
                 eventType: 'Manuel',
-                details: `Nouveau membre staff: ${body.username || body.userId} (${body.grade})`,
+                details: `Nouveau membre staff: ${body.username || body.userId} (${body.grade}) (Tutorat: ${body.createTestingPeriod !== false ? 'OUI' : 'NON'})`,
                 channelId: null
               });
 
@@ -9008,6 +9112,55 @@ export const startDashboardApi = (client: Client) => {
             } catch (err) {
               logger.error('StaffAPI', 'Error blacklisting staff:', err);
               json(res, 500, { error: 'Erreur lors de la blacklist' });
+            }
+            return;
+          }
+
+          // DELETE /api/dashboard/guilds/:guildId/staff/blacklist/:userId - Remove from staff blacklist
+          if (parts[5] === 'blacklist' && parts[6] && req.method === 'DELETE') {
+            const targetUserId = parts[6];
+            try {
+              const member = await prisma.staffMember.findUnique({
+                where: { guildId_userId: { guildId, userId: targetUserId } }
+              });
+
+              if (!member) {
+                json(res, 404, { error: 'Membre staff introuvable' });
+                return;
+              }
+
+              await prisma.staffBlacklist.updateMany({
+                where: {
+                  guildId,
+                  staffUserId: member.id,
+                  isActive: true
+                },
+                data: {
+                  isActive: false
+                }
+              });
+
+              // Si le grade est 'Blacklisted', on peut supprimer le profil staff fictif
+              if (member.grade === 'Blacklisted') {
+                await prisma.staffMember.delete({
+                  where: { id: member.id }
+                }).catch(() => null);
+              }
+
+              await pushAudit(guildId, {
+                user: user.username ?? `User${user.userId}`,
+                action: 'Retrait blacklist staff',
+                context: getGuildName(client, guildId),
+                module: 'Staff Management',
+                eventType: 'Manuel',
+                details: `Blacklist retirée pour ${member.username || targetUserId}`,
+                channelId: null
+              });
+
+              json(res, 200, { ok: true });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error removing from staff blacklist:', err);
+              json(res, 500, { error: 'Erreur lors du retrait de la blacklist' });
             }
             return;
           }
@@ -9725,6 +9878,54 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
+          // POST /api/dashboard/guilds/:guildId/tutoring/periods - Create tutoring / testing period
+          if (req.method === 'POST' && parts[5] === 'periods' && !parts[6]) {
+            const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
+            if (accessLevel.level !== 'admin' && !accessLevel.canManageTutoring) {
+              json(res, 403, { error: 'Accès admin ou tutorat requis' });
+              return;
+            }
+
+            const body = await readJsonBody<{
+              staffUserId: string;
+              mentorId?: string;
+              plannedDurationDays?: number;
+              targetGrade?: string;
+            }>(req);
+
+            if (!body?.staffUserId) {
+              json(res, 400, { error: 'staffUserId est obligatoire' });
+              return;
+            }
+
+            try {
+              const { createTestingPeriod } = await import('../services/staffManagementService.js');
+              const period = await createTestingPeriod(
+                guildId,
+                body.staffUserId,
+                body.mentorId || undefined,
+                body.plannedDurationDays ? Number(body.plannedDurationDays) : 14,
+                body.targetGrade || undefined
+              );
+
+              await pushAudit(guildId, {
+                user: user.username ?? `User${user.userId}`,
+                action: 'Création tutorat',
+                context: getGuildName(client, guildId),
+                module: 'Tutoring',
+                eventType: 'Manuel',
+                details: `Période de test créée pour ${body.staffUserId} (Tuteur: ${body.mentorId || 'aucun'}, Grade cible: ${body.targetGrade || 'aucun'})`,
+                channelId: null
+              });
+
+              json(res, 201, { period });
+            } catch (err: any) {
+              logger.error('TutoringAPI', 'Error creating period:', err);
+              json(res, 500, { error: err.message || 'Erreur création tutorat' });
+            }
+            return;
+          }
+
           // DELETE /api/dashboard/guilds/:guildId/tutoring/periods/:periodId
           if (req.method === 'DELETE' && parts[5] === 'periods' && parts[6]) {
             const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
@@ -9903,7 +10104,7 @@ export const startDashboardApi = (client: Client) => {
 
                 // Fetch all members to find tag if not yet resolved, and to calculate growth
                 try {
-                  const allMembers = await discordGuild.members.fetch();
+                  const allMembers = await getGuildMembers(discordGuild);
                   
                   // If tag is still unresolved, scan members' primaryGuild
                   if (!clanTag) {
