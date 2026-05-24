@@ -631,6 +631,60 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
   const { customId, guildId } = interaction;
   if (!guildId) return;
 
+  if (customId === 'modal:resignation:open') {
+    const reason = interaction.fields.getTextInputValue('reason');
+    try {
+      const staff = await prisma.staffMember.findFirst({
+        where: { guildId, userId: interaction.user.id },
+      });
+
+      if (!staff) {
+        await interaction.reply({ content: '❌ Vous ne faites pas partie de l\'équipe Staff.', flags: [MessageFlags.Ephemeral] });
+        return;
+      }
+
+      await prisma.staffResignation.create({
+        data: {
+          guildId,
+          staffUserId: staff.id,
+          reason,
+          status: 'PENDING'
+        }
+      });
+
+      // Notifier les managers/admins
+      const managers = await prisma.staffMember.findMany({
+        where: {
+          guildId,
+          grade: { in: ['Manager', 'Admin', 'Administrateur', 'Fondateur', 'Direction'] }
+        }
+      });
+
+      if (managers.length > 0) {
+        await Promise.all(managers.map(m => createNotification(
+          guildId,
+          m.userId,
+          'Demande de démission',
+          `Le membre ${interaction.user.username} a soumis une demande de démission.\nMotif : ${reason}`,
+          'WARNING',
+          '/staff-management?tab=resignations',
+          true
+        ).catch(() => null)));
+      }
+
+      await interaction.reply({
+        content: '✅ Votre demande de démission a été soumise avec succès aux managers pour approbation.',
+        flags: [MessageFlags.Ephemeral]
+      });
+    } catch (err) {
+      logger.error('Handler', 'Error during resignation modal submit:', err);
+      await interaction.reply({
+        content: '❌ Une erreur est survenue lors de l\'enregistrement de votre demande.',
+        flags: [MessageFlags.Ephemeral]
+      });
+    }
+    return;
+  }
   if (customId.startsWith('modal:ticket:')) {
     await handleTicketModalSubmit(client, customId, interaction);
     return;

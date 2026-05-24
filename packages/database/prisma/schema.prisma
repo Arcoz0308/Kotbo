@@ -96,6 +96,7 @@ model Guild {
   staffMeetings StaffMeeting[]
   staffManagerNotes StaffManagerNote[]
   staffPolls StaffPoll[]
+  staffResignations StaffResignation[]
   staffProcedures StaffProcedure[]
   candidatures RecruitmentCandidature[]
   notifications Notification[]
@@ -598,6 +599,7 @@ model StaffMember {
   pollVotes StaffPollVote[]
   procedureReads StaffProcedureRead[]
   voiceSessions StaffVoiceSession[]
+  resignations StaffResignation[]
 
   isTutor Boolean @default(false)
 
@@ -1680,4 +1682,29 @@ model Transcript {
   @@map("transcripts")
 }
 
+model StaffResignation {
+  id               String            @id @default(cuid())
+  guildId          String
+  staffUserId      String            // ID du StaffMember (clé primaire cuid)
+  reason           String
+  status           ResignationStatus @default(PENDING)
+  
+  decisionByUserId String?           // ID Discord du manager
+  decisionNote     String?
+  decidedAt        DateTime?
+  
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
+  guild            Guild             @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  staffMember      StaffMember       @relation(fields: [staffUserId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, status])
+  @@map("staff_resignations")
+}
+
+enum ResignationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}

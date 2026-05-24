@@ -28,6 +28,7 @@ import * as invitesCmd from './commands/invites.js';
 import * as noteCmd from './commands/note.js';
 import * as transcriptCmd from './commands/transcript.js';
 import * as sayCmd from './commands/say.js';
+import * as demissionCmd from './commands/demission.js';
 const commands = [
   setupCmd,
   configCmd,
@@ -53,6 +54,7 @@ const commands = [
   noteCmd,
   transcriptCmd,
   sayCmd,
+  demissionCmd,
   { data: noteCmd.contextData },
   { data: casierCmd.contextData },
   { data: sanctionCmd.contextData },
