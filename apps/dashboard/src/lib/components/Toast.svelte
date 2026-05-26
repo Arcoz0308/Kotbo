@@ -23,11 +23,27 @@
   class="flex items-center gap-3 p-4 rounded-xl border backdrop-blur-md shadow-lg animate-in slide-in-from-right fade-in duration-300 {colorClass}"
   role="alert"
 >
-  <Papicon name={iconName} size={20} />
+  <Papicon name={iconName} size={20} class="shrink-0" />
   <p class="text-sm font-medium">{item.message}</p>
+  {#if item.action}
+    <button
+      onclick={async () => {
+        try {
+          await item.action.onClick();
+        } catch (e) {
+          console.error('Toast action failed:', e);
+        }
+        toast.remove(item.id);
+      }}
+      class="ml-2 px-3 py-1 bg-white/10 hover:bg-white/20 active:scale-95 text-xs font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer whitespace-nowrap"
+    >
+      {item.action.label}
+    </button>
+  {/if}
   <button 
     onclick={() => toast.remove(item.id)}
-    class="ml-auto p-1 hover:bg-black/5 rounded-lg transition-colors"
+    class="ml-auto p-1 hover:bg-black/5 rounded-lg transition-colors cursor-pointer shrink-0"
+    aria-label="Fermer"
   >
     <Papicon name="close" size={16} />
   </button>

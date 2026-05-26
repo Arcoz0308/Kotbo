@@ -6,6 +6,7 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
+  import { toast } from '../lib/stores/toast.svelte';
   import {
     fetchNicknameModerationConfig,
     updateNicknameModerationConfig,
@@ -138,12 +139,15 @@
       return;
     }
 
+    newWord = '';
+
     await wordAction.run(
       async () => {
         const res = await addBannedWord(trimmed, newCategory);
         if (!res?.id) throw new Error('Erreur lors de l\'ajout');
-        customWords = [...customWords, { id: res.id, word: trimmed, category: newCategory, enabled: true, guildId: null }];
-        newWord = '';
+        if (!customWords.some((w) => w.id === res.id || w.word === trimmed)) {
+          customWords = [...customWords, { id: res.id, word: trimmed, category: newCategory, enabled: true, guildId: null }];
+        }
         return true;
       },
       { successMessage: `"${trimmed}" ajouté.` }
@@ -156,9 +160,24 @@
         const ok = await deleteBannedWord(entry.id);
         if (!ok) throw new Error('Erreur lors de la suppression');
         customWords = customWords.filter((w) => w.id !== entry.id);
+
+        toast.success(`"${entry.word}" supprimé.`, 6000, {
+          label: 'Annuler',
+          onClick: async () => {
+            await wordAction.run(async () => {
+              const res = await addBannedWord(entry.word, entry.category);
+              if (!res?.id) throw new Error("Erreur lors de l'annulation");
+              if (!customWords.some((w) => w.word === entry.word)) {
+                customWords = [...customWords, { id: res.id, word: entry.word, category: entry.category, enabled: true, guildId: null }];
+              }
+              return true;
+            }, { successMessage: `"${entry.word}" rétabli.` });
+          }
+        });
+
         return true;
       },
-      { successMessage: `"${entry.word}" supprimé.` }
+      {}
     );
   }
 
