@@ -3255,16 +3255,20 @@ export const startDashboardApi = (client: Client) => {
           const userInfo = `**Utilisateur:** <@${user.userId}> (${user.username} - ID: ${user.userId})`;
 
           const ownerId = process.env.DISCORD_CLIENT_OWNER_ID;
-          if (!ownerId) {
-            logger.error('DISCORD_CLIENT_OWNER_ID non configuré. Impossible d\'envoyer le rapport d\'erreur.');
-            json(res, 500, { error: 'DISCORD_CLIENT_OWNER_ID non configuré' });
-            return;
+          const adminsFromDb = await prisma.globalAdmin.findMany({
+            select: { userId: true }
+          });
+          const adminIds = new Set<string>();
+          if (ownerId) {
+            adminIds.add(ownerId);
+          }
+          for (const a of adminsFromDb) {
+            adminIds.add(a.userId);
           }
 
-          const owner = await client.users.fetch(ownerId).catch(() => null);
-          if (!owner) {
-            logger.error(`Impossible de trouver l'owner avec l'ID ${ownerId}`);
-            json(res, 500, { error: 'Owner introuvable' });
+          if (adminIds.size === 0) {
+            logger.error('Aucun administrateur configuré pour recevoir le rapport d\'erreur.');
+            json(res, 500, { error: 'Aucun administrateur configuré' });
             return;
           }
 
@@ -3285,7 +3289,26 @@ export const startDashboardApi = (client: Client) => {
             embed.addFields({ name: '🥞 Stack Trace', value: `\`\`\`javascript\n${sanitizeMarkdown(stackStr)}\n\`\`\`` });
           }
 
-          await owner.send({ embeds: [embed] });
+          let sentCount = 0;
+          for (const adminId of adminIds) {
+            try {
+              const adminUser = await client.users.fetch(adminId).catch(() => null);
+              if (adminUser) {
+                await adminUser.send({ embeds: [embed] });
+                sentCount++;
+              } else {
+                logger.warn('ReportError', `Impossible de trouver l'administrateur avec l'ID ${adminId}`);
+              }
+            } catch (err: any) {
+              logger.error('ReportError', `Erreur lors de l'envoi du rapport à l'admin ${adminId}: ${err.message}`);
+            }
+          }
+
+          if (sentCount === 0) {
+            json(res, 500, { error: 'Impossible d\'envoyer le rapport aux administrateurs' });
+            return;
+          }
+
           json(res, 200, { success: true });
         } catch (err: any) {
           logger.error('ReportError', `Erreur lors de la transmission du rapport d'erreur: ${err.message}`);
