@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
+  import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { 
     fetchAbsences, 
     createAbsence, 
@@ -10,8 +11,8 @@
     fetchStaffRoles,
     fetchStaffCalendarData,
     fetchAbsenceConfig,
-    fetchFeatureConfigurations,
-    updateFeatureConfiguration
+    updateAbsenceConfig,
+    createMeeting
   } from '../lib/api';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
@@ -20,6 +21,8 @@
   import Calendar from '../lib/components/Calendar.svelte';
   import AbsenceModal from '../lib/components/AbsenceModal.svelte';
   import CalendarEventModal from '../lib/components/CalendarEventModal.svelte';
+  import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
+  import InlineFeedback from '../lib/components/InlineFeedback.svelte';
 
   let absences = $state<any[]>([]);
   let allStaff = $state<any[]>([]);
@@ -30,6 +33,13 @@
   const saveAction = createAsyncActionState();
   let loadingConfig = $state(false);
   
+  // Webhook / Channel settings states
+  let webhookUrl = $state('');
+  let channelId = $state('');
+  let notificationRoleId = $state('');
+  let notifyViaDiscordChannel = $state(true);
+  let managerRoleLevels = $state<number[]>([]);
+
   // Selection states
   let selectedStaffIds = $state<string[]>([]);
   let visibleTypes = $state<string[]>(['absence', 'meeting']);
@@ -84,15 +94,15 @@
     loading = true;
     loadingConfig = true;
     try {
-      const [membersData, rolesData, configsData] = await Promise.all([
+      const [membersData, rolesData, configData] = await Promise.all([
         fetchStaffMembers(),
         fetchStaffRoles(),
-        fetchFeatureConfigurations().catch(() => ({ features: [] }))
+        fetchAbsenceConfig().catch(() => null)
       ]);
       
       allStaff = membersData.members || [];
       allRoles = rolesData.roles || [];
-      absenceConfig = configsData?.features?.find((c: any) => c.featureKey === 'absences') || null;
+      absenceConfig = configData?.config || null;
 
       // Default selection: just me
       if (myStaffRecord) {
@@ -106,6 +116,44 @@
       loading = false;
       loadingConfig = false;
     }
+  }
+
+  $effect(() => {
+    if (absenceConfig) {
+      webhookUrl = absenceConfig.metadata?.webhookUrl || '';
+      channelId = absenceConfig.channelId || '';
+      notificationRoleId = absenceConfig.notificationRoleId || '';
+      notifyViaDiscordChannel = absenceConfig.notifyViaDiscordChannel !== false;
+      managerRoleLevels = absenceConfig.roleAccess?.map((ra: any) => ra.staffRoleLevel) || [];
+    }
+  });
+
+  const availableChannels = $derived(dashboardStore.state.discordChannels || []);
+  const availableRoles = $derived(dashboardStore.state.discordRoles || []);
+
+  async function saveConfig() {
+    if (!isAdmin) return;
+    await saveAction.run(
+      async () => {
+        const payload = {
+          managerRoleLevels,
+          webhookUrl: webhookUrl.trim() || null,
+          channelId: channelId || null,
+          notificationRoleId: notificationRoleId || null,
+          notifyViaDiscordChannel,
+        };
+        const success = await updateAbsenceConfig(payload);
+        if (success) {
+          const configData = await fetchAbsenceConfig().catch(() => null);
+          absenceConfig = configData?.config || null;
+        }
+        return success;
+      },
+      {
+        successMessage: 'Configuration des notifications d\'absence mise à jour.',
+        failureMessage: 'Erreur lors de la mise à jour de la configuration.'
+      }
+    );
   }
 
   let currentRangeStart = new Date();
@@ -283,13 +331,87 @@
   {/snippet}
 
   {#if isAdmin || isManager}
-    <div class="bg-surface-container-low/30 p-8 rounded-[2.5rem] border border-outline-variant/10 mb-10 animate-in fade-in duration-500">
-      {#if absenceConfig}
-        <RolePermissionSettings 
-          featureKey="absences" 
-          roleAccess={absenceConfig.roleAccessByRole} 
-        />
-      {/if}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
+      <div class="bg-surface-container-low/30 p-8 rounded-[2.5rem] border border-outline-variant/10 animate-in fade-in duration-500">
+        {#if absenceConfig}
+          <RolePermissionSettings 
+            featureKey="absences" 
+            roleAccess={absenceConfig.roleAccessByRole} 
+          />
+        {/if}
+      </div>
+
+      <div class="bg-surface-container-low/30 p-8 rounded-[2.5rem] border border-outline-variant/10 animate-in fade-in duration-500 flex flex-col justify-between">
+        <div class="space-y-6">
+          <div>
+            <h3 class="text-xl font-bold flex items-center gap-3">
+              <Papicon icon="notifications_active" size={20} class="text-primary" />
+              Notifications & Webhooks Discord
+            </h3>
+            <p class="text-xs text-on-surface-variant/60 mt-1">Configurez les alertes automatiques envoyées lors de la déclaration d'une absence.</p>
+          </div>
+
+          <div class="space-y-4">
+            <div class="flex items-center justify-between p-3 rounded-xl bg-surface-container-high/40 border border-outline-variant/5">
+              <div class="flex items-center gap-3">
+                <Papicon icon="mail" size={14} class="text-primary" />
+                <div>
+                  <p class="text-xs font-bold">Activer le relai Discord</p>
+                  <p class="text-[10px] text-on-surface-variant/40">Envoi d'un message dans le salon configuré</p>
+                </div>
+              </div>
+              <ToggleSwitch checked={notifyViaDiscordChannel} onToggle={(v) => notifyViaDiscordChannel = v} />
+            </div>
+
+            {#if notifyViaDiscordChannel}
+              <div class="space-y-1.5">
+                <label for="notify-channel" class="text-[10px] font-bold text-on-surface-variant/60">Salon des alertes</label>
+                <select id="notify-channel" bind:value={channelId} class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none">
+                  <option value="">Sélectionner un salon</option>
+                  {#each availableChannels as channel}
+                    <option value={channel.id}>#{channel.name}</option>
+                  {/each}
+                </select>
+              </div>
+
+              <div class="space-y-1.5">
+                <label for="notify-role" class="text-[10px] font-bold text-on-surface-variant/60">Rôle à mentionner</label>
+                <select id="notify-role" bind:value={notificationRoleId} class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none">
+                  <option value="">Aucune mention</option>
+                  {#each availableRoles as role}
+                    <option value={role.id}>@{role.name}</option>
+                  {/each}
+                </select>
+              </div>
+            {/if}
+
+            <div class="space-y-1.5">
+              <label for="webhook-url" class="text-[10px] font-bold text-on-surface-variant/60">URL du Webhook Discord (Optionnel)</label>
+              <input 
+                id="webhook-url" 
+                type="url" 
+                placeholder="https://discord.com/api/webhooks/..." 
+                bind:value={webhookUrl}
+                class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none" 
+              />
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between pt-6 border-t border-outline-variant/10 mt-6">
+          <InlineFeedback
+            message={saveAction.state.message}
+            error={saveAction.state.error}
+          />
+          <button
+            onclick={saveConfig}
+            disabled={saveAction.state.loading}
+            class="px-6 py-2.5 bg-primary text-on-primary text-[10px] font-black uppercase tracking-widest rounded-xl hover:scale-105 transition-transform disabled:opacity-50"
+          >
+            {saveAction.state.loading ? 'Application...' : 'Appliquer'}
+          </button>
+        </div>
+      </div>
     </div>
   {/if}
 

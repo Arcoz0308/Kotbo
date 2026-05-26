@@ -587,8 +587,17 @@ export async function fetchAbsenceConfig(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/absences/config', { method: 'GET', guildId });
 }
 
-export async function updateAbsenceConfig(managerRoleLevels: number[], guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/absences/config', { method: 'POST', payload: { managerRoleLevels }, guildId });
+export async function updateAbsenceConfig(
+  config: {
+    managerRoleLevels: number[];
+    webhookUrl?: string | null;
+    channelId?: string | null;
+    notificationRoleId?: string | null;
+    notifyViaDiscordChannel?: boolean;
+  },
+  guildId = authStore.selectedGuildId
+) {
+  return dashboardRequest('/absences/config', { method: 'POST', payload: config, guildId });
 }
 
 export async function updateAbsenceStatus(absenceId, status, note, guildId = authStore.selectedGuildId) {
@@ -887,7 +896,7 @@ export async function endTestingPeriod(periodId, status, notes = '', force = fal
 // ==========================================
 
 export async function fetchFeatureConfigurations(guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/management/features', {
+  return dashboardRequest('/notifications/features', {
     method: 'GET',
     guildId,
     errorContext: 'API Error (Fetch Feature Configurations):'
@@ -912,7 +921,7 @@ export async function scanSuspectedDetections(thresholdDays?: number, guildId = 
 }
 
 export async function updateFeatureConfiguration(featureKey, config, guildId = authStore.selectedGuildId) {
-  return dashboardMutation(`/management/features/${featureKey}`, {
+  return dashboardMutation(`/notifications/features/${featureKey}`, {
     method: 'PATCH',
     payload: config,
     guildId,
@@ -1443,5 +1452,22 @@ export async function deleteNewsCategoryConfig(configId: string, guildId = authS
     method: 'DELETE',
     guildId,
     errorContext: 'API Error (Delete News Category Config):'
+  });
+}
+
+export async function fetchLogEventConfigs(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/logs/event-configs', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Log Event Configs):'
+  });
+}
+
+export async function updateLogEventConfigs(configs: Array<{ eventType: string; enabled: boolean; channelId: string | null }>, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/logs/event-configs', {
+    method: 'PUT',
+    payload: { configs },
+    guildId,
+    errorContext: 'API Error (Update Log Event Configs):'
   });
 }

@@ -61,7 +61,6 @@
   };
 
   let features = $state<FeatureConfig[]>([]);
-  let availableRoles = $state<Array<{ id: string; name: string; position?: number }>>([]);
 
   let guildSettings = $state({
     configChannelId: '',
@@ -96,11 +95,6 @@
           metadata: f.metadata || {}
         }));
       }
-      availableRoles = (dashboardStore.state.discordRoles || []).map((role) => ({
-        id: role.id,
-        name: role.name,
-        position: role.position,
-      }));
 
       const s = dashboardStore.state as any;
       guildSettings = {

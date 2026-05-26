@@ -6,7 +6,16 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
   import ColumnSortFilter, { type ColumnFilterOption } from '../lib/components/sanctions/ColumnSortFilter.svelte';
-  import { fetchMemberCase, runMemberCaseAction, updateGlobalSettings, updateModuleStatus, fetchFeatureConfigurations, updateFeatureConfiguration } from '../lib/api';
+  import {
+    fetchMemberCase,
+    runMemberCaseAction,
+    updateGlobalSettings,
+    updateModuleStatus,
+    fetchFeatureConfigurations,
+    updateFeatureConfiguration,
+    fetchLogEventConfigs,
+    updateLogEventConfigs
+  } from '../lib/api';
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import FormSelect from '../lib/components/FormSelect.svelte';
@@ -175,20 +184,87 @@
     selectedLogChannelId = dashboardStore.state.logChannelId || '';
   });
 
+  const logCategories = [
+    {
+      id: 'messages',
+      label: 'Messages',
+      icon: 'Chat',
+      events: [
+        { type: 'message_delete', label: 'Message supprimé', desc: 'Lorsqu’un message est effacé d’un salon.' },
+        { type: 'message_edit', label: 'Message modifié', desc: 'Lorsqu’un utilisateur édite son message.' },
+        { type: 'message_bulk_delete', label: 'Suppression en masse', desc: 'Lorsqu’un modérateur purge plusieurs messages.' }
+      ]
+    },
+    {
+      id: 'members',
+      label: 'Membres',
+      icon: 'Users',
+      events: [
+        { type: 'member_join', label: 'Arrivée de membre', desc: 'Lorsqu’un utilisateur rejoint le serveur.' },
+        { type: 'member_leave', label: 'Départ de membre', desc: 'Lorsqu’un utilisateur quitte ou est expulsé.' },
+        { type: 'member_roles_update', label: 'Rôles modifiés', desc: 'Lorsqu’un membre reçoit ou perd des rôles.' },
+        { type: 'member_timeout', label: 'Timeout de membre', desc: 'Lorsqu’un membre reçoit/perd une exclusion.' }
+      ]
+    },
+    {
+      id: 'moderation',
+      label: 'Modération',
+      icon: 'Shield',
+      events: [
+        { type: 'moderation_kick', label: 'Expulsion (Kick)', desc: 'Lorsqu’un modérateur exclut un membre.' },
+        { type: 'moderation_ban', label: 'Bannissement', desc: 'Lorsqu’un membre est banni.' },
+        { type: 'moderation_unban', label: 'Débannissement', desc: 'Lorsqu’un membre est débanni.' },
+        { type: 'moderation_timeout', label: 'Timeout (Audit)', desc: 'Exclusion temporaire enregistrée dans l’audit log.' }
+      ]
+    },
+    {
+      id: 'voice',
+      label: 'Vocaux',
+      icon: 'Microphone',
+      events: [
+        { type: 'voice_join', label: 'Connexion vocale', desc: 'Connexion à un salon vocal.' },
+        { type: 'voice_leave', label: 'Déconnexion vocale', desc: 'Déconnexion d’un salon vocal.' },
+        { type: 'voice_move', label: 'Changement de salon', desc: 'Déplacement entre salons vocaux.' }
+      ]
+    },
+    {
+      id: 'lifecycle',
+      label: 'Salons & Rôles',
+      icon: 'Folder',
+      events: [
+        { type: 'channel_lifecycle', label: 'Salons', desc: 'Création, modification ou suppression d’un salon.' },
+        { type: 'role_lifecycle', label: 'Rôles', desc: 'Création, modification ou suppression d’un rôle.' }
+      ]
+    }
+  ];
+
   let logsConfig = $state<any>(null);
   let loadingConfig = $state(false);
+  let eventConfigs = $state<Array<{ eventType: string; enabled: boolean; channelId: string | null }>>([]);
 
   onMount(async () => {
     loadingConfig = true;
     try {
-      const configs = await fetchFeatureConfigurations();
+      const [configs, eventConfigsRes] = await Promise.all([
+        fetchFeatureConfigurations(),
+        fetchLogEventConfigs()
+      ]);
       logsConfig = configs?.features?.find((c: any) => c.featureKey === 'logs') || null;
+      eventConfigs = eventConfigsRes?.configs || [];
     } catch (err) {
       console.error('Error fetching logs config:', err);
     } finally {
       loadingConfig = false;
     }
   });
+
+  async function handleSaveEventConfigs() {
+    await saveAction.run(async () => {
+      const ok = await updateLogEventConfigs(eventConfigs);
+      if (!ok) throw new Error('Erreur API');
+      return true;
+    }, { successMessage: 'Configurations des événements enregistrées avec succès.' });
+  }
 
   async function toggleConfig(key: string, value: boolean) {
     if (!logsConfig) return;
@@ -539,6 +615,8 @@
     })
   );
 
+  let activeTab = $state<'logs' | 'config'>('logs');
+
   const stats = $derived([
     { label: 'Événements Discord', val: discordLogs.length, sub: 'Total', subClass: 'text-blue-500' },
     { label: 'Modules', val: new Set(discordLogs.map(l => l.module)).size, sub: 'Sources', subClass: 'text-green-600' },
@@ -548,282 +626,388 @@
 
 
 <ModulePage 
-  title="Logs Discord" 
-  description="Tous les événements serveur pour {dashboardStore.state.guildName}." 
+  title="Logs & Activités" 
+  description="Consultez le journal d'activité en temps réel ou configurez précisément les salons de logs du bot." 
   icon="List"
   featureKey="logs"
 >
   {#snippet actions()}
-    <RefreshButton
-      onClick={() => dashboardStore.refresh()}
-      loading={dashboardStore.state.loading}
-      label="Actualiser"
-      className="px-5 py-2.5 font-bold shadow-lg shadow-primary/10"
-      iconClass="text-lg"
-    />
+    <div class="flex items-center gap-3">
+      <!-- Tabs Selector -->
+      <div class="inline-flex bg-surface-container-high/60 border border-outline-variant/10 rounded-2xl p-1 gap-1">
+        <button
+          type="button"
+          onclick={() => activeTab = 'logs'}
+          class="px-4 py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all duration-300 {activeTab === 'logs' ? 'bg-primary text-on-primary shadow-lg shadow-primary/25' : 'text-on-surface-variant/80 hover:text-on-surface'}"
+        >
+          Journal
+        </button>
+        {#if canManageSettings}
+          <button
+            type="button"
+            onclick={() => activeTab = 'config'}
+            class="px-4 py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all duration-300 {activeTab === 'config' ? 'bg-primary text-on-primary shadow-lg shadow-primary/25' : 'text-on-surface-variant/80 hover:text-on-surface'}"
+          >
+            Configuration
+          </button>
+        {/if}
+      </div>
+
+      <RefreshButton
+        onClick={() => dashboardStore.refresh()}
+        loading={dashboardStore.state.loading}
+        label="Actualiser"
+        className="px-5 py-2.5 font-bold shadow-lg shadow-primary/10"
+        iconClass="text-lg"
+      />
+    </div>
   {/snippet}
 
-{#if canManageSettings}
-<div class="bg-surface-container-low/30 p-8 rounded-[2.5rem] border border-outline-variant/10 mb-10 space-y-6 animate-in fade-in duration-500">
-  <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-    <div class="flex items-center gap-4">
-      <div class="bg-primary/10 p-3 rounded-2xl text-primary">
-        <Papicon icon="Settings" size={24} />
+{#if activeTab === 'config' && canManageSettings}
+<div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
+  <!-- General Configuration -->
+  <div class="bg-surface-container-low/30 p-8 rounded-[2.5rem] border border-outline-variant/10 space-y-6">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+      <div class="flex items-center gap-4">
+        <div class="bg-primary/10 p-3 rounded-2xl text-primary">
+          <Papicon icon="Settings" size={24} />
+        </div>
+        <div>
+          <h3 class="text-sm font-black uppercase tracking-widest text-on-surface">Salon par défaut</h3>
+          <p class="text-xs text-on-surface-variant/70 mt-1">Définissez le salon de logs général pour tous les événements sans salon spécifique.</p>
+        </div>
       </div>
-      <div>
-        <h3 class="text-sm font-black uppercase tracking-widest text-on-surface">Configuration des Logs</h3>
-        <p class="text-xs text-on-surface-variant/70 mt-1">Définissez le salon Discord où le bot enverra les logs d'activité.</p>
+      <div class="w-full md:w-72">
+        <FormSelect
+          bind:value={selectedLogChannelId}
+          onchange={handleLogChannelChange}
+          className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
+        >
+          <option value="">Sélectionner un salon</option>
+          {#each dashboardStore.state.discordChannels as c}
+            <option value={c.id}>#{c.name}</option>
+          {/each}
+        </FormSelect>
       </div>
     </div>
-    <div class="w-full md:w-72">
-      <FormSelect
-        bind:value={selectedLogChannelId}
-        onchange={handleLogChannelChange}
-        className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
-      >
-        <option value="">Sélectionner un salon</option>
-        {#each dashboardStore.state.discordChannels as c}
-          <option value={c.id}>#{c.name}</option>
-        {/each}
-      </FormSelect>
-    </div>
-  </div>
 
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-6 border-t border-outline-variant/10">
-    <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container-low/50 border border-outline-variant/10">
-      <div>
-        <p class="text-[10px] font-black uppercase tracking-widest text-on-surface">Journalisation</p>
-        <p class="text-[9px] text-on-surface-variant/60 mt-0.5">Activer l'audit global</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-6 border-t border-outline-variant/10">
+      <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container-low/50 border border-outline-variant/10">
+        <div>
+          <p class="text-[10px] font-black uppercase tracking-widest text-on-surface">Journalisation</p>
+          <p class="text-[9px] text-on-surface-variant/60 mt-0.5">Activer l'audit global</p>
+        </div>
+        <ToggleSwitch 
+          checked={logsConfig?.loggingEnabled ?? true} 
+          disabled={loadingConfig}
+          onToggle={() => toggleConfig('loggingEnabled', !(logsConfig?.loggingEnabled ?? true))} 
+        />
       </div>
-      <ToggleSwitch 
-        checked={logsConfig?.loggingEnabled ?? true} 
-        disabled={loadingConfig}
-        onToggle={() => toggleConfig('loggingEnabled', !(logsConfig?.loggingEnabled ?? true))} 
-      />
-    </div>
 
-    <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container-low/50 border border-outline-variant/10">
-      <div>
-        <p class="text-[10px] font-black uppercase tracking-widest text-on-surface">Suivi d'activité</p>
-        <p class="text-[9px] text-on-surface-variant/60 mt-0.5">Tracking des actions</p>
+      <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container-low/50 border border-outline-variant/10">
+        <div>
+          <p class="text-[10px] font-black uppercase tracking-widest text-on-surface">Suivi d'activité</p>
+          <p class="text-[9px] text-on-surface-variant/60 mt-0.5">Tracking des actions</p>
+        </div>
+        <ToggleSwitch 
+          checked={logsConfig?.userActivityTracking ?? true} 
+          disabled={loadingConfig}
+          onToggle={() => toggleConfig('userActivityTracking', !(logsConfig?.userActivityTracking ?? true))} 
+        />
       </div>
-      <ToggleSwitch 
-        checked={logsConfig?.userActivityTracking ?? true} 
-        disabled={loadingConfig}
-        onToggle={() => toggleConfig('userActivityTracking', !(logsConfig?.userActivityTracking ?? true))} 
-      />
-    </div>
 
-    <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container-low/50 border border-outline-variant/10">
-      <div>
-        <p class="text-[10px] font-black uppercase tracking-widest text-on-surface">Notifs Salon</p>
-        <p class="text-[9px] text-on-surface-variant/60 mt-0.5">Alertes dans le salon logs</p>
+      <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container-low/50 border border-outline-variant/10">
+        <div>
+          <p class="text-[10px] font-black uppercase tracking-widest text-on-surface">Notifs Salon</p>
+          <p class="text-[9px] text-on-surface-variant/60 mt-0.5">Alertes dans le salon logs</p>
+        </div>
+        <ToggleSwitch 
+          checked={logsConfig?.notifyViaDiscordChannel ?? true} 
+          disabled={loadingConfig}
+          onToggle={() => toggleConfig('notifyViaDiscordChannel', !(logsConfig?.notifyViaDiscordChannel ?? true))} 
+        />
       </div>
-      <ToggleSwitch 
-        checked={logsConfig?.notifyViaDiscordChannel ?? true} 
-        disabled={loadingConfig}
-        onToggle={() => toggleConfig('notifyViaDiscordChannel', !(logsConfig?.notifyViaDiscordChannel ?? true))} 
-      />
-    </div>
 
-    <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container-low/50 border border-outline-variant/10">
-      <div>
-        <p class="text-[10px] font-black uppercase tracking-widest text-on-surface">Notifs MP</p>
-        <p class="text-[9px] text-on-surface-variant/60 mt-0.5">Alertes staff par MP</p>
-      </div>
-      <ToggleSwitch 
-        checked={logsConfig?.notifyViaDM ?? false} 
-        disabled={loadingConfig}
-        onToggle={() => toggleConfig('notifyViaDM', !(logsConfig?.notifyViaDM ?? false))} 
-      />
-    </div>
-  </div>
-  
-  {#if logsConfig}
-  <div class="pt-8 border-t border-outline-variant/10">
-    <RolePermissionSettings 
-      featureKey="logs" 
-      roleAccess={logsConfig.roleAccessByRole} 
-    />
-  </div>
-  {/if}
-
-  {#if saveAction.state.message}
-    <p class="text-xs font-bold text-emerald-600 ml-1">{saveAction.state.message}</p>
-  {/if}
-</div>
-{/if}
-
-
-<div class="section-card p-6 mb-8 font-inter">
-  <div class="flex flex-col md:flex-row md:items-center gap-4 justify-between">
-    <div class="space-y-2 w-full md:max-w-2xl">
-      <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="search">Recherche</label>
-      <div class="relative">
-        <Papicon icon="search" size={18} class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <FormInput
-          id="search"
-          type="text"
-          bind:value={searchQuery}
-          placeholder="Action, détails, module, utilisateur..."
-          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all"
+      <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container-low/50 border border-outline-variant/10">
+        <div>
+          <p class="text-[10px] font-black uppercase tracking-widest text-on-surface">Notifs MP</p>
+          <p class="text-[9px] text-on-surface-variant/60 mt-0.5">Alertes staff par MP</p>
+        </div>
+        <ToggleSwitch 
+          checked={logsConfig?.notifyViaDM ?? false} 
+          disabled={loadingConfig}
+          onToggle={() => toggleConfig('notifyViaDM', !(logsConfig?.notifyViaDM ?? false))} 
         />
       </div>
     </div>
+    
+    {#if logsConfig}
+    <div class="pt-8 border-t border-outline-variant/10">
+      <RolePermissionSettings 
+        featureKey="logs" 
+        roleAccess={logsConfig.roleAccessByRole} 
+      />
+    </div>
+    {/if}
+  </div>
 
-    <div class="flex items-center gap-3">
-      <span class="text-xs font-bold text-on-surface-variant">{filteredLogs.length} / {discordLogs.length} événement(s)</span>
-      {#if hasActiveFiltersOrSort}
-        <button
-          type="button"
-          onclick={resetFiltersAndSort}
-          class="text-xs font-bold text-primary hover:text-primary/80 transition"
-        >
-          Réinitialiser filtres et tri
-        </button>
-      {/if}
+  <!-- Events Granular Configurations -->
+  <div class="space-y-6">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div>
+        <h4 class="text-sm font-black uppercase tracking-widest text-on-surface">Configuration par événement</h4>
+        <p class="text-xs text-on-surface-variant/60 mt-1">Personnalisez précisément l'activation et le salon cible pour chaque événement, comme sur MEE6.</p>
+      </div>
+      <button
+        type="button"
+        onclick={handleSaveEventConfigs}
+        class="px-6 py-3 bg-primary text-on-primary text-[10px] font-black uppercase tracking-widest rounded-xl hover:scale-[1.03] transition-all shadow-md shadow-primary/20"
+      >
+        Enregistrer les modifications
+      </button>
+    </div>
+
+    {#if saveAction.state.message}
+      <div class="p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold rounded-2xl animate-pulse">
+        {saveAction.state.message}
+      </div>
+    {/if}
+
+    <div class="space-y-8">
+      {#each logCategories as cat}
+        <div class="bg-surface-container-low/20 rounded-[2rem] p-6 md:p-8 border border-outline-variant/5 space-y-6">
+          <div class="flex items-center gap-3 border-b border-outline-variant/10 pb-4">
+            <div class="text-primary bg-primary/10 p-2.5 rounded-2xl">
+              <Papicon icon={cat.icon} size={20} />
+            </div>
+            <div>
+              <h5 class="text-xs font-black uppercase tracking-wider text-on-surface">{cat.label}</h5>
+              <p class="text-[10px] text-on-surface-variant/60">Gérer les alertes de cette catégorie</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {#each cat.events as ev}
+              {@const confIdx = eventConfigs.findIndex(c => c.eventType === ev.type)}
+              {#if confIdx !== -1}
+                <div class="flex flex-col justify-between p-5 rounded-3xl bg-surface-container-high/10 border border-outline-variant/10 hover:border-primary/25 transition-all duration-300 space-y-4">
+                  <div class="flex justify-between items-start gap-4">
+                    <div class="space-y-1">
+                      <p class="text-xs font-bold text-on-surface">{ev.label}</p>
+                      <p class="text-[10px] text-on-surface-variant/60 leading-relaxed">{ev.desc}</p>
+                    </div>
+                    <ToggleSwitch 
+                      checked={eventConfigs[confIdx].enabled}
+                      onToggle={(v) => {
+                        eventConfigs[confIdx].enabled = v;
+                        eventConfigs = [...eventConfigs];
+                      }}
+                    />
+                  </div>
+
+                  {#if eventConfigs[confIdx].enabled}
+                    <div class="space-y-1.5 pt-3 border-t border-outline-variant/10">
+                      <label for="select-{ev.type}" class="text-[9px] font-bold text-on-surface-variant/60 uppercase tracking-wider">Salon de destination</label>
+                      <FormSelect
+                        id="select-{ev.type}"
+                        bind:value={eventConfigs[confIdx].channelId}
+                        className="w-full bg-surface-container-high/40 text-xs px-3 py-2 rounded-xl border border-outline-variant/10 focus:ring-1 focus:ring-primary/20 transition-all outline-none"
+                      >
+                        <option value="">Salon de logs par défaut</option>
+                        {#each dashboardStore.state.discordChannels as c}
+                          <option value={c.id}>#{c.name}</option>
+                        {/each}
+                      </FormSelect>
+                    </div>
+                  {/if}
+                </div>
+              {/if}
+            {/each}
+          </div>
+        </div>
+      {/each}
     </div>
   </div>
 </div>
+{/if}
 
+{#if activeTab === 'logs'}
+<div class="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+  <!-- Search & Filter Options -->
+  <div class="bg-surface-container-low/20 p-6 rounded-3xl border border-outline-variant/5 space-y-4">
+    <div class="flex flex-col lg:flex-row lg:items-center gap-4 justify-between">
+      <div class="space-y-2 w-full lg:max-w-2xl">
+        <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="search">Recherche rapide</label>
+        <div class="relative">
+          <Papicon icon="search" size={18} class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <FormInput
+            id="search"
+            type="text"
+            bind:value={searchQuery}
+            placeholder="Rechercher par action, détails, module ou utilisateur..."
+            className="w-full pl-11 pr-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-2xl text-sm focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+          />
+        </div>
+      </div>
 
-<div class="section-card-flush font-inter">
-  <div class="overflow-x-auto">
-    <table class="w-full text-left border-collapse">
-      <thead>
-        <tr class="bg-slate-50 dark:bg-white/5">
-          <th class="px-6 py-5">
-            <ColumnSortFilter
-              label="Horodatage"
-              sortDirection={sortDirectionFor('date')}
-              onToggleSort={() => toggleSort('date')}
-            />
-          </th>
-          <th class="px-6 py-5">
-            <ColumnSortFilter
-              label="Utilisateur"
-              sortDirection={sortDirectionFor('user')}
-              onToggleSort={() => toggleSort('user')}
-              options={userFilterOptions}
-              selectedValues={filters.users}
-              onToggleValue={(value) => toggleFilter('users', value)}
-              searchable={true}
-            />
-          </th>
-          <th class="px-6 py-5">
-            <ColumnSortFilter
-              label="Salon"
-              options={channelFilterOptions}
-              selectedValues={filters.channels}
-              onToggleValue={(value) => toggleFilter('channels', value)}
-              searchable={true}
-            />
-          </th>
-          <th class="px-6 py-5">
-            <ColumnSortFilter
-              label="Module / Source"
-              sortDirection={sortDirectionFor('module')}
-              onToggleSort={() => toggleSort('module')}
-              options={moduleFilterOptions}
-              selectedValues={filters.modules}
-              onToggleValue={(value) => toggleFilter('modules', value)}
-            />
-          </th>
-          <th class="px-6 py-5">
-            <ColumnSortFilter
-              label="Action"
-              sortDirection={sortDirectionFor('action')}
-              onToggleSort={() => toggleSort('action')}
-              options={actionFilterOptions}
-              selectedValues={filters.actions}
-              onToggleValue={(value) => toggleFilter('actions', value)}
-              searchable={true}
-            />
-          </th>
-          <th class="px-6 py-5 text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Détails</th>
-          <th class="px-6 py-5">
-            <div class="flex justify-center">
-              <ColumnSortFilter
-                label="Type"
-                sortDirection={sortDirectionFor('type')}
-                onToggleSort={() => toggleSort('type')}
-                options={typeFilterOptions}
-                selectedValues={filters.types}
-                onToggleValue={(value) => toggleFilter('types', value)}
-              />
-            </div>
-          </th>
-        </tr>
-      </thead>
-      <tbody class="divide-y divide-slate-50 dark:divide-slate-800">
-        {#each filteredLogs as entry}
-          <tr class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
-            <td class="px-6 py-6">
-              <div class="text-xs">
-                <p class="font-bold text-slate-800 dark:text-slate-200">{new Date(entry.dateIso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
-                <p class="text-[10px] text-slate-400 font-medium">{new Date(entry.dateIso).toLocaleDateString()}</p>
-              </div>
-            </td>
-            <td class="px-6 py-6">
-              <button
-                type="button"
-                onclick={() => openCaseModal(entry)}
-                class="inline-flex max-w-40 truncate rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-700 hover:border-primary/50 hover:text-primary transition dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                title="Ouvrir le casier"
-              >
-                {displayUser(entry)}
-              </button>
-            </td>
-            <td class="px-6 py-6 max-w-xs">
-              <span class="text-xs text-slate-600 dark:text-slate-300">
-                {formatChannelLabel(getLogChannelId(entry))}
-              </span>
-            </td>
-            <td class="px-6 py-6 font-bold text-sm text-primary">
-              {entry.module}
-            </td>
-            <td class="px-6 py-6 font-medium text-sm text-slate-600 dark:text-slate-200">
-              {entry.action}
-            </td>
-            <td class="px-6 py-6 max-w-xs">
-              <p class="text-xs text-on-surface-variant line-clamp-2 leading-relaxed">
-                {@html parseDetailsMetadata(entry.details, entry.user).cleanDetails}
-              </p>
-            </td>
-            <td class="px-6 py-6 text-center">
-              <span class="inline-flex items-center justify-center w-24 px-3 py-1 rounded-full text-[10px] font-bold 
-                {entry.eventType === 'Automatique' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}">
-                {entry.eventType}
-              </span>
-            </td>
-          </tr>
-        {/each}
-
-        {#if filteredLogs.length === 0}
-          <tr>
-            <td colspan="7" class="px-6 py-20 text-center text-on-surface-variant opacity-50">
-              <Papicon icon="history" size={40} class="mb-2 mx-auto" />
-              <p class="text-sm font-medium">Aucun événement Discord ne correspond à votre recherche</p>
-            </td>
-          </tr>
+      <div class="flex items-center gap-3 self-end lg:self-center">
+        <span class="text-xs font-bold text-on-surface-variant bg-surface-container-high/40 px-3 py-1.5 rounded-full">{filteredLogs.length} / {discordLogs.length} événements</span>
+        {#if hasActiveFiltersOrSort}
+          <button
+            type="button"
+            onclick={resetFiltersAndSort}
+            class="text-xs font-black text-primary hover:underline transition"
+          >
+            Réinitialiser
+          </button>
         {/if}
-      </tbody>
-    </table>
-  </div>
-</div>
-
-
-<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12 font-inter">
-  {#each stats as kpi}
-    <div class="bg-surface-container-low p-6 rounded-2xl border border-outline-variant/10">
-      <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{kpi.label}</p>
-      <div class="flex items-end justify-between mt-2">
-        <p class="text-3xl font-extrabold text-on-surface">{kpi.val}</p>
-        <span class="text-[10px] font-bold {kpi.subClass}">{kpi.sub}</span>
       </div>
     </div>
-  {/each}
+  </div>
+
+  <!-- Audit Table -->
+  <div class="section-card-flush rounded-[2rem] border border-outline-variant/10 overflow-hidden bg-surface-container-low/20">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left border-collapse">
+        <thead>
+          <tr class="bg-surface-container-high/30 border-b border-outline-variant/10">
+            <th class="px-6 py-5">
+              <ColumnSortFilter
+                label="Heure"
+                sortDirection={sortDirectionFor('date')}
+                onToggleSort={() => toggleSort('date')}
+              />
+            </th>
+            <th class="px-6 py-5">
+              <ColumnSortFilter
+                label="Acteur"
+                sortDirection={sortDirectionFor('user')}
+                onToggleSort={() => toggleSort('user')}
+                options={userFilterOptions}
+                selectedValues={filters.users}
+                onToggleValue={(value) => toggleFilter('users', value)}
+                searchable={true}
+              />
+            </th>
+            <th class="px-6 py-5">
+              <ColumnSortFilter
+                label="Salon"
+                options={channelFilterOptions}
+                selectedValues={filters.channels}
+                onToggleValue={(value) => toggleFilter('channels', value)}
+                searchable={true}
+              />
+            </th>
+            <th class="px-6 py-5">
+              <ColumnSortFilter
+                label="Catégorie"
+                sortDirection={sortDirectionFor('module')}
+                onToggleSort={() => toggleSort('module')}
+                options={moduleFilterOptions}
+                selectedValues={filters.modules}
+                onToggleValue={(value) => toggleFilter('modules', value)}
+              />
+            </th>
+            <th class="px-6 py-5">
+              <ColumnSortFilter
+                label="Action"
+                sortDirection={sortDirectionFor('action')}
+                onToggleSort={() => toggleSort('action')}
+                options={actionFilterOptions}
+                selectedValues={filters.actions}
+                onToggleValue={(value) => toggleFilter('actions', value)}
+                searchable={true}
+              />
+            </th>
+            <th class="px-6 py-5 text-[10px] font-black text-on-surface-variant uppercase tracking-widest">Description des Détails</th>
+            <th class="px-6 py-5">
+              <div class="flex justify-center">
+                <ColumnSortFilter
+                  label="Type"
+                  sortDirection={sortDirectionFor('type')}
+                  onToggleSort={() => toggleSort('type')}
+                  options={typeFilterOptions}
+                  selectedValues={filters.types}
+                  onToggleValue={(value) => toggleFilter('types', value)}
+                />
+              </div>
+            </th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-outline-variant/10">
+          {#each filteredLogs as entry}
+            <tr class="hover:bg-surface-container-low transition-colors group">
+              <td class="px-6 py-5">
+                <div class="text-xs">
+                  <p class="font-bold text-on-surface">{new Date(entry.dateIso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
+                  <p class="text-[10px] text-on-surface-variant/60 font-medium">{new Date(entry.dateIso).toLocaleDateString()}</p>
+                </div>
+              </td>
+              <td class="px-6 py-5">
+                <button
+                  type="button"
+                  onclick={() => openCaseModal(entry)}
+                  class="inline-flex max-w-40 truncate rounded-full border border-outline-variant/10 bg-surface-container-high/40 px-3 py-1 text-[11px] font-bold text-on-surface-variant hover:border-primary/50 hover:text-primary transition-all"
+                  title="Ouvrir le casier"
+                >
+                  {displayUser(entry)}
+                </button>
+              </td>
+              <td class="px-6 py-5 max-w-xs">
+                <span class="text-xs text-on-surface-variant/80">
+                  {formatChannelLabel(getLogChannelId(entry))}
+                </span>
+              </td>
+              <td class="px-6 py-5 font-bold text-xs text-primary uppercase tracking-wider">
+                {entry.module}
+              </td>
+              <td class="px-6 py-5 font-bold text-xs text-on-surface">
+                {entry.action}
+              </td>
+              <td class="px-6 py-5 max-w-sm">
+                <p class="text-xs text-on-surface-variant/80 leading-relaxed break-all">
+                  {@html parseDetailsMetadata(entry.details, entry.user).cleanDetails}
+                </p>
+              </td>
+              <td class="px-6 py-5 text-center">
+                <span class="inline-flex items-center justify-center w-24 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider
+                  {entry.eventType === 'Automatique' ? 'bg-blue-500/10 text-blue-500' : 'bg-amber-500/10 text-amber-500'}">
+                  {entry.eventType}
+                </span>
+              </td>
+            </tr>
+          {/each}
+
+          {#if filteredLogs.length === 0}
+            <tr>
+              <td colspan="7" class="px-6 py-20 text-center text-on-surface-variant opacity-60">
+                <div class="flex flex-col items-center justify-center">
+                  <Papicon icon="Info" size={40} class="mb-3 text-on-surface-variant/40" />
+                  <p class="text-sm font-bold">Aucun événement trouvé</p>
+                  <p class="text-xs text-on-surface-variant/60 mt-1">Essayez de modifier vos filtres de recherche.</p>
+                </div>
+              </td>
+            </tr>
+          {/if}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- KPI summary -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+    {#each stats as kpi}
+      <div class="bg-surface-container-low/40 p-6 rounded-3xl border border-outline-variant/10 hover:shadow-lg transition-all duration-300">
+        <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{kpi.label}</p>
+        <div class="flex items-end justify-between mt-2">
+          <p class="text-3xl font-extrabold text-on-surface">{kpi.val}</p>
+          <span class="text-[10px] font-bold {kpi.subClass}">{kpi.sub}</span>
+        </div>
+      </div>
+    {/each}
+  </div>
 </div>
+{/if}
 
 {#if caseModalOpen && selectedCaseUser}
   <MemberCaseModal 
@@ -847,3 +1031,4 @@
 {/if}
 
 </ModulePage>
+

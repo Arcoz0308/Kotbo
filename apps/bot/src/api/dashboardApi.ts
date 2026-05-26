@@ -6822,7 +6822,7 @@ export const startDashboardApi = (client: Client) => {
             try {
               const config = await prisma.dashboardFeatureConfig.findUnique({
                 where: { guildId_featureKey: { guildId, featureKey: 'absences' } },
-                include: { roleAccess: true }
+                include: { roleAccess: true, roleAccessByRole: true, notificationTargets: true }
               });
               json(res, 200, { config });
             } catch (err) {
@@ -6840,13 +6840,41 @@ export const startDashboardApi = (client: Client) => {
 
             const body = await readJsonBody<{
               managerRoleLevels: number[];
+              webhookUrl?: string | null;
+              channelId?: string | null;
+              notificationRoleId?: string | null;
+              notifyViaDiscordChannel?: boolean;
             }>(req);
 
             try {
+              const currentConfig = await prisma.dashboardFeatureConfig.findUnique({
+                where: { guildId_featureKey: { guildId, featureKey: 'absences' } }
+              });
+
+              const currentMetadata = (currentConfig?.metadata as Record<string, any>) || {};
+              const updatedMetadata = {
+                ...currentMetadata,
+                webhookUrl: body.webhookUrl !== undefined ? body.webhookUrl : currentMetadata.webhookUrl
+              };
+
               const config = await prisma.dashboardFeatureConfig.upsert({
                 where: { guildId_featureKey: { guildId, featureKey: 'absences' } },
-                update: { featureName: 'Absences Staff' },
-                create: { guildId, featureKey: 'absences', featureName: 'Absences Staff' }
+                update: {
+                  featureName: 'Absences Staff',
+                  channelId: body.channelId !== undefined ? body.channelId : undefined,
+                  notificationRoleId: body.notificationRoleId !== undefined ? body.notificationRoleId : undefined,
+                  notifyViaDiscordChannel: body.notifyViaDiscordChannel !== undefined ? body.notifyViaDiscordChannel : undefined,
+                  metadata: updatedMetadata,
+                },
+                create: {
+                  guildId,
+                  featureKey: 'absences',
+                  featureName: 'Absences Staff',
+                  channelId: body.channelId ?? null,
+                  notificationRoleId: body.notificationRoleId ?? null,
+                  notifyViaDiscordChannel: body.notifyViaDiscordChannel ?? true,
+                  metadata: updatedMetadata,
+                }
               });
 
               // Update role access
@@ -6870,6 +6898,38 @@ export const startDashboardApi = (client: Client) => {
             } catch (err) {
               logger.error('StaffAPI', 'Error updating absence config:', err);
               json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration' });
+            }
+            return;
+          }
+
+          // GET /api/dashboard/guilds/:guildId/notifications/features
+          if (parts.length === 6 && parts[4] === 'notifications' && parts[5] === 'features' && req.method === 'GET') {
+            try {
+              const { getOrCreateFeatureConfigs } = await import('../services/dashboardManagementService.js');
+              const features = await getOrCreateFeatureConfigs(guildId);
+              json(res, 200, { features });
+            } catch (err) {
+              logger.error('NotificationsAPI', 'Error getting feature configs:', err);
+              json(res, 500, { error: 'Erreur lors de la récupération des configurations des modules' });
+            }
+            return;
+          }
+
+          // PATCH /api/dashboard/guilds/:guildId/notifications/features/:featureKey
+          if (parts.length === 7 && parts[4] === 'notifications' && parts[5] === 'features' && req.method === 'PATCH') {
+            if (!access.canManageSettings) {
+              json(res, 403, { error: 'Accès refusé' });
+              return;
+            }
+            const featureKey = parts[6];
+            const body = await readJsonBody<any>(req);
+            try {
+              const { updateFeatureConfig } = await import('../services/dashboardManagementService.js');
+              const config = await updateFeatureConfig(guildId, featureKey, body);
+              json(res, 200, { config });
+            } catch (err) {
+              logger.error('NotificationsAPI', `Error updating feature config ${featureKey}:`, err);
+              json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration du module' });
             }
             return;
           }
@@ -9067,8 +9127,8 @@ export const startDashboardApi = (client: Client) => {
         }
       }
 
-      // --- MANAGEMENT CENTER / CENTRALIZED CONFIG ROUTES ---
-      if (parts.length >= 4 && parts[0] === 'api' && parts[1] === 'dashboard' && parts[2] === 'guilds' && parts[4] === 'management') {
+      // --- LOGS EVENT CONFIGS ROUTES ---
+      if (parts.length >= 4 && parts[0] === 'api' && parts[1] === 'dashboard' && parts[2] === 'guilds' && parts[4] === 'logs') {
         const user = verifyAuth(req);
         if (!user) {
           json(res, 401, { error: 'Non authentifié' });
@@ -9087,8 +9147,8 @@ export const startDashboardApi = (client: Client) => {
         const featureAccess = await resolveFeatureAccessMap(client, guildId, access, user.userId, roleIds);
 
         const isGetMethod = req.method === 'GET';
-        if (!isGetMethod && !access.canManageSettings && !featureAccess.centralized_config?.canConfigure) {
-          json(res, 403, { error: 'Accès refusé. Seuls les administrateurs peuvent modifier la gestion centralisée.' });
+        if (!isGetMethod && !access.canManageSettings && !featureAccess.logs?.canConfigure) {
+          json(res, 403, { error: 'Accès refusé. Seuls les administrateurs peuvent modifier les logs.' });
           return;
         }
 
@@ -9099,222 +9159,98 @@ export const startDashboardApi = (client: Client) => {
 
         const auditUser = user.username ?? `User${user.userId}`;
 
-        // Importer le service ici pour éviter les dépendances circulaires
-        const { getOrCreateFeatureConfigs, updateFeatureConfig, updateRoleAccess, updateNotificationTargets } = await import('../services/dashboardManagementService.js');
-
-        // GET /api/dashboard/guilds/:guildId/management/features
-        if (parts.length === 6 && parts[4] === 'management' && parts[5] === 'features' && req.method === 'GET') {
+        // GET /api/dashboard/guilds/:guildId/logs/event-configs
+        if (parts.length === 6 && parts[5] === 'event-configs' && req.method === 'GET') {
           try {
-            const features = await getOrCreateFeatureConfigs(guildId);
-            json(res, 200, {
-              features: features.map((feature) => ({
-                id: feature.id,
-                featureKey: feature.featureKey,
-                featureName: feature.featureName,
-                enabled: feature.enabled,
-                channelId: feature.channelId,
-                secondaryChannelId: feature.secondaryChannelId,
-                requiredRoleId: feature.requiredRoleId,
-                notificationRoleId: feature.notificationRoleId,
-                notifyViaDiscordChannel: feature.notifyViaDiscordChannel,
-                notifyViaDM: feature.notifyViaDM,
-                loggingEnabled: feature.loggingEnabled,
-                userActivityTracking: feature.userActivityTracking,
-                metadata: feature.metadata,
-                roleAccess: feature.roleAccess,
-                roleAccessByRole: feature.roleAccessByRole,
-              })),
+            const LOG_EVENT_TYPES = [
+              'message_delete', 'message_edit', 'message_bulk_delete',
+              'member_join', 'member_leave', 'member_roles_update', 'member_timeout',
+              'moderation_kick', 'moderation_ban', 'moderation_unban',
+              'voice_join', 'voice_leave', 'voice_move',
+              'channel_lifecycle', 'role_lifecycle'
+            ];
+
+            const existingConfigs = await prisma.guildLogEventConfig.findMany({
+              where: { guildId }
             });
+
+            const existingMap = new Map(existingConfigs.map(c => [c.eventType, c]));
+            const missingTypes = LOG_EVENT_TYPES.filter(t => !existingMap.has(t));
+
+            if (missingTypes.length > 0) {
+              await prisma.$transaction(
+                missingTypes.map(t => prisma.guildLogEventConfig.create({
+                  data: {
+                    guildId,
+                    eventType: t,
+                    enabled: true,
+                    channelId: null
+                  }
+                }))
+              );
+            }
+
+            const allConfigs = await prisma.guildLogEventConfig.findMany({
+              where: { guildId },
+              orderBy: { eventType: 'asc' }
+            });
+
+            json(res, 200, { configs: allConfigs });
           } catch (err) {
-            logger.error('ManagementAPI', 'Error fetching feature configs:', err);
-            json(res, 500, { error: 'Erreur lors de la récupération des configurations' });
+            logger.error('LogsConfigAPI', 'Error fetching logs event configs:', err);
+            json(res, 500, { error: 'Erreur lors de la récupération de la configuration des événements' });
           }
           return;
         }
 
-        // PATCH /api/dashboard/guilds/:guildId/management/features/:featureKey
-        if (
-          parts.length === 7 &&
-          parts[4] === 'management' &&
-          parts[5] === 'features' &&
-          req.method === 'PATCH'
-        ) {
-          const featureKey = parts[6];
+        // PUT /api/dashboard/guilds/:guildId/logs/event-configs
+        if (parts.length === 6 && parts[5] === 'event-configs' && req.method === 'PUT') {
           const body = await readJsonBody<{
-            enabled?: boolean;
-            channelId?: string | null;
-            secondaryChannelId?: string | null;
-            requiredRoleId?: string | null;
-            notificationRoleId?: string | null;
-            notifyViaDiscordChannel?: boolean;
-            notifyViaDM?: boolean;
-            loggingEnabled?: boolean;
-            userActivityTracking?: boolean;
-            metadata?: Record<string, unknown>;
-          }>(req);
-
-          try {
-            const updated = await updateFeatureConfig(guildId, featureKey, body || {});
-
-            // Synchronize back to Guild table
-            const guildUpdates: any = {};
-            if (featureKey === 'daily_algo') {
-              if (body?.enabled !== undefined) guildUpdates.dailyAlgoEnabled = body.enabled;
-              if (body?.channelId !== undefined) guildUpdates.dailyAlgoChannelId = body.channelId;
-            } else if (featureKey === 'digest') {
-              if (body?.enabled !== undefined) guildUpdates.digestEnabled = body.enabled;
-              if (body?.channelId !== undefined) guildUpdates.digestChannelId = body.channelId;
-            } else if (featureKey === 'translation') {
-              if (body?.enabled !== undefined) guildUpdates.translationEnabled = body.enabled;
-            } else if (featureKey === 'codepolice') {
-              if (body?.enabled !== undefined) guildUpdates.codePoliceEnabled = body.enabled;
-            } else if (featureKey === 'logs') {
-              if (body?.channelId !== undefined) guildUpdates.logChannelId = body.channelId;
-            } else if (featureKey === 'regulation') {
-              if (body?.channelId !== undefined) guildUpdates.regulationChannelId = body.channelId;
-            } else if (featureKey === 'meetings') {
-              if (body?.channelId !== undefined) guildUpdates.meetingAnnouncementChannelId = body.channelId;
-              if (body?.secondaryChannelId !== undefined) guildUpdates.meetingVoiceChannelId = body.secondaryChannelId;
-            } else if (featureKey === 'settings') {
-              if (body?.channelId !== undefined) guildUpdates.configChannelId = body.channelId;
-            } else if (featureKey === 'dashboard') {
-              if (body?.channelId !== undefined) guildUpdates.publicChannelId = body.channelId;
-            } else if (featureKey === 'sanctions') {
-              if (body?.enabled !== undefined) {
-                guildUpdates.propagateSanctions = body.enabled;
-                guildUpdates.sanctionSyncEnabled = body.enabled;
-              }
-            }
-
-            if (Object.keys(guildUpdates).length > 0) {
-              await prisma.guild.update({
-                where: { id: guildId },
-                data: guildUpdates,
-              });
-            }
-
-            await pushAudit(guildId, {
-              user: auditUser,
-              action: 'Mise à jour configuration feature',
-              context: getGuildName(client, guildId),
-              module: 'Management',
-              eventType: 'Manuel',
-              details: `Feature ${featureKey} mise à jour.`,
-              channelId: null,
-            });
-
-            json(res, 200, { ok: true, feature: updated });
-          } catch (err) {
-            logger.error('ManagementAPI', 'Error updating feature config:', err);
-            json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration' });
-          }
-          return;
-        }
-
-        // PUT /api/dashboard/guilds/:guildId/management/features/:featureKey/role-access
-        if (
-          parts.length === 8 &&
-          parts[4] === 'management' &&
-          parts[5] === 'features' &&
-          parts[7] === 'role-access' &&
-          req.method === 'PUT'
-        ) {
-          const featureKey = parts[6];
-          const body = await readJsonBody<{
-            roleAccessConfigs: Array<{
-              roleId: string;
-              canView?: boolean;
-              canModerate?: boolean;
-              canConfigure?: boolean;
-              canDelete?: boolean;
+            configs: Array<{
+              eventType: string;
+              enabled: boolean;
+              channelId: string | null;
             }>;
           }>(req);
 
-          if (!body?.roleAccessConfigs) {
-            json(res, 400, { error: 'roleAccessConfigs manquant' });
+          if (!body?.configs || !Array.isArray(body.configs)) {
+            json(res, 400, { error: 'Format invalide. Liste de configurations attendue.' });
             return;
           }
 
           try {
-            // Find the feature config first
-            const featureConfig = await prisma.dashboardFeatureConfig.findUnique({
-              where: { guildId_featureKey: { guildId, featureKey } },
-            });
-
-            if (!featureConfig) {
-              json(res, 404, { error: 'Configuration de feature non trouvée' });
-              return;
-            }
-
-            const updated = await updateRoleAccess(guildId, featureConfig.id, body.roleAccessConfigs);
-
-            await pushAudit(guildId, {
-              user: auditUser,
-              action: 'Mise à jour accès rôles',
-              context: getGuildName(client, guildId),
-              module: 'Management',
-              eventType: 'Manuel',
-              details: `Accès des rôles pour ${featureKey} mis à jour.`,
-              channelId: null,
-            });
-
-            json(res, 200, { ok: true, feature: updated });
-          } catch (err) {
-            logger.error('ManagementAPI', 'Error updating role access:', err);
-            json(res, 500, { error: 'Erreur lors de la mise à jour des accès' });
-          }
-          return;
-        }
-
-        // PUT /api/dashboard/guilds/:guildId/management/features/:featureKey/notification-targets
-        if (
-          parts.length === 8 &&
-          parts[4] === 'management' &&
-          parts[5] === 'features' &&
-          parts[7] === 'notification-targets' &&
-          req.method === 'PUT'
-        ) {
-          const featureKey = parts[6];
-          const body = await readJsonBody<{
-            notificationTargets: Array<{
-              targetType: string;
-              targetId?: string | null;
-              enabled?: boolean;
-            }>;
-          }>(req);
-
-          if (!body?.notificationTargets) {
-            json(res, 400, { error: 'notificationTargets manquant' });
-            return;
-          }
-
-          try {
-            // Find the feature config first
-            const featureConfig = await prisma.dashboardFeatureConfig.findUnique({
-              where: { guildId_featureKey: { guildId, featureKey } },
-            });
-
-            if (!featureConfig) {
-              json(res, 404, { error: 'Configuration de feature non trouvée' });
-              return;
-            }
-
-            const updated = await updateNotificationTargets(guildId, featureConfig.id, body.notificationTargets);
+            await prisma.$transaction(
+              body.configs.map(c => prisma.guildLogEventConfig.upsert({
+                where: {
+                  guildId_eventType: { guildId, eventType: c.eventType }
+                },
+                update: {
+                  enabled: c.enabled,
+                  channelId: c.channelId ? c.channelId : null
+                },
+                create: {
+                  guildId,
+                  eventType: c.eventType,
+                  enabled: c.enabled,
+                  channelId: c.channelId ? c.channelId : null
+                }
+              }))
+            );
 
             await pushAudit(guildId, {
               user: auditUser,
-              action: 'Mise à jour cibles notifications',
+              action: 'Mise à jour configuration logs granulaires',
               context: getGuildName(client, guildId),
-              module: 'Management',
+              module: 'Logs',
               eventType: 'Manuel',
-              details: `Cibles de notifications pour ${featureKey} mises à jour.`,
-              channelId: null,
+              details: 'Configuration par événement mise à jour.',
+              channelId: null
             });
 
-            json(res, 200, { ok: true, feature: updated });
+            json(res, 200, { ok: true });
           } catch (err) {
-            logger.error('ManagementAPI', 'Error updating notification targets:', err);
-            json(res, 500, { error: 'Erreur lors de la mise à jour des cibles de notifications' });
+            logger.error('LogsConfigAPI', 'Error updating logs event configs:', err);
+            json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration des événements' });
           }
           return;
         }

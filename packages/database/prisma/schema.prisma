@@ -113,6 +113,7 @@ model Guild {
   tutoringConfig TutoringConfig?
   tutoringItems TutoringItem[]
   dashboardFeatureConfigs DashboardFeatureConfig[]
+  logEventConfigs GuildLogEventConfig[]
   events Event[]
 
   ticketCategoryId       String?
@@ -1734,4 +1735,20 @@ enum ResignationStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+model GuildLogEventConfig {
+  id        String   @id @default(cuid())
+  guildId   String
+  eventType String   // ex: "message_delete", "voice_activity", etc.
+  enabled   Boolean  @default(true)
+  channelId String?  // Salon Discord spécifique (null = salon par défaut)
+
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, eventType])
+  @@map("guild_log_event_configs")
 }

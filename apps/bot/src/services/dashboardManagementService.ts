@@ -152,12 +152,6 @@ export const defaultFeatures = [
     category: 'config',
   },
   {
-    featureKey: 'centralized_config',
-    featureName: 'Gestion Centralisée',
-    description: 'Configuration centralisée du dashboard',
-    category: 'config',
-  },
-  {
     featureKey: 'commands',
     featureName: 'Commandes',
     description: 'Accès et permissions des commandes',
@@ -391,7 +385,7 @@ export async function applyPresetToFeatureAccess(
       // Don't add if already added as admin
       if (roleIds.adminRoleIds.includes(modId)) continue;
 
-      const isRestricted = ['settings', 'centralized_config', 'commands', 'discipline'].includes(featureKey);
+      const isRestricted = ['settings', 'commands', 'discipline'].includes(featureKey);
       
       roleAccessToCreate.push({
         guildId,

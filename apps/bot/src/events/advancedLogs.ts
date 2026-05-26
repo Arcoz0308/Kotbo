@@ -525,10 +525,31 @@ async function getGuildLogChannelId(guildId: string): Promise<string | null> {
 async function sendLogEmbed(
   guild: Guild,
   embed: EmbedBuilder,
+  eventType: string,
   components?: Array<ActionRowBuilder<ButtonBuilder>>,
 ): Promise<void> {
   const summary = embedSummary(embed);
-  const channelId = await getGuildLogChannelId(guild.id);
+  
+  // 1. Fetch event config from database
+  const config = await prisma.guildLogEventConfig.findUnique({
+    where: {
+      guildId_eventType: {
+        guildId: guild.id,
+        eventType
+      }
+    }
+  });
+
+  // If configuration exists and is disabled, we do not log it
+  if (config && !config.enabled) {
+    return;
+  }
+
+  // 2. Resolve destination channel: specific channelId from event config, falling back to main log channel
+  let channelId = config?.channelId;
+  if (!channelId) {
+    channelId = await getGuildLogChannelId(guild.id);
+  }
   
   await prisma.dashboardAuditLog.create({
     data: {
@@ -955,7 +976,7 @@ export function registerAdvancedLogsListener(client: Client): void {
     const deletedBy = await resolveMessageDeleteActor(message.guild, message, snapshot);
     const embed = buildMessageDeleteEmbed(snapshot, deletedBy);
     const components = [buildMemberCaseActionRow(snapshot.authorId)];
-    await sendLogEmbed(message.guild, embed, components);
+    await sendLogEmbed(message.guild, embed, 'message_delete', components);
   });
 
   client.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
@@ -986,7 +1007,7 @@ export function registerAdvancedLogsListener(client: Client): void {
       createdAt: Date.now(),
     });
 
-    await sendLogEmbed(newMessage.guild, embed, [buildMemberCaseActionRow(snapshot.authorId)]);
+    await sendLogEmbed(newMessage.guild, embed, 'message_edit', [buildMemberCaseActionRow(snapshot.authorId)]);
   });
 
   client.on(Events.MessageBulkDelete, async (messages, channel) => {
@@ -1024,7 +1045,7 @@ export function registerAdvancedLogsListener(client: Client): void {
       preview.length > 0 ? preview : 'Auteur non déterminé (messages non présents en cache).',
     );
 
-    await sendLogEmbed(guild, embed);
+    await sendLogEmbed(guild, embed, 'message_bulk_delete');
   });
 
   client.on(Events.VoiceStateUpdate, async (oldState: VoiceState, newState: VoiceState) => {
@@ -1057,7 +1078,7 @@ export function registerAdvancedLogsListener(client: Client): void {
         });
       }
 
-      await sendLogEmbed(guild, embed, [buildMemberCaseActionRow(userId)]);
+      await sendLogEmbed(guild, embed, 'voice_join', [buildMemberCaseActionRow(userId)]);
       return;
     }
 
@@ -1099,7 +1120,7 @@ export function registerAdvancedLogsListener(client: Client): void {
         void incrementMemberDailyVoice(guild.id, member.id, durationMinutes);
       }
 
-      await sendLogEmbed(guild, embed, [buildMemberCaseActionRow(userId)]);
+      await sendLogEmbed(guild, embed, 'voice_leave', [buildMemberCaseActionRow(userId)]);
       return;
     }
 
@@ -1142,7 +1163,7 @@ export function registerAdvancedLogsListener(client: Client): void {
         });
       }
 
-      await sendLogEmbed(guild, embed, [buildMemberCaseActionRow(userId)]);
+      await sendLogEmbed(guild, embed, 'voice_move', [buildMemberCaseActionRow(userId)]);
     }
   });
 
@@ -1210,7 +1231,7 @@ export function registerAdvancedLogsListener(client: Client): void {
         .setTimestamp()
         .setFooter({ text: 'Kotbo Security Suite', iconURL: member.guild.iconURL() || undefined });
 
-      await sendLogEmbed(member.guild, embed);
+      await sendLogEmbed(member.guild, embed, 'member_join');
       return; // Stop join operations
     }
 
@@ -1258,7 +1279,7 @@ export function registerAdvancedLogsListener(client: Client): void {
       embed.setDescription(`⚠️ Ce compte a été créé il y a seulement **${accountAgeDays} jours**. Soyez vigilant.`);
     }
 
-    await sendLogEmbed(member.guild, embed, [buildMemberCaseActionRow(member.id)]);
+    await sendLogEmbed(member.guild, embed, 'member_join', [buildMemberCaseActionRow(member.id)]);
   });
 
   client.on(Events.GuildMemberRemove, async (member) => {
@@ -1323,7 +1344,7 @@ export function registerAdvancedLogsListener(client: Client): void {
       },
     );
 
-    await sendLogEmbed(member.guild, embed, [buildMemberCaseActionRow(member.id)]);
+    await sendLogEmbed(member.guild, embed, 'member_leave', [buildMemberCaseActionRow(member.id)]);
   });
 
   client.on(Events.MessageReactionAdd, async (reaction, user) => {
@@ -1375,7 +1396,7 @@ export function registerAdvancedLogsListener(client: Client): void {
       channel,
       `Type: ${channel.type}`,
     );
-    await sendLogEmbed(channel.guild, embed);
+    await sendLogEmbed(channel.guild, embed, 'channel_lifecycle');
   });
 
   client.on(Events.ChannelDelete, async (channel) => {
@@ -1387,7 +1408,7 @@ export function registerAdvancedLogsListener(client: Client): void {
       channel,
       `Type: ${channel.type}`,
     );
-    await sendLogEmbed(channel.guild, embed);
+    await sendLogEmbed(channel.guild, embed, 'channel_lifecycle');
   });
 
   client.on(Events.ChannelUpdate, async (oldChannel, newChannel) => {
@@ -1434,17 +1455,17 @@ export function registerAdvancedLogsListener(client: Client): void {
       details.length > 0 ? details.join('\n') : 'Modification détectée.',
     );
 
-    await sendLogEmbed(newChannel.guild, embed);
+    await sendLogEmbed(newChannel.guild, embed, 'channel_lifecycle');
   });
 
   client.on(Events.GuildRoleCreate, async (role) => {
     const embed = buildRoleEventEmbed('🆕 Rôle créé', 0x2a9d8f, role, `Couleur: #${role.color.toString(16).padStart(6, '0')}`);
-    await sendLogEmbed(role.guild, embed);
+    await sendLogEmbed(role.guild, embed, 'role_lifecycle');
   });
 
   client.on(Events.GuildRoleDelete, async (role) => {
     const embed = buildRoleEventEmbed('🗑️ Rôle supprimé', 0xe63946, role, `Couleur: #${role.color.toString(16).padStart(6, '0')}`);
-    await sendLogEmbed(role.guild, embed);
+    await sendLogEmbed(role.guild, embed, 'role_lifecycle');
   });
 
   client.on(Events.GuildRoleUpdate, async (oldRole, newRole) => {
@@ -1468,7 +1489,7 @@ export function registerAdvancedLogsListener(client: Client): void {
     if (changes.length === 0) return;
 
     const embed = buildRoleEventEmbed('🛠️ Rôle modifié', 0xf4a261, newRole, changes.join('\n'));
-    await sendLogEmbed(newRole.guild, embed);
+    await sendLogEmbed(newRole.guild, embed, 'role_lifecycle');
   });
 
   client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
@@ -1490,7 +1511,7 @@ export function registerAdvancedLogsListener(client: Client): void {
         )
         .setTimestamp();
 
-      await sendLogEmbed(newMember.guild, embed, [buildMemberCaseActionRow(newMember.id)]);
+      await sendLogEmbed(newMember.guild, embed, 'member_roles_update', [buildMemberCaseActionRow(newMember.id)]);
     }
 
     const oldTimeout = oldMember.communicationDisabledUntilTimestamp ?? null;
@@ -1511,7 +1532,7 @@ export function registerAdvancedLogsListener(client: Client): void {
         )
         .setTimestamp();
 
-      await sendLogEmbed(newMember.guild, embed, [buildMemberCaseActionRow(newMember.id)]);
+      await sendLogEmbed(newMember.guild, embed, 'member_timeout', [buildMemberCaseActionRow(newMember.id)]);
     }
   });
 
@@ -1546,7 +1567,7 @@ export function registerAdvancedLogsListener(client: Client): void {
         moderatorTag,
         reason,
       );
-      await sendLogEmbed(guild, embed, [buildMemberCaseActionRow(targetId), buildMemberCaseActionRow(executorId)]);
+      await sendLogEmbed(guild, embed, 'moderation_kick', [buildMemberCaseActionRow(targetId), buildMemberCaseActionRow(executorId)]);
       return;
     }
 
@@ -1560,7 +1581,7 @@ export function registerAdvancedLogsListener(client: Client): void {
         moderatorTag,
         reason,
       );
-      await sendLogEmbed(guild, embed, [buildMemberCaseActionRow(targetId), buildMemberCaseActionRow(executorId)]);
+      await sendLogEmbed(guild, embed, 'moderation_ban', [buildMemberCaseActionRow(targetId), buildMemberCaseActionRow(executorId)]);
       return;
     }
 
@@ -1574,7 +1595,7 @@ export function registerAdvancedLogsListener(client: Client): void {
         moderatorTag,
         reason,
       );
-      await sendLogEmbed(guild, embed, [buildMemberCaseActionRow(targetId), buildMemberCaseActionRow(executorId)]);
+      await sendLogEmbed(guild, embed, 'moderation_unban', [buildMemberCaseActionRow(targetId), buildMemberCaseActionRow(executorId)]);
       return;
     }
 
@@ -1603,7 +1624,7 @@ export function registerAdvancedLogsListener(client: Client): void {
         ],
       );
 
-      await sendLogEmbed(guild, embed, [buildMemberCaseActionRow(targetId), buildMemberCaseActionRow(executorId)]);
+      await sendLogEmbed(guild, embed, 'moderation_timeout', [buildMemberCaseActionRow(targetId), buildMemberCaseActionRow(executorId)]);
     }
   });
 
