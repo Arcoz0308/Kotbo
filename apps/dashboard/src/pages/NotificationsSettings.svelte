@@ -1,20 +1,12 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
-  import { 
-    updateGlobalSettings, 
-    updateNotificationsSettings,
-    fetchFeatureConfigurations,
-    updateFeatureConfiguration
-  } from '../lib/api';
+  import { updateGlobalSettings, updateNotificationsSettings } from '../lib/api';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
   import FormSelect from '../lib/components/FormSelect.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
-  import ManagementNotifications from '../lib/components/management/ManagementNotifications.svelte';
-
   const availableChannels = $derived(dashboardStore.state.discordChannels || []);
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
   const canManageSettings = $derived(!!dashboardStore.state.access?.canManageSettings);
@@ -24,37 +16,32 @@
   let notificationsDraft = $state({
     discordChannel: '#alertes-redaction',
     logChannelId: '',
+    moderatorRoleId: '',
     email: '',
-    emailEnabled: false
+    emailEnabled: false,
+    cloudBackup: true,
+    debugLog: false,
+    killSwitchEnabled: false,
+    severityByModule: []
   });
-
-  let featureConfigs = $state<any[]>([]);
-
-  async function loadFeatureConfigs() {
-    try {
-      const data = await fetchFeatureConfigurations();
-      featureConfigs = data?.features || [];
-    } catch (err) {
-      console.error('Failed to load feature configs:', err);
-    }
-  }
 
   $effect(() => {
     if (!dashboardStore.state.loading) {
       notificationsDraft = {
         discordChannel: dashboardStore.state.notifications?.discordChannel || '#alertes-redaction',
         logChannelId: dashboardStore.state.logChannelId || '',
+        moderatorRoleId: dashboardStore.state.moderatorRoleId || '',
         email: dashboardStore.state.notifications?.email || '',
-        emailEnabled: !!dashboardStore.state.notifications?.emailEnabled
+        emailEnabled: !!dashboardStore.state.notifications?.emailEnabled,
+        cloudBackup: !!dashboardStore.state.notifications?.cloudBackup,
+        debugLog: !!dashboardStore.state.notifications?.debugLog,
+        killSwitchEnabled: !!dashboardStore.state.notifications?.killSwitchEnabled,
+        severityByModule: dashboardStore.state.notifications?.severityByModule || []
       };
     }
   });
 
-  onMount(() => {
-    loadFeatureConfigs();
-  });
-
-  async function saveGeneralNotifications() {
+  async function saveNotifications() {
     if (!canManageSettings) {
       saveAction.setError('Seuls les administrateurs peuvent modifier ces paramètres.');
       return;
@@ -66,11 +53,10 @@
           discordChannel: notificationsDraft.discordChannel,
           email: notificationsDraft.email,
           emailEnabled: notificationsDraft.emailEnabled,
-          // preserve other unchanged settings to prevent overriding
-          cloudBackup: dashboardStore.state.notifications?.cloudBackup ?? true,
-          debugLog: dashboardStore.state.notifications?.debugLog ?? false,
-          killSwitchEnabled: dashboardStore.state.notifications?.killSwitchEnabled ?? false,
-          severityByModule: dashboardStore.state.notifications?.severityByModule || []
+          cloudBackup: notificationsDraft.cloudBackup,
+          debugLog: notificationsDraft.debugLog,
+          killSwitchEnabled: notificationsDraft.killSwitchEnabled,
+          severityByModule: notificationsDraft.severityByModule
         };
 
         const notificationsSaved = await updateNotificationsSettings(notificationsPayload);
@@ -78,7 +64,8 @@
 
         const settingsSaved = await updateGlobalSettings({
           discordChannel: notificationsDraft.discordChannel,
-          logChannelId: notificationsDraft.logChannelId || null
+          logChannelId: notificationsDraft.logChannelId || null,
+          moderatorRoleId: notificationsDraft.moderatorRoleId || null
         });
 
         if (!settingsSaved) return false;
@@ -87,61 +74,96 @@
         return true;
       },
       {
-        successMessage: 'Configuration des alertes sauvegardée.',
-        failureMessage: 'Erreur lors de la sauvegarde.'
+        successMessage: 'Paramètres enregistrés avec succès.',
+        failureMessage: 'Impossible d\'enregistrer les paramètres pour le moment.'
       }
     );
   }
 
-  async function handleSaveFeatureConfig(featureKey: string) {
-    const configToSave = featureConfigs.find(c => c.featureKey === featureKey);
-    if (!configToSave) return;
-
-    try {
-      const payload = {
-        enabled: configToSave.enabled,
-        channelId: configToSave.channelId || null,
-        secondaryChannelId: configToSave.secondaryChannelId || null,
-        requiredRoleId: configToSave.requiredRoleId || null,
-        notificationRoleId: configToSave.notificationRoleId || null,
-        notifyViaDiscordChannel: configToSave.notifyViaDiscordChannel,
-        notifyViaDM: configToSave.notifyViaDM,
-        loggingEnabled: configToSave.loggingEnabled,
-        userActivityTracking: configToSave.userActivityTracking,
-        metadata: configToSave.metadata || {},
-      };
-      await updateFeatureConfiguration(featureKey, payload);
-    } catch (err) {
-      console.error(`Failed to save feature config ${featureKey}:`, err);
+  async function persistDiscordChannel() {
+    if (!canManageSettings) {
+      saveAction.setError('Seuls les administrateurs peuvent modifier ces paramètres.');
+      return;
     }
+
+    const success = await updateGlobalSettings({
+      discordChannel: notificationsDraft.discordChannel
+    });
+
+    if (success) {
+      dashboardStore.state.notifications.discordChannel = notificationsDraft.discordChannel;
+      return;
+    }
+
+    saveAction.setError('Impossible de sauvegarder le salon d\'alertes.');
+  }
+
+  function resetNotifications() {
+    notificationsDraft = {
+      discordChannel: '#alertes-redaction',
+      logChannelId: '',
+      moderatorRoleId: '',
+      email: '',
+      emailEnabled: false,
+      cloudBackup: true,
+      debugLog: false,
+      killSwitchEnabled: false,
+      severityByModule: []
+    };
+    saveAction.clearFeedback();
+  }
+
+  async function resetAndSaveFactory() {
+    resetNotifications();
+    await saveNotifications();
   }
 </script>
 
+
 <div class="mb-12 font-inter">
-  <h2 class="text-4xl font-extrabold text-primary tracking-tight font-headline">Centre de Notifications</h2>
-  <p class="text-on-surface-variant mt-2 text-lg">Configurez les alertes et relais d'actions vers vos salons ou webhooks Discord.</p>
+  <h2 class="text-4xl font-extrabold text-primary tracking-tight font-headline">Paramètres & Notifications</h2>
+  <p class="text-on-surface-variant mt-2 text-lg">Configurez les alertes système et les préférences globales pour {dashboardStore.state.guildName}.</p>
 </div>
 
-<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 font-inter">
-  <!-- General alerts card -->
-  <div class="lg:col-span-4 space-y-6">
-    <div class="bg-surface-container-low/40 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
-      <div>
-        <h3 class="text-xl font-bold flex items-center gap-3">
-          <Papicon icon="discord" size={20} class="text-primary" />
-          Alertes Générales
-        </h3>
-        <p class="text-xs text-on-surface-variant/50 mt-1">Configurez les alertes système fondamentales.</p>
+
+<div class="grid grid-cols-12 gap-8 font-inter">
+  
+  <div class="col-span-12 lg:col-span-8 space-y-8">
+    <div class="section-card p-8">
+      <div class="flex items-center justify-between mb-8">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shrink-0 transition-transform group-hover:scale-110">
+            <Papicon icon="discord" size={24} />
+          </div>
+          <h3 class="text-xl font-bold font-headline">Configuration Discord</h3>
+        </div>
       </div>
 
-      <div class="space-y-4">
+      <div class="space-y-6">
         <div class="space-y-2">
-          <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="discord-channel">Salon d'alertes principal</label>
+          <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="moderator-role">Rôle modérateur dashboard</label>
+          <FormSelect
+            id="moderator-role"
+            bind:value={notificationsDraft.moderatorRoleId}
+            className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold"
+            disabled={!canManageSettings}
+          >
+            <option value="">Admin uniquement</option>
+            {#each availableRoles as role}
+              <option value={role.id}>@{role.name}</option>
+            {/each}
+          </FormSelect>
+          <p class="text-xs text-on-surface-variant">Les membres de ce rôle peuvent accéder au dashboard avec des permissions limitées.</p>
+        </div>
+
+        <div class="space-y-2">
+          <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="discord-channel">Salon d'alertes</label>
           <FormSelect
             id="discord-channel"
             bind:value={notificationsDraft.discordChannel}
+            onchange={persistDiscordChannel}
             disabled={!canManageSettings}
-            className="w-full px-6 py-4 bg-surface-container-high border-none rounded-2xl text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold"
+            className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold"
           >
             <option value="">Sélectionner un salon</option>
             {#each availableChannels as channel}
@@ -156,59 +178,184 @@
             id="log-channel"
             bind:value={notificationsDraft.logChannelId}
             disabled={!canManageSettings}
-            className="w-full px-6 py-4 bg-surface-container-high border-none rounded-2xl text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold"
+            className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold"
           >
             <option value="">Ne pas envoyer d'embed</option>
             {#each availableChannels as channel}
               <option value={channel.id}>#{channel.name}</option>
             {/each}
           </FormSelect>
+          <p class="text-xs text-on-surface-variant">Les logs restent consultables dans le dashboard même si aucun salon n'est défini.</p>
         </div>
-
-        <div class="pt-4 border-t border-outline-variant/10 space-y-3">
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-bold text-slate-800 dark:text-slate-200">Alertes Email</span>
-            <ToggleSwitch
-              size="sm"
-              checked={notificationsDraft.emailEnabled}
-              onToggle={(checked) => (notificationsDraft.emailEnabled = checked)}
-            />
+        
+        <div class="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
+          <div>
+            <p class="font-bold text-slate-800 dark:text-slate-200">Kill-Switch de Sécurité</p>
+            <p class="text-xs text-on-surface-variant">Désactive instantanément tous les modules en cas d'urgence.</p>
           </div>
-          {#if notificationsDraft.emailEnabled}
-            <FormInput
-              type="email"
-              bind:value={notificationsDraft.email}
-              placeholder="admin@exemple.fr"
-              className="w-full px-4 py-2.5 bg-surface-container-high border border-outline-variant/15 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/20 transition-all"
-            />
-          {/if}
+          <ToggleSwitch
+            checked={notificationsDraft.killSwitchEnabled}
+            onToggle={(checked) => (notificationsDraft.killSwitchEnabled = checked)}
+            activeClass="peer-checked:bg-red-500"
+          />
+        </div>
+      </div>
+    </div>
+
+    
+    <div class="section-card p-8">
+      <h3 class="text-xl font-bold font-headline mb-8 flex items-center gap-4">
+        <Papicon icon="notifications_active" size={24} class="text-primary" />
+        Préférences de Notifications
+      </h3>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div class="flex items-start gap-4 p-4 rounded-2xl hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
+          <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 group-hover:bg-primary/10 group-hover:text-primary transition-all">
+            <Papicon icon="cloud_upload" size={24} />
+          </div>
+          <div class="flex-1">
+            <div class="flex items-center justify-between mb-1">
+              <span class="font-bold text-slate-800 dark:text-slate-200">Backup Cloud</span>
+              <ToggleSwitch
+                size="sm"
+                checked={notificationsDraft.cloudBackup}
+                onToggle={(checked) => (notificationsDraft.cloudBackup = checked)}
+              />
+            </div>
+            <p class="text-xs text-on-surface-variant">Synchronisation quotidienne de la base de données.</p>
+          </div>
         </div>
 
-        <div class="flex items-center justify-between pt-4 border-t border-outline-variant/10">
-          <InlineFeedback
-            message={saveAction.state.message}
-            error={saveAction.state.error}
-          />
+        <div class="flex items-start gap-4 p-4 rounded-2xl hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
+          <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 group-hover:bg-primary/10 group-hover:text-primary transition-all">
+            <Papicon icon="bug_report" size={24} />
+          </div>
+          <div class="flex-1">
+            <div class="flex items-center justify-between mb-1">
+              <span class="font-bold text-slate-800 dark:text-slate-200">Mode Débogage</span>
+              <ToggleSwitch
+                size="sm"
+                checked={notificationsDraft.debugLog}
+                onToggle={(checked) => (notificationsDraft.debugLog = checked)}
+              />
+            </div>
+            <p class="text-xs text-on-surface-variant">Logs plus verbeux pour l'analyse des erreurs.</p>
+          </div>
+        </div>
+
+        <div class="flex items-start gap-4 p-4 rounded-2xl hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
+          <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 group-hover:bg-primary/10 group-hover:text-primary transition-all">
+            <Papicon icon="mail" size={24} />
+          </div>
+          <div class="flex-1">
+            <div class="flex items-center justify-between mb-1">
+              <span class="font-bold text-slate-800 dark:text-slate-200">Alertes Email</span>
+              <ToggleSwitch
+                size="sm"
+                checked={notificationsDraft.emailEnabled}
+                onToggle={(checked) => (notificationsDraft.emailEnabled = checked)}
+              />
+            </div>
+            <p class="text-xs text-on-surface-variant">Recevoir un rapport par email si le bot crash.</p>
+            {#if notificationsDraft.emailEnabled}
+              <FormInput
+                type="email"
+                bind:value={notificationsDraft.email}
+                placeholder="admin@exemple.fr"
+                className="mt-3 w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-primary/20 transition-all"
+              />
+            {/if}
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 dark:border-slate-800 pt-6">
+        <InlineFeedback
+          message={saveAction.state.message}
+          error={saveAction.state.error}
+          idleText="Les changements ne sont pas enregistrés tant que vous ne validez pas."
+        />
+        {#if !canManageSettings}
+          <p class="text-xs text-on-surface-variant">Accès modérateur: consultation et modération de contenu uniquement.</p>
+        {/if}
+        <div class="flex items-center gap-3">
           <button
             type="button"
-            onclick={saveGeneralNotifications}
-            disabled={saveAction.state.loading || !canManageSettings}
-            class="px-5 py-2.5 rounded-xl bg-primary text-white text-xs font-black uppercase tracking-wider shadow-lg hover:opacity-90 disabled:opacity-50"
+            onclick={resetNotifications}
+            disabled={!canManageSettings}
+            class="px-4 py-2.5 rounded-xl border border-outline-variant/30 text-xs font-black uppercase tracking-wider text-on-surface-variant hover:bg-surface-container-low"
           >
-            Sauvegarder
+            Réinitialiser
+          </button>
+          <button
+            type="button"
+            onclick={saveNotifications}
+            disabled={saveAction.state.loading || !canManageSettings}
+            class="px-5 py-2.5 rounded-xl bg-primary text-white text-xs font-black uppercase tracking-wider shadow-lg shadow-primary/10 hover:opacity-90 disabled:opacity-50"
+          >
+            {saveAction.state.loading ? 'Enregistrement...' : 'Enregistrer'}
           </button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Module-specific custom webhooks / alerts accordion -->
-  <div class="lg:col-span-8">
-    <ManagementNotifications
-      bind:features={featureConfigs}
-      availableChannels={availableChannels}
-      availableRoles={availableRoles}
-      onSave={handleSaveFeatureConfig}
-    />
+  
+  <div class="col-span-12 lg:col-span-4 space-y-8">
+    <div class="bg-primary p-8 rounded-4xl text-white overflow-hidden relative group">
+      <div class="relative z-10">
+        <h4 class="text-xs font-black uppercase tracking-[0.2em] opacity-60 mb-6">Statut de Connexion</h4>
+        <div class="flex items-center gap-6 mb-8">
+          <div class="w-16 h-16 rounded-3xl bg-white/10 flex items-center justify-center backdrop-blur-md border border-white/20">
+            <Papicon 
+              icon={dashboardStore.state.error ? 'report_problem' : 'check_circle'} 
+              size={36} 
+              class={dashboardStore.state.error ? 'text-red-300' : 'text-green-300'} 
+            />
+          </div>
+          <div>
+            <div class="text-3xl font-black font-headline">{dashboardStore.state.error ? 'Erreur' : 'Connecté'}</div>
+            <div class="text-xs font-bold opacity-70">
+              {dashboardStore.state.error ? 'API Bot inaccessible' : 'Communication API stable'}
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="absolute -right-20 -bottom-20 w-64 h-64 bg-white/10 rounded-full blur-[80px] group-hover:scale-110 transition-transform duration-700"></div>
+    </div>
+
+    
+    <div class="section-card p-8">
+      <h4 class="text-[10px] font-black text-on-surface-variant uppercase tracking-[0.2em] mb-6">Résumé Technique</h4>
+      <div class="space-y-6">
+        <div class="flex gap-4">
+          <div class="w-8 h-8 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center shrink-0">
+            <Papicon icon="extension" size={18} class="text-slate-400" />
+          </div>
+          <div>
+            <p class="text-xs font-bold text-slate-800 dark:text-slate-200">{dashboardStore.state.modules?.length ?? 0} Modules Détectés</p>
+          </div>
+        </div>
+        <div class="flex gap-4">
+          <div class="w-8 h-8 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center shrink-0">
+            <Papicon icon="rss_feed" size={18} class="text-slate-400" />
+          </div>
+          <div>
+            <p class="text-xs font-bold text-slate-800 dark:text-slate-200">{dashboardStore.state.feeds?.length ?? 0} Flux RSS Configurés</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    
+    <div class="bg-red-50 dark:bg-red-900/10 p-8 rounded-4xl border border-red-100 dark:border-red-900/20">
+      <h4 class="text-[10px] font-black text-red-600 dark:text-red-400 uppercase tracking-[0.2em] mb-4">Zone Critique</h4>
+      <p class="text-xs text-red-600/70 dark:text-red-400/70 mb-6 leading-relaxed font-medium">Réinitialiser les paramètres globaux désactivera tous les modules actifs et supprimera les flux.</p>
+      <button onclick={resetAndSaveFactory} class="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-red-600/20 active:scale-[0.98]">
+        Réinitialisation d'usine (UI)
+      </button>
+    </div>
   </div>
 </div>
