@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
+  import { authStore } from '../lib/stores/auth.svelte';
   import {
     fetchNicknameModerationConfig,
     updateNicknameModerationConfig,
@@ -13,6 +14,8 @@
     deleteBannedWord,
     toggleBannedWord,
   } from '../lib/api';
+
+  let wsListener: ((e: CustomEvent) => void) | null = null;
 
   // ---------------------------------------------------------------------------
   // Types
@@ -63,7 +66,10 @@
   // Lifecycle
   // ---------------------------------------------------------------------------
 
-  onMount(async () => {
+  async function loadData(showLoading = false) {
+    if (showLoading) {
+      loading = true;
+    }
     try {
       const [config, words] = await Promise.all([
         fetchNicknameModerationConfig(),
@@ -74,10 +80,38 @@
         globalWords = words.global ?? [];
         customWords = words.custom ?? [];
       }
+      loadError = '';
     } catch (err) {
       loadError = err instanceof Error ? err.message : 'Impossible de charger la configuration.';
     } finally {
-      loading = false;
+      if (showLoading) {
+        loading = false;
+      }
+    }
+  }
+
+  onMount(async () => {
+    await loadData(true);
+
+    wsListener = (e: CustomEvent) => {
+      const payload = e.detail;
+      const shouldRefresh =
+        payload?.type === 'dashboard_state_changed' &&
+        payload?.guildId === authStore.selectedGuildId &&
+        (payload?.reason === 'nickname_moderation_updated' || payload?.reason === 'banned_words_updated');
+
+      if (shouldRefresh) {
+        console.log('[NicknameWS] Changement détecté via WebSocket, actualisation des données...');
+        void loadData(false);
+      }
+    };
+
+    window.addEventListener('kotbo-ws-message', wsListener as any);
+  });
+
+  onDestroy(() => {
+    if (wsListener) {
+      window.removeEventListener('kotbo-ws-message', wsListener as any);
     }
   });
 

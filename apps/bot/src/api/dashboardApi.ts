@@ -7615,6 +7615,8 @@ export const startDashboardApi = (client: Client) => {
                   channelId: null,
                 });
 
+                broadcastDashboardStateChange(guildId, 'nickname_moderation_updated');
+
                 json(res, 200, { ok: true });
               } catch (err) {
                 logger.error('NicknameAPI', 'PATCH nickname-moderation error:', err);
@@ -7768,6 +7770,8 @@ export const startDashboardApi = (client: Client) => {
                 channelId: null,
               });
 
+              broadcastDashboardStateChange(guildId, 'banned_words_updated');
+
               json(res, 201, { ok: true, id: created.id });
             } catch (err: any) {
               if (err?.code === 'P2002') {
@@ -7801,6 +7805,8 @@ export const startDashboardApi = (client: Client) => {
               const { invalidateBannedWordsCache } = await import('../services/bannedWordsService.js');
               invalidateBannedWordsCache(guildId);
 
+              broadcastDashboardStateChange(guildId, 'banned_words_updated');
+
               json(res, 200, { ok: true });
             } catch (err) {
               logger.error('BannedWordsAPI', 'PATCH banned-words error:', err);
@@ -7833,6 +7839,8 @@ export const startDashboardApi = (client: Client) => {
                 details: `Mot "${existing.word}" supprimé`,
                 channelId: null,
               });
+
+              broadcastDashboardStateChange(guildId, 'banned_words_updated');
 
               json(res, 200, { ok: true });
             } catch (err) {
