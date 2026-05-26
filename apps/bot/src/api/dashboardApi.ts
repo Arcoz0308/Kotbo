@@ -2659,6 +2659,50 @@ export const startDashboardApi = (client: Client) => {
 
   dashboardStateBroadcaster = broadcastDashboardStateChange;
 
+  const getClientIp = (req: IncomingMessage): string => {
+    const forwarded = req.headers['x-forwarded-for'];
+    if (forwarded) {
+      if (typeof forwarded === 'string') {
+        return forwarded.split(',')[0].trim();
+      } else if (Array.isArray(forwarded) && forwarded.length > 0) {
+        return forwarded[0].trim();
+      }
+    }
+    return req.socket.remoteAddress || '127.0.0.1';
+  };
+
+  const configRateLimiter = new Map<string, number[]>();
+  const errorReportRateLimiter = new Map<string, number[]>();
+
+  const checkRateLimit = (limiterMap: Map<string, number[]>, ip: string, limit: number, windowMs: number): boolean => {
+    const now = Date.now();
+    const timestamps = limiterMap.get(ip) || [];
+    const validTimestamps = timestamps.filter(t => now - t < windowMs);
+    if (validTimestamps.length >= limit) {
+      return false;
+    }
+    validTimestamps.push(now);
+    limiterMap.set(ip, validTimestamps);
+    return true;
+  };
+
+  // Clean up expired entries every 10 minutes
+  setInterval(() => {
+    const now = Date.now();
+    const cleanLimiter = (limiterMap: Map<string, number[]>, windowMs: number) => {
+      for (const [ip, timestamps] of limiterMap.entries()) {
+        const valid = timestamps.filter(t => now - t < windowMs);
+        if (valid.length === 0) {
+          limiterMap.delete(ip);
+        } else {
+          limiterMap.set(ip, valid);
+        }
+      }
+    };
+    cleanLimiter(configRateLimiter, 60 * 1000);
+    cleanLimiter(errorReportRateLimiter, 15 * 60 * 1000);
+  }, 10 * 60 * 1000).unref();
+
   const server = createServer(async (req, res) => {
     // CORS whitelist verification
     const allowedOrigins = new Set([
@@ -3037,6 +3081,12 @@ export const startDashboardApi = (client: Client) => {
       }
 
       if (url.pathname === '/api/config' && req.method === 'GET') {
+        const ip = getClientIp(req);
+        if (!checkRateLimit(configRateLimiter, ip, 30, 60 * 1000)) {
+          json(res, 429, { error: 'Trop de requêtes. Veuillez réessayer plus tard.' });
+          return;
+        }
+
         const missingOAuth = getMissingOAuthConfig();
         if (missingOAuth.length > 0) {
           json(res, 500, {
@@ -3152,19 +3202,50 @@ export const startDashboardApi = (client: Client) => {
         }
       }
       if (parts[0] === 'api' && parts[1] === 'report-error' && req.method === 'POST') {
+        const ip = getClientIp(req);
+        if (!checkRateLimit(errorReportRateLimiter, ip, 5, 15 * 60 * 1000)) {
+          json(res, 429, { error: 'Trop de rapports d\'erreur envoyés. Veuillez réessayer plus tard.' });
+          return;
+        }
+
         try {
           const payload = await readJsonBody<{
-            error: string;
-            stack?: string;
-            url: string;
-            userAgent: string;
-            guildId?: string | null;
+            error: any;
+            stack?: any;
+            url: any;
+            userAgent: any;
+            guildId?: any;
           }>(req);
 
-          if (!payload || !payload.error) {
+          if (
+            !payload ||
+            typeof payload.error !== 'string' ||
+            payload.error.trim() === '' ||
+            (payload.stack !== undefined && typeof payload.stack !== 'string') ||
+            (payload.url !== undefined && typeof payload.url !== 'string') ||
+            (payload.userAgent !== undefined && typeof payload.userAgent !== 'string') ||
+            (payload.guildId !== undefined && payload.guildId !== null && typeof payload.guildId !== 'string')
+          ) {
             json(res, 400, { error: 'Payload invalide' });
             return;
           }
+
+          // Enforce string limit sizes
+          const errorStr = payload.error.slice(0, 1000);
+          const stackStr = payload.stack ? payload.stack.slice(0, 2000) : undefined;
+          const urlStr = payload.url ? payload.url.slice(0, 500) : 'Inconnu';
+          const userAgentStr = payload.userAgent ? payload.userAgent.slice(0, 250) : 'Inconnu';
+          const guildIdStr = payload.guildId ? payload.guildId.slice(0, 50) : 'Aucun';
+
+          // Validate URL origin to avoid spamming/spoofing irrelevant URLs
+          const allowedOriginPattern = /^(https?:\/\/)?([a-zA-Z0-9-]+\.)*(nathaan\.me|localhost)(:\d+)?(\/.*)?$/;
+          if (payload.url && !allowedOriginPattern.test(payload.url)) {
+            json(res, 400, { error: 'URL non autorisée' });
+            return;
+          }
+
+          // Sanitize backticks to prevent escaping markdown code blocks in Discord Embeds
+          const sanitizeMarkdown = (str: string) => str.replace(/`/g, '\\`');
 
           const user = verifyAuth(req);
           if (!user) {
@@ -3194,17 +3275,14 @@ export const startDashboardApi = (client: Client) => {
             .setTimestamp()
             .addFields(
               { name: '👤 Utilisateur', value: userInfo },
-              { name: '🌐 Page / URL', value: `\`${payload.url}\`` },
-              { name: '💻 Navigateur', value: `\`${payload.userAgent || 'Inconnu'}\`` },
-              { name: '🏰 Serveur sélectionné (Guild ID)', value: `\`${payload.guildId || 'Aucun'}\`` },
-              { name: '❌ Erreur', value: `\`\`\`\n${payload.error}\n\`\`\`` }
+              { name: '🌐 Page / URL', value: `\`${sanitizeMarkdown(urlStr)}\`` },
+              { name: '💻 Navigateur', value: `\`${sanitizeMarkdown(userAgentStr)}\`` },
+              { name: '🏰 Serveur sélectionné (Guild ID)', value: `\`${sanitizeMarkdown(guildIdStr)}\`` },
+              { name: '❌ Erreur', value: `\`\`\`\n${sanitizeMarkdown(errorStr)}\n\`\`\`` }
             );
 
-          if (payload.stack) {
-            const truncatedStack = payload.stack.length > 1000 
-              ? payload.stack.slice(0, 1000) + '...' 
-              : payload.stack;
-            embed.addFields({ name: '🥞 Stack Trace', value: `\`\`\`javascript\n${truncatedStack}\n\`\`\`` });
+          if (stackStr) {
+            embed.addFields({ name: '🥞 Stack Trace', value: `\`\`\`javascript\n${sanitizeMarkdown(stackStr)}\n\`\`\`` });
           }
 
           await owner.send({ embeds: [embed] });
