@@ -80,12 +80,17 @@ class DashboardLifecycleManager {
       }
 
       const wsUrl = new URL(DASHBOARD_WS_URL);
-      wsUrl.searchParams.set('token', authStore.token);
 
       this.socket = new WebSocket(wsUrl.toString());
 
       this.socket.onopen = () => {
-        console.log('[DashboardWS] Connecté');
+        console.log('[DashboardWS] Connecté. Envoi de l\'authentification...');
+        this.socket?.send(
+          JSON.stringify({
+            type: 'auth',
+            token: authStore.token,
+          })
+        );
         this.isConnecting = false;
       };
 

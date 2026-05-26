@@ -117,10 +117,16 @@ import { publishOrUpdateRegulationMessage } from '../services/regulationService.
 import { publishNewsArticle, generateRssXml } from '../services/newsService.js';
 import { env } from 'node:process';
 
+import crypto from 'node:crypto';
+
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
 const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI;
-const JWT_SECRET = process.env.JWT_SECRET || 'kotbo-secret-key-123';
+let JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  logger.warn('DashboardAPI', 'JWT_SECRET variable is not set. Generating ephemeral secret. Instance-isolated!');
+  JWT_SECRET = crypto.randomBytes(32).toString('hex');
+}
 const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://localhost:5173';
 const DEFAULT_TRANSLATION_TARGET_LANG = 'FR';
 const DISCORD_CLIENT_OWNER_ID = process.env.DISCORD_CLIENT_OWNER_ID;
@@ -1137,14 +1143,30 @@ async function resolveAdminAccess(client: Client, userId: string): Promise<boole
 
 
 
+class HttpError extends Error {
+  statusCode: number;
+  constructor(statusCode: number, message: string) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
+
 const readJsonBody = async <T>(req: IncomingMessage): Promise<T | null> => {
+  const contentType = req.headers['content-type'];
+  if (!contentType || !contentType.includes('application/json')) {
+    throw new HttpError(415, 'Content-Type doit être application/json');
+  }
   const chunks: Buffer[] = [];
   for await (const chunk of req) {
     chunks.push(Buffer.from(chunk));
   }
   if (chunks.length === 0) return null;
   const raw = Buffer.concat(chunks).toString('utf8');
-  return JSON.parse(raw) as T;
+  try {
+    return JSON.parse(raw) as T;
+  } catch (err) {
+    throw new HttpError(400, 'Format JSON invalide');
+  }
 };
 
 const truncate = (value?: string | null, length = 160) => {
@@ -2629,7 +2651,7 @@ export const startDashboardApi = (client: Client) => {
     });
 
     wsServer.clients.forEach((socket) => {
-      if (socket.readyState === WebSocket.OPEN) {
+      if (socket.readyState === WebSocket.OPEN && (socket as any).isAuthenticated) {
         socket.send(payload);
       }
     });
@@ -2682,17 +2704,35 @@ export const startDashboardApi = (client: Client) => {
   }, 10 * 60 * 1000).unref();
 
   const server = createServer(async (req, res) => {
-    // Standard CORS headers for all responses
+    // CORS whitelist verification
+    const allowedOrigins = new Set([
+      DASHBOARD_URL.replace(/\/$/, ''),
+      'http://localhost:5173',
+      'http://localhost:3000'
+    ]);
     const origin = req.headers.origin;
     if (origin) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      const sanitizedOrigin = origin.replace(/\/$/, '');
+      if (allowedOrigins.has(sanitizedOrigin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+      } else {
+        res.setHeader('Access-Control-Allow-Origin', DASHBOARD_URL);
+      }
     } else {
-      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Origin', DASHBOARD_URL);
     }
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, Pragma');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, Pragma, X-Kotbo-API-Key, X-API-Key');
     res.setHeader('Access-Control-Max-Age', '86400');
+
+    // Security response headers
+    res.setHeader('Content-Security-Policy', "default-src 'self';");
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'geolocation=(), camera=(), microphone=()');
 
     try {
       if (!req.url) {
@@ -2711,6 +2751,10 @@ export const startDashboardApi = (client: Client) => {
 
       if (parts[0] === 'api' && parts[1] === 'public' && parts[2] === 'profile' && parts[3] && req.method === 'GET') {
         const userId = parts[3];
+        if (!/^\d{17,19}$/.test(userId)) {
+          json(res, 400, { error: 'ID utilisateur invalide' });
+          return;
+        }
         try {
           let snapshot = await getPublicProfileSnapshot(userId);
           let profile = snapshot?.memberProfile;
@@ -2852,6 +2896,10 @@ export const startDashboardApi = (client: Client) => {
 
       if (parts[0] === 'api' && parts[1] === 'public' && parts[2] === 'profile' && parts[3] && req.method === 'PATCH') {
         const userId = parts[3];
+        if (!/^\d{17,19}$/.test(userId)) {
+          json(res, 400, { error: 'ID utilisateur invalide' });
+          return;
+        }
         const authUser = verifyAuth(req);
         if (!authUser) {
           json(res, 401, { error: 'Non authentifié' });
@@ -2905,6 +2953,10 @@ export const startDashboardApi = (client: Client) => {
         req.method === 'GET'
       ) {
         const userId = parts[3];
+        if (!/^\d{17,19}$/.test(userId)) {
+          json(res, 400, { error: 'ID utilisateur invalide' });
+          return;
+        }
         const url = new URL(req.url, `http://${req.headers.host}`);
         const days = parseInt(url.searchParams.get('days') || '14', 10);
         try {
@@ -2948,6 +3000,10 @@ export const startDashboardApi = (client: Client) => {
 
       if (parts[0] === 'api' && parts[1] === 'public' && parts[2] === 'rss' && parts[3] && req.method === 'GET') {
         const guildId = parts[3];
+        if (!/^\d{17,19}$/.test(guildId)) {
+          json(res, 400, { error: 'ID de guilde invalide' });
+          return;
+        }
         const category = parts[4] ? decodeURIComponent(parts[4]) : url.searchParams.get('category');
         const subcategory = parts[5] ? decodeURIComponent(parts[5]) : url.searchParams.get('subcategory');
         
@@ -2995,6 +3051,10 @@ export const startDashboardApi = (client: Client) => {
 
       if (parts[0] === 'api' && parts[1] === 'public' && parts[2] === 'transcripts' && parts[3] && req.method === 'GET') {
         const transcriptId = parts[3];
+        if (!/^[a-zA-Z0-9_\-]+$/.test(transcriptId)) {
+          json(res, 400, { error: 'ID de transcription invalide' });
+          return;
+        }
         try {
           const transcript = await prisma.transcript.findUnique({
             where: { id: transcriptId }
@@ -3054,7 +3114,10 @@ export const startDashboardApi = (client: Client) => {
               return;
             }
 
-            const discordUrl = `https://discord.com/api/oauth2/authorize?client_id=${DISCORD_CLIENT_ID}&redirect_uri=${encodeURIComponent(DISCORD_REDIRECT_URI!)}&response_type=code&scope=identify%20guilds`;
+            const state = crypto.randomBytes(16).toString('hex');
+            res.setHeader('Set-Cookie', `kotbo_oauth_state=${state}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=300`);
+
+            const discordUrl = `https://discord.com/api/oauth2/authorize?client_id=${DISCORD_CLIENT_ID}&redirect_uri=${encodeURIComponent(DISCORD_REDIRECT_URI!)}&response_type=code&scope=identify%20guilds&state=${state}`;
             res.writeHead(302, { Location: discordUrl });
             res.end();
             return;
@@ -3069,6 +3132,21 @@ export const startDashboardApi = (client: Client) => {
               });
               return;
             }
+
+            // Verify state
+            const cookies = req.headers.cookie ? Object.fromEntries(req.headers.cookie.split(';').map(c => c.trim().split('='))) : {};
+            const cookieState = cookies['kotbo_oauth_state'];
+            const urlState = url.searchParams.get('state');
+
+            if (!cookieState || !urlState || cookieState !== urlState) {
+              logger.warn('Auth', 'OAuth state verification failed');
+              res.writeHead(302, { Location: `${DASHBOARD_URL}/login?error=invalid_state` });
+              res.end();
+              return;
+            }
+
+            // Clear state cookie
+            res.setHeader('Set-Cookie', 'kotbo_oauth_state=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0');
 
             const code = url.searchParams.get('code');
             if (!code) {
@@ -3108,7 +3186,7 @@ export const startDashboardApi = (client: Client) => {
                 discordToken: tokenData.access_token
               }, JWT_SECRET, { expiresIn: '7d' });
 
-              res.writeHead(302, { Location: `${DASHBOARD_URL}?token=${token}` });
+              res.writeHead(302, { Location: `${DASHBOARD_URL}#token=${token}` });
               res.end();
             } catch (err) {
               logger.error('Auth', 'Discord callback error:', err);
@@ -3170,9 +3248,11 @@ export const startDashboardApi = (client: Client) => {
           const sanitizeMarkdown = (str: string) => str.replace(/`/g, '\\`');
 
           const user = verifyAuth(req);
-          const userInfo = user
-            ? `**Utilisateur:** <@${user.userId}> (${user.username} - ID: ${user.userId})`
-            : `**Utilisateur:** Non connecté / Inconnu`;
+          if (!user) {
+            json(res, 401, { error: 'Non authentifié' });
+            return;
+          }
+          const userInfo = `**Utilisateur:** <@${user.userId}> (${user.username} - ID: ${user.userId})`;
 
           const ownerId = process.env.DISCORD_CLIENT_OWNER_ID;
           if (!ownerId) {
@@ -11824,19 +11904,57 @@ export const startDashboardApi = (client: Client) => {
 
       json(res, 404, { error: 'Route introuvable' });
 
-    } catch (error) {
+    } catch (error: any) {
+      if (error && typeof error === 'object' && 'statusCode' in error) {
+        json(res, error.statusCode, { error: error.message });
+        return;
+      }
       logger.error('DashboardAPI', error);
       json(res, 500, { error: 'Erreur interne API dashboard' });
     }
   });
 
   wsServer.on('connection', (socket) => {
-    socket.send(
-      JSON.stringify({
-        type: 'dashboard_ws_connected',
-        at: new Date().toISOString(),
-      }),
-    );
+    (socket as any).isAuthenticated = false;
+
+    socket.on('message', (messageData) => {
+      try {
+        const raw = messageData.toString('utf8');
+        const data = JSON.parse(raw);
+
+        if (data.type === 'auth') {
+          const token = data.token;
+          if (!token) {
+            socket.close(4001, 'Token manquant');
+            return;
+          }
+
+          try {
+            const decoded = jwt.verify(token, JWT_SECRET);
+            (socket as any).isAuthenticated = true;
+            (socket as any).userId = (decoded as any).userId;
+
+            socket.send(
+              JSON.stringify({
+                type: 'dashboard_ws_connected',
+                at: new Date().toISOString(),
+              }),
+            );
+          } catch {
+            socket.close(4003, 'Token invalide');
+          }
+        }
+      } catch (err) {
+        socket.close(4000, 'Payload invalide');
+      }
+    });
+
+    // Enforce authentication timeout (disconnect if not authenticated within 5s)
+    setTimeout(() => {
+      if (!(socket as any).isAuthenticated) {
+        socket.close(4008, 'Timeout authentification');
+      }
+    }, 5000);
   });
 
   // Diffuser les messages des salons de tickets en temps réel
@@ -11881,7 +11999,7 @@ export const startDashboardApi = (client: Client) => {
       });
 
       wsServer.clients.forEach((socket) => {
-        if (socket.readyState === WebSocket.OPEN) {
+        if (socket.readyState === WebSocket.OPEN && (socket as any).isAuthenticated) {
           socket.send(payload);
         }
       });
@@ -11902,20 +12020,9 @@ export const startDashboardApi = (client: Client) => {
       return;
     }
 
-    const token = url.searchParams.get('token');
-    if (!token) {
-      socket.destroy();
-      return;
-    }
-
-    try {
-      jwt.verify(token, JWT_SECRET);
-      wsServer.handleUpgrade(req, socket, head, (ws) => {
-        wsServer.emit('connection', ws, req);
-      });
-    } catch {
-      socket.destroy();
-    }
+    wsServer.handleUpgrade(req, socket, head, (ws) => {
+      wsServer.emit('connection', ws, req);
+    });
   });
 
   server.listen(port, () => {

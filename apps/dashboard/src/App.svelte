@@ -120,7 +120,12 @@
   onMount(() => {
     
     const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('token');
+    let token = urlParams.get('token');
+    
+    if (!token && window.location.hash) {
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      token = hashParams.get('token');
+    }
     
     if (token) {
       authStore.setToken(token);
