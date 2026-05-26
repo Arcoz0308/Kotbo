@@ -902,6 +902,15 @@ export async function fetchSuspectedDetections(guildId = authStore.selectedGuild
   });
 }
 
+export async function scanSuspectedDetections(thresholdDays?: number, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/detections/scan', {
+    method: 'POST',
+    payload: thresholdDays !== undefined ? { thresholdDays } : undefined,
+    guildId,
+    errorContext: 'API Error (Scan Suspected Detections):'
+  });
+}
+
 export async function updateFeatureConfiguration(featureKey, config, guildId = authStore.selectedGuildId) {
   return dashboardMutation(`/management/features/${featureKey}`, {
     method: 'PATCH',
@@ -1235,6 +1244,30 @@ export async function updateNicknameModerationConfig(
 }
 
 // ==========================================
+// AUTO-THREAD
+// ==========================================
+export async function fetchAutoThreadConfig(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/auto-thread', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Auto Thread Config):',
+    silent: true,
+  });
+}
+
+export async function updateAutoThreadConfig(
+  payload: { enabled: boolean; channels: string[] },
+  guildId = authStore.selectedGuildId
+) {
+  return dashboardMutation('/auto-thread', {
+    method: 'PATCH',
+    payload,
+    guildId,
+    errorContext: 'API Error (Update Auto Thread Config):'
+  });
+}
+
+// ==========================================
 // MOTS BANNIS (service générique partagé)
 // ==========================================
 
@@ -1352,4 +1385,63 @@ export async function deleteGlobalBannedWord(id: string) {
   const response = await authorizedFetch(`${API_BASE_URL}/api/admin/banned-words/${id}`, { method: 'DELETE' });
   if (!response.ok) throw new Error('Erreur lors de la suppression du mot global');
   return response.json();
+}
+
+export async function fetchNews(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/news', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch News):'
+  });
+}
+
+export async function createNews(payload: { title: string; content: string; summary?: string; imageUrl?: string; category?: string; subcategory?: string; published?: boolean }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/news', {
+    method: 'POST',
+    payload,
+    guildId,
+    errorContext: 'API Error (Create News):'
+  });
+}
+
+export async function updateNews(articleId: string, payload: { title?: string; content?: string; summary?: string; imageUrl?: string; category?: string; subcategory?: string; published?: boolean }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/news/${articleId}`, {
+    method: 'PATCH',
+    payload,
+    guildId,
+    errorContext: 'API Error (Update News):'
+  });
+}
+
+export async function deleteNews(articleId: string, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/news/${articleId}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Delete News):'
+  });
+}
+
+export async function fetchNewsCategoryConfigs(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/news/category-configs', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch News Category Configs):'
+  });
+}
+
+export async function createNewsCategoryConfig(payload: { category: string; subcategory?: string; channelId: string }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/news/category-configs', {
+    method: 'POST',
+    payload,
+    guildId,
+    errorContext: 'API Error (Create News Category Config):'
+  });
+}
+
+export async function deleteNewsCategoryConfig(configId: string, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/news/category-configs/${configId}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Delete News Category Config):'
+  });
 }

@@ -55,6 +55,19 @@ export const data = new SlashCommandBuilder()
           .setMaxValue(30)
           .setRequired(false)
       )
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('rescan')
+      .setDescription('Relancer le scan des membres pour détecter les comptes suspects.')
+      .addIntegerOption((opt) =>
+        opt
+          .setName('seuil_jours')
+          .setDescription('Nombre de jours maximum entre création du compte et arrivée')
+          .setMinValue(1)
+          .setMaxValue(30)
+          .setRequired(false)
+      )
   );
 
 async function canUseModerationTools(interaction: ChatInputCommandInteraction): Promise<boolean> {
@@ -70,7 +83,7 @@ async function canUseModerationTools(interaction: ChatInputCommandInteraction): 
 export async function execute(interaction: ChatInputCommandInteraction) {
   const subcommand = interaction.options.getSubcommand();
 
-  if (subcommand === 'scan') {
+  if (subcommand === 'scan' || subcommand === 'rescan') {
     const guild = interaction.guild;
     if (!guild || !interaction.guildId) {
       return interaction.reply({ content: '❌ Cette commande doit être utilisée dans un serveur.', flags: [MessageFlags.Ephemeral] });

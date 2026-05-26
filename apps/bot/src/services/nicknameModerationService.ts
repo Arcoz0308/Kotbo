@@ -3,7 +3,9 @@
  * Délègue la détection des mots bannis à bannedWordsService (service générique partagé).
  */
 
-import { containsBannedWord, INVISIBLE_ONLY_REGEX } from './bannedWordsService.js';
+import { EmbedBuilder, PermissionFlagsBits, type Guild } from 'discord.js';
+import { containsBannedWord, INVISIBLE_ONLY_REGEX, loadBannedWords } from './bannedWordsService.js';
+import { logger } from '../utils/logger.js';
 
 export { loadBannedWords, invalidateBannedWordsCache } from './bannedWordsService.js';
 
@@ -28,4 +30,122 @@ export function isNicknameProblematic(name: string, words: string[]): boolean {
  */
 export function buildRenameReason(originalName: string): string {
   return `Automod: pseudo non conforme — original: "${originalName}"`;
+}
+
+// ---------------------------------------------------------------------------
+// Résultat du scan massif
+// ---------------------------------------------------------------------------
+
+export type PseudoScanResult = {
+  scannedCount: number;
+  renamedCount: number;
+  skippedCount: number;  // bots, owner, sans permission
+  errorCount: number;
+  renamed: Array<{ userId: string; original: string }>;
+};
+
+/**
+ * Scanne TOUS les membres du serveur et renomme ceux dont le pseudo est non conforme.
+ * Envoie un log dans le channel de logs du serveur pour chaque renommage.
+ *
+ * @param guild  Le serveur Discord à scanner.
+ * @returns Un résumé du scan.
+ */
+export async function scanAndModeratePseudos(guild: Guild): Promise<PseudoScanResult> {
+  const { default: prisma } = await import('../utils/db.js');
+
+  const result: PseudoScanResult = {
+    scannedCount: 0,
+    renamedCount: 0,
+    skippedCount: 0,
+    errorCount: 0,
+    renamed: [],
+  };
+
+  // Vérification des permissions du bot
+  const botMember = await guild.members.fetchMe().catch(() => null);
+  if (!botMember?.permissions.has(PermissionFlagsBits.ManageNicknames)) {
+    logger.warn('NicknameRescan', `Pas la permission ManageNicknames sur "${guild.name}"`);
+    return result;
+  }
+
+  // Charger les mots bannis une seule fois pour tout le scan
+  const bannedWords = await loadBannedWords(guild.id);
+
+  // Charger le channel de logs
+  const guildData = await prisma.guild.findUnique({
+    where: { id: guild.id },
+    select: { logChannelId: true },
+  }).catch(() => null);
+
+  const logChannel = guildData?.logChannelId
+    ? guild.channels.cache.get(guildData.logChannelId)
+    : null;
+
+  // Récupérer tous les membres
+  const members = await guild.members.fetch().catch(() => null);
+  if (!members) return result;
+
+  for (const [, member] of members) {
+    if (member.user.bot) { result.skippedCount++; continue; }
+    if (guild.ownerId === member.id) { result.skippedCount++; continue; }
+
+    result.scannedCount++;
+
+    const effectiveName = member.nickname ?? member.user.globalName ?? member.user.username;
+    if (!effectiveName) { result.skippedCount++; continue; }
+
+    // Déjà au pseudo de sécurité → skip
+    if (effectiveName === SAFE_NICKNAME) continue;
+
+    if (!isNicknameProblematic(effectiveName, bannedWords)) continue;
+
+    try {
+      await member.setNickname(SAFE_NICKNAME, buildRenameReason(effectiveName));
+      result.renamedCount++;
+      result.renamed.push({ userId: member.id, original: effectiveName });
+
+      logger.warn(
+        'NicknameRescan',
+        `Pseudo renommé: ${member.user.tag} — "${effectiveName}" → "${SAFE_NICKNAME}"`,
+      );
+
+      // Log embed dans le channel de logs
+      if (logChannel?.isTextBased()) {
+        const embed = new EmbedBuilder()
+          .setColor(0xf4a261)
+          .setTitle('Pseudo non conforme | Rescan')
+          .addFields(
+            { name: 'Membre', value: `<@${member.id}> \`${member.user.tag}\``, inline: false },
+            { name: 'Pseudo original', value: `\`${effectiveName}\``, inline: true },
+            { name: 'Pseudo appliqué', value: `\`${SAFE_NICKNAME}\``, inline: true },
+          )
+          .setThumbnail(member.displayAvatarURL())
+          .setFooter({ text: 'Automod | Rescan des pseudos' })
+          .setTimestamp();
+
+        await logChannel.send({ embeds: [embed] }).catch(() => null);
+      }
+
+      // Audit dashboard
+      await prisma.dashboardAuditLog.create({
+        data: {
+          guildId: guild.id,
+          channelId: guildData?.logChannelId ?? null,
+          user: 'Automod (Rescan)',
+          action: 'Renommage automatique de pseudo (rescan)',
+          context: guild.name,
+          module: 'Modération des pseudos',
+          eventType: 'Manuel',
+          details: `Pseudo "${effectiveName}" remplacé par "${SAFE_NICKNAME}" pour ${member.user.tag}`,
+          dateIso: new Date(),
+        },
+      }).catch(() => null);
+    } catch (error) {
+      result.errorCount++;
+      logger.error('NicknameRescan', `Impossible de renommer ${member.user.tag}:`, error);
+    }
+  }
+
+  return result;
 }

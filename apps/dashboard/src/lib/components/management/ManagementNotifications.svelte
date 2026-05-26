@@ -72,7 +72,7 @@
           <div class="space-y-2 pl-2 animate-in fade-in slide-in-from-top-1 duration-300">
             {#each group.items as { feature, idx }}
               {@const isExpanded = expandedFeature === feature.featureKey}
-              <div class="bg-surface-container-high/20 border border-outline-variant/5 rounded-[1.5rem] overflow-hidden">
+              <div class="bg-surface-container-high/20 border border-outline-variant/5 rounded-3xl overflow-hidden">
                 <!-- Feature header -->
                 <button
                   onclick={() => expandedFeature = isExpanded ? null : feature.featureKey}
@@ -82,6 +82,9 @@
                     <span class="w-2 h-2 rounded-full {feature.enabled ? 'bg-emerald-500' : 'bg-red-400'}"></span>
                     <span class="text-sm font-bold">{feature.featureName}</span>
                     <div class="flex gap-1 ml-2">
+                      {#if feature.featureKey === 'absences'}
+                        <span class="px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-400 text-[8px] font-bold">Absences</span>
+                      {/if}
                       {#if feature.notifyViaDiscordChannel}
                         <span class="px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-400 text-[8px] font-bold">Salon</span>
                       {/if}
@@ -139,6 +142,21 @@
                               {/each}
                             </select>
                           </div>
+                          <div class="space-y-1.5">
+                            <label for="notify-webhook-{feature.featureKey}" class="text-[10px] font-bold text-on-surface-variant/60">URL du Webhook Discord</label>
+                            <input 
+                              id="notify-webhook-{feature.featureKey}" 
+                              type="url" 
+                              placeholder="https://discord.com/api/webhooks/..." 
+                              bind:value={features[idx].metadata.webhookUrl} 
+                              class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none" 
+                            />
+                          </div>
+                          {#if feature.featureKey === 'absences'}
+                            <p class="text-[10px] leading-relaxed text-amber-300/80 bg-amber-500/10 border border-amber-500/15 rounded-xl px-4 py-3">
+                              Ce flux relaye les absences staff vers Discord avec la raison, la durée, le message complémentaire et le supérieur notifié.
+                            </p>
+                          {/if}
                         </div>
                       </div>
                     </div>

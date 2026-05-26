@@ -28,6 +28,7 @@
   import Sanctions from './pages/Sanctions.svelte';
   import Detections from './pages/Detections.svelte';
   import Regulation from './pages/Regulation.svelte';
+  import News from './pages/News.svelte';
   import AdminOverview from './pages/AdminOverview.svelte';
   import Profile from './pages/Profile.svelte';
   import PublicProfile from './pages/PublicProfile.svelte';
@@ -40,6 +41,7 @@
   import Tutoring from './pages/Tutoring.svelte';
   import DoubleAccounts from './pages/DoubleAccounts.svelte';
   import NicknameModeration from './pages/NicknameModeration.svelte';
+  import AutoThreadSettings from './pages/AutoThreadSettings.svelte';
   import GeneralSettings from './pages/GeneralSettings.svelte';
   import DailyAlgo from './pages/DailyAlgo.svelte';
   import DailyAlgoIDE from './pages/DailyAlgoIDE.svelte';
@@ -77,6 +79,7 @@
     if (path.startsWith('/members') || path.startsWith('/invitations')) return 'members';
     if (path.startsWith('/sanctions')) return 'sanctions';
     if (path.startsWith('/nickname-moderation')) return 'nickname_moderation';
+    if (path.startsWith('/auto-thread')) return 'auto_thread';
     if (path.startsWith('/detections')) return 'double_accounts';
     if (path.startsWith('/double-accounts')) return 'double_accounts';
     if (path.startsWith('/logs')) return 'logs';
@@ -98,6 +101,7 @@
     if (path.startsWith('/command-access')) return 'commands';
     if (path.startsWith('/settings')) return 'settings';
     if (path.startsWith('/regulation')) return 'regulation';
+    if (path.startsWith('/news')) return 'news';
     if (path.startsWith('/admin')) return 'centralized_config';
     return null;
   }
@@ -389,6 +393,9 @@
           <Route path="/regulation">
             <Regulation />
           </Route>
+          <Route path="/news">
+            <News />
+          </Route>
           <Route path="/profile">
             <Profile />
           </Route>
@@ -446,6 +453,9 @@
           </Route>
           <Route path="/nickname-moderation">
             <NicknameModeration />
+          </Route>
+          <Route path="/auto-thread">
+            <AutoThreadSettings />
           </Route>
           <Route path="/double-accounts">
             <DoubleAccounts />

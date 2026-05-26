@@ -112,7 +112,9 @@ import {
   getCandidatureHistory,
 } from '../services/recruitmentService.js';
 import * as altAccountService from '../services/altAccountService.js';
+import { scanGuildMembersForYoungAccounts } from '../services/dcDetectionService.js';
 import { publishOrUpdateRegulationMessage } from '../services/regulationService.js';
+import { publishNewsArticle, generateRssXml } from '../services/newsService.js';
 import { env } from 'node:process';
 
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
@@ -621,6 +623,7 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
   members: 'Gestion avancée des membres et détection de doubles comptes.',
   logs: 'Journaux d\'événements Discord (messages, salons, membres).',
   activity: 'Suivi détaillé de l\'activité utilisateur sur le dashboard.',
+  auto_thread: 'Création automatique de fils de discussion sur les messages.',
   analytics: 'Statistiques de croissance et d\'engagement du serveur.',
   profile: 'Gestion du profil utilisateur et paramètres personnels.',
   recruitment: 'Suivi des candidatures et intégration du personnel.',
@@ -1921,6 +1924,7 @@ async function resolveFeatureAccessMap(
     'double_accounts',
     'logs',
     'activity',
+    'auto_thread',
   ]);
   const staffFeatureKeys = new Set([
     'recruitment',
@@ -2245,6 +2249,15 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
       lastSync: guild.updatedAt.toISOString()
     },
     {
+      id: 'auto_thread',
+      name: 'Auto-Thread',
+      description: MODULE_DESCRIPTIONS.auto_thread,
+      status: getFeatureStatus('auto_thread', guild.autoThreadEnabled),
+      uptime: 100,
+      interactions: 0,
+      lastSync: guild.updatedAt.toISOString()
+    },
+    {
       id: 'recruitment',
       name: 'Recrutement',
       description: MODULE_DESCRIPTIONS.recruitment,
@@ -2389,6 +2402,7 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
     meetingAnnouncementChannelId: guild.meetingAnnouncementChannelId ?? '',
     meetingVoiceChannelId: guild.meetingVoiceChannelId ?? '',
     publicChannelId: guild.publicChannelId ?? '',
+    newsChannelId: guild.newsChannelId ?? '',
     dailyAlgoChannelId: guild.dailyAlgoChannelId ?? '',
     baseStaffRoleId: guild.baseStaffRoleId ?? '',
     testStaffRoleId: guild.testStaffRoleId ?? '',
@@ -2398,6 +2412,8 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
     dailyAlgoEnabled: guild.dailyAlgoEnabled,
     githubReleasesEnabled: guild.githubReleasesEnabled,
     digestEnabled: guild.digestEnabled,
+    autoThreadEnabled: guild.autoThreadEnabled,
+    autoThreadChannels: guild.autoThreadChannels,
     youtubeEnabled: getFeatureStatus('youtube', guild.youtubeEnabled) === 'active',
     recruitmentCategoryId: guild.recruitmentCategoryId ?? '',
     recruitmentLogChannelId: guild.recruitmentLogChannelId ?? '',
@@ -2882,6 +2898,53 @@ export const startDashboardApi = (client: Client) => {
         } catch (err) {
           logger.error('PublicAPI', `Error generating activity image for ${parts[3]}:`, err);
           json(res, 500, { error: 'Erreur lors de la génération du graphique' });
+        }
+        return;
+      }
+
+      if (parts[0] === 'api' && parts[1] === 'public' && parts[2] === 'rss' && parts[3] && req.method === 'GET') {
+        const guildId = parts[3];
+        const category = parts[4] ? decodeURIComponent(parts[4]) : url.searchParams.get('category');
+        const subcategory = parts[5] ? decodeURIComponent(parts[5]) : url.searchParams.get('subcategory');
+        
+        try {
+          const guild = await prisma.guild.findUnique({
+            where: { id: guildId },
+            select: { id: true }
+          });
+          if (!guild) {
+            json(res, 404, { error: 'Guilde introuvable' });
+            return;
+          }
+
+          const whereClause: any = { guildId, published: true };
+          if (category) {
+            whereClause.category = { equals: category, mode: 'insensitive' };
+          }
+          if (subcategory) {
+            whereClause.subcategory = { equals: subcategory, mode: 'insensitive' };
+          }
+
+          const articles = await prisma.newsArticle.findMany({
+            where: whereClause,
+            orderBy: { publishedAt: 'desc' }
+          });
+
+          const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+          const guildName = discordGuild?.name ?? `Serveur ${guildId}`;
+          const dashboardUrl = process.env.DASHBOARD_URL || 'http://localhost:5173';
+          const apiUrl = process.env.VITE_API_URL || '';
+
+          const rssXml = generateRssXml(guildName, guildId, dashboardUrl, apiUrl, articles, category, subcategory);
+
+          res.writeHead(200, {
+            'Content-Type': 'application/rss+xml; charset=utf-8',
+            'Cache-Control': 'public, max-age=300'
+          });
+          res.end(rssXml);
+        } catch (err: any) {
+          logger.error('PublicAPI', `Error generating RSS for guild ${guildId}: ${err.message}`);
+          json(res, 500, { error: 'Erreur lors de la génération du flux RSS' });
         }
         return;
       }
@@ -3893,7 +3956,10 @@ export const startDashboardApi = (client: Client) => {
 
           const isNotificationAction = parts[4] === 'notifications';
 
-          if (!access.canManageSettings && req.method !== 'GET' && !isSanctionAction && !isDailyAlgoReviewAction && !isStaffAbsenceAction && !isNotificationAction && !isMeetingAction) {
+          const isNewsAction = parts[4] === 'news'
+            && (req.method === 'POST' || req.method === 'PATCH' || req.method === 'DELETE');
+
+          if (!access.canManageSettings && req.method !== 'GET' && !isSanctionAction && !isDailyAlgoReviewAction && !isStaffAbsenceAction && !isNotificationAction && !isMeetingAction && !isNewsAction) {
             json(res, 403, { error: 'Action réservée aux administrateurs du dashboard.' });
             return;
           }
@@ -3901,6 +3967,11 @@ export const startDashboardApi = (client: Client) => {
 
           if (isSanctionAction && !access.canModerateContent) {
             json(res, 403, { error: 'Action de rapport de sanction non autorisée.' });
+            return;
+          }
+
+          if (isNewsAction && !access.canModerateContent) {
+            json(res, 403, { error: 'Action de gestion des actualités non autorisée.' });
             return;
           }
 
@@ -5733,6 +5804,45 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
+          // POST /api/dashboard/guilds/:guildId/detections/scan - Trigger a rescan of guild members for young accounts
+          if (parts.length === 6 && parts[4] === 'detections' && parts[5] === 'scan' && req.method === 'POST') {
+            try {
+              if (!access.canManageSettings && !featureAccess.double_accounts?.canModerate) {
+                json(res, 403, { error: 'Accès refusé. Vous n’avez pas les permissions nécessaires pour lancer un scan.' });
+                return;
+              }
+
+              const discordGuild = client.guilds.cache.get(guildId);
+              if (!discordGuild) {
+                json(res, 404, { error: 'Serveur Discord introuvable ou inaccessible par le bot' });
+                return;
+              }
+
+              let thresholdMs: number | undefined = undefined;
+              const body = await readJsonBody<{ thresholdDays?: number }>(req).catch(() => null);
+              if (body && body.thresholdDays !== undefined) {
+                const days = Number(body.thresholdDays);
+                if (Number.isNaN(days) || days < 1 || days > 30 || !Number.isInteger(days)) {
+                  json(res, 400, { error: 'Le seuil de jours doit être un entier compris entre 1 et 30.' });
+                  return;
+                }
+                thresholdMs = days * 24 * 60 * 60 * 1000;
+              }
+
+              const result = await scanGuildMembersForYoungAccounts(discordGuild, thresholdMs);
+
+              json(res, 200, {
+                success: true,
+                scannedCount: result.scannedCount,
+                flaggedCount: result.flaggedCount,
+              });
+            } catch (err) {
+              logger.error('MembersAPI', 'Error scanning suspected detections:', err);
+              json(res, 500, { error: 'Erreur lors du scan des détections' });
+            }
+            return;
+          }
+
           // GET /api/dashboard/guilds/:guildId/members/search - Search members from Discord + database
           if (parts.length === 6 && parts[4] === 'members' && parts[5] === 'search' && req.method === 'GET') {
             try {
@@ -7041,7 +7151,7 @@ export const startDashboardApi = (client: Client) => {
               });
 
               json(res, 200, { ok: true });
-            } catch (err) {
+            } catch (err: any) {
               logger.error('StaffAPI', 'Error deleting meeting:', err);
               json(res, 500, { error: 'Erreur lors de la suppression de la réunion' });
             }
@@ -7058,6 +7168,7 @@ export const startDashboardApi = (client: Client) => {
             if (moduleId === 'traduction' || moduleId === 'translation') updates.translationEnabled = body.status === 'active';
             if (moduleId === 'sanctions') updates.sanctionSyncEnabled = body.status === 'active';
             if (moduleId === 'nickname_moderation') updates.autoNicknameModerationEnabled = body.status === 'active';
+            if (moduleId === 'auto_thread') updates.autoThreadEnabled = body.status === 'active';
 
             if (Object.keys(updates).length > 0) {
               await prisma.guild.update({ where: { id: guildId }, data: updates });
@@ -7093,6 +7204,11 @@ export const startDashboardApi = (client: Client) => {
               details: `Statut changé vers ${body.status}.`,
               channelId: null
             });
+
+            if (moduleId === 'auto_thread') {
+              const { invalidateAutoThreadCache } = await import('../events/autoThread.js');
+              invalidateAutoThreadCache(guildId);
+            }
 
             json(res, 200, { ok: true });
             return;
@@ -7449,6 +7565,91 @@ export const startDashboardApi = (client: Client) => {
           }
 
           // ---------------------------------------------------------------
+          // GET  /api/dashboard/guilds/:guildId/auto-thread
+          // PATCH /api/dashboard/guilds/:guildId/auto-thread
+          // ---------------------------------------------------------------
+          if (parts.length === 5 && parts[4] === 'auto-thread') {
+            if (req.method === 'GET') {
+              try {
+                const guild = await prisma.guild.findUnique({
+                  where: { id: guildId },
+                  select: { autoThreadEnabled: true, autoThreadChannels: true },
+                });
+                if (!guild) {
+                  json(res, 404, { error: 'Serveur introuvable' });
+                  return;
+                }
+                json(res, 200, { enabled: guild.autoThreadEnabled, channels: guild.autoThreadChannels });
+              } catch (err) {
+                logger.error('AutoThreadAPI', 'GET auto-thread error:', err);
+                json(res, 500, { error: 'Erreur lors de la récupération de la configuration' });
+              }
+              return;
+            }
+
+            if (req.method === 'PATCH') {
+              const body = await readJsonBody<{ enabled?: boolean; channels?: string[] }>(req);
+              if (!body) {
+                json(res, 400, { error: 'Payload settings invalide' });
+                return;
+              }
+
+              const data: any = {};
+              if (Object.prototype.hasOwnProperty.call(body, 'enabled')) {
+                data.autoThreadEnabled = !!body.enabled;
+              }
+              if (Object.prototype.hasOwnProperty.call(body, 'channels')) {
+                data.autoThreadChannels = body.channels;
+              }
+
+              try {
+                await prisma.guild.update({
+                  where: { id: guildId },
+                  data,
+                });
+
+                const { invalidateAutoThreadCache } = await import('../events/autoThread.js');
+                invalidateAutoThreadCache(guildId);
+
+                // Sync with DashboardFeatureConfig
+                if (Object.prototype.hasOwnProperty.call(body, 'enabled')) {
+                  await prisma.dashboardFeatureConfig.upsert({
+                    where: { guildId_featureKey: { guildId, featureKey: 'auto_thread' } },
+                    create: {
+                      guildId,
+                      featureKey: 'auto_thread',
+                      featureName: 'Auto-Thread',
+                      enabled: !!body.enabled,
+                      loggingEnabled: true,
+                      userActivityTracking: true,
+                      notifyViaDiscordChannel: true,
+                    },
+                    update: {
+                      enabled: !!body.enabled
+                    }
+                  });
+                }
+
+                await pushAudit(guildId, {
+                  user: auditUser,
+                  action: 'Sauvegarde configuration Auto-Thread',
+                  context: getGuildName(client, guildId),
+                  module: 'Auto-Thread',
+                  eventType: 'Manuel',
+                  details: `Configuration Auto-Thread mise à jour (salons: ${body.channels?.length ?? 0}).`,
+                  channelId: null
+                });
+
+                json(res, 200, { ok: true });
+              } catch (err) {
+                logger.error('AutoThreadAPI', 'PATCH auto-thread error:', err);
+                json(res, 500, { error: 'Erreur lors de la mise à jour' });
+              }
+              return;
+            }
+          }
+
+          // ---------------------------------------------------------------
           // CRUD /api/dashboard/guilds/:guildId/banned-words
           // Service partagé : utilisable par automod pseudos, messages, etc.
           // ---------------------------------------------------------------
@@ -7635,6 +7836,7 @@ export const startDashboardApi = (client: Client) => {
               // Additional settings fields
               configChannelId?: string | null;
               publicChannelId?: string | null;
+              newsChannelId?: string | null;
               dailyAlgoChannelId?: string | null;
               meetingAnnouncementChannelId?: string | null;
               meetingVoiceChannelId?: string | null;
@@ -7646,6 +7848,7 @@ export const startDashboardApi = (client: Client) => {
               githubReleasesEnabled?: boolean;
               digestEnabled?: boolean;
               youtubeEnabled?: boolean;
+              autoThreadEnabled?: boolean;
             }>(req);
 
             if (!body) {
@@ -7676,6 +7879,9 @@ export const startDashboardApi = (client: Client) => {
             if (Object.prototype.hasOwnProperty.call(body, 'publicChannelId')) {
               data.publicChannelId = extractDiscordSnowflake(body.publicChannelId);
             }
+            if (Object.prototype.hasOwnProperty.call(body, 'newsChannelId')) {
+              data.newsChannelId = extractDiscordSnowflake(body.newsChannelId);
+            }
             if (Object.prototype.hasOwnProperty.call(body, 'dailyAlgoChannelId')) {
               data.dailyAlgoChannelId = extractDiscordSnowflake(body.dailyAlgoChannelId);
             }
@@ -7705,6 +7911,9 @@ export const startDashboardApi = (client: Client) => {
             }
             if (Object.prototype.hasOwnProperty.call(body, 'digestEnabled')) {
               data.digestEnabled = !!body.digestEnabled;
+            }
+            if (Object.prototype.hasOwnProperty.call(body, 'autoThreadEnabled')) {
+              data.autoThreadEnabled = !!body.autoThreadEnabled;
             }
 
             if (Object.keys(data).length > 0) {
@@ -7746,7 +7955,9 @@ export const startDashboardApi = (client: Client) => {
             await syncFeature('meetings', 'Réunions', undefined, data.meetingAnnouncementChannelId, data.meetingVoiceChannelId);
             await syncFeature('settings', 'Paramètres', undefined, data.configChannelId, undefined);
             await syncFeature('dashboard', 'Vue d\'ensemble', undefined, data.publicChannelId, undefined);
+            await syncFeature('news', 'Actualités & RSS', undefined, data.newsChannelId, undefined);
             await syncFeature('sanctions', 'Sanctions', data.propagateSanctions, undefined, undefined);
+            await syncFeature('auto_thread', 'Auto-Thread', data.autoThreadEnabled, undefined, undefined);
             
             if (body.youtubeEnabled !== undefined) {
               await syncFeature('youtube', 'YouTube', body.youtubeEnabled, undefined, undefined);
@@ -8028,6 +8239,305 @@ export const startDashboardApi = (client: Client) => {
               });
               return;
             }
+          }
+
+          // GET /api/dashboard/guilds/:guildId/news
+          if (parts.length === 5 && parts[4] === 'news' && req.method === 'GET') {
+            try {
+              const articles = await prisma.newsArticle.findMany({
+                where: { guildId },
+                orderBy: { publishedAt: 'desc' },
+              });
+              json(res, 200, articles);
+            } catch (err: any) {
+              logger.error('DashboardAPI', `Error listing news for guild ${guildId}: ${err.message}`);
+              json(res, 500, { error: 'Erreur lors de la récupération des actualités' });
+            }
+            return;
+          }
+
+          // POST /api/dashboard/guilds/:guildId/news
+          if (parts.length === 5 && parts[4] === 'news' && req.method === 'POST') {
+            try {
+              const body = await readJsonBody<{
+                title: string;
+                content: string;
+                summary?: string;
+                imageUrl?: string;
+                category?: string;
+                subcategory?: string;
+                published?: boolean;
+              }>(req);
+
+              if (!body || !body.title || !body.content) {
+                json(res, 400, { error: 'Le titre et le contenu sont requis.' });
+                return;
+              }
+
+              const authorUser = await client.users.fetch(user.userId).catch(() => null);
+              const authorName = authorUser?.globalName || authorUser?.username || user.username || 'Staff';
+              const authorAvatar = authorUser?.displayAvatarURL() || null;
+
+              const isPublished = body.published ?? false;
+
+              const article = await prisma.newsArticle.create({
+                data: {
+                  guildId,
+                  title: body.title,
+                  content: body.content,
+                  summary: body.summary || null,
+                  imageUrl: body.imageUrl || null,
+                  category: body.category || 'Mise à jour',
+                  subcategory: body.subcategory || '',
+                  published: isPublished,
+                  authorId: user.userId,
+                  authorName,
+                  authorAvatar,
+                  publishedAt: new Date(),
+                },
+              });
+
+              await pushAudit(guildId, {
+                user: auditUser,
+                action: isPublished ? 'Publication actualité' : 'Création brouillon actualité',
+                context: getGuildName(client, guildId),
+                module: 'Actualités',
+                eventType: 'Manuel',
+                details: `Article "${body.title}" de catégorie "${body.category || 'Mise à jour'}" créé.`,
+                channelId: null,
+              });
+
+              if (isPublished) {
+                await publishNewsArticle(client, guildId, article.id).catch(err => {
+                  logger.error('DashboardAPI', `Failed to send news notification to Discord for article ${article.id}:`, err);
+                });
+              }
+
+              json(res, 201, article);
+            } catch (err: any) {
+              logger.error('DashboardAPI', `Error creating news for guild ${guildId}: ${err.message}`);
+              json(res, 500, { error: 'Erreur lors de la création de l\'actualité' });
+            }
+            return;
+          }
+
+          // PATCH /api/dashboard/guilds/:guildId/news/:articleId
+          if (parts.length === 6 && parts[4] === 'news' && req.method === 'PATCH') {
+            const articleId = parts[5];
+            try {
+              const existing = await prisma.newsArticle.findUnique({
+                where: { id: articleId },
+              });
+
+              if (!existing || existing.guildId !== guildId) {
+                json(res, 404, { error: 'Actualité introuvable' });
+                return;
+              }
+
+              const body = await readJsonBody<{
+                title?: string;
+                content?: string;
+                summary?: string;
+                imageUrl?: string;
+                category?: string;
+                subcategory?: string;
+                published?: boolean;
+              }>(req);
+
+              if (!body) {
+                json(res, 400, { error: 'Données manquantes' });
+                return;
+              }
+
+              const isPublishing = body.published === true && !existing.published;
+
+              const updated = await prisma.newsArticle.update({
+                where: { id: articleId },
+                data: {
+                  title: body.title !== undefined ? body.title : undefined,
+                  content: body.content !== undefined ? body.content : undefined,
+                  summary: body.summary !== undefined ? body.summary : undefined,
+                  imageUrl: body.imageUrl !== undefined ? body.imageUrl : undefined,
+                  category: body.category !== undefined ? body.category : undefined,
+                  subcategory: body.subcategory !== undefined ? body.subcategory : undefined,
+                  published: body.published !== undefined ? body.published : undefined,
+                  publishedAt: isPublishing ? new Date() : undefined,
+                },
+              });
+
+              await pushAudit(guildId, {
+                user: auditUser,
+                action: isPublishing ? 'Publication actualité' : 'Modification actualité',
+                context: getGuildName(client, guildId),
+                module: 'Actualités',
+                eventType: 'Manuel',
+                details: `Article "${updated.title}" mis à jour (Publié: ${updated.published}).`,
+                channelId: null,
+              });
+
+              if (isPublishing) {
+                await publishNewsArticle(client, guildId, updated.id).catch(err => {
+                  logger.error('DashboardAPI', `Failed to send news notification to Discord for article ${updated.id}:`, err);
+                });
+              }
+
+              json(res, 200, updated);
+            } catch (err: any) {
+              logger.error('DashboardAPI', `Error updating news article ${articleId}: ${err.message}`);
+              json(res, 500, { error: 'Erreur lors de la modification de l\'actualité' });
+            }
+            return;
+          }
+
+          // DELETE /api/dashboard/guilds/:guildId/news/:articleId
+          if (parts.length === 6 && parts[4] === 'news' && req.method === 'DELETE') {
+            const articleId = parts[5];
+            try {
+              const existing = await prisma.newsArticle.findUnique({
+                where: { id: articleId },
+              });
+
+              if (!existing || existing.guildId !== guildId) {
+                json(res, 404, { error: 'Actualité introuvable' });
+                return;
+              }
+
+              await prisma.newsArticle.delete({
+                where: { id: articleId },
+              });
+
+              await pushAudit(guildId, {
+                user: auditUser,
+                action: 'Suppression actualité',
+                context: getGuildName(client, guildId),
+                module: 'Actualités',
+                eventType: 'Manuel',
+                details: `Article "${existing.title}" supprimé.`,
+                channelId: null,
+              });
+
+              json(res, 200, { success: true });
+            } catch (err: any) {
+              logger.error('DashboardAPI', `Error deleting news article ${articleId}: ${err.message}`);
+              json(res, 500, { error: 'Erreur lors de la suppression de l\'actualité' });
+            }
+            return;
+          }
+
+          // GET /api/dashboard/guilds/:guildId/news/category-configs
+          if (parts.length === 6 && parts[4] === 'news' && parts[5] === 'category-configs' && req.method === 'GET') {
+            try {
+              const configs = await prisma.newsCategoryConfig.findMany({
+                where: { guildId },
+                orderBy: { category: 'asc' },
+              });
+              json(res, 200, configs);
+            } catch (err: any) {
+              logger.error('DashboardAPI', `Error listing news category configs for guild ${guildId}: ${err.message}`);
+              json(res, 500, { error: 'Erreur lors de la récupération de la configuration des catégories' });
+            }
+            return;
+          }
+
+          // POST /api/dashboard/guilds/:guildId/news/category-configs
+          if (parts.length === 6 && parts[4] === 'news' && parts[5] === 'category-configs' && req.method === 'POST') {
+            try {
+              const body = await readJsonBody<{
+                category: string;
+                subcategory?: string;
+                channelId: string;
+              }>(req);
+
+              if (!body || !body.category || !body.channelId) {
+                json(res, 400, { error: 'La catégorie et le salon Discord sont requis.' });
+                return;
+              }
+
+              const category = body.category.trim();
+              const subcategory = (body.subcategory || '').trim();
+              const channelId = body.channelId.trim();
+
+              const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+              if (!discordGuild) {
+                json(res, 404, { error: 'Serveur introuvable' });
+                return;
+              }
+              const channel = await discordGuild.channels.fetch(channelId).catch(() => null);
+              if (!channel) {
+                json(res, 400, { error: 'Le salon Discord spécifié est introuvable ou inaccessible.' });
+                return;
+              }
+
+              const config = await prisma.newsCategoryConfig.upsert({
+                where: {
+                  guildId_category_subcategory: {
+                    guildId,
+                    category,
+                    subcategory,
+                  }
+                },
+                create: {
+                  guildId,
+                  category,
+                  subcategory,
+                  channelId,
+                },
+                update: {
+                  channelId,
+                }
+              });
+
+              await pushAudit(guildId, {
+                user: auditUser,
+                action: 'Config catégorie actualité',
+                context: getGuildName(client, guildId),
+                module: 'Actualités',
+                eventType: 'Manuel',
+                details: `Configuration du salon #${channel.name} pour la catégorie "${category}"${subcategory ? ` (${subcategory})` : ''}.`,
+                channelId: null,
+              });
+
+              json(res, 200, config);
+            } catch (err: any) {
+              logger.error('DashboardAPI', `Error saving news category config for guild ${guildId}: ${err.message}`);
+              json(res, 500, { error: 'Erreur lors de l\'enregistrement de la configuration de catégorie' });
+            }
+            return;
+          }
+
+          // DELETE /api/dashboard/guilds/:guildId/news/category-configs/:id
+          if (parts.length === 7 && parts[4] === 'news' && parts[5] === 'category-configs' && req.method === 'DELETE') {
+            const configId = parts[6];
+            try {
+              const existing = await prisma.newsCategoryConfig.findUnique({
+                where: { id: configId },
+              });
+
+              if (!existing || existing.guildId !== guildId) {
+                json(res, 404, { error: 'Configuration de catégorie introuvable' });
+                return;
+              }
+
+              await prisma.newsCategoryConfig.delete({
+                where: { id: configId },
+              });
+
+              await pushAudit(guildId, {
+                user: auditUser,
+                action: 'Suppression config catégorie actualité',
+                context: getGuildName(client, guildId),
+                module: 'Actualités',
+                eventType: 'Manuel',
+                details: `Configuration de catégorie "${existing.category}"${existing.subcategory ? ` (${existing.subcategory})` : ''} supprimée.`,
+                channelId: null,
+              });
+
+              json(res, 200, { success: true });
+            } catch (err: any) {
+              logger.error('DashboardAPI', `Error deleting news category config ${configId}: ${err.message}`);
+              json(res, 500, { error: 'Erreur lors de la suppression de la configuration de catégorie' });
+            }
+            return;
           }
 
           if (parts.length === 5 && parts[4] === 'command-access' && req.method === 'PUT') {
@@ -10956,7 +11466,342 @@ export const startDashboardApi = (client: Client) => {
         }
       }
 
+      // GET /api/dashboard/guilds/:guildId/staff/resignations
+      // Accessible to admins (all resignations) OR to the current user (only their own)
+      if (req.method === 'GET' && parts[4] === 'staff' && parts[5] === 'resignations' && !parts[6]) {
+        try {
+          // Admins see all; non-admins see only their own
+          const isAdmin = accessLevel.level === 'admin';
+          const staffMemberFilter = isAdmin ? {} : { userId: user.userId };
+
+          const resignations = await prisma.staffResignation.findMany({
+            where: {
+              guildId,
+              ...(isAdmin ? {} : {
+                staffMember: { userId: user.userId }
+              })
+            },
+            orderBy: [
+              { status: 'asc' }, // PENDING first
+              { createdAt: 'desc' }
+            ],
+            include: {
+              staffMember: {
+                select: { userId: true, username: true, displayName: true, avatarUrl: true, grade: true }
+              }
+            }
+          });
+          json(res, 200, {
+            resignations: resignations.map(r => ({
+              id: r.id,
+              guildId: r.guildId,
+              staffUserId: r.staffUserId,
+              reason: r.reason,
+              status: r.status,
+              decisionByUserId: r.decisionByUserId,
+              decisionNote: r.decisionNote,
+              decidedAt: r.decidedAt?.toISOString() ?? null,
+              ticketChannelId: r.ticketChannelId,
+              createdAt: r.createdAt.toISOString(),
+              updatedAt: r.updatedAt.toISOString(),
+              staffMember: r.staffMember
+            }))
+          });
+        } catch (err) {
+          logger.error('ResignationsAPI', 'Error fetching resignations:', err);
+          json(res, 500, { error: 'Erreur lors du chargement des demandes' });
+        }
+        return;
+      }
+
+      // POST /api/dashboard/guilds/:guildId/staff/resignations - Submit resignation from dashboard
+      if (req.method === 'POST' && parts[4] === 'staff' && parts[5] === 'resignations' && !parts[6]) {
+        const body = await readJsonBody<{ reason: string }>(req);
+
+        if (!body?.reason?.trim()) {
+          json(res, 400, { error: 'Le motif est obligatoire' });
+          return;
+        }
+
+        try {
+          const staffMember = await prisma.staffMember.findFirst({
+            where: { guildId, userId: user.userId }
+          });
+
+          if (!staffMember) {
+            json(res, 403, { error: 'Vous ne faites pas partie du staff' });
+            return;
+          }
+
+          // Check for existing pending resignation
+          const existingPending = await prisma.staffResignation.findFirst({
+            where: { guildId, staffUserId: staffMember.id, status: 'PENDING' }
+          });
+
+          if (existingPending) {
+            json(res, 409, { error: 'Une demande de démission est déjà en cours', resignation: existingPending });
+            return;
+          }
+
+          const reason = body.reason.trim().slice(0, 500);
+          const resignation = await prisma.staffResignation.create({
+            data: {
+              guildId,
+              staffUserId: staffMember.id,
+              reason,
+              status: 'PENDING'
+            }
+          });
+
+          // Notify managers via dashboard notification + Discord DM
+          const managers = await prisma.staffMember.findMany({
+            where: {
+              guildId,
+              grade: { in: ['Manager', 'Admin', 'Administrateur', 'Fondateur', 'Direction'] }
+            }
+          });
+
+          if (managers.length > 0) {
+            await Promise.all(managers.map(async (m: { userId: string }) => {
+              await createNotification(
+                guildId,
+                m.userId,
+                '🔔 Demande de démission',
+                `${staffMember.username ?? user.userId} a soumis une demande de démission via le dashboard.\nMotif : ${reason}`,
+                'WARNING',
+                '/staff-management?tab=resignations',
+                true
+              ).catch(() => null);
+
+              // Discord DM to managers
+              try {
+                const managerUser = await client.users.fetch(m.userId).catch(() => null);
+                if (managerUser) {
+                  const embed = new EmbedBuilder()
+                    .setTitle('🔔 Nouvelle demande de démission')
+                    .setDescription(
+                      `**${staffMember.username ?? user.userId}** a soumis une demande de démission via le dashboard.\n\n` +
+                      `**Motif :**\n> ${reason}\n\n` +
+                      `Rendez-vous sur le dashboard pour traiter cette demande.`
+                    )
+                    .setColor(COLORS.warning)
+                    .setTimestamp()
+                    .setFooter({ text: `Référence : ${resignation.id}` });
+                  await managerUser.send({ embeds: [embed] }).catch(() => null);
+                }
+              } catch { /* silent fail */ }
+            }));
+          }
+
+          json(res, 201, { resignation });
+        } catch (err) {
+          logger.error('ResignationsAPI', 'Error creating resignation:', err);
+          json(res, 500, { error: 'Erreur lors de la soumission' });
+        }
+        return;
+      }
+
+      // PATCH /api/dashboard/guilds/:guildId/staff/resignations/:resignationId
+      if (req.method === 'PATCH' && parts[4] === 'staff' && parts[5] === 'resignations' && parts[6] && !parts[7]) {
+        if (accessLevel.level !== 'admin') {
+          json(res, 403, { error: 'Accès refusé' });
+          return;
+        }
+        const resignationId = parts[6];
+        const body = await readJsonBody<{ action: 'APPROVED' | 'REJECTED'; note?: string }>(req);
+
+        if (!body?.action || !['APPROVED', 'REJECTED'].includes(body.action)) {
+          json(res, 400, { error: 'action doit être APPROVED ou REJECTED' });
+          return;
+        }
+
+        try {
+          const resignation = await prisma.staffResignation.findFirst({
+            where: { id: resignationId, guildId },
+            include: { staffMember: { select: { userId: true, username: true, displayName: true } } }
+          });
+
+          if (!resignation) {
+            json(res, 404, { error: 'Demande introuvable' });
+            return;
+          }
+
+          if (resignation.status !== 'PENDING') {
+            json(res, 409, { error: 'Cette demande a déjà été traitée' });
+            return;
+          }
+
+          const updated = await prisma.staffResignation.update({
+            where: { id: resignationId },
+            data: {
+              status: body.action,
+              decisionByUserId: user.userId,
+              decisionNote: body.note ?? null,
+              decidedAt: new Date()
+            }
+          });
+
+          // Notif dashboard au staff membre concerné
+          await createNotification(
+            guildId,
+            resignation.staffMember.userId,
+            body.action === 'APPROVED' ? '✅ Démission approuvée' : '❌ Démission refusée',
+            body.action === 'APPROVED'
+              ? `Votre demande de démission a été approuvée.${body.note ? `\nNote : ${body.note}` : ''}`
+              : `Votre demande de démission a été refusée.${body.note ? `\nMotif : ${body.note}` : ''}`,
+            body.action === 'APPROVED' ? 'SUCCESS' : 'ERROR',
+            '/profile',
+            true
+          ).catch(() => null);
+
+          // MP Discord au staff membre concerné
+          try {
+            const discordUser = await client.users.fetch(resignation.staffMember.userId).catch(() => null);
+            if (discordUser) {
+              const dmEmbed = new EmbedBuilder()
+                .setTitle(body.action === 'APPROVED' ? '✅ Démission approuvée' : '❌ Démission refusée')
+                .setDescription(
+                  body.action === 'APPROVED'
+                    ? `Votre demande de démission a été **approuvée** par la direction.${body.note ? `\n\n📝 **Note :** ${body.note}` : ''}`
+                    : `Votre demande de démission a été **refusée** par la direction.${body.note ? `\n\n📝 **Motif :** ${body.note}` : ''}`
+                )
+                .setColor(body.action === 'APPROVED' ? COLORS.success : COLORS.error)
+                .setTimestamp();
+              await discordUser.send({ embeds: [dmEmbed] }).catch(() => null);
+            }
+          } catch {
+            // Silent fail si le MP n'est pas possible
+          }
+
+          await logAuditEntry(guildId, {
+            user: user.username ?? `User${user.userId}`,
+            action: `Démission ${body.action === 'APPROVED' ? 'approuvée' : 'refusée'}`,
+            context: getGuildName(client, guildId),
+            module: 'Staff Management',
+            eventType: 'Manuel',
+            details: `Résignation ${resignationId} de ${resignation.staffMember.username ?? resignation.staffMember.userId} → ${body.action}${body.note ? ` (${body.note})` : ''}`,
+            channelId: null
+          });
+
+          json(res, 200, { resignation: updated });
+        } catch (err) {
+          logger.error('ResignationsAPI', 'Error updating resignation:', err);
+          json(res, 500, { error: 'Erreur lors du traitement de la demande' });
+        }
+        return;
+      }
+
+      // POST /api/dashboard/guilds/:guildId/staff/resignations/:resignationId/ticket
+      if (req.method === 'POST' && parts[4] === 'staff' && parts[5] === 'resignations' && parts[6] && parts[7] === 'ticket') {
+        if (accessLevel.level !== 'admin') {
+          json(res, 403, { error: 'Accès refusé' });
+          return;
+        }
+        const resignationId = parts[6];
+
+        try {
+          const resignation = await prisma.staffResignation.findFirst({
+            where: { id: resignationId, guildId },
+            include: { staffMember: { select: { userId: true, username: true, displayName: true } } }
+          });
+
+          if (!resignation) {
+            json(res, 404, { error: 'Demande introuvable' });
+            return;
+          }
+
+          if (resignation.status !== 'PENDING') {
+            json(res, 409, { error: 'Impossible d\'ouvrir un ticket : la demande est déjà traitée' });
+            return;
+          }
+
+          if (resignation.ticketChannelId) {
+            json(res, 409, { error: 'Un ticket est déjà ouvert pour cette demande', ticketChannelId: resignation.ticketChannelId });
+            return;
+          }
+
+          const guildConfig = await prisma.guild.findUnique({
+            where: { id: guildId },
+            select: { ticketCategoryId: true, ticketStaffRoleId: true }
+          });
+
+          const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
+          if (!discordGuild) {
+            json(res, 503, { error: 'Serveur Discord non disponible' });
+            return;
+          }
+
+          // Créer le salon de ticket pour la discussion
+          const targetDiscordUser = await client.users.fetch(resignation.staffMember.userId).catch(() => null);
+          const staffName = resignation.staffMember.displayName ?? resignation.staffMember.username ?? resignation.staffMember.userId;
+          const channelName = `demission-${staffName.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 30)}`;
+
+          const permissionOverwrites: any[] = [
+            {
+              id: discordGuild.id, // @everyone
+              deny: [PermissionFlagsBits.ViewChannel]
+            }
+          ];
+
+          if (guildConfig?.ticketStaffRoleId) {
+            permissionOverwrites.push({
+              id: guildConfig.ticketStaffRoleId,
+              allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
+            });
+          }
+
+          if (targetDiscordUser) {
+            permissionOverwrites.push({
+              id: targetDiscordUser.id,
+              allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
+            });
+          }
+
+          const ticketChannel = await discordGuild.channels.create({
+            name: channelName,
+            type: ChannelType.GuildText,
+            parent: guildConfig?.ticketCategoryId ?? undefined,
+            permissionOverwrites,
+            reason: `Discussion de démission pour ${staffName}`
+          }).catch(() => null);
+
+          if (!ticketChannel) {
+            json(res, 500, { error: 'Impossible de créer le salon Discord' });
+            return;
+          }
+
+          // Envoyer le message d'intro dans le salon
+          if (ticketChannel instanceof TextChannel) {
+            const introEmbed = new EmbedBuilder()
+              .setTitle('📝 Discussion — Demande de démission')
+              .setDescription(
+                `Ce salon a été créé pour discuter de la demande de démission de **${staffName}**.\n\n` +
+                `**Motif fourni :**\n> ${resignation.reason}\n\n` +
+                `Merci d'utiliser ce canal pour toute discussion avant de prendre une décision finale.`
+              )
+              .setColor(COLORS.info)
+              .setTimestamp()
+              .setFooter({ text: `Référence : ${resignation.id}` });
+
+            await ticketChannel.send({ content: targetDiscordUser ? `<@${targetDiscordUser.id}>` : '', embeds: [introEmbed] }).catch(() => null);
+          }
+
+          // Enregistrer le ticketChannelId en BDD
+          await prisma.staffResignation.update({
+            where: { id: resignationId },
+            data: { ticketChannelId: ticketChannel.id }
+          });
+
+          json(res, 201, { ticketChannelId: ticketChannel.id, channelName: ticketChannel.name });
+        } catch (err) {
+          logger.error('ResignationsAPI', 'Error creating resignation ticket:', err);
+          json(res, 500, { error: 'Erreur lors de la création du ticket' });
+        }
+        return;
+      }
+
       json(res, 404, { error: 'Route introuvable' });
+
     } catch (error) {
       logger.error('DashboardAPI', error);
       json(res, 500, { error: 'Erreur interne API dashboard' });

@@ -1155,7 +1155,7 @@
                     </div>
                     <div>
                       <h4 class="text-lg font-black text-on-surface leading-tight hover:text-primary transition-colors cursor-pointer">
-                        <a href="/profile?userId={member.userId}">{member.displayName || member.username || 'Utilisateur inconnu'}</a>
+                        <a href="/profile/{member.userId}">{member.displayName || member.username || 'Utilisateur inconnu'}</a>
                       </h4>
                       <div class="flex items-center gap-3 mt-1.5 flex-wrap">
                         <span class="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-primary">

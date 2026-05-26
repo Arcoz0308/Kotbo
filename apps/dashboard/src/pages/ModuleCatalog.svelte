@@ -101,6 +101,7 @@
       'analytics': '/analytics',
       'profile': '/profile',
       'daily_algo': '/dailyalgo',
+      'auto_thread': '/auto-thread',
       'recruitment': '/recruitment',
       'meetings': '/meetings',
       'absences': '/absences',

@@ -64,6 +64,12 @@ export const defaultFeatures = [
     category: 'moderation',
   },
   {
+    featureKey: 'auto_thread',
+    featureName: 'Auto-Thread',
+    description: 'Création automatique de fils de discussion sur les messages',
+    category: 'moderation',
+  },
+  {
     featureKey: 'activity',
     featureName: 'Journal d\'activité',
     description: 'Suivi de l\'activité utilisateur',
@@ -130,6 +136,12 @@ export const defaultFeatures = [
     featureKey: 'regulation',
     featureName: 'Règlement',
     description: 'Configuration du règlement serveur',
+    category: 'management',
+  },
+  {
+    featureKey: 'news',
+    featureName: 'Actualités & RSS',
+    description: 'Publication d\'articles par le staff et génération de flux RSS',
     category: 'management',
   },
   // ─── Configuration ───

@@ -37,6 +37,7 @@ import * as profileCmd from './commands/profile.ts';
 import * as profilCmd from './commands/profil.ts';
 import * as sanctionCmd from './commands/sanction.js';
 import * as dcCmd from './commands/dc.js';
+import * as rescanCmd from './commands/rescan.js';
 import * as casierCmd from './commands/casier.js';
 import * as absentCmd from './commands/absent.js';
 import * as meetingCmd from './commands/meeting.js';
@@ -54,6 +55,7 @@ import { registerModerationAuditListener } from './events/moderation.js';
 import { registerAdvancedLogsListener } from './events/advancedLogs.js';
 import { registerCloseSourceWarningListener } from './events/closeSourceWarning.js';
 import { registerNicknameModerationListener } from './events/nicknameModeration.js';
+import { registerAutoThreadListener } from './events/autoThread.js';
 import { registerDailyAlgoHandlers } from './handlers/dailyAlgoHandler.js';
 import { registerMeetingEvents } from './events/meetingEvents.js';
 import { registerAnalyticsListeners } from './events/analyticsEvents.js';
@@ -166,7 +168,7 @@ type SlashCommand = {
 import * as demissionCmd from './commands/demission.js';
 
 const commands = new Collection<string, SlashCommand>();
-[setupCmd, configCmd, pingCmd, infoCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd, postCmd, dailyAlgoCmd, profileCmd, profilCmd, sanctionCmd, dcCmd, casierCmd, absentCmd, meetingCmd, statsCmd, invitesCmd, leaderboardCmd, serverstatsCmd, noteCmd, eventCmd, activateCmd, transcriptCmd, sayCmd, demissionCmd].forEach((cmd) => {
+[setupCmd, configCmd, pingCmd, infoCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd, postCmd, dailyAlgoCmd, profileCmd, profilCmd, sanctionCmd, dcCmd, rescanCmd, casierCmd, absentCmd, meetingCmd, statsCmd, invitesCmd, leaderboardCmd, serverstatsCmd, noteCmd, eventCmd, activateCmd, transcriptCmd, sayCmd, demissionCmd].forEach((cmd) => {
   commands.set(cmd.data.name, cmd as SlashCommand);
 });
 commands.set(noteCmd.contextData.name, noteCmd as unknown as SlashCommand);
@@ -240,6 +242,7 @@ client.once(Events.ClientReady, async (c) => {
   registerAdvancedLogsListener(client);
   registerCloseSourceWarningListener(client);
   registerNicknameModerationListener(client);
+  registerAutoThreadListener(client);
   registerDailyAlgoHandlers(client);
   registerMeetingEvents(client);
   registerAnalyticsListeners(client);

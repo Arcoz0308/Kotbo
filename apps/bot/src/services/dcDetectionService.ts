@@ -179,9 +179,10 @@ export async function analyzeMemberJoin(member: GuildMember): Promise<void> {
 
   if (reasons.length > 0) {
     // Marquer comme suspect dans la DB
-    await prisma.memberProfile.update({
+    await prisma.memberProfile.upsert({
       where: { guildId_userId: { guildId, userId } },
-      data: { isSuspectedDC: true }
+      update: { isSuspectedDC: true },
+      create: { guildId, userId, isSuspectedDC: true }
     }).catch(() => null);
 
     // Signaler au staff
@@ -214,9 +215,10 @@ export async function scanGuildMembersForYoungAccounts(guild: Guild, thresholdMs
     const suspicion = buildYoungAccountSuspicion(member, thresholdMs);
     if (!suspicion) continue;
 
-    await prisma.memberProfile.update({
+    await prisma.memberProfile.upsert({
       where: { guildId_userId: { guildId: guild.id, userId: member.id } },
-      data: { isSuspectedDC: true }
+      update: { isSuspectedDC: true },
+      create: { guildId: guild.id, userId: member.id, isSuspectedDC: true }
     }).catch(() => null);
 
     await reportSuspectedDC(member, [], [suspicion.reason]);

@@ -10,6 +10,7 @@ import {
 } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
+import { getOrCreateFeatureConfigs } from './dashboardManagementService.js';
 import type { 
   StaffAbsence, StaffMeeting, StaffMeetingPresence, 
   StaffManagerNote, StaffPoll, StaffPollOption, StaffPollVote,
@@ -66,6 +67,133 @@ export const getAbsences = async (guildId: string) => {
   });
 };
 
+const ABSENCE_FEATURE_KEY = 'absences';
+
+const getAbsenceFeatureConfig = async (guildId: string) => {
+  return prisma.dashboardFeatureConfig.findUnique({
+    where: {
+      guildId_featureKey: {
+        guildId,
+        featureKey: ABSENCE_FEATURE_KEY,
+      },
+    },
+    include: {
+      notificationTargets: true,
+    },
+  });
+};
+
+const sendAbsenceDiscordRelay = async (params: {
+  guildId: string;
+  absence: any;
+  requester: any;
+  superior: any;
+  featureConfig: {
+    enabled: boolean;
+    channelId: string | null;
+    notificationRoleId: string | null;
+    notifyViaDiscordChannel: boolean;
+    metadata?: any;
+    notificationTargets?: Array<{
+      targetType: string;
+      targetId: string | null;
+      enabled: boolean;
+    }>;
+  } | null;
+}) => {
+  if (!params.featureConfig?.enabled) return;
+
+  const targetChannelIds = new Set<string>();
+
+  if (params.featureConfig.notifyViaDiscordChannel) {
+    if (params.featureConfig.channelId) {
+      targetChannelIds.add(params.featureConfig.channelId);
+    }
+
+    for (const target of params.featureConfig.notificationTargets || []) {
+      if (target.enabled && target.targetType === 'DISCORD_CHANNEL' && target.targetId) {
+        targetChannelIds.add(target.targetId);
+      }
+    }
+  }
+
+  const webhookUrl = params.featureConfig.metadata && (params.featureConfig.metadata as any).webhookUrl;
+
+  if (targetChannelIds.size === 0 && !webhookUrl) return;
+
+  const requesterName = getAbsenceDisplayName(params.requester, params.absence.staffUserId);
+  const superiorName = getAbsenceDisplayName(params.superior, params.absence.superiorUserId ?? 'Aucun');
+  const durationLabel = formatAbsenceDuration(params.absence.startDate, params.absence.endDate ?? undefined);
+  const isFinite = !!params.absence.endDate;
+  const roleMention = params.featureConfig.notificationRoleId ? `<@&${params.featureConfig.notificationRoleId}>` : '';
+
+  const embed = new EmbedBuilder()
+    .setTitle('📣 Absence staff déclarée')
+    .setDescription(
+      [
+        `**Staff :** <@${params.absence.staffUserId}>`,
+        `**Supérieur notifié :** ${params.absence.superiorUserId ? `<@${params.absence.superiorUserId}>` : 'Aucun'}`,
+        `**Type :** ${params.absence.type || 'Absence'}`,
+      ].join('\n')
+    )
+    .addFields(
+      { name: 'Nom affiché', value: requesterName, inline: true },
+      { name: 'Durée', value: durationLabel, inline: true },
+      {
+        name: 'Période',
+        value: isFinite
+          ? `${formatAbsenceDate(params.absence.startDate)}\n→ ${formatAbsenceDate(params.absence.endDate)}`
+          : `${formatAbsenceDate(params.absence.startDate)}\n→ Indéterminée`,
+        inline: false,
+      },
+      { name: 'Motif', value: params.absence.reason || 'Aucun motif fourni', inline: false },
+      { name: 'Message complémentaire', value: params.absence.message || 'Aucun', inline: false },
+      { name: 'Supérieur', value: superiorName, inline: true },
+      { name: 'Référence', value: params.absence.id, inline: true },
+    )
+    .setColor('#5865F2')
+    .setTimestamp(new Date())
+    .setFooter({ text: 'Kotbo • Relai notifications absences' });
+
+  const content = roleMention ? `📣 Nouvelle absence staff ${roleMention}` : '📣 Nouvelle absence staff';
+
+  // Send to Discord channels if configured
+  if (targetChannelIds.size > 0) {
+    const client = getClient();
+    const guild = client.guilds.cache.get(params.guildId) ?? await client.guilds.fetch(params.guildId).catch(() => null);
+    if (guild) {
+      await Promise.all(Array.from(targetChannelIds).map(async (channelId) => {
+        const channel = await client.channels.fetch(channelId).catch(() => null);
+        if (!channel || !channel.isTextBased()) return;
+
+        await channel.send({
+          content,
+          embeds: [embed],
+          allowedMentions: params.featureConfig.notificationRoleId ? { roles: [params.featureConfig.notificationRoleId] } : undefined,
+        }).catch((error) => {
+          logger.warn('StaffLeadership', `Impossible d'envoyer le relai Discord d'absence vers ${channelId}: ${String(error)}`);
+        });
+      }));
+    }
+  }
+
+  // Send to Webhook if configured
+  if (webhookUrl && typeof webhookUrl === 'string' && webhookUrl.startsWith('https://')) {
+    fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        content,
+        embeds: [embed.toJSON()],
+      }),
+    }).catch((err) => {
+      logger.error('StaffLeadership', `Failed to send webhook for absence: ${String(err)}`);
+    });
+  }
+};
+
 
 
 export const createAbsence = async (
@@ -112,6 +240,7 @@ export const createAbsence = async (
   }
 
   const isIndefinite = !params.endDate;
+  const featureConfig = await getAbsenceFeatureConfig(params.guildId);
 
   const absence = await prisma.staffAbsence.create({
     data: {
@@ -129,15 +258,26 @@ export const createAbsence = async (
     }
   });
 
+  await sendAbsenceDiscordRelay({
+    guildId: params.guildId,
+    absence,
+    requester,
+    superior,
+    featureConfig,
+  }).catch((error) => {
+    logger.warn('StaffLeadership', `Impossible d'envoyer le relai Discord d'absence: ${String(error)}`);
+  });
+
   // Notifier le responsable (superiorUserId)
-  if (params.superiorUserId) {
+  if (params.superiorUserId && featureConfig?.enabled !== false) {
     await createNotification(
       params.guildId,
       params.superiorUserId,
       'Validation d\'absence en attente',
-      `Une absence a été soumise par un de vos subordonnés pour le motif: ${params.reason}.`,
+      `Une absence a été soumise par un de vos subordonnés. Type: ${params.type}. Durée: ${formatAbsenceDuration(params.startDate, params.endDate)}. Motif: ${params.reason}.`,
       'WARNING',
-      '/absences'
+      '/absences',
+      featureConfig?.notifyViaDM ?? true
     ).catch(() => null);
   }
 
@@ -156,9 +296,10 @@ export const createAbsence = async (
         params.guildId,
         m.userId,
         'Nouvelle absence demandée',
-        `Une absence a été soumise pour le motif: ${params.reason}.`,
+        `Une absence a été soumise. Staff: ${getAbsenceDisplayName(requester, params.staffMemberId)}. Type: ${params.type}. Durée: ${formatAbsenceDuration(params.startDate, params.endDate)}. Motif: ${params.reason}.`,
         'INFO',
-        '/absences'
+        '/absences',
+        featureConfig?.notifyViaDM ?? true
       ).catch(() => null))
     );
   }
@@ -172,6 +313,44 @@ export const getAbsenceById = async (guildId: string, absenceId: string) => {
     include: { staffMember: true },
   });
 };
+
+const formatAbsenceDate = (date: Date) => {
+  return new Intl.DateTimeFormat('fr-FR', {
+    dateStyle: 'full',
+    timeStyle: 'short',
+  }).format(date);
+};
+
+const formatAbsenceDuration = (startDate: Date, endDate?: Date) => {
+  if (!endDate) return 'Indéterminée';
+
+  const durationMs = Math.max(endDate.getTime() - startDate.getTime(), 0);
+  const totalHours = durationMs / (1000 * 60 * 60);
+
+  if (totalHours < 1) {
+    return `${Math.max(1, Math.round(durationMs / (1000 * 60)))} min`;
+  }
+
+  if (totalHours < 24) {
+    const roundedHours = Math.round(totalHours * 10) / 10;
+    return `${Number.isInteger(roundedHours) ? roundedHours.toFixed(0) : roundedHours.toFixed(1)} h`;
+  }
+
+  const days = Math.floor(totalHours / 24);
+  const remainingHours = Math.round((totalHours - days * 24) * 10) / 10;
+
+  if (remainingHours <= 0) {
+    return `${days} j`;
+  }
+
+  return `${days} j ${Number.isInteger(remainingHours) ? remainingHours.toFixed(0) : remainingHours.toFixed(1)} h`;
+};
+
+const getAbsenceDisplayName = (member: any, fallback: string) => {
+  if (!member) return fallback;
+  return member.displayName || member.userTag || member.username || member.userId || fallback;
+};
+
 
 export const getLatestOpenAbsenceForMember = async (guildId: string, staffMemberId: string) => {
   return prisma.staffAbsence.findFirst({

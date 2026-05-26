@@ -26,6 +26,8 @@ class DashboardStore {
     githubReleasesEnabled: false,
     digestEnabled: false,
     youtubeEnabled: false,
+    autoThreadEnabled: false,
+    autoThreadChannels: [] as string[],
     commandRestrictions: [],
     commandCatalog: [],
     access: {
@@ -129,6 +131,8 @@ class DashboardStore {
         this.state.githubReleasesEnabled = data.githubReleasesEnabled || false;
         this.state.digestEnabled = data.digestEnabled || false;
         this.state.youtubeEnabled = data.youtubeEnabled || false;
+        this.state.autoThreadEnabled = data.autoThreadEnabled || false;
+        this.state.autoThreadChannels = data.autoThreadChannels || [];
         this.state.commandRestrictions = data.commandRestrictions || [];
         this.state.commandCatalog = data.commandCatalog || [];
         this.state.access = data.access || {

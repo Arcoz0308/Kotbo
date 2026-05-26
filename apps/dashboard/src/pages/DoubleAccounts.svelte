@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
-  import { fetchLinkedAccounts, updateLinkedAccountStatus, deleteLinkedAccount, fetchMemberCase, fetchFeatureConfigurations, updateFeatureConfiguration } from '../lib/api';
+  import { fetchLinkedAccounts, updateLinkedAccountStatus, deleteLinkedAccount, fetchMemberCase, fetchFeatureConfigurations, updateFeatureConfiguration, scanSuspectedDetections } from '../lib/api';
+  import { toast } from '../lib/stores/toast.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
@@ -10,6 +11,25 @@
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
+
+  let scanning = $state(false);
+
+  async function triggerRescan() {
+    if (!authStore.selectedGuildId) return;
+    scanning = true;
+    try {
+      const res = await scanSuspectedDetections(undefined, authStore.selectedGuildId);
+      if (res && res.success) {
+        toast.success(`Scan terminé : ${res.scannedCount} membres analysés, ${res.flaggedCount} suspectés.`);
+      }
+      await loadData();
+    } catch (err) {
+      console.error('Erreur rescan:', err);
+      toast.error(err instanceof Error ? err.message : 'Impossible de lancer le scan');
+    } finally {
+      scanning = false;
+    }
+  }
 
   let linkedAccounts = $state<any[]>([]);
   let loading = $state(true);
@@ -210,15 +230,40 @@
         </div>
       </div>
 
-      <div class="rounded-[2.5rem] border border-amber-500/20 bg-amber-500/5 p-8 space-y-4">
-        <h3 class="text-2xl font-black">Détections</h3>
-        <p class="text-sm text-on-surface-variant/70">
-          Les comptes marqués suspects sont visibles dans la page dédiée Détections. Cette page sert de console d’alerte et garde les liaisons à portée de main.
-        </p>
-        <a href="/detections" class="inline-flex items-center gap-2 rounded-2xl border border-amber-500/20 bg-surface-container-low px-4 py-3 text-[10px] font-black uppercase tracking-widest text-amber-500 transition-colors hover:bg-amber-500 hover:text-white">
-          <Papicon icon="Bell" size={14} />
-          Ouvrir les détections
-        </a>
+      <div class="rounded-[2.5rem] border border-amber-500/20 bg-amber-500/5 p-8 space-y-4 flex flex-col justify-between">
+        <div>
+          <h3 class="text-2xl font-black">Détections</h3>
+          <p class="mt-1 text-sm text-on-surface-variant/70">
+            Les comptes marqués suspects sont visibles dans la page dédiée Détections. Cette page sert de console d’alerte et garde les liaisons à portée de main.
+          </p>
+          <div class="mt-4 bg-surface-container-high/40 rounded-xl p-3 border border-outline-variant/10 flex items-center justify-between gap-2">
+            <div class="min-w-0">
+              <span class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40">Commande Discord</span>
+              <p class="text-xs font-mono font-bold text-amber-500 truncate mt-0.5">/rescan</p>
+            </div>
+            <span class="px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 text-[8px] font-black uppercase tracking-widest">Bot</span>
+          </div>
+        </div>
+        
+        <div class="flex flex-wrap gap-2 pt-2">
+          <a href="/detections" class="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-500/20 bg-surface-container-low px-4 py-3 text-[10px] font-black uppercase tracking-widest text-amber-500 transition-colors hover:bg-amber-500 hover:text-white">
+            <Papicon icon="Bell" size={14} />
+            <span>Détails</span>
+          </a>
+          <button
+            onclick={triggerRescan}
+            disabled={scanning || loading}
+            class="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-amber-500 text-white px-4 py-3 text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all disabled:opacity-50"
+          >
+            {#if scanning}
+              <div class="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+              <span>Scan...</span>
+            {:else}
+              <Papicon icon="ShieldAlert" size={14} />
+              <span>Rescanner</span>
+            {/if}
+          </button>
+        </div>
       </div>
     </div>
   {/if}

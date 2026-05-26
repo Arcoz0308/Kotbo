@@ -4,6 +4,7 @@ export interface ArticleMetadata {
   title: string | null;
   description: string | null;
   imageUrl: string | null;
+  rssUrl: string | null;
 }
 
 interface FetchArticleMetadataOptions {
@@ -29,6 +30,7 @@ export async function fetchArticleMetadata(url: string, options?: FetchArticleMe
       title: null,
       description: null,
       imageUrl: null,
+      rssUrl: null,
     };
 
     // 1. Extract Title
@@ -48,12 +50,23 @@ export async function fetchArticleMetadata(url: string, options?: FetchArticleMe
             html.match(/<meta name="twitter:image" content="([^"]+)"/i);
     if (match) metadata.imageUrl = match[1];
 
+    // 4. Extract RSS Feed URL
+    match = html.match(/<link[^>]+type="application\/rss\+xml"[^>]+href="([^"]+)"/i) ||
+            html.match(/<link[^>]+href="([^"]+)"[^>]+type="application\/rss\+xml"/i);
+    if (match) {
+      try {
+        metadata.rssUrl = new URL(match[1], url).href;
+      } catch {
+        metadata.rssUrl = match[1];
+      }
+    }
+
     return metadata;
   } catch (error) {
     if (shouldLogErrors) {
       logger.error('Metadata', `Erreur lors de la récupération des métadonnées pour ${url}:`, error);
     }
-    return { title: null, description: null, imageUrl: null };
+    return { title: null, description: null, imageUrl: null, rssUrl: null };
   }
 }
 

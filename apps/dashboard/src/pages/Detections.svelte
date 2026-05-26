@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
-  import { fetchMemberCase, fetchSuspectedDetections } from '../lib/api';
+  import { fetchMemberCase, fetchSuspectedDetections, scanSuspectedDetections } from '../lib/api';
+  import { toast } from '../lib/stores/toast.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
@@ -26,6 +27,7 @@
 
   let detections = $state<DetectionItem[]>([]);
   let loading = $state(true);
+  let scanning = $state(false);
   let error = $state('');
   let modalOpen = $state(false);
   let selectedUserId = $state<string | null>(null);
@@ -79,6 +81,41 @@
     }
   }
 
+  let thresholdDays = $state(3);
+  let commandCopied = $state(false);
+
+  const discordCommand = $derived(`/rescan seuil_jours:${thresholdDays}`);
+
+  async function copyCommand() {
+    try {
+      await navigator.clipboard.writeText(discordCommand);
+      commandCopied = true;
+      toast.success('Commande copiée !');
+      setTimeout(() => {
+        commandCopied = false;
+      }, 2000);
+    } catch (err) {
+      toast.error('Impossible de copier la commande');
+    }
+  }
+
+  async function triggerRescan() {
+    if (!authStore.selectedGuildId) return;
+    scanning = true;
+    try {
+      const res = await scanSuspectedDetections(thresholdDays, authStore.selectedGuildId);
+      if (res && res.success) {
+        toast.success(`Scan terminé : ${res.scannedCount} membres analysés, ${res.flaggedCount} suspectés.`);
+      }
+      await loadDetections();
+    } catch (err) {
+      console.error('Erreur rescan:', err);
+      toast.error(err instanceof Error ? err.message : 'Impossible de lancer le scan');
+    } finally {
+      scanning = false;
+    }
+  }
+
   async function openMemberCase(member: DetectionItem) {
     await openMemberCaseById(member.id, member.displayName || member.username || 'Membre');
   }
@@ -117,7 +154,37 @@
   featureKey="double_accounts"
 >
   {#snippet actions()}
-    <RefreshButton onClick={loadDetections} loading={loading} label="Actualiser" />
+    <div class="flex flex-wrap items-center gap-3">
+      <!-- Seuil selection -->
+      <div class="flex items-center gap-2 bg-surface-container-low/60 rounded-2xl border border-outline-variant/10 px-3 py-1.5">
+        <label for="threshold-select" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Seuil :</label>
+        <select
+          id="threshold-select"
+          bind:value={thresholdDays}
+          disabled={scanning || loading}
+          class="bg-transparent border-none text-xs font-bold text-on-surface focus:outline-none cursor-pointer"
+        >
+          {#each Array.from({ length: 30 }, (_, i) => i + 1) as day}
+            <option value={day} class="bg-surface text-on-surface">{day} {day > 1 ? 'jours' : 'jour'}</option>
+          {/each}
+        </select>
+      </div>
+
+      <button
+        onclick={triggerRescan}
+        disabled={scanning || loading}
+        class="flex items-center gap-2 bg-primary text-white px-5 py-2 rounded-xl text-sm font-semibold hover:opacity-90 transition-all shadow-md disabled:opacity-50 disabled:scale-100"
+      >
+        {#if scanning}
+          <div class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+          <span>Scan en cours...</span>
+        {:else}
+          <Papicon icon="ShieldAlert" size={14} />
+          <span>Rescanner le serveur</span>
+        {/if}
+      </button>
+      <RefreshButton onClick={loadDetections} loading={loading} label="Actualiser" />
+    </div>
   {/snippet}
 
   <div class="grid gap-4 md:grid-cols-4 mb-8">
@@ -139,15 +206,32 @@
     </div>
   </div>
 
-  <div class="mb-8 rounded-[2.5rem] border border-amber-500/20 bg-amber-500/5 p-6 flex gap-4 items-start">
-    <div class="rounded-2xl bg-amber-500/10 p-3 text-amber-500 shrink-0">
-      <Papicon icon="AlertTriangle" size={22} />
+  <div class="mb-8 rounded-[2.5rem] border border-amber-500/20 bg-amber-500/5 p-6 flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
+    <div class="flex gap-4 items-start">
+      <div class="rounded-2xl bg-amber-500/10 p-3 text-amber-500 shrink-0">
+        <Papicon icon="AlertTriangle" size={22} />
+      </div>
+      <div>
+        <h3 class="text-lg font-black text-on-surface">Centre de surveillance</h3>
+        <p class="mt-1 text-sm text-on-surface-variant/70">
+          Cette page centralise les comptes marqués comme suspects par le bot. Ouvre un dossier pour vérifier les détails, puis valide ou sanctionne depuis le module <span class="font-bold">Doubles Comptes</span>.
+        </p>
+      </div>
     </div>
-    <div>
-      <h3 class="text-lg font-black text-on-surface">Centre de surveillance</h3>
-      <p class="mt-1 text-sm text-on-surface-variant/70">
-        Cette page centralise les comptes marqués comme suspects par le bot. Ouvre un dossier pour vérifier les détails, puis valide ou sanctionne depuis le module <span class="font-bold">Doubles Comptes</span>.
-      </p>
+    <div class="w-full md:w-auto bg-surface-container-high/40 rounded-2xl p-4 border border-outline-variant/10 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+      <div class="flex flex-col min-w-[200px]">
+        <span class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40">Commande Discord</span>
+        <code class="text-xs font-mono font-bold text-amber-500 mt-1 bg-surface-container-low px-2.5 py-1.5 rounded-lg border border-outline-variant/5 select-all truncate">
+          {discordCommand}
+        </code>
+      </div>
+      <button
+        onclick={copyCommand}
+        class="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-amber-500 text-white hover:opacity-90 transition-all active:scale-95"
+      >
+        <Papicon icon={commandCopied ? "check" : "copy"} size={12} />
+        {commandCopied ? "Copié !" : "Copier"}
+      </button>
     </div>
   </div>
 

@@ -30,7 +30,7 @@ import { requireSingleSelectedValue, validateTimeField } from '../utils/interact
 import { buildMemberCasePanel, type MemberCaseSection } from '../services/memberCaseService.js';
 import { handleRecruitmentButton } from '../services/recruitmentService.js';
 import { handleTicketButton, handleTicketModalSubmit } from '../services/ticketService.js';
-import { checkInMeeting } from '../services/staffLeadershipService.js';
+import { checkInMeeting, createNotification } from '../services/staffLeadershipService.js';
 import { handleDCInteraction } from '../services/dcDetectionService.js';
 import { showModeratorNoteModal } from '../commands/note.js';
 import {
@@ -643,7 +643,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
         return;
       }
 
-      await prisma.staffResignation.create({
+      const resignation = await prisma.staffResignation.create({
         data: {
           guildId,
           staffUserId: staff.id,
@@ -652,7 +652,33 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
         }
       });
 
-      // Notifier les managers/admins
+      // MP Discord de confirmation au membre
+      let dmMessageId: string | null = null;
+      try {
+        const confirmEmbed = new EmbedBuilder()
+          .setTitle('📨 Demande de démission reçue')
+          .setDescription(
+            `Votre demande de démission a bien été enregistrée et est en attente d\'approbation par la direction.\n\n` +
+            `**Motif fourni :**\n> ${reason}\n\n` +
+            `Vous serez notifié de la décision finale. Vous pouvez suivre le statut dans votre profil sur le dashboard.`
+          )
+          .setColor(COLORS.info)
+          .setTimestamp()
+          .setFooter({ text: `Référence : ${resignation.id}` });
+        const dm = await interaction.user.send({ embeds: [confirmEmbed] }).catch(() => null);
+        dmMessageId = dm?.id ?? null;
+      } catch {
+        // Silent fail si le MP est désactivé
+      }
+
+      if (dmMessageId) {
+        await prisma.staffResignation.update({
+          where: { id: resignation.id },
+          data: { discordMpMessageId: dmMessageId }
+        }).catch(() => null);
+      }
+
+      // Notifier les managers/admins via dashboard + MP Discord
       const managers = await prisma.staffMember.findMany({
         where: {
           guildId,
@@ -661,19 +687,42 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
       });
 
       if (managers.length > 0) {
-        await Promise.all(managers.map(m => createNotification(
-          guildId,
-          m.userId,
-          'Demande de démission',
-          `Le membre ${interaction.user.username} a soumis une demande de démission.\nMotif : ${reason}`,
-          'WARNING',
-          '/staff-management?tab=resignations',
-          true
-        ).catch(() => null)));
+        await Promise.all(managers.map(async (m: { userId: string; username: string | null }) => {
+          // Notif dashboard
+          await createNotification(
+            guildId,
+            m.userId,
+            '🔔 Demande de démission',
+            `${interaction.user.username} a soumis une demande de démission.\nMotif : ${reason}`,
+            'WARNING',
+            '/staff-management?tab=resignations',
+            true
+          ).catch(() => null);
+
+          // MP Discord aux managers
+          try {
+            const managerDiscordUser = await client.users.fetch(m.userId).catch(() => null);
+            if (managerDiscordUser) {
+              const managerEmbed = new EmbedBuilder()
+                .setTitle('🔔 Nouvelle demande de démission')
+                .setDescription(
+                  `**${interaction.user.username}** (${interaction.user.id}) a soumis une demande de démission.\n\n` +
+                  `**Motif :**\n> ${reason}\n\n` +
+                  `Rendez-vous sur le dashboard pour approuver ou refuser cette demande.`
+                )
+                .setColor(COLORS.warning)
+                .setTimestamp()
+                .setFooter({ text: `Référence : ${resignation.id}` });
+              await managerDiscordUser.send({ embeds: [managerEmbed] }).catch(() => null);
+            }
+          } catch {
+            // Silent fail
+          }
+        }));
       }
 
       await interaction.reply({
-        content: '✅ Votre demande de démission a été soumise avec succès aux managers pour approbation.',
+        content: '✅ Votre demande de démission a été soumise avec succès aux managers pour approbation. Vous recevrez une notification de leur décision.',
         flags: [MessageFlags.Ephemeral]
       });
     } catch (err) {

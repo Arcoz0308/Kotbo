@@ -58,6 +58,12 @@
   let newNoteContent = $state('');
   let sendingNote = $state(false);
 
+  // Resignation
+  let pendingResignation = $state<any>(null);
+  let showResignationForm = $state(false);
+  let resignationReason = $state('');
+  let submittingResignation = $state(false);
+
   const isOwnProfile = $derived(targetUserId === authStore.user?.id);
 
   const tabs = $derived([
@@ -120,6 +126,11 @@
           activeTab = 'staff_overview';
         } else {
           activeTab = 'community_overview';
+        }
+
+        // Load pending resignation if own profile
+        if (data.staffMember && id === authStore.user?.id) {
+          await loadPendingResignation(data.staffMember.guildId);
         }
       } else {
         // Not a staff member or unauthorized for staff details
@@ -277,6 +288,53 @@
     } catch (err) {
       console.error(err);
       toast.error('Erreur lors de la suppression');
+    }
+  }
+
+  async function loadPendingResignation(guildId: string) {
+    if (!authStore.token) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/staff/resignations`, {
+        headers: { Authorization: `Bearer ${authStore.token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const myId = staffMember?.id;
+        pendingResignation = (data.resignations || []).find(
+          (r: any) => r.staffUserId === myId && r.status === 'PENDING'
+        ) || null;
+      }
+    } catch (err) {
+      console.error('Erreur chargement résignation:', err);
+    }
+  }
+
+  async function submitResignation() {
+    if (!staffMember || !resignationReason.trim()) return;
+    submittingResignation = true;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${staffMember.guildId}/staff/resignations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authStore.token}`
+        },
+        body: JSON.stringify({ reason: resignationReason.trim() })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Erreur lors de la soumission');
+      }
+      const data = await res.json();
+      pendingResignation = data.resignation;
+      showResignationForm = false;
+      resignationReason = '';
+      toast.success('Votre demande de démission a été soumise.');
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Erreur lors de la soumission');
+    } finally {
+      submittingResignation = false;
     }
   }
 
@@ -706,6 +764,88 @@
                   Ajouter Note
                 </button>
               </div>
+            </div>
+          {/if}
+
+          <!-- ── Resignation Panel (Own profile only, staff members only) ──────── -->
+          {#if isOwnProfile && staffMember}
+            <div class="rounded-[2.5rem] border-2 {pendingResignation ? 'border-amber-500/20 bg-amber-500/5' : 'border-rose-500/10 bg-surface-container-low/30'} p-8 shadow-sm">
+              <div class="flex items-center gap-4 mb-6">
+                <div class="w-12 h-12 rounded-2xl {pendingResignation ? 'bg-amber-500/10 text-amber-500' : 'bg-rose-500/10 text-rose-500'} flex items-center justify-center">
+                  <Papicon icon="LogOut" size={24} />
+                </div>
+                <div>
+                  <p class="text-[10px] font-black uppercase tracking-[0.2em] {pendingResignation ? 'text-amber-500' : 'text-rose-500'}">Zone Sensible</p>
+                  <h4 class="text-xl font-black text-on-surface">Démission du Staff</h4>
+                </div>
+              </div>
+
+              {#if pendingResignation}
+                <!-- Demande en attente -->
+                <div class="p-5 rounded-2xl bg-amber-500/10 border border-amber-500/20 mb-4">
+                  <div class="flex items-center gap-2 mb-2">
+                    <Papicon icon="Clock" size={16} class="text-amber-500" />
+                    <span class="text-xs font-black text-amber-500 uppercase tracking-wider">Demande en attente d'approbation</span>
+                  </div>
+                  <p class="text-sm font-bold text-on-surface mb-1">Motif soumis :</p>
+                  <p class="text-sm text-on-surface-variant leading-relaxed italic">« {pendingResignation.reason} »</p>
+                  <p class="text-[9px] font-bold text-on-surface-variant/40 uppercase mt-3">Soumis le {formatDate(pendingResignation.createdAt)}</p>
+                </div>
+                <p class="text-xs font-bold text-on-surface-variant/50">
+                  Votre demande est en cours d'examen par la direction. Vous serez notifié de la décision.
+                </p>
+              {:else if showResignationForm}
+                <!-- Formulaire de démission -->
+                <div class="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <p class="text-xs font-bold text-on-surface-variant/70 leading-relaxed">
+                    Une fois soumise, votre demande sera transmise aux responsables pour approbation. 
+                    Veuillez expliquer clairement vos raisons.
+                  </p>
+                  <div>
+                    <label for="resignation-reason" class="text-[10px] font-black uppercase tracking-widest text-rose-500 mb-2 block">Motif de démission *</label>
+                    <textarea
+                      id="resignation-reason"
+                      bind:value={resignationReason}
+                      placeholder="Expliquez brièvement les raisons de votre départ..."
+                      maxlength={500}
+                      rows={4}
+                      class="w-full bg-surface-container-high/60 border border-outline-variant/20 rounded-2xl px-4 py-3 text-sm font-medium text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-rose-500/40 resize-none transition-colors"
+                    ></textarea>
+                    <p class="text-[9px] font-bold text-on-surface-variant/30 text-right mt-1">{resignationReason.length}/500</p>
+                  </div>
+                  <div class="flex gap-3 justify-end">
+                    <button
+                      onclick={() => { showResignationForm = false; resignationReason = ''; }}
+                      class="px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-surface-container-high/60 text-on-surface-variant hover:bg-surface-container-high transition-all"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      id="btn-submit-resignation"
+                      onclick={submitResignation}
+                      disabled={submittingResignation || !resignationReason.trim()}
+                      class="px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-rose-500 text-white shadow-lg shadow-rose-500/25 hover:bg-rose-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {submittingResignation ? 'Envoi...' : 'Soumettre la demande'}
+                    </button>
+                  </div>
+                </div>
+              {:else}
+                <!-- Bouton d'ouverture -->
+                <div class="space-y-3">
+                  <p class="text-xs font-bold text-on-surface-variant/60 leading-relaxed">
+                    Si vous souhaitez quitter l'équipe staff, vous pouvez soumettre une demande de démission qui sera examinée par la direction avant approbation.
+                  </p>
+                  <button
+                    id="btn-open-resignation"
+                    onclick={() => showResignationForm = true}
+                    class="w-full md:w-auto inline-flex items-center justify-center gap-2.5 px-8 py-3.5 rounded-2xl bg-rose-500/10 text-rose-500 border border-rose-500/20 text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 hover:text-white hover:border-rose-500 hover:shadow-lg hover:shadow-rose-500/25 transition-all duration-300"
+                  >
+                    <Papicon icon="LogOut" size={14} />
+                    Demander une démission
+                  </button>
+                </div>
+              {/if}
             </div>
           {/if}
 

@@ -19,6 +19,7 @@ import * as dailyAlgoCmd from './commands/dailyAlgo.js';
 import * as profileCmd from './commands/profile.ts';
 import * as sanctionCmd from './commands/sanction.js';
 import * as dcCmd from './commands/dc.js';
+import * as rescanCmd from './commands/rescan.js';
 import * as casierCmd from './commands/casier.js';
 import * as absentCmd from './commands/absent.js';
 import * as statsCmd from './commands/stats.js';
@@ -45,6 +46,7 @@ const commands = [
   profileCmd,
   sanctionCmd,
   dcCmd,
+  rescanCmd,
   casierCmd,
   absentCmd,
   statsCmd,

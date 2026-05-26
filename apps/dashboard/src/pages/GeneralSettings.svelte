@@ -23,6 +23,7 @@
   let guildSettings = $state({
     configChannelId: '',
     publicChannelId: '',
+    newsChannelId: '',
     dailyAlgoChannelId: '',
     meetingVoiceChannelId: '',
     baseStaffRoleId: '',
@@ -43,6 +44,7 @@
       guildSettings = {
         configChannelId: s.configChannelId || '',
         publicChannelId: s.publicChannelId || '',
+        newsChannelId: s.newsChannelId || '',
         dailyAlgoChannelId: s.dailyAlgoChannelId || '',
         meetingVoiceChannelId: s.meetingVoiceChannelId || '',
         baseStaffRoleId: s.baseStaffRoleId || '',
@@ -77,6 +79,7 @@
     { key: 'meetingVoiceChannelId', label: 'Vocal Réunions', desc: 'Salon vocal par défaut', isVoice: true },
     { key: 'dailyAlgoChannelId', label: 'Salon Daily Algo', desc: 'Salon de publication des exercices quotidiens' },
     { key: 'publicChannelId', label: 'Salon Public', desc: 'Salon public général' },
+    { key: 'newsChannelId', label: 'Salon Actualités', desc: 'Salon de publication des annonces de patch notes / staff news' },
     { key: 'configChannelId', label: 'Salon Config', desc: 'Salon de configuration interne' },
     { key: 'logChannelId', label: 'Salon Logs', desc: 'Salon des logs d\'activité' },
   ];

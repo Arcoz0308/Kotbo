@@ -91,7 +91,10 @@
       ]);
 
       if (featureResult?.features) {
-        features = featureResult.features;
+        features = featureResult.features.map((f: any) => ({
+          ...f,
+          metadata: f.metadata || {}
+        }));
       }
       availableRoles = (dashboardStore.state.discordRoles || []).map((role) => ({
         id: role.id,
@@ -152,7 +155,8 @@
           notifyViaDiscordChannel: feature.notifyViaDiscordChannel,
           notifyViaDM: feature.notifyViaDM,
           loggingEnabled: feature.loggingEnabled,
-          userActivityTracking: feature.userActivityTracking
+          userActivityTracking: feature.userActivityTracking,
+          metadata: (feature as any).metadata
         });
         if (!ok) throw new Error('Erreur API');
         return true;
@@ -306,7 +310,7 @@
               {features} 
               {availableChannels}
               {availableRoles}
-              onSaveConfig={saveFeatureConfig}
+              onSave={saveFeatureConfig}
               onUpdateTargets={handleUpdateNotificationTargets}
             />
           {:else if activeCategory === 'audit'}

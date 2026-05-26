@@ -32,6 +32,7 @@
 
   const managementItems = [
     { name: "Règlement", icon: "book", href: "/regulation", featureKey: "regulation" },
+    { name: "Actualités & RSS", icon: "rss", href: "/news", featureKey: "news" },
   ];
 
   const staffManagementItems = [
@@ -48,6 +49,7 @@
 
   const configItems = [
     { name: "Modules", icon: "package", href: "/modules", featureKey: "modules" },
+    { name: "Auto-Thread", icon: "chat", href: "/auto-thread", featureKey: "auto_thread" },
     { name: "Commandes", icon: "terminal", href: "/command-access", featureKey: "commands" },
     { name: "Paramètres", icon: "settings", href: "/settings", featureKey: "settings" },
   ];
@@ -137,6 +139,19 @@
 
     return groups;
   });
+
+  let searchQuery = $state("");
+
+  const filteredNavGroups = $derived.by((): NavGroup[] => {
+    if (!searchQuery.trim()) return navGroups;
+    const query = searchQuery.toLowerCase().trim();
+    return navGroups
+      .map(group => ({
+        ...group,
+        items: group.items.filter(item => item.name.toLowerCase().includes(query))
+      }))
+      .filter(group => group.items.length > 0);
+  });
 </script>
 
 <aside class="flex flex-col fixed left-0 top-0 h-screen w-64 bg-surface-container-low/80 backdrop-blur-3xl border-r border-outline-variant/30 z-50 transition-all duration-500 hover:shadow-[20px_0_40px_rgba(0,0,0,0.05)]">
@@ -150,8 +165,31 @@
     </div>
   </div>
 
+  <div class="px-4 py-2">
+    <div class="relative flex items-center">
+      <input
+        type="text"
+        placeholder="Rechercher..."
+        bind:value={searchQuery}
+        class="w-full pl-10 pr-8 py-2 text-xs rounded-xl bg-surface-container/30 border border-outline-variant/20 text-on-surface placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary/45 focus:bg-surface-container/60 transition-all duration-300"
+      />
+      <div class="absolute left-3.5 flex items-center justify-center text-on-surface-variant/40">
+        <Papicon icon="search" size={14} />
+      </div>
+      {#if searchQuery}
+        <button
+          type="button"
+          onclick={() => searchQuery = ""}
+          class="absolute right-3 flex items-center justify-center p-1 rounded-lg text-on-surface-variant/40 hover:text-on-surface hover:bg-surface-variant/20 transition-all duration-200"
+        >
+          <Papicon icon="x" size={12} />
+        </button>
+      {/if}
+    </div>
+  </div>
+
   <nav class="flex-1 mt-2 px-4 pb-8 space-y-1 overflow-y-auto scrollbar-hide">
-    {#each navGroups as group, groupIdx}
+    {#each filteredNavGroups as group, groupIdx}
       {#if groupIdx > 0}
         <div class="pt-4 mt-3 border-t border-outline-variant/30"></div>
       {/if}
@@ -179,6 +217,11 @@
           {/if}
         </a>
       {/each}
+    {:else}
+      <div class="flex flex-col items-center justify-center py-8 px-4 text-center">
+        <Papicon icon="info" size={24} class="text-on-surface-variant/40 mb-2" />
+        <p class="text-xs text-on-surface-variant/60">Aucun résultat trouvé</p>
+      </div>
     {/each}
   </nav>
 </aside>

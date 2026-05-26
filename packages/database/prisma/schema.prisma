@@ -83,6 +83,7 @@ model Guild {
   updatedAt DateTime @updatedAt
 
   newsArticles NewsArticle[]
+  newsCategoryConfigs NewsCategoryConfig[]
   dailyAlgoRuns DailyAlgoRun[]
   dashboardSettings DashboardSettings?
   dashboardAuditLogs DashboardAuditLog[]
@@ -125,6 +126,9 @@ model Guild {
   ticketAllowOverclaim        Boolean  @default(true)
   ticketOverclaimPermission   String   @default("ANY") // "ANY", "SUPERIOR_OR_EQUAL", "NONE"
   tickets                Ticket[]
+
+  autoThreadEnabled  Boolean   @default(false)
+  autoThreadChannels String[]  @default([])
 
   @@map("guilds")
 }
@@ -246,6 +250,9 @@ model NewsArticle {
   authorAvatar String?
 
   isGlobal Boolean @default(true)
+  category String @default("Mise à jour")
+  subcategory String @default("")
+  published Boolean @default(true)
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
@@ -255,6 +262,23 @@ model NewsArticle {
   @@index([guildId, publishedAt])
   @@index([isGlobal, publishedAt])
   @@map("news_articles")
+}
+
+model NewsCategoryConfig {
+  id String @id @default(cuid())
+
+  guildId String
+  category String
+  subcategory String @default("")
+  channelId String
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, category, subcategory])
+  @@map("news_category_configs")
 }
 
 model DeveloperExcuse {
@@ -1692,6 +1716,9 @@ model StaffResignation {
   decisionByUserId String?           // ID Discord du manager
   decisionNote     String?
   decidedAt        DateTime?
+  
+  discordMpMessageId String?         // ID du message MP Discord envoyé au membre lors de la soumission
+  ticketChannelId    String?         // ID du salon ticket Discord ouvert pour la discussion
   
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt

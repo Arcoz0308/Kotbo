@@ -16,6 +16,9 @@
   let selectedMode = $state<PeriodMode>('week');
   let selectedOffset = $state(1);
   let data = $state(initialData);
+  $effect(() => {
+    data = initialData;
+  });
   let loading = $state(false);
 
   const weekOptions = [
