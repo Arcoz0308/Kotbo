@@ -746,7 +746,10 @@ async function ensureDailyAlgoScheduleRuns(guildId: string, daysForward: number)
   }
 
   if (!guild.dailyAlgoChannelId) {
-    throw new Error('Le salon Daily Algo doit être configuré avant de générer le planning.');
+    return {
+      createdDateKeys: [],
+      createdCount: 0,
+    };
   }
 
   const createdDateKeys: string[] = [];
