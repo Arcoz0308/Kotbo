@@ -22,6 +22,7 @@ import * as dailyAlgoCmd from './dailyAlgo.js';
 import * as profileCmd from './profile.js';
 import * as sanctionCmd from './sanction.js';
 import * as casierCmd from './casier.js';
+import * as ticketCmd from './ticket.js';
 
 type CommandJson = {
   name: string;
@@ -115,6 +116,12 @@ const COMMANDS: HelpCommand[] = [
     icon: '🛡️',
     category: 'Administration',
     summary: 'Gère les sanctions: warn, timeout, kick, ban et tempban',
+  },
+  {
+    command: ticketCmd,
+    icon: '🎫',
+    category: 'Administration',
+    summary: 'Permet de renommer le salon du ticket courant',
   },
   {
     command: casierCmd,

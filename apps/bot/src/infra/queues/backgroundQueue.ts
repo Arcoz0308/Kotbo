@@ -6,6 +6,7 @@ import { logger } from '../../utils/logger.js';
 export type BackgroundJobName =
   | 'rss'
   | 'youtube'
+  | 'twitch'
   | 'digest'
   | 'daily-algo'
   | 'daily-algo-summary'
@@ -17,7 +18,8 @@ export type BackgroundJobName =
   | 'analytics-hourly-snapshot'
   | 'analytics-snapshot'
   | 'missing-reports-check'
-  | 'meeting-notifications';
+  | 'meeting-notifications'
+  | 'dc-scan';
 
 
 

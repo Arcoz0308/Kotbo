@@ -33,6 +33,7 @@
   const managementItems = [
     { name: "Règlement", icon: "book", href: "/regulation", featureKey: "regulation" },
     { name: "Actualités & RSS", icon: "rss", href: "/news", featureKey: "news" },
+    { name: "Réseaux sociaux", icon: "share-2", href: "/social-networks", featureKey: "social_networks" },
   ];
 
   const staffManagementItems = [

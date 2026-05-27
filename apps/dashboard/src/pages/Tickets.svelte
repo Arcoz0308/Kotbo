@@ -37,6 +37,7 @@
   // Forms & Actions State
   let chatInput = $state('');
   let closeReason = $state('');
+  let ticketRenameName = $state('');
   let showCloseModal = $state(false);
   let showDeleteConfirmModal = $state(false);
   let chatScrollContainer = $state<HTMLDivElement | null>(null);
@@ -73,6 +74,7 @@
 
   const saveAction = createAsyncActionState();
   const sendEmbedAction = createAsyncActionState();
+  const renameAction = createAsyncActionState();
 
   // Filters tickets based on status tab
   const filteredTickets = $derived(
@@ -153,6 +155,7 @@
       const data = await res.json();
       selectedTicketDetail = data.ticket;
       messages = data.messages || [];
+      ticketRenameName = data.ticket?.channelName || '';
       
       if (autoScroll) {
         setTimeout(scrollToBottom, 50);
@@ -247,6 +250,29 @@
     } catch (err: any) {
       alert(err.message);
     }
+  }
+
+  // Rename Ticket
+  async function renameTicket() {
+    if (!selectedTicketId || !authStore.selectedGuildId || !ticketRenameName.trim()) return;
+    await renameAction.run(async () => {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/${selectedTicketId}/rename`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authStore.token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name: ticketRenameName.trim() })
+      });
+      if (!res.ok) throw new Error('Erreur de renommage');
+      const data = await res.json().catch(() => null);
+      if (data?.channelName) {
+        ticketRenameName = data.channelName;
+      }
+      await loadTicketDetail(selectedTicketId, false);
+      await loadTicketsAndConfig();
+      return true;
+    }, { successMessage: 'Ticket renommé avec succès !' });
   }
 
   // Reopen Ticket
@@ -639,6 +665,31 @@
                 {/if}
               {/if}
             </div>
+
+            {#if selectedTicketDetail?.channelId}
+              <div class="mt-4 flex flex-col gap-3 rounded-2xl border border-outline-variant/10 bg-surface-container/30 p-4">
+                <div class="flex flex-col gap-1">
+                  <span class="text-[10px] font-black uppercase tracking-[0.22em] text-primary">Renommage du salon</span>
+                  <p class="text-[11px] text-on-surface-variant/70">Le nom sera normalisé côté Discord pour rester compatible avec les règles des salons.</p>
+                </div>
+                <div class="flex flex-col gap-3 sm:flex-row">
+                  <FormInput
+                    type="text"
+                    bind:value={ticketRenameName}
+                    placeholder="ticket-nouveau-nom"
+                    className="flex-1"
+                  />
+                  <button
+                    onclick={renameTicket}
+                    disabled={renameAction.state.loading || !ticketRenameName.trim()}
+                    class="px-5 py-3 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-wider hover:scale-105 active:scale-95 transition-transform shadow-lg shadow-primary/25 disabled:opacity-50 flex items-center gap-2"
+                  >
+                    <Papicon icon="edit" size={14} />
+                    {renameAction.state.loading ? 'Renommage...' : 'Renommer'}
+                  </button>
+                </div>
+              </div>
+            {/if}
           </div>
 
           <!-- Chat Messages Container -->

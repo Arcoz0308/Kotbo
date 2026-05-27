@@ -28,6 +28,7 @@ import * as serverstatsCmd from './commands/serverstats.js';
 import * as invitesCmd from './commands/invites.js';
 import * as noteCmd from './commands/note.js';
 import * as transcriptCmd from './commands/transcript.js';
+import * as ticketCmd from './commands/ticket.js';
 import * as sayCmd from './commands/say.js';
 import * as demissionCmd from './commands/demission.js';
 const commands = [
@@ -55,6 +56,7 @@ const commands = [
   invitesCmd,
   noteCmd,
   transcriptCmd,
+  ticketCmd,
   sayCmd,
   demissionCmd,
   { data: noteCmd.contextData },

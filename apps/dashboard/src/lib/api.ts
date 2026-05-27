@@ -1471,3 +1471,52 @@ export async function updateLogEventConfigs(configs: Array<{ eventType: string; 
     errorContext: 'API Error (Update Log Event Configs):'
   });
 }
+
+export async function fetchSocialFollows(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/social-follows', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Social Follows):'
+  });
+}
+
+export async function addYoutubeFollow(payload: { query: string; channelId?: string; channelName?: string; liveChannelId?: string | null; shortChannelId?: string | null; videoChannelId?: string | null }, guildId = authStore.selectedGuildId) {
+  // If editing an existing follow, we can pass query as channelId
+  const body = {
+    query: payload.query || payload.channelId || '',
+    liveChannelId: payload.liveChannelId,
+    shortChannelId: payload.shortChannelId,
+    videoChannelId: payload.videoChannelId
+  };
+  return dashboardRequest('/social-follows/youtube', {
+    method: 'POST',
+    payload: body,
+    guildId,
+    errorContext: 'API Error (Add Youtube Follow):'
+  });
+}
+
+export async function deleteYoutubeFollow(id: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/social-follows/youtube/${id}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Delete Youtube Follow):'
+  });
+}
+
+export async function addTwitchFollow(payload: { streamerName: string; liveChannelId?: string | null; otherChannelId?: string | null }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/social-follows/twitch', {
+    method: 'POST',
+    payload,
+    guildId,
+    errorContext: 'API Error (Add Twitch Follow):'
+  });
+}
+
+export async function deleteTwitchFollow(id: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/social-follows/twitch/${id}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Delete Twitch Follow):'
+  });
+}

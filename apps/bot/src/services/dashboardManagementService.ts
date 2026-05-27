@@ -171,10 +171,22 @@ export const defaultFeatures = [
     category: 'integrations',
   },
   {
+    featureKey: 'twitch',
+    featureName: 'Twitch',
+    description: 'Intégration Twitch et notifications de live',
+    category: 'integrations',
+  },
+  {
     featureKey: 'digest',
     featureName: 'Digest',
     description: 'Digest de nouvelles et flux RSS',
     category: 'integrations',
+  },
+  {
+    featureKey: 'social_networks',
+    featureName: 'Réseaux Sociaux',
+    description: 'Configuration des flux YouTube et Twitch suivis',
+    category: 'management',
   },
   {
     featureKey: 'profile',

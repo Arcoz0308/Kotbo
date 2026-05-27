@@ -21,6 +21,8 @@ import { logger } from '../utils/logger.js';
 import { COLORS, successEmbed } from '../utils/embeds.js';
 import { isGuildActivated, activateGuild, deactivateGuild, activatedGuilds } from '../utils/activation.js';
 import { translate } from '../services/translationService.js';
+import { getTwitchUserId } from '../services/twitchService.js';
+import { resolveYoutubeChannel } from '../services/youtubeService.js';
 import {
   registerBanSanction,
   registerKickSanction,
@@ -635,6 +637,8 @@ const MODULE_DESCRIPTIONS: Record<string, string> = {
   recruitment: 'Suivi des candidatures et intégration du personnel.',
   tickets: 'Système complet de tickets d\'assistance et de support configurable.',
   youtube: 'Intégration YouTube pour les notifications de nouvelles vidéos.',
+  twitch: 'Intégration Twitch pour les notifications de lives.',
+  social_networks: 'Configuration des flux YouTube et Twitch suivis.',
   digest: 'Génération de résumés automatiques et flux RSS.',
   tutoring: 'Gestion des périodes d\'essai et formation des nouveaux staff.',
   meetings: 'Planification et suivi des réunions d\'équipe.',
@@ -2332,7 +2336,25 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
       id: 'youtube',
       name: 'YouTube',
       description: MODULE_DESCRIPTIONS.youtube,
-      status: guild.youtubeEnabled ? 'active' : 'inactive',
+      status: getFeatureStatus('youtube', guild.youtubeEnabled),
+      uptime: 100,
+      interactions: 0,
+      lastSync: guild.updatedAt.toISOString()
+    },
+    {
+      id: 'twitch',
+      name: 'Twitch',
+      description: MODULE_DESCRIPTIONS.twitch,
+      status: getFeatureStatus('twitch', false),
+      uptime: 100,
+      interactions: 0,
+      lastSync: guild.updatedAt.toISOString()
+    },
+    {
+      id: 'social_networks',
+      name: 'Réseaux Sociaux',
+      description: MODULE_DESCRIPTIONS.social_networks,
+      status: getFeatureStatus('social_networks', true),
       uptime: 100,
       interactions: 0,
       lastSync: guild.updatedAt.toISOString()
@@ -2440,6 +2462,8 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
     autoThreadEnabled: guild.autoThreadEnabled,
     autoThreadChannels: guild.autoThreadChannels,
     youtubeEnabled: getFeatureStatus('youtube', guild.youtubeEnabled) === 'active',
+    twitchEnabled: getFeatureStatus('twitch', false) === 'active',
+    socialNetworksEnabled: getFeatureStatus('social_networks', true) === 'active',
     recruitmentCategoryId: guild.recruitmentCategoryId ?? '',
     recruitmentLogChannelId: guild.recruitmentLogChannelId ?? '',
     recruitmentAutoRejectEnabled: isRecruitmentAutoRejectEnabled(guildId),
@@ -4510,10 +4534,12 @@ export const startDashboardApi = (client: Client) => {
                   return;
                 }
 
+                let channelName: string | null = null;
                 let messages: any[] = [];
                 if (ticket.channelId) {
                   const discordChannel = client.channels.cache.get(ticket.channelId);
                   if (discordChannel && discordChannel instanceof TextChannel) {
+                    channelName = discordChannel.name;
                     try {
                       const fetched = await discordChannel.messages.fetch({ limit: 50 });
                       const guild = discordChannel.guild;
@@ -4549,7 +4575,7 @@ export const startDashboardApi = (client: Client) => {
                   }
                 }
 
-                json(res, 200, { ticket, messages });
+                json(res, 200, { ticket: { ...ticket, channelName }, messages });
               } catch (err: any) {
                 logger.error('TicketsAPI', `Error reading ticket details: ${err.stack}`);
                 json(res, 500, { error: `Erreur lors de la récupération du ticket: ${err.stack}` });
@@ -4806,6 +4832,46 @@ export const startDashboardApi = (client: Client) => {
               } catch (err: any) {
                 logger.error('TicketsAPI', `Error reopening ticket: ${err.message}`);
                 json(res, 500, { error: 'Erreur' });
+              }
+              return;
+            }
+
+            // POST /api/dashboard/guilds/:guildId/tickets/:ticketId/rename
+            if (parts.length === 7 && parts[6] === 'rename' && req.method === 'POST') {
+              const ticketId = parts[5];
+              try {
+                const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+                if (!ticket) {
+                  json(res, 404, { error: 'Ticket introuvable' });
+                  return;
+                }
+
+                const body = await readJsonBody<{ name?: string }>(req);
+                const requestedName = body?.name?.trim();
+                if (!requestedName) {
+                  json(res, 400, { error: 'Le nouveau nom est requis' });
+                  return;
+                }
+
+                const guildConfig = await prisma.guild.findUnique({ where: { id: guildId } });
+                if (!guildConfig) {
+                  json(res, 404, { error: 'Serveur introuvable' });
+                  return;
+                }
+
+                const { renameTicketChannel } = await import('../services/ticketService.js');
+                const finalName = await renameTicketChannel(
+                  client,
+                  ticket,
+                  guildConfig,
+                  { id: user.userId, username: user.username },
+                  requestedName,
+                );
+
+                json(res, 200, { success: true, channelName: finalName });
+              } catch (err: any) {
+                logger.error('TicketsAPI', `Error renaming ticket: ${err.message}`);
+                json(res, 500, { error: 'Erreur lors du renommage du ticket' });
               }
               return;
             }
@@ -8215,6 +8281,14 @@ export const startDashboardApi = (client: Client) => {
               await syncFeature('youtube', 'YouTube', body.youtubeEnabled, undefined, undefined);
             }
 
+            if (body.twitchEnabled !== undefined) {
+              await syncFeature('twitch', 'Twitch', body.twitchEnabled, undefined, undefined);
+            }
+
+            if (body.socialNetworksEnabled !== undefined) {
+              await syncFeature('social_networks', 'Réseaux Sociaux', body.socialNetworksEnabled, undefined, undefined);
+            }
+
             const runtime = await getOrCreateRuntime(guildId);
             if (typeof body.messageTemplate === 'string') {
               await prisma.dashboardSettings.update({
@@ -8827,6 +8901,162 @@ export const startDashboardApi = (client: Client) => {
             });
 
             json(res, 200, { ok: true });
+            return;
+          }
+
+          // YouTube/Twitch social follows APIs
+          if (parts.length === 5 && parts[4] === 'social-follows' && req.method === 'GET') {
+            try {
+              const youtube = await (prisma as any).youtubeChannelFollow.findMany({ where: { guildId } });
+              const twitch = await (prisma as any).twitchChannelFollow.findMany({ where: { guildId } });
+              json(res, 200, { youtube, twitch });
+            } catch (err: any) {
+              logger.error('DashboardAPI', `Error fetching social follows: ${err.message}`);
+              json(res, 500, { error: 'Erreur lors de la récupération des réseaux sociaux suivis' });
+            }
+            return;
+          }
+
+          if (parts.length === 6 && parts[4] === 'social-follows' && parts[5] === 'youtube' && req.method === 'POST') {
+            try {
+              const body = await readJsonBody<{ query: string; liveChannelId?: string | null; shortChannelId?: string | null; videoChannelId?: string | null }>(req);
+              if (!body?.query) {
+                json(res, 400, { error: 'Recherche ou URL YouTube requise' });
+                return;
+              }
+
+              const resolved = await resolveYoutubeChannel(body.query);
+              if (!resolved) {
+                json(res, 400, { error: 'Impossible de résoudre la chaîne YouTube' });
+                return;
+              }
+
+              const { channelId, channelName } = resolved;
+              const follow = await (prisma as any).youtubeChannelFollow.upsert({
+                where: { guildId_channelId: { guildId, channelId } },
+                create: {
+                  guildId,
+                  channelId,
+                  channelName,
+                  liveChannelId: body.liveChannelId || null,
+                  shortChannelId: body.shortChannelId || null,
+                  videoChannelId: body.videoChannelId || null,
+                },
+                update: {
+                  channelName,
+                  liveChannelId: body.liveChannelId || null,
+                  shortChannelId: body.shortChannelId || null,
+                  videoChannelId: body.videoChannelId || null,
+                }
+              });
+
+              await pushAudit(guildId, {
+                user: auditUser,
+                action: 'YouTube Follow',
+                context: getGuildName(client, guildId),
+                module: 'YouTube',
+                eventType: 'Manuel',
+                details: `Chaîne YouTube "${channelName}" (${channelId}) suivie/mise à jour.`,
+                channelId: null
+              });
+
+              json(res, 200, follow);
+            } catch (err: any) {
+              logger.error('DashboardAPI', `Error adding youtube follow: ${err.message}`);
+              json(res, 500, { error: 'Erreur lors de l\'ajout du suivi YouTube' });
+            }
+            return;
+          }
+
+          if (parts.length === 7 && parts[4] === 'social-follows' && parts[5] === 'youtube' && req.method === 'DELETE') {
+            try {
+              const followId = parts[6];
+              const follow = await (prisma as any).youtubeChannelFollow.findUnique({ where: { id: followId } });
+              if (follow) {
+                await (prisma as any).youtubeChannelFollow.delete({ where: { id: followId } });
+                await pushAudit(guildId, {
+                  user: auditUser,
+                  action: 'YouTube Unfollow',
+                  context: getGuildName(client, guildId),
+                  module: 'YouTube',
+                  eventType: 'Manuel',
+                  details: `Chaîne YouTube "${follow.channelName}" unfollow.`,
+                  channelId: null
+                });
+              }
+              json(res, 200, { success: true });
+            } catch (err: any) {
+              logger.error('DashboardAPI', `Error deleting youtube follow: ${err.message}`);
+              json(res, 500, { error: 'Erreur lors de la suppression du suivi YouTube' });
+            }
+            return;
+          }
+
+          if (parts.length === 6 && parts[4] === 'social-follows' && parts[5] === 'twitch' && req.method === 'POST') {
+            try {
+              const body = await readJsonBody<{ streamerName: string; liveChannelId?: string | null; otherChannelId?: string | null }>(req);
+              if (!body?.streamerName) {
+                json(res, 400, { error: 'streamerName requis' });
+                return;
+              }
+              const streamerName = body.streamerName.toLowerCase().trim();
+              const streamerId = await getTwitchUserId(streamerName);
+
+              const follow = await (prisma as any).twitchChannelFollow.upsert({
+                where: { guildId_streamerName: { guildId, streamerName } },
+                create: {
+                  guildId,
+                  streamerName,
+                  streamerId,
+                  liveChannelId: body.liveChannelId || null,
+                  otherChannelId: body.otherChannelId || null,
+                },
+                update: {
+                  streamerId,
+                  liveChannelId: body.liveChannelId || null,
+                  otherChannelId: body.otherChannelId || null,
+                }
+              });
+
+              await pushAudit(guildId, {
+                user: auditUser,
+                action: 'Twitch Follow',
+                context: getGuildName(client, guildId),
+                module: 'Twitch',
+                eventType: 'Manuel',
+                details: `Streamer Twitch "${streamerName}" suivi/mis à jour.`,
+                channelId: null
+              });
+
+              json(res, 200, follow);
+            } catch (err: any) {
+              logger.error('DashboardAPI', `Error adding twitch follow: ${err.message}`);
+              json(res, 500, { error: 'Erreur lors de l\'ajout du suivi Twitch' });
+            }
+            return;
+          }
+
+          if (parts.length === 7 && parts[4] === 'social-follows' && parts[5] === 'twitch' && req.method === 'DELETE') {
+            try {
+              const followId = parts[6];
+              const follow = await (prisma as any).twitchChannelFollow.findUnique({ where: { id: followId } });
+              if (follow) {
+                await (prisma as any).twitchChannelFollow.delete({ where: { id: followId } });
+                await pushAudit(guildId, {
+                  user: auditUser,
+                  action: 'Twitch Unfollow',
+                  context: getGuildName(client, guildId),
+                  module: 'Twitch',
+                  eventType: 'Manuel',
+                  details: `Streamer Twitch "${follow.streamerName}" unfollow.`,
+                  channelId: null
+                });
+              }
+              json(res, 200, { success: true });
+            } catch (err: any) {
+              logger.error('DashboardAPI', `Error deleting twitch follow: ${err.message}`);
+              json(res, 500, { error: 'Erreur lors de la suppression du suivi Twitch' });
+            }
             return;
           }
 

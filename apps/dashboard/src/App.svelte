@@ -29,6 +29,7 @@
   import Detections from './pages/Detections.svelte';
   import Regulation from './pages/Regulation.svelte';
   import News from './pages/News.svelte';
+  import SocialNetworks from './pages/SocialNetworks.svelte';
   import AdminOverview from './pages/AdminOverview.svelte';
   import Profile from './pages/Profile.svelte';
   import PublicProfile from './pages/PublicProfile.svelte';
@@ -102,6 +103,7 @@
     if (path.startsWith('/settings')) return 'settings';
     if (path.startsWith('/regulation')) return 'regulation';
     if (path.startsWith('/news')) return 'news';
+    if (path.startsWith('/social-networks')) return 'social_networks';
     if (path.startsWith('/admin')) return 'centralized_config';
     return null;
   }
@@ -400,6 +402,9 @@
           </Route>
           <Route path="/news">
             <News />
+          </Route>
+          <Route path="/social-networks">
+            <SocialNetworks />
           </Route>
           <Route path="/profile">
             <Profile />

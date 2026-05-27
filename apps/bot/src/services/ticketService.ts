@@ -1,10 +1,12 @@
 import {
   type Client,
+  type APIInteractionGuildMember,
   type ButtonInteraction,
   type ModalSubmitInteraction,
   TextChannel,
   ChannelType,
   PermissionFlagsBits,
+  PermissionsBitField,
   EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
@@ -22,13 +24,76 @@ import { COLORS, successEmbed, errorEmbed } from '../utils/embeds.js';
 import { generateTranscript } from './transcriptService.js';
 import { buildMemberCasePanel } from './memberCaseService.js';
 
+function sanitizeTicketChannelName(input: string): string {
+  const cleaned = input
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_]+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+  if (!cleaned) return '';
+  return cleaned.slice(0, 100);
+}
+
+export function buildTicketChannelName(input: string, fallbackSeed: string): string {
+  const sanitizedInput = sanitizeTicketChannelName(input);
+  const sanitizedFallback = sanitizeTicketChannelName(fallbackSeed) || 'ticket';
+  const baseName = sanitizedInput || sanitizedFallback;
+  const prefixedName = baseName.startsWith('ticket-') ? baseName : `ticket-${baseName}`;
+  return prefixedName.slice(0, 100);
+}
+
+export async function renameTicketChannel(
+  client: Client,
+  ticket: { id: string; guildId: string; channelId: string | null; userId: string; username: string; reason: string; description: string },
+  guildConfig: any,
+  executor: { id: string; username: string },
+  newName: string,
+): Promise<string> {
+  if (!ticket.channelId) {
+    throw new Error('Ce ticket n\'a pas de salon actif à renommer.');
+  }
+
+  const channel = await client.channels.fetch(ticket.channelId).catch(() => null);
+  if (!channel || !(channel instanceof TextChannel)) {
+    throw new Error('Le salon du ticket est introuvable ou n\'est pas un salon textuel.');
+  }
+
+  const finalName = buildTicketChannelName(newName, ticket.username || ticket.userId);
+  await channel.setName(finalName, `Ticket renommé par ${executor.username}`);
+
+  await logTicketEvent(client, guildConfig, 'RENAMED', ticket, executor, finalName);
+
+  await channel.send({
+    embeds: [successEmbed('Ticket renommé', `Le salon a été renommé en **#${finalName}** par <@${executor.id}>.`)],
+  }).catch(() => null);
+
+  return finalName;
+}
+
 /**
  * Checks if a member has permission to moderate/manage tickets.
  */
-export function canManageTicket(member: GuildMember, guildConfig: any): boolean {
-  if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
-  if (guildConfig.moderatorRoleId && member.roles.cache.has(guildConfig.moderatorRoleId)) return true;
-  if (guildConfig.ticketStaffRoleId && member.roles.cache.has(guildConfig.ticketStaffRoleId)) return true;
+export function canManageTicket(member: GuildMember | APIInteractionGuildMember | null | undefined, guildConfig: any): boolean {
+  if (!member) return false;
+
+  const permissionBits = (member as GuildMember | APIInteractionGuildMember).permissions;
+  const permissions = typeof permissionBits === 'string'
+    ? new PermissionsBitField(BigInt(permissionBits))
+    : new PermissionsBitField(permissionBits ?? 0n);
+  if (permissions.has(PermissionFlagsBits.Administrator)) return true;
+
+  const guildMemberRoles = (member as GuildMember).roles as { cache?: Map<string, unknown> } | undefined;
+  const roleIds = guildMemberRoles?.cache
+    ? Array.from(guildMemberRoles.cache.keys())
+    : Array.isArray((member as APIInteractionGuildMember).roles)
+      ? (member as APIInteractionGuildMember).roles
+      : [];
+
+  if (guildConfig.moderatorRoleId && roleIds.includes(guildConfig.moderatorRoleId)) return true;
+  if (guildConfig.ticketStaffRoleId && roleIds.includes(guildConfig.ticketStaffRoleId)) return true;
   return false;
 }
 
@@ -588,7 +653,7 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
 async function logTicketEvent(
   client: Client,
   guildConfig: any,
-  action: 'OPENED' | 'CLAIMED' | 'CLOSED' | 'REOPENED' | 'DELETED',
+  action: 'OPENED' | 'CLAIMED' | 'CLOSED' | 'REOPENED' | 'DELETED' | 'RENAMED',
   ticket: any,
   executor: any,
   transcriptLink?: string
@@ -661,6 +726,17 @@ async function logTicketEvent(
       if (transcriptLink) {
         embed.addFields([{ name: 'Transcription publique', value: `🌐 [Consulter le transcript](${transcriptLink})` }]);
       }
+      break;
+
+    case 'RENAMED':
+      embed
+        .setTitle('✏️ Ticket Renommé')
+        .setDescription(`Le ticket <#${ticket.channelId}> a été renommé en **#${transcriptLink || 'inconnu'}** par <@${executor.id}>.`)
+        .setColor(COLORS.primary as any)
+        .addFields([
+          { name: 'Créateur', value: `<@${ticket.userId}>`, inline: true },
+          { name: 'Renommé par', value: `<@${executor.id}>`, inline: true }
+        ]);
       break;
   }
 

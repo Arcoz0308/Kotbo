@@ -109,6 +109,8 @@ model Guild {
   guildInvites  GuildInvite[]
   suspendedInviters SuspendedInviter[]
   linkedAccounts LinkedAccount[]
+  youtubeFollows YoutubeChannelFollow[]
+  twitchFollows TwitchChannelFollow[]
 
   tutoringConfig TutoringConfig?
   tutoringItems TutoringItem[]
@@ -1751,4 +1753,42 @@ model GuildLogEventConfig {
 
   @@unique([guildId, eventType])
   @@map("guild_log_event_configs")
+}
+
+model YoutubeChannelFollow {
+  id String @id @default(cuid())
+  guildId String
+  channelId String
+  channelName String
+  liveChannelId String?
+  shortChannelId String?
+  videoChannelId String?
+  lastVideoId String?
+  lastShortId String?
+  lastLiveId String?
+  
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, channelId])
+  @@map("youtube_channel_follows")
+}
+
+model TwitchChannelFollow {
+  id String @id @default(cuid())
+  guildId String
+  streamerName String
+  streamerId String?
+  liveChannelId String?
+  otherChannelId String?
+  isLive Boolean @default(false)
+  lastStreamId String?
+  
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, streamerName])
+  @@map("twitch_channel_follows")
 }

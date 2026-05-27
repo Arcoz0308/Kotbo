@@ -158,7 +158,7 @@ import GlobalInteractionGraph from '../lib/components/charts/GlobalInteractionGr
     { id: 'growth', label: 'Croissance', icon: 'TrendingUp', description: 'Croissance & Rétention' },
   ];
 
-  const tabsByCategory: Record<string, Array<{ id: string; label: string; icon: string }>> = {
+  const tabsByCategory: Record<string, Array<{ id: string; label: string; icon: string; badge?: string; disabled?: boolean }>> = {
     overview: [
       { id: 'overview', label: 'Aperçu Global', icon: 'Grid' },
     ],
@@ -166,7 +166,7 @@ import GlobalInteractionGraph from '../lib/components/charts/GlobalInteractionGr
       { id: 'messages', label: 'Messages', icon: 'ChatCircleDots' },
       { id: 'voice', label: 'Vocal', icon: 'Microphone' },
       { id: 'interactions', label: 'Réseau', icon: 'Compass' },
-      { id: 'commands', label: 'Commandes', icon: 'Code' },
+      { id: 'commands', label: 'Commandes', icon: 'Code', badge: 'En cours de développement', disabled: true },
       { id: 'members', label: 'Membres', icon: 'UsersFour' },
     ],
     moderation: [
@@ -183,6 +183,11 @@ import GlobalInteractionGraph from '../lib/components/charts/GlobalInteractionGr
       { id: 'algo', label: 'Daily Algo', icon: 'Code' },
     ],
   };
+
+  function selectTab(tab: { id: string; disabled?: boolean }) {
+    if (tab.disabled) return;
+    activeTab = tab.id;
+  }
 
   const currentTabs = $derived(tabsByCategory[activeCategory] || []);
 
@@ -326,13 +331,21 @@ import GlobalInteractionGraph from '../lib/components/charts/GlobalInteractionGr
       <div class="flex gap-1 bg-surface-container-low/40 backdrop-blur-lg p-1.5 rounded-[1.5rem] border border-outline-variant/5">
         {#each currentTabs as tab}
           <button 
-            onclick={() => activeTab = tab.id} 
-            class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest transition-all duration-300 whitespace-nowrap {activeTab === tab.id ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
+            onclick={() => selectTab(tab)}
+            disabled={tab.disabled}
+            aria-disabled={tab.disabled}
+            title={tab.disabled ? 'En cours de développement' : undefined}
+            class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest transition-all duration-300 whitespace-nowrap {tab.disabled ? 'bg-surface-container-high/40 text-on-surface-variant/30 cursor-not-allowed opacity-70' : activeTab === tab.id ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
           >
-            <div class="transition-transform {activeTab === tab.id ? 'text-on-primary' : 'text-primary'}">
+            <div class="transition-transform {tab.disabled ? 'text-on-surface-variant/30' : activeTab === tab.id ? 'text-on-primary' : 'text-primary'}">
               <Papicon icon={tab.icon} size={14} />
             </div>
             {tab.label}
+            {#if tab.badge}
+              <span class="ml-1 rounded-full border border-current/20 bg-current/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest {tab.disabled ? 'text-on-surface-variant/35' : 'text-current/80'}">
+                {tab.badge}
+              </span>
+            {/if}
           </button>
         {/each}
       </div>

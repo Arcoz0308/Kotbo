@@ -8,6 +8,8 @@ import { processMeetingNotifications } from '../services/staffLeadershipService.
 import { logger } from '../utils/logger.js';
 import { runActivitySnapshot } from './advancedLogs.js';
 import { enqueueBackgroundJob, registerBackgroundJobHandlers, type BackgroundJobName } from '../infra/queues/backgroundQueue.js';
+import { checkYoutubeFollows } from '../services/youtubeService.js';
+import { checkTwitchFollows } from '../services/twitchService.js';
 
 const runningJobs = new Set<string>();
 
@@ -107,6 +109,14 @@ export async function registerCrons(client: Client): Promise<void> {
     sanctions: async () => {
       logger.debug('Cron', 'Traitement des sanctions planifiées...');
       await processScheduledSanctions(client);
+    },
+    youtube: async () => {
+      logger.debug('Cron', 'Vérification YouTube...');
+      await checkYoutubeFollows(client);
+    },
+    twitch: async () => {
+      logger.debug('Cron', 'Vérification Twitch...');
+      await checkTwitchFollows(client);
     },
     'staff-warnings-expiration': expireStaffWarnings,
     'staff-blacklist-expiration': expireStaffBlacklist,
@@ -229,6 +239,16 @@ export async function registerCrons(client: Client): Promise<void> {
           logger.error('Cron', 'Erreur dc-scan cron:', e);
         }
       }
+    }, 5000);
+  });
+
+  // 📺 YouTube & Twitch checks: toutes les 5 minutes
+  cron.schedule('*/5 * * * *', async () => {
+    await runCronJob('youtube', async () => {
+      await checkYoutubeFollows(client);
+    }, 5000);
+    await runCronJob('twitch', async () => {
+      await checkTwitchFollows(client);
     }, 5000);
   });
 

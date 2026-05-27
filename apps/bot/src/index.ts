@@ -44,6 +44,7 @@ import * as meetingCmd from './commands/meeting.js';
 import * as noteCmd from './commands/note.js';
 import * as eventCmd from './commands/event.js';
 import * as transcriptCmd from './commands/transcript.js';
+import * as ticketCmd from './commands/ticket.js';
 import prisma from './utils/db.js';
 import {
   evaluateCommandRestriction,
@@ -55,6 +56,7 @@ import { registerModerationAuditListener } from './events/moderation.js';
 import { registerAdvancedLogsListener } from './events/advancedLogs.js';
 import { registerCloseSourceWarningListener } from './events/closeSourceWarning.js';
 import { registerNicknameModerationListener } from './events/nicknameModeration.js';
+import { registerTicketLeaveFollowUpListener } from './events/ticketLeaveFollowUp.js';
 import { registerAutoThreadListener } from './events/autoThread.js';
 import { registerDailyAlgoHandlers } from './handlers/dailyAlgoHandler.js';
 import { registerMeetingEvents } from './events/meetingEvents.js';
@@ -168,7 +170,7 @@ type SlashCommand = {
 import * as demissionCmd from './commands/demission.js';
 
 const commands = new Collection<string, SlashCommand>();
-[setupCmd, configCmd, pingCmd, infoCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd, postCmd, dailyAlgoCmd, profileCmd, profilCmd, sanctionCmd, dcCmd, rescanCmd, casierCmd, absentCmd, meetingCmd, statsCmd, invitesCmd, leaderboardCmd, serverstatsCmd, noteCmd, eventCmd, activateCmd, transcriptCmd, sayCmd, demissionCmd].forEach((cmd) => {
+[setupCmd, configCmd, pingCmd, infoCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd, postCmd, dailyAlgoCmd, profileCmd, profilCmd, sanctionCmd, dcCmd, rescanCmd, casierCmd, absentCmd, meetingCmd, statsCmd, invitesCmd, leaderboardCmd, serverstatsCmd, noteCmd, eventCmd, activateCmd, transcriptCmd, ticketCmd, sayCmd, demissionCmd].forEach((cmd) => {
   commands.set(cmd.data.name, cmd as SlashCommand);
 });
 commands.set(noteCmd.contextData.name, noteCmd as unknown as SlashCommand);
@@ -242,6 +244,7 @@ client.once(Events.ClientReady, async (c) => {
   registerAdvancedLogsListener(client);
   registerCloseSourceWarningListener(client);
   registerNicknameModerationListener(client);
+  registerTicketLeaveFollowUpListener(client);
   registerAutoThreadListener(client);
   registerDailyAlgoHandlers(client);
   registerMeetingEvents(client);
@@ -373,8 +376,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     logger.error('Event', 'InteractionCreate error:', err);
     try {
-      if (interaction.isRepliable()) {
+      if (interaction.isRepliable() && !interaction.deferred && !interaction.replied) {
         await replyOrFollowUp(interaction, { content: '❌ Une erreur est survenue.', flags: [MessageFlags.Ephemeral] });
+      } else {
+        logger.warn('Event', 'Interaction déjà acquittée au moment de la gestion d\'erreur; aucun message supplémentaire envoyé.');
       }
     } catch (e){
       captureException(e, 'interaction-create-error-handler');
