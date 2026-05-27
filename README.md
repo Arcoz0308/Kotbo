@@ -1,5 +1,8 @@
 # Kotbo
 
+> ![WARNING]
+> Le REAMDME n'est pas à jour et date de la realese 1.0 Merci de ne pas en prendre compte sauf pour la stack.
+
 > Le bot Discord orienté actu tech qui transforme des flux bruts en publication éditorialisée, modérée et actionnable.
 
 Kotbo est un bot Discord TypeScript/Bun en monorepo, centré sur la veille : RSS, YouTube, validation humaine, digest, traduction, abonnement DM et outils utilitaires.
