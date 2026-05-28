@@ -46,9 +46,20 @@ async function main() {
   const shardingConfig = await loadShardingConfig();
   const workerPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'index.ts');
 
+  // Allow an environment override for local testing: SHARD_COUNT
+  const envShardCount = process.env.SHARD_COUNT ? Number(process.env.SHARD_COUNT) : undefined;
+  let totalShards: number | 'auto' = shardingConfig.mode === 'fixed' && shardingConfig.shardCount
+    ? shardingConfig.shardCount
+    : 'auto';
+
+  if (envShardCount && Number.isFinite(envShardCount) && envShardCount > 0) {
+    totalShards = Math.floor(envShardCount);
+    logger.info('Sharding', `SHARD_COUNT override: démarrage en ${totalShards} shard(s).`);
+  }
+
   const manager = new ShardingManager(workerPath, {
     token,
-    totalShards: shardingConfig.mode === 'fixed' ? shardingConfig.shardCount : 'auto',
+    totalShards,
     respawn: true,
   });
 

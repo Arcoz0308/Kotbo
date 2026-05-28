@@ -3686,7 +3686,7 @@ export const startDashboardApi = (client: Client) => {
           const shardSnapshots = await collectShardSnapshots(client);
           const guilds = await collectShardGuilds(client);
           const guildCount = guilds.length;
-          const userCount = guilds.reduce((acc, guild) => acc + guild.memberCount, 0);
+          const userCount = guilds.reduce((acc: number, guild: { memberCount: number }) => acc + guild.memberCount, 0);
           const activeSanctions = await prisma.sanction.count({ where: { status: 'ACTIVE' } });
           const dailyAlgoSubmissions = await prisma.dailyAlgoSubmission.count();
 
@@ -3700,7 +3700,7 @@ export const startDashboardApi = (client: Client) => {
             shardCount: shardSnapshots.length,
             onlineShardCount: shardSnapshots.filter((snapshot) => snapshot.status !== 'offline').length,
             averageShardPing: shardSnapshots.length > 0
-              ? Math.round(shardSnapshots.reduce((acc, snapshot) => acc + snapshot.ping, 0) / shardSnapshots.length)
+              ? Math.round(shardSnapshots.reduce((acc: number, snapshot: ShardSnapshot) => acc + snapshot.ping, 0) / shardSnapshots.length)
               : 0,
           });
           return;
@@ -3714,15 +3714,15 @@ export const startDashboardApi = (client: Client) => {
               activationCode: true,
             }
           });
-          const dbGuildsMap = new Map(dbGuilds.map(g => [g.id, g]));
+          const dbGuildsMap = new Map(dbGuilds.map((guild: { id: string; activated: boolean; activationCode: string | null }) => [guild.id, guild] as const));
 
           const shardGuilds = await collectShardGuilds(client);
-          const guilds = shardGuilds.map(g => {
+          const guilds = shardGuilds.map((g: { id: string; name: string; icon: string | null; memberCount: number; joinedAt: string | null; shardId?: number }) => {
             const dbGuild = dbGuildsMap.get(g.id);
             return {
               id: g.id,
               name: g.name,
-              icon: g.iconURL(),
+              icon: g.icon,
               memberCount: g.memberCount,
               joinedAt: g.joinedAt,
               activated: dbGuild?.activated ?? false,
@@ -3748,32 +3748,28 @@ export const startDashboardApi = (client: Client) => {
           }
 
           if (req.method === 'POST' && parts.length === 4 && parts[3] === 'restart-all') {
-            const sharding = (client as any).shard;
-            if (!sharding) {
-              json(res, 400, { error: 'Le bot n\'est pas lancé en mode sharding.' });
-              return;
-            }
-
-            await sharding.respawnAll();
-            json(res, 200, { ok: true });
+            // In worker processes `client.shard` is a ShardClientUtil and does not
+            // expose respawn methods. We rely on the parent manager to handle
+            // container-level restarts. Request a container restart which will be
+            // handled by the manager/launcher.
+            requestContainerRestart();
+            json(res, 200, { ok: true, restart: 'container' });
             return;
           }
 
           if (req.method === 'POST' && parts.length === 5 && parts[4] === 'restart') {
             const shardId = Number(parts[3]);
-            const sharding = (client as any).shard;
-            if (!sharding) {
-              json(res, 400, { error: 'Le bot n\'est pas lancé en mode sharding.' });
-              return;
-            }
 
             if (!Number.isInteger(shardId) || shardId < 0) {
               json(res, 400, { error: 'Identifiant de shard invalide.' });
               return;
             }
 
-            await sharding.respawn(shardId);
-            json(res, 200, { ok: true });
+            // We can't respawn individual shards from inside the shard process
+            // (no respawn on ShardClientUtil). Requesting a container restart is a
+            // safe fallback for single-container deployments (manager+shards).
+            requestContainerRestart();
+            json(res, 200, { ok: true, restart: 'container', targetShard: shardId });
             return;
           }
 
@@ -4269,7 +4265,7 @@ export const startDashboardApi = (client: Client) => {
         // GET /api/admin/activation-codes - List all activation codes
         if (parts.length === 3 && parts[2] === 'activation-codes' && req.method === 'GET') {
           try {
-            const guildNames = new Map((await collectShardGuilds(client)).map((guild) => [guild.id, guild.name]));
+            const guildNames = new Map((await collectShardGuilds(client)).map((guild: { id: string; name: string }) => [guild.id, guild.name] as const));
             const codes = await prisma.activationCode.findMany({
               orderBy: { createdAt: 'desc' }
             });
