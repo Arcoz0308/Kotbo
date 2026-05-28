@@ -50,7 +50,7 @@
 
   const configItems = [
     { name: "Modules", icon: "package", href: "/modules", featureKey: "modules" },
-    { name: "Auto-Thread", icon: "chat", href: "/auto-thread", featureKey: "auto_thread" },
+    { name: "Gestion des salons", icon: "hash", href: "/channels-management", featureKey: "auto_thread" },
     { name: "Commandes", icon: "terminal", href: "/command-access", featureKey: "commands" },
     { name: "Paramètres", icon: "settings", href: "/settings", featureKey: "settings" },
   ];

@@ -1194,7 +1194,7 @@
                     <span class="text-primary/70">#</span>{t.channelName}
                   </td>
                   <td class="py-4 px-6">
-                    {#if t.channelName.startsWith('ticket-')}
+                    {#if t.channelName.startsWith('ticket-') || t.channelName.startsWith('fermer-')}
                       <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/20">
                         Ticket Support
                       </span>

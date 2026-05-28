@@ -42,7 +42,7 @@
   import Tutoring from './pages/Tutoring.svelte';
   import DoubleAccounts from './pages/DoubleAccounts.svelte';
   import NicknameModeration from './pages/NicknameModeration.svelte';
-  import AutoThreadSettings from './pages/AutoThreadSettings.svelte';
+  import ChannelsManagement from './pages/ChannelsManagement.svelte';
   import GeneralSettings from './pages/GeneralSettings.svelte';
   import DailyAlgo from './pages/DailyAlgo.svelte';
   import DailyAlgoIDE from './pages/DailyAlgoIDE.svelte';
@@ -81,7 +81,7 @@
     if (path.startsWith('/members') || path.startsWith('/invitations')) return 'members';
     if (path.startsWith('/sanctions')) return 'sanctions';
     if (path.startsWith('/nickname-moderation')) return 'nickname_moderation';
-    if (path.startsWith('/auto-thread')) return 'auto_thread';
+    if (path.startsWith('/channels-management')) return 'auto_thread';
     if (path.startsWith('/detections')) return 'double_accounts';
     if (path.startsWith('/double-accounts')) return 'double_accounts';
     if (path.startsWith('/logs')) return 'logs';
@@ -308,6 +308,9 @@
         <Route path="/staff-management">
           <StaffManagement />
         </Route>
+        <Route path="/channels-management">
+          <ChannelsManagement />
+        </Route>
       {/if}
 
       <Route path="/dailyalgo">
@@ -439,6 +442,9 @@
             <Route path="/staff-management">
               <StaffManagement />
             </Route>
+            <Route path="/channels-management">
+              <ChannelsManagement />
+            </Route>
           {/if}
 
           <Route path="/dailyalgo">
@@ -468,9 +474,7 @@
           <Route path="/nickname-moderation">
             <NicknameModeration />
           </Route>
-          <Route path="/auto-thread">
-            <AutoThreadSettings />
-          </Route>
+
           <Route path="/double-accounts">
             <DoubleAccounts />
           </Route>

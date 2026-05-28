@@ -308,7 +308,7 @@ const buildCommandRestrictionsForPreset = (
     modRoleIds: string[];
   },
 ): CommandRestrictionRule[] => {
-  const accessByCommand: Record<string, CommandAccessLevel> = {};
+  const accessByCommand: Record<string, CommandAccessLevel> = Object.create(null);
   for (const command of COMMAND_CATALOG) {
     accessByCommand[command.name] = command.defaultAccess;
   }
@@ -1361,21 +1361,26 @@ function interpretMentions(guild: any | null, content: string): string {
   // Interpréter les mentions d'utilisateurs <@ID> ou <@!ID>
   let processed = escaped.replace(/&lt;@!?(\d+)&gt;/g, (match, id) => {
     const member = guild?.members.cache.get(id);
-    const name = member ? (member.displayName || member.user.username) : id;
+    const rawName = member ? (member.displayName || member.user.username) : id;
+    const name = escapeHtml(rawName);
     return `<span class="mention">@${name}</span>`;
   });
 
   // Interpréter les mentions de salons <#ID>
   processed = processed.replace(/&lt;#(\d+)&gt;/g, (match, id) => {
     const channel = guild?.channels.cache.get(id);
-    const name = channel?.name || id;
-    return `<a href="https://discord.com/channels/${guild?.id || '@me'}/${id}" target="_blank" class="mention-link">#${name}</a>`;
+    const rawName = channel?.name || id;
+    const name = escapeHtml(rawName);
+    const safeGuildId = escapeHtml(guild?.id || '@me');
+    const safeId = escapeHtml(id);
+    return `<a href="https://discord.com/channels/${safeGuildId}/${safeId}" target="_blank" class="mention-link">#${name}</a>`;
   });
 
   // Interpréter les mentions de rôles <@&ID>
   processed = processed.replace(/&lt;@&amp;(\d+)&gt;/g, (match, id) => {
     const role = guild?.roles.cache.get(id);
-    const name = role?.name || id;
+    const rawName = role?.name || id;
+    const name = escapeHtml(rawName);
     return `<span class="mention">@${name}</span>`;
   });
 
@@ -1393,7 +1398,8 @@ function extractDiscordSnowflake(value: string | null | undefined): string | nul
 }
 
 function parseCaseField(details: string, label: string): string | null {
-  const match = details.match(new RegExp(`${label}:\\s*([^\\n|]+)`, 'i'));
+  const safeLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = details.match(new RegExp(`${safeLabel}:\\s*([^\\n|]+)`, 'i'));
   const value = match?.[1]?.trim();
   return value && value.length > 0 ? value : null;
 }
@@ -1989,7 +1995,7 @@ async function resolveFeatureAccessMap(
     'events',
   ]);
 
-  const featureAccess: FeatureAccessMap = {};
+  const featureAccess: FeatureAccessMap = Object.create(null);
   for (const feature of featureConfigs) {
     if (isGlobalAdmin || access.level === 'admin') {
       featureAccess[feature.featureKey] = {
@@ -2295,7 +2301,7 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
       name: 'Modération des pseudos',
       description: MODULE_DESCRIPTIONS.nickname_moderation,
       status: getFeatureStatus('nickname_moderation', guild.autoNicknameModerationEnabled),
-      uptime: guild.autoNicknameModerationEnabled ? 100 : 100,
+      uptime: guild.autoNicknameModerationEnabled ? 100 : 0,
       interactions: 0,
       lastSync: guild.updatedAt.toISOString()
     },
@@ -2743,15 +2749,21 @@ function parseDiscordMarkdown(text: string, guild?: any): string {
 
   // Block Code (multi-line)
   escaped = escaped.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
-    return `<pre class="p-3 my-2 rounded bg-zinc-800 font-mono text-sm overflow-x-auto"><code class="language-${lang || 'plaintext'}">${code}</code></pre>`;
+    const safeLang = escapeHtml(lang || 'plaintext');
+    const safeCode = escapeHtml(code);
+    return `<pre class="p-3 my-2 rounded bg-zinc-800 font-mono text-sm overflow-x-auto"><code class="language-${safeLang}">${safeCode}</code></pre>`;
   });
 
   // Custom Emojis <:name:id> or <a:name:id>
   escaped = escaped.replace(/&lt;:([a-zA-Z0-9_]+):(\d+)&gt;/g, (_, name, id) => {
-    return `<img class="inline-block h-[1.375em] w-auto align-middle mx-[0.15em]" src="https://cdn.discordapp.com/emojis/${id}.png?size=48&quality=lossless" alt=":${name}:" title=":${name}:" />`;
+    const safeName = escapeHtml(name);
+    const safeId = escapeHtml(id);
+    return `<img class="inline-block h-[1.375em] w-auto align-middle mx-[0.15em]" src="https://cdn.discordapp.com/emojis/${safeId}.png?size=48&quality=lossless" alt=":${safeName}:" title=":${safeName}:" />`;
   });
   escaped = escaped.replace(/&lt;a:([a-zA-Z0-9_]+):(\d+)&gt;/g, (_, name, id) => {
-    return `<img class="inline-block h-[1.375em] w-auto align-middle mx-[0.15em]" src="https://cdn.discordapp.com/emojis/${id}.gif?size=48&quality=lossless" alt=":${name}:" title=":${name}:" />`;
+    const safeName = escapeHtml(name);
+    const safeId = escapeHtml(id);
+    return `<img class="inline-block h-[1.375em] w-auto align-middle mx-[0.15em]" src="https://cdn.discordapp.com/emojis/${safeId}.gif?size=48&quality=lossless" alt=":${safeName}:" title=":${safeName}:" />`;
   });
 
   // Mentions
@@ -2760,15 +2772,18 @@ function parseDiscordMarkdown(text: string, guild?: any): string {
       const member = guild.members.cache.get(id);
       const user = guild.client.users.cache.get(id);
       const name = member?.displayName || user?.username || 'Utilisateur';
-      return `<span class="font-semibold text-sky-400 px-1.5 py-0.5 bg-sky-500/10 rounded hover:bg-sky-500 hover:text-white transition-colors cursor-pointer">@${escapeHtml(name)}</span>`;
+      const safeName = escapeHtml(name);
+      return `<span class="font-semibold text-sky-400 px-1.5 py-0.5 bg-sky-500/10 rounded hover:bg-sky-500 hover:text-white transition-colors cursor-pointer">@${safeName}</span>`;
     });
     escaped = escaped.replace(/&lt;#(\d+)&gt;/g, (_, id) => {
       const ch = guild.channels.cache.get(id);
-      return `<span class="font-semibold text-sky-400 px-1.5 py-0.5 bg-sky-500/10 rounded hover:bg-sky-500 hover:text-white transition-colors cursor-pointer">#${ch ? escapeHtml(ch.name) : 'salon-inconnu'}</span>`;
+      const safeName = escapeHtml(ch ? ch.name : 'salon-inconnu');
+      return `<span class="font-semibold text-sky-400 px-1.5 py-0.5 bg-sky-500/10 rounded hover:bg-sky-500 hover:text-white transition-colors cursor-pointer">#${safeName}</span>`;
     });
     escaped = escaped.replace(/&lt;@&amp;(\d+)&gt;/g, (_, id) => {
       const role = guild.roles.cache.get(id);
-      return `<span class="font-semibold text-sky-400 px-1.5 py-0.5 bg-sky-500/10 rounded hover:bg-sky-500 hover:text-white transition-colors cursor-pointer">@${role ? escapeHtml(role.name) : 'rôle-inconnu'}</span>`;
+      const safeName = escapeHtml(role ? role.name : 'rôle-inconnu');
+      return `<span class="font-semibold text-sky-400 px-1.5 py-0.5 bg-sky-500/10 rounded hover:bg-sky-500 hover:text-white transition-colors cursor-pointer">@${safeName}</span>`;
     });
   } else {
     escaped = escaped.replace(/&lt;@!?(\d+)&gt;/g, '<span class="font-semibold text-sky-400 px-1.5 py-0.5 bg-sky-500/10 rounded cursor-pointer">@Utilisateur</span>');
@@ -2795,7 +2810,7 @@ function extractMediaUrls(content: string): { type: 'image' | 'video' | 'audio',
         urls.push({ type: 'audio', url });
       } else if (/giphy\.com\/gifs\//i.test(cleanUrl)) {
         const parts = cleanUrl.split('-');
-        const id = parts[parts.length - 1];
+        const id = parts.at(-1);
         if (id) {
           urls.push({ type: 'image', url: `https://media.giphy.com/media/${id}/giphy.gif` });
         }
@@ -3157,7 +3172,7 @@ export const startDashboardApi = (client: Client) => {
           });
 
           // Aggregate by dateKey across guilds
-          const map: Record<string, { messages: number; voice: number }> = {};
+          const map: Record<string, { messages: number; voice: number }> = Object.create(null);
           for (const s of stats) {
             if (!map[s.dateKey]) map[s.dateKey] = { messages: 0, voice: 0 };
             map[s.dateKey].messages += s.messagesCount;
@@ -4171,10 +4186,13 @@ export const startDashboardApi = (client: Client) => {
                 publicChannelId: true,
               },
             });
-            const guildChannelMap = Object.fromEntries(dbGuilds.map((guild) => [guild.id, {
-              newsChannelId: guild.newsChannelId,
-              publicChannelId: guild.publicChannelId,
-            }]));
+            const guildChannelMap = Object.create(null);
+            for (const guild of dbGuilds) {
+              guildChannelMap[guild.id] = {
+                newsChannelId: guild.newsChannelId,
+                publicChannelId: guild.publicChannelId,
+              };
+            }
 
             const results = await (client as any).shard.broadcastEval(async (
               shardClient: Client,
@@ -5133,6 +5151,9 @@ export const startDashboardApi = (client: Client) => {
                       SendMessages: false
                     }).catch(() => {});
 
+                    const { renameChannelToClosed } = await import('../services/ticketService.js');
+                    await renameChannelToClosed(client, ticket.channelId).catch(() => {});
+
                     const closeEmbed = new EmbedBuilder()
                       .setTitle('🔒 Ticket Fermé')
                       .setDescription(`Le ticket a été fermé depuis le Dashboard Kotbo par **${user.username}**.`)
@@ -5184,6 +5205,9 @@ export const startDashboardApi = (client: Client) => {
                       SendMessages: true,
                       ReadMessageHistory: true
                     }).catch(() => {});
+
+                    const { renameChannelToOpen } = await import('../services/ticketService.js');
+                    await renameChannelToOpen(client, ticket.channelId).catch(() => {});
 
                     await ch.send({
                       embeds: [successEmbed('Ticket Réouvert', `Le ticket a été réouvert depuis le Dashboard Kotbo par **${user.username}**.`)]
@@ -8323,6 +8347,337 @@ export const startDashboardApi = (client: Client) => {
               return;
             }
           }
+          
+          // ---------------------------------------------------------------
+          // GET  /api/dashboard/guilds/:guildId/channels-management
+          // PATCH /api/dashboard/guilds/:guildId/channels-management
+          // ---------------------------------------------------------------
+          if (parts.length === 5 && parts[4] === 'channels-management') {
+            if (req.method === 'GET') {
+              try {
+                const guild = await prisma.guild.findUnique({
+                  where: { id: guildId },
+                  select: {
+                    autoThreadEnabled: true,
+                    autoThreadChannels: true,
+                    statsEnabled: true,
+                    statsConfig: true,
+                    tempVoiceEnabled: true,
+                    tempVoiceChannelId: true,
+                    tempVoiceCategoryId: true,
+                    tempVoiceNameTemplate: true,
+                    honeypotEnabled: true,
+                    honeypotChannelId: true,
+                  },
+                });
+                if (!guild) {
+                  json(res, 404, { error: 'Serveur introuvable' });
+                  return;
+                }
+                json(res, 200, {
+                  autoThreadEnabled: guild.autoThreadEnabled,
+                  autoThreadChannels: guild.autoThreadChannels,
+                  statsEnabled: guild.statsEnabled,
+                  statsConfig: guild.statsConfig,
+                  tempVoiceEnabled: guild.tempVoiceEnabled,
+                  tempVoiceChannelId: guild.tempVoiceChannelId,
+                  tempVoiceCategoryId: guild.tempVoiceCategoryId,
+                  tempVoiceNameTemplate: guild.tempVoiceNameTemplate,
+                  honeypotEnabled: guild.honeypotEnabled,
+                  honeypotChannelId: guild.honeypotChannelId,
+                });
+              } catch (err) {
+                logger.error('ChannelsManagementAPI', 'GET config error:', err);
+                json(res, 500, { error: 'Erreur lors de la récupération de la configuration' });
+              }
+              return;
+            }
+
+            if (req.method === 'PATCH') {
+              const body = await readJsonBody<{
+                autoThreadEnabled?: boolean;
+                autoThreadChannels?: string[];
+                statsEnabled?: boolean;
+                statsConfig?: any;
+                tempVoiceEnabled?: boolean;
+                tempVoiceChannelId?: string | null;
+                tempVoiceCategoryId?: string | null;
+                tempVoiceNameTemplate?: string;
+                honeypotEnabled?: boolean;
+                honeypotChannelId?: string | null;
+              }>(req);
+
+              if (!body) {
+                json(res, 400, { error: 'Payload invalide' });
+                return;
+              }
+
+              const data: any = {};
+              if (Object.prototype.hasOwnProperty.call(body, 'autoThreadEnabled')) {
+                data.autoThreadEnabled = !!body.autoThreadEnabled;
+              }
+              if (Object.prototype.hasOwnProperty.call(body, 'autoThreadChannels')) {
+                data.autoThreadChannels = body.autoThreadChannels;
+              }
+              if (Object.prototype.hasOwnProperty.call(body, 'statsEnabled')) {
+                data.statsEnabled = !!body.statsEnabled;
+              }
+              if (Object.prototype.hasOwnProperty.call(body, 'statsConfig')) {
+                data.statsConfig = body.statsConfig;
+              }
+              if (Object.prototype.hasOwnProperty.call(body, 'tempVoiceEnabled')) {
+                data.tempVoiceEnabled = !!body.tempVoiceEnabled;
+              }
+              if (Object.prototype.hasOwnProperty.call(body, 'tempVoiceChannelId')) {
+                data.tempVoiceChannelId = body.tempVoiceChannelId;
+              }
+              if (Object.prototype.hasOwnProperty.call(body, 'tempVoiceCategoryId')) {
+                data.tempVoiceCategoryId = body.tempVoiceCategoryId;
+              }
+              if (Object.prototype.hasOwnProperty.call(body, 'tempVoiceNameTemplate')) {
+                data.tempVoiceNameTemplate = body.tempVoiceNameTemplate;
+              }
+              if (Object.prototype.hasOwnProperty.call(body, 'honeypotEnabled')) {
+                data.honeypotEnabled = !!body.honeypotEnabled;
+              }
+              if (Object.prototype.hasOwnProperty.call(body, 'honeypotChannelId')) {
+                data.honeypotChannelId = body.honeypotChannelId;
+              }
+
+              try {
+                // ═══════════════════════════════════════════════════════
+                // Auto-création des salons si les IDs sont vides/null
+                // ═══════════════════════════════════════════════════════
+                const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+
+                if (discordGuild) {
+                  // ── TempVoice : catégorie + salon générateur ──────────
+                  if (body.tempVoiceEnabled) {
+                    // 1. Catégorie si vide
+                    if (!body.tempVoiceCategoryId) {
+                      const existing = discordGuild.channels.cache.find(
+                        c => c.type === ChannelType.GuildCategory && c.name === '🔊 Salons Vocaux'
+                      );
+                      const cat = existing || await discordGuild.channels.create({
+                        name: '🔊 Salons Vocaux',
+                        type: ChannelType.GuildCategory,
+                      }).catch(() => null);
+                      if (cat) data.tempVoiceCategoryId = cat.id;
+                    }
+                    // 2. Salon générateur si vide
+                    if (!body.tempVoiceChannelId) {
+                      const parentId = data.tempVoiceCategoryId || body.tempVoiceCategoryId || undefined;
+                      const newVoice = await discordGuild.channels.create({
+                        name: '➕ Créer un salon',
+                        type: ChannelType.GuildVoice,
+                        parent: parentId,
+                      }).catch(() => null);
+                      if (newVoice) {
+                        data.tempVoiceChannelId = newVoice.id;
+                        logger.info('ChannelsManagementAPI', `TempVoice: salon générateur créé automatiquement (${newVoice.id})`);
+                      }
+                    }
+                  }
+
+                  // ── Honeypot : salon texte caché ──────────────────────
+                  if (body.honeypotEnabled && !body.honeypotChannelId) {
+                    const newHoneypot = await discordGuild.channels.create({
+                      name: 'ne-rien-envoyer-ici',
+                      type: ChannelType.GuildText,
+                      permissionOverwrites: [
+                        {
+                          id: discordGuild.roles.everyone.id,
+                          allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages],
+                        },
+                      ],
+                    }).catch(() => null);
+                    if (newHoneypot) {
+                      data.honeypotChannelId = newHoneypot.id;
+                      logger.info('ChannelsManagementAPI', `Honeypot: salon créé automatiquement (${newHoneypot.id})`);
+
+                      // Envoyer l'embed stylisé d'avertissement
+                      const honeyEmbed = new EmbedBuilder()
+                        .setTitle('⚠️ SALON PROTECTEUR - NE PAS ÉCRIRE ⚠️')
+                        .setDescription(
+                          '### 🛡️ Honeypot de Sécurité\n\n' +
+                          'Ce salon sert d\'appât pour intercepter les bots de spam et les comptes compromis.\n\n' +
+                          '> 🛑 **RÈGLE CRUCIALE** : Ne postez **absolument aucun** message dans ce salon sous peine de **BANNISSEMENT DÉFINITIF ET IMMÉDIAT** de ce serveur Discord.\n\n' +
+                          '*Si vous êtes un utilisateur légitime, ignorez ou masquez simplement ce salon.*'
+                        )
+                        .setColor(0xEE5555)
+                        .setTimestamp()
+                        .setFooter({ text: 'Système de protection Kotbo' });
+
+                      await newHoneypot.send({ embeds: [honeyEmbed] }).catch(() => null);
+                    }
+                  }
+
+                  // ── Stats : salons vocaux de statistiques ─────────────
+                  if (body.statsEnabled && body.statsConfig) {
+                    const sc = body.statsConfig as any;
+
+                    const needsCustomStats = Array.isArray(sc.customStats) && sc.customStats.some((c: any) => c.enabled && !c.channelId);
+
+                    if (needsMember || needsBot || needsRole || needsChannel || needsCategory || needsActivity || needsCustomStats || !sc.categoryId) {
+                      // Trouver ou créer une catégorie "📊 Statistiques" ou utiliser celle sélectionnée
+                      let statsCatId: string | undefined = sc.categoryId || undefined;
+                      
+                      if (!statsCatId) {
+                        const existingStatsCat = discordGuild.channels.cache.find(
+                          c => c.type === ChannelType.GuildCategory && c.name === '📊 Statistiques'
+                        );
+                        if (existingStatsCat) {
+                          statsCatId = existingStatsCat.id;
+                        } else {
+                          const newCat = await discordGuild.channels.create({
+                            name: '📊 Statistiques',
+                            type: ChannelType.GuildCategory,
+                            permissionOverwrites: [
+                              {
+                                id: discordGuild.roles.everyone.id,
+                                deny: [PermissionFlagsBits.Connect, PermissionFlagsBits.SendMessages],
+                              },
+                            ],
+                          }).catch(() => null);
+                          if (newCat) statsCatId = newCat.id;
+                        }
+                      }
+
+                      // Helper : créer un salon vocal stat
+                      const createStatChannel = async (defaultName: string): Promise<string | undefined> => {
+                        const ch = await discordGuild.channels.create({
+                          name: defaultName,
+                          type: ChannelType.GuildVoice,
+                          parent: statsCatId,
+                          permissionOverwrites: [
+                            {
+                              id: discordGuild.roles.everyone.id,
+                              deny: [PermissionFlagsBits.Connect],
+                            },
+                          ],
+                        }).catch(() => null);
+                        return ch?.id;
+                      };
+
+                      const newSc = { ...sc };
+                      if (statsCatId) {
+                        newSc.categoryId = statsCatId;
+                      }
+
+                      if (needsMember) {
+                        const tpl = sc.memberTemplate || '👤 Membres : {count}';
+                        newSc.memberChannelId = await createStatChannel(tpl.replace('{count}', '…')) ?? sc.memberChannelId;
+                      }
+                      if (needsBot) {
+                        const tpl = sc.botTemplate || '🤖 Bots : {count}';
+                        newSc.botChannelId = await createStatChannel(tpl.replace('{count}', '…')) ?? sc.botChannelId;
+                      }
+                      if (needsRole) {
+                        const tpl = sc.roleTemplate || '👑 Staff : {count}';
+                        newSc.roleChannelId = await createStatChannel(tpl.replace('{count}', '…')) ?? sc.roleChannelId;
+                      }
+                      if (needsChannel) {
+                        const tpl = sc.channelTemplate || '💬 Salons : {count}';
+                        newSc.channelChannelId = await createStatChannel(tpl.replace('{count}', '…')) ?? sc.channelChannelId;
+                      }
+                      if (needsCategory) {
+                        const tpl = sc.categoryTemplate || '📁 Catégories : {count}';
+                        newSc.categoryChannelId = await createStatChannel(tpl.replace('{count}', '…')) ?? sc.categoryChannelId;
+                      }
+                      if (needsActivity) {
+                        const tpl = sc.activityTemplate || '📈 Actifs 24h : {count}';
+                        newSc.activityChannelId = await createStatChannel(tpl.replace('{count}', '…')) ?? sc.activityChannelId;
+                      }
+
+                      if (Array.isArray(sc.customStats)) {
+                        const updatedCustomStats = [];
+                        for (const custom of sc.customStats) {
+                          const item = { ...custom };
+                          if (item.enabled && !item.channelId) {
+                            const tpl = item.template || 'Stat : {count}';
+                            let initialName = tpl.replace('{count}', '…');
+                            if (item.type === 'goal' && item.goalTarget) {
+                              initialName = initialName.replace('{goal}', item.goalTarget.toString());
+                            }
+                            item.channelId = await createStatChannel(initialName) ?? '';
+                          }
+                          updatedCustomStats.push(item);
+                        }
+                        newSc.customStats = updatedCustomStats;
+                      }
+
+                      data.statsConfig = newSc;
+                      logger.info('ChannelsManagementAPI', `Stats: salons/catégories configurés/créés pour la guilde ${guildId}`);
+                    }
+                  }
+                }
+
+                // ═══════════════════════════════════════════════════════
+                // Sauvegarde en base
+                // ═══════════════════════════════════════════════════════
+                await prisma.guild.update({
+                  where: { id: guildId },
+                  data,
+                });
+
+                const { invalidateAutoThreadCache } = await import('../events/autoThread.js');
+                invalidateAutoThreadCache(guildId);
+
+                await pushAudit(guildId, {
+                  user: auditUser,
+                  action: 'Sauvegarde configuration Gestion des salons',
+                  context: getGuildName(client, guildId),
+                  module: 'Gestion des salons',
+                  eventType: 'Manuel',
+                  details: 'Configuration de la gestion des salons mise à jour.',
+                  channelId: null
+                });
+
+                // Rafraîchir immédiatement les salons de statistiques
+                if (body.statsEnabled) {
+                  const { updateGuildStats } = await import('../events/stats.js');
+                  updateGuildStats(client, guildId).catch((err) => 
+                    logger.error('ChannelsManagementAPI', `Erreur lors de la mise à jour des stats pour la guilde ${guildId} :`, err)
+                  );
+                }
+
+                // Sync with DashboardFeatureConfig using auto_thread as main key
+                if (Object.prototype.hasOwnProperty.call(body, 'autoThreadEnabled')) {
+                  await prisma.dashboardFeatureConfig.upsert({
+                    where: { guildId_featureKey: { guildId, featureKey: 'auto_thread' } },
+                    create: {
+                      guildId,
+                      featureKey: 'auto_thread',
+                      featureName: 'Gestion des salons',
+                      enabled: !!body.autoThreadEnabled,
+                      loggingEnabled: true,
+                      userActivityTracking: true,
+                      notifyViaDiscordChannel: true,
+                    },
+                    update: {
+                      enabled: !!body.autoThreadEnabled
+                    }
+                  });
+                }
+
+
+                // Retourner la config finale (avec IDs créés automatiquement)
+                json(res, 200, {
+                  ok: true,
+                  resolved: {
+                    tempVoiceChannelId: data.tempVoiceChannelId,
+                    tempVoiceCategoryId: data.tempVoiceCategoryId,
+                    honeypotChannelId: data.honeypotChannelId,
+                    statsConfig: data.statsConfig,
+                  }
+                });
+              } catch (err) {
+                logger.error('ChannelsManagementAPI', 'PATCH config error:', err);
+                json(res, 500, { error: 'Erreur lors de la mise à jour' });
+              }
+              return;
+            }
+          }
 
           // ---------------------------------------------------------------
           // CRUD /api/dashboard/guilds/:guildId/banned-words
@@ -9879,7 +10234,7 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
-          if (parts.length === 5 && parts[4] === 'import' && req.method === 'POST') {
+          if (parts.length === 5 && parts.at(4) === 'import' && req.method === 'POST') {
             const body = await readJsonBody<DashboardState>(req);
             if (!body) {
               json(res, 400, { error: 'Payload import invalide' });
@@ -9993,7 +10348,7 @@ export const startDashboardApi = (client: Client) => {
         }
 
         // PUT /api/dashboard/guilds/:guildId/logs/event-configs
-        if (parts.length === 6 && parts[5] === 'event-configs' && req.method === 'PUT') {
+        if (parts.length === 6 && parts.at(5) === 'event-configs' && req.method === 'PUT') {
           const body = await readJsonBody<{
             configs: Array<{
               eventType: string;
@@ -11874,8 +12229,8 @@ export const startDashboardApi = (client: Client) => {
         }
 
         // EVENTS ROUTES
-        if (parts[4] === 'events') {
-          const guildId = parts[3] ?? null;
+        if (parts.at(4) === 'events') {
+          const guildId = parts.at(3) ?? null;
           if (!guildId) {
             json(res, 400, { error: 'guildId manquant' });
             return;

@@ -1,7 +1,7 @@
 {
   "name": "@kotbo/dashboard",
   "private": true,
-  "version": "4.18",
+  "version": "4.19",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,22 +11,22 @@
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.0.0",
     "@tailwindcss/vite": "^4.2.2",
-    "autoprefixer": "^10.4.27",
+    "autoprefixer": "10.4.27",
     "postcss": "^8.5.8",
     "svelte": "^5.53.12",
     "tailwindcss": "^4.2.2",
-    "vite": "^8.0.1"
+    "vite": "8.0.1"
   },
   "dependencies": {
     "@getpapillon/papicons": "^0.2.1",
     "@sentry/browser": "^10.22.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
-    "chart.js": "^4.5.1",
+    "chart.js": "4.5.1",
     "chartjs-plugin-gradient": "^0.6.1",
     "lucide-svelte": "^1.0.1",
     "monaco-editor": "^0.55.1",
-    "react": "^19.2.4",
+    "react": "19.2.4",
     "socket.io-client": "^4.8.3",
     "tinro": "^0.6.12"
   }

@@ -11,7 +11,7 @@ import {
   type GuildMember,
 } from 'discord.js';
 import prisma from '../utils/db.js';
-import { canManageTicket, renameTicketChannel } from '../services/ticketService.js';
+import { canManageTicket, renameTicketChannel, renameChannelToClosed, renameChannelToOpen } from '../services/ticketService.js';
 import { buildMemberCasePanel } from '../services/memberCaseService.js';
 import { generateTranscript } from '../services/transcriptService.js';
 import { COLORS, successEmbed } from '../utils/embeds.js';
@@ -235,6 +235,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       SendMessages: false,
     }).catch(() => null);
 
+    await renameChannelToClosed(interaction.client, channel.id).catch(() => null);
+
     const closeEmbed = new EmbedBuilder()
       .setTitle('🔒 Ticket Fermé')
       .setDescription(`Le ticket a été fermé par <@${interaction.user.id}>.`)
@@ -287,6 +289,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       SendMessages: true,
       ReadMessageHistory: true,
     }).catch(() => null);
+
+    await renameChannelToOpen(interaction.client, channel.id).catch(() => null);
 
     await channel.send({
       embeds: [successEmbed('Ticket Réouvert', `Le ticket a été réouvert par <@${interaction.user.id}>.`)],

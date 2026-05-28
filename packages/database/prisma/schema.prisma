@@ -134,6 +134,20 @@ model Guild {
   autoThreadEnabled  Boolean   @default(false)
   autoThreadChannels String[]  @default([])
 
+  // Statistics Channels
+  statsEnabled            Boolean  @default(false)
+  statsConfig             Json?
+
+  // Temporary Voice Channels
+  tempVoiceEnabled        Boolean  @default(false)
+  tempVoiceChannelId      String?
+  tempVoiceCategoryId     String?
+  tempVoiceNameTemplate   String   @default("🔊 Salon de {user}")
+
+  // Honeypot trap channel
+  honeypotEnabled         Boolean  @default(false)
+  honeypotChannelId       String?
+
   @@map("guilds")
 }
 

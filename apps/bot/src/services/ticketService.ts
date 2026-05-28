@@ -274,6 +274,8 @@ export async function handleTicketButton(client: Client, customId: string, inter
       .setCustomId(typeId ? `modal:ticket:open:${ticketType.id}` : 'modal:ticket:open')
       .setTitle((ticketType.label || guildConfig.ticketEmbedTitle || 'Ouvrir un ticket').substring(0, 45));
 
+    const isSalon = ticketType.label.toLowerCase().includes('salon');
+
     const reasonInput = new TextInputBuilder()
       .setCustomId('reason')
       .setLabel('Sujet / Raison de la demande')
@@ -282,6 +284,10 @@ export async function handleTicketButton(client: Client, customId: string, inter
       .setRequired(true)
       .setMaxLength(100);
 
+    if (isSalon) {
+      reasonInput.setValue('Demande de salon');
+    }
+
     const descInput = new TextInputBuilder()
       .setCustomId('description')
       .setLabel('Description détaillée')
@@ -289,6 +295,10 @@ export async function handleTicketButton(client: Client, customId: string, inter
       .setPlaceholder('Détaillez au maximum votre demande afin de faciliter le traitement par notre staff...')
       .setRequired(true)
       .setMaxLength(1000);
+
+    if (isSalon) {
+      descInput.setValue('Créé le pour moi');
+    }
 
     modal.addComponents(
       new ActionRowBuilder<TextInputBuilder>().addComponents(reasonInput),
@@ -473,6 +483,9 @@ export async function handleTicketButton(client: Client, customId: string, inter
 
     const ticketChannel = interaction.channel as TextChannel;
     if (ticketChannel) {
+      // Rename channel
+      await renameChannelToClosed(client, ticketChannel.id).catch(() => null);
+
       // Retirer les permissions d'écriture et lecture de l'opener
       try {
         await ticketChannel.permissionOverwrites.edit(ticket.userId, {
@@ -524,6 +537,9 @@ export async function handleTicketButton(client: Client, customId: string, inter
 
     const ticketChannel = interaction.channel as TextChannel;
     if (ticketChannel) {
+      // Rename channel
+      await renameChannelToOpen(client, ticketChannel.id).catch(() => null);
+
       // Restaurer les permissions de l'opener
       try {
         await ticketChannel.permissionOverwrites.edit(ticket.userId, {
@@ -858,5 +874,31 @@ async function logTicketEvent(
     await logChannel.send({ embeds: [embed] });
   } catch (err) {
     logger.error('Ticket', 'Error sending to ticket log channel:', err);
+  }
+}
+
+export async function renameChannelToClosed(client: Client, channelId: string): Promise<void> {
+  const channel = await client.channels.fetch(channelId).catch(() => null);
+  if (channel && channel instanceof TextChannel) {
+    const currentName = channel.name;
+    const newName = currentName.startsWith('ticket-') ? currentName.replace(/^ticket-/, 'fermer-') : `fermer-${currentName}`;
+    if (newName !== currentName) {
+      await channel.setName(newName, 'Ticket fermé').catch((err) => 
+        logger.error('Ticket', `Error renaming channel ${channelId} to closed:`, err)
+      );
+    }
+  }
+}
+
+export async function renameChannelToOpen(client: Client, channelId: string): Promise<void> {
+  const channel = await client.channels.fetch(channelId).catch(() => null);
+  if (channel && channel instanceof TextChannel) {
+    const currentName = channel.name;
+    const newName = currentName.startsWith('fermer-') ? currentName.replace(/^fermer-/, 'ticket-') : `ticket-${currentName}`;
+    if (newName !== currentName) {
+      await channel.setName(newName, 'Ticket réouvert').catch((err) => 
+        logger.error('Ticket', `Error renaming channel ${channelId} to open:`, err)
+      );
+    }
   }
 }

@@ -1281,7 +1281,7 @@ export async function updateNicknameModerationConfig(
 }
 
 // ==========================================
-// AUTO-THREAD
+// AUTO-THREAD & CHANNELS MANAGEMENT
 // ==========================================
 export async function fetchAutoThreadConfig(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/auto-thread', {
@@ -1301,6 +1301,38 @@ export async function updateAutoThreadConfig(
     payload,
     guildId,
     errorContext: 'API Error (Update Auto Thread Config):'
+  });
+}
+
+export async function fetchChannelsManagementConfig(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/channels-management', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Channels Management Config):',
+    silent: true,
+  });
+}
+
+export async function updateChannelsManagementConfig(
+  payload: {
+    autoThreadEnabled?: boolean;
+    autoThreadChannels?: string[];
+    statsEnabled?: boolean;
+    statsConfig?: any;
+    tempVoiceEnabled?: boolean;
+    tempVoiceChannelId?: string | null;
+    tempVoiceCategoryId?: string | null;
+    tempVoiceNameTemplate?: string;
+    honeypotEnabled?: boolean;
+    honeypotChannelId?: string | null;
+  },
+  guildId = authStore.selectedGuildId
+) {
+  return dashboardRequest('/channels-management', {
+    method: 'PATCH',
+    payload,
+    guildId,
+    errorContext: 'API Error (Update Channels Management Config):'
   });
 }
 
