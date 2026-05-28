@@ -2590,6 +2590,16 @@ function requestContainerRestart() {
   setTimeout(() => process.exit(0), 250);
 }
 
+function requestShardRespawn(shardId: number) {
+  if (typeof process.send === 'function') {
+    process.send({ type: 'respawn-shard', shardId });
+    return;
+  }
+
+  // Fallback to container restart when no IPC available
+  requestContainerRestart();
+}
+
 async function resolveGuildById(client: Client, guildId: string) {
   return client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
 }
@@ -3765,11 +3775,15 @@ export const startDashboardApi = (client: Client) => {
               return;
             }
 
-            // We can't respawn individual shards from inside the shard process
-            // (no respawn on ShardClientUtil). Requesting a container restart is a
-            // safe fallback for single-container deployments (manager+shards).
-            requestContainerRestart();
-            json(res, 200, { ok: true, restart: 'container', targetShard: shardId });
+            // Prefer requesting a single-shard respawn via IPC to the launcher.
+            // If IPC is not available, fallback to container restart.
+            try {
+              requestShardRespawn(shardId);
+              json(res, 200, { ok: true, restart: 'shard', targetShard: shardId });
+            } catch (err) {
+              requestContainerRestart();
+              json(res, 200, { ok: true, restart: 'container', targetShard: shardId });
+            }
             return;
           }
 

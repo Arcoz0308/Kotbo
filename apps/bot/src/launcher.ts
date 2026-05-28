@@ -67,9 +67,46 @@ async function main() {
     logger.info('Sharding', `Shard ${shard.id} initialisé.`);
 
     shard.on('message', (message: any) => {
-      if (message?.type === 'restart-container') {
-        logger.warn('Sharding', `Redémarrage du conteneur demandé par le shard ${shard.id}.`);
-        process.exit(0);
+      try {
+        if (!message || typeof message !== 'object') return;
+
+        // Legacy: request a full container restart
+        if (message.type === 'restart-container') {
+          logger.warn('Sharding', `Redémarrage du conteneur demandé par le shard ${shard.id}.`);
+          // If the launcher is configured to rely on container restart (Dokploy), exit.
+          if (process.env.MANAGER_USE_CONTAINER_RESTART === 'true') {
+            process.exit(0);
+          }
+
+          // Otherwise attempt an in-process respawn of all shards.
+          if (typeof (manager as any).respawnAll === 'function') {
+            (manager as any).respawnAll();
+          } else {
+            const total = Number((manager as any).totalShards ?? (manager as any).shards?.size ?? 0);
+            for (let i = 0; i < total; i += 1) {
+              if (typeof (manager as any).respawn === 'function') {
+                (manager as any).respawn(i);
+              }
+            }
+          }
+          return;
+        }
+
+        // Request to respawn a specific shard
+        if (message.type === 'respawn-shard' && Number.isInteger(Number(message.shardId))) {
+          const target = Number(message.shardId);
+          logger.warn('Sharding', `Respawn demandé pour le shard ${target} (via shard ${shard.id}).`);
+          if (typeof (manager as any).respawn === 'function') {
+            try {
+              (manager as any).respawn(target);
+            } catch (err) {
+              logger.error('Sharding', `Erreur lors du respawn du shard ${target}:`, err);
+            }
+          }
+          return;
+        }
+      } catch (err) {
+        logger.error('Sharding', 'Erreur en traitant le message IPC du shard:', err);
       }
     });
   });
