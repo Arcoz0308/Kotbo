@@ -119,11 +119,11 @@ const ALPHA = 'a-zA-ZÀ-ÖØ-öø-ÿ\u0400-\u04FF';
 
 /**
  * Séparateurs utilisés pour la tokenisation du pseudo :
- * espaces, tirets, underscores, points.
+ * espaces, ponctuation et symboles Unicode.
  * Les chiffres sont intentionnellement exclus pour préserver des pseudos
  * comme "r2d2" ou "super2man" en un seul token.
  */
-const TOKEN_SPLIT_REGEX = /[\s\-_.]+/;
+const TOKEN_SPLIT_REGEX = /[\s\p{P}\p{S}]+/u;
 
 /**
  * Longueur minimale d'un mot banni pour que la vérification par regex
