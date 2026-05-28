@@ -23,6 +23,7 @@
   import CalendarEventModal from '../lib/components/CalendarEventModal.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
+  import SearchableSelect from '../lib/components/SearchableSelect.svelte';
 
   let absences = $state<any[]>([]);
   let allStaff = $state<any[]>([]);
@@ -366,22 +367,12 @@
             {#if notifyViaDiscordChannel}
               <div class="space-y-1.5">
                 <label for="notify-channel" class="text-[10px] font-bold text-on-surface-variant/60">Salon des alertes</label>
-                <select id="notify-channel" bind:value={channelId} class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none">
-                  <option value="">Sélectionner un salon</option>
-                  {#each availableChannels as channel}
-                    <option value={channel.id}>#{channel.name}</option>
-                  {/each}
-                </select>
+                <SearchableSelect id="notify-channel" bind:value={channelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="Sélectionner un salon" className="w-full" />
               </div>
 
               <div class="space-y-1.5">
                 <label for="notify-role" class="text-[10px] font-bold text-on-surface-variant/60">Rôle à mentionner</label>
-                <select id="notify-role" bind:value={notificationRoleId} class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none">
-                  <option value="">Aucune mention</option>
-                  {#each availableRoles as role}
-                    <option value={role.id}>@{role.name}</option>
-                  {/each}
-                </select>
+                <SearchableSelect id="notify-role" bind:value={notificationRoleId} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Aucune mention" className="w-full" />
               </div>
             {/if}
 

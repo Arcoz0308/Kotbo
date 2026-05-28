@@ -1,6 +1,7 @@
 <script lang="ts">
   import Papicon from '../Papicon.svelte';
   import FormSelect from '../FormSelect.svelte';
+  import SearchableSelect from '../SearchableSelect.svelte';
   import ToggleSwitch from '../ToggleSwitch.svelte';
 
   let {
@@ -50,10 +51,7 @@
           {#each globalChannelFields as field}
             <div class="space-y-1.5">
               <label for="channel-{field.key}" class="text-[10px] font-bold text-on-surface-variant/60 ml-2">{field.label}</label>
-              <FormSelect id="channel-{field.key}" bind:value={guildSettings[field.key]} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all">
-                <option value="">— Aucun —</option>
-                {#each availableChannels as c}<option value={c.id}>#{c.name}</option>{/each}
-              </FormSelect>
+              <SearchableSelect id="channel-{field.key}" bind:value={guildSettings[field.key]} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
               <p class="text-[9px] text-on-surface-variant/40 ml-2">{field.desc}</p>
             </div>
           {/each}
@@ -67,10 +65,7 @@
           {#each globalRoleFields as field}
             <div class="space-y-1.5">
               <label for="role-{field.key}" class="text-[10px] font-bold text-on-surface-variant/60 ml-2">{field.label}</label>
-              <FormSelect id="role-{field.key}" bind:value={guildSettings[field.key]} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all">
-                <option value="">— Aucun —</option>
-                {#each availableRoles as r}<option value={r.id}>@{r.name}</option>{/each}
-              </FormSelect>
+              <SearchableSelect id="role-{field.key}" bind:value={guildSettings[field.key]} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
               <p class="text-[9px] text-on-surface-variant/40 ml-2">{field.desc}</p>
             </div>
           {/each}
@@ -120,22 +115,13 @@
             <tr class="hover:bg-surface-container-high/20 transition-colors">
               <td class="px-5 py-4"><span class="text-sm font-bold">{feature.featureName}</span></td>
               <td class="px-5 py-4">
-                <FormSelect bind:value={features[idx].channelId} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs">
-                  <option value="">— Aucun —</option>
-                  {#each availableChannels as c}<option value={c.id}>#{c.name}</option>{/each}
-                </FormSelect>
+                <SearchableSelect bind:value={features[idx].channelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
               </td>
               <td class="px-5 py-4">
-                <FormSelect bind:value={features[idx].requiredRoleId} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs">
-                  <option value="">— Aucun —</option>
-                  {#each availableRoles as r}<option value={r.id}>@{r.name}</option>{/each}
-                </FormSelect>
+                <SearchableSelect bind:value={features[idx].requiredRoleId} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
               </td>
               <td class="px-5 py-4">
-                <FormSelect bind:value={features[idx].notificationRoleId} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs">
-                  <option value="">— Aucun —</option>
-                  {#each availableRoles as r}<option value={r.id}>@{r.name}</option>{/each}
-                </FormSelect>
+                <SearchableSelect bind:value={features[idx].notificationRoleId} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
               </td>
               <td class="px-5 py-4 text-center">
                 <button onclick={() => onSaveFeature(feature.featureKey)} class="px-4 py-1.5 bg-on-surface text-surface text-[9px] font-black uppercase tracking-widest rounded-lg hover:scale-105 transition-transform">

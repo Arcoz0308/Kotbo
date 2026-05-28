@@ -3,13 +3,11 @@
   import { fetchWeeklyComparison } from '../../api';
   import { authStore } from '../../stores/auth.svelte';
 
-  let { data: initialData } = $props<{
-    data: {
-      thisWeek: { messages: number; voiceMinutes: number; joins: number; leaves: number; sanctions: number };
-      lastWeek: { messages: number; voiceMinutes: number; joins: number; leaves: number; sanctions: number };
-      changes: { messagesChange: number; voiceChange: number; joinsChange: number; leavesChange: number; sanctionsChange: number };
-    };
-  }>();
+  export let initialData: {
+    thisWeek: { messages: number; voiceMinutes: number; joins: number; leaves: number; sanctions: number };
+    lastWeek: { messages: number; voiceMinutes: number; joins: number; leaves: number; sanctions: number };
+    changes: { messagesChange: number; voiceChange: number; joinsChange: number; leavesChange: number; sanctionsChange: number };
+  } | null = null;
 
   // Period selector state
   type PeriodMode = 'week' | 'month';

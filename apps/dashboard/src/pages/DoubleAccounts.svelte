@@ -11,6 +11,7 @@
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
+  import SearchableSelect from '../lib/components/SearchableSelect.svelte';
 
   let scanning = $state(false);
 
@@ -177,34 +178,19 @@
         </div>
 
         <div class="grid gap-4 md:grid-cols-3">
-          <label class="space-y-2 text-sm">
+            <label class="space-y-2 text-sm">
             <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Rôle validation</span>
-            <select bind:value={workflowDraft.validationRoleId} class="w-full rounded-2xl border border-outline-variant/10 bg-surface-container-high/40 px-4 py-3 text-sm">
-              <option value="">Aucun rôle</option>
-              {#each dashboardStore.state.discordRoles as role}
-                <option value={role.id}>@{role.name}</option>
-              {/each}
-            </select>
+            <SearchableSelect bind:value={workflowDraft.validationRoleId} options={dashboardStore.state.discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Aucun rôle" className="w-full rounded-2xl border border-outline-variant/10 bg-surface-container-high/40 px-4 py-3 text-sm" />
           </label>
 
           <label class="space-y-2 text-sm">
             <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Rôle sanction</span>
-            <select bind:value={workflowDraft.sanctionRoleId} class="w-full rounded-2xl border border-outline-variant/10 bg-surface-container-high/40 px-4 py-3 text-sm">
-              <option value="">Aucun rôle</option>
-              {#each dashboardStore.state.discordRoles as role}
-                <option value={role.id}>@{role.name}</option>
-              {/each}
-            </select>
+            <SearchableSelect bind:value={workflowDraft.sanctionRoleId} options={dashboardStore.state.discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Aucun rôle" className="w-full rounded-2xl border border-outline-variant/10 bg-surface-container-high/40 px-4 py-3 text-sm" />
           </label>
 
           <label class="space-y-2 text-sm">
             <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Rôle DS</span>
-            <select bind:value={workflowDraft.dsRoleId} class="w-full rounded-2xl border border-outline-variant/10 bg-surface-container-high/40 px-4 py-3 text-sm">
-              <option value="">Aucun rôle</option>
-              {#each dashboardStore.state.discordRoles as role}
-                <option value={role.id}>@{role.name}</option>
-              {/each}
-            </select>
+            <SearchableSelect bind:value={workflowDraft.dsRoleId} options={dashboardStore.state.discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Aucun rôle" className="w-full rounded-2xl border border-outline-variant/10 bg-surface-container-high/40 px-4 py-3 text-sm" />
           </label>
         </div>
 

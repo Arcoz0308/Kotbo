@@ -5,6 +5,7 @@
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
   import FormSelect from '../lib/components/FormSelect.svelte';
+  import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   const availableChannels = $derived(dashboardStore.state.discordChannels || []);
@@ -140,51 +141,23 @@
       </div>
 
       <div class="space-y-6">
-        <div class="space-y-2">
+          <div class="space-y-2">
           <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="moderator-role">Rôle modérateur dashboard</label>
-          <FormSelect
-            id="moderator-role"
-            bind:value={notificationsDraft.moderatorRoleId}
-            className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold"
-            disabled={!canManageSettings}
-          >
-            <option value="">Admin uniquement</option>
-            {#each availableRoles as role}
-              <option value={role.id}>@{role.name}</option>
-            {/each}
-          </FormSelect>
+          <SearchableSelect id="moderator-role" bind:value={notificationsDraft.moderatorRoleId} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Admin uniquement" className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold" />
+          
           <p class="text-xs text-on-surface-variant">Les membres de ce rôle peuvent accéder au dashboard avec des permissions limitées.</p>
         </div>
 
-        <div class="space-y-2">
+          <div class="space-y-2">
           <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="discord-channel">Salon d'alertes</label>
-          <FormSelect
-            id="discord-channel"
-            bind:value={notificationsDraft.discordChannel}
-            onchange={persistDiscordChannel}
-            disabled={!canManageSettings}
-            className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold"
-          >
-            <option value="">Sélectionner un salon</option>
-            {#each availableChannels as channel}
-              <option value={channel.mention}>#{channel.name}</option>
-            {/each}
-          </FormSelect>
+          <SearchableSelect id="discord-channel" bind:value={notificationsDraft.discordChannel} options={availableChannels.map(c => ({ id: c.mention, name: `#${c.name}` }))} placeholder="Sélectionner un salon" className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold" />
         </div>
 
-        <div class="space-y-2">
+          <div class="space-y-2">
           <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="log-channel">Salon des embeds de logs (optionnel)</label>
-          <FormSelect
-            id="log-channel"
-            bind:value={notificationsDraft.logChannelId}
-            disabled={!canManageSettings}
-            className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold"
-          >
-            <option value="">Ne pas envoyer d'embed</option>
-            {#each availableChannels as channel}
-              <option value={channel.id}>#{channel.name}</option>
-            {/each}
-          </FormSelect>
+          <SearchableSelect id="log-channel" bind:value={notificationsDraft.logChannelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="Ne pas envoyer d'embed" className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold" />
+          <p class="text-xs text-on-surface-variant">Les logs restent consultables dans le dashboard même si aucun salon n'est défini.</p>
+        </div>
           <p class="text-xs text-on-surface-variant">Les logs restent consultables dans le dashboard même si aucun salon n'est défini.</p>
         </div>
         

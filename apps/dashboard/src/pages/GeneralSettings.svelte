@@ -6,6 +6,7 @@
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import FormSelect from '../lib/components/FormSelect.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
+  import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
   import { updateGlobalSettings, updateFeatureConfiguration } from '../lib/api';
 
@@ -150,14 +151,11 @@
             {#each channelFields as field}
               <div class="space-y-1.5">
                 <label for={field.key} class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{field.label}</label>
-                <FormSelect id={field.key} bind:value={guildSettings[field.key]} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all">
-                  <option value="">— Aucun —</option>
-                  {#if field.isVoice}
-                    {#each availableVoiceChannels as c}<option value={c.id}>🔊 {c.name}</option>{/each}
-                  {:else}
-                    {#each availableChannels as c}<option value={c.id}>#{c.name}</option>{/each}
-                  {/if}
-                </FormSelect>
+                {#if field.isVoice}
+                  <SearchableSelect id={field.key} bind:value={guildSettings[field.key]} options={availableVoiceChannels.map(c => ({ id: c.id, name: `🔊 ${c.name}` }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
+                {:else}
+                  <SearchableSelect id={field.key} bind:value={guildSettings[field.key]} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
+                {/if}
                 <p class="text-[9px] text-on-surface-variant/40 ml-2">{field.desc}</p>
               </div>
             {/each}
@@ -176,10 +174,7 @@
             {#each roleFields as field}
               <div class="space-y-1.5">
                 <label for={field.key} class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{field.label}</label>
-                <FormSelect id={field.key} bind:value={guildSettings[field.key]} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all">
-                  <option value="">— Aucun —</option>
-                  {#each availableRoles as r}<option value={r.id}>@{r.name}</option>{/each}
-                </FormSelect>
+                <SearchableSelect id={field.key} bind:value={guildSettings[field.key]} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
                 <p class="text-[9px] text-on-surface-variant/40 ml-2">{field.desc}</p>
               </div>
             {/each}

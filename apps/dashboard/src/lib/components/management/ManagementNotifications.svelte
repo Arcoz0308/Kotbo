@@ -5,6 +5,7 @@
 <script lang="ts">
   import Papicon from '../Papicon.svelte';
   import ToggleSwitch from '../ToggleSwitch.svelte';
+  import SearchableSelect from '../SearchableSelect.svelte';
 
   let { features = $bindable([]), availableChannels = [], availableRoles = [], onSave = (_key: string) => {} } = $props();
 
@@ -126,21 +127,11 @@
                         <div class="space-y-4">
                           <div class="space-y-1.5">
                             <label for="notify-channel-{feature.featureKey}" class="text-[10px] font-bold text-on-surface-variant/60">Salon des alertes</label>
-                            <select id="notify-channel-{feature.featureKey}" bind:value={features[idx].channelId} class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none">
-                              <option value="">Utiliser le salon par défaut</option>
-                              {#each availableChannels as channel}
-                                <option value={channel.id}>#{channel.name}</option>
-                              {/each}
-                            </select>
+                            <SearchableSelect id="notify-channel-{feature.featureKey}" bind:value={features[idx].channelId} options={availableChannels.map(channel => ({ id: channel.id, name: `#${channel.name}` }))} placeholder="Utiliser le salon par défaut" className="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none" />
                           </div>
                           <div class="space-y-1.5">
                             <label for="notify-role-{feature.featureKey}" class="text-[10px] font-bold text-on-surface-variant/60">Rôle à mentionner</label>
-                            <select id="notify-role-{feature.featureKey}" bind:value={features[idx].notificationRoleId} class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none">
-                              <option value="">Aucune mention</option>
-                              {#each availableRoles as role}
-                                <option value={role.id}>{role.name}</option>
-                              {/each}
-                            </select>
+                            <SearchableSelect id="notify-role-{feature.featureKey}" bind:value={features[idx].notificationRoleId} options={availableRoles.map(role => ({ id: role.id, name: `@${role.name}` }))} placeholder="Aucune mention" className="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none" />
                           </div>
                           <div class="space-y-1.5">
                             <label for="notify-webhook-{feature.featureKey}" class="text-[10px] font-bold text-on-surface-variant/60">URL du Webhook Discord</label>

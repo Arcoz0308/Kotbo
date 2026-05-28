@@ -24,6 +24,7 @@
   import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
   import Papicon from '../lib/components/Papicon.svelte';
   import Chart from '../lib/components/charts/Chart.svelte';
+  import SearchableSelect from '../lib/components/SearchableSelect.svelte';
 
 
   let guildId = $state<string | null>(null);
@@ -1320,23 +1321,13 @@
             <div>
               <label>
                 <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">Salon d'annonce des réunions <span class="text-on-surface-variant/50 normal-case tracking-normal">(Texte)</span></span>
-                <select bind:value={meetingAnnouncementChannelId} onchange={saveStaffConfig} disabled={!rolesAccess.canConfigure} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 disabled:opacity-50 disabled:cursor-not-allowed">
-                  <option value={null}>-- Aucun --</option>
-                  {#each availableDiscordChannels as dc}
-                    <option value={dc.id}>#{dc.name}</option>
-                  {/each}
-                </select>
+                <SearchableSelect bind:value={meetingAnnouncementChannelId} options={availableDiscordChannels.map(dc => ({ id: dc.id, name: `#${dc.name}` }))} placeholder="-- Aucun --" className="w-full" />
               </label>
             </div>
             <div>
               <label>
                 <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">Salon vocal / conférence des réunions</span>
-                <select bind:value={meetingVoiceChannelId} onchange={saveStaffConfig} disabled={!rolesAccess.canConfigure} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 disabled:opacity-50 disabled:cursor-not-allowed">
-                  <option value={null}>-- Aucun --</option>
-                  {#each availableDiscordVoiceChannels as vc}
-                    <option value={vc.id}>{vc.name}</option>
-                  {/each}
-                </select>
+                <SearchableSelect bind:value={meetingVoiceChannelId} options={availableDiscordVoiceChannels.map(vc => ({ id: vc.id, name: vc.name }))} placeholder="-- Aucun --" className="w-full" />
               </label>
             </div>
           </div>
