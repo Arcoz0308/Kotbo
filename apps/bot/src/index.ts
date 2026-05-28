@@ -158,7 +158,9 @@ client.emit = function (eventName, ...args) {
   return originalEmit.call(client, eventName, ...args);
 };
 
-startDashboardApi(client);
+if (!client.shard || client.shard.ids.includes(0)) {
+  startDashboardApi(client);
+}
 
 
 type SlashCommand = {

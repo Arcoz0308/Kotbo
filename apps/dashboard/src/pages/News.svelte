@@ -6,6 +6,7 @@
   import { toast } from '../lib/stores/toast.svelte';
   import { 
     fetchNews, 
+    fetchPublicNews,
     createNews, 
     updateNews, 
     deleteNews, 
@@ -17,6 +18,8 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
+
+  let { serverId = '' }: { serverId?: string } = $props();
 
   // State management
   let articles = $state<any[]>([]);
@@ -43,11 +46,13 @@
   let category = $state('Mise à jour');
   let subcategory = $state('');
   let published = $state(false);
+  let publishMode = $state<'summary' | 'full_embed'>('summary');
 
   // Filtering & Search
   let searchQuery = $state('');
   let categoryFilter = $state('ALL');
   let guildId = $state(authStore.selectedGuildId || (typeof localStorage !== 'undefined' ? localStorage.getItem('kotbo_guild_id') : '') || '');
+  const isPublicView = $derived(!!serverId);
 
   const actionState = createAsyncActionState();
 
@@ -57,15 +62,17 @@
     articles.filter(art => {
       const matchesSearch = art.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                             (art.summary && art.summary.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                            art.authorName.toLowerCase().includes(searchQuery.toLowerCase());
+                            (art.authorName || '').toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCategory = categoryFilter === 'ALL' || art.category === categoryFilter;
       return matchesSearch && matchesCategory;
     })
   );
 
   const canEdit = $derived(
-    !!dashboardStore.state.featureAccess?.news?.canModerate ||
-    !!dashboardStore.state.access?.canModerateContent
+    !isPublicView && (
+      !!dashboardStore.state.featureAccess?.news?.canModerate ||
+      !!dashboardStore.state.access?.canModerateContent
+    )
   );
 
   // Récupère l'ID du serveur depuis les articles ou le store
@@ -77,19 +84,21 @@
   const rssFeedUrl = $derived(`${API_BASE_URL}/api/public/rss/${currentGuildId}`);
 
   onMount(async () => {
-    // S'assurer que le guildId est bien récupéré
-    guildId = authStore.selectedGuildId || localStorage.getItem('kotbo_guild_id') || '';
-    await Promise.all([
-      dashboardStore.refresh(),
-      loadArticles(),
-      loadConfigs()
-    ]);
+    guildId = serverId || authStore.selectedGuildId || localStorage.getItem('kotbo_guild_id') || '';
+
+    if (isPublicView) {
+      activeTab = 'articles';
+      await loadArticles();
+      return;
+    }
+
+    await Promise.all([dashboardStore.refresh(), loadArticles(), loadConfigs()]);
   });
 
   async function loadArticles() {
     loading = true;
     try {
-      articles = await fetchNews();
+      articles = isPublicView ? await fetchPublicNews(guildId) : await fetchNews();
     } catch (err) {
       console.error(err);
     } finally {
@@ -98,6 +107,11 @@
   }
 
   async function loadConfigs() {
+    if (isPublicView) {
+      categoryConfigs = [];
+      loadingConfigs = false;
+      return;
+    }
     loadingConfigs = true;
     try {
       categoryConfigs = await fetchNewsCategoryConfigs();
@@ -117,6 +131,7 @@
     category = 'Mise à jour';
     subcategory = '';
     published = false;
+    publishMode = 'summary';
     isEditing = false;
     showEditor = true;
   }
@@ -130,6 +145,7 @@
     category = art.category;
     subcategory = art.subcategory || '';
     published = art.published;
+    publishMode = 'summary';
     isEditing = true;
     showEditor = true;
   }
@@ -147,7 +163,8 @@
       imageUrl: imageUrl || undefined,
       category,
       subcategory: subcategory || '',
-      published
+      published,
+      publishMode
     };
 
     await actionState.run(async () => {
@@ -255,7 +272,11 @@
       </div>
       <div>
         <h1 class="text-3xl font-black tracking-tight leading-tight">Actualités & RSS</h1>
-        <p class="text-on-surface-variant/80 font-medium">Rédigez des annonces, des patch notes et générez le flux RSS du serveur.</p>
+        <p class="text-on-surface-variant/80 font-medium">
+          {isPublicView
+            ? 'Consultez les dernières annonces publiées pour ce serveur.'
+            : 'Rédigez des annonces, des patch notes et générez le flux RSS du serveur.'}
+        </p>
       </div>
     </div>
     <div class="flex gap-4">
@@ -277,7 +298,9 @@
     </div>
   </header>
 
-  <InlineFeedback state={actionState} />
+  {#if !isPublicView}
+    <InlineFeedback state={actionState} />
+  {/if}
 
   {#if showEditor}
     <!-- EDITOR WORKSPACE -->
@@ -336,7 +359,7 @@
             <!-- Published checkbox -->
             <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container-high/20 border border-outline-variant/5">
               <div>
-                <p class="text-xs font-bold font-medium leading-tight">Publier immédiatement</p>
+                <p class="text-xs font-bold leading-tight">Publier immédiatement</p>
                 <p class="text-[9px] text-on-surface-variant/50">Visibilité publique & notification</p>
               </div>
               <input 
@@ -345,6 +368,29 @@
                 class="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary/30"
               />
             </div>
+          </div>
+
+          <div class="space-y-2 rounded-2xl border border-outline-variant/10 bg-surface-container-high/20 p-4">
+            <p class="text-[10px] font-bold text-on-surface-variant/70 uppercase tracking-widest">Mode d'envoi Discord</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onclick={() => (publishMode = 'summary')}
+                class="rounded-xl px-4 py-2.5 text-xs font-bold transition-all border {publishMode === 'summary' ? 'border-primary/40 bg-primary/10 text-primary' : 'border-outline-variant/20 bg-surface text-on-surface-variant'}"
+              >
+                Résumé + bouton vers la page
+              </button>
+              <button
+                type="button"
+                onclick={() => (publishMode = 'full_embed')}
+                class="rounded-xl px-4 py-2.5 text-xs font-bold transition-all border {publishMode === 'full_embed' ? 'border-primary/40 bg-primary/10 text-primary' : 'border-outline-variant/20 bg-surface text-on-surface-variant'}"
+              >
+                Embed complet + page publique
+              </button>
+            </div>
+            <p class="text-[11px] text-on-surface-variant/70">
+              Ce choix est utilisé lors de la publication immédiate ou quand un brouillon est publié.
+            </p>
           </div>
 
           <!-- Image URL -->
@@ -408,7 +454,7 @@
           Prévisualisation en direct
         </h3>
         
-        <div class="flex-1 bg-surface-container-high/20 border border-outline-variant/10 rounded-3xl p-8 overflow-y-auto max-h-[600px] custom-scrollbar prose prose-invert">
+        <div class="flex-1 bg-surface-container-high/20 border border-outline-variant/10 rounded-3xl p-8 overflow-y-auto max-h-150 custom-scrollbar prose prose-invert">
           {#if imageUrl}
             <img src={imageUrl} alt="Illustration" class="w-full h-48 object-cover rounded-2xl mb-6 border border-outline-variant/20" />
           {/if}
@@ -444,22 +490,24 @@
           <div class="absolute bottom-0 left-8 right-8 h-0.5 bg-primary rounded-t-full"></div>
         {/if}
       </button>
-      <button 
-        onclick={() => activeTab = 'configs'}
-        class="px-8 py-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative {activeTab === 'configs' ? 'text-primary font-bold' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
-      >
-        Flux & Salons par Catégorie
-        {#if activeTab === 'configs'}
-          <div class="absolute bottom-0 left-8 right-8 h-0.5 bg-primary rounded-t-full"></div>
-        {/if}
-      </button>
+      {#if !isPublicView}
+        <button 
+          onclick={() => activeTab = 'configs'}
+          class="px-8 py-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative {activeTab === 'configs' ? 'text-primary font-bold' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
+        >
+          Flux & Salons par Catégorie
+          {#if activeTab === 'configs'}
+            <div class="absolute bottom-0 left-8 right-8 h-0.5 bg-primary rounded-t-full"></div>
+          {/if}
+        </button>
+      {/if}
     </div>
 
     {#if activeTab === 'articles'}
       <!-- LIST VIEW -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <!-- RSS feed copy link card (Wide on desktop) -->
-        <section class="lg:col-span-3 bg-gradient-to-r from-primary/10 via-secondary/5 to-transparent border border-outline-variant/20 p-8 rounded-[2.5rem] flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <section class="lg:col-span-3 bg-linear-to-r from-primary/10 via-secondary/5 to-transparent border border-outline-variant/20 p-8 rounded-[2.5rem] flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div class="space-y-2">
             <h3 class="text-lg font-black flex items-center gap-2.5">
               <Papicon icon="globe" size={20} class="text-primary" />
@@ -469,7 +517,7 @@
               Ce flux RSS est généré dynamiquement à partir des articles marqués comme **publiés**. Vos membres peuvent s'y abonner sur Feedly, Inoreader, ou tout autre lecteur RSS.
             </p>
           </div>
-          <div class="flex items-center gap-2 bg-surface-container-low border border-outline-variant/25 px-5 py-3 rounded-2xl w-full md:w-auto md:min-w-[400px]">
+          <div class="flex items-center gap-2 bg-surface-container-low border border-outline-variant/25 px-5 py-3 rounded-2xl w-full md:w-auto md:min-w-100">
             <span class="text-xs font-mono text-on-surface truncate flex-1">{rssFeedUrl}</span>
             <button 
               onclick={copyRssUrl} 
@@ -753,7 +801,7 @@
                           #{((dashboardStore.state.discordChannels || []).find(ch => ch.id === config.channelId)?.name) || 'salon-inconnu'}
                         </span>
                       </td>
-                      <td class="px-6 py-5 font-mono text-[10px] select-all max-w-[200px] truncate" title={`${API_BASE_URL}/api/public/rss/${currentGuildId}/${encodeURIComponent(config.category)}${config.subcategory ? `/${encodeURIComponent(config.subcategory)}` : ''}`}>
+                      <td class="px-6 py-5 font-mono text-[10px] select-all max-w-50 truncate" title={`${API_BASE_URL}/api/public/rss/${currentGuildId}/${encodeURIComponent(config.category)}${config.subcategory ? `/${encodeURIComponent(config.subcategory)}` : ''}`}>
                         {API_BASE_URL}/api/public/rss/{currentGuildId}/{encodeURIComponent(config.category)}{config.subcategory ? `/${encodeURIComponent(config.subcategory)}` : ''}
                       </td>
                       {#if canEdit}

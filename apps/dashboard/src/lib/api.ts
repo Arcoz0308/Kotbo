@@ -40,7 +40,7 @@ async function authorizedFetch(url: string, options: RequestInit & { headers?: R
   return response;
 }
 
-function getGuildId(guildId) {
+function getGuildId(guildId?: string) {
   if (guildId) {
     return guildId;
   }
@@ -962,6 +962,34 @@ export async function fetchAdminGuilds() {
   return response.json();
 }
 
+export async function fetchAdminShards() {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/shards`);
+  if (!response.ok) throw new Error('Erreur lors du chargement des shards');
+  return response.json();
+}
+
+export async function restartAdminShard(shardId: number) {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/shards/${shardId}/restart`, { method: 'POST' });
+  if (!response.ok) throw new Error('Erreur lors du redémarrage du shard');
+  return response.json();
+}
+
+export async function restartAllAdminShards() {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/shards/restart-all`, { method: 'POST' });
+  if (!response.ok) throw new Error('Erreur lors du redémarrage global');
+  return response.json();
+}
+
+export async function reconfigureAdminShards(payload: { mode: 'auto' | 'fixed'; shardCount?: number | null }) {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/shards/reconfigure`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error('Erreur lors de la reconfiguration des shards');
+  return response.json();
+}
+
 export async function fetchGlobalDailyAlgoLeaderboard() {
   const guildId = getGuildId();
   if (!guildId) return null;
@@ -1404,7 +1432,21 @@ export async function fetchNews(guildId = authStore.selectedGuildId) {
   });
 }
 
-export async function createNews(payload: { title: string; content: string; summary?: string; imageUrl?: string; category?: string; subcategory?: string; published?: boolean }, guildId = authStore.selectedGuildId) {
+export async function fetchPublicNews(guildId: string) {
+  const response = await fetch(`${API_BASE_URL}/api/public/guilds/${guildId}/news`, {
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || 'Erreur lors du chargement des actualités publiques');
+  }
+
+  return response.json();
+}
+
+export async function createNews(payload: { title: string; content: string; summary?: string; imageUrl?: string; category?: string; subcategory?: string; published?: boolean; publishMode?: 'summary' | 'full_embed' }, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/news', {
     method: 'POST',
     payload,
@@ -1413,7 +1455,7 @@ export async function createNews(payload: { title: string; content: string; summ
   });
 }
 
-export async function updateNews(articleId: string, payload: { title?: string; content?: string; summary?: string; imageUrl?: string; category?: string; subcategory?: string; published?: boolean }, guildId = authStore.selectedGuildId) {
+export async function updateNews(articleId: string, payload: { title?: string; content?: string; summary?: string; imageUrl?: string; category?: string; subcategory?: string; published?: boolean; publishMode?: 'summary' | 'full_embed' }, guildId = authStore.selectedGuildId) {
   return dashboardRequest(`/news/${articleId}`, {
     method: 'PATCH',
     payload,

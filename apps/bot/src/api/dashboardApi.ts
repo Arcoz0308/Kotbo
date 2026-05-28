@@ -130,6 +130,7 @@ if (!JWT_SECRET) {
   JWT_SECRET = crypto.randomBytes(32).toString('hex');
 }
 const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://localhost:5173';
+const DASHBOARD_ORIGIN = DASHBOARD_URL.replace(/\/$/, '');
 const DEFAULT_TRANSLATION_TARGET_LANG = 'FR';
 const DISCORD_CLIENT_OWNER_ID = process.env.DISCORD_CLIENT_OWNER_ID;
 
@@ -137,6 +138,27 @@ type ModuleStatus = 'active' | 'inactive' | 'error';
 type SeverityLevel = 'off' | 'info' | 'attention' | 'critique';
 type DashboardPresetKey = 'general' | 'gaming' | 'dev';
 type CommandAccessLevel = 'tout_le_monde' | 'modération' | 'administration';
+type ShardingMode = 'auto' | 'fixed';
+
+type ShardSnapshot = {
+  shardId: number;
+  status: 'online' | 'offline' | 'starting' | 'restarting';
+  guildCount: number;
+  memberCount: number;
+  ping: number;
+  uptime: number;
+  readyAt: string | null;
+  memoryUsage: {
+    rss: number;
+    heapUsed: number;
+    heapTotal: number;
+  };
+};
+
+type ShardingConfig = {
+  mode: ShardingMode;
+  shardCount: number | null;
+};
 
 type ModuleItem = {
   id: string;
@@ -2521,6 +2543,134 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
 
 const splitPath = (pathname: string) => pathname.split('/').filter(Boolean);
 
+const SHARDING_CONFIG_KEY = 'SHARDING_CONFIG';
+
+const DEFAULT_SHARDING_CONFIG: ShardingConfig = {
+  mode: 'auto',
+  shardCount: null,
+};
+
+function parseShardingConfig(rawValue: string | null | undefined): ShardingConfig {
+  if (!rawValue) return DEFAULT_SHARDING_CONFIG;
+
+  try {
+    const parsed = JSON.parse(rawValue) as Partial<ShardingConfig>;
+    if (parsed.mode === 'fixed') {
+      const shardCount = Number(parsed.shardCount);
+      if (Number.isFinite(shardCount) && shardCount > 0) {
+        return { mode: 'fixed', shardCount: Math.floor(shardCount) };
+      }
+    }
+  } catch {
+    // Ignore invalid JSON and fall back to auto sharding.
+  }
+
+  return DEFAULT_SHARDING_CONFIG;
+}
+
+async function loadShardingConfig(): Promise<ShardingConfig> {
+  const config = await prisma.botGlobalConfig.findUnique({ where: { key: SHARDING_CONFIG_KEY } });
+  return parseShardingConfig(config?.value ?? null);
+}
+
+async function saveShardingConfig(config: ShardingConfig) {
+  await prisma.botGlobalConfig.upsert({
+    where: { key: SHARDING_CONFIG_KEY },
+    update: { value: JSON.stringify(config) },
+    create: { key: SHARDING_CONFIG_KEY, value: JSON.stringify(config) },
+  });
+}
+
+function requestContainerRestart() {
+  if (typeof process.send === 'function') {
+    process.send({ type: 'restart-container' });
+    return;
+  }
+
+  setTimeout(() => process.exit(0), 250);
+}
+
+async function resolveGuildById(client: Client, guildId: string) {
+  return client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+}
+
+async function collectShardSnapshots(client: Client): Promise<ShardSnapshot[]> {
+  const sharding = (client as any).shard;
+  if (!sharding) {
+    return [{
+      shardId: 0,
+      status: 'online',
+      guildCount: client.guilds.cache.size,
+      memberCount: client.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0),
+      ping: Math.round(client.ws.ping || 0),
+      uptime: Math.floor(process.uptime()),
+      readyAt: client.readyAt?.toISOString() ?? null,
+      memoryUsage: process.memoryUsage(),
+    }];
+  }
+
+  const configuredShardCount = Number(sharding.count ?? 1);
+  const onlineSnapshots = await sharding.broadcastEval((shardClient: Client) => ({
+    shardId: Number((shardClient.shard?.ids?.[0] ?? 0) as number),
+    status: shardClient.isReady() ? 'online' : 'starting',
+    guildCount: shardClient.guilds.cache.size,
+    memberCount: shardClient.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0),
+    ping: Math.round(shardClient.ws.ping || 0),
+    uptime: Math.floor(process.uptime()),
+    readyAt: shardClient.readyAt?.toISOString() ?? null,
+    memoryUsage: process.memoryUsage(),
+  })) as ShardSnapshot[];
+
+  const snapshotById = new Map<number, ShardSnapshot>();
+  for (const snapshot of onlineSnapshots) {
+    snapshotById.set(snapshot.shardId, snapshot);
+  }
+
+  for (let shardId = 0; shardId < configuredShardCount; shardId += 1) {
+    if (!snapshotById.has(shardId)) {
+      snapshotById.set(shardId, {
+        shardId,
+        status: 'offline',
+        guildCount: 0,
+        memberCount: 0,
+        ping: 0,
+        uptime: 0,
+        readyAt: null,
+        memoryUsage: { rss: 0, heapUsed: 0, heapTotal: 0 },
+      });
+    }
+  }
+
+  return [...snapshotById.values()].sort((a, b) => a.shardId - b.shardId);
+}
+
+async function collectShardGuilds(client: Client) {
+  const sharding = (client as any).shard;
+  if (!sharding) {
+    return client.guilds.cache.map((guild) => ({
+      id: guild.id,
+      name: guild.name,
+      icon: guild.iconURL(),
+      memberCount: guild.memberCount,
+      joinedAt: guild.joinedAt?.toISOString() ?? null,
+      activated: false,
+      activationCode: null,
+      shardId: 0,
+    }));
+  }
+
+  const results = await sharding.broadcastEval((shardClient: Client) => shardClient.guilds.cache.map((guild) => ({
+    id: guild.id,
+    name: guild.name,
+    icon: guild.iconURL(),
+    memberCount: guild.memberCount,
+    joinedAt: guild.joinedAt?.toISOString() ?? null,
+    shardId: Number((shardClient.shard?.ids?.[0] ?? 0) as number),
+  })));
+
+  return results.flat();
+}
+
 let dashboardStateBroadcaster: ((guildId: string, reason: string) => void) | null = null;
 
 export async function notifyDashboardSanctionReportRequired(params: {
@@ -3076,6 +3226,38 @@ export const startDashboardApi = (client: Client) => {
         return;
       }
 
+      if (parts[0] === 'api' && parts[1] === 'public' && parts[2] === 'guilds' && parts[3] && parts[4] === 'news' && req.method === 'GET') {
+        const guildId = parts[3];
+        if (!/^\d{17,19}$/.test(guildId)) {
+          json(res, 400, { error: 'ID de guilde invalide' });
+          return;
+        }
+
+        try {
+          const guild = await prisma.guild.findUnique({
+            where: { id: guildId },
+            select: { id: true },
+          });
+
+          if (!guild) {
+            json(res, 404, { error: 'Guilde introuvable' });
+            return;
+          }
+
+          const articles = await prisma.newsArticle.findMany({
+            where: { guildId, published: true },
+            orderBy: { publishedAt: 'desc' },
+          });
+
+          json(res, 200, articles);
+        } catch (err: any) {
+          logger.error('PublicAPI', `Error listing public news for guild ${guildId}: ${err.message}`);
+          json(res, 500, { error: 'Erreur lors de la récupération des actualités publiques' });
+        }
+
+        return;
+      }
+
       if (parts[0] === 'api' && parts[1] === 'public' && parts[2] === 'transcripts' && parts[3] && req.method === 'GET') {
         const transcriptId = parts[3];
         if (!/^[a-zA-Z0-9_\-]+$/.test(transcriptId)) {
@@ -3092,6 +3274,19 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
+          res.removeHeader('X-Frame-Options');
+          res.setHeader(
+            'Content-Security-Policy',
+            [
+              "default-src 'none'",
+              "style-src 'unsafe-inline'",
+              'img-src https: data:',
+              'media-src https:',
+              `frame-ancestors ${DASHBOARD_ORIGIN} http://localhost:5173 http://localhost:3000`,
+              "base-uri 'none'",
+              "form-action 'none'",
+            ].join('; ')
+          );
           res.setHeader('Content-Type', 'text/html; charset=utf-8');
           res.statusCode = 200;
           res.end(transcript.html);
@@ -3488,8 +3683,10 @@ export const startDashboardApi = (client: Client) => {
         }
 
         if (parts[2] === 'stats') {
-          const guildCount = client.guilds.cache.size;
-          const userCount = client.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0);
+          const shardSnapshots = await collectShardSnapshots(client);
+          const guilds = await collectShardGuilds(client);
+          const guildCount = guilds.length;
+          const userCount = guilds.reduce((acc, guild) => acc + guild.memberCount, 0);
           const activeSanctions = await prisma.sanction.count({ where: { status: 'ACTIVE' } });
           const dailyAlgoSubmissions = await prisma.dailyAlgoSubmission.count();
 
@@ -3500,6 +3697,11 @@ export const startDashboardApi = (client: Client) => {
             dailyAlgoSubmissions,
             uptime: Math.floor(process.uptime()),
             memoryUsage: process.memoryUsage(),
+            shardCount: shardSnapshots.length,
+            onlineShardCount: shardSnapshots.filter((snapshot) => snapshot.status !== 'offline').length,
+            averageShardPing: shardSnapshots.length > 0
+              ? Math.round(shardSnapshots.reduce((acc, snapshot) => acc + snapshot.ping, 0) / shardSnapshots.length)
+              : 0,
           });
           return;
         }
@@ -3514,7 +3716,8 @@ export const startDashboardApi = (client: Client) => {
           });
           const dbGuildsMap = new Map(dbGuilds.map(g => [g.id, g]));
 
-          const guilds = client.guilds.cache.map(g => {
+          const shardGuilds = await collectShardGuilds(client);
+          const guilds = shardGuilds.map(g => {
             const dbGuild = dbGuildsMap.get(g.id);
             return {
               id: g.id,
@@ -3524,6 +3727,7 @@ export const startDashboardApi = (client: Client) => {
               joinedAt: g.joinedAt,
               activated: dbGuild?.activated ?? false,
               activationCode: dbGuild?.activationCode ?? null,
+              shardId: g.shardId ?? 0,
             };
           });
 
@@ -3531,9 +3735,73 @@ export const startDashboardApi = (client: Client) => {
           return;
         }
 
+        if (parts[2] === 'shards') {
+          if (req.method === 'GET' && parts.length === 3) {
+            const config = await loadShardingConfig();
+            const shardSnapshots = await collectShardSnapshots(client);
+            json(res, 200, {
+              config,
+              shards: shardSnapshots,
+              onlineShardCount: shardSnapshots.filter((snapshot) => snapshot.status !== 'offline').length,
+            });
+            return;
+          }
+
+          if (req.method === 'POST' && parts.length === 4 && parts[3] === 'restart-all') {
+            const sharding = (client as any).shard;
+            if (!sharding) {
+              json(res, 400, { error: 'Le bot n\'est pas lancé en mode sharding.' });
+              return;
+            }
+
+            await sharding.respawnAll();
+            json(res, 200, { ok: true });
+            return;
+          }
+
+          if (req.method === 'POST' && parts.length === 5 && parts[4] === 'restart') {
+            const shardId = Number(parts[3]);
+            const sharding = (client as any).shard;
+            if (!sharding) {
+              json(res, 400, { error: 'Le bot n\'est pas lancé en mode sharding.' });
+              return;
+            }
+
+            if (!Number.isInteger(shardId) || shardId < 0) {
+              json(res, 400, { error: 'Identifiant de shard invalide.' });
+              return;
+            }
+
+            await sharding.respawn(shardId);
+            json(res, 200, { ok: true });
+            return;
+          }
+
+          if (req.method === 'POST' && parts.length === 4 && parts[3] === 'reconfigure') {
+            const body = await readJsonBody<{ mode?: ShardingMode; shardCount?: number }>(req);
+            const nextMode: ShardingMode = body?.mode === 'fixed' ? 'fixed' : 'auto';
+            const nextShardCount = Number(body?.shardCount);
+
+            if (nextMode === 'fixed' && (!Number.isInteger(nextShardCount) || nextShardCount < 1)) {
+              json(res, 400, { error: 'Un nombre de shards supérieur à zéro est requis en mode fixe.' });
+              return;
+            }
+
+            const nextConfig: ShardingConfig = {
+              mode: nextMode,
+              shardCount: nextMode === 'fixed' ? nextShardCount : null,
+            };
+
+            await saveShardingConfig(nextConfig);
+            json(res, 200, { ok: true, config: nextConfig, restartRequired: true });
+            requestContainerRestart();
+            return;
+          }
+        }
+
         if (parts[2] === 'guilds' && parts.length === 5) {
           const guildId = parts[3];
-          const guild = client.guilds.cache.get(guildId);
+          const guild = await resolveGuildById(client, guildId);
           if (!guild) {
             json(res, 404, { error: 'Serveur introuvable' });
             return;
@@ -3884,36 +4152,99 @@ export const startDashboardApi = (client: Client) => {
           
           let successCount = 0;
           let failCount = 0;
-          
-          const guilds = client.guilds.cache;
-          for (const [id, guild] of guilds) {
-            try {
-              const dbGuild = await prisma.guild.findUnique({ where: { id } });
-              let targetChannelId = dbGuild?.newsChannelId || dbGuild?.publicChannelId;
-              
-              let channel;
-              if (targetChannelId) {
-                channel = guild.channels.cache.get(targetChannelId);
+
+          if ((client as any).shard) {
+            const dbGuilds = await prisma.guild.findMany({
+              select: {
+                id: true,
+                newsChannelId: true,
+                publicChannelId: true,
+              },
+            });
+            const guildChannelMap = Object.fromEntries(dbGuilds.map((guild) => [guild.id, {
+              newsChannelId: guild.newsChannelId,
+              publicChannelId: guild.publicChannelId,
+            }]));
+
+            const results = await (client as any).shard.broadcastEval(async (
+              shardClient: Client,
+              context: {
+                message: string;
+                guildChannelMap: Record<string, { newsChannelId: string | null; publicChannelId: string | null }>;
               }
-              
-              if (!channel || channel.type !== 0) {
-                channel = guild.channels.cache.find(c => c.type === 0 && c.permissionsFor(client.user!)?.has('SendMessages'));
+            ) => {
+              let shardSuccessCount = 0;
+              let shardFailCount = 0;
+
+              for (const [id, guild] of shardClient.guilds.cache) {
+                try {
+                  const dbGuild = context.guildChannelMap?.[id];
+                  const targetChannelId = dbGuild?.newsChannelId || dbGuild?.publicChannelId;
+
+                  let channel;
+                  if (targetChannelId) {
+                    channel = guild.channels.cache.get(targetChannelId);
+                  }
+
+                  if (!channel || channel.type !== 0) {
+                    channel = guild.channels.cache.find((c) => c.type === 0 && c.permissionsFor(shardClient.user!)?.has('SendMessages'));
+                  }
+
+                  if (channel && channel.isTextBased()) {
+                    const embed = new EmbedBuilder()
+                      .setTitle('📢 Annonce Globale Kotbo')
+                      .setDescription(context.message)
+                      .setColor(COLORS.primary)
+                      .setFooter({ text: 'Système d\'annonce globale' })
+                      .setTimestamp();
+                    await channel.send({ embeds: [embed] });
+                    shardSuccessCount++;
+                  } else {
+                    shardFailCount++;
+                  }
+                } catch {
+                  shardFailCount++;
+                }
               }
-              
-              if (channel && channel.isTextBased()) {
-                const embed = new EmbedBuilder()
-                  .setTitle('📢 Annonce Globale Kotbo')
-                  .setDescription(body.message)
-                  .setColor(COLORS.primary)
-                  .setFooter({ text: 'Système d\'annonce globale' })
-                  .setTimestamp();
-                await channel.send({ embeds: [embed] });
-                successCount++;
-              } else {
+
+              return { successCount: shardSuccessCount, failCount: shardFailCount };
+            }, { context: { message: body.message, guildChannelMap } }) as Array<{ successCount: number; failCount: number }>;
+
+            for (const result of results) {
+              successCount += result.successCount;
+              failCount += result.failCount;
+            }
+          } else {
+            const guilds = client.guilds.cache;
+            for (const [id, guild] of guilds) {
+              try {
+                const dbGuild = await prisma.guild.findUnique({ where: { id } });
+                const targetChannelId = dbGuild?.newsChannelId || dbGuild?.publicChannelId;
+
+                let channel;
+                if (targetChannelId) {
+                  channel = guild.channels.cache.get(targetChannelId);
+                }
+
+                if (!channel || channel.type !== 0) {
+                  channel = guild.channels.cache.find(c => c.type === 0 && c.permissionsFor(client.user!)?.has('SendMessages'));
+                }
+
+                if (channel && channel.isTextBased()) {
+                  const embed = new EmbedBuilder()
+                    .setTitle('📢 Annonce Globale Kotbo')
+                    .setDescription(body.message)
+                    .setColor(COLORS.primary)
+                    .setFooter({ text: 'Système d\'annonce globale' })
+                    .setTimestamp();
+                  await channel.send({ embeds: [embed] });
+                  successCount++;
+                } else {
+                  failCount++;
+                }
+              } catch {
                 failCount++;
               }
-            } catch {
-              failCount++;
             }
           }
           
@@ -3938,13 +4269,14 @@ export const startDashboardApi = (client: Client) => {
         // GET /api/admin/activation-codes - List all activation codes
         if (parts.length === 3 && parts[2] === 'activation-codes' && req.method === 'GET') {
           try {
+            const guildNames = new Map((await collectShardGuilds(client)).map((guild) => [guild.id, guild.name]));
             const codes = await prisma.activationCode.findMany({
               orderBy: { createdAt: 'desc' }
             });
             const enrichedCodes = await Promise.all(codes.map(async (c) => {
               let guildName = null;
               if (c.usedByGuildId) {
-                guildName = getGuildName(client, c.usedByGuildId);
+                guildName = guildNames.get(c.usedByGuildId) ?? getGuildName(client, c.usedByGuildId);
               }
               return {
                 ...c,
@@ -8593,6 +8925,7 @@ export const startDashboardApi = (client: Client) => {
                 category?: string;
                 subcategory?: string;
                 published?: boolean;
+                publishMode?: 'summary' | 'full_embed';
               }>(req);
 
               if (!body || !body.title || !body.content) {
@@ -8634,7 +8967,8 @@ export const startDashboardApi = (client: Client) => {
               });
 
               if (isPublished) {
-                await publishNewsArticle(client, guildId, article.id).catch(err => {
+                const publishMode = body.publishMode === 'full_embed' ? 'full_embed' : 'summary';
+                await publishNewsArticle(client, guildId, article.id, publishMode).catch(err => {
                   logger.error('DashboardAPI', `Failed to send news notification to Discord for article ${article.id}:`, err);
                 });
               }
@@ -8668,6 +9002,7 @@ export const startDashboardApi = (client: Client) => {
                 category?: string;
                 subcategory?: string;
                 published?: boolean;
+                publishMode?: 'summary' | 'full_embed';
               }>(req);
 
               if (!body) {
@@ -8702,7 +9037,8 @@ export const startDashboardApi = (client: Client) => {
               });
 
               if (isPublishing) {
-                await publishNewsArticle(client, guildId, updated.id).catch(err => {
+                const publishMode = body.publishMode === 'full_embed' ? 'full_embed' : 'summary';
+                await publishNewsArticle(client, guildId, updated.id, publishMode).catch(err => {
                   logger.error('DashboardAPI', `Failed to send news notification to Discord for article ${updated.id}:`, err);
                 });
               }

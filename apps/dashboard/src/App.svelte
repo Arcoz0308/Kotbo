@@ -55,6 +55,7 @@
   import TranscriptDetail from './pages/TranscriptDetail.svelte';
 
   const isPublicPage = $derived(
+    /^\/\d{17,19}\/news\/?$/.test($router.path) ||
     ($router.path.startsWith('/profile/') && !authStore.isAuthenticated) ||
     $router.path.startsWith('/transcripts/')
   );
@@ -248,6 +249,9 @@
 {:else}
   <svelte:boundary>
     {#if isPublicPage}
+      <Route path="/:serverId/news" let:meta>
+        <News serverId={meta.params.serverId} />
+      </Route>
       <Route path="/profile/:userId" let:meta>
         <PublicProfile userId={meta.params.userId} />
       </Route>

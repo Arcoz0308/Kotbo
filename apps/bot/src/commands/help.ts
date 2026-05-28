@@ -121,7 +121,7 @@ const COMMANDS: HelpCommand[] = [
     command: ticketCmd,
     icon: '🎫',
     category: 'Administration',
-    summary: 'Permet de renommer le salon du ticket courant',
+    summary: 'Gère les tickets: claim, info membre, close, reopen, delete et rename',
   },
   {
     command: casierCmd,

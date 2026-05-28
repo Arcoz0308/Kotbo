@@ -4,7 +4,26 @@ import { logger } from '../utils/logger.js';
 import { createNotification } from './staffLeadershipService.js';
 import { COLORS } from '../utils/embeds.js';
 
-export async function publishNewsArticle(client: Client, guildId: string, articleId: string) {
+function buildEmbedDescription(article: { summary: string | null; content: string }, mode: 'summary' | 'full_embed') {
+  if (mode === 'full_embed') {
+    const normalized = article.content.trim();
+    if (!normalized) {
+      return article.summary || 'Aucun contenu.';
+    }
+    return normalized.length > 3900 ? `${normalized.slice(0, 3897)}...` : normalized;
+  }
+
+  if (article.summary) {
+    return article.summary;
+  }
+
+  const truncatedContent = article.content.length > 200
+    ? `${article.content.substring(0, 197)}...`
+    : article.content;
+  return truncatedContent;
+}
+
+export async function publishNewsArticle(client: Client, guildId: string, articleId: string, mode: 'summary' | 'full_embed' = 'summary') {
   const article = await prisma.newsArticle.findUnique({
     where: { id: articleId },
   });
@@ -53,7 +72,7 @@ export async function publishNewsArticle(client: Client, guildId: string, articl
   }
 
   const dashboardUrl = process.env.DASHBOARD_URL || 'http://localhost:5173';
-  const articleUrl = `${dashboardUrl}/news`; // On peut rediriger vers l'onglet actualités
+  const articleUrl = `${dashboardUrl}/${guildId}/news`;
 
   // Construction de l'embed
   const embed = new EmbedBuilder()
@@ -62,15 +81,7 @@ export async function publishNewsArticle(client: Client, guildId: string, articl
     .setTimestamp(article.publishedAt)
     .setFooter({ text: 'Kotbo Actualités' });
 
-  if (article.summary) {
-    embed.setDescription(article.summary);
-  } else {
-    // Si pas de résumé, on tronque le contenu
-    const truncatedContent = article.content.length > 200 
-      ? article.content.substring(0, 197) + '...' 
-      : article.content;
-    embed.setDescription(truncatedContent);
-  }
+  embed.setDescription(buildEmbedDescription(article, mode));
 
   if (article.imageUrl) {
     embed.setImage(article.imageUrl);
@@ -125,7 +136,7 @@ export function generateRssXml(
 ): string {
   const xmlItems = articles.map(art => {
     const pubDate = new Date(art.publishedAt).toUTCString();
-    const link = `${dashboardUrl}/news`;
+    const link = `${dashboardUrl}/${guildId}/news`;
     const contentEncoded = art.content ? `<![CDATA[${art.content}]]>` : '';
     const summary = art.summary ? `<![CDATA[${art.summary}]]>` : '';
     return `    <item>
@@ -152,7 +163,7 @@ export function generateRssXml(
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/">
   <channel>
     <title><![CDATA[Actualités - ${guildName}]]></title>
-    <link>${dashboardUrl}/news</link>
+    <link>${dashboardUrl}/${guildId}/news</link>
     <description><![CDATA[Flux RSS des actualités et patch notes rédigés par le staff de ${guildName}]]></description>
     <language>fr</language>
     <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>

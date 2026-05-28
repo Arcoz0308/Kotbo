@@ -3,6 +3,7 @@
   import { 
     fetchAdminStats, 
     fetchAdminGuilds, 
+    fetchAdminShards,
     fetchAdminGuildInvite, 
     leaveAdminGuild, 
     fetchGlobalAdmins, 
@@ -26,6 +27,9 @@
     cleanupGlobalBannedWords,
     updateGlobalBannedWord,
     deleteGlobalBannedWord,
+    restartAdminShard,
+    restartAllAdminShards,
+    reconfigureAdminShards,
   } from '../lib/api';
   import Papicon from '../lib/components/Papicon.svelte';
   import MetricCard from '../lib/components/MetricCard.svelte';
@@ -45,6 +49,26 @@
     word: string;
     category: string;
     enabled: boolean;
+  };
+
+  type ShardSnapshot = {
+    shardId: number;
+    status: 'online' | 'offline' | 'starting' | 'restarting';
+    guildCount: number;
+    memberCount: number;
+    ping: number;
+    uptime: number;
+    readyAt: string | null;
+    memoryUsage: {
+      rss: number;
+      heapUsed: number;
+      heapTotal: number;
+    };
+  };
+
+  type ShardingConfig = {
+    mode: 'auto' | 'fixed';
+    shardCount: number | null;
   };
 
   const BANNED_WORD_CATEGORIES = {
@@ -85,6 +109,26 @@
   const globalWordSaveTimers = new Map<string, ReturnType<typeof setTimeout>>();
   let globalCleanupLoading = $state(false);
   const GLOBAL_BANNED_WORDS_PAGE_SIZE = 12;
+  let shardState = $state<{ config: ShardingConfig; shards: ShardSnapshot[]; onlineShardCount: number } | null>(null);
+  let shardLoading = $state(true);
+  let shardActionLoading = $state('');
+  let shardMode = $state<'auto' | 'fixed'>('auto');
+  let shardCount = $state('');
+
+  const shardRows = $derived(shardState?.shards ?? []);
+  const shardConfiguredCount = $derived(
+    shardState?.config.mode === 'fixed'
+      ? (shardState?.config.shardCount ?? shardRows.length)
+      : shardRows.length,
+  );
+  const shardAveragePing = $derived(
+    shardRows.length > 0
+      ? Math.round(shardRows.reduce((sum, shard) => sum + shard.ping, 0) / shardRows.length)
+      : 0,
+  );
+  const maxShardGuildCount = $derived(
+    shardRows.length > 0 ? Math.max(...shardRows.map((shard) => shard.guildCount)) : 0,
+  );
 
   const globalBannedWordsTotalPages = $derived(
     Math.max(1, Math.ceil(globalBannedWords.length / GLOBAL_BANNED_WORDS_PAGE_SIZE))
@@ -97,7 +141,7 @@
     )
   );
   
-  let activeTab = $state<'overview' | 'servers' | 'security' | 'content' | 'config' | 'activation'>('overview');
+  let activeTab = $state<'overview' | 'servers' | 'shards' | 'security' | 'content' | 'config' | 'activation'>('overview');
   
   let loading = $state(true);
   let error = $state(null);
@@ -139,9 +183,10 @@
 
   onMount(async () => {
     try {
-      const [statsData, guildsData, adminsData, blacklistData, configData, errorsData] = await Promise.all([
+      const [statsData, guildsData, shardsData, adminsData, blacklistData, configData, errorsData] = await Promise.all([
         fetchAdminStats(),
         fetchAdminGuilds(),
+        fetchAdminShards(),
         fetchGlobalAdmins(),
         fetchGlobalBlacklist(),
         fetchMaintenanceConfig(),
@@ -150,6 +195,13 @@
       ]);
       stats = statsData;
       guilds = guildsData.guilds;
+      shardState = {
+        config: shardsData.config ?? { mode: 'auto', shardCount: null },
+        shards: shardsData.shards ?? [],
+        onlineShardCount: shardsData.onlineShardCount ?? 0,
+      };
+      shardMode = shardState.config.mode;
+      shardCount = shardState.config.shardCount ? String(shardState.config.shardCount) : '';
       globalAdmins = adminsData.admins;
       globalBlacklist = blacklistData.blacklist;
       maintenanceMode = configData.maintenance;
@@ -158,6 +210,7 @@
       error = err.message;
     } finally {
       loading = false;
+      shardLoading = false;
     }
   });
 
@@ -565,6 +618,99 @@
     }
   }
 
+  function formatShardUptime(seconds: number) {
+    if (!seconds || seconds <= 0) return '0m';
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    if (days > 0) return `${days}j ${hours}h ${minutes}m`;
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    return `${minutes}m`;
+  }
+
+  function shardStatusLabel(status: ShardSnapshot['status']) {
+    if (status === 'online') return 'En ligne';
+    if (status === 'starting') return 'Démarrage';
+    if (status === 'restarting') return 'Redémarrage';
+    return 'Hors ligne';
+  }
+
+  function shardStatusTone(status: ShardSnapshot['status']) {
+    if (status === 'online') return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+    if (status === 'starting') return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+    if (status === 'restarting') return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+    return 'bg-red-500/10 text-red-400 border-red-500/20';
+  }
+
+  async function refreshShards() {
+    try {
+      shardLoading = true;
+      const data = await fetchAdminShards();
+      shardState = {
+        config: data.config ?? { mode: 'auto', shardCount: null },
+        shards: data.shards ?? [],
+        onlineShardCount: data.onlineShardCount ?? 0,
+      };
+      shardMode = shardState.config.mode;
+      shardCount = shardState.config.shardCount ? String(shardState.config.shardCount) : '';
+    } catch (err: any) {
+      toast.error(err.message || 'Impossible de rafraîchir les shards.');
+    } finally {
+      shardLoading = false;
+    }
+  }
+
+  async function handleRestartShard(shardId: number) {
+    if (!confirm(`Redémarrer le shard ${shardId} ?`)) return;
+    try {
+      shardActionLoading = `restart:${shardId}`;
+      await restartAdminShard(shardId);
+      toast.success(`Shard ${shardId} redémarré.`);
+      await refreshShards();
+    } catch (err: any) {
+      toast.error(err.message || 'Erreur lors du redémarrage du shard.');
+    } finally {
+      shardActionLoading = '';
+    }
+  }
+
+  async function handleRestartAllShards() {
+    if (!confirm('Redémarrer tous les shards ?')) return;
+    try {
+      shardActionLoading = 'restart-all';
+      await restartAllAdminShards();
+      toast.success('Redémarrage global demandé.');
+      await refreshShards();
+    } catch (err: any) {
+      toast.error(err.message || 'Erreur lors du redémarrage global.');
+    } finally {
+      shardActionLoading = '';
+    }
+  }
+
+  async function handleReconfigureShards() {
+    try {
+      const payload = {
+        mode: shardMode,
+        shardCount: shardMode === 'fixed' ? Number(shardCount) : null,
+      };
+
+      if (payload.mode === 'fixed' && (!Number.isInteger(payload.shardCount) || (payload.shardCount ?? 0) < 1)) {
+        toast.error('Le nombre de shards doit être supérieur à zéro.');
+        return;
+      }
+
+      shardActionLoading = 'reconfigure';
+      await reconfigureAdminShards(payload);
+
+      toast.success('Configuration de sharding enregistrée. Le conteneur va redémarrer.');
+    } catch (err: any) {
+      toast.error(err.message || 'Erreur lors de la reconfiguration des shards.');
+    } finally {
+      shardActionLoading = '';
+    }
+  }
+
   function goToGlobalBannedWordsPage(nextPage: number) {
     globalBannedWordsPage = Math.min(globalBannedWordsTotalPages, Math.max(1, nextPage));
   }
@@ -630,37 +776,43 @@
     <div class="flex flex-wrap gap-2 p-2 bg-surface/50 rounded-2xl border border-outline-variant/10">
       <button 
         onclick={() => activeTab = 'overview'}
-        class="flex-1 min-w-[120px] px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all {activeTab === 'overview' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-on-surface/5 hover:text-on-surface'}"
+        class="flex-1 min-w-30 px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all {activeTab === 'overview' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-on-surface/5 hover:text-on-surface'}"
       >
         <Papicon icon="activity" size={20} /> Vue d'ensemble
       </button>
       <button 
         onclick={() => activeTab = 'servers'}
-        class="flex-1 min-w-[120px] px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all {activeTab === 'servers' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-on-surface/5 hover:text-on-surface'}"
+        class="flex-1 min-w-30 px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all {activeTab === 'servers' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-on-surface/5 hover:text-on-surface'}"
       >
         <Papicon icon="Server" size={20} /> Serveurs ({stats.guildCount})
       </button>
       <button 
+        onclick={() => activeTab = 'shards'}
+        class="flex-1 min-w-30 px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all {activeTab === 'shards' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-on-surface/5 hover:text-on-surface'}"
+      >
+        <Papicon icon="Activity" size={20} /> Shards
+      </button>
+      <button 
         onclick={() => activeTab = 'security'}
-        class="flex-1 min-w-[120px] px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all {activeTab === 'security' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-on-surface/5 hover:text-on-surface'}"
+        class="flex-1 min-w-30 px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all {activeTab === 'security' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-on-surface/5 hover:text-on-surface'}"
       >
         <Papicon icon="ShieldCheck" size={20} /> Sécurité
       </button>
       <button 
         onclick={() => activeTab = 'content'}
-        class="flex-1 min-w-[120px] px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all {activeTab === 'content' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-on-surface/5 hover:text-on-surface'}"
+        class="flex-1 min-w-30 px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all {activeTab === 'content' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-on-surface/5 hover:text-on-surface'}"
       >
         <Papicon icon="filter" size={20} /> Mots globaux
       </button>
       <button 
         onclick={() => activeTab = 'config'}
-        class="flex-1 min-w-[120px] px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all {activeTab === 'config' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-on-surface/5 hover:text-on-surface'}"
+        class="flex-1 min-w-30 px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all {activeTab === 'config' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-on-surface/5 hover:text-on-surface'}"
       >
         <Papicon icon="Settings" size={20} /> Avancé
       </button>
       <button 
         onclick={() => activeTab = 'activation'}
-        class="flex-1 min-w-[120px] px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all {activeTab === 'activation' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-on-surface/5 hover:text-on-surface'}"
+        class="flex-1 min-w-30 px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all {activeTab === 'activation' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'text-on-surface-variant hover:bg-on-surface/5 hover:text-on-surface'}"
       >
         <Papicon icon="Key" size={20} /> Codes d'activation
       </button>
@@ -729,7 +881,7 @@
                 <textarea 
                   bind:value={broadcastMessage}
                   placeholder="Écrivez votre message global ici..." 
-                  class="flex-1 bg-surface/50 border border-outline-variant/20 rounded-xl px-4 py-4 text-sm focus:outline-none focus:border-blue-500/50 text-on-surface transition-colors resize-none min-h-[120px]"
+                  class="flex-1 bg-surface/50 border border-outline-variant/20 rounded-xl px-4 py-4 text-sm focus:outline-none focus:border-blue-500/50 text-on-surface transition-colors resize-none min-h-30"
                   required
                 ></textarea>
                 <button 
@@ -889,6 +1041,200 @@
       </div>
     </div>
   {/if}
+
+      {#if activeTab === 'shards'}
+        <div class="space-y-8 animate-in fade-in">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <MetricCard
+              label="Shards configurés"
+              value={shardConfiguredCount}
+              icon="Server"
+              toneClass="bg-indigo-500/10 text-indigo-400"
+            />
+            <MetricCard
+              label="En ligne"
+              value={shardState?.onlineShardCount ?? 0}
+              icon="Wifi"
+              toneClass="bg-emerald-500/10 text-emerald-400"
+            />
+            <MetricCard
+              label="Ping moyen"
+              value={`${shardAveragePing} ms`}
+              icon="Activity"
+              toneClass="bg-blue-500/10 text-blue-400"
+            />
+          </div>
+
+          <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+            <div class="space-y-6 xl:col-span-1">
+              <div class="premium-card rounded-[2.25rem] p-8 space-y-5 h-full">
+                <div class="flex items-center justify-between gap-4">
+                  <div>
+                    <h2 class="text-xl font-black font-headline flex items-center gap-3">
+                      <Papicon icon="Settings" size={22} class="text-primary" />
+                      Configuration
+                    </h2>
+                    <p class="text-sm text-on-surface-variant mt-2">Le conteneur redémarre automatiquement après reconfiguration.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onclick={refreshShards}
+                    class="rounded-2xl border border-outline-variant/20 px-4 py-2 text-xs font-black uppercase tracking-[0.15em] text-on-surface-variant hover:bg-on-surface/5 transition-colors"
+                    disabled={shardLoading}
+                  >
+                    {shardLoading ? '...' : 'Rafraîchir'}
+                  </button>
+                </div>
+
+                <div class="grid gap-3 text-sm">
+                  <div class="flex items-center justify-between rounded-2xl bg-surface/40 px-4 py-3">
+                    <span class="text-on-surface-variant">Mode actuel</span>
+                    <span class="font-black text-on-surface uppercase tracking-widest text-[10px]">{shardState?.config.mode ?? 'auto'}</span>
+                  </div>
+                  <div class="flex items-center justify-between rounded-2xl bg-surface/40 px-4 py-3">
+                    <span class="text-on-surface-variant">Redondance</span>
+                    <span class="font-black text-on-surface">{shardConfiguredCount} shard(s)</span>
+                  </div>
+                  <div class="flex items-center justify-between rounded-2xl bg-surface/40 px-4 py-3">
+                    <span class="text-on-surface-variant">En ligne</span>
+                    <span class="font-black text-emerald-400">{shardState?.onlineShardCount ?? 0}/{shardConfiguredCount}</span>
+                  </div>
+                </div>
+
+                <div class="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onclick={handleRestartAllShards}
+                    disabled={shardActionLoading === 'restart-all'}
+                    class="rounded-2xl bg-amber-500 px-4 py-3 text-sm font-black text-white hover:bg-amber-500/90 transition-colors disabled:opacity-40"
+                  >
+                    {shardActionLoading === 'restart-all' ? 'Redémarrage...' : 'Redémarrer tout'}
+                  </button>
+                  <button
+                    type="button"
+                    onclick={handleReconfigureShards}
+                    disabled={shardActionLoading === 'reconfigure'}
+                    class="rounded-2xl bg-primary px-4 py-3 text-sm font-black text-white hover:bg-primary/90 transition-colors disabled:opacity-40"
+                  >
+                    {shardActionLoading === 'reconfigure' ? 'Enregistrement...' : 'Appliquer la config'}
+                  </button>
+                </div>
+
+                <label class="space-y-2 block">
+                  <span class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/60">Mode de sharding</span>
+                  <select
+                    bind:value={shardMode}
+                    class="w-full rounded-2xl border border-outline-variant/20 bg-surface/60 px-4 py-3 text-sm text-on-surface focus:outline-none focus:border-primary/50"
+                  >
+                    <option value="auto">Automatique</option>
+                    <option value="fixed">Fixe</option>
+                  </select>
+                </label>
+
+                <label class="space-y-2 block">
+                  <span class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/60">Nombre de shards</span>
+                  <input
+                    type="number"
+                    min="1"
+                    bind:value={shardCount}
+                    placeholder="Auto si vide"
+                    disabled={shardMode !== 'fixed'}
+                    class="w-full rounded-2xl border border-outline-variant/20 bg-surface/60 px-4 py-3 text-sm text-on-surface focus:outline-none focus:border-primary/50 disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div class="space-y-6 xl:col-span-2">
+              <div class="premium-card rounded-[2.25rem] p-8 space-y-6">
+                <div class="flex items-center justify-between gap-4">
+                  <div>
+                    <h2 class="text-xl font-black font-headline flex items-center gap-3">
+                      <Papicon icon="BarChart3" size={22} class="text-cyan-400" />
+                      Répartition visuelle
+                    </h2>
+                    <p class="text-sm text-on-surface-variant mt-2">Lecture rapide de la charge par shard, pour repérer tout déséquilibre en un coup d'œil.</p>
+                  </div>
+                  <div class="text-right">
+                    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/40">Latence moyenne</p>
+                    <p class="text-2xl font-black text-on-surface">{shardAveragePing} ms</p>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 items-end min-h-55">
+                  {#each shardRows as shard (shard.shardId)}
+                    <div class="flex flex-col items-center gap-3">
+                      <div class="w-full h-48 rounded-3xl bg-surface/40 border border-outline-variant/10 p-3 flex items-end">
+                        <div
+                          class="w-full rounded-2xl transition-all duration-700 {shard.status === 'online' ? 'bg-linear-to-t from-emerald-500 to-cyan-400' : shard.status === 'starting' ? 'bg-linear-to-t from-amber-500 to-yellow-300' : shard.status === 'restarting' ? 'bg-linear-to-t from-blue-500 to-indigo-400' : 'bg-linear-to-t from-red-500 to-rose-400'}"
+                          style="height: {maxShardGuildCount > 0 ? Math.max(12, (shard.guildCount / maxShardGuildCount) * 100) : 12}%"
+                        ></div>
+                      </div>
+                      <div class="text-center">
+                        <p class="text-sm font-black text-on-surface">Shard {shard.shardId}</p>
+                        <p class="text-[10px] uppercase tracking-[0.2em] text-on-surface-variant/40">{shard.guildCount} serveurs · {shard.ping} ms</p>
+                      </div>
+                    </div>
+                  {/each}
+                </div>
+              </div>
+
+              <div class="premium-card rounded-[2.25rem] overflow-hidden">
+                <div class="overflow-x-auto">
+                  <table class="w-full text-left">
+                    <thead class="bg-on-surface/5 text-on-surface-variant/40 text-[10px] font-black uppercase tracking-widest">
+                      <tr>
+                        <th class="px-6 py-5">Shard</th>
+                        <th class="px-6 py-5">État</th>
+                        <th class="px-6 py-5">Serveurs</th>
+                        <th class="px-6 py-5">Membres</th>
+                        <th class="px-6 py-5">Ping</th>
+                        <th class="px-6 py-5">Uptime</th>
+                        <th class="px-6 py-5 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant/10">
+                      {#each shardRows as shard (shard.shardId)}
+                        <tr class="hover:bg-on-surface/5 transition-colors group">
+                          <td class="px-6 py-5">
+                            <div class="font-black text-on-surface">#{shard.shardId}</div>
+                            <p class="text-[10px] font-mono text-on-surface-variant/40 mt-1">{shard.readyAt ? new Date(shard.readyAt).toLocaleTimeString('fr-FR') : 'Jamais'}</p>
+                          </td>
+                          <td class="px-6 py-5">
+                            <span class={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${shardStatusTone(shard.status)}`}>
+                              <span class={`w-1.5 h-1.5 rounded-full ${shard.status === 'online' ? 'bg-emerald-400' : shard.status === 'starting' ? 'bg-amber-400' : shard.status === 'restarting' ? 'bg-blue-400' : 'bg-red-400'}`}></span>
+                              {shardStatusLabel(shard.status)}
+                            </span>
+                          </td>
+                          <td class="px-6 py-5 font-black text-on-surface">{shard.guildCount}</td>
+                          <td class="px-6 py-5 font-black text-on-surface">{shard.memberCount.toLocaleString()}</td>
+                          <td class="px-6 py-5 font-black text-on-surface">{shard.ping} ms</td>
+                          <td class="px-6 py-5 font-black text-on-surface">{formatShardUptime(shard.uptime)}</td>
+                          <td class="px-6 py-5 text-right">
+                            <button
+                              type="button"
+                              onclick={() => handleRestartShard(shard.shardId)}
+                              disabled={shardActionLoading === `restart:${shard.shardId}`}
+                              class="rounded-xl border border-outline-variant/20 px-3 py-2 text-xs font-black uppercase tracking-[0.15em] text-on-surface-variant hover:bg-on-surface/5 transition-colors disabled:opacity-40"
+                            >
+                              {shardActionLoading === `restart:${shard.shardId}` ? '...' : 'Redémarrer'}
+                            </button>
+                          </td>
+                        </tr>
+                      {/each}
+                      {#if shardRows.length === 0}
+                        <tr>
+                          <td colspan="7" class="px-6 py-10 text-center text-sm text-on-surface-variant/50">{shardLoading ? 'Chargement des shards...' : 'Aucun shard disponible.'}</td>
+                        </tr>
+                      {/if}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      {/if}
 
       {#if activeTab === 'security'}
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in">
@@ -1276,7 +1622,7 @@
               Flux d'Erreurs
             </h2>
             
-            <div class="premium-card rounded-[2.25rem] p-6 h-[400px] flex flex-col bg-[#0d1117] border-red-500/20">
+            <div class="premium-card rounded-[2.25rem] p-6 h-100 flex flex-col bg-[#0d1117] border-red-500/20">
               <div class="flex items-center justify-between mb-4 px-2">
                 <span class="text-xs font-mono text-on-surface-variant">Dernières erreurs non interceptées</span>
                 <button onclick={handleClearErrors} class="text-xs text-error hover:underline flex items-center gap-1">
@@ -1291,7 +1637,7 @@
                       <span>{new Date(err.createdAt).toLocaleString()}</span>
                       <span class="text-amber-400/80">{err.source || 'Inconnu'}</span>
                     </div>
-                    <div class="text-red-400 break-words">{err.message}</div>
+                    <div class="text-red-400 wrap-break-word">{err.message}</div>
                   </div>
                 {/each}
                 {#if botErrors.length === 0}
@@ -1385,8 +1731,8 @@
                           {/if}
                         </td>
                         <td class="px-8 py-5 text-right">
-                          <button 
-                            class="w-10 h-10 flex inline-flex items-center justify-center hover:bg-error/10 rounded-xl text-on-surface-variant hover:text-error transition-all group-hover:scale-110"
+                            <button 
+                            class="w-10 h-10 inline-flex items-center justify-center hover:bg-error/10 rounded-xl text-on-surface-variant hover:text-error transition-all group-hover:scale-110"
                             onclick={() => handleDeleteCode(item.id, item.code, item.guildName)}
                             title={item.usedByGuildId ? "Révoquer et désactiver le serveur" : "Supprimer ce code"}
                           >

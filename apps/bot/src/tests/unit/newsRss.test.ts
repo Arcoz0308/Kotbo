@@ -36,7 +36,7 @@ describe('news RSS generator', () => {
     expect(xml).toContain('<?xml version="1.0" encoding="UTF-8" ?>');
     expect(xml).toContain('<rss version="2.0"');
     expect(xml).toContain(`<title><![CDATA[Actualités - ${guildName}]]></title>`);
-    expect(xml).toContain(`<link>${dashboardUrl}/news</link>`);
+    expect(xml).toContain(`<link>${dashboardUrl}/${guildId}/news</link>`);
     expect(xml).toContain(`<atom:link href="${apiUrl}/api/public/rss/${guildId}"`);
     
     // Check article 1 (with image & summary)
