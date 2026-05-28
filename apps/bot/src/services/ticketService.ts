@@ -45,6 +45,86 @@ export function buildTicketChannelName(input: string, fallbackSeed: string): str
   return prefixedName.slice(0, 100);
 }
 
+type TicketPanelTypeConfig = {
+  id: string;
+  label: string;
+  description?: string | null;
+  emoji?: string | null;
+  categoryId?: string | null;
+  staffRoleId?: string | null;
+  buttonStyle?: 'PRIMARY' | 'SECONDARY' | 'SUCCESS' | 'DANGER';
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function normalizeTicketPanelTypes(rawTypes: unknown, fallback: {
+  label: string;
+  description: string;
+  categoryId: string | null;
+  staffRoleId: string | null;
+  buttonStyle?: TicketPanelTypeConfig['buttonStyle'];
+  emoji?: string | null;
+}): TicketPanelTypeConfig[] {
+  if (Array.isArray(rawTypes) && rawTypes.length > 0) {
+    return rawTypes
+      .filter(isRecord)
+      .map((item, index) => {
+        const buttonStyle: TicketPanelTypeConfig['buttonStyle'] = item.buttonStyle === 'SECONDARY' || item.buttonStyle === 'SUCCESS' || item.buttonStyle === 'DANGER'
+          ? item.buttonStyle
+          : 'PRIMARY';
+
+        return {
+          id: typeof item.id === 'string' && item.id.trim() ? item.id.trim() : `ticket-type-${index + 1}`,
+          label: typeof item.label === 'string' && item.label.trim() ? item.label.trim().slice(0, 80) : `Ticket ${index + 1}`,
+          description: typeof item.description === 'string' ? item.description.trim().slice(0, 200) : null,
+          emoji: typeof item.emoji === 'string' ? item.emoji.trim().slice(0, 16) : null,
+          categoryId: typeof item.categoryId === 'string' && item.categoryId.trim() ? item.categoryId.trim() : null,
+          staffRoleId: typeof item.staffRoleId === 'string' && item.staffRoleId.trim() ? item.staffRoleId.trim() : null,
+          buttonStyle,
+        };
+      })
+      .filter((item) => item.label.length > 0);
+  }
+
+  return [{
+    id: 'legacy',
+    label: fallback.label,
+    description: fallback.description,
+    emoji: fallback.emoji ?? '📩',
+    categoryId: fallback.categoryId,
+    staffRoleId: fallback.staffRoleId,
+    buttonStyle: fallback.buttonStyle ?? 'PRIMARY',
+  }];
+}
+
+function resolveTicketPanelType(guildConfig: any, typeId?: string | null): TicketPanelTypeConfig {
+  const ticketTypes = normalizeTicketPanelTypes(guildConfig.ticketTypes, {
+    label: guildConfig.ticketEmbedButtonText || 'Ouvrir un ticket',
+    description: guildConfig.ticketEmbedDesc || 'Cliquez sur le bouton ci-dessous pour ouvrir un ticket d\'assistance.',
+    categoryId: guildConfig.ticketCategoryId ?? null,
+    staffRoleId: guildConfig.ticketStaffRoleId ?? null,
+    emoji: '📩',
+    buttonStyle: 'PRIMARY',
+  });
+
+  if (!typeId) {
+    return ticketTypes[0];
+  }
+
+  return ticketTypes.find((type) => type.id === typeId) ?? ticketTypes[0];
+}
+
+function resolveButtonStyle(style?: TicketPanelTypeConfig['buttonStyle']): ButtonStyle {
+  switch (style) {
+    case 'SECONDARY': return ButtonStyle.Secondary;
+    case 'SUCCESS': return ButtonStyle.Success;
+    case 'DANGER': return ButtonStyle.Danger;
+    default: return ButtonStyle.Primary;
+  }
+}
+
 export async function renameTicketChannel(
   client: Client,
   ticket: { id: string; guildId: string; channelId: string | null; userId: string; username: string; reason: string; description: string },
@@ -76,7 +156,7 @@ export async function renameTicketChannel(
 /**
  * Checks if a member has permission to moderate/manage tickets.
  */
-export function canManageTicket(member: GuildMember | APIInteractionGuildMember | null | undefined, guildConfig: any): boolean {
+export function canManageTicket(member: GuildMember | APIInteractionGuildMember | null | undefined, guildConfig: any, ticketStaffRoleId?: string | null): boolean {
   if (!member) return false;
 
   const permissionBits = (member as GuildMember | APIInteractionGuildMember).permissions;
@@ -93,7 +173,8 @@ export function canManageTicket(member: GuildMember | APIInteractionGuildMember 
       : [];
 
   if (guildConfig.moderatorRoleId && roleIds.includes(guildConfig.moderatorRoleId)) return true;
-  if (guildConfig.ticketStaffRoleId && roleIds.includes(guildConfig.ticketStaffRoleId)) return true;
+  const effectiveTicketStaffRoleId = ticketStaffRoleId || guildConfig.ticketStaffRoleId;
+  if (effectiveTicketStaffRoleId && roleIds.includes(effectiveTicketStaffRoleId)) return true;
   return false;
 }
 
@@ -112,22 +193,42 @@ export async function sendTicketSetupEmbed(client: Client, guildId: string): Pro
   }
 
   const colorHex = guildConfig.ticketEmbedColor || '#5865F2';
+  const ticketTypes = normalizeTicketPanelTypes(guildConfig.ticketTypes, {
+    label: guildConfig.ticketEmbedButtonText || 'Ouvrir un ticket',
+    description: guildConfig.ticketEmbedDesc || 'Cliquez sur le bouton ci-dessous pour ouvrir un ticket d\'assistance.',
+    categoryId: guildConfig.ticketCategoryId ?? null,
+    staffRoleId: guildConfig.ticketStaffRoleId ?? null,
+    emoji: '📩',
+    buttonStyle: 'PRIMARY',
+  });
   
+  let desc = guildConfig.ticketEmbedDesc || 'Cliquez sur le bouton ci-dessous pour ouvrir un ticket d\'assistance.';
+  if (ticketTypes.length > 0) {
+    desc += '\n\n**Types de tickets**\n';
+    ticketTypes.forEach(t => {
+      desc += `${t.emoji || '📩'} **${t.label}** — ${t.description}\n`;
+    });
+  }
+
+  // Build a minimal embed: only title, description and color. No role/category details.
   const embed = new EmbedBuilder()
     .setTitle(guildConfig.ticketEmbedTitle || 'Support Technique')
-    .setDescription(guildConfig.ticketEmbedDesc || 'Cliquez sur le bouton ci-dessous pour ouvrir un ticket d\'assistance.')
+    .setDescription(desc)
     .setColor(colorHex as any)
     .setTimestamp();
 
-  const button = new ButtonBuilder()
-    .setCustomId('ticket:open_modal')
-    .setLabel(guildConfig.ticketEmbedButtonText || 'Ouvrir un ticket')
-    .setStyle(ButtonStyle.Primary)
-    .setEmoji('📩');
+  const buttons = ticketTypes.map((type) => new ButtonBuilder()
+    .setCustomId(`ticket:open_modal:${type.id}`)
+    .setLabel(type.label.slice(0, 80))
+    .setStyle(resolveButtonStyle(type.buttonStyle))
+    .setEmoji(type.emoji || '📩'));
 
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(button);
+  const rows: ActionRowBuilder<ButtonBuilder>[] = [];
+  for (let index = 0; index < buttons.length; index += 5) {
+    rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(buttons.slice(index, index + 5)));
+  }
 
-  await channel.send({ embeds: [embed], components: [row] });
+  await channel.send({ embeds: [embed], components: rows });
   logger.success('Ticket', `Embed d'ouverture envoyé avec succès dans #${channel.name} (${guildId})`);
 }
 
@@ -145,7 +246,10 @@ export async function handleTicketButton(client: Client, customId: string, inter
   }
 
   // 1. Clic sur "Ouvrir un ticket" -> Afficher le modal
-  if (customId === 'ticket:open_modal') {
+  if (customId === 'ticket:open_modal' || customId.startsWith('ticket:open_modal:')) {
+    const typeId = customId.startsWith('ticket:open_modal:') ? customId.split(':')[2] : null;
+    const ticketType = resolveTicketPanelType(guildConfig, typeId);
+
     // Vérifier si un ticket est déjà ouvert pour cet utilisateur
     const existing = await prisma.ticket.findFirst({
       where: {
@@ -167,8 +271,8 @@ export async function handleTicketButton(client: Client, customId: string, inter
     }
 
     const modal = new ModalBuilder()
-      .setCustomId('modal:ticket:open')
-      .setTitle(guildConfig.ticketEmbedTitle?.substring(0, 45) || 'Ouvrir un ticket');
+      .setCustomId(typeId ? `modal:ticket:open:${ticketType.id}` : 'modal:ticket:open')
+      .setTitle((ticketType.label || guildConfig.ticketEmbedTitle || 'Ouvrir un ticket').substring(0, 45));
 
     const reasonInput = new TextInputBuilder()
       .setCustomId('reason')
@@ -222,7 +326,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
 
   // 2. Action: Claim
   if (action === 'claim') {
-    if (!canManageTicket(member as GuildMember, guildConfig)) {
+    if (!canManageTicket(member as GuildMember, guildConfig, ticket.staffRoleId)) {
       await interaction.reply({ content: '❌ Seuls les membres du personnel peuvent prendre en charge un ticket.', flags: [MessageFlags.Ephemeral] });
       return;
     }
@@ -317,7 +421,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
 
   // 3. Action: Info / Casier de la personne
   if (action === 'info') {
-    if (!canManageTicket(member as GuildMember, guildConfig)) {
+    if (!canManageTicket(member as GuildMember, guildConfig, ticket.staffRoleId)) {
       await interaction.reply({ content: '❌ Permissions insuffisantes.', flags: [MessageFlags.Ephemeral] });
       return;
     }
@@ -342,7 +446,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
   if (action === 'close') {
     // Le créateur ou le staff peut fermer
     const isOpener = ticket.userId === user.id;
-    const isStaff = canManageTicket(member as GuildMember, guildConfig);
+    const isStaff = canManageTicket(member as GuildMember, guildConfig, ticket.staffRoleId);
 
     if (!isOpener && !isStaff) {
       await interaction.reply({ content: '❌ Vous n\'avez pas la permission de fermer ce ticket.', flags: [MessageFlags.Ephemeral] });
@@ -400,7 +504,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
 
   // 5. Action: Réouvrir
   if (action === 'reopen') {
-    if (!canManageTicket(member as GuildMember, guildConfig)) {
+    if (!canManageTicket(member as GuildMember, guildConfig, ticket.staffRoleId)) {
       await interaction.reply({ content: '❌ Seuls les membres du personnel peuvent réouvrir un ticket.', flags: [MessageFlags.Ephemeral] });
       return;
     }
@@ -444,7 +548,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
 
   // 6. Action: Supprimer (avec transcription obligatoire !)
   if (action === 'delete') {
-    if (!canManageTicket(member as GuildMember, guildConfig)) {
+    if (!canManageTicket(member as GuildMember, guildConfig, ticket.staffRoleId)) {
       await interaction.reply({ content: '❌ Seuls les membres du personnel peuvent supprimer un ticket.', flags: [MessageFlags.Ephemeral] });
       return;
     }
@@ -527,20 +631,25 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
     return;
   }
 
-  if (customId === 'modal:ticket:open') {
+  if (customId === 'modal:ticket:open' || customId.startsWith('modal:ticket:open:')) {
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
     const reason = interaction.fields.getTextInputValue('reason');
     const description = interaction.fields.getTextInputValue('description');
+    const typeId = customId.startsWith('modal:ticket:open:') ? customId.split(':')[3] : null;
+    const ticketType = resolveTicketPanelType(guildConfig, typeId);
 
     try {
       // 1. Créer le salon de ticket
-      const ticketCategory = guildConfig.ticketCategoryId 
-        ? guild.channels.cache.get(guildConfig.ticketCategoryId) 
+      const ticketCategoryId = ticketType.categoryId || guildConfig.ticketCategoryId || null;
+      const ticketCategory = ticketCategoryId
+        ? guild.channels.cache.get(ticketCategoryId)
         : null;
 
       const cleanedUsername = user.username.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'membre';
       const channelName = `ticket-${cleanedUsername}`;
+
+      const ticketStaffRoleId = ticketType.staffRoleId || guildConfig.ticketStaffRoleId || null;
 
       // Configurer les permissions
       const permissionOverwrites: any[] = [
@@ -561,9 +670,9 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
       ];
 
       // Ajouter le rôle staff si configuré
-      if (guildConfig.ticketStaffRoleId) {
+      if (ticketStaffRoleId) {
         permissionOverwrites.push({
-          id: guildConfig.ticketStaffRoleId,
+          id: ticketStaffRoleId,
           allow: [
             PermissionFlagsBits.ViewChannel,
             PermissionFlagsBits.SendMessages,
@@ -602,6 +711,10 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
         data: {
           guildId,
           channelId: ticketChannel.id,
+          ticketTypeId: ticketType.id,
+          ticketTypeLabel: ticketType.label,
+          staffRoleId: ticketStaffRoleId,
+          categoryId: ticketCategoryId,
           userId: user.id,
           username: user.username,
           reason,
@@ -612,7 +725,7 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
 
       // 3. Envoyer l'embed de bienvenue et le panel dans le salon
       const welcomeEmbed = new EmbedBuilder()
-        .setTitle(`🎫 Ticket d'Assistance · ${reason}`)
+        .setTitle(`🎫 Ticket d'Assistance · ${ticketType.label}`)
         .setDescription(`Bonjour <@${user.id}> !\nUn membre du personnel va prendre en charge votre demande rapidement. En attendant, merci de bien détailler vos questions ou explications.\n\n**Description du problème :**\n${description}`)
         .setColor(COLORS.primary as any)
         .setTimestamp()
@@ -674,6 +787,7 @@ async function logTicketEvent(
         .setDescription(`Le ticket <#${ticket.channelId}> a été ouvert.`)
         .setColor(COLORS.success as any)
         .addFields([
+          { name: 'Type', value: ticket.ticketTypeLabel || ticket.ticketTypeId || 'Ticket standard', inline: true },
           { name: 'Créateur', value: `<@${ticket.userId}> (${ticket.username})`, inline: true },
           { name: 'Raison', value: ticket.reason, inline: true },
           { name: 'Description', value: ticket.description }

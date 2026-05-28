@@ -4748,6 +4748,7 @@ export const startDashboardApi = (client: Client) => {
                   ticketEmbedDesc: true,
                   ticketEmbedButtonText: true,
                   ticketEmbedColor: true,
+                  ticketTypes: true,
                   ticketAllowOverclaim: true,
                   ticketOverclaimPermission: true,
                 }
@@ -4802,6 +4803,25 @@ export const startDashboardApi = (client: Client) => {
                     ticketEmbedDesc: body.ticketEmbedDesc || 'Cliquez sur le bouton ci-dessous pour ouvrir un ticket de support.',
                     ticketEmbedButtonText: body.ticketEmbedButtonText || 'Ouvrir un ticket',
                     ticketEmbedColor: body.ticketEmbedColor || '#5865F2',
+                    ...(body.ticketTypes !== undefined
+                      ? {
+                          ticketTypes: Array.isArray(body.ticketTypes)
+                            ? body.ticketTypes
+                                .filter((item: any) => item && typeof item === 'object')
+                                .map((item: any, index: number) => ({
+                                  id: typeof item.id === 'string' && item.id.trim() ? item.id.trim() : `ticket-type-${index + 1}`,
+                                  label: typeof item.label === 'string' && item.label.trim() ? item.label.trim().slice(0, 80) : `Ticket ${index + 1}`,
+                                  description: typeof item.description === 'string' ? item.description.trim().slice(0, 200) : null,
+                                  emoji: typeof item.emoji === 'string' ? item.emoji.trim().slice(0, 16) : null,
+                                  categoryId: typeof item.categoryId === 'string' && item.categoryId.trim() ? item.categoryId.trim() : null,
+                                  staffRoleId: typeof item.staffRoleId === 'string' && item.staffRoleId.trim() ? item.staffRoleId.trim() : null,
+                                  buttonStyle: item.buttonStyle === 'SECONDARY' || item.buttonStyle === 'SUCCESS' || item.buttonStyle === 'DANGER'
+                                    ? item.buttonStyle
+                                    : 'PRIMARY',
+                                }))
+                            : null,
+                        }
+                      : {}),
                     ticketAllowOverclaim: body.ticketAllowOverclaim ?? true,
                     ticketOverclaimPermission: body.ticketOverclaimPermission || 'ANY',
                   }
@@ -4851,6 +4871,7 @@ export const startDashboardApi = (client: Client) => {
                     ticketEmbedDesc: true,
                     ticketEmbedButtonText: true,
                     ticketEmbedColor: true,
+                    ticketTypes: true,
                     ticketAllowOverclaim: true,
                     ticketOverclaimPermission: true,
                   }

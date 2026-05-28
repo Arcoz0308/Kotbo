@@ -4,6 +4,7 @@
   import { createAsyncActionState } from '../asyncAction.svelte';
   import Papicon from './Papicon.svelte';
   import FormSelect from './FormSelect.svelte';
+  import SearchableSelect from './SearchableSelect.svelte';
   import ActionButton from './ActionButton.svelte';
 
   let { featureKey = '', roleAccess = [], title = 'Permissions par rôle', description = 'Définissez les accès spécifiques pour chaque rôle Discord.', guildId = null } = $props();
@@ -90,15 +91,7 @@
       {#each localRoleAccess as entry, i}
         <div class="flex flex-col md:flex-row items-start md:items-center gap-4 p-5 bg-surface-container-low/40 rounded-3xl border border-outline-variant/10 group animate-in fade-in slide-in-from-right-4 duration-300">
           <div class="w-full md:w-64">
-            <FormSelect
-              bind:value={entry.roleId}
-              className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-4 py-2.5 text-sm"
-            >
-              <option value="">Sélectionner un rôle</option>
-              {#each availableRoles as role}
-                <option value={role.id}>@{role.name}</option>
-              {/each}
-            </FormSelect>
+            <SearchableSelect bind:value={entry.roleId} options={availableRoles.map(role => ({ id: role.id, name: `@${role.name}` }))} placeholder="Sélectionner un rôle" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-4 py-2.5 text-sm" />
           </div>
 
           <div class="flex flex-wrap items-center gap-3 flex-1">

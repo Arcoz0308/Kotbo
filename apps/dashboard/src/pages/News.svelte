@@ -18,6 +18,7 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
+  import SearchableSelect from '../lib/components/SearchableSelect.svelte';
 
   let { serverId = '' }: { serverId?: string } = $props();
 
@@ -59,11 +60,11 @@
   const categories = ['Mise à jour', 'Patch Note', 'Annonce', 'Blog', 'Staff'];
 
   const filteredArticles = $derived(
-    articles.filter(art => {
-      const matchesSearch = art.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            (art.summary && art.summary.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                            (art.authorName || '').toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory = categoryFilter === 'ALL' || art.category === categoryFilter;
+    (articles || []).filter(art => {
+      const matchesSearch = (art?.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            (art?.summary && art.summary.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                            (art?.authorName || '').toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory = categoryFilter === 'ALL' || art?.category === categoryFilter;
       return matchesSearch && matchesCategory;
     })
   );
@@ -731,16 +732,7 @@
             <!-- Discord Channel Selector -->
             <div class="space-y-1.5">
               <label for="config-channel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon Discord</label>
-              <select
-                id="config-channel"
-                bind:value={configChannelId}
-                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all"
-              >
-                <option value="">— Sélectionner un salon —</option>
-                {#each dashboardStore.state.discordChannels || [] as channel}
-                  <option value={channel.id}>#{channel.name}</option>
-                {/each}
-              </select>
+              <SearchableSelect id="config-channel" bind:value={configChannelId} options={(dashboardStore.state.discordChannels || []).map(channel => ({ id: channel.id, name: `#${channel.name}` }))} placeholder="— Sélectionner un salon —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all" />
             </div>
 
             <!-- Save Config Button -->

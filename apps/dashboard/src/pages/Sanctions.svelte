@@ -24,6 +24,7 @@
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
   import FormSelect from '../lib/components/FormSelect.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
+  import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
   import { onMount } from 'svelte';
@@ -867,15 +868,7 @@
                 <p class="text-sm font-black text-on-surface">Rôle Modérateur</p>
                 <p class="text-xs text-on-surface-variant/70 mt-1">Rôle requis pour utiliser les commandes de modération.</p>
               </div>
-              <FormSelect
-                bind:value={guildSettings.moderatorRoleId}
-                className="w-full rounded-2xl bg-surface-container-high/40 border border-outline-variant/10 px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all"
-              >
-                <option value="">— Aucun rôle —</option>
-                {#each availableRoles as r}
-                  <option value={r.id}>@{r.name}</option>
-                {/each}
-              </FormSelect>
+              <SearchableSelect bind:value={guildSettings.moderatorRoleId} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="— Aucun rôle —" className="w-full rounded-2xl bg-surface-container-high/40 border border-outline-variant/10 px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all" />
             </div>
 
             <div class="space-y-4">

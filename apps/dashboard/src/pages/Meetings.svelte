@@ -32,8 +32,17 @@
 
   let meetingTitle = $state('');
   let meetingDesc = $state('');
-  let meetingDate = $state(new Date().toISOString().slice(0, 16));
-  let meetingEndDate = $state(new Date(Date.now() + 7200000).toISOString().slice(0, 16)); // +2h
+  // Helper to format a Date as a local datetime-local string (YYYY-MM-DDTHH:mm)
+  const formatLocal = (date: Date) => {
+    const tzOffset = date.getTimezoneOffset() * 60000; // offset in ms
+    const local = new Date(date.getTime() - tzOffset);
+    return local.toISOString().slice(0, 16);
+  };
+
+  // Initialise dates in the user's local timezone rather than UTC
+  let meetingDate = $state(formatLocal(new Date()));
+  // Default duration 2h
+  let meetingEndDate = $state(formatLocal(new Date(Date.now() + 7200000)));
   let currentMeetingId = $state<string | null>(null);
   let selectedMeeting = $state<any>(null);
   
@@ -50,6 +59,8 @@
   const canModerate = $derived(canManageSettings || !!featureAccess.canModerate);
 
   const saveAction = createAsyncActionState();
+  // Validation error message for the form
+  let meetingError = $state('');
   let meetingsConfig = $state<any>(null);
   let loadingConfig = $state(false);
 
@@ -150,8 +161,10 @@
     editMode = false;
     meetingTitle = '';
     meetingDesc = '';
-    meetingDate = new Date(Date.now() + 3600000).toISOString().slice(0, 16); // +1h
-    meetingEndDate = new Date(Date.now() + 7200000).toISOString().slice(0, 16); // +2h
+    // Default start 1h from now, end 2h from now, both in local format
+    meetingDate = formatLocal(new Date(Date.now() + 3600000));
+    meetingEndDate = formatLocal(new Date(Date.now() + 7200000));
+    meetingError = '';
     modalOpen = true;
   }
 
@@ -161,20 +174,37 @@
     currentMeetingId = meeting.id;
     meetingTitle = meeting.title;
     meetingDesc = meeting.description || '';
-    meetingDate = new Date(meeting.scheduledAt).toISOString().slice(0, 16);
-    meetingEndDate = meeting.endedAt ? new Date(meeting.endedAt).toISOString().slice(0, 16) : new Date(new Date(meeting.scheduledAt).getTime() + 3600000).toISOString().slice(0, 16);
+    meetingDate = formatLocal(new Date(meeting.scheduledAt));
+    meetingEndDate = meeting.endedAt ? formatLocal(new Date(meeting.endedAt)) : formatLocal(new Date(new Date(meeting.scheduledAt).getTime() + 3600000));
+    meetingError = '';
     modalOpen = true;
   }
 
   async function save() {
-    if (!meetingTitle || !meetingDate) return;
+    // Basic validation
+    if (!meetingTitle || !meetingDate) {
+      meetingError = 'Le titre et la date de début sont obligatoires.';
+      return;
+    }
+    const start = new Date(meetingDate);
+    const end = new Date(meetingEndDate);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      meetingError = 'Les dates fournies sont invalides.';
+      return;
+    }
+    if (end <= start) {
+      meetingError = 'La date de fin doit être postérieure à la date de début.';
+      return;
+    }
+
     saving = true;
+    meetingError = '';
     try {
       const payload: any = {
         title: meetingTitle,
         description: meetingDesc,
-        scheduledAt: new Date(meetingDate).toISOString(),
-        endedAt: new Date(meetingEndDate).toISOString()
+        scheduledAt: start.toISOString(),
+        endedAt: end.toISOString()
       };
 
       if (editMode && currentMeetingId) {
@@ -186,6 +216,7 @@
       await loadMeetings();
     } catch (e) {
       console.error('Failed to save meeting:', e);
+      meetingError = 'Erreur lors de l’enregistrement de la réunion.';
     } finally {
       saving = false;
     }
@@ -512,6 +543,12 @@
              <p class="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
                La création d'une réunion annoncera automatiquement l'événement dans le salon dédié sur Discord et activera les boutons de RSVP.
              </p>
+          </div>
+        {/if}
+
+        {#if meetingError}
+          <div class="bg-red-500/10 border border-red-500/30 rounded-2xl p-3 mt-3">
+            <p class="text-sm text-red-700">{meetingError}</p>
           </div>
         {/if}
 

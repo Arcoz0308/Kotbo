@@ -15,6 +15,7 @@
   import FormTextarea from '../lib/components/FormTextarea.svelte';
   import FormSelect from '../lib/components/FormSelect.svelte';
   import FormColorPicker from '../lib/components/FormColorPicker.svelte';
+  import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
 
   // Navigation & Tabs
@@ -54,6 +55,15 @@
   let ticketEmbedColor = $state('');
   let ticketAllowOverclaim = $state(true);
   let ticketOverclaimPermission = $state('ANY');
+  let ticketTypes = $state<Array<{
+    id: string;
+    label: string;
+    description: string;
+    emoji: string;
+    categoryId: string;
+    staffRoleId: string;
+    buttonStyle: 'PRIMARY' | 'SECONDARY' | 'SUCCESS' | 'DANGER';
+  }>>([]);
 
   // Member Case Modal Integration
   let caseModalOpen = $state(false);
@@ -75,6 +85,57 @@
   const saveAction = createAsyncActionState();
   const sendEmbedAction = createAsyncActionState();
   const renameAction = createAsyncActionState();
+
+  function createTicketTypeDraft(index = 0, legacy?: any) {
+    return {
+      id: legacy?.ticketTypeId || crypto.randomUUID(),
+      label: legacy?.ticketEmbedButtonText || `Ticket ${index + 1}`,
+      description: legacy?.ticketEmbedDesc || '',
+      emoji: '📩',
+      categoryId: legacy?.ticketCategoryId || ticketCategoryId || '',
+      staffRoleId: legacy?.ticketStaffRoleId || ticketStaffRoleId || '',
+      buttonStyle: 'PRIMARY' as const,
+    };
+  }
+
+  function normalizeTicketTypes(config: any): Array<{
+    id: string;
+    label: string;
+    description: string;
+    emoji: string;
+    categoryId: string;
+    staffRoleId: string;
+    buttonStyle: 'PRIMARY' | 'SECONDARY' | 'SUCCESS' | 'DANGER';
+  }> {
+    if (Array.isArray(config?.ticketTypes) && config.ticketTypes.length > 0) {
+      return config.ticketTypes
+        .filter((item) => item && typeof item === 'object')
+        .map((item, index) => ({
+          id: typeof item.id === 'string' && item.id.trim() ? item.id.trim() : crypto.randomUUID(),
+          label: typeof item.label === 'string' && item.label.trim() ? item.label.trim().slice(0, 80) : `Ticket ${index + 1}`,
+          description: typeof item.description === 'string' ? item.description.trim().slice(0, 200) : '',
+          emoji: typeof item.emoji === 'string' && item.emoji.trim() ? item.emoji.trim().slice(0, 16) : '📩',
+          categoryId: typeof item.categoryId === 'string' ? item.categoryId : '',
+          staffRoleId: typeof item.staffRoleId === 'string' ? item.staffRoleId : '',
+          buttonStyle: item.buttonStyle === 'SECONDARY' || item.buttonStyle === 'SUCCESS' || item.buttonStyle === 'DANGER'
+            ? item.buttonStyle
+            : 'PRIMARY',
+        }));
+    }
+
+      return [createTicketTypeDraft(0, config)];
+  }
+
+  function addTicketType() {
+    ticketTypes = [...ticketTypes, createTicketTypeDraft(ticketTypes.length)];
+  }
+
+  function removeTicketType(index: number) {
+    ticketTypes = ticketTypes.filter((_, currentIndex) => currentIndex !== index);
+    if (ticketTypes.length === 0) {
+      ticketTypes = [createTicketTypeDraft(0)];
+    }
+  }
 
   // Filters tickets based on status tab
   const filteredTickets = $derived(
@@ -109,6 +170,7 @@
       ticketEmbedColor = config.ticketEmbedColor || '#5865F2';
       ticketAllowOverclaim = config.ticketAllowOverclaim !== undefined ? config.ticketAllowOverclaim : true;
       ticketOverclaimPermission = config.ticketOverclaimPermission || 'ANY';
+      ticketTypes = normalizeTicketTypes(config);
     } catch (err: any) {
       error = err.message || 'Une erreur est survenue';
     } finally {
@@ -329,6 +391,7 @@
           ticketEmbedDesc,
           ticketEmbedButtonText,
           ticketEmbedColor,
+          ticketTypes,
           ticketAllowOverclaim,
           ticketOverclaimPermission
         })
@@ -948,42 +1011,22 @@
 
           <label class="block">
             <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">ID Catégorie Tickets (Création des salons)</span>
-            <FormSelect bind:value={ticketCategoryId} className="w-full">
-              <option value="">Sélectionner une catégorie</option>
-              {#each discordCategories as c}
-                <option value={c.id}>{c.name}</option>
-              {/each}
-            </FormSelect>
+            <SearchableSelect bind:value={ticketCategoryId} options={discordCategories.map(c => ({ id: c.id, name: c.name }))} placeholder="Sélectionner une catégorie" className="w-full" />
           </label>
 
           <label class="block">
             <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Salon d'ouverture (Où envoyer le panel)</span>
-            <FormSelect bind:value={ticketChannelId} className="w-full">
-              <option value="">Sélectionner un salon</option>
-              {#each discordChannels as c}
-                <option value={c.id}>#{c.name}</option>
-              {/each}
-            </FormSelect>
+            <SearchableSelect bind:value={ticketChannelId} options={discordChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="Sélectionner un salon" className="w-full" />
           </label>
 
           <label class="block">
             <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Salon des Logs (Envoi des Transcripts)</span>
-            <FormSelect bind:value={ticketLogChannelId} className="w-full">
-              <option value="">Sélectionner un salon</option>
-              {#each discordChannels as c}
-                <option value={c.id}>#{c.name}</option>
-              {/each}
-            </FormSelect>
+            <SearchableSelect bind:value={ticketLogChannelId} options={discordChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="Sélectionner un salon" className="w-full" />
           </label>
 
           <label class="block">
             <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Rôle Staff Support</span>
-            <FormSelect bind:value={ticketStaffRoleId} className="w-full">
-              <option value="">Sélectionner un rôle</option>
-              {#each discordRoles as r}
-                <option value={r.id}>{r.name}</option>
-              {/each}
-            </FormSelect>
+            <SearchableSelect bind:value={ticketStaffRoleId} options={discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Sélectionner un rôle" className="w-full" />
           </label>
 
           <div class="border-t border-outline-variant/10 pt-4 mt-4 space-y-3">
@@ -1030,6 +1073,77 @@
             <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Couleur Hex de l'Embed</span>
             <FormColorPicker bind:value={ticketEmbedColor} />
           </label>
+        </div>
+      </div>
+
+      <div class="rounded-4xl border border-outline-variant/10 bg-surface-container/30 p-6 space-y-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h4 class="text-xs font-black uppercase tracking-widest text-primary mb-1">Types de tickets</h4>
+            <p class="text-sm text-on-surface-variant">Chaque type affiche son propre bouton, ping le bon rôle et ouvre le salon dans la bonne catégorie.</p>
+          </div>
+          <button
+            onclick={addTicketType}
+            class="px-4 py-2 bg-primary text-white rounded-xl text-[10px] font-black uppercase tracking-wider hover:scale-105 active:scale-95 transition-transform shadow-lg shadow-primary/20 flex items-center gap-2"
+          >
+            <Papicon icon="plus" size={14} /> Ajouter un type
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          {#each ticketTypes as ticketType, index}
+            <div class="rounded-3xl border border-outline-variant/10 bg-surface-container-low/40 p-5 space-y-4">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <p class="text-xs font-black uppercase tracking-widest text-on-surface-variant/70">Type #{index + 1}</p>
+                  <p class="text-sm font-bold text-on-surface">Bouton visible dans l'embed</p>
+                </div>
+                <button
+                  onclick={() => removeTicketType(index)}
+                  class="px-3 py-2 rounded-xl bg-rose-500/10 text-rose-500 border border-rose-500/20 text-[10px] font-black uppercase tracking-wider hover:bg-rose-500 hover:text-white transition-colors"
+                >
+                  Supprimer
+                </button>
+              </div>
+
+              <label class="block">
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Texte du bouton</span>
+                <FormInput type="text" bind:value={ticketType.label} placeholder="Support technique" className="w-full" />
+              </label>
+
+              <label class="block">
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Description affichée dans l'embed</span>
+                <FormTextarea bind:value={ticketType.description} placeholder="Explique ce que couvre ce type de ticket..." className="w-full h-24" />
+              </label>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <label class="block">
+                  <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Emoji du bouton</span>
+                  <FormInput type="text" bind:value={ticketType.emoji} placeholder="📩" className="w-full" />
+                </label>
+
+                <label class="block">
+                  <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Style du bouton</span>
+                  <FormSelect bind:value={ticketType.buttonStyle} className="w-full">
+                    <option value="PRIMARY">Primaire</option>
+                    <option value="SECONDARY">Secondaire</option>
+                    <option value="SUCCESS">Succès</option>
+                    <option value="DANGER">Danger</option>
+                  </FormSelect>
+                </label>
+              </div>
+
+              <label class="block">
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Catégorie de création</span>
+                <SearchableSelect bind:value={ticketType.categoryId} options={discordCategories.map(c => ({ id: c.id, name: c.name }))} placeholder="Sélectionner une catégorie" className="w-full" />
+              </label>
+
+              <label class="block">
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Rôle staff notifié</span>
+                <SearchableSelect bind:value={ticketType.staffRoleId} options={discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Sélectionner un rôle" className="w-full" />
+              </label>
+            </div>
+          {/each}
         </div>
       </div>
 

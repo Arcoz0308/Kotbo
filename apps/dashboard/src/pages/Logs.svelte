@@ -20,6 +20,7 @@
   import { authStore } from '../lib/stores/auth.svelte';
   import FormSelect from '../lib/components/FormSelect.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
+  import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
@@ -678,16 +679,7 @@
         </div>
       </div>
       <div class="w-full md:w-72">
-        <FormSelect
-          bind:value={selectedLogChannelId}
-          onchange={handleLogChannelChange}
-          className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
-        >
-          <option value="">Sélectionner un salon</option>
-          {#each dashboardStore.state.discordChannels as c}
-            <option value={c.id}>#{c.name}</option>
-          {/each}
-        </FormSelect>
+        <SearchableSelect bind:value={selectedLogChannelId} on:change={() => handleLogChannelChange()} options={(dashboardStore.state.discordChannels || []).map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="Sélectionner un salon" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
       </div>
     </div>
 

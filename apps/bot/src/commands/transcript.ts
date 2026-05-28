@@ -132,13 +132,24 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     return;
   }
 
+    const currentTicket = await prisma.ticket.findFirst({
+      where: {
+        guildId,
+        channelId: channel.id,
+      },
+      select: {
+        staffRoleId: true,
+      },
+    });
+
   // Permettre uniquement aux membres du personnel (Staff)
   const member = interaction.member as GuildMember;
   const guildConfig = await prisma.guild.findUnique({ where: { id: guildId } });
   
   const isStaff = member.permissions.has(PermissionFlagsBits.ManageMessages) ||
     (guildConfig?.moderatorRoleId && member.roles.cache.has(guildConfig.moderatorRoleId)) ||
-    (guildConfig?.ticketStaffRoleId && member.roles.cache.has(guildConfig.ticketStaffRoleId)) ||
+      (currentTicket?.staffRoleId && member.roles.cache.has(currentTicket.staffRoleId)) ||
+      (guildConfig?.ticketStaffRoleId && member.roles.cache.has(guildConfig.ticketStaffRoleId)) ||
     member.permissions.has(PermissionFlagsBits.Administrator);
 
   if (!isStaff) {

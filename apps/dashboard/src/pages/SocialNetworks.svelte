@@ -6,6 +6,7 @@
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import FormSelect from '../lib/components/FormSelect.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
+  import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import {
     fetchSocialFollows,
     addYoutubeFollow,
@@ -313,28 +314,19 @@
               <!-- Default Lives channel -->
               <div class="space-y-1.5">
                 <label for="yt-live-chan" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon des Lives (En direct)</label>
-                <FormSelect id="yt-live-chan" bind:value={ytForm.liveChannelId} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-red-600/30 transition-all">
-                  <option value="">— Par défaut (Salon Public) —</option>
-                  {#each availableChannels as c}<option value={c.id}>#{c.name}</option>{/each}
-                </FormSelect>
+                <SearchableSelect id="yt-live-chan" bind:value={ytForm.liveChannelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Par défaut (Salon Public) —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-red-600/30 transition-all" />
               </div>
 
               <!-- Default Shorts channel -->
               <div class="space-y-1.5">
                 <label for="yt-short-chan" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon des Shorts</label>
-                <FormSelect id="yt-short-chan" bind:value={ytForm.shortChannelId} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-red-600/30 transition-all">
-                  <option value="">— Par défaut (Même que vidéos) —</option>
-                  {#each availableChannels as c}<option value={c.id}>#{c.name}</option>{/each}
-                </FormSelect>
+                <SearchableSelect id="yt-short-chan" bind:value={ytForm.shortChannelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Par défaut (Même que vidéos) —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-red-600/30 transition-all" />
               </div>
 
               <!-- Default Videos channel -->
               <div class="space-y-1.5">
                 <label for="yt-video-chan" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon des Vidéos</label>
-                <FormSelect id="yt-video-chan" bind:value={ytForm.videoChannelId} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-red-600/30 transition-all">
-                  <option value="">— Par défaut (Salon Public) —</option>
-                  {#each availableChannels as c}<option value={c.id}>#{c.name}</option>{/each}
-                </FormSelect>
+                <SearchableSelect id="yt-video-chan" bind:value={ytForm.videoChannelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Par défaut (Salon Public) —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-red-600/30 transition-all" />
               </div>
 
               <!-- Submit button -->
@@ -372,19 +364,13 @@
               <!-- Live Channel Dropdown -->
               <div class="space-y-1.5">
                 <label for="twitch-live-chan" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon des Lives (En direct)</label>
-                <FormSelect id="twitch-live-chan" bind:value={twitchForm.liveChannelId} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#9146FF]/30 transition-all">
-                  <option value="">— Par défaut (Salon Public) —</option>
-                  {#each availableChannels as c}<option value={c.id}>#{c.name}</option>{/each}
-                </FormSelect>
+                <SearchableSelect id="twitch-live-chan" bind:value={twitchForm.liveChannelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Par défaut (Salon Public) —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#9146FF]/30 transition-all" />
               </div>
 
               <!-- Other Event Channel Dropdown -->
               <div class="space-y-1.5">
                 <label for="twitch-other-chan" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon des Fins de Stream (Optionnel)</label>
-                <FormSelect id="twitch-other-chan" bind:value={twitchForm.otherChannelId} className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#9146FF]/30 transition-all">
-                  <option value="">— Aucun —</option>
-                  {#each availableChannels as c}<option value={c.id}>#{c.name}</option>{/each}
-                </FormSelect>
+                <SearchableSelect id="twitch-other-chan" bind:value={twitchForm.otherChannelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#9146FF]/30 transition-all" />
               </div>
 
               <!-- Submit button -->
@@ -436,26 +422,17 @@
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1 max-w-xl">
                       <div class="space-y-1">
                         <span class="text-[9px] font-bold text-on-surface-variant/50 uppercase">Lives</span>
-                        <FormSelect bind:value={follow.liveChannelId} className="w-full bg-surface-container/60 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs">
-                          <option value="">— Par défaut —</option>
-                          {#each availableChannels as c}<option value={c.id}>#{c.name}</option>{/each}
-                        </FormSelect>
+                        <SearchableSelect bind:value={follow.liveChannelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Par défaut —" className="w-full bg-surface-container/60 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
                       </div>
 
                       <div class="space-y-1">
                         <span class="text-[9px] font-bold text-on-surface-variant/50 uppercase">Shorts</span>
-                        <FormSelect bind:value={follow.shortChannelId} className="w-full bg-surface-container/60 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs">
-                          <option value="">— Par défaut —</option>
-                          {#each availableChannels as c}<option value={c.id}>#{c.name}</option>{/each}
-                        </FormSelect>
+                        <SearchableSelect bind:value={follow.shortChannelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Par défaut —" className="w-full bg-surface-container/60 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
                       </div>
 
                       <div class="space-y-1">
                         <span class="text-[9px] font-bold text-on-surface-variant/50 uppercase">Vidéos</span>
-                        <FormSelect bind:value={follow.videoChannelId} className="w-full bg-surface-container/60 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs">
-                          <option value="">— Par défaut —</option>
-                          {#each availableChannels as c}<option value={c.id}>#{c.name}</option>{/each}
-                        </FormSelect>
+                        <SearchableSelect bind:value={follow.videoChannelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Par défaut —" className="w-full bg-surface-container/60 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
                       </div>
                     </div>
 
@@ -524,18 +501,12 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 max-w-md">
                       <div class="space-y-1">
                         <span class="text-[9px] font-bold text-on-surface-variant/50 uppercase">Salon Lives</span>
-                        <FormSelect bind:value={follow.liveChannelId} className="w-full bg-surface-container/60 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs">
-                          <option value="">— Par défaut —</option>
-                          {#each availableChannels as c}<option value={c.id}>#{c.name}</option>{/each}
-                        </FormSelect>
+                        <SearchableSelect bind:value={follow.liveChannelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Par défaut —" className="w-full bg-surface-container/60 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
                       </div>
 
                       <div class="space-y-1">
                         <span class="text-[9px] font-bold text-on-surface-variant/50 uppercase">Salon Fin de Stream</span>
-                        <FormSelect bind:value={follow.otherChannelId} className="w-full bg-surface-container/60 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs">
-                          <option value="">— Aucun —</option>
-                          {#each availableChannels as c}<option value={c.id}>#{c.name}</option>{/each}
-                        </FormSelect>
+                        <SearchableSelect bind:value={follow.otherChannelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Aucun —" className="w-full bg-surface-container/60 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
                       </div>
                     </div>
 

@@ -19,6 +19,8 @@
   import { onMount } from 'svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
+  import SearchableSelect from '../lib/components/SearchableSelect.svelte';
+  import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
 
 
   type RegulationRule = {
@@ -423,7 +425,7 @@
   {/if}
 
   <!-- Config & Stats -->
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
     <div class="bg-surface-container-low/30 p-6 rounded-4xl border border-outline-variant/10 space-y-4">
       <div class="flex items-center gap-3">
         <div class="bg-primary/10 p-2 rounded-xl text-primary">
@@ -439,19 +441,46 @@
         {#if canManageSettings}
           <div class="space-y-2">
             <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60 ml-1" for="regulation-channel-select">Changer le salon</label>
-            <select
-              id="regulation-channel-select"
-              class="w-full rounded-xl border border-outline-variant/10 bg-surface-container-high/60 px-4 py-3 text-sm font-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all cursor-pointer"
-              bind:value={selectedRegulationChannelId}
-              onchange={handleRegulationChannelChange}
-              disabled={saving || dashboardStore.state.loading || dashboardStore.state.discordChannels.length === 0}
-            >
-              <option value="">Utiliser le salon de configuration (fallback)</option>
-              {#each dashboardStore.state.discordChannels as channel}
-                <option value={channel.id}>{channel.name}</option>
-              {/each}
-            </select>
+            <SearchableSelect id="regulation-channel-select" bind:value={selectedRegulationChannelId} options={(dashboardStore.state.discordChannels || []).map(channel => ({ id: channel.id, name: channel.name }))} placeholder="Utiliser le salon de configuration (fallback)" className="w-full rounded-xl border border-outline-variant/10 bg-surface-container-high/60 px-4 py-3 text-sm font-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all cursor-pointer" on:change={() => handleRegulationChannelChange()} disabled={saving || dashboardStore.state.loading || dashboardStore.state.discordChannels.length === 0} />
           </div>
+        {/if}
+      </div>
+    </div>
+
+    <div class="bg-surface-container-low/30 p-6 rounded-4xl border border-outline-variant/10 space-y-4">
+      <div class="flex items-center gap-3">
+        <div class="bg-primary/10 p-2 rounded-xl text-primary">
+          <Papicon icon="Bell" size={18} />
+        </div>
+        <h3 class="text-sm font-black uppercase tracking-widest text-on-surface">Notifications MP</h3>
+      </div>
+      <div class="space-y-4">
+        {#if featureConfig && canManageSettings}
+          <div class="flex items-center justify-between p-4 bg-surface-container-high/40 rounded-2xl border border-outline-variant/10">
+            <div class="space-y-0.5">
+              <span class="text-sm font-bold text-on-surface">Activer les MP</span>
+              <p class="text-[9px] text-on-surface-variant/60 leading-tight">Notifier par message privé</p>
+            </div>
+            <ToggleSwitch 
+              checked={featureConfig.notifyViaDM ?? false}
+              disabled={loadingConfig || saving}
+              onToggle={() => toggleConfig('notifyViaDM', !(featureConfig.notifyViaDM ?? false))}
+            />
+          </div>
+
+          <div class="flex items-center justify-between p-4 bg-surface-container-high/40 rounded-2xl border border-outline-variant/10 {!(featureConfig.notifyViaDM ?? false) ? 'opacity-40 pointer-events-none' : ''}">
+            <div class="space-y-0.5">
+              <span class="text-sm font-bold text-on-surface">Staff uniquement</span>
+              <p class="text-[9px] text-on-surface-variant/60 leading-tight">Restreindre l'envoi de MP aux staffs uniquement</p>
+            </div>
+            <ToggleSwitch 
+              checked={featureConfig.notifyOnlyStaffRoles ?? false}
+              disabled={loadingConfig || saving || !(featureConfig.notifyViaDM ?? false)}
+              onToggle={() => toggleConfig('notifyOnlyStaffRoles', !(featureConfig.notifyOnlyStaffRoles ?? false))}
+            />
+          </div>
+        {:else if loadingConfig}
+          <div class="h-24 rounded-2xl bg-surface-container-high/20 animate-pulse"></div>
         {/if}
       </div>
     </div>

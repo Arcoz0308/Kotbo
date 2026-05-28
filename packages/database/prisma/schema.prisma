@@ -126,6 +126,7 @@ model Guild {
   ticketEmbedDesc        String   @default("Cliquez sur le bouton ci-dessous pour ouvrir un ticket d'assistance.")
   ticketEmbedButtonText  String   @default("Ouvrir un ticket")
   ticketEmbedColor       String   @default("#5865F2")
+  ticketTypes             Json?
   ticketAllowOverclaim        Boolean  @default(true)
   ticketOverclaimPermission   String   @default("ANY") // "ANY", "SUPERIOR_OR_EQUAL", "NONE"
   tickets                Ticket[]
@@ -1675,6 +1676,10 @@ model Ticket {
   id            String       @id @default(cuid())
   guildId       String
   channelId     String?      @unique
+  ticketTypeId  String?
+  ticketTypeLabel String?
+  staffRoleId   String?
+  categoryId    String?
   userId        String       // Discord User ID of the opener
   username      String       // Username of the opener
   reason        String       // Reason requested in modal

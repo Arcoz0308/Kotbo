@@ -39,11 +39,13 @@ export function registerTicketLeaveFollowUpListener(client: Client): void {
         const channel = await client.channels.fetch(ticket.channelId).catch(() => null);
         if (!channel || !(channel instanceof TextChannel)) continue;
 
-        const staffPing = guildConfig?.ticketStaffRoleId
-          ? `<@&${guildConfig.ticketStaffRoleId}>`
-          : guildConfig?.moderatorRoleId
-            ? `<@&${guildConfig.moderatorRoleId}>`
-            : '';
+          const staffPing = guildConfig?.ticketStaffRoleId
+            ? `<@&${ticket.staffRoleId || guildConfig.ticketStaffRoleId}>`
+            : ticket.staffRoleId
+              ? `<@&${ticket.staffRoleId}>`
+              : guildConfig?.moderatorRoleId
+                ? `<@&${guildConfig.moderatorRoleId}>`
+                : '';
 
         const embed = new EmbedBuilder()
           .setTitle('👋 Le créateur a quitté le serveur')

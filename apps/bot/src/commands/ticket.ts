@@ -93,9 +93,9 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return;
   }
 
-  const canRename = canManageTicket(interaction.member, guildConfig) || ticket.userId === interaction.user.id;
+  const canRename = canManageTicket(interaction.member, guildConfig, ticket.staffRoleId) || ticket.userId === interaction.user.id;
   const subcommand = interaction.options.getSubcommand();
-  const isStaff = canManageTicket(interaction.member, guildConfig);
+  const isStaff = canManageTicket(interaction.member, guildConfig, ticket.staffRoleId);
   const isOpener = ticket.userId === interaction.user.id;
 
   async function getStaffLevel(guildId: string, userId: string): Promise<number> {

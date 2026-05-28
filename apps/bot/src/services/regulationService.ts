@@ -127,20 +127,52 @@ export async function publishOrUpdateRegulationMessage(client: Client, guildId: 
 
   logger.info('Règlement', `${mode === 'updated' ? 'Mise à jour' : 'Publication'} du règlement pour ${guildId} dans ${targetChannelId}.`);
 
-  // Notifier tout le staff
-  const staff = await prisma.staffMember.findMany({
-    where: { guildId }
+  // Notifier selon la configuration
+  const featureConfig = await prisma.dashboardFeatureConfig.findUnique({
+    where: { guildId_featureKey: { guildId, featureKey: 'regulation' } },
   });
 
-  if (staff.length > 0) {
-    await Promise.all(staff.map(m => createNotification(
-      guildId,
-      m.userId,
-      'Règlement mis à jour',
-      'Le règlement du serveur a été mis à jour. Merci d\'en prendre connaissance.',
-      'INFO',
-      '/regulation'
-    ).catch(() => null)));
+  if (featureConfig?.notifyViaDM) {
+    if (featureConfig.notifyOnlyStaffRoles) {
+      // Notifier uniquement le staff
+      const staff = await prisma.staffMember.findMany({
+        where: { guildId }
+      });
+      if (staff.length > 0) {
+        await Promise.all(staff.map(m => createNotification(
+          guildId,
+          m.userId,
+          'Règlement mis à jour',
+          'Le règlement du serveur a été mis à jour. Merci d\'en prendre connaissance.',
+          'INFO',
+          '/regulation',
+          true
+        ).catch(() => null)));
+      }
+    } else {
+      // Notifier TOUS les membres du serveur (hors bots)
+      try {
+        if (discordGuild) {
+          const members = await discordGuild.members.fetch().catch(() => null);
+          if (members) {
+            const memberList = Array.from(members.values()).filter(m => !m.user.bot);
+            await Promise.all(memberList.map(m => 
+              createNotification(
+                guildId,
+                m.id,
+                'Règlement mis à jour',
+                'Le règlement du serveur a été mis à jour. Merci d\'en prendre connaissance.',
+                'INFO',
+                '/regulation',
+                true
+              ).catch(() => null)
+            ));
+          }
+        }
+      } catch (err) {
+        logger.error('Règlement', `Erreur lors de la notification DM de tous les membres: ${err}`);
+      }
+    }
   }
 
   return { mode, messageId, targetChannelId };
