@@ -239,10 +239,25 @@
       async () => {
         const ok = await updateNicknameModerationConfig({ whitelist: updatedWhitelist });
         if (!ok) throw new Error('Erreur API');
+        
+        const previousWhitelist = whitelist;
         whitelist = updatedWhitelist;
+
+        toast.success(`"${item}" supprimé des pseudos autorisés.`, 6000, {
+          label: 'Annuler',
+          onClick: async () => {
+            await exceptionAction.run(async () => {
+              const okUndo = await updateNicknameModerationConfig({ whitelist: previousWhitelist });
+              if (!okUndo) throw new Error("Erreur lors de l'annulation");
+              whitelist = previousWhitelist;
+              return true;
+            }, { successMessage: `"${item}" rétabli.` });
+          }
+        });
+
         return true;
       },
-      { successMessage: `"${item}" supprimé des pseudos autorisés.` }
+      {}
     );
   }
 
@@ -278,10 +293,25 @@
       async () => {
         const ok = await updateNicknameModerationConfig({ bypass: updatedBypass });
         if (!ok) throw new Error('Erreur API');
+        
+        const previousBypass = bypass;
         bypass = updatedBypass;
+
+        toast.success(`Exemption pour le membre ${item} retirée.`, 6000, {
+          label: 'Annuler',
+          onClick: async () => {
+            await exceptionAction.run(async () => {
+              const okUndo = await updateNicknameModerationConfig({ bypass: previousBypass });
+              if (!okUndo) throw new Error("Erreur lors de l'annulation");
+              bypass = previousBypass;
+              return true;
+            }, { successMessage: `Exemption pour le membre ${item} rétablie.` });
+          }
+        });
+
         return true;
       },
-      { successMessage: `Exemption pour le membre ${item} retirée.` }
+      {}
     );
   }
 
