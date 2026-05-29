@@ -8272,6 +8272,31 @@ export const startDashboardApi = (client: Client) => {
               }
 
               try {
+                if (updateData.nicknameModerationWhitelist) {
+                  const activeBannedWords = await prisma.bannedWord.findMany({
+                    where: {
+                      OR: [
+                        { guildId: null, enabled: true },
+                        { guildId, enabled: true },
+                      ],
+                    },
+                    select: { word: true },
+                  });
+                  const bannedSet = new Set(
+                    activeBannedWords.map((b) => b.word.trim().toLowerCase())
+                  );
+
+                  const invalidItems = updateData.nicknameModerationWhitelist.filter(
+                    (item: string) => bannedSet.has(item)
+                  );
+                  if (invalidItems.length > 0) {
+                    json(res, 400, {
+                      error: `Impossible d'autoriser ces pseudos car ils font partie de la liste des mots bannis : ${invalidItems.join(', ')}`,
+                    });
+                    return;
+                  }
+                }
+
                 await prisma.guild.update({
                   where: { id: guildId },
                   data: updateData,
