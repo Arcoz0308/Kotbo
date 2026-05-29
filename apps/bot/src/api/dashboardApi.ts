@@ -8256,14 +8256,32 @@ export const startDashboardApi = (client: Client) => {
                   json(res, 400, { error: 'Format whitelist invalide (doit être un tableau de chaînes)' });
                   return;
                 }
-                updateData.nicknameModerationWhitelist = body.whitelist.map((w: string) => w.trim().toLowerCase()).filter(Boolean);
+                const cleanedWhitelist = [...new Set(body.whitelist.map((w: string) => w.trim().toLowerCase()).filter(Boolean))];
+                if (cleanedWhitelist.length > 100) {
+                  json(res, 400, { error: 'La whitelist ne peut pas contenir plus de 100 pseudos' });
+                  return;
+                }
+                if (cleanedWhitelist.some(w => w.length > 32)) {
+                  json(res, 400, { error: 'Les pseudos autorisés ne peuvent pas dépasser 32 caractères' });
+                  return;
+                }
+                updateData.nicknameModerationWhitelist = cleanedWhitelist;
               }
               if (body && Object.prototype.hasOwnProperty.call(body, 'bypass')) {
                 if (!Array.isArray(body.bypass) || body.bypass.some(item => typeof item !== 'string')) {
                   json(res, 400, { error: 'Format bypass invalide (doit être un tableau de chaînes)' });
                   return;
                 }
-                updateData.nicknameModerationBypass = body.bypass.map((id: string) => id.trim()).filter(Boolean);
+                const cleanedBypass = [...new Set(body.bypass.map((id: string) => id.trim()).filter(Boolean))];
+                if (cleanedBypass.length > 100) {
+                  json(res, 400, { error: 'La liste des membres exemptés ne peut pas contenir plus de 100 IDs' });
+                  return;
+                }
+                if (cleanedBypass.some(id => !/^\d{17,20}$/.test(id))) {
+                  json(res, 400, { error: 'Format bypass invalide : certains IDs sont incorrects (doivent être de 17 à 20 chiffres)' });
+                  return;
+                }
+                updateData.nicknameModerationBypass = cleanedBypass;
               }
 
               if (Object.keys(updateData).length === 0) {
@@ -8790,6 +8808,19 @@ export const startDashboardApi = (client: Client) => {
               : 'custom';
 
             try {
+              // Vérification anti-conflit : le mot ne doit pas être déjà dans la whitelist
+              const guildData = await prisma.guild.findUnique({
+                where: { id: guildId },
+                select: { nicknameModerationWhitelist: true },
+              });
+              const whitelist = guildData?.nicknameModerationWhitelist ?? [];
+              if (whitelist.includes(cleanWord)) {
+                json(res, 400, {
+                  error: `Impossible de bannir ce mot car il est déjà présent dans la liste des pseudos autorisés (whitelist) : ${cleanWord}`,
+                });
+                return;
+              }
+
               const created = await prisma.bannedWord.create({
                 data: { guildId, word: cleanWord, category },
               });
@@ -8835,6 +8866,21 @@ export const startDashboardApi = (client: Client) => {
               if (!existing) {
                 json(res, 404, { error: 'Mot introuvable' });
                 return;
+              }
+
+              if (body.enabled) {
+                // Vérification anti-conflit : le mot ne doit pas être déjà dans la whitelist
+                const guildData = await prisma.guild.findUnique({
+                  where: { id: guildId },
+                  select: { nicknameModerationWhitelist: true },
+                });
+                const whitelist = guildData?.nicknameModerationWhitelist ?? [];
+                if (whitelist.includes(existing.word.toLowerCase())) {
+                  json(res, 400, {
+                    error: `Impossible d'activer ce mot car il est déjà présent dans la liste des pseudos autorisés (whitelist) : ${existing.word}`,
+                  });
+                  return;
+                }
               }
 
               await prisma.bannedWord.update({ where: { id: wordId }, data: { enabled: body.enabled } });
