@@ -101,7 +101,7 @@ describe('containsBannedWord — Détection automatique', () => {
   });
 });
 
-describe('isNicknameProblematic — Sécurités anti-boucle', () => {
+describe('isNicknameProblematic — Sécurités & Whitelist', () => {
   it('ignore le pseudo de remplacement exact (SAFE_NICKNAME)', () => {
     expect(isNicknameProblematic('pseudo non conforme | automod', ['con', 'caca'])).toBe(false);
   });
@@ -109,6 +109,15 @@ describe('isNicknameProblematic — Sécurités anti-boucle', () => {
   it('ignore les variations contenant "automod" ou "pseudo non conforme"', () => {
     expect(isNicknameProblematic('SuperAutoMod', ['auto', 'mod'])).toBe(false);
     expect(isNicknameProblematic('pseudo non conforme', ['non', 'con'])).toBe(false);
+  });
+
+  it('ignore les pseudos de la whitelist du serveur', () => {
+    expect(isNicknameProblematic('cacao_meow', ['caca'], { whitelist: ['cacao_meow'] })).toBe(false);
+    expect(isNicknameProblematic('fichier.py', ['chier'], { whitelist: ['fichier.py'] })).toBe(false);
+  });
+
+  it('ignore les membres exemptés (bypass)', () => {
+    expect(isNicknameProblematic('caca', ['caca'], { userId: '123456', bypassUserIds: ['123456'] })).toBe(false);
   });
 
   it('flaggue les pseudos réellement problématiques', () => {

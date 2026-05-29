@@ -53,6 +53,8 @@
   let enabled = $state(false);
   let globalWords = $state<BannedWordEntry[]>([]);
   let customWords = $state<BannedWordEntry[]>([]);
+  let whitelist = $state<string[]>([]);
+  let bypass = $state<string[]>([]);
   let loading = $state(true);
   let loadError = $state('');
 
@@ -60,8 +62,12 @@
   let newCategory = $state('custom');
   let activeTab = $state<'custom' | 'global'>('custom');
 
+  let newWhitelistItem = $state('');
+  let newBypassItem = $state('');
+
   const saveToggleAction = createAsyncActionState();
   const wordAction = createAsyncActionState();
+  const exceptionAction = createAsyncActionState();
 
   // ---------------------------------------------------------------------------
   // Lifecycle
@@ -76,7 +82,11 @@
         fetchNicknameModerationConfig(),
         fetchBannedWords(),
       ]);
-      if (config) enabled = config.enabled ?? false;
+      if (config) {
+        enabled = config.enabled ?? false;
+        whitelist = config.whitelist ?? [];
+        bypass = config.bypass ?? [];
+      }
       if (words) {
         globalWords = words.global ?? [];
         customWords = words.custom ?? [];
@@ -200,6 +210,87 @@
 
   function getCat(key: string): CategoryMeta {
     return CATEGORIES[key] ?? CATEGORIES.custom;
+  }
+
+  async function addWhitelistItem() {
+    const trimmed = newWhitelistItem.trim().toLowerCase();
+    if (!trimmed) return;
+    if (whitelist.includes(trimmed)) {
+      exceptionAction.setError('Ce pseudo est déjà autorisé.');
+      return;
+    }
+
+    const updatedWhitelist = [...whitelist, trimmed];
+    await exceptionAction.run(
+      async () => {
+        const ok = await updateNicknameModerationConfig({ whitelist: updatedWhitelist });
+        if (!ok) throw new Error('Erreur API');
+        whitelist = updatedWhitelist;
+        newWhitelistItem = '';
+        return true;
+      },
+      { successMessage: `"${trimmed}" ajouté aux pseudos autorisés.` }
+    );
+  }
+
+  async function removeWhitelistItem(item: string) {
+    const updatedWhitelist = whitelist.filter((w) => w !== item);
+    await exceptionAction.run(
+      async () => {
+        const ok = await updateNicknameModerationConfig({ whitelist: updatedWhitelist });
+        if (!ok) throw new Error('Erreur API');
+        whitelist = updatedWhitelist;
+        return true;
+      },
+      { successMessage: `"${item}" supprimé des pseudos autorisés.` }
+    );
+  }
+
+  async function addBypassItem() {
+    const trimmed = newBypassItem.trim();
+    if (!trimmed) return;
+    if (bypass.includes(trimmed)) {
+      exceptionAction.setError('Cet ID membre est déjà exempté.');
+      return;
+    }
+
+    if (!/^\d{17,20}$/.test(trimmed)) {
+      exceptionAction.setError('ID membre invalide (doit contenir entre 17 et 20 chiffres).');
+      return;
+    }
+
+    const updatedBypass = [...bypass, trimmed];
+    await exceptionAction.run(
+      async () => {
+        const ok = await updateNicknameModerationConfig({ bypass: updatedBypass });
+        if (!ok) throw new Error('Erreur API');
+        bypass = updatedBypass;
+        newBypassItem = '';
+        return true;
+      },
+      { successMessage: `Membre ${trimmed} exempté.` }
+    );
+  }
+
+  async function removeBypassItem(item: string) {
+    const updatedBypass = bypass.filter((b) => b !== item);
+    await exceptionAction.run(
+      async () => {
+        const ok = await updateNicknameModerationConfig({ bypass: updatedBypass });
+        if (!ok) throw new Error('Erreur API');
+        bypass = updatedBypass;
+        return true;
+      },
+      { successMessage: `Exemption pour le membre ${item} retirée.` }
+    );
+  }
+
+  function handleWhitelistKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter') { e.preventDefault(); addWhitelistItem(); }
+  }
+
+  function handleBypassKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter') { e.preventDefault(); addBypassItem(); }
   }
 </script>
 
@@ -408,6 +499,120 @@
           </div>
         {/if}
       {/if}
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- Section 3 — Exceptions (Pseudos & Membres autorisés)          -->
+    <!-- ============================================================ -->
+    <section class="bg-surface-container-low/40 backdrop-blur-xl rounded-4xl border border-outline-variant/30 p-8 flex flex-col gap-6">
+      <div class="flex flex-col gap-1">
+        <h2 class="text-base font-black tracking-tight text-on-surface">Exceptions de modération (Whitelist)</h2>
+        <p class="text-sm text-on-surface-variant/70">
+          Gérez les pseudos et les membres qui doivent contourner la modération automatique pour éviter les faux positifs.
+        </p>
+      </div>
+
+      <InlineFeedback state={exceptionAction} />
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <!-- Pseudos autorisés -->
+        <div class="flex flex-col gap-4">
+          <div class="flex flex-col gap-1">
+            <h3 class="text-sm font-bold text-on-surface">Pseudos autorisés (exacts)</h3>
+            <p class="text-xs text-on-surface-variant/50">
+              Ces pseudos complets (insensibles à la casse) ne seront jamais modérés, même s'ils contiennent un mot banni.
+            </p>
+          </div>
+
+          <div class="flex gap-2">
+            <input
+              type="text"
+              bind:value={newWhitelistItem}
+              onkeydown={handleWhitelistKeydown}
+              placeholder="Ex: xavier085409, fichier.py..."
+              class="flex-1 bg-surface-container/60 border border-outline-variant/30 rounded-2xl px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-primary/60 transition-all"
+            />
+            <button
+              onclick={addWhitelistItem}
+              disabled={!newWhitelistItem.trim() || exceptionAction.state.loading}
+              class="px-5 py-3 bg-primary text-white rounded-2xl text-sm font-bold transition-all hover:bg-primary/90 active:scale-95 disabled:opacity-40"
+            >
+              Ajouter
+            </button>
+          </div>
+
+          {#if whitelist.length > 0}
+            <div class="flex flex-wrap gap-2 p-4 rounded-2xl bg-surface-container/20 border border-outline-variant/10">
+              {#each whitelist as item}
+                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-primary/10 text-primary border border-primary/20">
+                  {item}
+                  <button
+                    onclick={() => removeWhitelistItem(item)}
+                    disabled={exceptionAction.state.loading}
+                    aria-label="Supprimer {item}"
+                    class="text-primary hover:text-error transition-colors focus:outline-none"
+                  >
+                    <Papicon icon="x" size={12} />
+                  </button>
+                </span>
+              {/each}
+            </div>
+          {:else}
+            <div class="p-6 rounded-2xl bg-surface-container/10 border border-dashed border-outline-variant/20 text-center text-xs text-on-surface-variant/40">
+              Aucun pseudo autorisé configuré.
+            </div>
+          {/if}
+        </div>
+
+        <!-- Membres exemptés -->
+        <div class="flex flex-col gap-4">
+          <div class="flex flex-col gap-1">
+            <h3 class="text-sm font-bold text-on-surface">Membres exemptés (Bypass)</h3>
+            <p class="text-xs text-on-surface-variant/50">
+              Les membres avec ces IDs Discord ne seront jamais renommés, peu importe le pseudo qu'ils choisissent.
+            </p>
+          </div>
+
+          <div class="flex gap-2">
+            <input
+              type="text"
+              bind:value={newBypassItem}
+              onkeydown={handleBypassKeydown}
+              placeholder="Ex: 636012675402..."
+              class="flex-1 bg-surface-container/60 border border-outline-variant/30 rounded-2xl px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-primary/60 transition-all"
+            />
+            <button
+              onclick={addBypassItem}
+              disabled={!newBypassItem.trim() || exceptionAction.state.loading}
+              class="px-5 py-3 bg-primary text-white rounded-2xl text-sm font-bold transition-all hover:bg-primary/90 active:scale-95 disabled:opacity-40"
+            >
+              Ajouter
+            </button>
+          </div>
+
+          {#if bypass.length > 0}
+            <div class="flex flex-wrap gap-2 p-4 rounded-2xl bg-surface-container/20 border border-outline-variant/10">
+              {#each bypass as item}
+                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-secondary/10 text-on-secondary-container border border-secondary/20 font-mono">
+                  {item}
+                  <button
+                    onclick={() => removeBypassItem(item)}
+                    disabled={exceptionAction.state.loading}
+                    aria-label="Retirer l'exemption pour {item}"
+                    class="text-on-secondary-container hover:text-error transition-colors focus:outline-none"
+                  >
+                    <Papicon icon="x" size={12} />
+                  </button>
+                </span>
+              {/each}
+            </div>
+          {:else}
+            <div class="p-6 rounded-2xl bg-surface-container/10 border border-dashed border-outline-variant/20 text-center text-xs text-on-surface-variant/40">
+              Aucun membre exempté (les admins/bots sont déjà ignorés par défaut).
+            </div>
+          {/if}
+        </div>
+      </div>
     </section>
   {/if}
 </ModulePage>

@@ -19,7 +19,15 @@ export const SAFE_NICKNAME = 'pseudo non conforme | automod';
  * @param words Liste de mots bannis chargée via `loadBannedWords(guildId)`.
  * @returns `true` si le pseudo doit être remplacé.
  */
-export function isNicknameProblematic(name: string, words: string[]): boolean {
+export function isNicknameProblematic(
+  name: string,
+  words: string[],
+  options?: {
+    whitelist?: string[];
+    userId?: string;
+    bypassUserIds?: string[];
+  }
+): boolean {
   if (!name || name.trim().length === 0) return true;
   if (INVISIBLE_ONLY_REGEX.test(name)) return true;
 
@@ -28,6 +36,19 @@ export function isNicknameProblematic(name: string, words: string[]): boolean {
   // Protection anti-boucle : Ignorer notre propre pseudo de remplacement ou tout ce qui s'y apparente (contient "automod" ou "pseudo non conforme")
   if (normalized.includes('automod') || normalized.includes('pseudo non conforme')) {
     return false;
+  }
+
+  // Membre exempté (Bypass par ID utilisateur)
+  if (options?.userId && options.bypassUserIds?.includes(options.userId)) {
+    return false;
+  }
+
+  // Pseudo sur la whitelist du serveur (comparaison exacte insensible à la casse)
+  if (options?.whitelist) {
+    const isWhitelisted = options.whitelist.some(
+      (w) => w.trim().toLowerCase() === normalized
+    );
+    if (isWhitelisted) return false;
   }
 
   return containsBannedWord(name, words);
@@ -80,10 +101,14 @@ export async function scanAndModeratePseudos(guild: Guild): Promise<PseudoScanRe
   // Charger les mots bannis une seule fois pour tout le scan
   const bannedWords = await loadBannedWords(guild.id);
 
-  // Charger le channel de logs
+  // Charger le channel de logs et la configuration de la whitelist/bypass
   const guildData = await prisma.guild.findUnique({
     where: { id: guild.id },
-    select: { logChannelId: true },
+    select: {
+      logChannelId: true,
+      nicknameModerationWhitelist: true,
+      nicknameModerationBypass: true,
+    },
   }).catch(() => null);
 
   const logChannel = guildData?.logChannelId
@@ -93,6 +118,9 @@ export async function scanAndModeratePseudos(guild: Guild): Promise<PseudoScanRe
   // Récupérer tous les membres
   const members = await guild.members.fetch().catch(() => null);
   if (!members) return result;
+
+  const whitelist = guildData?.nicknameModerationWhitelist ?? [];
+  const bypass = guildData?.nicknameModerationBypass ?? [];
 
   for (const [, member] of members) {
     if (member.user.bot) { result.skippedCount++; continue; }
@@ -106,7 +134,7 @@ export async function scanAndModeratePseudos(guild: Guild): Promise<PseudoScanRe
     // Déjà au pseudo de sécurité → skip
     if (effectiveName === SAFE_NICKNAME) continue;
 
-    if (!isNicknameProblematic(effectiveName, bannedWords)) continue;
+    if (!isNicknameProblematic(effectiveName, bannedWords, { whitelist, userId: member.id, bypassUserIds: bypass })) continue;
 
     try {
       await member.setNickname(SAFE_NICKNAME, buildRenameReason(effectiveName));

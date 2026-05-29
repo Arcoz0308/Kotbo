@@ -8222,13 +8222,21 @@ export const startDashboardApi = (client: Client) => {
               try {
                 const guild = await prisma.guild.findUnique({
                   where: { id: guildId },
-                  select: { autoNicknameModerationEnabled: true },
+                  select: {
+                    autoNicknameModerationEnabled: true,
+                    nicknameModerationWhitelist: true,
+                    nicknameModerationBypass: true,
+                  },
                 });
                 if (!guild) {
                   json(res, 404, { error: 'Serveur introuvable' });
                   return;
                 }
-                json(res, 200, { enabled: guild.autoNicknameModerationEnabled });
+                json(res, 200, {
+                  enabled: guild.autoNicknameModerationEnabled,
+                  whitelist: guild.nicknameModerationWhitelist,
+                  bypass: guild.nicknameModerationBypass,
+                });
               } catch (err) {
                 logger.error('NicknameAPI', 'GET nickname-moderation error:', err);
                 json(res, 500, { error: 'Erreur lors de la récupération de la configuration' });
@@ -8237,16 +8245,36 @@ export const startDashboardApi = (client: Client) => {
             }
 
             if (req.method === 'PATCH') {
-              const body = await readJsonBody<{ enabled?: boolean }>(req);
-              if (!body || !Object.prototype.hasOwnProperty.call(body, 'enabled')) {
-                json(res, 400, { error: 'Payload invalide — champ `enabled` requis' });
+              const body = await readJsonBody<{ enabled?: boolean; whitelist?: string[]; bypass?: string[] }>(req);
+              
+              const updateData: any = {};
+              if (body && Object.prototype.hasOwnProperty.call(body, 'enabled')) {
+                updateData.autoNicknameModerationEnabled = !!body.enabled;
+              }
+              if (body && Object.prototype.hasOwnProperty.call(body, 'whitelist')) {
+                if (!Array.isArray(body.whitelist) || body.whitelist.some(item => typeof item !== 'string')) {
+                  json(res, 400, { error: 'Format whitelist invalide (doit être un tableau de chaînes)' });
+                  return;
+                }
+                updateData.nicknameModerationWhitelist = body.whitelist.map((w: string) => w.trim().toLowerCase()).filter(Boolean);
+              }
+              if (body && Object.prototype.hasOwnProperty.call(body, 'bypass')) {
+                if (!Array.isArray(body.bypass) || body.bypass.some(item => typeof item !== 'string')) {
+                  json(res, 400, { error: 'Format bypass invalide (doit être un tableau de chaînes)' });
+                  return;
+                }
+                updateData.nicknameModerationBypass = body.bypass.map((id: string) => id.trim()).filter(Boolean);
+              }
+
+              if (Object.keys(updateData).length === 0) {
+                json(res, 400, { error: 'Payload invalide — aucun champ à mettre à jour fourni' });
                 return;
               }
 
               try {
                 await prisma.guild.update({
                   where: { id: guildId },
-                  data: { autoNicknameModerationEnabled: !!body.enabled },
+                  data: updateData,
                 });
 
                 const { invalidateNicknameModerationCache } = await import('../events/nicknameModeration.js');
@@ -8258,7 +8286,7 @@ export const startDashboardApi = (client: Client) => {
                   context: getGuildName(client, guildId),
                   module: 'Modération des pseudos',
                   eventType: 'Manuel',
-                  details: `Activé: ${body.enabled}`,
+                  details: `Modifications appliquées: ${Object.keys(updateData).join(', ')}`,
                   channelId: null,
                 });
 

@@ -7,41 +7,60 @@ import { logger } from '../utils/logger.js';
 // Cache du statut d'activation par serveur (TTL 60s)
 // ---------------------------------------------------------------------------
 
-type EnabledCache = { enabled: boolean; expiresAt: number };
-const enabledCache = new Map<string, EnabledCache>();
+type NicknameModConfig = {
+  enabled: boolean;
+  whitelist: string[];
+  bypass: string[];
+};
+
+type ConfigCacheEntry = {
+  config: NicknameModConfig;
+  expiresAt: number;
+};
+
+const configCache = new Map<string, ConfigCacheEntry>();
 const CACHE_TTL_MS = 60_000;
 
 /**
- * Invalide uniquement le cache d'activation (enabled).
+ * Invalide uniquement le cache de configuration de modération de pseudos.
  * Pour les mots bannis, utiliser invalidateBannedWordsCache depuis bannedWordsService.
  */
 export function invalidateNicknameModerationCache(guildId?: string): void {
   if (guildId) {
-    enabledCache.delete(guildId);
+    configCache.delete(guildId);
     invalidateBannedWordsCache(guildId);
     return;
   }
-  enabledCache.clear();
+  configCache.clear();
   invalidateBannedWordsCache();
 }
 
 // Re-export pour les usages existants dans dashboardApi.ts
 export { invalidateBannedWordsCache };
 
-async function isNicknameModerationEnabled(guildId: string): Promise<boolean> {
-  const cached = enabledCache.get(guildId);
+async function getNicknameModerationConfig(guildId: string): Promise<NicknameModConfig> {
+  const cached = configCache.get(guildId);
   const now = Date.now();
-  if (cached && cached.expiresAt > now) return cached.enabled;
+  if (cached && cached.expiresAt > now) return cached.config;
 
   const { default: prisma } = await import('../utils/db.js');
   const guild = await prisma.guild.findUnique({
     where: { id: guildId },
-    select: { autoNicknameModerationEnabled: true },
+    select: {
+      autoNicknameModerationEnabled: true,
+      nicknameModerationWhitelist: true,
+      nicknameModerationBypass: true,
+    },
   });
 
-  const enabled = guild?.autoNicknameModerationEnabled ?? false;
-  enabledCache.set(guildId, { enabled, expiresAt: now + CACHE_TTL_MS });
-  return enabled;
+  const config = {
+    enabled: guild?.autoNicknameModerationEnabled ?? false,
+    whitelist: guild?.nicknameModerationWhitelist ?? [],
+    bypass: guild?.nicknameModerationBypass ?? [],
+  };
+
+  configCache.set(guildId, { config, expiresAt: now + CACHE_TTL_MS });
+  return config;
 }
 
 // ---------------------------------------------------------------------------
@@ -52,8 +71,8 @@ async function checkAndRename(member: GuildMember): Promise<void> {
   if (member.user.bot) return;
 
   const guildId = member.guild.id;
-  const enabled = await isNicknameModerationEnabled(guildId);
-  if (!enabled) return;
+  const config = await getNicknameModerationConfig(guildId);
+  if (!config.enabled) return;
 
   // Vérification des permissions du bot
   const botMember = await member.guild.members.fetchMe().catch(() => null);
@@ -69,7 +88,15 @@ async function checkAndRename(member: GuildMember): Promise<void> {
   // Chargement des mots bannis depuis le service générique (global + serveur)
   const bannedWords = await loadBannedWords(guildId);
 
-  if (!isNicknameProblematic(effectiveName, bannedWords)) return;
+  if (
+    !isNicknameProblematic(effectiveName, bannedWords, {
+      whitelist: config.whitelist,
+      userId: member.id,
+      bypassUserIds: config.bypass,
+    })
+  ) {
+    return;
+  }
 
   try {
     await member.setNickname(SAFE_NICKNAME, buildRenameReason(effectiveName));
