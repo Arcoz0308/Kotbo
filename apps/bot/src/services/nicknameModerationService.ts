@@ -46,7 +46,7 @@ export function isNicknameProblematic(
   // Pseudo sur la whitelist du serveur (comparaison exacte insensible à la casse)
   if (options?.whitelist) {
     const isWhitelisted = options.whitelist.some(
-      (w) => w.trim().toLowerCase() === normalized
+      (w) => typeof w === 'string' && w.trim().toLowerCase() === normalized
     );
     if (isWhitelisted) return false;
   }
