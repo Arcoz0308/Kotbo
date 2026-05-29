@@ -8257,6 +8257,10 @@ export const startDashboardApi = (client: Client) => {
                   return;
                 }
                 const cleanedWhitelist = [...new Set(body.whitelist.map((w: string) => w.trim().toLowerCase()).filter(Boolean))];
+                if (cleanedWhitelist.length > 250) {
+                  json(res, 400, { error: 'La whitelist ne peut pas contenir plus de 250 pseudos' });
+                  return;
+                }
                 if (cleanedWhitelist.some(w => w.length > 32)) {
                   json(res, 400, { error: 'Les pseudos autorisés ne peuvent pas dépasser 32 caractères' });
                   return;
@@ -8269,6 +8273,10 @@ export const startDashboardApi = (client: Client) => {
                   return;
                 }
                 const cleanedBypass = [...new Set(body.bypass.map((id: string) => id.trim()).filter(Boolean))];
+                if (cleanedBypass.length > 250) {
+                  json(res, 400, { error: 'La liste des membres exemptés ne peut pas contenir plus de 250 IDs' });
+                  return;
+                }
                 if (cleanedBypass.some(id => !/^\d{17,20}$/.test(id))) {
                   json(res, 400, { error: 'Format bypass invalide : certains IDs sont incorrects (doivent être de 17 à 20 chiffres)' });
                   return;
