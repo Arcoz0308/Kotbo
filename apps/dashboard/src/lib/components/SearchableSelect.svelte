@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount } from 'svelte';
+  import { createEventDispatcher } from 'svelte';
 
   export let id: string = '';
   export let value: string | null = null;
@@ -34,12 +34,17 @@
     dispatch('input', { value });
   }
 
-  onMount(() => {
-    if (value) {
+  // Synchronise le texte affiché dès que `value` ou `options` changent.
+  // onMount ne suffit pas car les options peuvent arriver après le montage (chargement asynchrone).
+  $: {
+    if (value && options.length > 0) {
       const sel = options.find((o) => o.id === value);
-      if (sel) query = sel.name;
+      if (sel && query !== sel.name) query = sel.name;
+    } else if (!value) {
+      // Si la valeur est vidée de l'extérieur, on efface aussi le texte affiché
+      if (query && !open) query = '';
     }
-  });
+  }
 </script>
 
 <div class={className} style="position:relative">

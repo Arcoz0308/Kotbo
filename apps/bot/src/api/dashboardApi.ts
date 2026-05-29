@@ -2451,7 +2451,15 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
   ];
 
 
-  const discordGuild = client.guilds.cache.get(guildId);
+  // Résolution de la guild Discord — cache d'abord, puis fetch si absente
+  let discordGuild = client.guilds.cache.get(guildId) ?? null;
+  if (!discordGuild) {
+    discordGuild = await client.guilds.fetch(guildId).catch(() => null);
+  }
+  // Force le rechargement des salons si le cache est vide (ex: redémarrage du bot)
+  if (discordGuild && discordGuild.channels.cache.size === 0) {
+    await discordGuild.channels.fetch().catch(() => null);
+  }
   const currentMember = userId && discordGuild ? await discordGuild.members.fetch(userId).catch(() => null) : null;
   const currentRoleIds = currentMember
     ? currentMember.roles.cache
@@ -2459,59 +2467,57 @@ const getGuildState = async (client: Client, guildId: string, access: DashboardA
         .filter((roleId): roleId is string => !!roleId)
     : [];
   const featureAccess = await resolveFeatureAccessMap(client, guildId, access, userId ?? null, currentRoleIds);
-  const discordChannels: DashboardChannel[] = discordGuild
-    ? discordGuild.channels.cache
-        .filter((channel) => channel.type === ChannelType.GuildText || channel.type === ChannelType.GuildAnnouncement)
-        .map((channel) => ({
-          id: channel.id,
-          name: channel.name,
-          mention: `<#${channel.id}>`,
-          position: channel.rawPosition ?? 0
-        }))
-        .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name, 'fr'))
-        .map(({ id, name, mention }) => ({ id, name, mention }))
-    : [];
 
-  const discordVoiceChannels: DashboardChannel[] = discordGuild
-    ? discordGuild.channels.cache
-        .filter((channel) => channel.type === ChannelType.GuildVoice || channel.type === ChannelType.GuildStageVoice)
-        .map((channel) => ({
-          id: channel.id,
-          name: channel.name,
-          mention: `<#${channel.id}>`,
-          position: channel.rawPosition ?? 0
-        }))
-        .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name, 'fr'))
-        .map(({ id, name, mention }) => ({ id, name, mention }))
-    : [];
+  // Note: discord.js Collection.filter() retourne une Collection, pas un Array.
+  // On convertit avec Array.from() avant de filter/sort pour éviter les erreurs.
+  const allChannels = discordGuild ? Array.from(discordGuild.channels.cache.values()) : [];
+  const allRoles = discordGuild ? Array.from(discordGuild.roles.cache.values()) : [];
 
-  const discordCategories: DashboardChannel[] = discordGuild
-    ? discordGuild.channels.cache
-        .filter((channel) => channel.type === ChannelType.GuildCategory)
-        .map((channel) => ({
-          id: channel.id,
-          name: channel.name,
-          mention: `<#${channel.id}>`,
-          position: channel.rawPosition ?? 0
-        }))
-        .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name, 'fr'))
-        .map(({ id, name, mention }) => ({ id, name, mention }))
-    : [];
+  const discordChannels: DashboardChannel[] = allChannels
+    .filter((channel) => channel.type === ChannelType.GuildText || channel.type === ChannelType.GuildAnnouncement)
+    .map((channel) => ({
+      id: channel.id,
+      name: channel.name,
+      mention: `<#${channel.id}>`,
+      position: channel.rawPosition ?? 0
+    }))
+    .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name, 'fr'))
+    .map(({ id, name, mention }) => ({ id, name, mention }));
+
+  const discordVoiceChannels: DashboardChannel[] = allChannels
+    .filter((channel) => channel.type === ChannelType.GuildVoice || channel.type === ChannelType.GuildStageVoice)
+    .map((channel) => ({
+      id: channel.id,
+      name: channel.name,
+      mention: `<#${channel.id}>`,
+      position: channel.rawPosition ?? 0
+    }))
+    .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name, 'fr'))
+    .map(({ id, name, mention }) => ({ id, name, mention }));
+
+  const discordCategories: DashboardChannel[] = allChannels
+    .filter((channel) => channel.type === ChannelType.GuildCategory)
+    .map((channel) => ({
+      id: channel.id,
+      name: channel.name,
+      mention: `<#${channel.id}>`,
+      position: channel.rawPosition ?? 0
+    }))
+    .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name, 'fr'))
+    .map(({ id, name, mention }) => ({ id, name, mention }));
 
 
-  const discordRoles: DashboardRole[] = discordGuild
-    ? discordGuild.roles.cache
-        .filter((role) => role.name !== '@everyone' && !role.managed)
-        .map((role) => ({
+  const discordRoles: DashboardRole[] = allRoles
+    .filter((role) => role.name !== '@everyone' && !role.managed)
+    .map((role) => ({
           id: role.id,
           name: role.name,
           mention: `<@&${role.id}>`,
           permissions: role.permissions.toArray(),
           position: role.position
-        }))
-        .sort((a, b) => b.position - a.position || a.name.localeCompare(b.name, 'fr'))
-        .map(({ id, name, mention, permissions, position }) => ({ id, name, mention, permissions, position }))
-    : [];
+    }))
+    .sort((a, b) => b.position - a.position || a.name.localeCompare(b.name, 'fr'))
+    .map(({ id, name, mention, permissions, position }) => ({ id, name, mention, permissions, position }));
 
   const trendMap = new Map(dailyStatsTrend.map(s => [s.dateKey, s]));
   const messagesTrend = last7Days.map(dateKey => trendMap.get(dateKey)?.messagesCount ?? 0);
@@ -4628,6 +4634,42 @@ export const startDashboardApi = (client: Client) => {
               return;
             }
             json(res, 200, state);
+            return;
+          }
+
+          // GET /api/dashboard/guilds/:guildId/channels — salons Discord (texte, vocal, catégories)
+          if (parts.length === 5 && parts[4] === 'channels' && req.method === 'GET') {
+            // Résolution de la guild avec fallback fetch
+            let discordGuild = client.guilds.cache.get(guildId) ?? null;
+            if (!discordGuild) {
+              discordGuild = await client.guilds.fetch(guildId).catch(() => null) as any;
+            }
+            if (!discordGuild) {
+              json(res, 404, { error: 'Serveur Discord introuvable' });
+              return;
+            }
+            // Force le rechargement des salons si le cache est vide
+            if ((discordGuild as any).channels.cache.size === 0) {
+              await (discordGuild as any).channels.fetch().catch(() => null);
+            }
+            // Conversion en Array (discord.js Collection != Array)
+            const allCh = Array.from((discordGuild as any).channels.cache.values()) as any[];
+            const textChannels = allCh
+              .filter((ch) => ch.type === ChannelType.GuildText || ch.type === ChannelType.GuildAnnouncement)
+              .map((ch) => ({ id: ch.id, name: ch.name, mention: `<#${ch.id}>`, position: ch.rawPosition ?? 0 }))
+              .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name, 'fr'))
+              .map(({ id, name, mention }) => ({ id, name, mention }));
+            const voiceChannels = allCh
+              .filter((ch) => ch.type === ChannelType.GuildVoice || ch.type === ChannelType.GuildStageVoice)
+              .map((ch) => ({ id: ch.id, name: ch.name, mention: `<#${ch.id}>`, position: ch.rawPosition ?? 0 }))
+              .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name, 'fr'))
+              .map(({ id, name, mention }) => ({ id, name, mention }));
+            const categories = allCh
+              .filter((ch) => ch.type === ChannelType.GuildCategory)
+              .map((ch) => ({ id: ch.id, name: ch.name, mention: `<#${ch.id}>`, position: ch.rawPosition ?? 0 }))
+              .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name, 'fr'))
+              .map(({ id, name, mention }) => ({ id, name, mention }));
+            json(res, 200, { textChannels, voiceChannels, categories });
             return;
           }
 

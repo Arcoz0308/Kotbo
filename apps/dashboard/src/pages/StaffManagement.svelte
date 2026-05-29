@@ -6,6 +6,7 @@
   import { 
     API_BASE_URL, 
     fetchGuildState, 
+    fetchDiscordChannels,
     fetchPolls, 
     toggleTutorStatus, 
     fetchStaffWarnings,
@@ -606,12 +607,33 @@
     lastLoadedGuildId = currentGuildId;
     lastLoadedToken = authStore.token || '';
 
+  /**
+   * Charge les salons Discord depuis l'endpoint dédié.
+   * À appeler si getGuildState retourne des listes vides.
+   */
+  async function loadDiscordChannels(targetGuildId: string) {
+    try {
+      const data = await fetchDiscordChannels(targetGuildId);
+      if (data?.textChannels?.length > 0 || data?.voiceChannels?.length > 0) {
+        availableDiscordChannels = data.textChannels || [];
+        availableDiscordVoiceChannels = data.voiceChannels || [];
+      }
+    } catch {
+      // Silencieux — les selects resteront vides si Discord est inaccessible
+    }
+  }
+
     void (async () => {
       try {
         const dashboardState = await fetchGuildState(currentGuildId);
         availableDiscordRoles = dashboardState?.discordRoles || [];
         availableDiscordChannels = dashboardState?.discordChannels || [];
         availableDiscordVoiceChannels = dashboardState?.discordVoiceChannels || [];
+
+        // Si les salons sont absents (guild pas en cache Discord), on les charge via l'endpoint dédié
+        if (availableDiscordChannels.length === 0 && availableDiscordVoiceChannels.length === 0) {
+          await loadDiscordChannels(currentGuildId);
+        }
 
         // Démarrage du chargement intelligent
         console.log('--- PRIORITIZED LOADING START ---');

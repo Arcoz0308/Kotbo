@@ -1098,12 +1098,6 @@ export const createStaffHierarchy = async (
     select: { sortOrder: true },
   });
 
-  const parentHierarchyRelation = parentHierarchyId === undefined
-    ? undefined
-    : parentHierarchyId
-      ? { connect: { id: parentHierarchyId } }
-      : { disconnect: true };
-
   return prisma.staffHierarchy.create({
     data: {
       guildId,
@@ -1114,7 +1108,7 @@ export const createStaffHierarchy = async (
       discordRoleId: discordRoleId ?? null,
       responsableUserId: responsableUserId ?? null,
       sortOrder: (lastHierarchy?.sortOrder ?? -1) + 1,
-      ...(parentHierarchyRelation ? { parentHierarchy: parentHierarchyRelation } : {}),
+      parentHierarchyId: parentHierarchyId ?? null,
     },
     include: {
       roles: { where: { enabled: true }, orderBy: [{ sortOrder: 'asc' }, { level: 'asc' }] },

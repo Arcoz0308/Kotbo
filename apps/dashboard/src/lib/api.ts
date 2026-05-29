@@ -580,6 +580,15 @@ export async function updateStaffConfig(config, guildId = authStore.selectedGuil
   });
 }
 
+export async function fetchDiscordChannels(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/channels', {
+    method: 'GET',
+    guildId,
+    silent: true,
+    errorContext: 'API Error (Fetch Discord Channels):'
+  });
+}
+
 export async function fetchAbsences(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/absences', { method: 'GET', guildId });
 }
