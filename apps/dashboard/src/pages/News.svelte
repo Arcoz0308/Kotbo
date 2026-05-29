@@ -69,6 +69,42 @@
     })
   );
 
+  const forumSections = $derived(() => {
+    const categoryMap = new Map<string, Map<string, any[]>>();
+
+    for (const article of filteredArticles) {
+      const articleCategory = article?.category || 'Sans catégorie';
+      const articleSubcategory = article?.subcategory?.trim() || 'Général';
+
+      if (!categoryMap.has(articleCategory)) {
+        categoryMap.set(articleCategory, new Map());
+      }
+
+      const subcategoryMap = categoryMap.get(articleCategory)!;
+      if (!subcategoryMap.has(articleSubcategory)) {
+        subcategoryMap.set(articleSubcategory, []);
+      }
+
+      subcategoryMap.get(articleSubcategory)!.push(article);
+    }
+
+    return Array.from(categoryMap.entries())
+      .map(([categoryName, subcategoryMap]) => ({
+        categoryName,
+        totalCount: Array.from(subcategoryMap.values()).reduce((count, items) => count + items.length, 0),
+        subcategories: Array.from(subcategoryMap.entries()).map(([subcategoryName, items]) => ({
+          subcategoryName,
+          totalCount: items.length,
+          articles: [...items].sort((left, right) => {
+            const leftDate = new Date(left?.publishedAt || 0).getTime();
+            const rightDate = new Date(right?.publishedAt || 0).getTime();
+            return rightDate - leftDate;
+          })
+        }))
+      }))
+      .sort((left, right) => right.totalCount - left.totalCount || left.categoryName.localeCompare(right.categoryName, 'fr'));
+  });
+
   const canEdit = $derived(
     !isPublicView && (
       !!dashboardStore.state.featureAccess?.news?.canModerate ||
@@ -575,97 +611,218 @@
               {/each}
             </div>
           {:else if filteredArticles.length > 0}
-            <div class="overflow-x-auto rounded-3xl border border-outline-variant/10">
-              <table class="w-full border-collapse text-left">
-                <thead>
-                  <tr class="bg-surface-container-high/40 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60">
-                    <th class="px-6 py-4">Article</th>
-                    <th class="px-6 py-4">Catégorie</th>
-                    <th class="px-6 py-4">Auteur</th>
-                    <th class="px-6 py-4">Date de pub.</th>
-                    <th class="px-6 py-4">État</th>
-                    {#if canEdit}
-                      <th class="px-6 py-4 text-right">Actions</th>
-                    {/if}
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-outline-variant/5">
-                  {#each filteredArticles as art}
-                    <tr class="hover:bg-surface-container-high/10 transition-colors">
-                      <td class="px-6 py-5">
-                        <div class="flex items-center gap-4">
-                          {#if art.imageUrl}
-                            <img src={art.imageUrl} alt="" class="w-12 h-12 object-cover rounded-xl border border-outline-variant/10" />
-                          {:else}
-                            <div class="w-12 h-12 bg-primary/5 text-primary rounded-xl flex items-center justify-center">
-                              <Papicon icon="newspaper" size={20} />
+            {#if isPublicView}
+              <div class="space-y-6">
+                <div class="rounded-4xl border border-outline-variant/15 bg-surface-container-high/25 p-5 md:p-6">
+                  <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div class="space-y-2">
+                      <div class="flex items-center gap-2 text-primary">
+                        <Papicon icon="globe" size={18} />
+                        <span class="text-[10px] font-black uppercase tracking-[0.2em]">Vue forum</span>
+                      </div>
+                      <h4 class="text-lg font-black text-on-surface">Catégories, sous-catégories et derniers articles</h4>
+                      <p class="text-xs text-on-surface-variant/70 max-w-2xl">
+                        Les articles sont regroupés par catégorie puis par sous-catégorie pour rappeler l’organisation d’un forum.
+                      </p>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                      <span class="px-3 py-1.5 rounded-full bg-primary/10 text-primary text-[10px] font-black uppercase tracking-wider">{filteredArticles.length} article{filteredArticles.length > 1 ? 's' : ''}</span>
+                      <span class="px-3 py-1.5 rounded-full bg-secondary/10 text-secondary text-[10px] font-black uppercase tracking-wider">{forumSections.length} catégorie{forumSections.length > 1 ? 's' : ''}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="space-y-5">
+                  {#each forumSections as section}
+                    <section class="overflow-hidden rounded-4xl border border-outline-variant/15 bg-surface-container-low/40 shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
+                      <div class="flex flex-col gap-4 border-b border-outline-variant/10 bg-linear-to-r from-primary/10 via-secondary/5 to-transparent px-5 py-4 md:flex-row md:items-center md:justify-between">
+                        <div class="space-y-1">
+                          <div class="flex items-center gap-2">
+                            <span class="flex h-9 w-9 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+                              <Papicon icon="folder" size={18} />
+                            </span>
+                            <div>
+                              <h5 class="text-base font-black text-on-surface">{section.categoryName}</h5>
+                              <p class="text-[11px] uppercase tracking-[0.18em] text-on-surface-variant/55">{section.totalCount} sujet{section.totalCount > 1 ? 's' : ''}</p>
                             </div>
-                          {/if}
-                          <div>
-                            <p class="font-bold text-sm text-on-surface">{art.title}</p>
-                            {#if art.summary}
-                              <p class="text-xs text-on-surface-variant/80 line-clamp-1 mt-0.5">{art.summary}</p>
-                            {/if}
                           </div>
                         </div>
-                      </td>
-                      <td class="px-6 py-5">
-                        <div class="flex flex-col gap-1">
-                          <span class="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-full bg-primary/10 text-primary w-fit">
-                            {art.category}
-                          </span>
-                          {#if art.subcategory}
-                            <span class="text-[9px] text-secondary font-bold uppercase tracking-wider ml-1">↳ {art.subcategory}</span>
-                          {/if}
+                        <div class="flex flex-wrap gap-2">
+                          {#each section.subcategories as subcategorySection}
+                            <span class="rounded-full border border-outline-variant/15 bg-surface-container-high/40 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/75">
+                              {subcategorySection.subcategoryName} · {subcategorySection.totalCount}
+                            </span>
+                          {/each}
                         </div>
-                      </td>
-                      <td class="px-6 py-5">
-                        <div class="flex items-center gap-2">
-                          {#if art.authorAvatar}
-                            <img src={art.authorAvatar} alt="" class="w-6 h-6 rounded-full" />
-                          {/if}
-                          <span class="text-xs font-bold text-on-surface-variant">{art.authorName}</span>
-                        </div>
-                      </td>
-                      <td class="px-6 py-5 text-xs text-on-surface-variant font-medium">
-                        {formatDate(art.publishedAt)}
-                      </td>
-                      <td class="px-6 py-5">
-                        {#if art.published}
-                          <span class="px-2.5 py-1 text-[9px] font-black uppercase tracking-widest rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400">
-                            Publié
-                          </span>
-                        {:else}
-                          <span class="px-2.5 py-1 text-[9px] font-black uppercase tracking-widest rounded-full bg-slate-100 text-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
-                            Brouillon
-                          </span>
-                        {/if}
-                      </td>
+                      </div>
+
+                      <div class="divide-y divide-outline-variant/8">
+                        {#each section.subcategories as subcategorySection}
+                          <div class="grid gap-4 px-5 py-4 md:grid-cols-[220px_minmax(0,1fr)] md:gap-6">
+                            <div class="space-y-2">
+                              <div class="inline-flex items-center gap-2 rounded-full bg-secondary/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-secondary">
+                                <Papicon icon="hash" size={14} />
+                                {subcategorySection.subcategoryName}
+                              </div>
+                              <p class="text-[11px] text-on-surface-variant/60">
+                                {subcategorySection.totalCount} article{subcategorySection.totalCount > 1 ? 's' : ''}
+                              </p>
+                            </div>
+
+                            <div class="space-y-3">
+                              {#each subcategorySection.articles as art}
+                                <article class="group rounded-[1.6rem] border border-outline-variant/10 bg-surface-container-high/25 p-4 transition-all hover:-translate-y-0.5 hover:border-primary/25 hover:bg-surface-container-high/40">
+                                  <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                                    <div class="flex min-w-0 gap-4">
+                                      {#if art.imageUrl}
+                                        <img src={art.imageUrl} alt="" class="h-16 w-16 shrink-0 rounded-2xl border border-outline-variant/10 object-cover" />
+                                      {:else}
+                                        <div class="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                                          <Papicon icon="newspaper" size={24} />
+                                        </div>
+                                      {/if}
+
+                                      <div class="min-w-0 space-y-2">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                          <span class="rounded-full bg-primary/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-primary">
+                                            {art.category}
+                                          </span>
+                                          {#if art.subcategory}
+                                            <span class="rounded-full bg-secondary/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-secondary">
+                                              {art.subcategory}
+                                            </span>
+                                          {/if}
+                                          {#if art.published}
+                                            <span class="rounded-full bg-emerald-100 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400">
+                                              Publié
+                                            </span>
+                                          {:else}
+                                            <span class="rounded-full bg-slate-100 px-2.5 py-1 text-[9px] font-black uppercase tracking-widest text-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
+                                              Brouillon
+                                            </span>
+                                          {/if}
+                                        </div>
+
+                                        <h6 class="text-base font-black text-on-surface transition-colors group-hover:text-primary">{art.title}</h6>
+                                        {#if art.summary}
+                                          <p class="line-clamp-2 text-sm text-on-surface-variant/80">{art.summary}</p>
+                                        {/if}
+                                      </div>
+                                    </div>
+
+                                    <div class="flex shrink-0 flex-wrap items-center gap-3 text-[11px] text-on-surface-variant/70">
+                                      <div class="flex items-center gap-2 rounded-full bg-surface-container-high/55 px-3 py-1.5">
+                                        {#if art.authorAvatar}
+                                          <img src={art.authorAvatar} alt="" class="h-5 w-5 rounded-full" />
+                                        {/if}
+                                        <span class="font-bold text-on-surface-variant">{art.authorName}</span>
+                                      </div>
+                                      <span class="rounded-full bg-surface-container-high/55 px-3 py-1.5 font-medium">{formatDate(art.publishedAt)}</span>
+                                    </div>
+                                  </div>
+                                </article>
+                              {/each}
+                            </div>
+                          </div>
+                        {/each}
+                      </div>
+                    </section>
+                  {/each}
+                </div>
+              </div>
+            {:else}
+              <div class="overflow-x-auto rounded-3xl border border-outline-variant/10">
+                <table class="w-full border-collapse text-left">
+                  <thead>
+                    <tr class="bg-surface-container-high/40 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60">
+                      <th class="px-6 py-4">Article</th>
+                      <th class="px-6 py-4">Catégorie</th>
+                      <th class="px-6 py-4">Auteur</th>
+                      <th class="px-6 py-4">Date de pub.</th>
+                      <th class="px-6 py-4">État</th>
                       {#if canEdit}
-                        <td class="px-6 py-5 text-right">
-                          <div class="flex items-center justify-end gap-1">
-                            <button 
-                              onclick={() => openEdit(art)} 
-                              class="p-2 text-on-surface-variant hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
-                              title="Modifier"
-                            >
-                              <Papicon icon="edit" size={16} />
-                            </button>
-                            <button 
-                              onclick={() => handleDelete(art.id)} 
-                              class="p-2 text-on-surface-variant hover:text-red-500 hover:bg-red-500/5 rounded-xl transition-all"
-                              title="Supprimer"
-                            >
-                              <Papicon icon="trash" size={16} />
-                            </button>
-                          </div>
-                        </td>
+                        <th class="px-6 py-4 text-right">Actions</th>
                       {/if}
                     </tr>
-                  {/each}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody class="divide-y divide-outline-variant/5">
+                    {#each filteredArticles as art}
+                      <tr class="hover:bg-surface-container-high/10 transition-colors">
+                        <td class="px-6 py-5">
+                          <div class="flex items-center gap-4">
+                            {#if art.imageUrl}
+                              <img src={art.imageUrl} alt="" class="w-12 h-12 object-cover rounded-xl border border-outline-variant/10" />
+                            {:else}
+                              <div class="w-12 h-12 bg-primary/5 text-primary rounded-xl flex items-center justify-center">
+                                <Papicon icon="newspaper" size={20} />
+                              </div>
+                            {/if}
+                            <div>
+                              <p class="font-bold text-sm text-on-surface">{art.title}</p>
+                              {#if art.summary}
+                                <p class="text-xs text-on-surface-variant/80 line-clamp-1 mt-0.5">{art.summary}</p>
+                              {/if}
+                            </div>
+                          </div>
+                        </td>
+                        <td class="px-6 py-5">
+                          <div class="flex flex-col gap-1">
+                            <span class="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-full bg-primary/10 text-primary w-fit">
+                              {art.category}
+                            </span>
+                            {#if art.subcategory}
+                              <span class="text-[9px] text-secondary font-bold uppercase tracking-wider ml-1">↳ {art.subcategory}</span>
+                            {/if}
+                          </div>
+                        </td>
+                        <td class="px-6 py-5">
+                          <div class="flex items-center gap-2">
+                            {#if art.authorAvatar}
+                              <img src={art.authorAvatar} alt="" class="w-6 h-6 rounded-full" />
+                            {/if}
+                            <span class="text-xs font-bold text-on-surface-variant">{art.authorName}</span>
+                          </div>
+                        </td>
+                        <td class="px-6 py-5 text-xs text-on-surface-variant font-medium">
+                          {formatDate(art.publishedAt)}
+                        </td>
+                        <td class="px-6 py-5">
+                          {#if art.published}
+                            <span class="px-2.5 py-1 text-[9px] font-black uppercase tracking-widest rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400">
+                              Publié
+                            </span>
+                          {:else}
+                            <span class="px-2.5 py-1 text-[9px] font-black uppercase tracking-widest rounded-full bg-slate-100 text-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
+                              Brouillon
+                            </span>
+                          {/if}
+                        </td>
+                        {#if canEdit}
+                          <td class="px-6 py-5 text-right">
+                            <div class="flex items-center justify-end gap-1">
+                              <button 
+                                onclick={() => openEdit(art)} 
+                                class="p-2 text-on-surface-variant hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
+                                title="Modifier"
+                              >
+                                <Papicon icon="edit" size={16} />
+                              </button>
+                              <button 
+                                onclick={() => handleDelete(art.id)} 
+                                class="p-2 text-on-surface-variant hover:text-red-500 hover:bg-red-500/5 rounded-xl transition-all"
+                                title="Supprimer"
+                              >
+                                <Papicon icon="trash" size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        {/if}
+                      </tr>
+                    {/each}
+                  </tbody>
+                </table>
+              </div>
+            {/if}
           {:else}
             <div class="flex flex-col items-center justify-center py-20 border border-dashed border-outline-variant/30 rounded-3xl">
               <div class="w-16 h-16 bg-surface-container-high/30 rounded-full flex items-center justify-center text-on-surface-variant/30 mb-4">
@@ -687,140 +844,192 @@
       </div>
     {:else}
       <!-- CONFIGS VIEW -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in duration-300">
-        <!-- Mapping Form -->
-        <section class="lg:col-span-1 bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6 h-fit">
-          <h3 class="text-xl font-black flex items-center gap-3">
-            <Papicon icon="plus" size={20} class="text-primary" />
-            Nouveau Salon par Catégorie
-          </h3>
-          <p class="text-xs text-on-surface-variant/70 leading-relaxed">
-            Configurez un salon Discord spécifique pour recevoir les notifications d'une catégorie et/ou sous-catégorie.
-          </p>
-
-          <div class="space-y-4">
-            <!-- Category Input -->
-            <div class="space-y-1.5">
-              <label for="config-category" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Catégorie</label>
-              <input
-                id="config-category"
-                type="text"
-                list="categories-config-list"
-                bind:value={configCategory}
-                placeholder="Ex: Annonce, Patch Note..."
-                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all"
-              />
-              <datalist id="categories-config-list">
-                {#each categories as cat}
-                  <option value={cat}></option>
-                {/each}
-              </datalist>
-            </div>
-
-            <!-- Subcategory Input -->
-            <div class="space-y-1.5">
-              <label for="config-subcategory" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Sous-catégorie (optionnel)</label>
-              <input
-                id="config-subcategory"
-                type="text"
-                bind:value={configSubcategory}
-                placeholder="Ex: API, Frontend, Web..."
-                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all"
-              />
-            </div>
-
-            <!-- Discord Channel Selector -->
-            <div class="space-y-1.5">
-              <label for="config-channel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon Discord</label>
-              <SearchableSelect id="config-channel" bind:value={configChannelId} options={(dashboardStore.state.discordChannels || []).map(channel => ({ id: channel.id, name: `#${channel.name}` }))} placeholder="— Sélectionner un salon —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all" />
-            </div>
-
-            <!-- Save Config Button -->
-            <button
-              onclick={handleSaveConfig}
-              class="w-full mt-2 py-3 bg-primary text-on-primary font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all"
-            >
-              Enregistrer la configuration
-            </button>
-          </div>
-        </section>
-
-        <!-- Mapping List & RSS Feeds -->
-        <section class="lg:col-span-2 bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
-          <h3 class="text-xl font-black flex items-center gap-3">
-            <Papicon icon="rss" size={20} class="text-secondary" />
-            Configuration des Salons & Flux RSS
-          </h3>
-
-          {#if loadingConfigs}
-            <div class="space-y-4">
-              {#each Array(2) as _}
-                <div class="p-6 bg-surface-container-high/20 border border-outline-variant/5 rounded-2xl flex items-center justify-between">
-                  <div class="space-y-2 w-1/3">
-                    <Skeleton width="100%" height="16px" />
-                    <Skeleton width="60%" height="12px" />
-                  </div>
-                  <Skeleton width="10%" height="32px" radius="8px" />
+      <div class="space-y-8 animate-in fade-in duration-300">
+        <section class="overflow-hidden rounded-4xl border border-outline-variant/15 bg-surface-container-low/40 shadow-[0_18px_60px_rgba(0,0,0,0.08)]">
+          <div class="border-b border-outline-variant/10 bg-linear-to-r from-black/5 via-transparent to-primary/10 px-6 py-5 md:px-8 md:py-6">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div class="space-y-3 max-w-3xl">
+                <div class="flex items-center gap-2 text-primary">
+                  <Papicon icon="rss" size={18} />
+                  <span class="text-[10px] font-black uppercase tracking-[0.25em]">Configuration éditoriale</span>
                 </div>
-              {/each}
+                <div class="space-y-2">
+                  <h3 class="text-2xl md:text-3xl font-black tracking-tight text-on-surface">Salons actualité et flux RSS</h3>
+                  <p class="text-sm text-on-surface-variant/75 leading-relaxed max-w-2xl">
+                    Organisez chaque catégorie comme une rubrique de journal, avec des flux dédiés et des salons Discord associés.
+                  </p>
+                </div>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <span class="rounded-full bg-surface-container-high/70 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant">
+                  {categoryConfigs.length} liaison{categoryConfigs.length > 1 ? 's' : ''}
+                </span>
+                <span class="rounded-full bg-primary/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-primary">
+                  {dashboardStore.state.discordChannels?.length || 0} salons détectés
+                </span>
+              </div>
             </div>
-          {:else if categoryConfigs.length > 0}
-            <div class="overflow-x-auto rounded-3xl border border-outline-variant/10">
-              <table class="w-full border-collapse text-left">
-                <thead>
-                  <tr class="bg-surface-container-high/40 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60">
-                    <th class="px-6 py-4">Catégorie / Sous-catégorie</th>
-                    <th class="px-6 py-4">Salon Discord</th>
-                    <th class="px-6 py-4">Flux RSS Dédié</th>
-                    {#if canEdit}
-                      <th class="px-6 py-4 text-right">Action</th>
-                    {/if}
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-outline-variant/5">
+          </div>
+
+          <div class="grid grid-cols-1 gap-0 lg:grid-cols-[420px_minmax(0,1fr)]">
+            <!-- Mapping Form -->
+            <section class="border-b border-outline-variant/10 bg-surface-container-low/20 p-6 md:p-8 lg:border-b-0 lg:border-r">
+              <div class="space-y-6">
+                <div class="space-y-2">
+                  <h4 class="text-lg font-black tracking-tight text-on-surface flex items-center gap-3">
+                    <span class="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <Papicon icon="plus" size={18} />
+                    </span>
+                    Nouvelle rubrique
+                  </h4>
+                  <p class="text-xs text-on-surface-variant/70 leading-relaxed">
+                    Associez une catégorie ou sous-catégorie à un salon pour diffuser les annonces comme dans une rédaction.
+                  </p>
+                </div>
+
+                <div class="space-y-4">
+                  <!-- Category Input -->
+                  <div class="space-y-1.5">
+                    <label for="config-category" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-[0.2em]">Rubrique</label>
+                    <input
+                      id="config-category"
+                      type="text"
+                      list="categories-config-list"
+                      bind:value={configCategory}
+                      placeholder="Ex: Monde, France, Tech..."
+                      class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-2xl px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all"
+                    />
+                    <datalist id="categories-config-list">
+                      {#each categories as cat}
+                        <option value={cat}></option>
+                      {/each}
+                    </datalist>
+                  </div>
+
+                  <!-- Subcategory Input -->
+                  <div class="space-y-1.5">
+                    <label for="config-subcategory" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-[0.2em]">Sous-rubrique</label>
+                    <input
+                      id="config-subcategory"
+                      type="text"
+                      bind:value={configSubcategory}
+                      placeholder="Ex: Europe, API, Web..."
+                      class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-2xl px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all"
+                    />
+                  </div>
+
+                  <!-- Discord Channel Selector -->
+                  <div class="space-y-1.5">
+                    <label for="config-channel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-[0.2em]">Salon de diffusion</label>
+                    <SearchableSelect id="config-channel" bind:value={configChannelId} options={(dashboardStore.state.discordChannels || []).map(channel => ({ id: channel.id, name: `#${channel.name}` }))} placeholder="— Sélectionner un salon —" className="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-2xl px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all" />
+                  </div>
+
+                  <!-- Save Config Button -->
+                  <button
+                    onclick={handleSaveConfig}
+                    class="w-full mt-2 py-3 bg-on-surface text-surface font-black uppercase tracking-[0.2em] text-xs rounded-2xl hover:opacity-90 transition-all"
+                  >
+                    Enregistrer la rubrique
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <!-- Mapping List & RSS Feeds -->
+            <section class="bg-surface-container-low/10 p-6 md:p-8 space-y-6">
+              <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                <div class="space-y-1">
+                  <h4 class="text-lg font-black tracking-tight text-on-surface">Index des flux</h4>
+                  <p class="text-xs text-on-surface-variant/65 max-w-2xl">
+                    Chaque ligne représente une rubrique éditoriale avec son salon de diffusion et son flux RSS public.
+                  </p>
+                </div>
+                <div class="text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant/45">
+                  Flux disponibles en lecture publique
+                </div>
+              </div>
+
+              {#if loadingConfigs}
+                <div class="space-y-4">
+                  {#each Array(2) as _}
+                    <div class="rounded-3xl border border-outline-variant/10 bg-surface-container-high/30 p-5 md:p-6 space-y-4">
+                      <div class="space-y-2 w-1/2">
+                        <Skeleton width="100%" height="18px" />
+                        <Skeleton width="70%" height="12px" />
+                      </div>
+                      <div class="flex items-center gap-3">
+                        <Skeleton width="140px" height="28px" radius="999px" />
+                        <Skeleton width="220px" height="12px" />
+                      </div>
+                    </div>
+                  {/each}
+                </div>
+              {:else if categoryConfigs.length > 0}
+                <div class="space-y-4">
                   {#each categoryConfigs as config}
-                    <tr class="hover:bg-surface-container-high/10 transition-colors text-xs font-medium text-on-surface-variant">
-                      <td class="px-6 py-5">
-                        <div class="flex flex-col gap-1">
-                          <span class="font-bold text-sm text-on-surface">{config.category}</span>
-                          {#if config.subcategory}
-                            <span class="text-[10px] text-primary font-bold uppercase tracking-wider">↳ {config.subcategory}</span>
+                    <article class="rounded-3xl border border-outline-variant/10 bg-surface-container-high/25 p-5 md:p-6 transition-all hover:-translate-y-0.5 hover:bg-surface-container-high/35">
+                      <div class="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+                        <div class="space-y-3 min-w-0">
+                          <div class="flex flex-wrap items-center gap-2">
+                            <span class="rounded-full bg-primary/10 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-primary">
+                              {config.category}
+                            </span>
+                            {#if config.subcategory}
+                              <span class="rounded-full bg-secondary/10 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-secondary">
+                                {config.subcategory}
+                              </span>
+                            {/if}
+                          </div>
+                          <div class="space-y-1">
+                            <h5 class="text-base font-black text-on-surface">#{((dashboardStore.state.discordChannels || []).find(ch => ch.id === config.channelId)?.name) || 'salon-inconnu'}</h5>
+                            <p class="text-xs text-on-surface-variant/65">
+                              Diffusion Discord liée à cette rubrique éditoriale.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div class="flex flex-col gap-2 md:items-end">
+                          <span class="inline-flex w-fit items-center rounded-full border border-outline-variant/10 bg-surface-container-low px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant">
+                            RSS dédié
+                          </span>
+                          {#if canEdit}
+                            <button
+                              onclick={() => handleDeleteConfig(config.id)}
+                              class="inline-flex items-center gap-2 rounded-full border border-outline-variant/10 bg-transparent px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant hover:border-red-500/20 hover:text-red-500 transition-all"
+                              title="Supprimer"
+                            >
+                              <Papicon icon="trash" size={14} />
+                              Supprimer
+                            </button>
                           {/if}
                         </div>
-                      </td>
-                      <td class="px-6 py-5">
-                        <span class="px-2.5 py-1 text-[10px] font-bold rounded-full bg-surface-container-high/65 text-on-surface">
-                          #{((dashboardStore.state.discordChannels || []).find(ch => ch.id === config.channelId)?.name) || 'salon-inconnu'}
-                        </span>
-                      </td>
-                      <td class="px-6 py-5 font-mono text-[10px] select-all max-w-50 truncate" title={`${API_BASE_URL}/api/public/rss/${currentGuildId}/${encodeURIComponent(config.category)}${config.subcategory ? `/${encodeURIComponent(config.subcategory)}` : ''}`}>
-                        {API_BASE_URL}/api/public/rss/{currentGuildId}/{encodeURIComponent(config.category)}{config.subcategory ? `/${encodeURIComponent(config.subcategory)}` : ''}
-                      </td>
-                      {#if canEdit}
-                        <td class="px-6 py-5 text-right">
-                          <button
-                            onclick={() => handleDeleteConfig(config.id)}
-                            class="p-2 text-on-surface-variant hover:text-red-500 hover:bg-red-500/5 rounded-xl transition-all"
-                            title="Supprimer"
-                          >
-                            <Papicon icon="trash" size={16} />
-                          </button>
-                        </td>
-                      {/if}
-                    </tr>
+                      </div>
+
+                      <div class="mt-5 rounded-2xl border border-outline-variant/10 bg-surface-container-low/40 px-4 py-3">
+                        <p class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/45 mb-2">Flux public</p>
+                        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                          <p class="font-mono text-[11px] text-on-surface break-all">
+                            {API_BASE_URL}/api/public/rss/{currentGuildId}/{encodeURIComponent(config.category)}{config.subcategory ? `/${encodeURIComponent(config.subcategory)}` : ''}
+                          </p>
+                          <span class="text-[10px] font-medium text-on-surface-variant/60">
+                            Prêt à être consommé par un lecteur RSS
+                          </span>
+                        </div>
+                      </div>
+                    </article>
                   {/each}
-                </tbody>
-              </table>
-            </div>
-          {:else}
-            <div class="flex flex-col items-center justify-center py-20 border border-dashed border-outline-variant/30 rounded-3xl">
-              <div class="w-16 h-16 bg-surface-container-high/30 rounded-full flex items-center justify-center text-on-surface-variant/30 mb-4">
-                <Papicon icon="rss" size={32} />
-              </div>
-              <h4 class="text-base font-black text-on-surface">Aucune configuration de catégorie</h4>
-              <p class="text-xs text-on-surface-variant/60 font-medium mt-1">Configurez des salons de notification et flux RSS spécifiques par catégorie à gauche.</p>
-            </div>
-          {/if}
+                </div>
+              {:else}
+                <div class="flex flex-col items-center justify-center py-20 border border-dashed border-outline-variant/30 rounded-3xl bg-surface-container-high/10">
+                  <div class="w-16 h-16 bg-surface-container-high/30 rounded-full flex items-center justify-center text-on-surface-variant/30 mb-4">
+                    <Papicon icon="rss" size={32} />
+                  </div>
+                  <h4 class="text-base font-black text-on-surface">Aucune rubrique configurée</h4>
+                  <p class="text-xs text-on-surface-variant/60 font-medium mt-1 text-center max-w-md">Créez la première liaison à gauche pour activer la diffusion éditoriale et le flux RSS public.</p>
+                </div>
+              {/if}
+            </section>
+          </div>
         </section>
       </div>
     {/if}

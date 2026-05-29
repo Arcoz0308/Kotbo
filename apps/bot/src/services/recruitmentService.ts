@@ -484,6 +484,8 @@ export async function completeOral(
   result: 'PASSED' | 'FAILED',
   reason?: string,
   processedByUserId?: string,
+  hierarchyId?: string,
+  hierarchyGrade?: string,
 ) {
   const candidature = await prisma.recruitmentCandidature.findUnique({ where: { id: candidatureId } });
   if (!candidature) throw new Error('Candidature introuvable');
@@ -587,6 +589,15 @@ export async function completeOral(
       avatarUrl,
     },
   });
+
+  // Associate with hierarchy if specified
+  if (hierarchyId && hierarchyGrade) {
+    await prisma.staffMemberHierarchyGrade.upsert({
+      where: { staffMemberId_hierarchyId: { staffMemberId: staffMember.id, hierarchyId } },
+      update: { grade: hierarchyGrade },
+      create: { staffMemberId: staffMember.id, hierarchyId, grade: hierarchyGrade },
+    }).catch(() => null);
+  }
 
   // Create a testing period
   await prisma.testingPeriod.create({

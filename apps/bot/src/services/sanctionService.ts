@@ -237,9 +237,40 @@ async function emitSanctionReportReminder(params: {
 }
 
 async function notifyStaffOfSanction(guildId: string, sanction: any) {
-  const staff = await prisma.staffMember.findMany({
-    where: { guildId }
-  });
+  const userIdsToNotify = new Set<string>();
+
+  // 1. Le staff qui a sanctionné (le modérateur)
+  if (sanction.moderatorUserId) {
+    userIdsToNotify.add(sanction.moderatorUserId);
+  }
+
+  // 2. Le responsable de la hiérarchie du membre ciblé (si la cible est un staff)
+  if (sanction.targetUserId) {
+    const targetStaff = await prisma.staffMember.findUnique({
+      where: { guildId_userId: { guildId, userId: sanction.targetUserId } }
+    });
+
+    if (targetStaff) {
+      const grades = await (prisma as any).staffMemberHierarchyGrade.findMany({
+        where: { staffMemberId: targetStaff.id },
+        include: {
+          hierarchy: true
+        }
+      });
+
+      for (const hGrade of grades) {
+        const headUserId = hGrade.hierarchy.responsableUserId;
+        if (headUserId) {
+          userIdsToNotify.add(headUserId);
+        }
+      }
+    }
+  }
+
+  // Éviter de notifier la cible elle-même (elle reçoit déjà un message d'avertissement séparé)
+  if (sanction.targetUserId) {
+    userIdsToNotify.delete(sanction.targetUserId);
+  }
 
   const typeLabel = {
     WARN: 'Avertissement',
@@ -249,16 +280,15 @@ async function notifyStaffOfSanction(guildId: string, sanction: any) {
     BAN: 'Bannissement définitif'
   }[sanction.type as string] || 'Sanction';
 
-  for (const member of staff) {
-    if (member.userId === sanction.moderatorUserId || member.userId === sanction.targetUserId) continue; // Don't notify the moderator themselves or the target
-
+  for (const userId of userIdsToNotify) {
     await createNotification(
       guildId,
-      member.userId,
+      userId,
       `${typeLabel} : ${sanction.targetTag}`,
       `${sanction.moderatorTag} a appliqué un ${typeLabel.toLowerCase()} à ${sanction.targetTag} pour : ${sanction.reason}`,
       sanction.type === 'BAN' || sanction.type === 'TEMP_BAN' ? 'ERROR' : 'WARNING',
-      `/members/${sanction.targetUserId}`
+      `/members/${sanction.targetUserId}`,
+      true // On envoie un MP car ce sont uniquement les personnes directement concernées
     ).catch(() => null);
   }
 }

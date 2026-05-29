@@ -7,12 +7,14 @@
     updateGlobalSettings,
     fetchFeatureConfigurations,
     updateFeatureConfiguration,
-    updateRecruitmentConfig
+    updateRecruitmentConfig,
+    fetchStaffHierarchies
   } from '../lib/api';
   import { themeStore } from '../lib/stores/theme.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import FormSelect from '../lib/components/FormSelect.svelte';
+  import FormInput from '../lib/components/FormInput.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
@@ -22,6 +24,24 @@
   let guildState = $state<any>(null); // from global state if needed, or fetched config
   
   let loading = $state(true);
+  
+  let hierarchies = $state<any[]>([]);
+  let selectedHierarchyId = $state('');
+  let selectedHierarchyGrade = $state('');
+
+  $effect(() => {
+    if (selectedHierarchyId) {
+      const h = hierarchies.find(x => x.id === selectedHierarchyId);
+      if (h && h.roles && h.roles.length > 0) {
+        const sorted = [...h.roles].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        selectedHierarchyGrade = sorted[0]?.name || '';
+      } else {
+        selectedHierarchyGrade = '';
+      }
+    } else {
+      selectedHierarchyGrade = '';
+    }
+  });
   let error = $state('');
 
   let filter = $state('PENDING'); // ALL, PENDING, ORAL, APPROVED, REJECTED, AUTO_REJECTED
@@ -30,23 +50,22 @@
   
   const saveAction = createAsyncActionState();
 
-  const guildData = $derived(dashboardStore.state.guild);
-  let recruitmentCategoryId = $state<string | null>(null);
-  let recruitmentLogChannelId = $state<string | null>(null);
-  let recruitmentAutoRejectEnabled = $state<boolean>(dashboardStore.state.modules?.recruitment?.enabled ?? true);
+  let recruitmentCategoryId = $state('');
+  let recruitmentLogChannelId = $state('');
+  let recruitmentAutoRejectEnabled = $state<boolean>(true);
 
   $effect(() => {
-    if (!guildData) return;
-    if (recruitmentCategoryId === null) {
-      recruitmentCategoryId = guildData.recruitmentCategoryId ?? null;
+    if (!guildState) return;
+    if (recruitmentCategoryId === '') {
+      recruitmentCategoryId = guildState.recruitmentCategoryId ?? '';
     }
-    if (recruitmentLogChannelId === null) {
-      recruitmentLogChannelId = guildData.recruitmentLogChannelId ?? null;
+    if (recruitmentLogChannelId === '') {
+      recruitmentLogChannelId = guildState.recruitmentLogChannelId ?? '';
     }
   });
 
-  const availableChannels = $derived(dashboardStore.state.guild?.discordChannels || []);
-  const availableCategories = $derived(dashboardStore.state.guild?.discordCategories || []);
+  const availableChannels = $derived((dashboardStore.state.discordChannels as any[]) || []);
+  const availableCategories = $derived((dashboardStore.state.discordCategories as any[]) || []);
 
   let featureConfig = $state<any>(null);
   let loadingConfig = $state(false);
@@ -79,15 +98,15 @@
     }, { successMessage: 'Configuration mise à jour.' });
   }
   const canView = $derived(
-    !!dashboardStore.state.featureAccess?.recruitment?.canView
+    !!(dashboardStore.state.featureAccess as any)?.recruitment?.canView
       || !!dashboardStore.state.access?.canManageSettings
   );
   const canModerate = $derived(
-    !!dashboardStore.state.featureAccess?.recruitment?.canModerate
+    !!(dashboardStore.state.featureAccess as any)?.recruitment?.canModerate
       || !!dashboardStore.state.access?.canManageSettings
   );
   const canManageSettings = $derived(
-    !!dashboardStore.state.featureAccess?.recruitment?.canConfigure
+    !!(dashboardStore.state.featureAccess as any)?.recruitment?.canConfigure
       || !!dashboardStore.state.access?.canManageSettings
   );
   
@@ -148,6 +167,13 @@
       if (resTutors.ok) {
         const dataTutors = await resTutors.json();
         tutors = dataTutors.tutors || [];
+      }
+      
+      try {
+        const dataH = await fetchStaffHierarchies();
+        hierarchies = dataH?.hierarchies || [];
+      } catch (err) {
+        console.error('Error fetching hierarchies in recruitment page:', err);
       }
       
     } catch (err: any) {
@@ -245,23 +271,25 @@
     return String(val);
   }
   
-  function openValidateModal(c) {
+  function openValidateModal(c: any) {
     validateModalTarget = c;
     validationDiscordId = c.discordId || '';
   }
   
-  function openRejectModal(c) {
+  function openRejectModal(c: any) {
     rejectModalTarget = c;
     rejectReason = '';
   }
   
-  function openOralPassModal(c) {
+  function openOralPassModal(c: any) {
     oralPassModalTarget = c;
     tutorSelected = '';
     oralPassNotes = '';
+    selectedHierarchyId = '';
+    selectedHierarchyGrade = '';
   }
   
-  function openOralFailModal(c) {
+  function openOralFailModal(c: any) {
     oralFailModalTarget = c;
     oralFailReason = '';
   }
@@ -527,7 +555,7 @@
                      className="w-full"
                   >
                     <option value="">Sélectionner un salon</option>
-                    {#each dashboardStore.state.discordChannels as c}
+                    {#each (dashboardStore.state.discordChannels as any[]) as c}
                       <option value={c.id}>#{c.name}</option>
                     {/each}
                   </FormSelect>
@@ -635,7 +663,7 @@
         </div>
         <p class="text-sm text-on-surface-variant/80 mb-6">Crée automatiquement le profil Staff Helper Test et assigne le tuteur de suivi.</p>
         
-        <div class="space-y-4">
+        <div class="space-y-4 font-inter">
              <div>
                <label for="oral-pass-tutor" class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Assigner un tuteur</label>
                <select id="oral-pass-tutor" bind:value={tutorSelected} class="w-full bg-surface-container rounded-2xl px-5 py-4 focus:outline-hidden text-sm font-medium border-r-8 border-transparent appearance-none">
@@ -648,6 +676,30 @@
                    <p class="text-rose-400 text-xs mt-1">Aucun tuteur de niveau ≥ 2 n'a été trouvé.</p>
                 {/if}
              </div>
+
+             <div>
+               <label for="oral-pass-hierarchy" class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Hiérarchie d'intégration (Optionnel)</label>
+               <select id="oral-pass-hierarchy" bind:value={selectedHierarchyId} class="w-full bg-surface-container rounded-2xl px-5 py-4 focus:outline-hidden text-sm font-medium border-r-8 border-transparent appearance-none">
+                    <option value="">-- Aucune --</option>
+                    {#each hierarchies as h}
+                       <option value={h.id}>{h.name}</option>
+                    {/each}
+                </select>
+             </div>
+
+             {#if selectedHierarchyId}
+               {@const hRoles = selectedHierarchyId ? hierarchies.find(h => h.id === selectedHierarchyId)?.roles || [] : []}
+               <div>
+                 <label for="oral-pass-hierarchy-grade" class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Grade hiérarchique de départ</label>
+                 <select id="oral-pass-hierarchy-grade" bind:value={selectedHierarchyGrade} class="w-full bg-surface-container rounded-2xl px-5 py-4 focus:outline-hidden text-sm font-medium border-r-8 border-transparent appearance-none">
+                      <option value="">-- Choisir un grade --</option>
+                      {#each hRoles as r}
+                         <option value={r.name}>{r.name}</option>
+                      {/each}
+                  </select>
+               </div>
+             {/if}
+
              <div>
                <label for="oral-pass-notes" class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Notes d'entretien</label>
                <textarea id="oral-pass-notes" bind:value={oralPassNotes} class="w-full h-24 bg-surface-container rounded-2xl p-4 focus:outline-hidden text-sm" placeholder="Observation sur l'entretien..."></textarea>
@@ -655,14 +707,18 @@
         </div>
         
         <div class="flex gap-4 mt-8 pt-6 border-t border-outline-variant/20">
-            <button onclick={() => oralPassModalTarget = null} class="flex-1 py-4 rounded-xl font-bold bg-surface-container hover:bg-surface-container-high transition-colors">Annuler</button>
+            <button onclick={() => oralPassModalTarget = null} class="flex-1 py-4 rounded-xl font-bold bg-surface-container hover:bg-surface-container-high transition-colors font-inter">Annuler</button>
             <button 
                onclick={async () => {
-                  await doAction(oralPassModalTarget.id, 'oral_pass', { reason: oralPassNotes });
+                  await doAction(oralPassModalTarget.id, 'oral_pass', { 
+                     reason: oralPassNotes,
+                     hierarchyId: selectedHierarchyId || undefined,
+                     hierarchyGrade: selectedHierarchyGrade || undefined
+                  });
                   if (tutorSelected) await doAction(oralPassModalTarget.id, 'assign_tutor', { tutorUserId: tutorSelected });
                   oralPassModalTarget = null;
                }} 
-               class="flex-1 py-4 rounded-xl font-bold bg-emerald-600 text-white hover:scale-105 active:scale-95 transition-transform shadow-lg shadow-emerald-500/30">
+               class="flex-1 py-4 rounded-xl font-bold bg-emerald-600 text-white hover:scale-105 active:scale-95 transition-transform shadow-lg shadow-emerald-500/30 font-inter">
                Valider & Intégrer
             </button>
         </div>

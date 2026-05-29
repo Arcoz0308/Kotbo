@@ -16,7 +16,7 @@ import {
 } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
-import { recordStaffActivity } from '../services/staffManagementService.js';
+import { recordStaffActivity, syncStaffHierarchyMembership } from '../services/staffManagementService.js';
 import { resolveOnlineMembersCount } from '../services/presenceDetectionService.js';
 import {
   syncGuildInvites,
@@ -1501,6 +1501,10 @@ export function registerAdvancedLogsListener(client: Client): void {
 
     const roleChanges = summarizeMemberRoleChanges(oldMember, newMember);
     if (roleChanges) {
+      void syncStaffHierarchyMembership(newMember.guild.id, newMember.id).catch((error) => {
+        logger.warn('StaffManagement', `Impossible de synchroniser l'organigramme pour ${newMember.id}: ${String(error)}`);
+      });
+
       const memberTag = safeTag(newMember, newMember.id);
       const embed = new EmbedBuilder()
         .setColor(0x6d597a)

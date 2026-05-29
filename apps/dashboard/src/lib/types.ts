@@ -13,11 +13,41 @@ export interface StaffMember {
   createdAt: Date | string;
   updatedAt: Date | string;
   warnings?: { id: string; reason: string; expiresAt?: Date | string | null }[];
+  blacklistEntries?: { id: string; reason: string; endDate?: Date | string | null }[];
   stats?: {
     totalMessages: number;
     totalVoiceMinutes: number;
     sanctionsIssued: number;
   } | null;
+  hierarchyGrades?: StaffMemberHierarchyGrade[];
+}
+
+export interface StaffHierarchy {
+  id: string;
+  guildId: string;
+  name: string;
+  description?: string | null;
+  color?: string | null;
+  icon?: string | null;
+  sortOrder: number;
+  parentHierarchyId?: string | null;
+  responsableUserId?: string | null;
+  discordRoleId?: string | null;
+  enabled: boolean;
+  roles?: StaffRole[];
+  memberGrades?: StaffMemberHierarchyGrade[];
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+export interface StaffMemberHierarchyGrade {
+  id: string;
+  staffMemberId: string;
+  hierarchyId: string;
+  grade: string;
+  joinedAt: Date | string;
+  hierarchy?: StaffHierarchy | null;
+  staffMember?: StaffMember | null;
 }
 
 export interface APIKey {
@@ -45,6 +75,8 @@ export interface StaffRole {
   enabled: boolean;
   createdAt: Date | string;
   updatedAt: Date | string;
+  hierarchyId?: string | null;
+  isResponsable?: boolean;
 }
 
 export interface TestingPeriod {

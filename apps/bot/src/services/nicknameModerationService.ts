@@ -6,6 +6,7 @@
 import { EmbedBuilder, PermissionFlagsBits, type Guild } from 'discord.js';
 import { containsBannedWord, INVISIBLE_ONLY_REGEX, loadBannedWords } from './bannedWordsService.js';
 import { logger } from '../utils/logger.js';
+import { fetchAllMembers } from '../utils/discord.js';
 
 export { loadBannedWords, invalidateBannedWordsCache } from './bannedWordsService.js';
 
@@ -83,7 +84,7 @@ export async function scanAndModeratePseudos(guild: Guild): Promise<PseudoScanRe
     : null;
 
   // Récupérer tous les membres
-  const members = await guild.members.fetch().catch(() => null);
+  const members = await fetchAllMembers(guild).catch(() => null);
   if (!members) return result;
 
   for (const [, member] of members) {

@@ -4,6 +4,7 @@ import { logger } from '../utils/logger.js';
 import { LinkedAccountType, LinkedAccountStatus } from '@prisma/client';
 import * as altAccountService from './altAccountService.js';
 import { createNotification } from './staffLeadershipService.js';
+import { fetchAllMembers } from '../utils/discord.js';
 
 /**
  * Service de détection des Double Comptes (DC)
@@ -194,7 +195,7 @@ export async function analyzeMemberJoin(member: GuildMember): Promise<void> {
 }
 
 export async function scanGuildMembersForYoungAccounts(guild: Guild, thresholdMs = JOIN_TO_ACCOUNT_CREATION_PROXIMITY_MS): Promise<YoungAccountScanResult> {
-  const fetchedMembers = await guild.members.fetch().catch(() => null);
+  const fetchedMembers = await fetchAllMembers(guild).catch(() => null);
 
   if (!fetchedMembers) {
     return {

@@ -554,6 +554,15 @@ export async function deleteStaffRole(roleId, guildId = authStore.selectedGuildI
   });
 }
 
+export async function updateStaffRole(roleId, data, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/staff/roles/${roleId}`, {
+    method: 'PATCH',
+    payload: data,
+    guildId,
+    errorContext: 'API Error (Update Staff Role):'
+  });
+}
+
 export async function fetchStaffConfig(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/staff/config', {
     method: 'GET',
@@ -1592,5 +1601,74 @@ export async function deleteTwitchFollow(id: string, guildId = authStore.selecte
     method: 'DELETE',
     guildId,
     errorContext: 'API Error (Delete Twitch Follow):'
+  });
+}
+
+// Hierarchies API
+export async function fetchStaffHierarchies(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/staff/hierarchies', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Staff Hierarchies):'
+  });
+}
+
+export async function createStaffHierarchy(data, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/staff/hierarchies', {
+    method: 'POST',
+    payload: data,
+    guildId,
+    errorContext: 'API Error (Create Staff Hierarchy):'
+  });
+}
+
+export async function updateStaffHierarchy(hierarchyId, data, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/staff/hierarchies/${hierarchyId}`, {
+    method: 'PATCH',
+    payload: data,
+    guildId,
+    errorContext: 'API Error (Update Staff Hierarchy):'
+  });
+}
+
+export async function deleteStaffHierarchy(hierarchyId, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/staff/hierarchies/${hierarchyId}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Delete Staff Hierarchy):'
+  });
+}
+
+export async function fetchHierarchySchema(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/staff/hierarchies/schema', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Hierarchy Schema):'
+  });
+}
+
+export async function importHierarchyRoleMembers(hierarchyId, discordRoleId, grade, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/staff/hierarchies/${hierarchyId}/import-roles`, {
+    method: 'POST',
+    payload: { discordRoleId, grade },
+    guildId,
+    errorContext: 'API Error (Import Hierarchy Role Members):'
+  });
+}
+
+export async function addMemberHierarchyGrade(userId, hierarchyId, grade, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/staff/members/${userId}/hierarchy-grade`, {
+    method: 'POST',
+    payload: { hierarchyId, grade },
+    guildId,
+    errorContext: 'API Error (Add Member Hierarchy Grade):'
+  });
+}
+
+export async function removeMemberHierarchyGrade(userId, hierarchyId, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/staff/members/${userId}/hierarchy-grade/${hierarchyId}`, {
+    method: 'DELETE',
+    guildId,
+    errorContext: 'API Error (Remove Member Hierarchy Grade):'
   });
 }

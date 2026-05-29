@@ -56,11 +56,21 @@ import {
   createStaffRole,
   reorderStaffRoles,
   deleteStaffRole,
+  updateStaffRole,
   createAPIKey,
   getAPIKeys,
   deleteAPIKey,
   verifyAPIKey,
   recordStaffActivity,
+  getStaffHierarchies,
+  createStaffHierarchy,
+  updateStaffHierarchy,
+  deleteStaffHierarchy,
+  getHierarchySchema,
+  addMemberToHierarchy,
+  removeMemberFromHierarchy,
+  syncStaffHierarchyMemberships,
+  importRoleMembers,
 } from '../services/staffManagementService.js';
 import {
   getPublicProfileSnapshot,
@@ -214,6 +224,8 @@ type RoleDisplay = {
 
 type PrimaryRoleDisplay = RoleDisplay | null;
 
+import { fetchAllMembers } from '../utils/discord.js';
+
 interface CachedMembers {
   members: Collection<string, GuildMember>;
   timestamp: number;
@@ -230,7 +242,7 @@ async function getGuildMembers(discordGuild: any): Promise<Collection<string, Gu
   }
 
   try {
-    const allMembers = await discordGuild.members.fetch();
+    const allMembers = await fetchAllMembers(discordGuild);
     guildMembersCache.set(guildId, {
       members: allMembers,
       timestamp: Date.now(),
@@ -1203,6 +1215,38 @@ const truncate = (value?: string | null, length = 160) => {
   return value.length > length ? `${value.slice(0, length - 1)}…` : value;
 };
 
+const describeUnknownError = (err: unknown) => {
+  if (err instanceof Error) {
+    return err.message;
+  }
+
+  if (typeof err === 'string' && err.trim()) {
+    return err.trim();
+  }
+
+  if (err && typeof err === 'object') {
+    const maybeMessage = typeof (err as { message?: unknown }).message === 'string'
+      ? (err as { message: string }).message.trim()
+      : '';
+    const maybeCode = typeof (err as { code?: unknown }).code === 'string'
+      ? ` [${(err as { code: string }).code}]`
+      : '';
+    const maybeMeta = (err as { meta?: unknown }).meta;
+    if (maybeMessage) {
+      return `${maybeMessage}${maybeCode}`;
+    }
+    if (maybeMeta !== undefined) {
+      try {
+        return `${maybeCode || 'Erreur inconnue'} ${JSON.stringify(maybeMeta)}`.trim();
+      } catch {
+        return maybeCode || 'Erreur inconnue';
+      }
+    }
+  }
+
+  return 'Erreur lors de la mise à jour de la hiérarchie staff';
+};
+
 const DASHBOARD_CONTENT_EXCERPT_LENGTH = 160;
 
 const prepareDescriptionForTranslation = (value?: string | null) => {
@@ -1262,6 +1306,14 @@ const pushAudit = async (guildId: string, entry: Omit<AuditEntry, 'id' | 'dateIs
       dateIso: new Date()
     }
   });
+};
+
+const safePushAudit = async (guildId: string, entry: Omit<AuditEntry, 'id' | 'dateIso' | 'source'>, context: string) => {
+  try {
+    await pushAudit(guildId, entry);
+  } catch (err) {
+    logger.warn('StaffAPI', `Audit log failed during ${context}:`, err);
+  }
 };
 
 const GLOBAL_BANNED_WORD_CATEGORIES = new Set([
@@ -6258,6 +6310,8 @@ export const startDashboardApi = (client: Client) => {
               reason?: string;
               discordUserId?: string;
               tutorUserId?: string;
+              hierarchyId?: string;
+              hierarchyGrade?: string;
             }>(req);
 
             const action = body?.action;
@@ -6294,7 +6348,16 @@ export const startDashboardApi = (client: Client) => {
               }
 
               if (action === 'oral_pass') {
-                await completeOral(client, guildId, candidatureId, 'PASSED', body?.reason?.trim(), user.userId);
+                await completeOral(
+                  client,
+                  guildId,
+                  candidatureId,
+                  'PASSED',
+                  body?.reason?.trim(),
+                  user.userId,
+                  body?.hierarchyId,
+                  body?.hierarchyGrade
+                );
                 json(res, 200, { ok: true });
                 return;
               }
@@ -6374,7 +6437,7 @@ export const startDashboardApi = (client: Client) => {
               let discordMembers: Map<string, any> = new Map();
 
               if (discordGuild) {
-                const allServerMembers = await discordGuild.members.fetch({ limit: 1000 }).catch(() => null);
+                const allServerMembers = await getGuildMembers(discordGuild).catch(() => null);
                 if (allServerMembers) {
                   for (const member of allServerMembers.values()) {
                     discordMembers.set(member.id, member);
@@ -6501,7 +6564,7 @@ export const startDashboardApi = (client: Client) => {
 
               if (discordGuild) {
                 try {
-                  const allServerMembers = await discordGuild.members.fetch({ limit: 1000 }).catch(() => null);
+                  const allServerMembers = await getGuildMembers(discordGuild);
                   if (allServerMembers) {
                     for (const member of allServerMembers.values()) {
                       discordMembers.set(member.id, member);
@@ -10662,15 +10725,40 @@ export const startDashboardApi = (client: Client) => {
           const accessLevel = await resolveDashboardAccess(client, guildId, user.userId);
           const isModerator = accessLevel.level === 'admin' || accessLevel.level === 'moderator';
 
-          const isMentorReportPost = parts[5] === 'mentor-reports' && req.method === 'POST';
-          if (req.method !== 'GET' && accessLevel.level !== 'admin' && !isMentorReportPost) {
-            json(res, 403, { error: 'Accès admin requis' });
-            return;
-          }
-
           if (!isModerator) {
             json(res, 403, { error: 'Accès modérateur requis' });
             return;
+          }
+
+          const isMentorReportPost = parts[5] === 'mentor-reports' && req.method === 'POST';
+          if (req.method !== 'GET' && !isMentorReportPost) {
+            let hasConfigurePermission = accessLevel.level === 'admin';
+
+            if (!hasConfigurePermission) {
+              const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+              const member = discordGuild ? await discordGuild.members.fetch(user.userId).catch(() => null) : null;
+              const roleIds = member ? Array.from(member.roles.cache.keys()) : [];
+              const featureAccess = await resolveFeatureAccessMap(client, guildId, accessLevel, user.userId, roleIds);
+
+              if (parts[5] === 'roles') {
+                hasConfigurePermission = !!featureAccess.staff_roles?.canConfigure;
+              } else if (parts[5] === 'members') {
+                hasConfigurePermission = !!featureAccess.staff_directory?.canConfigure;
+              } else if (parts[5] === 'warnings') {
+                hasConfigurePermission = !!featureAccess.discipline?.canConfigure;
+              } else if (parts[5] === 'blacklist') {
+                hasConfigurePermission = !!featureAccess.discipline?.canConfigure;
+              } else if (parts[5] === 'config') {
+                hasConfigurePermission = !!featureAccess.staff_roles?.canConfigure || !!featureAccess.staff_directory?.canConfigure;
+              } else if (parts[5] === 'hierarchies') {
+                hasConfigurePermission = !!featureAccess.staff_roles?.canConfigure;
+              }
+            }
+
+            if (!hasConfigurePermission) {
+              json(res, 403, { error: 'Accès administrateur ou permission de configuration requise' });
+              return;
+            }
           }
 
           // GET /api/dashboard/guilds/:guildId/staff/algo-schedule - Get daily algo schedule
@@ -10743,6 +10831,7 @@ export const startDashboardApi = (client: Client) => {
                 displayName: string | null;
                 userTag: string | null;
                 avatarUrl: string | null;
+                roleIds: string[];
               }>;
 
               if (directId) {
@@ -10754,6 +10843,9 @@ export const startDashboardApi = (client: Client) => {
                     displayName: member.displayName ?? null,
                     userTag: member.user.tag ?? null,
                     avatarUrl: member.displayAvatarURL() || null,
+                    roleIds: member.roles.cache
+                      .map((role) => role.id)
+                      .filter((roleId) => roleId !== discordGuild.roles.everyone.id),
                   }];
                 }
               } else if (rawQuery) {
@@ -10769,6 +10861,9 @@ export const startDashboardApi = (client: Client) => {
                       displayName: member.displayName ?? null,
                       userTag: member.user.tag ?? null,
                       avatarUrl: member.displayAvatarURL() || null,
+                      roleIds: member.roles.cache
+                        .map((role) => role.id)
+                        .filter((roleId) => roleId !== discordGuild.roles.everyone.id),
                     }))
                   : [];
               }
@@ -10797,12 +10892,15 @@ export const startDashboardApi = (client: Client) => {
           // GET /api/dashboard/guilds/:guildId/staff/members - List staff members
           if (parts[5] === 'members' && req.method === 'GET' && !parts[6]) {
             try {
+              await syncStaffHierarchyMemberships(guildId).catch(() => null);
+
               const members = await prisma.staffMember.findMany({
                 where: { guildId },
                 include: {
                   warnings: { where: { isActive: true } },
                   blacklistEntries: { where: { isActive: true } },
                   testingPeriods: { where: { status: 'ONGOING' } },
+                  hierarchyGrades: { include: { hierarchy: true } },
                 },
                 orderBy: { grade: 'asc' },
               });
@@ -10840,7 +10938,7 @@ export const startDashboardApi = (client: Client) => {
                 body.userTag,
                 body.username,
                 body.displayName,
-                body.avatarUrl
+                body.avatarUrl,
               );
 
               // Créer une période de test initiale si demandé
@@ -11235,6 +11333,8 @@ export const startDashboardApi = (client: Client) => {
               level: number;
               discordRoleId?: string;
               color?: string;
+              hierarchyId?: string;
+              isResponsable?: boolean;
             }>(req);
 
             if (!body?.name || typeof body?.level !== 'number') {
@@ -11248,7 +11348,9 @@ export const startDashboardApi = (client: Client) => {
                 body.name,
                 body.level,
                 body.discordRoleId,
-                body.color
+                body.color,
+                body.hierarchyId,
+                body.isResponsable
               );
 
               await pushAudit(guildId, {
@@ -11301,6 +11403,44 @@ export const startDashboardApi = (client: Client) => {
             return;
           }
 
+          // PATCH /api/dashboard/guilds/:guildId/staff/roles/:roleId - Update staff role
+          if (parts[5] === 'roles' && parts[6] && parts[6] !== 'order' && req.method === 'PATCH') {
+            const roleId = parts[6];
+            const body = await readJsonBody<{
+              name?: string;
+              level?: number;
+              discordRoleId?: string | null;
+              color?: string | null;
+              hierarchyId?: string | null;
+              isResponsable?: boolean;
+              sortOrder?: number;
+            }>(req);
+
+            try {
+              const updated = await updateStaffRole(guildId, roleId, body ?? {});
+              if (!updated) {
+                json(res, 404, { error: 'Rôle staff introuvable' });
+                return;
+              }
+
+              await pushAudit(guildId, {
+                user: user.username ?? `User${user.userId}`,
+                action: 'Modification rôle staff',
+                context: getGuildName(client, guildId),
+                module: 'Staff Management',
+                eventType: 'Manuel',
+                details: `Rôle staff modifié: ${updated.name} (Hiérarchie: ${updated.hierarchyId ?? 'aucune'})`,
+                channelId: null
+              });
+
+              json(res, 200, { role: updated });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error updating staff role:', err);
+              json(res, 500, { error: 'Erreur lors de la modification du rôle staff' });
+            }
+            return;
+          }
+
           // DELETE /api/dashboard/guilds/:guildId/staff/roles/:roleId - Delete staff role
           if (parts[5] === 'roles' && parts[6] && req.method === 'DELETE') {
             const roleId = parts[6];
@@ -11338,6 +11478,8 @@ export const startDashboardApi = (client: Client) => {
                   select: {
                     baseStaffRoleId: true,
                     testStaffRoleId: true,
+                    chiefStaffRoleId: true,
+                    chiefStaffUserId: true,
                     meetingAnnouncementChannelId: true,
                     meetingVoiceChannelId: true,
                     warnsToDemote: true,
@@ -11365,6 +11507,8 @@ export const startDashboardApi = (client: Client) => {
               const body = await readJsonBody<{
                 baseStaffRoleId?: string | null;
                 testStaffRoleId?: string | null;
+                chiefStaffRoleId?: string | null;
+                chiefStaffUserId?: string | null;
                 meetingAnnouncementChannelId?: string | null;
                 meetingVoiceChannelId?: string | null;
                 warnsToDemote?: number;
@@ -11382,6 +11526,12 @@ export const startDashboardApi = (client: Client) => {
                 }
                 if (Object.prototype.hasOwnProperty.call(body ?? {}, 'testStaffRoleId')) {
                   data.testStaffRoleId = extractDiscordSnowflake(body?.testStaffRoleId ?? null);
+                }
+                if (Object.prototype.hasOwnProperty.call(body ?? {}, 'chiefStaffRoleId')) {
+                  data.chiefStaffRoleId = extractDiscordSnowflake(body?.chiefStaffRoleId ?? null);
+                }
+                if (Object.prototype.hasOwnProperty.call(body ?? {}, 'chiefStaffUserId')) {
+                  data.chiefStaffUserId = extractDiscordSnowflake(body?.chiefStaffUserId ?? null);
                 }
                 if (Object.prototype.hasOwnProperty.call(body ?? {}, 'meetingAnnouncementChannelId')) {
                   data.meetingAnnouncementChannelId = extractDiscordSnowflake(body?.meetingAnnouncementChannelId ?? null);
@@ -11413,6 +11563,8 @@ export const startDashboardApi = (client: Client) => {
                   select: {
                     baseStaffRoleId: true,
                     testStaffRoleId: true,
+                    chiefStaffRoleId: true,
+                    chiefStaffUserId: true,
                     meetingAnnouncementChannelId: true,
                     meetingVoiceChannelId: true,
                     warnsToDemote: true,
@@ -11440,6 +11592,208 @@ export const startDashboardApi = (client: Client) => {
               }
               return;
             }
+          }
+
+          // GET /api/dashboard/guilds/:guildId/staff/hierarchies - List hierarchies
+          if (parts[5] === 'hierarchies' && req.method === 'GET' && !parts[6]) {
+            try {
+              const hierarchies = await getStaffHierarchies(guildId);
+              json(res, 200, { hierarchies });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error getting staff hierarchies:', err);
+              json(res, 500, { error: 'Erreur lors de la récupération des hiérarchies staff' });
+            }
+            return;
+          }
+
+          // POST /api/dashboard/guilds/:guildId/staff/hierarchies - Create hierarchy
+          if (parts[5] === 'hierarchies' && req.method === 'POST' && !parts[6]) {
+            const body = await readJsonBody<{
+              name: string;
+              description?: string;
+              color?: string;
+              icon?: string;
+              discordRoleId?: string;
+              responsableUserId?: string;
+              parentHierarchyId?: string | null;
+            }>(req);
+
+            if (!body?.name) {
+              json(res, 400, { error: 'name est obligatoire' });
+              return;
+            }
+
+            try {
+              const hierarchy = await createStaffHierarchy(
+                guildId,
+                body.name,
+                body.description,
+                body.color,
+                body.icon,
+                body.discordRoleId,
+                body.responsableUserId,
+                body.parentHierarchyId
+              );
+
+              void safePushAudit(guildId, {
+                user: user.username ?? `User${user.userId}`,
+                action: 'Création hiérarchie staff',
+                context: getGuildName(client, guildId),
+                module: 'Staff Management',
+                eventType: 'Manuel',
+                details: `Hiérarchie créée: ${body.name}`,
+                channelId: null
+              }, 'staff hierarchy creation');
+
+              json(res, 201, { hierarchy });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error creating staff hierarchy:', err);
+              json(res, err instanceof Error && /Hiérarchie/i.test(err.message)
+                ? 400
+                : 500, { error: err instanceof Error ? err.message : 'Erreur lors de la création de la hiérarchie staff' });
+            }
+            return;
+          }
+
+          // GET /api/dashboard/guilds/:guildId/staff/hierarchies/schema - Organigramme data
+          if (parts[5] === 'hierarchies' && parts[6] === 'schema' && req.method === 'GET' && !parts[7]) {
+            try {
+              const schema = await getHierarchySchema(guildId);
+              json(res, 200, schema);
+            } catch (err) {
+              logger.error('StaffAPI', 'Error getting hierarchy schema:', err);
+              json(res, 500, { error: 'Erreur lors de la récupération de l\'organigramme' });
+            }
+            return;
+          }
+
+          // PATCH /api/dashboard/guilds/:guildId/staff/hierarchies/:id - Update hierarchy
+          if (parts[5] === 'hierarchies' && parts[6] && parts[6] !== 'schema' && !parts[7] && req.method === 'PATCH') {
+            const hierarchyId = parts[6];
+            const body = await readJsonBody<{
+              name?: string;
+              description?: string | null;
+              color?: string | null;
+              icon?: string | null;
+              discordRoleId?: string | null;
+              responsableUserId?: string | null;
+              parentHierarchyId?: string | null;
+              enabled?: boolean;
+              sortOrder?: number;
+            }>(req);
+
+            try {
+              const updated = await updateStaffHierarchy(guildId, hierarchyId, body ?? {});
+              if (!updated) {
+                json(res, 404, { error: 'Hiérarchie introuvable' });
+                return;
+              }
+
+              void safePushAudit(guildId, {
+                user: user.username ?? `User${user.userId}`,
+                action: 'Modification hiérarchie staff',
+                context: getGuildName(client, guildId),
+                module: 'Staff Management',
+                eventType: 'Manuel',
+                details: `Hiérarchie modifiée: ${updated.name}`,
+                channelId: null
+              }, 'staff hierarchy update');
+
+              json(res, 200, { hierarchy: updated });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error updating staff hierarchy:', err);
+              const errorMessage = describeUnknownError(err);
+              json(res, /Hiérarchie/i.test(errorMessage)
+                ? 400
+                : 500, { error: errorMessage });
+            }
+            return;
+          }
+
+          // DELETE /api/dashboard/guilds/:guildId/staff/hierarchies/:id - Delete hierarchy
+          if (parts[5] === 'hierarchies' && parts[6] && parts[6] !== 'schema' && !parts[7] && req.method === 'DELETE') {
+            const hierarchyId = parts[6];
+            try {
+              const deleted = await deleteStaffHierarchy(guildId, hierarchyId);
+              if (!deleted) {
+                json(res, 404, { error: 'Hiérarchie introuvable' });
+                return;
+              }
+
+              void safePushAudit(guildId, {
+                user: user.username ?? `User${user.userId}`,
+                action: 'Suppression hiérarchie staff',
+                context: getGuildName(client, guildId),
+                module: 'Staff Management',
+                eventType: 'Manuel',
+                details: `Hiérarchie supprimée: ${deleted.name}`,
+                channelId: null
+              }, 'staff hierarchy deletion');
+
+              json(res, 200, { ok: true });
+            } catch (err) {
+              logger.error('StaffAPI', 'Error deleting staff hierarchy:', err);
+              json(res, 500, { error: 'Erreur lors de la suppression de la hiérarchie staff' });
+            }
+            return;
+          }
+
+          // POST /api/dashboard/guilds/:guildId/staff/hierarchies/:id/import-roles - Import roles
+          if (parts[5] === 'hierarchies' && parts[6] && parts[7] === 'import-roles' && req.method === 'POST') {
+            const hierarchyId = parts[6];
+            const body = await readJsonBody<{
+              discordRoleId: string;
+              grade: string;
+            }>(req);
+
+            if (!body?.discordRoleId || !body?.grade) {
+              json(res, 400, { error: 'discordRoleId et grade sont obligatoires' });
+              return;
+            }
+
+            try {
+              const result = await importRoleMembers(guildId, hierarchyId, body.discordRoleId, body.grade);
+              json(res, 200, result);
+            } catch (err: any) {
+              logger.error('StaffAPI', 'Error importing role members:', err);
+              json(res, 500, { error: err.message || 'Erreur lors de l\'import' });
+            }
+            return;
+          }
+
+          // POST /api/dashboard/guilds/:guildId/staff/members/:userId/hierarchy-grade
+          if (parts[5] === 'members' && parts[6] && parts[7] === 'hierarchy-grade' && !parts[8] && req.method === 'POST') {
+            const userId = parts[6];
+            const body = await readJsonBody<{
+              hierarchyId?: string | null;
+              grade?: string | null;
+            }>(req);
+
+            try {
+              const result = await addMemberToHierarchy(guildId, userId, body?.hierarchyId ?? null, body?.grade ?? null);
+              json(res, 200, { ok: true, grade: result });
+            } catch (err: any) {
+              logger.error('StaffAPI', 'Error adding member to hierarchy:', err);
+              json(res, /détecter automatiquement/i.test(err.message)
+                ? 400
+                : 500, { error: err.message || 'Erreur lors de l\'ajout' });
+            }
+            return;
+          }
+
+          // DELETE /api/dashboard/guilds/:guildId/staff/members/:userId/hierarchy-grade/:hierarchyId
+          if (parts[5] === 'members' && parts[6] && parts[7] === 'hierarchy-grade' && parts[8] && req.method === 'DELETE') {
+            const userId = parts[6];
+            const hierarchyId = parts[8];
+
+            try {
+              await removeMemberFromHierarchy(guildId, userId, hierarchyId);
+              json(res, 200, { ok: true });
+            } catch (err: any) {
+              logger.error('StaffAPI', 'Error removing member from hierarchy:', err);
+              json(res, 500, { error: err.message || 'Erreur lors du retrait' });
+            }
+            return;
           }
 
           // GET /api/dashboard/guilds/:guildId/staff/polls - List polls

@@ -9,6 +9,7 @@
     displayName: string | null;
     userTag: string | null;
     avatarUrl: string | null;
+    roleIds?: string[];
   };
 
   let {
@@ -17,6 +18,7 @@
     selectedId = $bindable(''),
     selectedUsername = $bindable(''),
     selectedAvatarUrl = $bindable(''),
+    selectedRoleIds = $bindable<string[]>([]),
     placeholder = '@mention, pseudo ou ID Discord',
     selectedIdPlaceholder = 'ID Discord (auto-rempli)',
     autoSelectOnExactMatch = true,
@@ -29,6 +31,7 @@
     selectedId?: string;
     selectedUsername?: string;
     selectedAvatarUrl?: string;
+    selectedRoleIds?: string[];
     placeholder?: string;
     selectedIdPlaceholder?: string;
     autoSelectOnExactMatch?: boolean;
@@ -86,6 +89,7 @@
       selectedId = match.id;
       selectedUsername = match.username;
       selectedAvatarUrl = match.avatarUrl ?? '';
+      selectedRoleIds = match.roleIds ?? [];
     }
   }
 
@@ -97,6 +101,7 @@
       resetSuggestions();
       selectedId = '';
       selectedUsername = '';
+      selectedRoleIds = [];
       return;
     }
 
@@ -161,6 +166,7 @@
     selectedId = member.id;
     selectedUsername = member.username;
     selectedAvatarUrl = member.avatarUrl ?? '';
+    selectedRoleIds = member.roleIds ?? [];
     suggestions = [];
     error = '';
   }

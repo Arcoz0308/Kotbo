@@ -5,7 +5,7 @@ class AuthStore {
     token = $state(localStorage.getItem('kotbo_token') || null);
     user = $state(null);
     member = $state(null);
-    guilds = $state([]);
+    guilds = $state<any[]>([]);
     selectedGuildId = $state(localStorage.getItem('kotbo_guild_id') || null);
     loading = $state(false);
 

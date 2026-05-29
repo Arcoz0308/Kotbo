@@ -740,9 +740,11 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
       });
 
       // 3. Envoyer l'embed de bienvenue et le panel dans le salon
+      const staffMention = ticketStaffRoleId ? `<@&${ticketStaffRoleId}>` : null;
+
       const welcomeEmbed = new EmbedBuilder()
         .setTitle(`🎫 Ticket d'Assistance · ${ticketType.label}`)
-        .setDescription(`Bonjour <@${user.id}> !\nUn membre du personnel va prendre en charge votre demande rapidement. En attendant, merci de bien détailler vos questions ou explications.\n\n**Description du problème :**\n${description}`)
+        .setDescription(`Bonjour <@${user.id}> !\n${staffMention ? `Le personnel ${staffMention} va prendre en charge votre demande rapidement.` : 'Un membre du personnel va prendre en charge votre demande rapidement.'} En attendant, merci de bien détailler vos questions ou explications.\n\n**Description du problème :**\n${description}`)
         .setColor(COLORS.primary as any)
         .setTimestamp()
         .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
@@ -754,7 +756,7 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
       );
 
       await ticketChannel.send({
-        content: `<@${user.id}> 🔔 Bienvenue dans votre ticket d'assistance.`,
+        content: `${staffMention ? `${staffMention} ` : ''}<@${user.id}> 🔔 Bienvenue dans votre ticket d'assistance.`,
         embeds: [welcomeEmbed],
         components: [row]
       });

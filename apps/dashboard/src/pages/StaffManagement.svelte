@@ -12,7 +12,16 @@
     fetchFeatureConfigurations,
     updateFeatureConfiguration,
     updateStaffConfig,
-    deleteStaffRole
+    deleteStaffRole,
+    updateStaffRole,
+    fetchStaffHierarchies,
+    createStaffHierarchy,
+    updateStaffHierarchy,
+    deleteStaffHierarchy,
+    fetchHierarchySchema,
+    importHierarchyRoleMembers,
+    addMemberHierarchyGrade,
+    removeMemberHierarchyGrade
   } from '../lib/api';
   import DiscordMemberLookup from '../lib/components/DiscordMemberLookup.svelte';
   import MetricCard from '../lib/components/MetricCard.svelte';
@@ -21,18 +30,19 @@
   import Skeleton from '../lib/components/Skeleton.svelte';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
-  import type { StaffMember, StaffRole, TestingPeriod } from '../lib/types';
+  import type { StaffMember, StaffRole, TestingPeriod, StaffHierarchy, StaffMemberHierarchyGrade } from '../lib/types';
   import Papicon from '../lib/components/Papicon.svelte';
   import Chart from '../lib/components/charts/Chart.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
+  import OrgChart from '../lib/components/OrgChart.svelte';
 
 
   let guildId = $state<string | null>(null);
   let accessLevel = $state('none');
   let error = $state('');
   
-  type StaffTab = 'members' | 'roles' | 'warnings' | 'blacklist' | 'polls' | 'leadership' | 'permissions';
-  const staffTabs: StaffTab[] = ['members', 'roles', 'warnings', 'blacklist', 'polls', 'leadership', 'permissions'];
+  type StaffTab = 'members' | 'roles' | 'warnings' | 'blacklist' | 'polls' | 'leadership' | 'permissions' | 'organigramme';
+  const staffTabs: StaffTab[] = ['members', 'roles', 'organigramme', 'warnings', 'blacklist', 'polls', 'leadership', 'permissions'];
 
   function isStaffTab(value: string | null | undefined): value is StaffTab {
     return !!value && staffTabs.includes(value as StaffTab);
@@ -49,6 +59,7 @@
   let loadingStates = $state<Record<string, boolean>>({
     members: true,
     roles: true,
+    organigramme: true,
     warnings: false, // Pas de fetch au démarrage (interne)
     blacklist: false, // Pas de fetch au démarrage (interne)
     polls: true,
@@ -111,12 +122,44 @@
   let availableDiscordRoles = $state<any[]>(dashboardStore.state.discordRoles || []);
   let availableDiscordChannels = $state<any[]>(dashboardStore.state.discordChannels || []);
   let availableDiscordVoiceChannels = $state<any[]>(dashboardStore.state.discordVoiceChannels || []);
-  let featureConfigs = $state<any[]>([]);
   let loadingFeatureConfigs = $state(false);
+  let featureConfigs = $state<any[]>([]);
 
-  const isAdmin = $derived(authStore.guilds.find(g => g.id === authStore.selectedGuildId)?.accessLevel === 'admin');
-  const directoryAccess = $derived(dashboardStore.state.featureAccess?.staff_directory || {});
-  const rolesAccess = $derived(dashboardStore.state.featureAccess?.staff_roles || {});
+  // Hiérarchies multiples
+  let hierarchies = $state<StaffHierarchy[]>([]);
+  let hierarchySchema = $state<any>(null);
+  let showAddHierarchyForm = $state(false);
+  let editingHierarchy = $state<StaffHierarchy | null>(null);
+
+  // Modal forms states (hiérarchies)
+  let newHierarchyName = $state('');
+  let newHierarchyDescription = $state('');
+  let newHierarchyColor = $state('#3b82f6');
+  let newHierarchyIcon = $state('🔵');
+  let newHierarchyDiscordRoleId = $state('');
+  let newHierarchyResponsableUserId = $state('');
+  let newHierarchyParentId = $state('');
+  let isSavingHierarchy = $state(false);
+
+  // Import modal
+  let showImportModal = $state(false);
+  let importHierarchyTarget = $state<StaffHierarchy | null>(null);
+  let importDiscordRoleId = $state('');
+  let importGradeName = $state('');
+  let isImporting = $state(false);
+  let importResult = $state<{ imported: number; skipped: number; total: number } | null>(null);
+
+  // Member Hierarchy Grade modal
+  let showMemberHierarchyGradeForm = $state(false);
+  let memberHierarchyGradeTarget = $state<StaffMember | null>(null);
+  let selectedMemberHierarchyId = $state('');
+  let selectedMemberHierarchyGrade = $state('');
+  let isSavingMemberHierarchyGrade = $state(false);
+  let showOnlyNoHierarchy = $state(false);
+
+  const isAdmin = $derived(((authStore.guilds as any[]).find(g => g.id === authStore.selectedGuildId))?.accessLevel === 'admin');
+  const directoryAccess = $derived((dashboardStore.state.featureAccess as any)?.staff_directory || {});
+  const rolesAccess = $derived((dashboardStore.state.featureAccess as any)?.staff_roles || {});
   
   const canManageSettings = $derived(isAdmin || !!dashboardStore.state.access?.canManageSettings || !!directoryAccess.canConfigure || !!rolesAccess.canConfigure);
   const canModerate = $derived(canManageSettings || !!directoryAccess.canModerate || !!rolesAccess.canModerate);
@@ -131,6 +174,7 @@
   let newMemberGrade = $state('');
   let newMemberUsername = $state('');
   let newMemberAvatarUrl = $state('');
+  let newMemberRoleIds = $state<string[]>([]);
   let newMemberCreateTutoring = $state(true);
 
   let showAddRoleForm = $state(false);
@@ -141,6 +185,9 @@
   let isSavingRoleOrder = $state(false);
   let draggedRoleId = $state<string | null>(null);
   let roleDropTargetId = $state<string | null>(null);
+  let containerDragOverId = $state<string | null>(null);
+  let newRoleHierarchyId = $state('');
+  let newRoleIsResponsable = $state(false);
 
   let showWarnForm = $state(false);
   let warnLookupQuery = $state('');
@@ -222,6 +269,47 @@
     return value.trim().toLowerCase();
   }
 
+  function resolveGradeFromDiscordRoles(roleIds: string[]): string | null {
+    if (!roleIds.length) return null;
+
+    const matchingRole = getOrderedStaffRoles()
+      .slice()
+      .reverse()
+      .find((role) => role.discordRoleId && roleIds.includes(role.discordRoleId));
+
+    return matchingRole?.name ?? null;
+  }
+
+  function resolveMemberHierarchyDraft(member: StaffMember): { hierarchyId: string; grade: string } | null {
+    const existingHierarchyGrade = member.hierarchyGrades?.find((entry) => entry.hierarchy?.enabled !== false) ?? member.hierarchyGrades?.[0];
+    if (existingHierarchyGrade) {
+      return {
+        hierarchyId: existingHierarchyGrade.hierarchyId,
+        grade: existingHierarchyGrade.grade,
+      };
+    }
+
+    const matchedStaffRole = getOrderedStaffRoles().find(
+      (role) => role.hierarchyId && normalizeText(role.name) === normalizeText(member.grade)
+    );
+
+    if (matchedStaffRole?.hierarchyId) {
+      return {
+        hierarchyId: matchedStaffRole.hierarchyId,
+        grade: matchedStaffRole.name,
+      };
+    }
+
+    return null;
+  }
+
+  $effect(() => {
+    const autoGrade = resolveGradeFromDiscordRoles(newMemberRoleIds);
+    if (autoGrade) {
+      newMemberGrade = autoGrade;
+    }
+  });
+
   function getOrderedStaffRoles() {
     return [...staffRoles].sort((left, right) => {
       const sortDelta = (left.sortOrder ?? 0) - (right.sortOrder ?? 0);
@@ -234,7 +322,59 @@
     });
   }
 
+  function getOrderedHierarchies() {
+    return [...hierarchies].sort((left, right) => {
+      const sortDelta = (left.sortOrder ?? 0) - (right.sortOrder ?? 0);
+      if (sortDelta !== 0) return sortDelta;
+
+      return new Date(left.createdAt ?? 0).getTime() - new Date(right.createdAt ?? 0).getTime();
+    });
+  }
+
+  function getRolesInHierarchy(hierarchyId: string | null) {
+    return getOrderedStaffRoles().filter((role) => (role.hierarchyId ?? null) === hierarchyId);
+  }
+
+  function getHierarchyRoleLevel(role: StaffRole) {
+    const roleHierarchyId = role.hierarchyId ?? null;
+    const localRoles = getRolesInHierarchy(roleHierarchyId);
+    const localIndex = localRoles.findIndex((entry) => entry.id === role.id);
+
+    if (!roleHierarchyId) {
+      return localIndex + 1;
+    }
+
+    const orderedHierarchies = getOrderedHierarchies();
+    const hierarchyIndex = orderedHierarchies.findIndex((entry) => entry.id === roleHierarchyId);
+    const higherHierarchyRoles = hierarchyIndex > 0
+      ? orderedHierarchies
+          .slice(0, hierarchyIndex)
+          .reduce((total, hierarchy) => total + getRolesInHierarchy(hierarchy.id).length, 0)
+      : 0;
+
+    return higherHierarchyRoles + localIndex + 1;
+  }
+
+  function getNextHierarchyRoleLevel(hierarchyId: string | null) {
+    const localCount = getRolesInHierarchy(hierarchyId).length;
+
+    if (!hierarchyId) {
+      return localCount + 1;
+    }
+
+    const orderedHierarchies = getOrderedHierarchies();
+    const hierarchyIndex = orderedHierarchies.findIndex((entry) => entry.id === hierarchyId);
+    const higherHierarchyRoles = hierarchyIndex > 0
+      ? orderedHierarchies
+          .slice(0, hierarchyIndex)
+          .reduce((total, hierarchy) => total + getRolesInHierarchy(hierarchy.id).length, 0)
+      : 0;
+
+    return higherHierarchyRoles + localCount + 1;
+  }
+
   const orderedStaffRoles = $derived(getOrderedStaffRoles());
+  const unlinkedRoles = $derived(getOrderedStaffRoles().filter((r) => !r.hierarchyId));
 
   const roleSuggestions = $derived(
     (() => {
@@ -279,9 +419,68 @@
   function clearRoleDragState(): void {
     draggedRoleId = null;
     roleDropTargetId = null;
+    containerDragOverId = null;
   }
 
-  function moveRoleInList(sourceRoleId: string, targetRoleId: string): void {
+  async function updateRoleHierarchyOnServer(roleId: string, hierarchyId: string | null) {
+    if (!guildId || !authStore.token) return;
+    const ok = await updateStaffRole(roleId, { hierarchyId }, guildId);
+    if (!ok) {
+      throw new Error('Erreur lors de la mise à jour du rôle staff');
+    }
+  }
+
+  async function moveRoleToHierarchy(sourceRoleId: string, targetHierarchyId: string | null) {
+    const nextRoles = getOrderedStaffRoles();
+    const sourceRole = nextRoles.find((role) => role.id === sourceRoleId);
+    if (!sourceRole) return;
+
+    const currentHierarchyId = sourceRole.hierarchyId ?? null;
+    if (currentHierarchyId === targetHierarchyId) return;
+
+    const sourceIndex = nextRoles.findIndex((role) => role.id === sourceRoleId);
+    if (sourceIndex >= 0) {
+      const [movedRole] = nextRoles.splice(sourceIndex, 1);
+
+      movedRole.hierarchyId = targetHierarchyId;
+
+      let targetIndex = -1;
+      if (targetHierarchyId) {
+        for (let i = nextRoles.length - 1; i >= 0; i--) {
+          if (nextRoles[i].hierarchyId === targetHierarchyId) {
+            targetIndex = i;
+            break;
+          }
+        }
+      } else {
+        for (let i = nextRoles.length - 1; i >= 0; i--) {
+          if (!nextRoles[i].hierarchyId) {
+            targetIndex = i;
+            break;
+          }
+        }
+      }
+
+      if (targetIndex >= 0) {
+        nextRoles.splice(targetIndex + 1, 0, movedRole);
+      } else {
+        nextRoles.push(movedRole);
+      }
+    }
+
+    try {
+      await updateRoleHierarchyOnServer(sourceRoleId, targetHierarchyId);
+      await saveStaffRoleOrder(nextRoles.map((role) => role.id));
+
+      staffRoles = nextRoles.map((role, index) => ({ ...role, sortOrder: index }));
+    } catch (err) {
+      console.error("Erreur lors de la mise à jour de la hiérarchie du rôle:", err);
+      alert("Erreur lors de la mise à jour de la hiérarchie: " + (err instanceof Error ? err.message : String(err)));
+      await loadStaffRoles();
+    }
+  }
+
+  async function moveRoleInList(sourceRoleId: string, targetRoleId: string): Promise<void> {
     if (sourceRoleId === targetRoleId) return;
 
     const nextRoles = getOrderedStaffRoles();
@@ -290,10 +489,29 @@
 
     if (sourceIndex < 0 || targetIndex < 0) return;
 
+    const sourceRole = nextRoles[sourceIndex];
+    const targetRole = nextRoles[targetIndex];
+
+    const targetHierarchyId = targetRole.hierarchyId ?? null;
+    const currentHierarchyId = sourceRole.hierarchyId ?? null;
+
+    // Si on a glissé sur un rôle d'une hiérarchie différente, on met à jour la hiérarchie
+    if (currentHierarchyId !== targetHierarchyId) {
+      try {
+        await updateRoleHierarchyOnServer(sourceRoleId, targetHierarchyId);
+      } catch (err) {
+        console.error("Erreur lors de la mise à jour de la hiérarchie du rôle:", err);
+        alert("Erreur lors de la mise à jour de la hiérarchie: " + (err instanceof Error ? err.message : String(err)));
+        await loadStaffRoles();
+        return;
+      }
+    }
+
     const [movedRole] = nextRoles.splice(sourceIndex, 1);
+    movedRole.hierarchyId = targetHierarchyId;
     nextRoles.splice(targetIndex, 0, movedRole);
     staffRoles = nextRoles.map((role, index) => ({ ...role, sortOrder: index }));
-    void saveStaffRoleOrder(nextRoles.map((role) => role.id));
+    await saveStaffRoleOrder(nextRoles.map((role) => role.id));
   }
 
   async function saveStaffRoleOrder(orderedRoleIds: string[]) {
@@ -359,6 +577,9 @@
     }
   });
 
+  let lastLoadedGuildId = '';
+  let lastLoadedToken = '';
+
   $effect(() => {
     const currentGuildId = authStore.selectedGuildId;
     if (!currentGuildId) return;
@@ -369,7 +590,7 @@
     }
 
     guildId = currentGuildId;
-    const activeGuild = authStore.guilds.find((g: any) => g.id === currentGuildId);
+    const activeGuild = (authStore.guilds as any[]).find((g: any) => g.id === currentGuildId);
     accessLevel = activeGuild?.accessLevel || 'none';
 
     if (accessLevel !== 'admin' && !directoryAccess.canView && !rolesAccess.canView) {
@@ -378,6 +599,12 @@
     } else {
       error = '';
     }
+
+    if (currentGuildId === lastLoadedGuildId && authStore.token === lastLoadedToken) {
+      return;
+    }
+    lastLoadedGuildId = currentGuildId;
+    lastLoadedToken = authStore.token || '';
 
     void (async () => {
       try {
@@ -399,13 +626,13 @@
 
   async function loadInitialData() {
     // 1. Charger les configs essentielles (non bloquantes pour l'UI, mais nécessaires pour les selects/rôles)
-    await Promise.all([loadStaffRoles(), loadStaffConfig(), loadFeatureConfigs()]);
+    await Promise.all([loadStaffRoles(), loadStaffConfig(), loadFeatureConfigs(), loadHierarchies()]);
 
     // 2. Charger l'onglet actif immédiatement
     await loadTabData(activeTab);
 
     // 3. Charger le reste en tâche de fond (lazy loading)
-    const otherTabs: StaffTab[] = ['members', 'roles', 'warnings', 'polls', 'leadership']
+    const otherTabs: StaffTab[] = ['members', 'roles', 'organigramme', 'warnings', 'polls', 'leadership']
        .filter(t => t !== activeTab) as StaffTab[];
     
     // On lance en parallèle sans await pour ne pas bloquer l'interactivité
@@ -415,10 +642,33 @@
   async function loadTabData(tab: StaffTab) {
     switch (tab) {
       case 'members': await loadStaffMembers(); break;
-      case 'roles': await loadStaffRoles(); break;
+      case 'roles': await Promise.all([loadStaffRoles(), loadHierarchies()]); break;
+      case 'organigramme': await loadHierarchySchema(); break;
       case 'warnings': await loadStaffWarnings(); break;
       case 'polls': await loadPolls(); break;
       case 'leadership': await loadLeadershipMetrics(); break;
+    }
+  }
+
+  async function loadHierarchies() {
+    if (!guildId || !authStore.token) return;
+    try {
+      const data = await fetchStaffHierarchies(guildId);
+      hierarchies = data?.hierarchies || [];
+    } catch (err) {
+      console.error('Erreur loading hierarchies:', err);
+    }
+  }
+
+  async function loadHierarchySchema() {
+    if (!guildId || !authStore.token) return;
+    loadingStates.organigramme = true;
+    try {
+      hierarchySchema = await fetchHierarchySchema(guildId);
+    } catch (err) {
+      console.error('Erreur loading hierarchy schema:', err);
+    } finally {
+      loadingStates.organigramme = false;
     }
   }
 
@@ -672,11 +922,133 @@
       newMemberGrade = 'HELPER';
       newMemberUsername = '';
       newMemberAvatarUrl = '';
+      newMemberRoleIds = [];
       newMemberCreateTutoring = true;
       await loadStaffMembers();
     } catch (err) {
       console.error('Erreur:', err);
       alert('Erreur lors de l\'ajout du membre');
+    }
+  }
+
+  // Hierarchy CRUD
+  function openAddHierarchyForm() {
+    editingHierarchy = null;
+    newHierarchyName = '';
+    newHierarchyDescription = '';
+    newHierarchyColor = '#3b82f6';
+    newHierarchyIcon = '🔵';
+    newHierarchyDiscordRoleId = '';
+    newHierarchyResponsableUserId = '';
+    newHierarchyParentId = '';
+    showAddHierarchyForm = true;
+  }
+
+  function openEditHierarchyForm(h: StaffHierarchy) {
+    editingHierarchy = h;
+    newHierarchyName = h.name;
+    newHierarchyDescription = h.description || '';
+    newHierarchyColor = h.color || '#3b82f6';
+    newHierarchyIcon = h.icon || '🔵';
+    newHierarchyDiscordRoleId = h.discordRoleId || '';
+    newHierarchyResponsableUserId = h.responsableUserId || '';
+    newHierarchyParentId = h.parentHierarchyId || '';
+    showAddHierarchyForm = true;
+  }
+
+  async function saveHierarchy() {
+    if (!guildId || !authStore.token || !newHierarchyName.trim()) return;
+    isSavingHierarchy = true;
+    try {
+      const payload = {
+        name: newHierarchyName.trim(),
+        description: newHierarchyDescription.trim() || null,
+        color: newHierarchyColor,
+        icon: newHierarchyIcon.trim() || null,
+        discordRoleId: newHierarchyDiscordRoleId.trim() || null,
+        responsableUserId: newHierarchyResponsableUserId.trim() || null,
+        parentHierarchyId: newHierarchyParentId || null
+      };
+
+      if (editingHierarchy) {
+        await updateStaffHierarchy(editingHierarchy.id, payload, guildId);
+      } else {
+        await createStaffHierarchy(payload, guildId);
+      }
+      showAddHierarchyForm = false;
+      void Promise.allSettled([loadHierarchies(), loadHierarchySchema()]);
+    } catch (err) {
+      console.error('Erreur lors de l\'enregistrement de la hiérarchie:', err);
+      alert('Erreur lors de l\'enregistrement de la hiérarchie');
+    } finally {
+      isSavingHierarchy = false;
+    }
+  }
+
+  async function deleteHierarchy(id: string) {
+    if (!confirm('Voulez-vous vraiment supprimer cette hiérarchie ? Les rôles associés seront détachés.')) return;
+    try {
+      await deleteStaffHierarchy(id, guildId);
+      await Promise.all([loadHierarchies(), loadHierarchySchema(), loadStaffRoles()]);
+    } catch (err) {
+      alert('Erreur lors de la suppression');
+    }
+  }
+
+  // Import Modal
+  function openImportModal(h: StaffHierarchy) {
+    importHierarchyTarget = h;
+    importDiscordRoleId = '';
+    importGradeName = '';
+    importResult = null;
+    showImportModal = true;
+  }
+
+  async function runImport() {
+    if (!guildId || !importHierarchyTarget || !importDiscordRoleId || !importGradeName) return;
+    isImporting = true;
+    importResult = null;
+    try {
+      const res = await importHierarchyRoleMembers(importHierarchyTarget.id, importDiscordRoleId, importGradeName, guildId);
+      importResult = res;
+      await Promise.all([loadStaffMembers(), loadHierarchies(), loadHierarchySchema()]);
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de l\'import');
+    } finally {
+      isImporting = false;
+    }
+  }
+
+  // Member Hierarchy Grade Modal
+  function openMemberHierarchyGradeForm(m: StaffMember) {
+    memberHierarchyGradeTarget = m;
+    const draft = resolveMemberHierarchyDraft(m);
+    selectedMemberHierarchyId = draft?.hierarchyId ?? '';
+    selectedMemberHierarchyGrade = draft?.grade ?? '';
+    showMemberHierarchyGradeForm = true;
+  }
+
+  async function saveMemberHierarchyGrade() {
+    if (!guildId || !memberHierarchyGradeTarget || !selectedMemberHierarchyId || !selectedMemberHierarchyGrade) return;
+    isSavingMemberHierarchyGrade = true;
+    try {
+      await addMemberHierarchyGrade(memberHierarchyGradeTarget.userId, selectedMemberHierarchyId, selectedMemberHierarchyGrade, guildId);
+      showMemberHierarchyGradeForm = false;
+      await loadStaffMembers();
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors de l\'ajout du grade');
+    } finally {
+      isSavingMemberHierarchyGrade = false;
+    }
+  }
+
+  async function removeMemberHierarchy(userId: string, hierarchyId: string) {
+    if (!confirm('Voulez-vous retirer ce membre de cette hiérarchie ?')) return;
+    try {
+      await removeMemberHierarchyGrade(userId, hierarchyId, guildId);
+      await loadStaffMembers();
+    } catch (err: any) {
+      alert(err.message || 'Erreur lors du retrait');
     }
   }
 
@@ -809,8 +1181,10 @@
         },
         body: JSON.stringify({
           name: matchedDiscordRole?.name || nextRoleName,
-          level: getOrderedStaffRoles().length,
-          discordRoleId: matchedDiscordRole?.id
+          level: getNextHierarchyRoleLevel(newRoleHierarchyId || null),
+          discordRoleId: matchedDiscordRole?.id,
+          hierarchyId: newRoleHierarchyId || undefined,
+          isResponsable: newRoleIsResponsable
         })
       });
 
@@ -821,6 +1195,8 @@
       roleSearchQuery = '';
       selectedDiscordRoleId = '';
       roleSuggestionsOpen = false;
+      newRoleHierarchyId = '';
+      newRoleIsResponsable = false;
       await loadStaffRoles();
     } catch (err) {
       alert('Erreur lors de la création du rôle');
@@ -996,10 +1372,6 @@
     >
       <div class="flex flex-col gap-8 xl:flex-row xl:items-end xl:justify-between pb-8">
         <div class="max-w-3xl space-y-4">
-          <div class="inline-flex items-center gap-2 rounded-full border border-outline-variant/20 bg-white/60 px-4 py-2 text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant/60">
-            <Papicon icon="user" size={14} class="text-primary" />
-            Administration
-          </div>
           <h2 class="text-4xl font-black text-on-surface tracking-tighter font-headline leading-tight md:text-5xl">
             Gestion du Personnel
           </h2>
@@ -1039,6 +1411,7 @@
       {#each [
         { id: 'members', label: 'Membres', icon: 'users', visible: !!directoryAccess.canView },
         { id: 'roles', label: 'Rôles Staff', icon: 'shield', visible: !!rolesAccess.canView },
+        { id: 'organigramme', label: 'Organigramme', icon: 'git-branch', visible: !!directoryAccess.canView },
         { id: 'warnings', label: 'Avertir', icon: 'alert-triangle', visible: canModerate },
         { id: 'blacklist', label: 'Blacklist', icon: 'slash', visible: canModerate },
         { id: 'polls', label: 'Sondages', icon: 'check-square', visible: canModerate },
@@ -1089,6 +1462,7 @@
                       bind:selectedId={newMemberUserId}
                       bind:selectedUsername={newMemberUsername}
                       bind:selectedAvatarUrl={newMemberAvatarUrl}
+                      bind:selectedRoleIds={newMemberRoleIds}
                       placeholder="@mention, pseudo ou ID Discord"
                       selectedIdPlaceholder="ID Discord (auto-rempli)"
                     />
@@ -1097,7 +1471,7 @@
               </div>
               <div class="md:w-64 shrink-0">
                 <label>
-                  <span class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Grade</span>
+                  <span class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Grade Global</span>
                   <select bind:value={newMemberGrade} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
                     {#each orderedStaffRoles as role}
                       <option value={role.name}>{role.name}</option>
@@ -1108,7 +1482,7 @@
               <div class="flex items-center gap-3 shrink-0 mb-3 md:mb-0">
                 <ToggleSwitch
                   checked={newMemberCreateTutoring}
-                  onToggle={(v) => newMemberCreateTutoring = v}
+                  onToggle={(v: boolean) => newMemberCreateTutoring = v}
                 />
                 <span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant/70">Créer un tutorat</span>
               </div>
@@ -1162,6 +1536,17 @@
                         <span class="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-primary">
                           {member.grade}
                         </span>
+                        {#if member.hierarchyGrades && member.hierarchyGrades.length > 0}
+                          {#each member.hierarchyGrades as hGrade}
+                            <span 
+                              class="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.15em]"
+                              style="border-color: {hGrade.hierarchy?.color ? hGrade.hierarchy.color + '30' : 'rgba(99, 102, 241, 0.2)'}; background-color: {hGrade.hierarchy?.color ? hGrade.hierarchy.color + '15' : 'rgba(99, 102, 241, 0.1)'}; color: {hGrade.hierarchy?.color || 'var(--color-primary)'}"
+                            >
+                              <span>{hGrade.hierarchy?.icon || '🔵'}</span>
+                              <span>{hGrade.hierarchy?.name} : {hGrade.grade}</span>
+                            </span>
+                          {/each}
+                        {/if}
                         {#if member.isTutor}
                           <span class="inline-flex items-center gap-1 item rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.15em] text-indigo-600 shadow-sm shadow-indigo-500/5 transition-all animate-in zoom-in-95 duration-300">
                             <Papicon icon="shield" size={12} />
@@ -1174,7 +1559,7 @@
                         {#if (member.warnings?.length || 0) > 0}
                           <span class="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.15em] text-amber-700">
                             <Papicon icon="alert-triangle" size={12} />
-                            {member.warnings.length} avert.{member.warnings.length > 1 ? 's' : ''}
+                            {member.warnings?.length || 0} avert.{(member.warnings?.length || 0) > 1 ? 's' : ''}
                           </span>
                         {/if}
                       </div>
@@ -1221,6 +1606,13 @@
 
                     {#if canManageSettings}
                       <div class="w-px h-6 bg-outline-variant/10 mx-1"></div>
+                      <button
+                        onclick={() => openMemberHierarchyGradeForm(member)}
+                        class="inline-flex items-center justify-center rounded-xl p-2.5 text-primary hover:bg-primary/15 border border-primary/20 bg-primary/5 transition-colors"
+                        title="Gérer les hiérarchies"
+                      >
+                        <Papicon icon="git-branch" size={20} />
+                      </button>
                       <button
                         onclick={() => promoteStaff(member.userId)}
                         disabled={(() => {
@@ -1275,17 +1667,26 @@
         <div class="p-6 md:p-8 flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-low/30 backdrop-blur-sm">
           <div>
             <h3 class="text-2xl font-black tracking-tighter text-on-surface">Hiérarchie des Rôles</h3>
-            <p class="text-sm font-medium text-on-surface-variant/75 mt-1">Associez un rôle Discord à un grade staff, et réordonnez la hiérarchie.</p>
+            <p class="text-sm font-medium text-on-surface-variant/75 mt-1">Gerez vos différentes hiérarchies, associez des rôles Discord à des grades staff et organisez-les.</p>
           </div>
-          {#if rolesAccess.canConfigure}
-            <button
-              onclick={() => showAddRoleForm = !showAddRoleForm}
-              class="inline-flex items-center gap-2 whitespace-nowrap rounded-2xl border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
-            >
-              <Papicon icon={showAddRoleForm ? 'x' : 'plus'} size={14} />
-              {showAddRoleForm ? 'Fermer' : 'Nouveau Rôle'}
-            </button>
-          {/if}
+          <div class="flex items-center gap-2">
+            {#if rolesAccess.canConfigure}
+              <button
+                onclick={openAddHierarchyForm}
+                class="inline-flex items-center gap-2 whitespace-nowrap rounded-2xl border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
+              >
+                <Papicon icon="plus" size={14} />
+                Nouvelle Hiérarchie
+              </button>
+              <button
+                onclick={() => showAddRoleForm = !showAddRoleForm}
+                class="inline-flex items-center gap-2 whitespace-nowrap rounded-2xl border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
+              >
+                <Papicon icon={showAddRoleForm ? 'x' : 'plus'} size={14} />
+                {showAddRoleForm ? 'Fermer' : 'Nouveau Rôle'}
+              </button>
+            {/if}
+          </div>
         </div>
 
         <div class="p-6 md:p-8 border-b border-outline-variant/20 bg-surface-container-lowest/50">
@@ -1335,44 +1736,71 @@
 
         {#if showAddRoleForm}
           <div class="p-6 md:p-8 border-b border-primary/10 bg-primary/5 animate-in slide-in-from-top-4 fade-in duration-300">
-            <div class="flex flex-col gap-4 md:flex-row md:items-end">
-              <div class="flex-1 relative">
-                <label for="staff-role-search" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Rechercher un rôle Discord</label>
+            <div class="flex flex-col gap-6">
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div class="relative">
-                  <Papicon icon="search" size={20} class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/40" />
-                  <input
-                    id="staff-role-search"
-                    type="text"
-                    placeholder="Saisissez un nom de rôle..."
-                    value={roleSearchQuery}
-                    oninput={(event) => {
-                      const value = (event.currentTarget as HTMLInputElement).value;
-                      newRoleName = value;
-                      handleRoleSearchInput(value);
-                    }}
-                    onfocus={() => roleSuggestionsOpen = true}
-                    onblur={() => setTimeout(() => { roleSuggestionsOpen = false; }, 120)}
-                    class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low pl-12 pr-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
-                  />
-                </div>
-                {#if roleSuggestionsOpen && roleSuggestions.length > 0}
-                  <div class="absolute left-0 right-0 top-full mt-2 z-10 rounded-2xl border border-outline-variant/20 bg-surface-container-high p-2 shadow-2xl">
-                    {#each roleSuggestions as role (role.id)}
-                      <button
-                        type="button"
-                        class="w-full flex items-center justify-between rounded-xl px-4 py-2 hover:bg-surface-container-low transition-colors text-left"
-                        onclick={() => selectRoleSuggestion(role)}
-                      >
-                        <span class="font-bold text-sm text-on-surface">{role.name}</span>
-                        <span class="text-xs text-on-surface-variant/70">@{role.id}</span>
-                      </button>
-                    {/each}
+                  <label for="staff-role-search" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Rechercher un rôle Discord</label>
+                  <div class="relative">
+                    <Papicon icon="search" size={20} class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/40" />
+                    <input
+                      id="staff-role-search"
+                      type="text"
+                      placeholder="Saisissez un nom de rôle..."
+                      value={roleSearchQuery}
+                      oninput={(event) => {
+                        const value = (event.currentTarget as HTMLInputElement).value;
+                        newRoleName = value;
+                        handleRoleSearchInput(value);
+                      }}
+                      onfocus={() => roleSuggestionsOpen = true}
+                      onblur={() => setTimeout(() => { roleSuggestionsOpen = false; }, 120)}
+                      class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low pl-12 pr-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+                    />
                   </div>
-                {/if}
+                  {#if roleSuggestionsOpen && roleSuggestions.length > 0}
+                    <div class="absolute left-0 right-0 top-full mt-2 z-10 rounded-2xl border border-outline-variant/20 bg-surface-container-high p-2 shadow-2xl">
+                      {#each roleSuggestions as role (role.id)}
+                        <button
+                          type="button"
+                          class="w-full flex items-center justify-between rounded-xl px-4 py-2 hover:bg-surface-container-low transition-colors text-left"
+                          onclick={() => selectRoleSuggestion(role)}
+                        >
+                          <span class="font-bold text-sm text-on-surface">{role.name}</span>
+                          <span class="text-xs text-on-surface-variant/70">@{role.id}</span>
+                        </button>
+                      {/each}
+                    </div>
+                  {/if}
+                </div>
+
+                <div>
+                  <label for="role-hierarchy-select" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Hiérarchie associée</label>
+                  <select
+                    id="role-hierarchy-select"
+                    bind:value={newRoleHierarchyId}
+                    class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+                  >
+                    <option value="">-- Aucune --</option>
+                    {#each hierarchies as h}
+                      <option value={h.id}>{h.name}</option>
+                    {/each}
+                  </select>
+                </div>
+
+                <div class="flex items-center gap-3 pt-6">
+                  <ToggleSwitch
+                    checked={newRoleIsResponsable}
+                    onToggle={(v: boolean) => newRoleIsResponsable = v}
+                  />
+                  <span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant/70">Chef de hiérarchie</span>
+                </div>
               </div>
-              <button onclick={createStaffRole} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-primary px-8 py-3 text-xs font-black uppercase tracking-[0.18em] text-white shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]">
-                Créer l'association
-              </button>
+
+              <div class="flex justify-end">
+                <button onclick={createStaffRole} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-primary px-8 py-3 text-xs font-black uppercase tracking-[0.18em] text-white shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]">
+                  Créer l'association
+                </button>
+              </div>
             </div>
           </div>
         {/if}
@@ -1396,82 +1824,230 @@
               </div>
             {/each}
           </div>
-        {:else if orderedStaffRoles.length > 0}
-          <div class="p-6 md:p-8" role="list" aria-label="Liste des rôles staff">
-            <div class="flex flex-col gap-3">
-              {#each orderedStaffRoles as role (role.id)}
-                <div
-                  class="group flex items-center justify-between gap-4 rounded-3xl border border-outline-variant/20 bg-surface-container px-6 py-4 transition-all {roleDropTargetId === role.id ? 'border-primary shadow-lg shadow-primary/10 scale-[1.02] bg-primary/5' : 'hover:border-primary/40 hover:bg-surface-container-high'}"
-                  role="listitem"
-                  ondragover={(event) => {
-                    event.preventDefault();
-                    roleDropTargetId = role.id;
-                  }}
-                  ondrop={(event) => {
-                    event.preventDefault();
-                    if (draggedRoleId) {
-                      moveRoleInList(draggedRoleId, role.id);
-                    }
-                  }}
-                >
-                  <div class="flex items-center gap-4 min-w-0">
-                    <button
-                      type="button"
-                      class="flex shrink-0 cursor-grab items-center justify-center rounded-xl p-2.5 text-on-surface-variant/70 hover:bg-primary/10 hover:text-primary active:cursor-grabbing"
-                      draggable="true"
-                      ondragstart={() => startRoleDrag(role.id)}
-                      ondragend={clearRoleDragState}
-                      aria-label={`Déplacer ${role.name}`}
-                    >
-                      <Papicon icon="menu" size={20} />
-                    </button>
-                    <div class="min-w-0 flex-1">
-                      <h4 class="text-base font-black text-on-surface flex items-center gap-2">
-                        {role.name}
-                        <span class="inline-flex items-center rounded-full bg-outline-variant/20 px-2 py-0.5 text-[10px] font-bold text-on-surface-variant">
-                          Niveau {orderedStaffRoles.indexOf(role) + 1}
-                        </span>
-                      </h4>
-                      <p class="mt-0.5 truncate text-sm font-medium text-on-surface-variant/75">
-                        {#if role.discordRoleId}
-                          Rôle Discord lié: <span class="font-bold text-on-surface-variant">@{availableDiscordRoles.find((entry) => entry.id === role.discordRoleId)?.name || role.discordRoleId}</span>
-                        {:else}
-                          Rôle personnalisé (aucune liaison Discord)
+        {:else}
+          <div class="p-6 md:p-8 space-y-8">
+            <!-- Hiérarchies Grid -->
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+              {#each hierarchies as h (h.id)}
+                {@const hRoles = getOrderedStaffRoles().filter(r => r.hierarchyId === h.id)}
+                <div class="premium-card rounded-[2.5rem] p-6 border-t-4 bg-surface-container-low" style="border-top-color: {h.color || '#3b82f6'}">
+                  <div class="flex items-start justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                      <span class="text-2xl">{h.icon || '🔵'}</span>
+                      <div>
+                        <h4 class="text-lg font-black text-on-surface">{h.name}</h4>
+                        {#if h.description}
+                          <p class="text-xs text-on-surface-variant/75 mt-0.5">{h.description}</p>
                         {/if}
-                      </p>
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      {#if rolesAccess.canConfigure}
+                        <button onclick={() => openImportModal(h)} class="px-3 py-1.5 rounded-xl bg-primary/8 text-primary hover:bg-primary hover:text-white transition-all text-xs font-bold uppercase tracking-wider" title="Importer des membres depuis Discord">
+                          Importer
+                        </button>
+                        <button onclick={() => openEditHierarchyForm(h)} class="p-2 text-on-surface-variant hover:text-primary transition-colors" title="Modifier la hiérarchie">
+                          <Papicon icon="edit" size={18} />
+                        </button>
+                        <button onclick={() => deleteHierarchy(h.id)} class="p-2 text-on-surface-variant hover:text-rose-500 transition-colors" title="Supprimer la hiérarchie">
+                          <Papicon icon="trash-2" size={18} />
+                        </button>
+                      {/if}
                     </div>
                   </div>
-                  
-                  <div class="flex items-center gap-4 shrink-0">
-                    {#if rolesAccess.canConfigure}
-                      <button
-                        onclick={() => removeStaffRole(role.id, role.name)}
-                        class="inline-flex items-center justify-center rounded-xl p-2.5 text-rose-600 transition-colors hover:bg-rose-500/15 border border-rose-500/20 bg-rose-500/5"
-                        title="Supprimer le rôle"
-                      >
-                        <Papicon icon="trash-2" size={20} />
-                      </button>
+
+                  <!-- Roles Stack inside this Hierarchy -->
+                  <div
+                    class="space-y-3 min-h-20 p-2 rounded-2xl transition-all {containerDragOverId === h.id ? 'bg-primary/5 border-2 border-dashed border-primary/40' : ''}"
+                    role="list"
+                    aria-label={`Rôles pour ${h.name}`}
+                    ondragover={(event) => {
+                      event.preventDefault();
+                      containerDragOverId = h.id;
+                    }}
+                    ondragleave={() => {
+                      containerDragOverId = null;
+                    }}
+                    ondrop={async (event) => {
+                      event.preventDefault();
+                      containerDragOverId = null;
+                      if (draggedRoleId) {
+                        await moveRoleToHierarchy(draggedRoleId, h.id);
+                      }
+                    }}
+                  >
+                    {#if hRoles.length > 0}
+                      {#each hRoles as role (role.id)}
+                        <div
+                          class="group flex items-center justify-between gap-4 rounded-3xl border border-outline-variant/20 bg-surface-container px-6 py-4 transition-all {roleDropTargetId === role.id ? 'border-primary shadow-lg shadow-primary/10 scale-[1.02] bg-primary/5' : 'hover:border-primary/40 hover:bg-surface-container-high'}"
+                          role="listitem"
+                          ondragover={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            roleDropTargetId = role.id;
+                          }}
+                          ondrop={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            if (draggedRoleId) {
+                              moveRoleInList(draggedRoleId, role.id);
+                            }
+                          }}
+                        >
+                          <div class="flex items-center gap-4 min-w-0">
+                            <button
+                              type="button"
+                              class="flex shrink-0 cursor-grab items-center justify-center rounded-xl p-2.5 text-on-surface-variant/70 hover:bg-primary/10 hover:text-primary active:cursor-grabbing"
+                              draggable="true"
+                              ondragstart={() => startRoleDrag(role.id)}
+                              ondragend={clearRoleDragState}
+                              aria-label={`Déplacer ${role.name}`}
+                            >
+                              <Papicon icon="menu" size={20} />
+                            </button>
+                            <div class="min-w-0 flex-1">
+                              <h5 class="text-sm font-black text-on-surface flex items-center gap-2">
+                                {role.name}
+                                {#if role.isResponsable}
+                                  <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[8px] font-black uppercase tracking-wider">Chef</span>
+                                {/if}
+                                <span class="inline-flex items-center rounded-full bg-outline-variant/20 px-2 py-0.5 text-[10px] font-bold text-on-surface-variant">
+                                  Niveau {getHierarchyRoleLevel(role)}
+                                </span>
+                              </h5>
+                              <p class="mt-0.5 truncate text-xs font-medium text-on-surface-variant/75">
+                                {#if role.discordRoleId}
+                                  Rôle Discord: <span class="font-bold">@{availableDiscordRoles.find((entry) => entry.id === role.discordRoleId)?.name || role.discordRoleId}</span>
+                                {:else}
+                                  Rôle personnalisé
+                                {/if}
+                              </p>
+                            </div>
+                          </div>
+                          <div class="flex items-center gap-2 shrink-0">
+                            {#if rolesAccess.canConfigure}
+                              <button
+                                onclick={() => removeStaffRole(role.id, role.name)}
+                                class="inline-flex items-center justify-center rounded-xl p-2 text-rose-600 transition-colors hover:bg-rose-500/15 border border-rose-500/20 bg-rose-500/5"
+                                title="Supprimer le rôle"
+                              >
+                                <Papicon icon="trash-2" size={16} />
+                              </button>
+                            {/if}
+                          </div>
+                        </div>
+                      {/each}
+                    {:else}
+                      <p class="text-xs text-on-surface-variant/50 italic text-center py-4">Aucun rôle lié à cette hiérarchie.</p>
                     {/if}
-                    <Papicon icon="repeat" size={20} class="text-on-surface-variant/20 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                 </div>
               {/each}
+
+              <!-- Roles without hierarchy -->
+              <div class="premium-card rounded-[2.5rem] p-6 border-t-4 border-slate-400 bg-surface-container-low">
+                <div class="flex items-center justify-between mb-4">
+                  <div>
+                    <h4 class="text-lg font-black text-on-surface">Rôles Hors Hiérarchie</h4>
+                    <p class="text-xs text-on-surface-variant/75 mt-0.5">Rôles globaux ou non catégorisés</p>
+                  </div>
+                </div>
+
+                <div
+                  class="space-y-3 min-h-20 p-2 rounded-2xl transition-all {containerDragOverId === 'unlinked' ? 'bg-primary/5 border-2 border-dashed border-primary/40' : ''}"
+                  role="list"
+                  aria-label="Rôles sans hiérarchie"
+                  ondragover={(event) => {
+                    event.preventDefault();
+                    containerDragOverId = 'unlinked';
+                  }}
+                  ondragleave={() => {
+                    containerDragOverId = null;
+                  }}
+                  ondrop={async (event) => {
+                    event.preventDefault();
+                    containerDragOverId = null;
+                    if (draggedRoleId) {
+                      await moveRoleToHierarchy(draggedRoleId, null);
+                    }
+                  }}
+                >
+                  {#if unlinkedRoles.length > 0}
+                    {#each unlinkedRoles as role (role.id)}
+                      <div
+                        class="group flex items-center justify-between gap-4 rounded-3xl border border-outline-variant/20 bg-surface-container px-6 py-4 transition-all {roleDropTargetId === role.id ? 'border-primary shadow-lg shadow-primary/10 scale-[1.02] bg-primary/5' : 'hover:border-primary/40 hover:bg-surface-container-high'}"
+                        role="listitem"
+                        ondragover={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          roleDropTargetId = role.id;
+                        }}
+                        ondrop={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          if (draggedRoleId) {
+                            moveRoleInList(draggedRoleId, role.id);
+                          }
+                        }}
+                      >
+                        <div class="flex items-center gap-4 min-w-0">
+                          <button
+                            type="button"
+                            class="flex shrink-0 cursor-grab items-center justify-center rounded-xl p-2.5 text-on-surface-variant/70 hover:bg-primary/10 hover:text-primary active:cursor-grabbing"
+                            draggable="true"
+                            ondragstart={() => startRoleDrag(role.id)}
+                            ondragend={clearRoleDragState}
+                            aria-label={`Déplacer ${role.name}`}
+                          >
+                            <Papicon icon="menu" size={20} />
+                          </button>
+                          <div class="min-w-0 flex-1">
+                            <h5 class="text-sm font-black text-on-surface flex items-center gap-2">
+                              {role.name}
+                              <span class="inline-flex items-center rounded-full bg-outline-variant/20 px-2 py-0.5 text-[10px] font-bold text-on-surface-variant">
+                                Niveau {getHierarchyRoleLevel(role)}
+                              </span>
+                            </h5>
+                            <p class="mt-0.5 truncate text-xs font-medium text-on-surface-variant/75">
+                              {#if role.discordRoleId}
+                                Rôle Discord: <span class="font-bold">@{availableDiscordRoles.find((entry) => entry.id === role.discordRoleId)?.name || role.discordRoleId}</span>
+                              {:else}
+                                Rôle personnalisé
+                              {/if}
+                            </p>
+                          </div>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0">
+                          {#if rolesAccess.canConfigure}
+                            <button
+                              onclick={() => removeStaffRole(role.id, role.name)}
+                              class="inline-flex items-center justify-center rounded-xl p-2 text-rose-600 transition-colors hover:bg-rose-500/15 border border-rose-500/20 bg-rose-500/5"
+                              title="Supprimer le rôle"
+                            >
+                              <Papicon icon="trash-2" size={16} />
+                            </button>
+                          {/if}
+                        </div>
+                      </div>
+                    {/each}
+                  {:else}
+                    <p class="text-xs text-on-surface-variant/50 italic text-center py-4">Tous les rôles sont associés à une hiérarchie.</p>
+                  {/if}
+                </div>
+              </div>
             </div>
-          </div>
-        {:else}
-          <div class="flex flex-col items-center justify-center p-16 text-center">
-            <div class="w-20 h-20 rounded-4xl bg-primary/8 text-primary flex items-center justify-center shadow-inner">
-              <Papicon icon="shield" size={40} />
-            </div>
-            <h3 class="mt-6 text-2xl font-black tracking-tighter text-on-surface">
-              Aucun rôle staff configuré
-            </h3>
-            <p class="mt-3 max-w-xl text-sm leading-relaxed text-on-surface-variant/65">
-              Associez des rôles Discord à la hiérarchie Staff pour accorder facilement les permissions.
-            </p>
           </div>
         {/if}
 
+
+      {:else if activeTab === 'organigramme'}
+        {#if loadingStates.organigramme}
+          <div class="p-8 flex items-center justify-center">
+            <Skeleton width="w-full" height="h-[60vh]" rounded="rounded-[3rem]" />
+          </div>
+        {:else}
+          <OrgChart schema={hierarchySchema} />
+        {/if}
 
       {:else if activeTab === 'warnings'}
         <div class="p-6 md:p-8 flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-low/30 backdrop-blur-sm">
@@ -1752,7 +2328,7 @@
                     {#if canModerate}
                       <button
                         onclick={() => removeStaffBlacklist(member.userId)}
-                        class="inline-flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-xs font-black uppercase tracking-[0.1em] text-rose-700 transition-colors hover:bg-rose-600 hover:text-white"
+                        class="inline-flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-xs font-black uppercase tracking-widest text-rose-700 transition-colors hover:bg-rose-600 hover:text-white"
                         title="Retirer de la blacklist"
                       >
                         <Papicon icon="trash-2" size={16} />
@@ -1786,7 +2362,10 @@
           <div class="p-6 md:p-8 border-b border-primary/10 bg-primary/5 animate-in slide-in-from-top-4 fade-in duration-300">
             <div class="grid gap-6 lg:grid-cols-2">
               <div class="space-y-4">
-                <FormInput label="Titre du sondage" bind:value={newPollTitle} placeholder="Ex: Nouveau règlement du salon général" />
+                <div>
+                  <label for="poll-title" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Titre du sondage</label>
+                  <FormInput id="poll-title" bind:value={newPollTitle} placeholder="Ex: Nouveau règlement du salon général" className="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
+                </div>
                 <div>
                   <label for="poll-description" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Description</label>
                   <textarea id="poll-description" bind:value={newPollDescription} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 h-32 resize-none" placeholder="Détaillez le sujet du vote..."></textarea>
@@ -1857,11 +2436,11 @@
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {#each polls as poll (poll.id)}
                 {@const isClosed = poll.closesAt && new Date(poll.closesAt) < new Date()}
-                {@const totalWeight = poll.options.reduce((sum, opt) => {
-                  const optVotes = poll.votes?.filter(v => v.optionId === opt.id) || [];
-                  return sum + optVotes.reduce((s, v) => s + (v.weight || 1), 0);
+                {@const totalWeight = (poll.options as any[]).reduce((sum: number, opt: any) => {
+                  const optVotes = (poll.votes as any[] | undefined)?.filter((v: any) => v.optionId === opt.id) || [];
+                  return sum + optVotes.reduce((s: number, v: any) => s + (v.weight || 1), 0);
                 }, 0)}
-                {@const userVote = poll.votes?.find(v => v.staffUserId === authStore.user?.id)}
+                {@const userVote = (poll.votes as any[] | undefined)?.find((v: any) => v.staffUserId === authStore.user?.id)}
                 <div class="bg-surface-container px-6 py-6 rounded-3xl border border-outline-variant/10 group transition-all hover:border-primary/20">
                   <div class="flex items-start justify-between gap-4">
                     <div class="space-y-1">
@@ -1888,8 +2467,8 @@
 
                   <div class="mt-6 space-y-3">
                     {#each poll.options as option}
-                      {@const optVotes = poll.votes?.filter(v => v.optionId === option.id) || []}
-                      {@const optWeight = optVotes.reduce((s, v) => s + (v.weight || 1), 0)}
+                      {@const optVotes = poll.votes?.filter((v: any) => v.optionId === option.id) || []}
+                      {@const optWeight = optVotes.reduce((s: number, v: any) => s + (v.weight || 1), 0)}
                       {@const percent = totalWeight > 0 ? (optWeight / totalWeight) * 100 : 0}
                       {@const isSelected = userVote?.optionId === option.id}
                       
@@ -2209,7 +2788,7 @@
                     <span class="block text-xs text-on-surface-variant">Supprime l'intégralité des rôles staff</span>
                   </div>
                 </div>
-                <ToggleSwitch checked={demoteRemoveAllRoles} onToggle={(v) => { demoteRemoveAllRoles = v; saveStaffConfig(); }} size="sm" activeClass="peer-checked:bg-amber-500" />
+                <ToggleSwitch checked={demoteRemoveAllRoles} onToggle={(v: boolean) => { demoteRemoveAllRoles = v; saveStaffConfig(); }} size="sm" activeClass="peer-checked:bg-amber-500" />
               </label>
 
               <label class="flex cursor-pointer items-center justify-between rounded-2xl border border-outline-variant/15 bg-surface px-4 py-3 hover:bg-surface-container-high transition-colors">
@@ -2220,13 +2799,274 @@
                     <span class="block text-xs text-on-surface-variant">L'utilisateur est banni du staff par défaut</span>
                   </div>
                 </div>
-                <ToggleSwitch checked={blacklistPermanentByDefault} onToggle={(v) => { blacklistPermanentByDefault = v; saveStaffConfig(); }} size="sm" activeClass="peer-checked:bg-rose-500" />
+                <ToggleSwitch checked={blacklistPermanentByDefault} onToggle={(v: boolean) => { blacklistPermanentByDefault = v; saveStaffConfig(); }} size="sm" activeClass="peer-checked:bg-rose-500" />
               </label>
             </div>
           </div>
         </div>
 
 
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Modal Nouvelle / Modifier Hiérarchie -->
+{#if showAddHierarchyForm}
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+    <div
+      class="absolute inset-0 bg-surface-container-lowest/80 backdrop-blur-sm transition-opacity"
+      role="button"
+      tabindex="0"
+      aria-label="Fermer"
+      onclick={() => showAddHierarchyForm = false}
+      onkeydown={(e) => { if (e.key === 'Escape') showAddHierarchyForm = false; }}
+    ></div>
+    
+    <div class="relative w-full max-w-lg rounded-[3rem] border border-outline-variant/30 bg-surface p-8 shadow-2xl animate-in zoom-in-95 duration-200">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="text-2xl font-black tracking-tighter text-on-surface">
+          {editingHierarchy ? 'Modifier la Hiérarchie' : 'Nouvelle Hiérarchie'}
+        </h3>
+        <button onclick={() => showAddHierarchyForm = false} class="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-container text-on-surface-variant hover:bg-rose-500/10 hover:text-rose-500 transition-colors">
+          <Papicon icon="x" size={20} />
+        </button>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label for="hierarchy-name" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Nom de la hiérarchie</label>
+          <input id="hierarchy-name" type="text" bind:value={newHierarchyName} placeholder="Ex: Modération, Animation..." class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
+        </div>
+
+        <div>
+          <label for="hierarchy-desc" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Description</label>
+          <textarea id="hierarchy-desc" bind:value={newHierarchyDescription} placeholder="Décrivez le but de cette hiérarchie..." rows="3" class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 resize-none"></textarea>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label for="hierarchy-color" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Couleur (Hex)</label>
+            <div class="flex gap-2">
+              <input id="hierarchy-color" type="color" bind:value={newHierarchyColor} class="h-11 w-12 rounded-xl border border-outline-variant/20 bg-surface-container-low p-1 cursor-pointer" />
+              <input type="text" bind:value={newHierarchyColor} class="flex-1 rounded-2xl border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-sm text-on-surface outline-none transition focus:border-primary/40" />
+            </div>
+          </div>
+          <div>
+            <label for="hierarchy-icon" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Emoji / Icone</label>
+            <input id="hierarchy-icon" type="text" bind:value={newHierarchyIcon} placeholder="🔵, 🛡️, 🎭..." class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
+          </div>
+        </div>
+
+        <div>
+          <label for="hierarchy-role" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Rôle Discord Responsable (Optionnel)</label>
+          <select id="hierarchy-role" bind:value={newHierarchyDiscordRoleId} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
+            <option value="">-- Aucun --</option>
+            {#each availableDiscordRoles as dr}
+              <option value={dr.id}>{dr.name}</option>
+            {/each}
+          </select>
+        </div>
+
+        <div>
+          <label for="hierarchy-resp" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Membre Responsable (Optionnel)</label>
+          <select id="hierarchy-resp" bind:value={newHierarchyResponsableUserId} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
+            <option value="">-- Aucun --</option>
+            {#each staffMembers as sm}
+              <option value={sm.userId}>{sm.displayName || sm.username || sm.userId}</option>
+            {/each}
+          </select>
+        </div>
+
+        <div>
+          <label for="hierarchy-parent" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Hiérarchie supérieure (Optionnel)</label>
+          <select id="hierarchy-parent" bind:value={newHierarchyParentId} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
+            <option value="">-- Aucune --</option>
+            {#each hierarchies.filter((h) => !editingHierarchy || h.id !== editingHierarchy.id) as h}
+              <option value={h.id}>{h.name}</option>
+            {/each}
+          </select>
+        </div>
+      </div>
+
+      <div class="mt-8 flex justify-end gap-3">
+        <button onclick={() => showAddHierarchyForm = false} class="px-6 py-3 rounded-2xl border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-xs font-black uppercase tracking-wider text-on-surface transition-all">
+          Annuler
+        </button>
+        <button onclick={saveHierarchy} disabled={isSavingHierarchy || !newHierarchyName.trim()} class="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-3 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50">
+          {isSavingHierarchy ? 'Enregistrement...' : 'Enregistrer'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Modal Importer depuis Discord -->
+{#if showImportModal && importHierarchyTarget}
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+    <div
+      class="absolute inset-0 bg-surface-container-lowest/80 backdrop-blur-sm transition-opacity"
+      role="button"
+      tabindex="0"
+      aria-label="Fermer"
+      onclick={() => showImportModal = false}
+      onkeydown={(e) => { if (e.key === 'Escape') showImportModal = false; }}
+    ></div>
+    
+    <div class="relative w-full max-w-lg rounded-[3rem] border border-outline-variant/30 bg-surface p-8 shadow-2xl animate-in zoom-in-95 duration-200">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="text-2xl font-black tracking-tighter text-on-surface">
+          Importer des membres dans {importHierarchyTarget.name}
+        </h3>
+        <button onclick={() => showImportModal = false} class="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-container text-on-surface-variant hover:bg-rose-500/10 hover:text-rose-500 transition-colors">
+          <Papicon icon="x" size={20} />
+        </button>
+      </div>
+
+      {#if importResult}
+        <div class="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 text-emerald-700 space-y-2 mb-6">
+          <p class="font-bold">Importation terminée avec succès !</p>
+          <ul class="text-xs list-disc list-inside">
+            <li>Total analysés : {importResult.total}</li>
+            <li>Membres importés : {importResult.imported}</li>
+            <li>Membres ignorés (déjà présents) : {importResult.skipped}</li>
+          </ul>
+        </div>
+      {/if}
+
+      <div class="space-y-4">
+        <div>
+          <label for="import-role-select" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Rôle Discord à importer</label>
+          <select id="import-role-select" bind:value={importDiscordRoleId} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
+            <option value="">-- Choisir un rôle --</option>
+            {#each availableDiscordRoles as dr}
+              <option value={dr.id}>{dr.name}</option>
+            {/each}
+          </select>
+        </div>
+
+        <div>
+          <label for="import-grade-select" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Grade de destination</label>
+          <select id="import-grade-select" bind:value={importGradeName} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
+            <option value="">-- Choisir un grade --</option>
+            {#each getOrderedStaffRoles().filter(r => r.hierarchyId === importHierarchyTarget?.id) as r}
+              <option value={r.name}>{r.name}</option>
+            {/each}
+          </select>
+        </div>
+      </div>
+
+      <div class="mt-8 flex justify-end gap-3">
+        <button onclick={() => showImportModal = false} class="px-6 py-3 rounded-2xl border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-xs font-black uppercase tracking-wider text-on-surface transition-all">
+          {importResult ? 'Fermer' : 'Annuler'}
+        </button>
+        {#if !importResult}
+          <button onclick={runImport} disabled={isImporting || !importDiscordRoleId || !importGradeName} class="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-3 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50">
+            {isImporting ? 'Importation en cours...' : 'Lancer l\'import'}
+          </button>
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Modal Gérer les hiérarchies d'un membre -->
+{#if showMemberHierarchyGradeForm && memberHierarchyGradeTarget}
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+    <div
+      class="absolute inset-0 bg-surface-container-lowest/80 backdrop-blur-sm transition-opacity"
+      role="button"
+      tabindex="0"
+      aria-label="Fermer"
+      onclick={() => showMemberHierarchyGradeForm = false}
+      onkeydown={(e) => { if (e.key === 'Escape') showMemberHierarchyGradeForm = false; }}
+    ></div>
+    
+    <div class="relative w-full max-w-lg rounded-[3rem] border border-outline-variant/30 bg-surface p-8 shadow-2xl animate-in zoom-in-95 duration-200">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="text-2xl font-black tracking-tighter text-on-surface">
+          Hiérarchies de {memberHierarchyGradeTarget.displayName || memberHierarchyGradeTarget.username}
+        </h3>
+        <button onclick={() => showMemberHierarchyGradeForm = false} class="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-container text-on-surface-variant hover:bg-rose-500/10 hover:text-rose-500 transition-colors">
+          <Papicon icon="x" size={20} />
+        </button>
+      </div>
+
+      <!-- Existing Hierarchies list -->
+      <div class="mb-6 space-y-2">
+        <span class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Grades Actuels</span>
+        {#if memberHierarchyGradeTarget?.hierarchyGrades && memberHierarchyGradeTarget.hierarchyGrades.length > 0}
+          <div class="divide-y divide-outline-variant/10 border border-outline-variant/15 rounded-2xl bg-surface-container-low overflow-hidden">
+            {#each memberHierarchyGradeTarget.hierarchyGrades as hGrade}
+              <div class="flex items-center justify-between px-4 py-3 text-sm">
+                <div class="flex items-center gap-2">
+                  <span>{hGrade.hierarchy?.icon || '🔵'}</span>
+                  <span class="font-bold">{hGrade.hierarchy?.name}</span>
+                  <span class="text-on-surface-variant/75">— {hGrade.grade}</span>
+                </div>
+                <button onclick={() => removeMemberHierarchy(memberHierarchyGradeTarget?.userId || '', hGrade.hierarchyId)} class="text-rose-600 hover:text-rose-700 text-xs font-black uppercase tracking-wider">
+                  Retirer
+                </button>
+              </div>
+            {/each}
+          </div>
+        {:else}
+          <p class="text-xs text-on-surface-variant/50 italic py-2">Ce membre n'appartient à aucune hiérarchie secondaire.</p>
+        {/if}
+      </div>
+
+      <!-- Form to add new hierarchy grade -->
+      <div class="space-y-4 pt-4 border-t border-outline-variant/10">
+        <span class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Associer une nouvelle hiérarchie</span>
+        
+        <div>
+          <label for="member-h-select" class="block text-xs font-bold text-on-surface-variant/60 mb-2">Hiérarchie</label>
+          <select
+            id="member-h-select"
+            bind:value={selectedMemberHierarchyId}
+            onchange={(event) => {
+              const hierarchyId = (event.currentTarget as HTMLSelectElement).value;
+              selectedMemberHierarchyId = hierarchyId;
+
+              if (!hierarchyId || !memberHierarchyGradeTarget) {
+                selectedMemberHierarchyGrade = '';
+                return;
+              }
+
+              const existingGrade = memberHierarchyGradeTarget.hierarchyGrades?.find((entry) => entry.hierarchyId === hierarchyId)?.grade;
+              selectedMemberHierarchyGrade = existingGrade || getOrderedStaffRoles().find((role) => role.hierarchyId === hierarchyId)?.name || '';
+            }}
+            class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+          >
+            <option value="">-- Choisir une hiérarchie --</option>
+            {#each hierarchies as h}
+              <option value={h.id}>
+                {h.name}{memberHierarchyGradeTarget?.hierarchyGrades?.some((hg) => hg.hierarchyId === h.id) ? ' (déjà lié)' : ''}
+              </option>
+            {/each}
+          </select>
+        </div>
+
+        {#if selectedMemberHierarchyId}
+          <div>
+            <label for="member-g-select" class="block text-xs font-bold text-on-surface-variant/60 mb-2">Grade</label>
+            <select id="member-g-select" bind:value={selectedMemberHierarchyGrade} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
+              <option value="">-- Choisir un grade --</option>
+              {#each getOrderedStaffRoles().filter(r => r.hierarchyId === selectedMemberHierarchyId) as r}
+                <option value={r.name}>{r.name}</option>
+              {/each}
+            </select>
+          </div>
+        {/if}
+      </div>
+
+      <div class="mt-8 flex justify-end gap-3">
+        <button onclick={() => showMemberHierarchyGradeForm = false} class="px-6 py-3 rounded-2xl border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-xs font-black uppercase tracking-wider text-on-surface transition-all">
+          Fermer
+        </button>
+        <button onclick={saveMemberHierarchyGrade} disabled={isSavingMemberHierarchyGrade || !selectedMemberHierarchyId || !selectedMemberHierarchyGrade} class="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-3 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50">
+          {isSavingMemberHierarchyGrade ? 'Ajout...' : 'Ajouter'}
+        </button>
       </div>
     </div>
   </div>
