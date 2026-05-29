@@ -1278,7 +1278,7 @@ export async function fetchNicknameModerationConfig(guildId = authStore.selected
 }
 
 export async function updateNicknameModerationConfig(
-  payload: { enabled: boolean },
+  payload: { enabled?: boolean; whitelist?: string[]; bypass?: string[] },
   guildId = authStore.selectedGuildId
 ) {
   return dashboardMutation('/nickname-moderation', {

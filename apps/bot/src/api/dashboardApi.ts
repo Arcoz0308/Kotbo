@@ -4041,6 +4041,11 @@ export const startDashboardApi = (client: Client) => {
             for (const entry of entries) {
               const word = normalizeGlobalBannedWord(entry?.word);
               if (!word) continue;
+
+              if (word.includes('automod') || word.includes('pseudo non conforme')) {
+                continue;
+              }
+
               seen.set(word, {
                 word,
                 category: normalizeGlobalBannedWordCategory(entry?.category),
@@ -4129,6 +4134,11 @@ export const startDashboardApi = (client: Client) => {
 
                 if (!nextWord) {
                   json(res, 400, { error: 'Le mot ne peut pas être vide' });
+                  return;
+                }
+
+                if (nextWord.includes('automod') || nextWord.includes('pseudo non conforme')) {
+                  json(res, 400, { error: 'Ce mot ne peut pas être banni (réservé par le système de modération)' });
                   return;
                 }
 
@@ -8275,13 +8285,21 @@ export const startDashboardApi = (client: Client) => {
               try {
                 const guild = await prisma.guild.findUnique({
                   where: { id: guildId },
-                  select: { autoNicknameModerationEnabled: true },
+                  select: {
+                    autoNicknameModerationEnabled: true,
+                    nicknameModerationWhitelist: true,
+                    nicknameModerationBypass: true,
+                  },
                 });
                 if (!guild) {
                   json(res, 404, { error: 'Serveur introuvable' });
                   return;
                 }
-                json(res, 200, { enabled: guild.autoNicknameModerationEnabled });
+                json(res, 200, {
+                  enabled: guild.autoNicknameModerationEnabled,
+                  whitelist: guild.nicknameModerationWhitelist,
+                  bypass: guild.nicknameModerationBypass,
+                });
               } catch (err) {
                 logger.error('NicknameAPI', 'GET nickname-moderation error:', err);
                 json(res, 500, { error: 'Erreur lors de la récupération de la configuration' });
@@ -8290,16 +8308,79 @@ export const startDashboardApi = (client: Client) => {
             }
 
             if (req.method === 'PATCH') {
-              const body = await readJsonBody<{ enabled?: boolean }>(req);
-              if (!body || !Object.prototype.hasOwnProperty.call(body, 'enabled')) {
-                json(res, 400, { error: 'Payload invalide — champ `enabled` requis' });
+              const body = await readJsonBody<{ enabled?: boolean; whitelist?: string[]; bypass?: string[] }>(req);
+              
+              const updateData: any = {};
+              if (body && Object.prototype.hasOwnProperty.call(body, 'enabled')) {
+                updateData.autoNicknameModerationEnabled = !!body.enabled;
+              }
+              if (body && Object.prototype.hasOwnProperty.call(body, 'whitelist')) {
+                if (!Array.isArray(body.whitelist) || body.whitelist.some(item => typeof item !== 'string')) {
+                  json(res, 400, { error: 'Format whitelist invalide (doit être un tableau de chaînes)' });
+                  return;
+                }
+                const cleanedWhitelist = [...new Set(body.whitelist.map((w: string) => w.trim().toLowerCase()).filter(Boolean))];
+                if (cleanedWhitelist.length > 250) {
+                  json(res, 400, { error: 'La whitelist ne peut pas contenir plus de 250 pseudos' });
+                  return;
+                }
+                if (cleanedWhitelist.some(w => w.length > 32)) {
+                  json(res, 400, { error: 'Les pseudos autorisés ne peuvent pas dépasser 32 caractères' });
+                  return;
+                }
+                updateData.nicknameModerationWhitelist = cleanedWhitelist;
+              }
+              if (body && Object.prototype.hasOwnProperty.call(body, 'bypass')) {
+                if (!Array.isArray(body.bypass) || body.bypass.some(item => typeof item !== 'string')) {
+                  json(res, 400, { error: 'Format bypass invalide (doit être un tableau de chaînes)' });
+                  return;
+                }
+                const cleanedBypass = [...new Set(body.bypass.map((id: string) => id.trim()).filter(Boolean))];
+                if (cleanedBypass.length > 250) {
+                  json(res, 400, { error: 'La liste des membres exemptés ne peut pas contenir plus de 250 IDs' });
+                  return;
+                }
+                if (cleanedBypass.some(id => !/^\d{17,20}$/.test(id))) {
+                  json(res, 400, { error: 'Format bypass invalide : certains IDs sont incorrects (doivent être de 17 à 20 chiffres)' });
+                  return;
+                }
+                updateData.nicknameModerationBypass = cleanedBypass;
+              }
+
+              if (Object.keys(updateData).length === 0) {
+                json(res, 400, { error: 'Payload invalide — aucun champ à mettre à jour fourni' });
                 return;
               }
 
               try {
+                if (updateData.nicknameModerationWhitelist) {
+                  const activeBannedWords = await prisma.bannedWord.findMany({
+                    where: {
+                      OR: [
+                        { guildId: null, enabled: true },
+                        { guildId, enabled: true },
+                      ],
+                    },
+                    select: { word: true },
+                  });
+                  const bannedSet = new Set(
+                    activeBannedWords.map((b) => b.word.trim().toLowerCase())
+                  );
+
+                  const invalidItems = updateData.nicknameModerationWhitelist.filter(
+                    (item: string) => bannedSet.has(item)
+                  );
+                  if (invalidItems.length > 0) {
+                    json(res, 400, {
+                      error: `Impossible d'autoriser ces pseudos car ils font partie de la liste des mots bannis : ${invalidItems.join(', ')}`,
+                    });
+                    return;
+                  }
+                }
+
                 await prisma.guild.update({
                   where: { id: guildId },
-                  data: { autoNicknameModerationEnabled: !!body.enabled },
+                  data: updateData,
                 });
 
                 const { invalidateNicknameModerationCache } = await import('../events/nicknameModeration.js');
@@ -8311,7 +8392,7 @@ export const startDashboardApi = (client: Client) => {
                   context: getGuildName(client, guildId),
                   module: 'Modération des pseudos',
                   eventType: 'Manuel',
-                  details: `Activé: ${body.enabled}`,
+                  details: `Modifications appliquées: ${Object.keys(updateData).join(', ')}`,
                   channelId: null,
                 });
 
@@ -8779,11 +8860,30 @@ export const startDashboardApi = (client: Client) => {
             }
 
             const cleanWord = body.word.trim().toLowerCase().slice(0, 100);
+
+            if (cleanWord.includes('automod') || cleanWord.includes('pseudo non conforme')) {
+              json(res, 400, { error: 'Ce mot ne peut pas être banni (réservé par le système de modération)' });
+              return;
+            }
+
             const category = ['custom', 'racism', 'threat', 'sexual', 'lgbtphobia', 'hate', 'insult'].includes(body.category ?? '')
               ? body.category!
               : 'custom';
 
             try {
+              // Vérification anti-conflit : le mot ne doit pas être déjà dans la whitelist
+              const guildData = await prisma.guild.findUnique({
+                where: { id: guildId },
+                select: { nicknameModerationWhitelist: true },
+              });
+              const whitelist = guildData?.nicknameModerationWhitelist ?? [];
+              if (whitelist.includes(cleanWord)) {
+                json(res, 400, {
+                  error: `Impossible de bannir ce mot car il est déjà présent dans la liste des pseudos autorisés (whitelist) : ${cleanWord}`,
+                });
+                return;
+              }
+
               const created = await prisma.bannedWord.create({
                 data: { guildId, word: cleanWord, category },
               });
@@ -8829,6 +8929,21 @@ export const startDashboardApi = (client: Client) => {
               if (!existing) {
                 json(res, 404, { error: 'Mot introuvable' });
                 return;
+              }
+
+              if (body.enabled) {
+                // Vérification anti-conflit : le mot ne doit pas être déjà dans la whitelist
+                const guildData = await prisma.guild.findUnique({
+                  where: { id: guildId },
+                  select: { nicknameModerationWhitelist: true },
+                });
+                const whitelist = guildData?.nicknameModerationWhitelist ?? [];
+                if (whitelist.includes(existing.word.toLowerCase())) {
+                  json(res, 400, {
+                    error: `Impossible d'activer ce mot car il est déjà présent dans la liste des pseudos autorisés (whitelist) : ${existing.word}`,
+                  });
+                  return;
+                }
               }
 
               await prisma.bannedWord.update({ where: { id: wordId }, data: { enabled: body.enabled } });

@@ -50,6 +50,8 @@ model Guild {
   codePoliceRules          CodePoliceRule[]
 
   autoNicknameModerationEnabled Boolean   @default(false)
+  nicknameModerationWhitelist  String[]  @default([])
+  nicknameModerationBypass     String[]  @default([])
   bannedWords              BannedWord[]
   
   dailyAlgoEnabled         Boolean @default(false)
