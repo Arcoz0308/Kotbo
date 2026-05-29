@@ -3989,6 +3989,11 @@ export const startDashboardApi = (client: Client) => {
             for (const entry of entries) {
               const word = normalizeGlobalBannedWord(entry?.word);
               if (!word) continue;
+
+              if (word.includes('automod') || word.includes('pseudo non conforme')) {
+                continue;
+              }
+
               seen.set(word, {
                 word,
                 category: normalizeGlobalBannedWordCategory(entry?.category),
@@ -4077,6 +4082,11 @@ export const startDashboardApi = (client: Client) => {
 
                 if (!nextWord) {
                   json(res, 400, { error: 'Le mot ne peut pas être vide' });
+                  return;
+                }
+
+                if (nextWord.includes('automod') || nextWord.includes('pseudo non conforme')) {
+                  json(res, 400, { error: 'Ce mot ne peut pas être banni (réservé par le système de modération)' });
                   return;
                 }
 
@@ -8716,6 +8726,12 @@ export const startDashboardApi = (client: Client) => {
             }
 
             const cleanWord = body.word.trim().toLowerCase().slice(0, 100);
+
+            if (cleanWord.includes('automod') || cleanWord.includes('pseudo non conforme')) {
+              json(res, 400, { error: 'Ce mot ne peut pas être banni (réservé par le système de modération)' });
+              return;
+            }
+
             const category = ['custom', 'racism', 'threat', 'sexual', 'lgbtphobia', 'hate', 'insult'].includes(body.category ?? '')
               ? body.category!
               : 'custom';

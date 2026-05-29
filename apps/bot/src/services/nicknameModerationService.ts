@@ -22,6 +22,14 @@ export const SAFE_NICKNAME = 'pseudo non conforme | automod';
 export function isNicknameProblematic(name: string, words: string[]): boolean {
   if (!name || name.trim().length === 0) return true;
   if (INVISIBLE_ONLY_REGEX.test(name)) return true;
+
+  const normalized = name.toLowerCase().trim();
+
+  // Protection anti-boucle : Ignorer notre propre pseudo de remplacement ou tout ce qui s'y apparente (contient "automod" ou "pseudo non conforme")
+  if (normalized.includes('automod') || normalized.includes('pseudo non conforme')) {
+    return false;
+  }
+
   return containsBannedWord(name, words);
 }
 

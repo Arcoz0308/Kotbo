@@ -1,175 +1,122 @@
 /**
- * Tests unitaires pour containsBannedWord (Option C).
+ * Tests unitaires pour containsBannedWord et isNicknameProblematic.
  *
- * Vérifie que la détection combinée (token exact + frontières Unicode)
- * élimine les faux positifs signalés tout en continuant à flagguer
- * les vrais mots bannis.
+ * Vérifie que la détection combinée (token exact + frontières Unicode + substring long)
+ * fonctionne de manière générique, et que les sécurités anti-boucle (automod)
+ * fonctionnent correctement.
  */
 
 import { describe, it, expect } from 'bun:test';
 import { containsBannedWord } from '../../services/bannedWordsService.js';
+import { isNicknameProblematic } from '../../services/nicknameModerationService.js';
 
-// ---------------------------------------------------------------------------
-// Faux positifs à NE PAS flagguer
-// ---------------------------------------------------------------------------
+describe('containsBannedWord — Détection automatique', () => {
+  // ---------------------------------------------------------------------------
+  // Faux positifs à NE PAS flagguer (doit retourner false)
+  // ---------------------------------------------------------------------------
+  describe('Faux positifs (ne doit PAS flagguer)', () => {
+    const fauxPositifs = [
+      { text: 'cacao', banned: ['caca'], reason: 'caca est un sous-mot' },
+      { text: 'Xavier', banned: ['xav'], reason: 'xav est un sous-mot' },
+      { text: 'assassin', banned: ['ass'], reason: 'ass est un sous-mot' },
+      { text: 'classique', banned: ['lass'], reason: 'lass est un sous-mot' },
+      { text: 'cocasse', banned: ['caca'], reason: 'caca est un sous-mot' },
+      { text: 'patapon', banned: ['pat'], reason: 'pat est un sous-mot' },
+      { text: 'r2d2', banned: ['r', 'd'], reason: 'les chiffres ne sont pas des séparateurs' },
+      { text: 'super2man', banned: ['man'], reason: 'les chiffres ne sont pas des séparateurs' },
+      { text: 'bidon', banned: ['bi'], reason: 'mot banni court (< 4c) en bord de pseudo' },
+      { text: '', banned: ['caca'], reason: 'pseudo vide' },
+      { text: '   ', banned: ['caca'], reason: 'pseudo composé uniquement d\'espaces' },
+      { text: 'caca', banned: ['', '   '], reason: 'mots bannis vides' },
+    ];
 
-describe('containsBannedWord — faux positifs (ne doit PAS flagguer)', () => {
-  it('ne flaggue pas "cacao" à cause de "caca"', () => {
-    expect(containsBannedWord('cacao', ['caca'])).toBe(false);
+    for (const { text, banned, reason } of fauxPositifs) {
+      it(`ignore "${text}" avec la liste [${banned.join(', ')}] (${reason})`, () => {
+        expect(containsBannedWord(text, banned)).toBe(false);
+      });
+    }
   });
 
-  it('ne flaggue pas "Xavier" à cause de "xav" ou sous-mots similaires', () => {
-    expect(containsBannedWord('Xavier', ['xav'])).toBe(false);
+  // ---------------------------------------------------------------------------
+  // Vrais positifs (DOIT flagguer / retourner true)
+  // ---------------------------------------------------------------------------
+  describe('Vrais positifs (DOIT flagguer)', () => {
+    const vraisPositifs = [
+      { text: 'caca', banned: ['caca'], reason: 'mot exact' },
+      { text: 'caca lol', banned: ['caca'], reason: 'début de mot composé' },
+      { text: 'super caca', banned: ['caca'], reason: 'fin de mot composé' },
+      { text: 'le-caca-lol', banned: ['caca'], reason: 'séparateur tiret' },
+      { text: 'pseudo_caca', banned: ['caca'], reason: 'séparateur underscore' },
+      { text: 'caca123', banned: ['caca'], reason: 'frontière de chiffre (non-lettre)' },
+      { text: 'CACA', banned: ['caca'], reason: 'insensible à la casse' },
+      { text: 'caca!lol', banned: ['caca'], reason: 'frontière de ponctuation' },
+      { text: 'ass-boy', banned: ['ass'], reason: 'séparateur tiret' },
+      { text: 'je suis caca', banned: ['sale', 'caca', 'merde'], reason: 'un mot de la liste correspond' },
+    ];
+
+    for (const { text, banned, reason } of vraisPositifs) {
+      it(`flaggue "${text}" avec la liste [${banned.join(', ')}] (${reason})`, () => {
+        expect(containsBannedWord(text, banned)).toBe(true);
+      });
+    }
   });
 
-  it('ne flaggue pas "assassin" à cause de "ass" (anglais)', () => {
-    expect(containsBannedWord('assassin', ['ass'])).toBe(false);
+  // ---------------------------------------------------------------------------
+  // Substring match pour mots longs (≥ 6c)
+  // ---------------------------------------------------------------------------
+  describe('Substring match mots longs (seuil ≥ 6c)', () => {
+    const substringCases = [
+      { text: 'connerieman', banned: ['connerie'], expected: true, reason: 'connerie (8c ≥ 6) est un mot long' },
+      { text: 'leputaindetruc', banned: ['putain'], expected: true, reason: 'putain (6c ≥ 6) est un mot long' },
+      { text: 'sonofbitch0139', banned: ['bitch'], expected: false, reason: 'bitch (5c < 6) est sous le seuil' },
+      { text: 'fichier', banned: ['chier'], expected: false, reason: 'chier (5c < 6) est sous le seuil' },
+      { text: 'supermerdedu', banned: ['merde'], expected: false, reason: 'merde (5c < 6) est sous le seuil' },
+      { text: 'cacao', banned: ['caca'], expected: false, reason: 'caca (4c < 6) est sous le seuil' },
+      { text: 'cacahuète', banned: ['caca'], expected: false, reason: 'caca (4c < 6) est sous le seuil' },
+    ];
+
+    for (const { text, banned, expected, reason } of substringCases) {
+      it(`${expected ? 'flaggue' : 'ignore'} "${text}" avec la liste [${banned.join(', ')}] (${reason})`, () => {
+        expect(containsBannedWord(text, banned)).toBe(expected);
+      });
+    }
   });
 
-  it('ne flaggue pas "classique" à cause de "lass"', () => {
-    expect(containsBannedWord('classique', ['lass'])).toBe(false);
-  });
+  // ---------------------------------------------------------------------------
+  // Cas limites / Spécificités
+  // ---------------------------------------------------------------------------
+  describe('Cas limites', () => {
+    const edgeCases = [
+      { text: 'éléphant', banned: ['éléphant'], expected: true, reason: 'caractères accentués' },
+      { text: 'réélection', banned: ['ré'], expected: false, reason: 'mot court avec accents' },
+      { text: 'caca', banned: [], expected: false, reason: 'liste de mots vide' },
+      { text: 'caca', banned: ['  caca  '], expected: true, reason: 'mot banni avec espaces superflus' },
+    ];
 
-  it('ne flaggue pas "cocasse" à cause de "caca"', () => {
-    expect(containsBannedWord('cocasse', ['caca'])).toBe(false);
-  });
-
-  it('ne flaggue pas "patapon" à cause de "pat"', () => {
-    expect(containsBannedWord('patapon', ['pat'])).toBe(false);
-  });
-
-  it('préserve les pseudos avec chiffres en un seul token (r2d2, super2man)', () => {
-    // Les chiffres ne sont plus des séparateurs → "r2d2" reste un token entier
-    expect(containsBannedWord('r2d2', ['r', 'd'])).toBe(false);
-    expect(containsBannedWord('super2man', ['man'])).toBe(false);
-  });
-
-  it('ne flag pas les mots bannis courts (< 4 chars) en bord de pseudo via regex', () => {
-    // "bi" est court → pas de check regex → seul l'exact token match compte
-    // "bidon" → token ["bidon"] ≠ "bi" → pas de match
-    expect(containsBannedWord('bidon', ['bi'])).toBe(false);
-  });
-
-  it('ne flaggue pas un pseudo vide', () => {
-    expect(containsBannedWord('', ['caca'])).toBe(false);
-  });
-
-  it('ne flaggue pas un pseudo avec uniquement des espaces', () => {
-    expect(containsBannedWord('   ', ['caca'])).toBe(false);
-  });
-
-  it('ignore les mots bannis vides ou composés d\'espaces', () => {
-    expect(containsBannedWord('caca', ['', '   '])).toBe(false);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Vrais positifs — DOIT flagguer
-// ---------------------------------------------------------------------------
-
-describe('containsBannedWord — vrais positifs (DOIT flagguer)', () => {
-  it('flaggue "caca" seul', () => {
-    expect(containsBannedWord('caca', ['caca'])).toBe(true);
-  });
-
-  it('flaggue "caca" en début de pseudo multi-mots', () => {
-    expect(containsBannedWord('caca lol', ['caca'])).toBe(true);
-  });
-
-  it('flaggue "caca" en fin de pseudo multi-mots', () => {
-    expect(containsBannedWord('super caca', ['caca'])).toBe(true);
-  });
-
-  it('flaggue "caca" séparé par un tiret', () => {
-    expect(containsBannedWord('le-caca-lol', ['caca'])).toBe(true);
-  });
-
-  it('flaggue "caca" séparé par un underscore', () => {
-    expect(containsBannedWord('pseudo_caca', ['caca'])).toBe(true);
-  });
-
-  it('flaggue "caca123" via la regex frontière (chiffre = non-lettre)', () => {
-    // Les chiffres ne sont plus des séparateurs → token = ["caca123"]
-    // Mais "caca" est suivi de "1" (non-lettre) → frontière valide → flaggé via regex
-    expect(containsBannedWord('caca123', ['caca'])).toBe(true);
-  });
-
-  it('flaggue un pseudo insensible à la casse', () => {
-    expect(containsBannedWord('CACA', ['caca'])).toBe(true);
-  });
-
-  it('flaggue "caca" collé à un non-lettre (ex: "caca!lol")', () => {
-    // "!" n'est pas une lettre → la frontière est respectée
-    expect(containsBannedWord('caca!lol', ['caca'])).toBe(true);
-  });
-
-  it('flaggue "ass" dans "ass-boy" (séparé par tiret)', () => {
-    expect(containsBannedWord('ass-boy', ['ass'])).toBe(true);
-  });
-
-  it('flaggue un mot banni parmi plusieurs', () => {
-    expect(containsBannedWord('je suis caca', ['sale', 'caca', 'merde'])).toBe(true);
-  });
-
-  it('ne flaggue rien si aucun mot banni ne correspond', () => {
-    expect(containsBannedWord('pseudo propre', ['caca', 'merde'])).toBe(false);
+    for (const { text, banned, expected, reason } of edgeCases) {
+      it(`${expected ? 'flaggue' : 'ignore'} "${text}" avec la liste [${banned.join(', ')}] (${reason})`, () => {
+        expect(containsBannedWord(text, banned)).toBe(expected);
+      });
+    }
   });
 });
 
-// ---------------------------------------------------------------------------
-// Check 3 — substring match pour mots longs (≥ 5 chars)
-// ---------------------------------------------------------------------------
-
-describe('containsBannedWord — substring match mots longs (≥ 6c)', () => {
-  it('flaggue "connerieman" car "connerie" (8c ≥ 6) est un mot banni long', () => {
-    expect(containsBannedWord('connerieman', ['connerie'])).toBe(true);
+describe('isNicknameProblematic — Sécurités anti-boucle', () => {
+  it('ignore le pseudo de remplacement exact (SAFE_NICKNAME)', () => {
+    expect(isNicknameProblematic('pseudo non conforme | automod', ['con', 'caca'])).toBe(false);
   });
 
-  it('flaggue "leputaindetruc" car "putain" (6c ≥ 6) est dedans', () => {
-    expect(containsBannedWord('leputaindetruc', ['putain'])).toBe(true);
+  it('ignore les variations contenant "automod" ou "pseudo non conforme"', () => {
+    expect(isNicknameProblematic('SuperAutoMod', ['auto', 'mod'])).toBe(false);
+    expect(isNicknameProblematic('pseudo non conforme', ['non', 'con'])).toBe(false);
   });
 
-  it('ne flaggue PAS "sonofbitch0139" car "bitch" (5c < 6) est sous le seuil', () => {
-    // "bitch" = 5c → pas de substring check. Mais token exact ou regex frontière
-    // peuvent toujours le détecter s'il est séparé par un séparateur.
-    expect(containsBannedWord('sonofbitch0139', ['bitch'])).toBe(false);
+  it('flaggue les pseudos réellement problématiques', () => {
+    expect(isNicknameProblematic('caca', ['caca'])).toBe(true);
+    expect(isNicknameProblematic('le-caca-lol', ['caca'])).toBe(true);
   });
 
-  it('ne flaggue PAS "fichier" à cause de "chier" (5c < 6)', () => {
-    expect(containsBannedWord('fichier', ['chier'])).toBe(false);
-  });
-
-  it('ne flaggue PAS "supermerdedu" car "merde" (5c < 6) est sous le seuil', () => {
-    expect(containsBannedWord('supermerdedu', ['merde'])).toBe(false);
-  });
-
-  it('ne flaggue PAS via substring un mot de 4c comme "caca" dans "cacao"', () => {
-    expect(containsBannedWord('cacao', ['caca'])).toBe(false);
-  });
-
-  it('ne flaggue PAS via substring un mot de 4c comme "caca" dans "cacahuète"', () => {
-    expect(containsBannedWord('cacahuète', ['caca'])).toBe(false);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Cas limites
-// ---------------------------------------------------------------------------
-
-describe('containsBannedWord — cas limites', () => {
-  it('gère les mots bannis avec des caractères accentués', () => {
-    expect(containsBannedWord('éléphant', ['éléphant'])).toBe(true);
-  });
-
-  it('ne flaggue pas "réélection" à cause de "ré"', () => {
-    expect(containsBannedWord('réélection', ['ré'])).toBe(false);
-  });
-
-  it('gère une liste de mots bannis vide', () => {
-    expect(containsBannedWord('caca', [])).toBe(false);
-  });
-
-  it('flaggue un mot banni avec des espaces autour dans la liste', () => {
-    expect(containsBannedWord('caca', ['  caca  '])).toBe(true);
+  it('ne flaggue pas les pseudos propres', () => {
+    expect(isNicknameProblematic('pseudo_propre', ['caca'])).toBe(false);
   });
 });
