@@ -1433,6 +1433,13 @@ export const getStaffCalendarData = async (guildId: string, start: Date, end: Da
           { endDate: { gte: start, lte: end } },
           { isIndefinite: true, startDate: { lte: end } }
         ],
+        staffMember: {
+          blacklistEntries: {
+            none: {
+              isActive: true
+            }
+          }
+        },
         ...(staffUserIds ? { staffUserId: { in: staffUserIds } } : {})
       },
       include: { staffMember: true }
@@ -1447,6 +1454,13 @@ export const getStaffCalendarData = async (guildId: string, start: Date, end: Da
       where: {
         guildId,
         joinedAt: { gte: start, lte: end },
+        staffMember: {
+          blacklistEntries: {
+            none: {
+              isActive: true
+            }
+          }
+        },
         ...(staffUserIds ? { staffUserId: { in: staffUserIds } } : {})
       },
       include: { staffMember: true }
@@ -1464,6 +1478,15 @@ export const getStaffCalendarData = async (guildId: string, start: Date, end: Da
       },
       include: {
         presences: {
+          where: {
+            staffMember: {
+              blacklistEntries: {
+                none: {
+                  isActive: true
+                }
+              }
+            }
+          },
           include: {
             staffMember: true
           }

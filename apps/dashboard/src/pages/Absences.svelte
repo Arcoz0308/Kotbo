@@ -28,7 +28,7 @@
   let absences = $state<any[]>([]);
   let allStaff = $state<any[]>([]);
   let allRoles = $state<any[]>([]);
-  let calendarData = $state<{ absences: any[], voiceSessions: any[] }>({ absences: [], voiceSessions: [] });
+  let calendarData = $state<{ absences: any[], voiceSessions: any[], meetings?: any[] }>({ absences: [], voiceSessions: [] });
   let absenceConfig = $state<any>(null);
   let loading = $state(true);
   const saveAction = createAsyncActionState();
@@ -64,17 +64,20 @@
   const isAdmin = $derived(authStore.guilds.find(g => g.id === authStore.selectedGuildId)?.accessLevel === 'admin');
   const isManager = $derived(isAdmin || (absenceConfig?.roleAccess?.some((ra: any) => ra.canModerate) ?? false));
 
-  const myStaffRecord = $derived(allStaff.find(s => s.userId === authStore.user?.id));
+  const myStaffRecord = $derived(allStaff.find(s => s.userId === (authStore.user as any)?.id));
+
+  // Exclure les membres actuellement blacklistés du planning
+  const activeStaff = $derived(allStaff.filter(s => !s.blacklistEntries || s.blacklistEntries.length === 0));
   
   const eligibleSuperiors = $derived.by(() => {
     if (!myStaffRecord || allRoles.length === 0) return [];
     
     const myRole = allRoles.find(r => r.name === myStaffRecord.grade);
-    if (!myRole) return allStaff; 
+    if (!myRole) return activeStaff; 
     
-    return allStaff.filter(s => {
+    return activeStaff.filter(s => {
       // Ne pas s'inclure soi-même
-      if (s.userId === authStore.user?.id) return false;
+      if (s.userId === (authStore.user as any)?.id) return false;
       
       // Ne pas inclure les personnes en tutorat (période de test en cours)
       if (s.testingPeriods && s.testingPeriods.length > 0) return false;
@@ -231,7 +234,7 @@
 
     // Map meetings
     if (visibleTypes.includes('meeting') && calendarData.meetings) {
-      calendarData.meetings.forEach(m => {
+      calendarData.meetings.forEach((m: any) => {
         events.push({
           id: m.id,
           title: `Réunion: ${m.title}`,
@@ -302,10 +305,10 @@
   }
 
   function toggleEveryone() {
-    if (selectedStaffIds.length === allStaff.length) {
+    if (selectedStaffIds.length === activeStaff.length) {
       selectedStaffIds = [];
     } else {
-      selectedStaffIds = allStaff.map(s => s.id);
+      selectedStaffIds = activeStaff.map(s => s.id);
     }
     refreshCalendar();
   }
@@ -361,7 +364,7 @@
                   <p class="text-[10px] text-on-surface-variant/40">Envoi d'un message dans le salon configuré</p>
                 </div>
               </div>
-              <ToggleSwitch checked={notifyViaDiscordChannel} onToggle={(v) => notifyViaDiscordChannel = v} />
+              <ToggleSwitch checked={notifyViaDiscordChannel} onToggle={(v: any) => notifyViaDiscordChannel = v} />
             </div>
 
             {#if notifyViaDiscordChannel}
@@ -449,14 +452,14 @@
               <h3 class="text-sm font-black uppercase tracking-widest text-on-surface-variant">Équipe</h3>
               <button 
                 onclick={toggleEveryone}
-                class="text-[10px] font-black uppercase px-2 py-1 rounded-md transition-all {selectedStaffIds.length === allStaff.length ? 'bg-primary text-white' : 'bg-surface-container-high text-on-surface-variant'}"
+                class="text-[10px] font-black uppercase px-2 py-1 rounded-md transition-all {selectedStaffIds.length === activeStaff.length ? 'bg-primary text-white' : 'bg-surface-container-high text-on-surface-variant'}"
               >
-                {selectedStaffIds.length === allStaff.length ? 'Tout décocher' : 'Tout cocher'}
+                {selectedStaffIds.length === activeStaff.length ? 'Tout décocher' : 'Tout cocher'}
               </button>
             </div>
             
             <div class="flex flex-col gap-1 max-h-125 overflow-y-auto pr-2 custom-scrollbar">
-              {#each allStaff as staff}
+              {#each activeStaff as staff}
                 <button 
                   onclick={() => toggleStaff(staff.id)}
                   class="flex items-center gap-3 p-2 rounded-xl transition-all hover:bg-surface-hover group {selectedStaffIds.includes(staff.id) ? 'bg-primary/5' : ''}"
@@ -529,7 +532,7 @@
           events={calendarEvents} 
           onRangeChange={handleRangeChange}
           onEventClick={handleEventClick}
-          onDateClick={(start, end) => {
+          onDateClick={(start: any, end: any) => {
             selectedDate = start;
             selectedEndDate = end || new Date(start.getTime() + 3600000);
             modalOpen = true;
@@ -541,7 +544,7 @@
           show={modalOpen} 
           onClose={() => modalOpen = false} 
           onSave={handleSaveAbsence}
-          staffMembers={allStaff}
+          staffMembers={activeStaff}
           eligibleSuperiors={eligibleSuperiors}
           isAdmin={isAdmin}
           initialDate={selectedDate}
@@ -571,7 +574,7 @@
                 icon="check-circle"
               />
             {/if}
-            {#if isManager || selectedEvent.originalData.staffMember?.userId === authStore.user?.id}
+            {#if isManager || selectedEvent.originalData.staffMember?.userId === (authStore.user as any)?.id}
               <ActionButton 
                 variant="danger" 
                 onClick={async () => {
