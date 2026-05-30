@@ -10,6 +10,7 @@ import {
 } from '../shared.js';
 import { isGuildActivated } from '../../utils/activation.js';
 import { logger } from '../../utils/logger.js';
+import { cache } from '../../utils/cache.js';
 
 // Sub-routers imports
 import { handleGeneralRoutes, handleGuildGeneralRoutes } from './dashboard/general.js';
@@ -121,12 +122,15 @@ export async function handleDashboardRoutes(
 
     // Dispatch to guild-specific sub-routers
     if (await handleGuildGeneralRoutes(req, res, parts, url, client, user, guildId, access)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
     if (await handleAnalyticsRoutes(req, res, parts, url, client, user, guildId, access)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
     if (await handleRecruitmentRoutes(req, res, parts, url, client, user, guildId, access)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
     if (['linked-accounts', 'detections', 'members', 'invitations'].includes(parts[4])) {
@@ -135,16 +139,20 @@ export async function handleDashboardRoutes(
       const roleIds = member ? member.roles.cache.map((r) => r.id) : [];
       const featureAccess = await resolveFeatureAccessMap(client, guildId, access, user.userId, roleIds);
       if (await handleMembersRoutes(req, res, parts, url, client, user, guildId, access, featureAccess)) {
+        if (method !== 'GET') await cache.invalidateGuild(guildId);
         return true;
       }
     }
     if (await handleGuildLeadershipRoutes(req, res, parts, url, client, user, guildId, access)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
     if (await handleModulesRoutes(req, res, parts, url, client, user, guildId, access)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
     if (await handleEventsRoutes(req, res, parts, url, client, user, guildId, access)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }
   }

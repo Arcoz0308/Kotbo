@@ -46,6 +46,8 @@ import * as eventCmd from './commands/event.js';
 import * as transcriptCmd from './commands/transcript.js';
 import * as ticketCmd from './commands/ticket.js';
 import prisma from './utils/db.js';
+import { errorEmbed } from './utils/embeds.js';
+import { getCachedDashboardSettings, cache } from './utils/cache.js';
 import {
   evaluateCommandRestriction,
   isPrivilegedCommandExecutor,
@@ -102,7 +104,7 @@ setClient(client);
 // Guild Activation Central Event Interceptor Gate
 // ==========================================================
 const originalEmit = client.emit;
-client.emit = function (eventName, ...args) {
+client.emit = function (eventName: string | symbol, ...args: any[]) {
   // Allow system/ready events
   if (
     eventName === Events.ClientReady ||
@@ -185,18 +187,25 @@ commands.set(sanctionCmd.contextData.name, sanctionCmd as unknown as SlashComman
 async function enforceCommandAccess(interaction: ChatInputCommandInteraction): Promise<boolean> {
   if (!interaction.guildId) return true;
 
-  const settings = await prisma.dashboardSettings.findUnique({
-    where: { guildId: interaction.guildId },
-    select: { commandRestrictions: true },
-  });
+  const settings = await getCachedDashboardSettings(interaction.guildId);
 
   const commandRestrictions = normalizeCommandRestrictions(settings?.commandRestrictions);
   if (commandRestrictions.length === 0) return true;
 
   const isPrivileged = isPrivilegedCommandExecutor(interaction);
-  const roleIds = isPrivileged
-    ? []
-    : (await interaction.guild?.members.fetch(interaction.user.id).catch(() => null))?.roles.cache.map((role) => role.id) ?? [];
+  let roleIds: string[] = [];
+  if (!isPrivileged) {
+    if (interaction.member) {
+      if (Array.isArray(interaction.member.roles)) {
+        roleIds = interaction.member.roles;
+      } else if (interaction.member.roles && 'cache' in interaction.member.roles) {
+        roleIds = interaction.member.roles.cache.map((role: any) => role.id);
+      }
+    }
+    if (roleIds.length === 0) {
+      roleIds = (await interaction.guild?.members.fetch(interaction.user.id).catch(() => null))?.roles.cache.map((role) => role.id) ?? [];
+    }
+  }
 
   const decision = evaluateCommandRestriction(
     commandRestrictions,
@@ -326,6 +335,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
       }
       await cmd.execute(interaction);
+      if (interaction.guildId && (interaction.commandName === 'admin' || interaction.commandName === 'config' || interaction.commandName === 'setup')) {
+        await cache.invalidateGuild(interaction.guildId);
+      }
 
       // Track command usage for analytics
       try {
@@ -365,14 +377,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     else if (interaction.isButton()) {
       await handleButton(interaction, client);
+      if (interaction.guildId) await cache.invalidateGuild(interaction.guildId);
     }
 
     else if (interaction.isAnySelectMenu()) {
       await handleSelectMenu(interaction, client);
+      if (interaction.guildId) await cache.invalidateGuild(interaction.guildId);
     }
 
     else if (interaction.isModalSubmit()) {
       await handleModalSubmit(interaction, client);
+      if (interaction.guildId) await cache.invalidateGuild(interaction.guildId);
     }
   } catch (err) {
     captureException(err, 'interaction-create');

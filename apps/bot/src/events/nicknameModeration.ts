@@ -75,7 +75,7 @@ async function checkAndRename(member: GuildMember): Promise<void> {
   if (!config.enabled) return;
 
   // Vérification des permissions du bot
-  const botMember = await member.guild.members.fetchMe().catch(() => null);
+  const botMember = member.guild.members.me ?? await member.guild.members.fetchMe().catch(() => null);
   if (!botMember?.permissions.has(PermissionFlagsBits.ManageNicknames)) return;
 
   // Le bot ne peut pas renommer le propriétaire du serveur

@@ -36,7 +36,7 @@ export function registerTicketLeaveFollowUpListener(client: Client): void {
       for (const ticket of tickets) {
         if (!ticket.channelId) continue;
 
-        const channel = await client.channels.fetch(ticket.channelId).catch(() => null);
+        const channel = client.channels.cache.get(ticket.channelId) ?? await client.channels.fetch(ticket.channelId).catch(() => null);
         if (!channel || !(channel instanceof TextChannel)) continue;
 
           const staffPing = guildConfig?.ticketStaffRoleId

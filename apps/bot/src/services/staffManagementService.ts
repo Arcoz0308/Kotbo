@@ -1,4 +1,5 @@
 import prisma from '../utils/db.js';
+import { cache } from '../utils/cache.js';
 import type { StaffMember, TestingPeriod, APIKey } from '@prisma/client';
 import crypto from 'node:crypto';
 import { createNotification } from './staffLeadershipService.js';
@@ -48,12 +49,20 @@ const resolveStaffMemberId = async (guildId: string, staffIdentifier: string) =>
     return byUserId?.id ?? null;
   }
 
+  const cacheKey = `guild:${guildId}:staff_member:${staffIdentifier}`;
+  const cached = await cache.get<any>(cacheKey);
+  if (cached) {
+    if (cached.isNotStaff) return null;
+    return cached.id;
+  }
+
   const byId = await prisma.staffMember.findFirst({
     where: { id: staffIdentifier, guildId },
     select: { id: true },
   });
 
   if (byId) {
+    await cache.set(cacheKey, { id: byId.id }, 300);
     return byId.id;
   }
 
@@ -62,7 +71,13 @@ const resolveStaffMemberId = async (guildId: string, staffIdentifier: string) =>
     select: { id: true },
   });
 
-  return byUserId?.id ?? null;
+  if (byUserId) {
+    await cache.set(cacheKey, { id: byUserId.id }, 300);
+    return byUserId.id;
+  }
+
+  await cache.set(cacheKey, { isNotStaff: true }, 300);
+  return null;
 };
 
 const resolveHierarchyMembershipsFromDiscordRoles = async (guildId: string, userId: string) => {
@@ -292,6 +307,8 @@ export const addStaffMember = async (
   // Sync Discord roles in background
   void syncStaffDiscordRoles(guildId, userId, grade).catch(() => null);
 
+  await cache.invalidateGuild(guildId);
+
   return result;
 };
 
@@ -350,6 +367,8 @@ export const updateStaffGrade = async (
     ).catch(() => null);
   }
 
+  await cache.invalidateGuild(guildId);
+
   return updated;
 };
 
@@ -406,6 +425,8 @@ export const removeStaffMember = async (guildId: string, userId: string) => {
   } catch (err) {
     logger.error('StaffManagement', `Erreur lors du retrait des rôles de ${userId}: ${err instanceof Error ? err.message : err}`);
   }
+
+  await cache.invalidateGuild(guildId);
 
   return prisma.staffMember.delete({
     where: { guildId_userId: { guildId, userId } },

@@ -3,14 +3,13 @@
   import { fetchWeeklyComparison } from '../../api';
   import { authStore } from '../../stores/auth.svelte';
 
-  let { initialData = null } = $props() as { initialData?: { thisWeek: { messages: number; voiceMinutes: number; joins: number; leaves: number; sanctions: number }; lastWeek: { messages: number; voiceMinutes: number; joins: number; leaves: number; sanctions: number }; changes: { messagesChange: number; voiceChange: number; joinsChange: number; leavesChange: number; sanctionsChange: number } } | null };
+  let { data: initialData = null } = $props() as { data?: { thisWeek: { messages: number; voiceMinutes: number; joins: number; leaves: number; sanctions: number }; lastWeek: { messages: number; voiceMinutes: number; joins: number; leaves: number; sanctions: number }; changes: { messagesChange: number; voiceChange: number; joinsChange: number; leavesChange: number; sanctionsChange: number } } | null };
 
   // Period selector state
   type PeriodMode = 'week' | 'month';
   let selectedMode = $state<PeriodMode>('week');
   let selectedOffset = $state(1);
-  // svelte-ignore state_referenced_locally
-  let data = $state(initialData);
+  let data = $state<any>(null);
   $effect(() => {
     data = initialData;
   });

@@ -53,7 +53,7 @@ function readTimeoutUntil(entry: GuildAuditLogsEntry): Date | null {
 
 async function resolveUserTag(client: Client, userId: string, fallback: string): Promise<string> {
   try {
-    const user = await client.users.fetch(userId);
+    const user = client.users.cache.get(userId) ?? await client.users.fetch(userId);
     return user.tag || fallback;
   } catch {
     return fallback;

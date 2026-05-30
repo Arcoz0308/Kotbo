@@ -8,14 +8,17 @@ import { logger } from '../utils/logger.js';
 const voiceSessions = new Map<string, number>();
 
 export function registerAnalyticsListeners(client: Client): void {
-  // 1. Messages
+  // 1 & 7. Messages & Replies
   client.on(Events.MessageCreate, async (message: Message) => {
     if (!message.inGuild() || message.author.bot) return;
 
     try {
       await trackMessage(message.guildId, message.channelId, message.author.id);
+      if (message.reference) {
+        await trackReply(message.guildId, message.author.id);
+      }
     } catch (error) {
-      logger.error('Analytics', `Erreur lors du tracking de message pour ${message.author.id}:`, error);
+      logger.error('Analytics', `Erreur lors du tracking de message/reply pour ${message.author.id}:`, error);
     }
   });
 
@@ -118,17 +121,5 @@ export function registerAnalyticsListeners(client: Client): void {
     }
   });
 
-  // 7. Message Reply
-  client.on(Events.MessageCreate, async (message: Message) => {
-    if (!message.inGuild() || message.author.bot) return;
 
-    try {
-      // Check if this message is a reply
-      if (message.reference) {
-        await trackReply(message.guildId, message.author.id);
-      }
-    } catch (error) {
-      logger.error('Analytics', `Erreur lors du tracking de reply:`, error);
-    }
-  });
 }

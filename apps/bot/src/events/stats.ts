@@ -2,8 +2,8 @@ import { Client, Events, ChannelType, VoiceChannel } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 
-// Debounce timer to avoid spamming rename requests on member join/leave
-let updateTimeout: NodeJS.Timeout | null = null;
+// Debounce timers map to avoid spamming rename requests on member join/leave
+const updateTimeouts = new Map<string, NodeJS.Timeout>();
 
 export function registerStatsChannelListener(client: Client): void {
   // Update stats on client ready, then every 10 minutes
@@ -25,12 +25,17 @@ export function registerStatsChannelListener(client: Client): void {
 }
 
 function triggerDebouncedUpdate(client: Client, guildId: string) {
-  if (updateTimeout) clearTimeout(updateTimeout);
-  updateTimeout = setTimeout(() => {
+  const existingTimeout = updateTimeouts.get(guildId);
+  if (existingTimeout) clearTimeout(existingTimeout);
+
+  const timeout = setTimeout(() => {
+    updateTimeouts.delete(guildId);
     updateGuildStats(client, guildId).catch((err) => 
       logger.error('StatsChannels', `Erreur lors de la mise à jour des stats pour la guilde ${guildId} :`, err)
     );
   }, 15000); // Wait 15 seconds after last change
+
+  updateTimeouts.set(guildId, timeout);
 }
 
 async function updateAllGuildsStats(client: Client): Promise<void> {

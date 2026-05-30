@@ -1,4 +1,5 @@
 import prisma from './db.js';
+import { cache } from './cache.js';
 
 export async function toggleGuildBoolean(
   guildId: string,
@@ -12,6 +13,8 @@ export async function toggleGuildBoolean(
     where: { id: guildId },
     data: { [field]: next },
   });
+
+  await cache.invalidateGuild(guildId);
 
   return next;
 }

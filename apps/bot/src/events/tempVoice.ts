@@ -15,6 +15,7 @@ import {
 } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
+import { getCachedGuild } from '../utils/cache.js';
 
 // Memory cache for active temporary voice channels: channelId -> { creatorId: string }
 const tempChannels = new Map<string, { creatorId: string }>();
@@ -26,15 +27,7 @@ export function registerTempVoiceListener(client: Client): void {
     if (!member || member.user.bot) return;
 
     try {
-      const guildConfig = await prisma.guild.findUnique({
-        where: { id: guild.id },
-        select: {
-          tempVoiceEnabled: true,
-          tempVoiceChannelId: true,
-          tempVoiceCategoryId: true,
-          tempVoiceNameTemplate: true,
-        }
-      });
+      const guildConfig = await getCachedGuild(guild.id);
 
       if (!guildConfig || !guildConfig.tempVoiceEnabled || !guildConfig.tempVoiceChannelId) {
         return;
@@ -344,7 +337,7 @@ export function registerTempVoiceListener(client: Client): void {
         let targetMember = userId ? await guild.members.fetch(userId).catch(() => null) : null;
         if (!targetMember) {
           const members = await guild.members.fetch({ query: input, limit: 1 }).catch(() => null);
-          targetMember = members?.first();
+          targetMember = members?.first() ?? null;
         }
 
         if (!targetMember) {
@@ -388,15 +381,8 @@ export function registerTempVoiceListener(client: Client): void {
           return;
         }
 
-        // Fetch staff roles config
-        const guildConfig = await prisma.guild.findUnique({
-          where: { id: guild.id },
-          select: {
-            baseStaffRoleId: true,
-            moderatorRoleId: true,
-            testStaffRoleId: true
-          }
-        });
+        // Fetch staff roles config from cache
+        const guildConfig = await getCachedGuild(guild.id);
 
         // Check staff bypass
         const isOwner = targetMember.id === process.env.DISCORD_CLIENT_OWNER_ID || targetMember.id === guild.ownerId;

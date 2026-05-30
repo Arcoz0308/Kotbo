@@ -1,34 +1,18 @@
 import { type Client, PermissionFlagsBits } from 'discord.js';
 import { analyzeCodeContent, buildCorrectedMessage, buildSafetyWarning, hasRawCodeIndicators, isAlreadyFormatted, loadCodePoliceRules } from '../services/codePoliceService.js';
 import { logger } from '../utils/logger.js';
-
-const codePoliceEnabledCache = new Map<string, { enabled: boolean; expiresAt: number }>();
+import { getCachedGuild, cache } from '../utils/cache.js';
 
 export function invalidateCodePoliceEnabledCache(guildId?: string): void {
   if (guildId) {
-    codePoliceEnabledCache.delete(guildId);
+    void cache.delete(`guild:${guildId}:config`);
     return;
   }
-
-  codePoliceEnabledCache.clear();
 }
 
 async function isCodePoliceEnabled(guildId: string): Promise<boolean> {
-  const cached = codePoliceEnabledCache.get(guildId);
-  const now = Date.now();
-  if (cached && cached.expiresAt > now) {
-    return cached.enabled;
-  }
-
-  const { default: prisma } = await import('../utils/db.js');
-  const guild = await prisma.guild.findUnique({
-    where: { id: guildId },
-    select: { codePoliceEnabled: true },
-  });
-
-  const enabled = guild?.codePoliceEnabled ?? false;
-  codePoliceEnabledCache.set(guildId, { enabled, expiresAt: now + 60_000 });
-  return enabled;
+  const guild = await getCachedGuild(guildId);
+  return guild?.codePoliceEnabled ?? false;
 }
 
 export { analyzeCodeContent } from '../services/codePoliceService.js';

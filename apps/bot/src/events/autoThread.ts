@@ -1,37 +1,18 @@
 import { type Client, PermissionFlagsBits } from 'discord.js';
 import { logger } from '../utils/logger.js';
-
-const autoThreadCache = new Map<string, { enabled: boolean; channels: string[]; expiresAt: number }>();
+import { getCachedGuild } from '../utils/cache.js';
 
 export function invalidateAutoThreadCache(guildId?: string): void {
-  if (guildId) {
-    autoThreadCache.delete(guildId);
-    return;
-  }
-  autoThreadCache.clear();
+  // Handled by the central cache invalidation
 }
 
 async function getAutoThreadConfig(guildId: string): Promise<{ enabled: boolean; channels: string[] }> {
-  const cached = autoThreadCache.get(guildId);
-  const now = Date.now();
-  if (cached && cached.expiresAt > now) {
-    return cached;
-  }
-
   try {
-    const { default: prisma } = await import('../utils/db.js');
-    const guild = await prisma.guild.findUnique({
-      where: { id: guildId },
-      select: { autoThreadEnabled: true, autoThreadChannels: true },
-    });
-
-    const config = {
+    const guild = await getCachedGuild(guildId);
+    return {
       enabled: guild?.autoThreadEnabled ?? false,
       channels: guild?.autoThreadChannels ?? [],
-      expiresAt: now + 60_000 // Cache for 60 seconds
     };
-    autoThreadCache.set(guildId, config);
-    return config;
   } catch (error) {
     logger.error('AutoThread', `Erreur lors de la récupération de la config pour la guilde ${guildId} :`, error);
     return { enabled: false, channels: [] };
@@ -52,7 +33,7 @@ export function registerAutoThreadListener(client: Client): void {
 
       // Check bot permissions in this guild / channel
       if (message.guild) {
-        const botMember = await message.guild.members.fetchMe();
+        const botMember = message.guild.members.me ?? await message.guild.members.fetchMe();
         const permissions = botMember.permissionsIn(message.channel);
         if (!permissions.has(PermissionFlagsBits.CreatePublicThreads) ||
             !permissions.has(PermissionFlagsBits.SendMessagesInThreads)) {

@@ -1,4 +1,5 @@
 import prisma from '../utils/db.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Helper to get the date string (YYYY-MM-DD) in a specific timezone or UTC
@@ -14,6 +15,240 @@ export const getHourKey = (date: Date = new Date()): number => {
   return date.getUTCHours();
 };
 
+// ============================================================================
+// IN-MEMORY BUFFER MAPS
+// ============================================================================
+
+const guildDailyStatsBuffer = new Map<string, {
+  messagesCount?: number;
+  voiceMinutes?: number;
+  voiceSessionsCount?: number;
+  membersJoined?: number;
+  membersLeft?: number;
+  reactionsCount?: number;
+}>();
+
+const guildHourlyStatsBuffer = new Map<string, {
+  messagesCount?: number;
+  voiceMinutes?: number;
+  joinsCount?: number;
+  leavesCount?: number;
+  reactionsCount?: number;
+  threadsCount?: number;
+}>();
+
+const channelDailyStatsBuffer = new Map<string, {
+  messagesCount?: number;
+}>();
+
+const memberDailyStatsBuffer = new Map<string, {
+  messagesCount?: number;
+  voiceMinutes?: number;
+  reactionsCount?: number;
+  threadsCreated?: number;
+  repliesCount?: number;
+}>();
+
+const channelDailyAuthors = new Map<string, Set<string>>();
+
+// ============================================================================
+// BUFFERING HELPERS
+// ============================================================================
+
+function queueGuildDaily(guildId: string, dateKey: string, increments: Record<string, number>) {
+  const key = `${guildId}:${dateKey}`;
+  const existing = guildDailyStatsBuffer.get(key) || {};
+  for (const [col, val] of Object.entries(increments)) {
+    (existing as any)[col] = ((existing as any)[col] || 0) + val;
+  }
+  guildDailyStatsBuffer.set(key, existing);
+}
+
+function queueGuildHourly(guildId: string, dateKey: string, hour: number, increments: Record<string, number>) {
+  const key = `${guildId}:${dateKey}:${hour}`;
+  const existing = guildHourlyStatsBuffer.get(key) || {};
+  for (const [col, val] of Object.entries(increments)) {
+    (existing as any)[col] = ((existing as any)[col] || 0) + val;
+  }
+  guildHourlyStatsBuffer.set(key, existing);
+}
+
+function queueChannelDaily(guildId: string, channelId: string, dateKey: string, increments: Record<string, number>) {
+  const key = `${guildId}:${channelId}:${dateKey}`;
+  const existing = channelDailyStatsBuffer.get(key) || {};
+  for (const [col, val] of Object.entries(increments)) {
+    (existing as any)[col] = ((existing as any)[col] || 0) + val;
+  }
+  channelDailyStatsBuffer.set(key, existing);
+}
+
+function queueMemberDaily(guildId: string, userId: string, dateKey: string, increments: Record<string, number>) {
+  const key = `${guildId}:${userId}:${dateKey}`;
+  const existing = memberDailyStatsBuffer.get(key) || {};
+  for (const [col, val] of Object.entries(increments)) {
+    (existing as any)[col] = ((existing as any)[col] || 0) + val;
+  }
+  memberDailyStatsBuffer.set(key, existing);
+}
+
+// ============================================================================
+// FLUSH PROCESSORS
+// ============================================================================
+
+async function flushGuildDailyStats(): Promise<void> {
+  const entries = [...guildDailyStatsBuffer.entries()];
+  guildDailyStatsBuffer.clear();
+
+  for (const [key, data] of entries) {
+    const [guildId, dateKey] = key.split(':');
+    if (!guildId || !dateKey) continue;
+
+    const updateData: any = {};
+    const createData: any = { guildId, dateKey };
+
+    for (const [col, val] of Object.entries(data)) {
+      if (val !== undefined && val !== 0) {
+        updateData[col] = { increment: val };
+        createData[col] = val;
+      }
+    }
+
+    if (Object.keys(updateData).length === 0) continue;
+
+    await prisma.guildDailyStat.upsert({
+      where: { guildId_dateKey: { guildId, dateKey } },
+      update: updateData,
+      create: createData,
+    }).catch((error) => {
+      logger.error('Analytics', `Error flushing GuildDailyStat for key ${key}:`, error);
+    });
+  }
+}
+
+async function flushGuildHourlyStats(): Promise<void> {
+  const entries = [...guildHourlyStatsBuffer.entries()];
+  guildHourlyStatsBuffer.clear();
+
+  for (const [key, data] of entries) {
+    const [guildId, dateKey, hourStr] = key.split(':');
+    if (!guildId || !dateKey || !hourStr) continue;
+    const hour = parseInt(hourStr, 10);
+
+    const updateData: any = {};
+    const createData: any = { guildId, dateKey, hour };
+
+    for (const [col, val] of Object.entries(data)) {
+      if (val !== undefined && val !== 0) {
+        updateData[col] = { increment: val };
+        createData[col] = val;
+      }
+    }
+
+    if (Object.keys(updateData).length === 0) continue;
+
+    await prisma.guildHourlyStat.upsert({
+      where: { guildId_dateKey_hour: { guildId, dateKey, hour } },
+      update: updateData,
+      create: createData,
+    }).catch((error) => {
+      logger.error('Analytics', `Error flushing GuildHourlyStat for key ${key}:`, error);
+    });
+  }
+}
+
+async function flushChannelDailyStats(): Promise<void> {
+  // Clean up old authors sets
+  const currentDateKey = getDateKey();
+  for (const key of channelDailyAuthors.keys()) {
+    if (!key.endsWith(currentDateKey)) {
+      channelDailyAuthors.delete(key);
+    }
+  }
+
+  const entries = [...channelDailyStatsBuffer.entries()];
+  channelDailyStatsBuffer.clear();
+
+  for (const [key, data] of entries) {
+    const [guildId, channelId, dateKey] = key.split(':');
+    if (!guildId || !channelId || !dateKey) continue;
+
+    const count = data.messagesCount || 0;
+    const authorsSet = channelDailyAuthors.get(key);
+    const uniqueCount = authorsSet ? authorsSet.size : 0;
+
+    await prisma.channelDailyStat.upsert({
+      where: { guildId_channelId_dateKey: { guildId, channelId, dateKey } },
+      create: { 
+        guildId, 
+        channelId, 
+        dateKey, 
+        messagesCount: count, 
+        uniqueAuthors: uniqueCount 
+      },
+      update: { 
+        messagesCount: { increment: count },
+        uniqueAuthors: uniqueCount
+      },
+    }).catch((error) => {
+      logger.error('Analytics', `Error flushing ChannelDailyStat for key ${key}:`, error);
+    });
+  }
+}
+
+async function flushMemberDailyStats(): Promise<void> {
+  const entries = [...memberDailyStatsBuffer.entries()];
+  memberDailyStatsBuffer.clear();
+
+  for (const [key, data] of entries) {
+    const [guildId, userId, dateKey] = key.split(':');
+    if (!guildId || !userId || !dateKey) continue;
+
+    const updateData: any = {};
+    const createData: any = { guildId, userId, dateKey };
+
+    for (const [col, val] of Object.entries(data)) {
+      if (val !== undefined && val !== 0) {
+        updateData[col] = { increment: val };
+        createData[col] = val;
+      }
+    }
+
+    if (Object.keys(updateData).length === 0) continue;
+
+    await prisma.memberDailyStat.upsert({
+      where: { guildId_userId_dateKey: { guildId, userId, dateKey } },
+      update: updateData,
+      create: createData,
+    }).catch((error) => {
+      logger.error('Analytics', `Error flushing MemberDailyStat for key ${key}:`, error);
+    });
+  }
+}
+
+export async function flushAllAnalyticsStats(): Promise<void> {
+  await Promise.all([
+    flushGuildDailyStats(),
+    flushGuildHourlyStats(),
+    flushChannelDailyStats(),
+    flushMemberDailyStats(),
+  ]);
+}
+
+// Background flush interval
+const flushInterval = setInterval(() => {
+  void flushAllAnalyticsStats();
+}, 10000);
+
+// Final flush on process exit
+process.on('beforeExit', () => {
+  clearInterval(flushInterval);
+  void flushAllAnalyticsStats();
+});
+
+// ============================================================================
+// SERVICE EXPORTS (BUFFERED API)
+// ============================================================================
+
 /**
  * Increment message counts in analytics tables
  */
@@ -21,33 +256,26 @@ export const trackMessage = async (guildId: string, channelId: string, userId: s
   const dateKey = getDateKey();
   const hour = getHourKey();
 
-  // 1. Guild Daily Stat
-  await prisma.guildDailyStat.upsert({
-    where: { guildId_dateKey: { guildId, dateKey } },
-    update: { messagesCount: { increment: 1 } },
-    create: { guildId, dateKey, messagesCount: 1 }
-  });
+  // 1. Queue Guild Daily Stat
+  queueGuildDaily(guildId, dateKey, { messagesCount: 1 });
 
-  // 2. Guild Hourly Stat
-  await prisma.guildHourlyStat.upsert({
-    where: { guildId_dateKey_hour: { guildId, dateKey, hour } },
-    update: { messagesCount: { increment: 1 } },
-    create: { guildId, dateKey, hour, messagesCount: 1 }
-  });
+  // 2. Queue Guild Hourly Stat
+  queueGuildHourly(guildId, dateKey, hour, { messagesCount: 1 });
 
-  // 3. Channel Daily Stat
-  await prisma.channelDailyStat.upsert({
-    where: { guildId_channelId_dateKey: { guildId, channelId, dateKey } },
-    update: { messagesCount: { increment: 1 } },
-    create: { guildId, channelId, dateKey, messagesCount: 1, uniqueAuthors: 1 } // To do accurately, uniqueAuthors needs distinct counting
-  });
+  // 3. Queue Channel Daily Stat
+  queueChannelDaily(guildId, channelId, dateKey, { messagesCount: 1 });
 
-  // 4. Member Daily Stat
-  await prisma.memberDailyStat.upsert({
-    where: { guildId_userId_dateKey: { guildId, userId, dateKey } },
-    update: { messagesCount: { increment: 1 } },
-    create: { guildId, userId, dateKey, messagesCount: 1 }
-  });
+  // Track unique author
+  const authorsKey = `${guildId}:${channelId}:${dateKey}`;
+  let authorsSet = channelDailyAuthors.get(authorsKey);
+  if (!authorsSet) {
+    authorsSet = new Set<string>();
+    channelDailyAuthors.set(authorsKey, authorsSet);
+  }
+  authorsSet.add(userId);
+
+  // 4. Queue Member Daily Stat
+  queueMemberDaily(guildId, userId, dateKey, { messagesCount: 1 });
 };
 
 /**
@@ -58,30 +286,17 @@ export const trackVoiceSession = async (guildId: string, userId: string, duratio
   const dateKey = getDateKey();
   const hour = getHourKey();
 
-  await prisma.guildDailyStat.upsert({
-    where: { guildId_dateKey: { guildId, dateKey } },
-    update: { 
-      voiceMinutes: { increment: durationMinutes },
-      voiceSessionsCount: { increment: 1 }
-    },
-    create: { 
-      guildId, 
-      dateKey, 
-      voiceMinutes: durationMinutes,
-      voiceSessionsCount: 1
-    }
+  queueGuildDaily(guildId, dateKey, { 
+    voiceMinutes: durationMinutes,
+    voiceSessionsCount: 1
   });
 
-  await prisma.guildHourlyStat.upsert({
-    where: { guildId_dateKey_hour: { guildId, dateKey, hour } },
-    update: { voiceMinutes: { increment: durationMinutes } },
-    create: { guildId, dateKey, hour, voiceMinutes: durationMinutes }
+  queueGuildHourly(guildId, dateKey, hour, { 
+    voiceMinutes: durationMinutes 
   });
 
-  await prisma.memberDailyStat.upsert({
-    where: { guildId_userId_dateKey: { guildId, userId, dateKey } },
-    update: { voiceMinutes: { increment: durationMinutes } },
-    create: { guildId, userId, dateKey, voiceMinutes: durationMinutes }
+  queueMemberDaily(guildId, userId, dateKey, { 
+    voiceMinutes: durationMinutes 
   });
 };
 
@@ -92,17 +307,8 @@ export const trackMemberJoin = async (guildId: string) => {
   const dateKey = getDateKey();
   const hour = getHourKey();
 
-  await prisma.guildDailyStat.upsert({
-    where: { guildId_dateKey: { guildId, dateKey } },
-    update: { membersJoined: { increment: 1 } },
-    create: { guildId, dateKey, membersJoined: 1 }
-  });
-
-  await prisma.guildHourlyStat.upsert({
-    where: { guildId_dateKey_hour: { guildId, dateKey, hour } },
-    update: { joinsCount: { increment: 1 } },
-    create: { guildId, dateKey, hour, joinsCount: 1 }
-  });
+  queueGuildDaily(guildId, dateKey, { membersJoined: 1 });
+  queueGuildHourly(guildId, dateKey, hour, { joinsCount: 1 });
 };
 
 /**
@@ -112,17 +318,8 @@ export const trackMemberLeave = async (guildId: string) => {
   const dateKey = getDateKey();
   const hour = getHourKey();
 
-  await prisma.guildDailyStat.upsert({
-    where: { guildId_dateKey: { guildId, dateKey } },
-    update: { membersLeft: { increment: 1 } },
-    create: { guildId, dateKey, membersLeft: 1 }
-  });
-
-  await prisma.guildHourlyStat.upsert({
-    where: { guildId_dateKey_hour: { guildId, dateKey, hour } },
-    update: { leavesCount: { increment: 1 } },
-    create: { guildId, dateKey, hour, leavesCount: 1 }
-  });
+  queueGuildDaily(guildId, dateKey, { membersLeft: 1 });
+  queueGuildHourly(guildId, dateKey, hour, { leavesCount: 1 });
 };
 
 /**
@@ -132,23 +329,9 @@ export const trackReaction = async (guildId: string, userId: string) => {
   const dateKey = getDateKey();
   const hour = getHourKey();
 
-  await prisma.guildDailyStat.upsert({
-    where: { guildId_dateKey: { guildId, dateKey } },
-    update: { reactionsCount: { increment: 1 } },
-    create: { guildId, dateKey, reactionsCount: 1 }
-  });
-
-  await prisma.guildHourlyStat.upsert({
-    where: { guildId_dateKey_hour: { guildId, dateKey, hour } },
-    update: { reactionsCount: { increment: 1 } },
-    create: { guildId, dateKey, hour, reactionsCount: 1 }
-  });
-
-  await prisma.memberDailyStat.upsert({
-    where: { guildId_userId_dateKey: { guildId, userId, dateKey } },
-    update: { reactionsCount: { increment: 1 } },
-    create: { guildId, userId, dateKey, reactionsCount: 1 }
-  });
+  queueGuildDaily(guildId, dateKey, { reactionsCount: 1 });
+  queueGuildHourly(guildId, dateKey, hour, { reactionsCount: 1 });
+  queueMemberDaily(guildId, userId, dateKey, { reactionsCount: 1 });
 };
 
 /**
@@ -158,17 +341,8 @@ export const trackThreadCreation = async (guildId: string, userId: string) => {
   const dateKey = getDateKey();
   const hour = getHourKey();
 
-  await prisma.guildHourlyStat.upsert({
-    where: { guildId_dateKey_hour: { guildId, dateKey, hour } },
-    update: { threadsCount: { increment: 1 } },
-    create: { guildId, dateKey, hour, threadsCount: 1 }
-  });
-
-  await prisma.memberDailyStat.upsert({
-    where: { guildId_userId_dateKey: { guildId, userId, dateKey } },
-    update: { threadsCreated: { increment: 1 } },
-    create: { guildId, userId, dateKey, threadsCreated: 1 }
-  });
+  queueGuildHourly(guildId, dateKey, hour, { threadsCount: 1 });
+  queueMemberDaily(guildId, userId, dateKey, { threadsCreated: 1 });
 };
 
 /**
@@ -177,11 +351,7 @@ export const trackThreadCreation = async (guildId: string, userId: string) => {
 export const trackReply = async (guildId: string, userId: string) => {
   const dateKey = getDateKey();
 
-  await prisma.memberDailyStat.upsert({
-    where: { guildId_userId_dateKey: { guildId, userId, dateKey } },
-    update: { repliesCount: { increment: 1 } },
-    create: { guildId, userId, dateKey, repliesCount: 1 }
-  });
+  queueMemberDaily(guildId, userId, dateKey, { repliesCount: 1 });
 };
 
 /**
@@ -213,7 +383,6 @@ export const snapshotServerPopulation = async (
       offlineMembers: stats.offlineMembers,
       totalBots: stats.totalBots,
       totalHumans: stats.totalHumans,
-      // Only update active members if explicitly provided
       ...(stats.activeMembers !== undefined ? { activeMembers: stats.activeMembers } : {}),
       ...(stats.activeVoiceMembers !== undefined ? { activeVoiceMembers: stats.activeVoiceMembers } : {})
     },

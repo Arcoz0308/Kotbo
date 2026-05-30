@@ -168,8 +168,8 @@ async function fetchGuildUserContext(guild: Guild, userId: string, pageIndex = 0
   const linkedUserIds = await altAccountService.getAllLinkedUserIds(guild.id, userId);
 
   const [user, member, profile, bans, sanctions] = await Promise.all([
-    guild.client.users.fetch(userId).catch(() => null),
-    guild.members.fetch(userId).catch(() => null),
+    guild.client.users.cache.get(userId) ?? guild.client.users.fetch(userId).catch(() => null),
+    guild.members.cache.get(userId) ?? guild.members.fetch(userId).catch(() => null),
     prisma.memberProfile.findUnique({
       where: {
         guildId_userId: {
@@ -506,12 +506,58 @@ export async function touchMemberProfileFromUser(guildId: string, user: User, ex
   });
 }
 
+const lastProfileTouch = new Map<string, number>();
+const profileMessageCountBuffer = new Map<string, number>();
+
+async function flushProfileMessageCounts(): Promise<void> {
+  const entries = [...profileMessageCountBuffer.entries()];
+  if (entries.length === 0) return;
+
+  for (const [key, delta] of entries) {
+    const [guildId, userId] = key.split(':');
+    if (!guildId || !userId) continue;
+
+    profileMessageCountBuffer.delete(key);
+    lastProfileTouch.set(key, Date.now());
+
+    await prisma.memberProfile.update({
+      where: { guildId_userId: { guildId, userId } },
+      data: {
+        messageCount: { increment: delta },
+        lastSeenAt: new Date(),
+      }
+    }).catch(() => {
+      // Ignorer si le profil n'existe pas en base encore
+    });
+  }
+}
+
+setInterval(() => { void flushProfileMessageCounts(); }, 60_000);
+
+process.on('beforeExit', () => {
+  void flushProfileMessageCounts();
+});
+
 export async function touchMemberMessageActivity(params: {
   guildId: string;
   user: User;
   channelId: string;
   displayName?: string | null;
 }): Promise<void> {
+  const key = `${params.guildId}:${params.user.id}`;
+  const now = Date.now();
+  const lastTouch = lastProfileTouch.get(key) ?? 0;
+
+  profileMessageCountBuffer.set(key, (profileMessageCountBuffer.get(key) ?? 0) + 1);
+
+  if (now - lastTouch < 30_000) {
+    return;
+  }
+
+  lastProfileTouch.set(key, now);
+  const delta = profileMessageCountBuffer.get(key) ?? 1;
+  profileMessageCountBuffer.delete(key);
+
   await upsertMemberProfile({
     guildId: params.guildId,
     userId: params.user.id,
@@ -526,7 +572,7 @@ export async function touchMemberMessageActivity(params: {
     lastSeenAt: new Date(),
     lastMessageAt: new Date(),
     lastMessageChannelId: params.channelId,
-    messageCountDelta: 1,
+    messageCountDelta: delta,
   });
 }
 

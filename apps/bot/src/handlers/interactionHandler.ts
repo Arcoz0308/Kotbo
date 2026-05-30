@@ -16,6 +16,7 @@ import {
   ModalBuilder,
 } from 'discord.js';
 import prisma from '../utils/db.js';
+import { getCachedGuild } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
 import { DigestFrequency } from '@prisma/client';
 import { COLORS, successEmbed, truncate } from '../utils/embeds.js';
@@ -85,7 +86,7 @@ async function canModerate(member: GuildMember | null, guildId: string): Promise
   if (!member) return false;
   if (member.permissions.has(PermissionFlagsBits.Administrator)) return true;
 
-  const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+  const guild = await getCachedGuild(guildId);
   if (guild?.moderatorRoleId && member.roles.cache.has(guild.moderatorRoleId)) {
     return true;
   }

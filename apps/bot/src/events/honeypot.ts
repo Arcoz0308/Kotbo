@@ -2,6 +2,7 @@ import { Client, Events, Message, TextChannel, PermissionFlagsBits } from 'disco
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { errorEmbed } from '../utils/embeds.js';
+import { getCachedGuild } from '../utils/cache.js';
 
 export function registerHoneypotListener(client: Client): void {
   client.on(Events.MessageCreate, async (message: Message) => {
@@ -9,17 +10,7 @@ export function registerHoneypotListener(client: Client): void {
     if (!guild || !member || author.bot) return;
 
     try {
-      const guildConfig = await prisma.guild.findUnique({
-        where: { id: guild.id },
-        select: {
-          honeypotEnabled: true,
-          honeypotChannelId: true,
-          baseStaffRoleId: true,
-          moderatorRoleId: true,
-          testStaffRoleId: true,
-          logChannelId: true,
-        }
-      });
+      const guildConfig = await getCachedGuild(guild.id);
 
       if (!guildConfig || !guildConfig.honeypotEnabled || guildConfig.honeypotChannelId !== channelId) {
         return;

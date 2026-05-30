@@ -720,8 +720,9 @@
                       <!-- Conditional field: Role ID -->
                       {#if custom.type === 'role'}
                         <div class="space-y-1.5">
-                          <span class="text-xs font-bold text-on-surface/80 block">Rôle cible</span>
+                          <label for="custom-role-select-{index}" class="text-xs font-bold text-on-surface/80 block">Rôle cible</label>
                           <SearchableSelect 
+                            id="custom-role-select-{index}"
                             options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} 
                             bind:value={custom.roleTargetId} 
                             placeholder="— Sélectionner le rôle cible —"

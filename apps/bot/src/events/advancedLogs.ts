@@ -16,6 +16,9 @@ import {
 } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
+import { trackMessage } from '../services/analyticsService.js';
+import { queueAuditLog } from '../utils/auditLogger.js';
+import { cache } from '../utils/cache.js';
 import { recordStaffActivity, syncStaffHierarchyMembership } from '../services/staffManagementService.js';
 import { resolveOnlineMembersCount } from '../services/presenceDetectionService.js';
 import {
@@ -88,27 +91,7 @@ function getDateKey(date = new Date()): string {
   return date.toISOString().split('T')[0];
 }
 
-async function incrementChannelDailyStat(guildId: string, channelId: string, authorId: string): Promise<void> {
-  const dateKey = getDateKey();
-  await prisma.channelDailyStat.upsert({
-    where: { guildId_channelId_dateKey: { guildId, channelId, dateKey } },
-    create: { guildId, channelId, dateKey, messagesCount: 1, uniqueAuthors: 1 },
-    update: { messagesCount: { increment: 1 } },
-  }).catch((error) => {
-    logger.debug('Analytics', `Channel daily stat error: ${String(error)}`);
-  });
-}
 
-async function incrementGuildDailyMessages(guildId: string): Promise<void> {
-  const dateKey = getDateKey();
-  await prisma.guildDailyStat.upsert({
-    where: { guildId_dateKey: { guildId, dateKey } },
-    create: { guildId, dateKey, messagesCount: 1 },
-    update: { messagesCount: { increment: 1 } },
-  }).catch((error) => {
-    logger.debug('Analytics', `Guild daily stat msg error: ${String(error)}`);
-  });
-}
 
 async function incrementGuildDailyJoin(guildId: string): Promise<void> {
   const dateKey = getDateKey();
@@ -157,8 +140,7 @@ async function incrementGuildDailyVoice(guildId: string, durationMinutes: number
   });
 }
 
-// 📊 Hourly guild stats (for heatmap)
-async function incrementGuildHourlyStat(guildId: string, type: 'message' | 'voice' | 'join' | 'leave' | 'reaction' | 'thread', value = 1): Promise<void> {
+async function incrementGuildHourlyStat(guildId: string, type: 'voice' | 'join' | 'leave' | 'reaction' | 'thread', value = 1): Promise<void> {
   const now = new Date();
   const dateKey = getDateKey(now);
   const hour = now.getHours();
@@ -166,7 +148,6 @@ async function incrementGuildHourlyStat(guildId: string, type: 'message' | 'voic
   await prisma.guildHourlyStat.upsert({
     where: { guildId_dateKey_hour: { guildId, dateKey, hour } },
     update: {
-      messagesCount: type === 'message' ? { increment: value } : undefined,
       voiceMinutes: type === 'voice' ? { increment: value } : undefined,
       joinsCount: type === 'join' ? { increment: value } : undefined,
       leavesCount: type === 'leave' ? { increment: value } : undefined,
@@ -177,12 +158,13 @@ async function incrementGuildHourlyStat(guildId: string, type: 'message' | 'voic
       guildId,
       dateKey,
       hour,
-      messagesCount: type === 'message' ? value : 0,
+      messagesCount: 0,
       voiceMinutes: type === 'voice' ? value : 0,
       joinsCount: type === 'join' ? value : 0,
       leavesCount: type === 'leave' ? value : 0,
       reactionsCount: type === 'reaction' ? value : 0,
       threadsCount: type === 'thread' ? value : 0,
+      activeMembers: 0,
     },
   }).catch((error) => {
     logger.debug('Analytics', `Guild hourly stat error: ${String(error)}`);
@@ -334,16 +316,7 @@ async function processSingleGuildSnapshot(guild: Guild, dateKey: string, hour: n
 
 
 // 📊 Per-member daily stats
-async function incrementMemberDailyMessages(guildId: string, userId: string): Promise<void> {
-  const dateKey = getDateKey();
-  await prisma.memberDailyStat.upsert({
-    where: { guildId_userId_dateKey: { guildId, userId, dateKey } },
-    create: { guildId, userId, dateKey, messagesCount: 1 },
-    update: { messagesCount: { increment: 1 } },
-  }).catch((error) => {
-    logger.debug('Analytics', `Member daily stat msg error: ${String(error)}`);
-  });
-}
+// 📊 Per-member daily stats (handled by queueMemberDailyMessage and flushMemberDailyMessages)
 
 async function incrementMemberDailyVoice(guildId: string, userId: string, minutes: number): Promise<void> {
   const dateKey = getDateKey();
@@ -356,40 +329,7 @@ async function incrementMemberDailyVoice(guildId: string, userId: string, minute
   });
 }
 
-// 📊 Track unique authors per channel per day (in-memory set, flushed periodically)
-const channelDailyAuthorsCache = new Map<string, Set<string>>();
 
-function trackChannelUniqueAuthor(guildId: string, channelId: string, authorId: string): void {
-  const dateKey = getDateKey();
-  const key = `${guildId}:${channelId}:${dateKey}`;
-  let authors = channelDailyAuthorsCache.get(key);
-  if (!authors) {
-    authors = new Set<string>();
-    channelDailyAuthorsCache.set(key, authors);
-  }
-  authors.add(authorId);
-}
-
-async function flushChannelUniqueAuthors(): Promise<void> {
-  const entries = [...channelDailyAuthorsCache.entries()];
-  channelDailyAuthorsCache.clear();
-
-  for (const [key, authors] of entries) {
-    const [guildId, channelId, dateKey] = key.split(':');
-    if (!guildId || !channelId || !dateKey) continue;
-
-    await prisma.channelDailyStat.upsert({
-      where: { guildId_channelId_dateKey: { guildId, channelId, dateKey } },
-      create: { guildId, channelId, dateKey, uniqueAuthors: authors.size },
-      update: { uniqueAuthors: authors.size },
-    }).catch((error) => {
-      logger.debug('Analytics', `Channel unique authors flush error: ${String(error)}`);
-    });
-  }
-}
-
-// Flush every 60 seconds
-setInterval(() => { void flushChannelUniqueAuthors(); }, 60_000);
 
 function truncate(value: string, max = 1000): string {
   if (value.length <= max) return value;
@@ -530,41 +470,41 @@ async function sendLogEmbed(
 ): Promise<void> {
   const summary = embedSummary(embed);
   
-  // 1. Fetch event config from database
-  const config = await prisma.guildLogEventConfig.findUnique({
-    where: {
-      guildId_eventType: {
-        guildId: guild.id,
-        eventType
+  // 1. Fetch event config from cache/database
+  const cacheKey = `guild:${guild.id}:log_event_config:${eventType}`;
+  let config = await cache.get<any>(cacheKey);
+  if (!config) {
+    config = await prisma.guildLogEventConfig.findUnique({
+      where: {
+        guildId_eventType: {
+          guildId: guild.id,
+          eventType
+        }
       }
-    }
-  });
+    });
+    await cache.set(cacheKey, config ?? { disabledDummy: true }, 60);
+  }
 
   // If configuration exists and is disabled, we do not log it
-  if (config && !config.enabled) {
+  if (config && (config.disabledDummy || !config.enabled)) {
     return;
   }
 
   // 2. Resolve destination channel: specific channelId from event config, falling back to main log channel
-  let channelId = config?.channelId;
+  let channelId = config && !config.disabledDummy ? config.channelId : null;
   if (!channelId) {
     channelId = await getGuildLogChannelId(guild.id);
   }
   
-  await prisma.dashboardAuditLog.create({
-    data: {
-      guildId: guild.id,
-      channelId,
-      user: 'Système',
-      action: summary.action,
-      context: guild.name,
-      module: 'Logs avancés',
-      eventType: 'Discord',
-      details: summary.details,
-      dateIso: new Date(),
-    }
-  }).catch((error) => {
-    logger.warn('Logs', `Impossible de persister le log dashboard pour ${guild.id}: ${String(error)}`);
+  queueAuditLog({
+    guildId: guild.id,
+    channelId,
+    user: 'Système',
+    action: summary.action,
+    context: guild.name,
+    module: 'Logs avancés',
+    eventType: 'Discord',
+    details: summary.details,
   });
 
   if (!channelId) return;
@@ -580,25 +520,20 @@ async function sendLogEmbed(
 async function recordMessageAudit(message: Message | PartialMessage): Promise<void> {
   if (!message.guildId || !message.author || message.author.bot) return;
 
-  await prisma.dashboardAuditLog.create({
-    data: {
-      guildId: message.guildId,
-      channelId: message.channelId,
-      user: formatUser(message.author.id, message.author.tag ?? message.author.username ?? `Utilisateur ${message.author.id}`),
-      action: 'Message envoyé',
-      context: message.guild?.name ?? `Serveur ${message.guildId}`,
-      module: 'Messages',
-      eventType: 'Discord',
-      details: truncate([
-        `ID: ${message.id}`,
-        `Contenu: ${message.content?.trim() || '_vide_'}`,
-        message.mentions.repliedUser ? `Réponse à: <@${message.mentions.repliedUser.id}>` : null,
-        message.attachments.size > 0 ? `Pièces jointes: ${[...message.attachments.values()].slice(0, 5).map((a) => a.url).join(' | ')}` : null,
-      ].filter(Boolean).join(' | '), 900),
-      dateIso: new Date(),
-    },
-  }).catch((error) => {
-    logger.warn('Logs', `Impossible de persister le message de ${message.author?.id ?? 'inconnu'}: ${String(error)}`);
+  queueAuditLog({
+    guildId: message.guildId,
+    channelId: message.channelId,
+    user: formatUser(message.author.id, message.author.tag ?? message.author.username ?? `Utilisateur ${message.author.id}`),
+    action: 'Message envoyé',
+    context: message.guild?.name ?? `Serveur ${message.guildId}`,
+    module: 'Messages',
+    eventType: 'Discord',
+    details: truncate([
+      `ID: ${message.id}`,
+      `Contenu: ${message.content?.trim() || '_vide_'}`,
+      message.mentions.repliedUser ? `Réponse à: <@${message.mentions.repliedUser.id}>` : null,
+      message.attachments.size > 0 ? `Pièces jointes: ${[...message.attachments.values()].slice(0, 5).map((a) => a.url).join(' | ')}` : null,
+    ].filter(Boolean).join(' | '), 900),
   });
 }
 
@@ -954,12 +889,10 @@ export function registerAdvancedLogsListener(client: Client): void {
       logger.debug('StaffManagement', `Staff activity tracking: ${String(error)}`);
     });
 
-    // 📊 Analytics: track par channel et guild
-    void incrementChannelDailyStat(snapshot.guildId, message.channelId, message.author.id);
-    void incrementGuildDailyMessages(snapshot.guildId);
-    void incrementGuildHourlyStat(snapshot.guildId, 'message');
-    void incrementMemberDailyMessages(snapshot.guildId, message.author.id);
-    trackChannelUniqueAuthor(snapshot.guildId, message.channelId, message.author.id);
+    // 📊 Analytics: track channel, guild and member daily/hourly stats (buffered at service level)
+    void trackMessage(snapshot.guildId, message.channelId, message.author.id).catch((error) => {
+      logger.error('Analytics', 'Erreur lors du tracking de message :', error);
+    });
 
     cleanupMessageSnapshots();
   });
