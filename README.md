@@ -1,415 +1,272 @@
-# Kotbo
+# Kotbo 🤖
 
-> [!WARNING]
-> Le REAMDME n'est pas à jour et date de la realese 1.0 Merci de ne pas en prendre compte sauf pour la stack.
+[![Bun](https://img.shields.io/badge/Runtime-Bun-black?style=flat-square&logo=bun)](https://bun.sh/)
+[![TypeScript](https://img.shields.io/badge/Language-TypeScript-blue?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
+[![Discord.js](https://img.shields.io/badge/Library-Discord.js%20v14-5865F2?style=flat-square&logo=discord)](https://discord.js.org/)
+[![Svelte 5](https://img.shields.io/badge/Dashboard-Svelte%205-FF3E00?style=flat-square&logo=svelte)](https://svelte.dev/)
+[![Prisma](https://img.shields.io/badge/ORM-Prisma-2D3748?style=flat-square&logo=prisma)](https://www.prisma.io/)
+[![TailwindCSS](https://img.shields.io/badge/Styling-TailwindCSS%204-06B6D4?style=flat-square&logo=tailwindcss)](https://tailwindcss.com/)
+[![Sentry](https://img.shields.io/badge/Observability-Sentry-362D59?style=flat-square&logo=sentry)](https://sentry.io/)
 
-> Le bot Discord orienté actu tech qui transforme des flux bruts en publication éditorialisée, modérée et actionnable.
+> **Kotbo** est un bot Discord d'administration, de veille technologique et de gestion communautaire de dernière génération. Il centralise la veille (RSS, YouTube, GitHub), la modération avancée, un système de gestion RH du personnel (staff), la détection de doubles comptes, un module de tickets de support complet et des défis de code journaliers.
 
-Kotbo est un bot Discord TypeScript/Bun en monorepo, centré sur la veille : RSS, YouTube, validation humaine, digest, traduction, abonnement DM et outils utilitaires.
+---
 
-## Sommaire
+## 🔑 Statut du Projet & Activation
 
-- [Kotbo](#kotbo)
-  - [Sommaire](#sommaire)
-  - [Vision](#vision)
-  - [Fonctionnalites](#fonctionnalites)
-    - [Flux RSS intelligents](#flux-rss-intelligents)
-    - [Pipeline de moderation](#pipeline-de-moderation)
-    - [YouTube monitoring](#youtube-monitoring)
-    - [Digest editorial](#digest-editorial)
-    - [Experience admin et moderation](#experience-admin-et-moderation)
-    - [Experience utilisateur](#experience-utilisateur)
-    - [Fonctions additionnelles](#fonctions-additionnelles)
-  - [Architecture du projet](#architecture-du-projet)
-    - [Cycle de vie d'une news RSS](#cycle-de-vie-dune-news-rss)
-  - [Stack technique](#stack-technique)
-  - [Installation locale rapide](#installation-locale-rapide)
-    - [1) Prerequis](#1-prerequis)
-    - [2) Installer les dependances](#2-installer-les-dependances)
-    - [3) Variables d'environnement](#3-variables-denvironnement)
-  - [Configuration environnement](#configuration-environnement)
-  - [Base de donnees Prisma](#base-de-donnees-prisma)
-  - [Lancement du bot](#lancement-du-bot)
-    - [Deploiement des slash commands](#deploiement-des-slash-commands)
-    - [Demarrer en local](#demarrer-en-local)
-    - [Workflow complet (db + deploy + run)](#workflow-complet-db--deploy--run)
-  - [Commandes disponibles](#commandes-disponibles)
-    - [Administration et configuration](#administration-et-configuration)
-    - [RSS et moderation](#rss-et-moderation)
-    - [YouTube](#youtube)
-    - [Utilitaires](#utilitaires)
-  - [Panneaux interactifs](#panneaux-interactifs)
-  - [Automatisations et cron](#automatisations-et-cron)
-  - [Docker](#docker)
-  - [Depannage](#depannage)
-    - [Le bot ne se connecte pas](#le-bot-ne-se-connecte-pas)
-    - [Les commandes slash ne s'affichent pas](#les-commandes-slash-ne-saffichent-pas)
-    - [Erreurs base de donnees](#erreurs-base-de-donnees)
-    - [Les news n'arrivent pas](#les-news-narrivent-pas)
-  - [Idees d'evolution](#idees-devolution)
+> [!IMPORTANT]
+> **Open Source mais Activation Restreinte (Usage Privé)**
+> 
+> Bien que le code source de Kotbo soit public et en libre consultation pour des raisons d'audit et de transparence, l'instance officielle du bot est **strictement réservée et exploitable uniquement par son créateur ([Elouan](https://github.com/Klaynight))**.
+> 
+> Pour pouvoir ajouter et utiliser Kotbo sur un serveur Discord, celui-ci doit être explicitement activé en base de données.
+> - **Processus d'activation** : Une fois le bot invité, toutes ses fonctionnalités restent bloquées. L'administrateur du serveur doit exécuter la commande slash `/activate <code>` en fournissant un code d'activation à usage unique.
+> - **Comment l'obtenir ?** : Vous devez impérativement **contacter Elouan** pour faire valider votre serveur et obtenir un jeton d'activation. Sans cette étape, le bot s'auto-bloquera et refusera de traiter toute commande ou événement sur votre serveur.
 
-## Vision
+---
 
-Kotbo suit une boucle simple et efficace :
+## 🛠️ La Stack Technique
 
-1. Il detecte (RSS/YouTube).
-2. Il filtre (mots-cles globaux + par flux).
-3. Il propose (queue de validation).
-4. Il publie (salon public + thread de discussion).
-5. Il diffuse (digest + DM abonnes + roles optionnels).
+Kotbo est architecturé sous forme de monorepo moderne géré par **Bun** :
 
-Resultat : moins de bruit, plus de signal.
+| Composant | Technologie(s) utilisée(s) | Description |
+| :--- | :--- | :--- |
+| **Runtime & Package Manager** | [Bun](https://bun.sh/) | Vitesse d'exécution maximale, support natif de TypeScript et gestionnaire de paquets ultra-rapide. |
+| **Langage** | [TypeScript](https://www.typescriptlang.org/) | Typage statique robuste pour le bot et le dashboard. |
+| **API Discord** | [Discord.js v14](https://discord.js.org/) | Framework officiel d'interaction avec la Gateway Discord. |
+| **Base de Données** | [PostgreSQL](https://www.postgresql.org/) | Base relationnelle performante pour stocker la configuration, les profils, les sanctions et les logs. |
+| **ORM** | [Prisma](https://www.prisma.io/) | Modélisation claire, migrations versionnées et typage de schéma généré automatiquement. |
+| **Queue & Cache** | [Redis](https://redis.io/) & [BullMQ](https://docs.bullmq.io/) | Gestion résiliente des files d'attente asynchrones pour le polling des flux RSS/YouTube et la mise en cache. |
+| **Dashboard Frontend** | [Svelte 5](https://svelte.dev/) + [Vite](https://vite.dev/) | Interface d'administration réactive (Single Page Application) avec le compilateur Svelte 5. |
+| **Design / Styles** | [TailwindCSS v4](https://tailwindcss.com/) | Utilisation du compilateur v4 ultra-performant pour des designs modernes et soignés. |
+| **Observabilité** | [Sentry](https://sentry.io/) | Télémétrie, remontée d'erreurs en temps réel et suivi des performances côté Bot et Dashboard. |
+| **Traduction** | LibreTranslate (Local / API) | Traduction automatique de la veille non francophone via une instance self-hostée par Docker. |
+| **Planification** | `node-cron` | Gestion précise des tâches planifiées (digests, resets quotidiens, vérifications d'échéances). |
 
-## Fonctionnalites
+---
 
-### Flux RSS intelligents
+## ✨ Fonctionnalités Majeures
 
-- Ajout/suppression/activation des flux par slash command et panneaux.
-- Filtrage avance :
-  - Mots-cles globaux (serveur).
-  - Mots-cles par flux.
-  - Exclusions prioritaires.
-- Auto-publication possible ou validation manuelle.
-- Detection d'etat technique des flux (`lastPollStatus`, erreur, dernier poll).
+### 📰 Veille Technologique & Flux RSS
+- **Polling RSS Automatique** : Récupération toutes les 5 minutes avec filtrage par mots-clés globaux ou spécifiques par flux (inclusions/exclusions).
+- **Pipeline de Validation** : Les articles peuvent être envoyés dans un salon de modération privé où le staff valide, rejette ou demande une traduction d'un clic.
+- **Auto-Publication** : Publication en salon public avec création automatique d'un fil de discussion (thread) structuré pour encourager les débats.
+- **Abonnements Individuels** : Les membres du serveur peuvent s'abonner individuellement à un flux pour être notifiés directement par message privé (DM).
 
-### Pipeline de moderation
+### 🎥 YouTube & GitHub Monitoring
+- **YouTube** : Suivi des chaînes configurées avec distinction automatique entre vidéos classiques et YouTube Shorts (pings de rôles différents possibles).
+- **GitHub Releases** : Surveillance automatique des nouveaux tags et versions logicielles sur les dépôts de votre choix.
 
-- Queue de validation dediee.
-- Actions de moderation :
-  - Valider.
-  - Rejeter.
-  - Traduire (si non FR).
-  - Marquer pour epinglage.
-- Publication en salon public apres validation.
-- Creation automatique d'un thread de discussion avec regles.
+### 👥 Gestion RH du Staff (Staff Management)
+- **Structure Hiérarchique** : Gestion complète des grades du staff (Helper, Modérateur, Admin, etc.) avec niveaux de permission distincts.
+- **Suivi d'Activité** : Enregistrement de la présence en réunion, de l'activité vocale et textuelle, et des signalements traités.
+- **Périodes d'Essai & Mentorat** : Attribution d'un tuteur (mentor), suivi de la progression et génération de bilans automatiques.
+- **Absences & Démissions** : Gestion des demandes d'absence avec `/absent` et de démission avec `/demission` directement intégrée dans le workflow du staff.
+- **Notes Managériales** : Carnet de notes privées `/note` réservé aux responsables du personnel pour un suivi individuel juste et documenté.
 
-### YouTube monitoring
+### 🔑 Détection & Liaison de Doubles Comptes (Alt Accounts)
+- **Scan de Nouveauté** : Alerte immédiate du staff si un nouvel arrivant possède un compte créé très récemment (seuil personnalisable en jours).
+- **Liaison Automatique & Manuelle** : Liaison officielle de deux comptes Discord par le staff ou par déclaration volontaire de l'utilisateur (`/dc report` de bonne foi).
+- **Dashboard Centralisé** : Visualisation graphique des arbres de doubles comptes détectés et gestion des demandes de liaison en attente.
 
-- Abonnement/desabonnement a des chaines (ID/URL).
-- Detection des nouvelles videos et shorts.
-- Validation en queue, puis publication.
-- Mention de role differenciee shorts vs videos longues.
+### 🎫 Système de Tickets de Support
+- **Interface Boutons** : Embed d'ouverture de ticket dynamique et propre.
+- **Attribution & Prise en Charge** : Attribution automatique ou manuelle, système de *claim* et d'escalade (overclaim) réservé au staff qualifié.
+- **Transcripts Automatiques** : Sauvegarde propre de l'intégralité de la conversation au format HTML/JSON à la fermeture du ticket avec la commande `/transcript`.
 
-### Digest editorial
+### 🚨 Modération Robuste & Casier Judiciaire
+- **Sanctions Standards** : Warns, Kicks, Timeouts temporaires et Bans (temporaires ou définitifs) enregistrés en base de données.
+- **Commandes `/casier` & `/sanction`** : Historique complet des sanctions d'un utilisateur consultable via un embed clair ou un menu contextuel Discord.
+- **Synchronisation Globale** : Propagation optionnelle des sanctions sur les différents serveurs liés pour limiter la récidive.
 
-- Digest quotidien ou hebdomadaire.
-- Horaire configurable (HH:MM UTC).
-- Canal dedie (ou fallback canal public).
-- Mention d'un role optionnelle.
-- Texte d'introduction personnalisable.
+### 💻 Daily Algo & Code Police
+- **Code Police** : Détecte les blocs de code mal formatés (envoyés sans balises markdown) et propose un reformatage automatique propre à l'utilisateur.
+- **Daily Algo** : Publication quotidienne d'un défi d'algorithme. Les utilisateurs soumettent leur code (JavaScript, etc.) via un modal. Le bot évalue les critères (vitesse, propreté, tests unitaires) et met à jour un classement (`/leaderboard`).
 
-### Experience admin et moderation
+---
 
-- Setup guide pas-a-pas (`/setup`).
-- Hub de configuration central (`/config`).
-- Role moderateur personnalisable.
-- Restriction de la commande `/status` a un salon specifique.
-
-### Experience utilisateur
-
-- Abonnements DM par flux (opt-in par boutons).
-- Commande `/help` dynamique (avec autocompletion).
-- Commandes utilitaires pour les devs (`/devutils`, `/epoch`, `/excuse`, `/ping`).
-
-### Fonctions additionnelles
-
-- Code Police (reformatte automatiquement du code non balise dans Discord).
-- Daily Algo (publication + collecte de solutions via modal).
-- Support d'un module releases GitHub (configuration presente, extensible).
-
-## Architecture du projet
+## 📁 Architecture du Projet
 
 ```text
 Kotbo/
-|-- apps/
-|   `-- bot/                # Application Discord.js
-|       `-- src/
-|           |-- commands/   # Slash commands
-|           |-- events/     # Listeners + cron registration
-|           |-- handlers/   # Routing interactions + sessions
-|           |-- panels/     # UI Discord (embeds, boutons, modals)
-|           |-- services/   # RSS, YouTube, digest, notifications, traduction
-|           `-- utils/      # Prisma client, logger, helpers
-|-- packages/
-|   `-- database/
-|       `-- prisma/
-|           |-- schema.prisma
-|           |-- migrations/
-|           `-- seed.ts
-|-- Dockerfile
-|-- bunfig.toml
-`-- package.json
+├── apps/
+│   ├── bot/                # Application Discord.js (Bot & API Backend du Dashboard)
+│   │   └── src/
+│   │       ├── api/        # Serveur Express/Socket.io servant le dashboard
+│   │       ├── commands/   # Définitions des commandes Slash
+│   │       ├── events/     # Listeners d'événements Discord et tâches Cron
+│   │       ├── handlers/   # Gestionnaires d'interactions (boutons, modals)
+│   │       ├── services/   # Logique métier (RSS, YouTube, DailyAlgo, Tickets)
+│   │       └── utils/      # Client Prisma, gestion du cache Redis, logs, embeds
+│   │
+│   └── dashboard/          # Frontend Web (Single Page Application)
+│       └── src/
+│           ├── lib/        # API calls, composants partagés, stores
+│           └── pages/      # Pages (Configuration, AuditLogs, Staff, DoublesComptes)
+│
+├── packages/
+│   └── database/           # Package de gestion de la BDD partagé
+│       └── prisma/
+│           ├── schema.prisma # Modèles Prisma (Guilds, Staff, Tickets, Sanctions, etc.)
+│           └── migrations/   # Migrations SQL PostgreSQL versionnées
+│
+├── DockerfileBot           # Image Docker pour le bot
+├── DockerfileDash          # Image Docker pour le dashboard
+├── docker-compose.yml      # Orchestration locale (Bot, Dashboard, DB, Redis, LibreTranslate)
+├── package.json            # Configuration root du monorepo
+└── bun.lock                # Fichier lock de Bun
 ```
 
-### Cycle de vie d'une news RSS
+---
 
-```text
-RSS poll (toutes les 5 min)
-  -> Filtrage mots-cles
-  -> (Optionnel) traduction
-  -> Queue validation OU auto-publication
-  -> Publication salon public
-  -> Thread discussion auto
-  -> DM abonnes du flux
-```
+## 🚀 Installation & Développement
 
-## Stack technique
+### 1) Prérequis
+- [Bun](https://bun.sh/) installé sur votre machine.
+- Une base de données [PostgreSQL](https://www.postgresql.org/).
+- Une instance [Redis](https://redis.io/) active.
+- Un jeton de Bot Discord (Token) avec tous les **Privileged Gateway Intents** activés sur le Discord Developer Portal.
 
-- Runtime: Bun
-- Langage: TypeScript
-- API Discord: discord.js v14
-- BDD: PostgreSQL
-- ORM: Prisma
-- Cache/Queue: Redis + BullMQ
-- Planification: node-cron
-- Parsing RSS: rss-parser
-- Observabilite: Sentry (bot + dashboard)
-- Traduction: LibreTranslate local (self-hosted via Docker Compose)
-
-## Installation locale rapide
-
-### 1) Prerequis
-
-- Bun installe
-- PostgreSQL accessible
-- Une application Discord configuree (token + client id)
-
-### 2) Installer les dependances
-
-```bash
-bun install
-```
-
-### 3) Variables d'environnement
-
+### 2) Configuration
+Copiez le fichier d'exemple et remplissez vos variables d'environnement :
 ```bash
 cp .env.example .env
 ```
 
-Renseigner ensuite les valeurs reelles dans `.env`.
+#### Variables d'environnement clés (`.env`)
+```ini
+# --- Discord config ---
+DISCORD_TOKEN=your_bot_token
+DISCORD_CLIENT_ID=your_bot_client_id
+DISCORD_CLIENT_OWNER_ID=your_discord_user_id  # Permet de bypass l'activation sur vos propres serveurs
+GUILD_ID=your_development_guild_id            # Si fourni, enregistre les commandes slash instantanément sur ce serveur
 
-## Configuration environnement
+# --- Database & Redis ---
+DATABASE_URL="postgresql://user:password@localhost:5432/kotbo?schema=public"
+REDIS_URL="redis://localhost:6379"
 
-Variables principales :
+# --- API & Security ---
+JWT_SECRET=your_jwt_secret_for_dashboard_auth
 
-- `DISCORD_TOKEN`: token du bot Discord.
-- `DISCORD_CLIENT_ID`: application/client ID Discord.
-- `GUILD_ID`: serveur cible pour seed et deploiement local des commandes.
-- `DATABASE_URL`: connexion PostgreSQL Prisma.
-- `LOG_LEVEL`: `info` ou `debug`.
-- `REDIS_URL` ou (`REDIS_HOST` + `REDIS_PORT` + `REDIS_PASSWORD`): connexion Redis pour cache/queue BullMQ.
-- `BULLMQ_CONCURRENCY`: nombre de jobs BullMQ traites en parallele (defaut `2`).
-- `BOT_SENTRY_DSN` (ou `SENTRY_DSN`): DSN Sentry pour le bot.
-- `SENTRY_ENVIRONMENT`, `SENTRY_RELEASE`, `SENTRY_TRACES_SAMPLE_RATE`: telemetry bot Sentry.
-- `VITE_SENTRY_DSN`: DSN Sentry frontend dashboard.
-- `VITE_SENTRY_ENVIRONMENT`, `VITE_SENTRY_RELEASE`, `VITE_SENTRY_TRACES_SAMPLE_RATE`: telemetry dashboard Sentry.
-- `NATHAN_YOUTUBE_CHANNEL_ID`: optionnel, fallback historique YouTube.
-- `LIBRETRANSLATE_URL`: URL de l'instance LibreTranslate (`http://libretranslate:5000` en docker compose).
-- `LIBRETRANSLATE_API_KEY`: optionnel, cle API LibreTranslate si l'instance choisie en exige une.
-- `TRANSLATION_TIMEOUT_MS`: timeout des appels traduction (defaut: `7000`).
+# --- Observabilité ---
+BOT_SENTRY_DSN=your_sentry_dsn
 
-## Base de donnees Prisma
+# --- Traduction ---
+LIBRETRANSLATE_URL=http://localhost:5000       # Instance locale LibreTranslate ou API publique
+```
 
-Depuis la racine du monorepo :
-
+### 3) Base de données Prisma
+Initialisez et appliquez le schéma sur votre base de données locale :
 ```bash
+# Générer le client Prisma
 bun db:generate
+
+# Pousser le schéma (environnement de dev)
 bun db:push
+
+# Lancer le seed (flux RSS de base, excuses de développeur...)
 bun db:seed
 ```
 
-Ou via migration dev (package database) :
-
-```bash
-bun db:migrate
-```
-
-En production/deploiement (migrations versionnees) :
-
-```bash
-bun db:migrate:deploy
-```
-
-Le seed initialise notamment :
-
-- Un ensemble de flux RSS FR/EN.
-- Les excuses developpeur en francais.
-
-## Lancement du bot
-
-### Deploiement des slash commands
-
+### 4) Déploiement des commandes slash
+Avant de lancer le bot pour la première fois (ou après chaque ajout/modification de commande), enregistrez les commandes auprès de l'API de Discord :
 ```bash
 bun deploy-commands
 ```
 
-- Si `GUILD_ID` est defini: deploiement serveur (instantane).
-- Sinon: deploiement global (propagation potentiellement lente).
-
-### Demarrer en local
-
+### 5) Démarrage du projet en local
+Vous pouvez lancer le bot et le dashboard simultanément ou séparément :
 ```bash
-bun dev
-```
+# Tout lancer en développement (Bot + Dashboard)
+bun dev:all
 
-ou
-
-```bash
+# Lancer uniquement le bot Discord
 bun dev:bot
+
+# Lancer uniquement le dashboard web
+bun dev:dashboard
 ```
 
-### Workflow complet (db + deploy + run)
+---
+
+## 🐳 Déploiement Docker
+
+Un fichier `docker-compose.yml` est disponible à la racine pour simplifier le déploiement de l'écosystème complet.
 
 ```bash
-bun deploy
+# Démarrer les conteneurs en tâche de fond
+docker compose up -d --build
 ```
+Cela démarrera :
+1. Le service **bot** (exécutant le bot Discord et le serveur API backend).
+2. Le service **dashboard** (distribuant l'interface d'administration).
+3. Une base **PostgreSQL** et un serveur **Redis**.
+4. Un conteneur local **LibreTranslate** pour la traduction autonome des news.
 
-## Commandes disponibles
+---
 
-### Administration et configuration
+## 📖 Liste des Commandes Slash
 
-- `/setup`
-  - Assistant de configuration pas-a-pas.
-- `/config`
-  - Hub de configuration complet.
-- `/admin info`
-  - Resume des parametres persistes.
-- `/admin set-algo-channel channel:<salon>`
-- `/admin set-releases-channel channel:<salon>`
+### 🔑 Système & Initialisation
+* `/activate <code>` : Active le bot sur le serveur Discord actuel à l'aide d'un jeton d'activation.
+* `/setup` : Assistant interactif de configuration initiale du serveur.
+* `/config` : Ouvre le hub interactif de paramétrage (Boutons/Menus).
+* `/info` : Affiche des informations et des statistiques sur l'instance de Kotbo.
+* `/ping` : Mesure la latence du bot et de l'API Discord.
+* `/help [commande]` : Menu d'aide dynamique avec autocomplétion.
 
-### RSS et moderation
+### 🛡️ Modération & Sécurité (Staff requis)
+* `/sanction` : Applique une sanction (warn, kick, timeout, ban) à un membre. *(Aussi accessible via menu contextuel sur un utilisateur)*.
+* `/casier [membre]` : Affiche la fiche de modération et le casier judiciaire complet d'un utilisateur. *(Aussi accessible via menu contextuel)*.
+* `/dc <subcommand>` :
+  * `scan` : Analyse l'ancienneté des derniers arrivants sur le serveur.
+  * `link` : Lie deux comptes suspectés d'appartenir à la même personne.
+  * `unlink` : Rompt la liaison entre deux comptes.
+  * `list` : Affiche la liste des comptes associés à un membre.
+  * `report` : Permet à un membre de déclarer de bonne foi son compte principal.
+* `/invites` : Liste les invitations suspectes ou les comptes créés sous un certain seuil.
+* `/rescan` : Relance un scan complet des invitations ou des membres suspects.
+* `/transcript` : Génère un fichier HTML et JSON de transcription complète du salon actuel.
 
-- `/feed add nom:<texte> url:<url> [categorie] [auto_publier] [langue] [traduire_en]`
-- `/feed remove nom:<autocomplete>`
-- `/feed toggle nom:<autocomplete>`
-- `/feed autopub nom:<autocomplete> auto_publier:<bool>`
-- `/feed list`
-- `/feed status`
-- `/feed keywords nom:<autocomplete> [inclure] [exclure]`
-- `/feed role nom:<autocomplete> [role] [auto_creer]`
-- `/news submit url:<url>`
+### 👥 RH & Gestion du Personnel (Staff uniquement)
+* `/absent <subcommand>` : Déclare, met à jour ou consulte les demandes d'absences des membres du staff.
+* `/demission` : Lance la procédure sécurisée de démission pour un membre du staff.
+* `/meeting <subcommand>` : Planifie, démarre, arrête ou gère le compte-rendu des réunions de staff.
+* `/note <user> <message>` : Permet à la direction d'ajouter une note confidentielle dans le dossier d'un membre du staff.
+* `/stats [user]` : Affiche les statistiques détaillées de productivité et de présence d'un staff.
 
-### YouTube
+### 📰 Veille & Utilitaires
+* `/feed <subcommand>` : Ajoute, retire, configure, active/désactive, ou liste les flux RSS et chaînes YouTube surveillés.
+* `/news submit <url>` : Propose manuellement un article de veille au comité de lecture/validation.
+* `/post` : Permet de générer des annonces personnalisées ou d'interagir via des embeds soignés.
+* `/ticket` : Commande d'administration pour gérer et configurer le système de tickets de support.
+* `/serverstats` : Configure des salons vocaux dynamiques affichant des statistiques en temps réel.
+* `/dailyalgo` : Permet de forcer ou configurer les défis algorithmiques.
+* `/leaderboard` : Affiche les classements locaux (activité, daily algo).
+* `/epoch [date]` : Outil utilitaire convertissant des dates en formats de timestamps Discord (epoch).
+* `/devutils <subcommand>` : Utilitaires pour développeurs (décodage Base64, validation JWT, hachage MD5/SHA256).
+* `/excuse` : Génère une excuse de développeur aléatoire.
+* `/status <url>` : Vérifie le statut HTTP et le temps de réponse d'un site web externe.
 
-- `/youtube subscribe channel:<id|url>`
-- `/youtube unsubscribe channel:<id|url>`
-- `/youtube list`
+---
 
-### Utilitaires
+## 🛠️ Dépannage fréquent
 
-- `/help [cmd]`
-- `/info`
-- `/ping`
-- `/status url:<url>`
-- `/epoch [value]`
-- `/excuse`
-- `/devutils jwt token:<jwt>`
-- `/devutils base64 action:<encode|decode> content:<texte>`
-- `/devutils hash content:<texte>`
+### 1. Le bot ne répond pas à l'invitation
+* Vérifiez que le bot est bien activé sur votre serveur. Si vous n'avez pas de jeton d'activation, contactez **Elouan**.
+* Assurez-vous que les variables `DISCORD_TOKEN` et `DISCORD_CLIENT_ID` sont correctes dans votre `.env`.
+* Vérifiez la console de démarrage pour détecter d'éventuelles erreurs de connexion avec la base de données PostgreSQL ou Redis.
 
-## Panneaux interactifs
+### 2. Les commandes slash ne s'affichent pas dans Discord
+* Avez-vous lancé la commande `bun deploy-commands` ?
+* Si vous n'avez pas spécifié de `GUILD_ID` dans le fichier `.env`, les commandes sont enregistrées globalement par Discord, ce qui peut nécessiter jusqu'à **1 heure** de propagation. Spécifiez le `GUILD_ID` de votre serveur de test pour un enregistrement instantané.
 
-Le bot propose une UX riche basee sur :
+### 3. Les flux RSS ne se mettent pas à jour
+* Regardez si le worker BullMQ tourne sans erreur.
+* Vérifiez les logs avec `LOG_LEVEL=debug` pour analyser les retours de `rss-parser`.
 
-- Embeds de configuration.
-- Boutons d'action rapide.
-- Select menus (salons, roles, sections).
-- Modals pour saisie structuree.
+---
 
-Sections principales du hub :
+## 📝 Licence
 
-- Flux d'actualite (RSS, YouTube, digest, traduction, mots-cles).
-- Police du code.
-- Daily Algo.
-- Releases GitHub.
-- Restriction `/status`.
-
-## Automatisations et cron
-
-Jobs planifies:
-
-- RSS polling: toutes les 5 minutes.
-- YouTube polling: toutes les 15 minutes.
-- Digest check: chaque minute (envoi seulement a l'heure configuree).
-
-Bonnes pratiques d'exploitation:
-
-- Garder un salon de validation dedie.
-- Activer `LOG_LEVEL=debug` pour diagnostiquer un flux instable.
-- Eviter l'auto-publication globale sans filtres si volume eleve.
-
-## Docker
-
-Image basee sur `oven/bun`.
-
-Mode recommande (bot + LibreTranslate heberge localement):
-
-```bash
-docker compose up --build
-```
-
-Ce mode demarre:
-
-1. Le service LibreTranslate local (`http://libretranslate:5000` dans le reseau compose).
-2. Le bot avec fallback local automatique quand Google est en quota.
-
-Arret:
-
-```bash
-docker compose down
-```
-
-Build:
-
-```bash
-docker build -t kotbo:latest .
-```
-
-Run (exemple):
-
-```bash
-docker run --rm -it --env-file .env kotbo:latest
-```
-
-Le conteneur execute au demarrage:
-
-1. Deploiement des commandes.
-2. Lancement du bot.
-
-## Depannage
-
-### Le bot ne se connecte pas
-
-Verifier:
-
-- `DISCORD_TOKEN` valide.
-- Intentions/permissions configurees dans l'application Discord.
-
-### Les commandes slash ne s'affichent pas
-
-- Relancer `bun deploy-commands`.
-- En global, attendre la propagation.
-- En local, utiliser `GUILD_ID` pour un deploiement instantane.
-
-### Erreurs base de donnees
-
-- Verifier `DATABASE_URL`.
-- Regenerer Prisma client: `bun db:generate`.
-- Synchroniser schema (local): `bun db:push` ou `bun db:migrate`.
-- Synchroniser schema (prod): `bun db:migrate:deploy`.
-
-### Les news n'arrivent pas
-
-Verifier dans la config du serveur:
-
-- Salon de validation (`configChannelId`) si moderation manuelle.
-- Salon public (`publicChannelId`) pour publication.
-- Flux actifs.
-- Mots-cles trop restrictifs.
-
-## Idees d'evolution
-
-1. Observabilite: dashboard de stats (latence RSS, taux de validation, taux de traduction).
-2. Scoring de qualite de source (fiabilite, cadence, taux de rejet).
-3. Export hebdomadaire des tendances (categories, sujets chauds, sources leaders).
-4. Test suite (unitaires + integration) pour securiser les evolutions.
+Développement privé sous licence libre. Le code source de **Kotbo** est en libre accès pour consultation mais son exploitation commerciale ou le déploiement public d'instances alternatives est restreint sans l'autorisation préalable de son auteur, **[Elouan](https://github.com/Klaynight)**.
