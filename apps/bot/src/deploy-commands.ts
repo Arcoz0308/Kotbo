@@ -103,6 +103,7 @@ try {
   }
 
   logger.info('Déploiement', `Terminé : ${successCount}/${guilds.length} serveur(s) mis à jour avec succès.`);
+  process.exit(0);
 } catch (err) {
   logger.error('Déploiement', 'Échec du déploiement :', err);
   process.exit(1);
