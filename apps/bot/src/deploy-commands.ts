@@ -17,6 +17,7 @@ import * as helpCmd from './commands/help.js';
 import * as postCmd from './commands/post.js';
 import * as dailyAlgoCmd from './commands/dailyAlgo.js';
 import * as profileCmd from './commands/profile.ts';
+import * as profilCmd from './commands/profil.ts';
 import * as sanctionCmd from './commands/sanction.js';
 import * as dcCmd from './commands/dc.js';
 import * as rescanCmd from './commands/rescan.js';
@@ -31,6 +32,10 @@ import * as transcriptCmd from './commands/transcript.js';
 import * as ticketCmd from './commands/ticket.js';
 import * as sayCmd from './commands/say.js';
 import * as demissionCmd from './commands/demission.js';
+import * as meetingCmd from './commands/meeting.js';
+import * as eventCmd from './commands/event.js';
+import * as activateCmd from './commands/activate.js';
+
 const commands = [
   setupCmd,
   configCmd,
@@ -45,16 +50,20 @@ const commands = [
   helpCmd,
   dailyAlgoCmd,
   profileCmd,
+  profilCmd,
   sanctionCmd,
   dcCmd,
   rescanCmd,
   casierCmd,
   absentCmd,
+  meetingCmd,
   statsCmd,
   leaderboardCmd,
   serverstatsCmd,
   invitesCmd,
   noteCmd,
+  eventCmd,
+  activateCmd,
   transcriptCmd,
   ticketCmd,
   sayCmd,
@@ -75,34 +84,38 @@ if (!token || !clientId) {
 const rest = new REST().setToken(token);
 
 try {
-  // Récupère toutes les guilds sur lesquelles le bot est présent
+  // Récupère toutes les guilds sur lesquelles le bot est présent pour nettoyer les commandes locales
   const guilds = await rest.get(Routes.userGuilds()) as { id: string; name: string }[];
 
-  logger.info('Déploiement', `Bot présent sur ${guilds.length} serveur(s). Déploiement de ${commands.length} commandes sur chacun...`);
+  logger.info('Déploiement', `Nettoyage des anciennes commandes locales sur ${guilds.length} serveur(s)...`);
 
-  const results = await Promise.allSettled(
+  const cleanupResults = await Promise.allSettled(
     guilds.map((guild) =>
       rest
-        .put(Routes.applicationGuildCommands(clientId!, guild.id), { body: commands })
+        .put(Routes.applicationGuildCommands(clientId!, guild.id), { body: [] })
         .then(() => ({ guild, ok: true }))
         .catch((err) => ({ guild, ok: false, err }))
     )
   );
 
-  let successCount = 0;
-  for (const result of results) {
+  let cleanupSuccess = 0;
+  for (const result of cleanupResults) {
     if (result.status === 'fulfilled') {
       const { guild, ok, err } = result.value as any;
       if (ok) {
-        logger.success('Déploiement', `✓ Commandes déployées sur "${guild.name}" (${guild.id})`);
-        successCount++;
+        cleanupSuccess++;
       } else {
-        logger.error('Déploiement', `✗ Échec sur "${guild.name}" (${guild.id}) :`, err);
+        logger.error('Déploiement', `✗ Échec du nettoyage sur "${guild.name}" (${guild.id}) :`, err);
       }
     }
   }
+  logger.info('Déploiement', `Nettoyage terminé : ${cleanupSuccess}/${guilds.length} serveurs nettoyés.`);
 
-  logger.info('Déploiement', `Terminé : ${successCount}/${guilds.length} serveur(s) mis à jour avec succès.`);
+  // Déploiement global des commandes
+  logger.info('Déploiement', `Déploiement de ${commands.length} commandes globales (sera visible dans le profil du bot)...`);
+  await rest.put(Routes.applicationCommands(clientId!), { body: commands });
+  
+  logger.success('Déploiement', `✓ Déploiement global réussi pour les ${commands.length} commandes !`);
   process.exit(0);
 } catch (err) {
   logger.error('Déploiement', 'Échec du déploiement :', err);

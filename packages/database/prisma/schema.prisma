@@ -59,8 +59,6 @@ model Guild {
   dailyAlgoValidationChannelId String?
   dailyAlgoTime            String  @default("09:00") // HH:MM
   
-  levelingEnabled          Boolean @default(true)
-  
   githubReleasesEnabled    Boolean @default(false)
   githubReleasesChannelId  String?
   githubRepositories       String[] @default(["facebook/react", "docker/compose", "microsoft/typescript", "vercel/next.js", "sveltejs/svelte"])
@@ -540,9 +538,6 @@ model MemberProfile {
   isSuspectedDC Boolean @default(false)
 
   moderatorNote String?
-
-  xp            Int @default(0)
-  level         Int @default(1)
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
   eventParticipations EventParticipant[]
