@@ -720,7 +720,7 @@
                       <!-- Conditional field: Role ID -->
                       {#if custom.type === 'role'}
                         <div class="space-y-1.5">
-                          <label class="text-xs font-bold text-on-surface/80 block">Rôle cible</label>
+                          <span class="text-xs font-bold text-on-surface/80 block">Rôle cible</span>
                           <SearchableSelect 
                             options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} 
                             bind:value={custom.roleTargetId} 

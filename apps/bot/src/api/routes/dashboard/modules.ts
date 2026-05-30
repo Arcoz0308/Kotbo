@@ -1,0 +1,4446 @@
+import { IncomingMessage, ServerResponse } from 'node:http';
+import {
+  Client,
+  ChannelType,
+  PermissionFlagsBits,
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  TextChannel,
+} from 'discord.js';
+import { SanctionType } from '@prisma/client';
+import prisma from '../../../utils/db.js';
+import { logger } from '../../../utils/logger.js';
+import { COLORS, successEmbed } from '../../../utils/embeds.js';
+import {
+  json,
+  readJsonBody,
+  getGuildName,
+  getAuditActor,
+  resolveDashboardAccess,
+  resolveFeatureAccessMap,
+  pushAudit,
+  extractDiscordSnowflake,
+  getOrCreateRuntime,
+  resolveAdminAccess,
+  type AuthClaims,
+  type DashboardAccess,
+  type RuntimeState,
+  type SeverityLevel,
+  type ModuleStatus,
+  type DashboardPresetKey,
+  type CommandAccessLevel,
+  type ModuleItem,
+  type NotificationSettings,
+} from '../../shared.js';
+import { normalizeCommandRestrictions } from '../../../utils/commandAccess.js';
+import { getTwitchUserId } from '../../../services/twitchService.js';
+import { resolveYoutubeChannel } from '../../../services/youtubeService.js';
+import { publishOrUpdateRegulationMessage } from '../../../services/regulationService.js';
+import { publishNewsArticle } from '../../../services/newsService.js';
+import {
+  getLocalDateKey,
+  reviewDailyAlgoSubmission,
+} from '../../../services/dailyAlgoService.js';
+import { invalidateNicknameModerationCache } from '../../../events/nicknameModeration.js';
+import { invalidateAutoThreadCache } from '../../../events/autoThread.js';
+import { updateGuildStats } from '../../../events/stats.js';
+import { invalidateBannedWordsCache } from '../../../services/bannedWordsService.js';
+import { sendTicketSetupEmbed } from '../../../services/ticketService.js';
+import { generateTranscript } from '../../../services/transcriptService.js';
+import { parseDiscordMarkdown, extractMediaUrls } from '../../shared.js';
+
+const PRESET_LABELS: Record<DashboardPresetKey, string> = {
+  general: 'Communauté générale',
+  gaming: 'Gaming/Esport',
+  dev: 'Dev/Tech',
+};
+
+const PRESET_COMMAND_OVERRIDES: Record<DashboardPresetKey, Partial<Record<string, CommandAccessLevel>>> = {
+  general: {},
+  gaming: {},
+  dev: { dailyAlgo: 'tout_le_monde' },
+};
+
+const DEFAULT_SEVERITY_BY_MODULE = [
+  { module: 'auth', level: 'info' as SeverityLevel },
+  { module: 'moderation', level: 'attention' as SeverityLevel },
+  { module: 'tickets', level: 'info' as SeverityLevel },
+  { module: 'system', level: 'critique' as SeverityLevel }
+];
+
+const DEFAULT_MESSAGE_TEMPLATE = 'Bonjour {user}, ...';
+
+function resolveDailyAlgoFinalScore(submission: {
+  scoreFinal: number | null;
+  scoreCorrectness: number | null;
+  scoreComments: number | null;
+  scoreCompactness: number | null;
+  scoreOptimization: number | null;
+  scoreReadability: number | null;
+}): number | null {
+  if (submission.scoreFinal !== null) {
+    return submission.scoreFinal;
+  }
+
+  const components = [
+    submission.scoreCorrectness,
+    submission.scoreComments,
+    submission.scoreCompactness,
+    submission.scoreOptimization,
+    submission.scoreReadability,
+  ];
+
+  if (components.some((value) => value === null)) {
+    return null;
+  }
+
+  const sum = (components as number[]).reduce((acc, value) => acc + value, 0);
+  return Math.round((sum / 5) * 10) / 10;
+}
+
+function getDailyAlgoDateKeyWithOffset(offsetDays: number, baseDate = new Date()): string {
+  const anchor = new Date(Date.UTC(baseDate.getUTCFullYear(), baseDate.getUTCMonth(), baseDate.getUTCDate()));
+  anchor.setUTCDate(anchor.getUTCDate() + offsetDays);
+
+  const year = anchor.getUTCFullYear();
+  const month = String(anchor.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(anchor.getUTCDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+async function getDailyAlgoScheduleRuns(guildId: string, daysBack: number, daysForward: number) {
+  const safeDaysBack = Math.max(0, Math.trunc(daysBack));
+  const safeDaysForward = Math.max(0, Math.trunc(daysForward));
+  const startDateKey = getDailyAlgoDateKeyWithOffset(-safeDaysBack);
+  const endDateKey = getDailyAlgoDateKeyWithOffset(safeDaysForward);
+
+  const runs = await prisma.dailyAlgoRun.findMany({
+    where: {
+      guildId,
+      dateKey: {
+        gte: startDateKey,
+        lte: endDateKey,
+      },
+    },
+    include: {
+      problem: true,
+      _count: {
+        select: {
+          submissions: true,
+        },
+      },
+    },
+    orderBy: {
+      dateKey: 'asc',
+    },
+  });
+
+  return runs.map((run) => ({
+    id: run.id,
+    guildId: run.guildId,
+    dateKey: run.dateKey,
+    problemId: run.problemId,
+    challengeChannelId: run.challengeChannelId,
+    validationChannelId: run.validationChannelId,
+    challengeMessageId: run.challengeMessageId,
+    leaderboardMessageId: run.leaderboardMessageId,
+    summarySentAt: run.summarySentAt?.toISOString() ?? null,
+    createdAt: run.createdAt.toISOString(),
+    updatedAt: run.updatedAt.toISOString(),
+    submissionsCount: run._count.submissions,
+    problem: {
+      id: run.problem.id,
+      title: run.problem.title,
+      description: run.problem.description,
+      solution: run.problem.solution,
+      difficulty: run.problem.difficulty,
+      language: run.problem.language,
+      functionName: run.problem.functionName,
+      functionArgs: run.problem.functionArgs,
+      unitTests: run.problem.unitTests,
+      allowedLanguages: run.problem.allowedLanguages,
+      usedAt: run.problem.usedAt?.toISOString() ?? null,
+      createdAt: run.problem.createdAt.toISOString(),
+      updatedAt: run.problem.updatedAt.toISOString(),
+    },
+  }));
+}
+
+async function ensureDailyAlgoScheduleRuns(guildId: string, daysForward: number) {
+  const safeDaysForward = Math.max(1, Math.trunc(daysForward));
+  const guild = await prisma.guild.findUnique({
+    where: { id: guildId },
+    select: {
+      id: true,
+      dailyAlgoChannelId: true,
+      dailyAlgoValidationChannelId: true,
+    },
+  });
+
+  if (!guild) {
+    throw new Error('Guilde introuvable.');
+  }
+
+  if (!guild.dailyAlgoChannelId) {
+    return {
+      createdDateKeys: [],
+      createdCount: 0,
+    };
+  }
+
+  const createdDateKeys: string[] = [];
+
+  for (let offsetDays = 0; offsetDays <= safeDaysForward; offsetDays += 1) {
+    const dateKey = getDailyAlgoDateKeyWithOffset(offsetDays);
+    const existingRun = await prisma.dailyAlgoRun.findUnique({
+      where: {
+        guildId_dateKey: {
+          guildId,
+          dateKey,
+        },
+      },
+    });
+
+    if (existingRun) {
+      continue;
+    }
+
+    const existingRunForDate = await prisma.dailyAlgoRun.findFirst({
+      where: { dateKey },
+      select: { problemId: true }
+    });
+
+    let problemId = existingRunForDate?.problemId;
+
+    if (!problemId) {
+      const problemCandidate = await prisma.dailyAlgoProblem.findFirst({
+        where: {
+          language: 'fr',
+          usedAt: null,
+        },
+        orderBy: [
+          { createdAt: 'asc' },
+          { id: 'asc' },
+        ],
+        select: {
+          id: true,
+        },
+      });
+
+      if (!problemCandidate) {
+        break;
+      }
+      problemId = problemCandidate.id;
+
+      await prisma.dailyAlgoProblem.update({
+        where: { id: problemId },
+        data: { usedAt: new Date() }
+      });
+    }
+
+    await prisma.dailyAlgoRun.create({
+      data: {
+        guildId,
+        dateKey,
+        problemId: problemId,
+        challengeChannelId: guild.dailyAlgoChannelId!,
+        validationChannelId: guild.dailyAlgoValidationChannelId ?? null,
+      },
+    });
+
+    createdDateKeys.push(dateKey);
+  }
+
+  return {
+    createdDateKeys,
+    createdCount: createdDateKeys.length,
+  };
+}
+
+type DashboardSanctionType = 'WARN' | 'KICK' | 'TIMEOUT' | 'TEMP_BAN' | 'BAN';
+
+function toSanctionType(value: DashboardSanctionType): SanctionType {
+  return value as SanctionType;
+}
+
+function parseEvidenceLinks(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+    .filter((entry) => /^https?:\/\//i.test(entry));
+}
+
+function formatSanctionDurationLabel(seconds: number | null): string | null {
+  if (!seconds) return null;
+
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const parts: string[] = [];
+
+  if (days) parts.push(`${days}j`);
+  if (hours) parts.push(`${hours}h`);
+  if (minutes) parts.push(`${minutes}m`);
+
+  return parts.length > 0 ? parts.join(' ') : `${seconds}s`;
+}
+
+function normalizeBrokenRulesPayload(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (!Array.isArray(parsed)) {
+      return trimmed;
+    }
+
+    const normalized = parsed
+      .map((entry) => {
+        if (!entry || typeof entry !== 'object') return null;
+
+        const snapshot = entry as Record<string, unknown>;
+        const id = typeof snapshot.id === 'string' ? snapshot.id.trim() : '';
+        if (!id) return null;
+
+        const title = typeof snapshot.title === 'string'
+          ? snapshot.title.trim()
+          : typeof snapshot.label === 'string'
+            ? snapshot.label.trim()
+            : '';
+
+        const description = typeof snapshot.description === 'string'
+          ? snapshot.description.trim()
+          : typeof snapshot.details === 'string'
+            ? snapshot.details.trim()
+            : '';
+
+        if (!title || !description) return null;
+
+        const emoji = typeof snapshot.emoji === 'string' && snapshot.emoji.trim() ? snapshot.emoji.trim() : null;
+        const sortOrder = typeof snapshot.sortOrder === 'number' && Number.isFinite(snapshot.sortOrder) ? snapshot.sortOrder : 0;
+
+        return {
+          id,
+          title,
+          description,
+          emoji,
+          sortOrder,
+        };
+      })
+      .filter((entry): entry is { id: string; title: string; description: string; emoji: string | null; sortOrder: number } => !!entry);
+
+    return normalized.length > 0 ? JSON.stringify(normalized) : trimmed;
+  } catch {
+    return trimmed;
+  }
+}
+
+const buildModuleUpdatesForPreset = (presetKey: DashboardPresetKey) => {
+  if (presetKey === 'dev') {
+    return {
+      dailyAlgoEnabled: true,
+      codePoliceEnabled: false,
+      autoNicknameModerationEnabled: false,
+      sanctionSyncEnabled: false,
+      translationEnabled: false,
+    };
+  }
+  if (presetKey === 'gaming') {
+    return {
+      dailyAlgoEnabled: false,
+      codePoliceEnabled: true,
+      autoNicknameModerationEnabled: true,
+      sanctionSyncEnabled: true,
+      translationEnabled: true,
+    };
+  }
+  return {
+    dailyAlgoEnabled: false,
+    codePoliceEnabled: false,
+    autoNicknameModerationEnabled: true,
+    sanctionSyncEnabled: false,
+    translationEnabled: true,
+  };
+};
+
+const buildCommandRestrictionsForPreset = (
+  presetKey: DashboardPresetKey,
+  options: {
+    moderatorRoleId: string | null;
+    adminRoleIds: string[];
+    fallbackUserId: string;
+    modRoleIds: string[];
+  }
+) => {
+  const list: any[] = [];
+  const rules = PRESET_COMMAND_OVERRIDES[presetKey] || {};
+
+  const modRole = options.moderatorRoleId ? [options.moderatorRoleId] : options.modRoleIds;
+  const adminRoles = options.adminRoleIds;
+
+  const getAuthorizedRoles = (level: CommandAccessLevel): string[] => {
+    if (level === 'administration') return adminRoles;
+    if (level === 'modération') return [...adminRoles, ...modRole];
+    return [];
+  };
+
+  const getAuthorizedUsers = (level: CommandAccessLevel): string[] => {
+    if (level === 'tout_le_monde') return [];
+    return [options.fallbackUserId];
+  };
+
+  for (const [cmd, val] of Object.entries(rules)) {
+    const lvl = val as CommandAccessLevel;
+    list.push({
+      commandName: cmd,
+      authorizedRoles: getAuthorizedRoles(lvl),
+      authorizedUsers: getAuthorizedUsers(lvl),
+      bannedUsers: [],
+      bannedRoles: [],
+      mode: lvl === 'tout_le_monde' ? 'ALLOW_ALL' : 'RESTRICTED',
+    });
+  }
+
+  return list;
+};
+
+export async function handleModulesRoutes(
+  req: IncomingMessage,
+  res: ServerResponse,
+  parts: string[],
+  url: URL,
+  client: Client,
+  user: AuthClaims,
+  guildId: string,
+  access: DashboardAccess
+): Promise<boolean> {
+  const method = req.method;
+  const auditUser = user.username ?? `User${user.userId}`;
+
+  // Check sub-routers matching parts[4]
+  const moduleKey = parts[4];
+
+  // PUT /api/dashboard/guilds/:guildId/modules/:moduleId
+  if (moduleKey === 'modules' && parts.length === 6 && method === 'PUT') {
+    const moduleId = parts[5];
+    try {
+      const body = (await readJsonBody<{ status: ModuleStatus }>(req)) ?? { status: 'inactive' };
+
+      const updates: Record<string, unknown> = {};
+      if (moduleId === 'codepolice') updates.codePoliceEnabled = body.status === 'active';
+      if (moduleId === 'dailyalgo' || moduleId === 'daily_algo') updates.dailyAlgoEnabled = body.status === 'active';
+      if (moduleId === 'traduction' || moduleId === 'translation') updates.translationEnabled = body.status === 'active';
+      if (moduleId === 'sanctions') updates.sanctionSyncEnabled = body.status === 'active';
+      if (moduleId === 'nickname_moderation') updates.autoNicknameModerationEnabled = body.status === 'active';
+      if (moduleId === 'auto_thread') updates.autoThreadEnabled = body.status === 'active';
+
+      if (Object.keys(updates).length > 0) {
+        await prisma.guild.update({ where: { id: guildId }, data: updates });
+      }
+
+      const normalizedKey = moduleId === 'dailyalgo'
+        ? 'daily_algo'
+        : moduleId === 'traduction'
+          ? 'translation'
+          : moduleId;
+      await prisma.dashboardFeatureConfig.upsert({
+        where: { guildId_featureKey: { guildId, featureKey: normalizedKey } },
+        create: {
+          guildId,
+          featureKey: normalizedKey,
+          featureName: moduleId.charAt(0).toUpperCase() + moduleId.slice(1),
+          enabled: body.status === 'active',
+          loggingEnabled: true,
+          userActivityTracking: true,
+          notifyViaDiscordChannel: true,
+        },
+        update: {
+          enabled: body.status === 'active'
+        }
+      });
+
+      await pushAudit(guildId, {
+        user: auditUser,
+        action: 'Mise à jour module',
+        context: getGuildName(client, guildId),
+        module: moduleId,
+        eventType: 'Manuel',
+        details: `Statut changé vers ${body.status}.`,
+        channelId: null
+      });
+
+      if (moduleId === 'auto_thread') {
+        invalidateAutoThreadCache(guildId);
+      }
+
+      json(res, 200, { ok: true });
+    } catch (err) {
+      logger.error('ModulesAPI', 'Error updating module:', err);
+      json(res, 500, { error: 'Erreur lors de la mise à jour du module' });
+    }
+    return true;
+  }
+
+  // POST /api/dashboard/guilds/:guildId/presets
+  if (moduleKey === 'presets' && parts.length === 5 && method === 'POST') {
+    try {
+      const body = await readJsonBody<{ presetKey?: string }>(req);
+      const presetKey = (body?.presetKey ?? '').trim() as DashboardPresetKey;
+
+      if (!presetKey || !Object.keys(PRESET_LABELS).includes(presetKey)) {
+        json(res, 400, { error: 'Preset invalide.' });
+        return true;
+      }
+
+      const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+      if (!discordGuild) {
+        json(res, 404, { error: 'Serveur introuvable.' });
+        return true;
+      }
+
+      const member = await discordGuild.members.fetch(user.userId).catch(() => null);
+      const roleIds = member
+        ? member.roles.cache
+            .map((role) => role?.id)
+            .filter((roleId): roleId is string => !!roleId)
+        : [];
+      const featureAccess = await resolveFeatureAccessMap(client, guildId, access, user.userId, roleIds);
+
+      if (!access.canManageSettings && !(featureAccess.modules?.canConfigure && featureAccess.commands?.canConfigure)) {
+        json(res, 403, { error: 'Accès refusé. Permissions insuffisantes.' });
+        return true;
+      }
+
+      const guildConfig = await prisma.guild.findUnique({
+        where: { id: guildId },
+        select: { moderatorRoleId: true },
+      });
+
+      const adminRoleIds = discordGuild.roles.cache
+        .filter((role) => !!role && role.permissions.has(PermissionFlagsBits.Administrator))
+        .map((role) => role.id);
+      const modRoleIds = discordGuild.roles.cache
+        .filter((role) => !!role && (role.permissions.has(PermissionFlagsBits.ModerateMembers)
+          || role.permissions.has(PermissionFlagsBits.ManageMessages)
+          || role.permissions.has(PermissionFlagsBits.KickMembers)
+          || role.permissions.has(PermissionFlagsBits.BanMembers)))
+        .map((role) => role.id);
+
+      const moduleUpdates = buildModuleUpdatesForPreset(presetKey);
+      const commandRestrictions = buildCommandRestrictionsForPreset(presetKey, {
+        moderatorRoleId: guildConfig?.moderatorRoleId ?? null,
+        adminRoleIds,
+        fallbackUserId: user.userId,
+        modRoleIds,
+      });
+
+      const { applyPresetToFeatureAccess } = await import('../../../services/dashboardManagementService.js');
+      await applyPresetToFeatureAccess(guildId, presetKey, { adminRoleIds, modRoleIds });
+
+      await prisma.$transaction([
+        prisma.guild.update({ where: { id: guildId }, data: moduleUpdates }),
+        prisma.dashboardSettings.update({ where: { guildId }, data: { commandRestrictions } }),
+      ]);
+
+      await pushAudit(guildId, {
+        user: auditUser,
+        action: 'Application preset',
+        context: getGuildName(client, guildId),
+        module: 'Dashboard',
+        eventType: 'Manuel',
+        details: `Preset appliqué : ${PRESET_LABELS[presetKey]}.`,
+        channelId: null,
+      });
+
+      json(res, 200, { ok: true });
+    } catch (err) {
+      logger.error('PresetsAPI', 'Error applying preset:', err);
+      json(res, 500, { error: 'Erreur lors de l\'application du preset' });
+    }
+    return true;
+  }
+
+  // DELETE /api/dashboard/guilds/:guildId/sanctions/:sanctionId
+  if (moduleKey === 'sanctions' && parts.length === 6 && method === 'DELETE' && parts[5] !== 'reports') {
+    if (access.level !== 'admin') {
+      json(res, 403, { error: 'Seuls les administrateurs peuvent supprimer une infraction.' });
+      return true;
+    }
+
+    const sanctionId = parts[5];
+    try {
+      const sanction = await prisma.sanction.findFirst({
+        where: { id: sanctionId, guildId },
+        select: {
+          id: true,
+          type: true,
+          targetTag: true,
+          targetUserId: true,
+        }
+      });
+
+      if (!sanction) {
+        json(res, 404, { error: 'Infraction introuvable sur ce serveur.' });
+        return true;
+      }
+
+      await prisma.sanction.delete({ where: { id: sanction.id } });
+
+      await pushAudit(guildId, {
+        user: auditUser,
+        action: 'Suppression infraction',
+        context: getGuildName(client, guildId),
+        module: 'Sanctions',
+        eventType: 'Manuel',
+        details: `Infraction ${sanction.id} supprimée (${sanction.type}) pour ${sanction.targetTag ?? sanction.targetUserId}.`,
+        channelId: null
+      });
+
+      json(res, 200, { ok: true });
+    } catch (err) {
+      logger.error('SanctionsAPI', 'Error deleting sanction:', err);
+      json(res, 500, { error: 'Erreur lors de la suppression de l\'infraction' });
+    }
+    return true;
+  }
+
+  // POST /api/dashboard/guilds/:guildId/sanctions/reports
+  if (moduleKey === 'sanctions' && parts.length === 6 && parts[5] === 'reports' && method === 'POST') {
+    try {
+      const body = await readJsonBody<{
+        sanctionId?: string | null;
+        staffPseudo?: string;
+        incidentAt?: string;
+        memberPseudo?: string;
+        memberReference?: string;
+        sanctionType?: string;
+        sanctionDurationLabel?: string | null;
+        brokenRules?: string;
+        detailedReason?: string;
+        evidenceLinks?: unknown;
+        additionalNotes?: string | null;
+      }>(req);
+
+      const sanctionId = body?.sanctionId?.trim() ?? '';
+      const brokenRules = normalizeBrokenRulesPayload(body?.brokenRules?.trim() ?? '');
+      const detailedReason = body?.detailedReason?.trim() ?? '';
+      const evidenceLinks = parseEvidenceLinks(body?.evidenceLinks);
+      const incidentAt = body?.incidentAt ? new Date(body.incidentAt) : null;
+
+      if (!sanctionId) {
+        json(res, 400, { error: 'La sanction liée est obligatoire pour créer un rapport.' });
+        return true;
+      }
+
+      if (!incidentAt || Number.isNaN(incidentAt.getTime())) {
+        json(res, 400, { error: 'Date/heure de l\'incident invalide.' });
+        return true;
+      }
+
+      if (evidenceLinks.length === 0) {
+        json(res, 400, { error: 'Au moins un lien de preuve valide est obligatoire.' });
+        return true;
+      }
+
+      const sanction = await prisma.sanction.findFirst({ where: { id: sanctionId, guildId } });
+      if (!sanction) {
+        json(res, 404, { error: 'Sanction liée introuvable sur ce serveur.' });
+        return true;
+      }
+
+      if (sanction.moderatorUserId !== user.userId) {
+        json(res, 403, { error: 'Seule la personne qui a appliqué la sanction peut créer ce rapport.' });
+        return true;
+      }
+
+      const existingReport = await prisma.sanctionReport.findFirst({ where: { guildId, sanctionId } });
+      if (existingReport) {
+        json(res, 409, { error: 'Un rapport existe déjà pour cette sanction.' });
+        return true;
+      }
+
+      const staffPseudo = sanction.moderatorTag?.trim() || body?.staffPseudo?.trim() || getAuditActor(user);
+      const memberPseudo = sanction.targetTag?.trim() || body?.memberPseudo?.trim() || `Utilisateur ${sanction.targetUserId}`;
+      const memberReference = sanction.targetUserId?.trim() || body?.memberReference?.trim() || sanction.targetUserId;
+      const sanctionTypeRaw = sanction.type as DashboardSanctionType;
+      const sanctionDurationLabel = body?.sanctionDurationLabel?.trim() || formatSanctionDurationLabel(sanction.durationSeconds);
+      const finalIncidentAt = Number.isNaN(incidentAt.getTime()) ? sanction.createdAt : incidentAt;
+      const finalBrokenRules = brokenRules || sanction.reason;
+      const finalDetailedReason = detailedReason || sanction.reason;
+
+      if (!finalBrokenRules || !finalDetailedReason) {
+        json(res, 400, { error: 'Les champs de contenu du rapport sont obligatoires.' });
+        return true;
+      }
+
+      const report = await prisma.sanctionReport.create({
+        data: {
+          guildId,
+          sanctionId,
+          staffPseudo,
+          incidentAt: finalIncidentAt,
+          memberPseudo,
+          memberReference,
+          sanctionType: toSanctionType(sanctionTypeRaw),
+          sanctionDurationLabel,
+          brokenRules: finalBrokenRules,
+          detailedReason: finalDetailedReason,
+          evidenceLinks,
+          additionalNotes: body?.additionalNotes?.trim() || null,
+          createdByUserId: user.userId,
+          createdByTag: user.username ?? null,
+        }
+      });
+
+      await pushAudit(guildId, {
+        user: auditUser,
+        action: 'Création rapport sanction',
+        context: getGuildName(client, guildId),
+        module: 'Sanctions',
+        eventType: 'Manuel',
+        details: `Rapport ${report.id} créé pour ${memberPseudo} (${sanctionTypeRaw}).`,
+        channelId: null
+      });
+
+      json(res, 201, { ok: true, reportId: report.id });
+    } catch (err) {
+      logger.error('SanctionsAPI', 'Error creating report:', err);
+      json(res, 500, { error: 'Erreur lors de la création du rapport' });
+    }
+    return true;
+  }
+
+  // PATCH /api/dashboard/guilds/:guildId/sanctions/reports/:reportId
+  if (moduleKey === 'sanctions' && parts.length === 7 && parts[5] === 'reports' && method === 'PATCH') {
+    const reportId = parts[6];
+    try {
+      const existingReport = await prisma.sanctionReport.findFirst({
+        where: { id: reportId, guildId }
+      });
+
+      if (!existingReport) {
+        json(res, 404, { error: 'Rapport introuvable.' });
+        return true;
+      }
+
+      if (existingReport.createdByUserId !== user.userId && access.level !== 'admin') {
+        json(res, 403, { error: 'Seul l\'auteur du rapport ou un administrateur peut le modifier.' });
+        return true;
+      }
+
+      const body = await readJsonBody<{
+        brokenRules?: string;
+        detailedReason?: string;
+        evidenceLinks?: unknown;
+        additionalNotes?: string | null;
+      }>(req);
+
+      const updatedBrokenRules = body?.brokenRules !== undefined 
+        ? normalizeBrokenRulesPayload(body.brokenRules.trim()) 
+        : existingReport.brokenRules;
+      
+      const updatedDetailedReason = body?.detailedReason !== undefined
+        ? body.detailedReason.trim()
+        : existingReport.detailedReason;
+
+      const updatedEvidenceLinks = body?.evidenceLinks !== undefined
+        ? parseEvidenceLinks(body.evidenceLinks)
+        : existingReport.evidenceLinks;
+
+      const updatedAdditionalNotes = body?.additionalNotes !== undefined
+        ? body.additionalNotes?.trim() || null
+        : existingReport.additionalNotes;
+
+      if (!updatedBrokenRules || !updatedDetailedReason) {
+        json(res, 400, { error: 'Les champs de contenu du rapport sont obligatoires.' });
+        return true;
+      }
+
+      if (Array.isArray(updatedEvidenceLinks) && updatedEvidenceLinks.length === 0) {
+        json(res, 400, { error: 'Au moins un lien de preuve valide est obligatoire.' });
+        return true;
+      }
+
+      await prisma.sanctionReport.update({
+        where: { id: reportId },
+        data: {
+          brokenRules: updatedBrokenRules,
+          detailedReason: updatedDetailedReason,
+          evidenceLinks: updatedEvidenceLinks as any,
+          additionalNotes: updatedAdditionalNotes,
+        }
+      });
+
+      await pushAudit(guildId, {
+        user: auditUser,
+        action: 'Modification rapport sanction',
+        context: getGuildName(client, guildId),
+        module: 'Sanctions',
+        eventType: 'Manuel',
+        details: `Rapport ${reportId} modifié par ${user.username ?? user.userId}.`,
+        channelId: null
+      });
+
+      json(res, 200, { ok: true });
+    } catch (err) {
+      logger.error('SanctionsAPI', 'Error patching report:', err);
+      json(res, 500, { error: 'Erreur lors de la modification du rapport' });
+    }
+    return true;
+  }
+
+  // GET/PATCH /api/dashboard/guilds/:guildId/nickname-moderation
+  if (moduleKey === 'nickname-moderation' && parts.length === 5) {
+    if (method === 'GET') {
+      try {
+        const guild = await prisma.guild.findUnique({
+          where: { id: guildId },
+          select: {
+            autoNicknameModerationEnabled: true,
+            nicknameModerationWhitelist: true,
+            nicknameModerationBypass: true,
+          },
+        }).catch(async (dbErr) => {
+          logger.warn('NicknameAPI', 'Failed to fetch bypass list, retrying without it:', dbErr);
+          return prisma.guild.findUnique({
+            where: { id: guildId },
+            select: {
+              autoNicknameModerationEnabled: true,
+              nicknameModerationWhitelist: true,
+            },
+          });
+        });
+        if (!guild) {
+          json(res, 404, { error: 'Serveur introuvable' });
+          return true;
+        }
+        json(res, 200, {
+          enabled: guild.autoNicknameModerationEnabled,
+          whitelist: guild.nicknameModerationWhitelist,
+          bypass: (guild as any).nicknameModerationBypass ?? [],
+        });
+      } catch (err) {
+        logger.error('NicknameAPI', 'GET nickname-moderation error:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération de la configuration' });
+      }
+      return true;
+    }
+
+    if (method === 'PATCH') {
+      try {
+        const body = await readJsonBody<{ enabled?: boolean; whitelist?: string[]; bypass?: string[] }>(req);
+        
+        const updateData: any = {};
+        if (body && Object.prototype.hasOwnProperty.call(body, 'enabled')) {
+          updateData.autoNicknameModerationEnabled = !!body.enabled;
+        }
+        if (body && Object.prototype.hasOwnProperty.call(body, 'whitelist')) {
+          if (!Array.isArray(body.whitelist) || body.whitelist.some(item => typeof item !== 'string')) {
+            json(res, 400, { error: 'Format whitelist invalide (doit être un tableau de chaînes)' });
+            return true;
+          }
+          const cleanedWhitelist = [...new Set(body.whitelist.map((w: string) => w.trim().toLowerCase()).filter(Boolean))];
+          if (cleanedWhitelist.length > 250) {
+            json(res, 400, { error: 'La whitelist ne peut pas contenir plus de 250 pseudos' });
+            return true;
+          }
+          if (cleanedWhitelist.some(w => w.length > 32)) {
+            json(res, 400, { error: 'Les pseudos autorisés ne peuvent pas dépasser 32 caractères' });
+            return true;
+          }
+          updateData.nicknameModerationWhitelist = cleanedWhitelist;
+        }
+        if (body && Object.prototype.hasOwnProperty.call(body, 'bypass')) {
+          if (!Array.isArray(body.bypass) || body.bypass.some(item => typeof item !== 'string')) {
+            json(res, 400, { error: 'Format bypass invalide (doit être un tableau de chaînes)' });
+            return true;
+          }
+          const cleanedBypass = [...new Set(body.bypass.map((id: string) => id.trim()).filter(Boolean))];
+          if (cleanedBypass.length > 250) {
+            json(res, 400, { error: 'La liste des membres exemptés ne peut pas contenir plus de 250 IDs' });
+            return true;
+          }
+          if (cleanedBypass.some(id => !/^\d{17,20}$/.test(id))) {
+            json(res, 400, { error: 'Format bypass invalide : certains IDs sont incorrects (doivent être de 17 à 20 chiffres)' });
+            return true;
+          }
+          updateData.nicknameModerationBypass = cleanedBypass;
+        }
+
+        if (Object.keys(updateData).length === 0) {
+          json(res, 400, { error: 'Payload invalide — aucun champ à mettre à jour fourni' });
+          return true;
+        }
+
+        if (updateData.nicknameModerationWhitelist) {
+          const activeBannedWords = await prisma.bannedWord.findMany({
+            where: {
+              OR: [
+                { guildId: null, enabled: true },
+                { guildId, enabled: true },
+              ],
+            },
+            select: { word: true },
+          });
+          const bannedSet = new Set(
+            activeBannedWords.map((b) => b.word.trim().toLowerCase())
+          );
+
+          const invalidItems = updateData.nicknameModerationWhitelist.filter(
+            (item: string) => bannedSet.has(item)
+          );
+          if (invalidItems.length > 0) {
+            json(res, 400, {
+              error: `Impossible d'autoriser ces pseudos car ils font partie de la liste des mots bannis : ${invalidItems.join(', ')}`,
+            });
+            return true;
+          }
+        }
+
+        await prisma.guild.update({
+          where: { id: guildId },
+          data: updateData,
+        }).catch(async (dbErr) => {
+          if (Object.prototype.hasOwnProperty.call(updateData, 'nicknameModerationBypass')) {
+            logger.warn('NicknameAPI', 'Failed to update bypass list, retrying without it:', dbErr);
+            delete updateData.nicknameModerationBypass;
+            return prisma.guild.update({
+              where: { id: guildId },
+              data: updateData,
+            });
+          }
+          throw dbErr;
+        });
+
+        invalidateNicknameModerationCache(guildId);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Mise à jour modération pseudos',
+          context: getGuildName(client, guildId),
+          module: 'Modération des pseudos',
+          eventType: 'Manuel',
+          details: `Modifications appliquées: ${Object.keys(updateData).join(', ')}`,
+          channelId: null,
+        });
+
+        json(res, 200, { ok: true });
+      } catch (err) {
+        logger.error('NicknameAPI', 'PATCH nickname-moderation error:', err);
+        json(res, 500, { error: 'Erreur lors de la mise à jour' });
+      }
+      return true;
+    }
+  }
+
+  // GET/PATCH /api/dashboard/guilds/:guildId/auto-thread
+  if (moduleKey === 'auto-thread' && parts.length === 5) {
+    if (method === 'GET') {
+      try {
+        const guild = await prisma.guild.findUnique({
+          where: { id: guildId },
+          select: { autoThreadEnabled: true, autoThreadChannels: true },
+        });
+        if (!guild) {
+          json(res, 404, { error: 'Serveur introuvable' });
+          return true;
+        }
+        json(res, 200, { enabled: guild.autoThreadEnabled, channels: guild.autoThreadChannels });
+      } catch (err) {
+        logger.error('AutoThreadAPI', 'GET auto-thread error:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération de la configuration' });
+      }
+      return true;
+    }
+
+    if (method === 'PATCH') {
+      try {
+        const body = await readJsonBody<{ enabled?: boolean; channels?: string[] }>(req);
+        if (!body) {
+          json(res, 400, { error: 'Payload settings invalide' });
+          return true;
+        }
+
+        const data: any = {};
+        if (Object.prototype.hasOwnProperty.call(body, 'enabled')) {
+          data.autoThreadEnabled = !!body.enabled;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'channels')) {
+          data.autoThreadChannels = body.channels;
+        }
+
+        await prisma.guild.update({
+          where: { id: guildId },
+          data,
+        });
+
+        invalidateAutoThreadCache(guildId);
+
+        if (Object.prototype.hasOwnProperty.call(body, 'enabled')) {
+          await prisma.dashboardFeatureConfig.upsert({
+            where: { guildId_featureKey: { guildId, featureKey: 'auto_thread' } },
+            create: {
+              guildId,
+              featureKey: 'auto_thread',
+              featureName: 'Auto-Thread',
+              enabled: !!body.enabled,
+              loggingEnabled: true,
+              userActivityTracking: true,
+              notifyViaDiscordChannel: true,
+            },
+            update: {
+              enabled: !!body.enabled
+            }
+          });
+        }
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Sauvegarde configuration Auto-Thread',
+          context: getGuildName(client, guildId),
+          module: 'Auto-Thread',
+          eventType: 'Manuel',
+          details: `Configuration Auto-Thread mise à jour (salons: ${body.channels?.length ?? 0}).`,
+          channelId: null
+        });
+
+        json(res, 200, { ok: true });
+      } catch (err) {
+        logger.error('AutoThreadAPI', 'PATCH auto-thread error:', err);
+        json(res, 500, { error: 'Erreur lors de la mise à jour' });
+      }
+      return true;
+    }
+  }
+
+  // GET/PATCH /api/dashboard/guilds/:guildId/channels-management
+  if (moduleKey === 'channels-management' && parts.length === 5) {
+    if (method === 'GET') {
+      try {
+        const guild = await prisma.guild.findUnique({
+          where: { id: guildId },
+          select: {
+            autoThreadEnabled: true,
+            autoThreadChannels: true,
+            statsEnabled: true,
+            statsConfig: true,
+            tempVoiceEnabled: true,
+            tempVoiceChannelId: true,
+            tempVoiceCategoryId: true,
+            tempVoiceNameTemplate: true,
+            honeypotEnabled: true,
+            honeypotChannelId: true,
+          },
+        });
+        if (!guild) {
+          json(res, 404, { error: 'Serveur introuvable' });
+          return true;
+        }
+        json(res, 200, {
+          autoThreadEnabled: guild.autoThreadEnabled,
+          autoThreadChannels: guild.autoThreadChannels,
+          statsEnabled: guild.statsEnabled,
+          statsConfig: guild.statsConfig,
+          tempVoiceEnabled: guild.tempVoiceEnabled,
+          tempVoiceChannelId: guild.tempVoiceChannelId,
+          tempVoiceCategoryId: guild.tempVoiceCategoryId,
+          tempVoiceNameTemplate: guild.tempVoiceNameTemplate,
+          honeypotEnabled: guild.honeypotEnabled,
+          honeypotChannelId: guild.honeypotChannelId,
+        });
+      } catch (err) {
+        logger.error('ChannelsManagementAPI', 'GET config error:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération de la configuration' });
+      }
+      return true;
+    }
+
+    if (method === 'PATCH') {
+      try {
+        const body = await readJsonBody<{
+          autoThreadEnabled?: boolean;
+          autoThreadChannels?: string[];
+          statsEnabled?: boolean;
+          statsConfig?: any;
+          tempVoiceEnabled?: boolean;
+          tempVoiceChannelId?: string | null;
+          tempVoiceCategoryId?: string | null;
+          tempVoiceNameTemplate?: string;
+          honeypotEnabled?: boolean;
+          honeypotChannelId?: string | null;
+        }>(req);
+
+        if (!body) {
+          json(res, 400, { error: 'Payload invalide' });
+          return true;
+        }
+
+        const data: any = {};
+        if (Object.prototype.hasOwnProperty.call(body, 'autoThreadEnabled')) {
+          data.autoThreadEnabled = !!body.autoThreadEnabled;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'autoThreadChannels')) {
+          data.autoThreadChannels = body.autoThreadChannels;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'statsEnabled')) {
+          data.statsEnabled = !!body.statsEnabled;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'statsConfig')) {
+          data.statsConfig = body.statsConfig;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'tempVoiceEnabled')) {
+          data.tempVoiceEnabled = !!body.tempVoiceEnabled;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'tempVoiceChannelId')) {
+          data.tempVoiceChannelId = body.tempVoiceChannelId;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'tempVoiceCategoryId')) {
+          data.tempVoiceCategoryId = body.tempVoiceCategoryId;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'tempVoiceNameTemplate')) {
+          data.tempVoiceNameTemplate = body.tempVoiceNameTemplate;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'honeypotEnabled')) {
+          data.honeypotEnabled = !!body.honeypotEnabled;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'honeypotChannelId')) {
+          data.honeypotChannelId = body.honeypotChannelId;
+        }
+
+        const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+
+        if (discordGuild) {
+          if (body.tempVoiceEnabled) {
+            if (!body.tempVoiceCategoryId) {
+              const existing = discordGuild.channels.cache.find(
+                c => c.type === ChannelType.GuildCategory && c.name === '🔊 Salons Vocaux'
+              );
+              const cat = existing || await discordGuild.channels.create({
+                name: '🔊 Salons Vocaux',
+                type: ChannelType.GuildCategory,
+              }).catch(() => null);
+              if (cat) data.tempVoiceCategoryId = cat.id;
+            }
+            if (!body.tempVoiceChannelId) {
+              const parentId = data.tempVoiceCategoryId || body.tempVoiceCategoryId || undefined;
+              const newVoice = await discordGuild.channels.create({
+                name: '➕ Créer un salon',
+                type: ChannelType.GuildVoice,
+                parent: parentId,
+              }).catch(() => null);
+              if (newVoice) {
+                data.tempVoiceChannelId = newVoice.id;
+              }
+            }
+          }
+
+          if (body.honeypotEnabled && !body.honeypotChannelId) {
+            const newHoneypot = await discordGuild.channels.create({
+              name: 'ne-rien-envoyer-ici',
+              type: ChannelType.GuildText,
+              permissionOverwrites: [
+                {
+                  id: discordGuild.roles.everyone.id,
+                  allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages],
+                },
+              ],
+            }).catch(() => null);
+            if (newHoneypot) {
+              data.honeypotChannelId = newHoneypot.id;
+
+              const honeyEmbed = new EmbedBuilder()
+                .setTitle('⚠️ SALON PROTECTEUR - NE PAS ÉCRIRE ⚠️')
+                .setDescription(
+                  '### 🛡️ Honeypot de Sécurité\n\n' +
+                  'Ce salon sert d\'appât pour intercepter les bots de spam et les comptes compromis.\n\n' +
+                  '> 🛑 **RÈGLE CRUCIALE** : Ne postez **absolument aucun** message dans ce salon sous peine de **BANNISSEMENT DÉFINITIF ET IMMÉDIAT** de ce serveur Discord.\n\n' +
+                  '*Si vous êtes un utilisateur légitime, ignorez ou masquez simplement ce salon.*'
+                )
+                .setColor(0xEE5555)
+                .setTimestamp()
+                .setFooter({ text: 'Système de protection Kotbo' });
+
+              await newHoneypot.send({ embeds: [honeyEmbed] }).catch(() => null);
+            }
+          }
+
+          if (body.statsEnabled && body.statsConfig) {
+            const sc = body.statsConfig as any;
+
+            const needsMember = sc.memberChannelId === '' || sc.memberChannelId === null;
+            const needsBot = sc.botChannelId === '' || sc.botChannelId === null;
+            const needsRole = sc.roleChannelId === '' || sc.roleChannelId === null;
+            const needsChannel = sc.channelChannelId === '' || sc.channelChannelId === null;
+            const needsCategory = sc.categoryChannelId === '' || sc.categoryChannelId === null;
+            const needsActivity = sc.activityChannelId === '' || sc.activityChannelId === null;
+            const needsCustomStats = Array.isArray(sc.customStats) && sc.customStats.some((c: any) => c.enabled && !c.channelId);
+
+            if (needsMember || needsBot || needsRole || needsChannel || needsCategory || needsActivity || needsCustomStats || !sc.categoryId) {
+              let statsCatId: string | undefined = sc.categoryId || undefined;
+              
+              if (!statsCatId) {
+                const existingStatsCat = discordGuild.channels.cache.find(
+                  c => c.type === ChannelType.GuildCategory && c.name === '📊 Statistiques'
+                );
+                if (existingStatsCat) {
+                  statsCatId = existingStatsCat.id;
+                } else {
+                  const newCat = await discordGuild.channels.create({
+                    name: '📊 Statistiques',
+                    type: ChannelType.GuildCategory,
+                    permissionOverwrites: [
+                      {
+                        id: discordGuild.roles.everyone.id,
+                        deny: [PermissionFlagsBits.Connect, PermissionFlagsBits.SendMessages],
+                      },
+                    ],
+                  }).catch(() => null);
+                  if (newCat) statsCatId = newCat.id;
+                }
+              }
+
+              const createStatChannel = async (defaultName: string): Promise<string | undefined> => {
+                const ch = await discordGuild.channels.create({
+                  name: defaultName,
+                  type: ChannelType.GuildVoice,
+                  parent: statsCatId,
+                  permissionOverwrites: [
+                    {
+                      id: discordGuild.roles.everyone.id,
+                      deny: [PermissionFlagsBits.Connect],
+                    },
+                  ],
+                }).catch(() => null);
+                return ch?.id;
+              };
+
+              const newSc = { ...sc };
+              if (statsCatId) {
+                newSc.categoryId = statsCatId;
+              }
+
+              if (needsMember) {
+                const tpl = sc.memberTemplate || '👤 Membres : {count}';
+                newSc.memberChannelId = await createStatChannel(tpl.replace('{count}', '…')) ?? sc.memberChannelId;
+              }
+              if (needsBot) {
+                const tpl = sc.botTemplate || '🤖 Bots : {count}';
+                newSc.botChannelId = await createStatChannel(tpl.replace('{count}', '…')) ?? sc.botChannelId;
+              }
+              if (needsRole) {
+                const tpl = sc.roleTemplate || '👑 Staff : {count}';
+                newSc.roleChannelId = await createStatChannel(tpl.replace('{count}', '…')) ?? sc.roleChannelId;
+              }
+              if (needsChannel) {
+                const tpl = sc.channelTemplate || '💬 Salons : {count}';
+                newSc.channelChannelId = await createStatChannel(tpl.replace('{count}', '…')) ?? sc.channelChannelId;
+              }
+              if (needsCategory) {
+                const tpl = sc.categoryTemplate || '📁 Catégories : {count}';
+                newSc.categoryChannelId = await createStatChannel(tpl.replace('{count}', '…')) ?? sc.categoryChannelId;
+              }
+              if (needsActivity) {
+                const tpl = sc.activityTemplate || '📈 Actifs 24h : {count}';
+                newSc.activityChannelId = await createStatChannel(tpl.replace('{count}', '…')) ?? sc.activityChannelId;
+              }
+
+              if (Array.isArray(sc.customStats)) {
+                const updatedCustomStats = [];
+                for (const custom of sc.customStats) {
+                  const item = { ...custom };
+                  if (item.enabled && !item.channelId) {
+                    const tpl = item.template || 'Stat : {count}';
+                    let initialName = tpl.replace('{count}', '…');
+                    if (item.type === 'goal' && item.goalTarget) {
+                      initialName = initialName.replace('{goal}', item.goalTarget.toString());
+                    }
+                    item.channelId = await createStatChannel(initialName) ?? '';
+                  }
+                  updatedCustomStats.push(item);
+                }
+                newSc.customStats = updatedCustomStats;
+              }
+
+              data.statsConfig = newSc;
+            }
+          }
+        }
+
+        await prisma.guild.update({
+          where: { id: guildId },
+          data,
+        });
+
+        invalidateAutoThreadCache(guildId);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Sauvegarde configuration Gestion des salons',
+          context: getGuildName(client, guildId),
+          module: 'Gestion des salons',
+          eventType: 'Manuel',
+          details: 'Configuration de la gestion des salons mise à jour.',
+          channelId: null
+        });
+
+        if (body.statsEnabled) {
+          updateGuildStats(client, guildId).catch((err) => 
+            logger.error('ChannelsManagementAPI', `Erreur lors de la mise à jour des stats pour la guilde ${guildId} :`, err)
+          );
+        }
+
+        if (Object.prototype.hasOwnProperty.call(body, 'autoThreadEnabled')) {
+          await prisma.dashboardFeatureConfig.upsert({
+            where: { guildId_featureKey: { guildId, featureKey: 'auto_thread' } },
+            create: {
+              guildId,
+              featureKey: 'auto_thread',
+              featureName: 'Gestion des salons',
+              enabled: !!body.autoThreadEnabled,
+              loggingEnabled: true,
+              userActivityTracking: true,
+              notifyViaDiscordChannel: true,
+            },
+            update: {
+              enabled: !!body.autoThreadEnabled
+            }
+          });
+        }
+
+        json(res, 200, {
+          ok: true,
+          resolved: {
+            tempVoiceChannelId: data.tempVoiceChannelId,
+            tempVoiceCategoryId: data.tempVoiceCategoryId,
+            honeypotChannelId: data.honeypotChannelId,
+            statsConfig: data.statsConfig,
+          }
+        });
+      } catch (err) {
+        logger.error('ChannelsManagementAPI', 'PATCH config error:', err);
+        json(res, 500, { error: 'Erreur lors de la mise à jour' });
+      }
+      return true;
+    }
+  }
+
+  // GET/POST/PATCH/DELETE /api/dashboard/guilds/:guildId/banned-words
+  if (moduleKey === 'banned-words') {
+    if (parts.length === 5 && method === 'GET') {
+      try {
+        const [globalWords, guildWords] = await Promise.all([
+          prisma.bannedWord.findMany({
+            where: { guildId: null },
+            select: { id: true, word: true, category: true, enabled: true, guildId: true },
+            orderBy: [{ category: 'asc' }, { word: 'asc' }],
+          }),
+          prisma.bannedWord.findMany({
+            where: { guildId },
+            select: { id: true, word: true, category: true, enabled: true, guildId: true },
+            orderBy: [{ category: 'asc' }, { word: 'asc' }],
+          }),
+        ]);
+        json(res, 200, { global: globalWords, custom: guildWords });
+      } catch (err) {
+        logger.error('BannedWordsAPI', 'GET banned-words error:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération des mots bannis' });
+      }
+      return true;
+    }
+
+    if (parts.length === 5 && method === 'POST') {
+      try {
+        const body = await readJsonBody<{ word: string; category?: string }>(req);
+        if (!body?.word || typeof body.word !== 'string' || !body.word.trim()) {
+          json(res, 400, { error: 'Champ `word` requis' });
+          return true;
+        }
+
+        const cleanWord = body.word.trim().toLowerCase().slice(0, 100);
+
+        if (cleanWord.includes('automod') || cleanWord.includes('pseudo non conforme')) {
+          json(res, 400, { error: 'Ce mot ne peut pas être banni (réservé par le système de modération)' });
+          return true;
+        }
+
+        const category = ['custom', 'racism', 'threat', 'sexual', 'lgbtphobia', 'hate', 'insult'].includes(body.category ?? '')
+          ? body.category!
+          : 'custom';
+
+        const guildData = await prisma.guild.findUnique({
+          where: { id: guildId },
+          select: { nicknameModerationWhitelist: true },
+        });
+        const whitelist = guildData?.nicknameModerationWhitelist ?? [];
+        if (whitelist.includes(cleanWord)) {
+          json(res, 400, {
+            error: `Impossible de bannir ce mot car il est déjà présent dans la liste des pseudos autorisés (whitelist) : ${cleanWord}`,
+          });
+          return true;
+        }
+
+        const created = await prisma.bannedWord.create({
+          data: { guildId, word: cleanWord, category },
+        });
+
+        invalidateBannedWordsCache(guildId);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Ajout mot banni',
+          context: getGuildName(client, guildId),
+          module: 'Mots bannis',
+          eventType: 'Manuel',
+          details: `Mot "${cleanWord}" ajouté (catégorie: ${category})`,
+          channelId: null,
+        });
+
+        json(res, 201, { ok: true, id: created.id });
+      } catch (err: any) {
+        if (err?.code === 'P2002') {
+          json(res, 409, { error: 'Ce mot existe déjà sur ce serveur' });
+        } else {
+          logger.error('BannedWordsAPI', 'POST banned-words error:', err);
+          json(res, 500, { error: 'Erreur lors de l\'ajout du mot' });
+        }
+      }
+      return true;
+    }
+
+    if (parts.length === 6 && method === 'PATCH') {
+      const wordId = parts[5];
+      try {
+        const body = await readJsonBody<{ enabled: boolean }>(req);
+        if (!body || typeof body.enabled !== 'boolean') {
+          json(res, 400, { error: 'Champ `enabled` requis (boolean)' });
+          return true;
+        }
+
+        const existing = await prisma.bannedWord.findFirst({ where: { id: wordId, guildId } });
+        if (!existing) {
+          json(res, 404, { error: 'Mot introuvable' });
+          return true;
+        }
+
+        if (body.enabled) {
+          const guildData = await prisma.guild.findUnique({
+            where: { id: guildId },
+            select: { nicknameModerationWhitelist: true },
+          });
+          const whitelist = guildData?.nicknameModerationWhitelist ?? [];
+          if (whitelist.includes(existing.word.toLowerCase())) {
+            json(res, 400, {
+              error: `Impossible d'activer ce mot car il est déjà présent dans la liste des pseudos autorisés (whitelist) : ${existing.word}`,
+            });
+            return true;
+          }
+        }
+
+        await prisma.bannedWord.update({ where: { id: wordId }, data: { enabled: body.enabled } });
+
+        invalidateBannedWordsCache(guildId);
+        json(res, 200, { ok: true });
+      } catch (err) {
+        logger.error('BannedWordsAPI', 'PATCH banned-words error:', err);
+        json(res, 500, { error: 'Erreur lors de la mise à jour' });
+      }
+      return true;
+    }
+
+    if (parts.length === 6 && method === 'DELETE') {
+      const wordId = parts[5];
+      try {
+        const existing = await prisma.bannedWord.findFirst({ where: { id: wordId, guildId } });
+        if (!existing) {
+          json(res, 404, { error: 'Mot introuvable ou non modifiable' });
+          return true;
+        }
+
+        await prisma.bannedWord.delete({ where: { id: wordId } });
+
+        invalidateBannedWordsCache(guildId);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Suppression mot banni',
+          context: getGuildName(client, guildId),
+          module: 'Mots bannis',
+          eventType: 'Manuel',
+          details: `Mot "${existing.word}" supprimé`,
+          channelId: null,
+        });
+
+        json(res, 200, { ok: true });
+      } catch (err) {
+        logger.error('BannedWordsAPI', 'DELETE banned-words error:', err);
+        json(res, 500, { error: 'Erreur lors de la suppression' });
+      }
+      return true;
+    }
+  }
+
+  // GET /api/dashboard/guilds/:guildId/notifications/features
+  if (moduleKey === 'notifications' && parts.length === 6 && parts[5] === 'features' && method === 'GET') {
+    try {
+      const { getOrCreateFeatureConfigs } = await import('../../../services/dashboardManagementService.js');
+      const configs = await getOrCreateFeatureConfigs(guildId);
+      json(res, 200, { features: configs });
+    } catch (err) {
+      logger.error('NotificationsAPI', 'Error fetching feature configurations:', err);
+      json(res, 500, { error: 'Erreur lors de la récupération des configurations des modules' });
+    }
+    return true;
+  }
+
+  // PATCH /api/dashboard/guilds/:guildId/notifications/features/:featureKey
+  if (moduleKey === 'notifications' && parts.length === 7 && parts[5] === 'features' && method === 'PATCH') {
+    if (!access.canManageSettings) {
+      json(res, 403, { error: 'Accès refusé. Permissions administratives requises.' });
+      return true;
+    }
+
+    const featureKey = parts[6];
+    try {
+      const body = await readJsonBody<{
+        enabled?: boolean;
+        channelId?: string | null;
+        secondaryChannelId?: string | null;
+        requiredRoleId?: string | null;
+        notificationRoleId?: string | null;
+        notifyViaDiscordChannel?: boolean;
+        notifyViaDM?: boolean;
+        loggingEnabled?: boolean;
+        userActivityTracking?: boolean;
+        metadata?: Record<string, any>;
+      }>(req);
+
+      if (!body) {
+        json(res, 400, { error: 'Payload de configuration invalide' });
+        return true;
+      }
+
+      const { updateFeatureConfig } = await import('../../../services/dashboardManagementService.js');
+      const updated = await updateFeatureConfig(guildId, featureKey, body);
+
+      await pushAudit(guildId, {
+        user: auditUser,
+        action: 'Mise à jour module',
+        context: getGuildName(client, guildId),
+        module: 'Configuration',
+        eventType: 'Manuel',
+        details: `Configuration du module "${featureKey}" mise à jour.`,
+        channelId: null
+      });
+
+      json(res, 200, { ok: true, config: updated });
+    } catch (err) {
+      logger.error('NotificationsAPI', `Error updating feature configuration for ${featureKey}:`, err);
+      json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration du module' });
+    }
+    return true;
+  }
+
+  // Management feature routes (role-access and notification-targets)
+  if (moduleKey === 'management') {
+    if (!access.canManageSettings) {
+      json(res, 403, { error: 'Accès refusé. Permissions administratives requises.' });
+      return true;
+    }
+
+    // PUT /api/dashboard/guilds/:guildId/management/features/:featureKey/role-access
+    if (parts.length === 8 && parts[5] === 'features' && parts[7] === 'role-access' && method === 'PUT') {
+      const featureKey = parts[6];
+      try {
+        const body = await readJsonBody<{
+          roleAccessConfigs: Array<{
+            roleId: string;
+            canView?: boolean;
+            canModerate?: boolean;
+            canConfigure?: boolean;
+            canDelete?: boolean;
+          }>;
+        }>(req);
+
+        if (!body || !Array.isArray(body.roleAccessConfigs)) {
+          json(res, 400, { error: 'Payload d\'accès de rôle invalide' });
+          return true;
+        }
+
+        const featureConfig = await prisma.dashboardFeatureConfig.findUnique({
+          where: {
+            guildId_featureKey: { guildId, featureKey }
+          }
+        });
+
+        if (!featureConfig) {
+          json(res, 404, { error: 'Configuration du module introuvable' });
+          return true;
+        }
+
+        const { updateRoleAccess } = await import('../../../services/dashboardManagementService.js');
+        const updated = await updateRoleAccess(guildId, featureConfig.id, body.roleAccessConfigs);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Mise à jour accès rôle',
+          context: getGuildName(client, guildId),
+          module: 'Configuration',
+          eventType: 'Manuel',
+          details: `Accès rôles pour le module "${featureKey}" mis à jour (${body.roleAccessConfigs.length} rôles).`,
+          channelId: null
+        });
+
+        json(res, 200, { ok: true, config: updated });
+      } catch (err) {
+        logger.error('ManagementAPI', `Error updating role access for ${featureKey}:`, err);
+        json(res, 500, { error: 'Erreur lors de la mise à jour des permissions du module' });
+      }
+      return true;
+    }
+
+    // PUT /api/dashboard/guilds/:guildId/management/features/:featureKey/notification-targets
+    if (parts.length === 8 && parts[5] === 'features' && parts[7] === 'notification-targets' && method === 'PUT') {
+      const featureKey = parts[6];
+      try {
+        const body = await readJsonBody<{
+          notificationTargets: Array<{
+            targetType: string;
+            targetId?: string | null;
+            enabled?: boolean;
+          }>;
+        }>(req);
+
+        if (!body || !Array.isArray(body.notificationTargets)) {
+          json(res, 400, { error: 'Payload de cibles de notification invalide' });
+          return true;
+        }
+
+        const featureConfig = await prisma.dashboardFeatureConfig.findUnique({
+          where: {
+            guildId_featureKey: { guildId, featureKey }
+          }
+        });
+
+        if (!featureConfig) {
+          json(res, 404, { error: 'Configuration du module introuvable' });
+          return true;
+        }
+
+        const { updateNotificationTargets } = await import('../../../services/dashboardManagementService.js');
+        const updated = await updateNotificationTargets(guildId, featureConfig.id, body.notificationTargets);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Mise à jour cibles alertes',
+          context: getGuildName(client, guildId),
+          module: 'Configuration',
+          eventType: 'Manuel',
+          details: `Cibles de notifications pour le module "${featureKey}" mises à jour.`,
+          channelId: null
+        });
+
+        json(res, 200, { ok: true, config: updated });
+      } catch (err) {
+        logger.error('ManagementAPI', `Error updating notification targets for ${featureKey}:`, err);
+        json(res, 500, { error: 'Erreur lors de la mise à jour des cibles de notification du module' });
+      }
+      return true;
+    }
+  }
+
+  // PUT /api/dashboard/guilds/:guildId/notifications
+  if (moduleKey === 'notifications' && parts.length === 5 && method === 'PUT') {
+    try {
+      const body = await readJsonBody<NotificationSettings>(req);
+      if (!body) {
+        json(res, 400, { error: 'Payload notifications invalide' });
+        return true;
+      }
+
+      const runtime = await getOrCreateRuntime(guildId);
+
+      await prisma.guild.update({
+        where: { id: guildId },
+        data: {
+          statusCheckChannelId: body.discordChannel?.replace(/[^0-9]/g, '') || null
+        }
+      });
+
+      await prisma.dashboardSettings.update({
+        where: { guildId },
+        data: {
+          email: body.email ?? '',
+          emailEnabled: !!body.emailEnabled,
+          cloudBackup: !!body.cloudBackup,
+          debugLog: !!body.debugLog,
+          killSwitchEnabled: !!body.killSwitchEnabled,
+          severityByModule: body.severityByModule ?? runtime.severityByModule
+        }
+      });
+
+      await pushAudit(guildId, {
+        user: auditUser,
+        action: 'Sauvegarde notifications',
+        context: getGuildName(client, guildId),
+        module: 'Notifications',
+        eventType: 'Manuel',
+        details: 'Paramètres globaux mis à jour.',
+        channelId: body.discordChannel?.replace(/[^0-9]/g, '') || null
+      });
+
+      json(res, 200, { ok: true });
+    } catch (err) {
+      logger.error('NotificationsAPI', 'Error updating notifications:', err);
+      json(res, 500, { error: 'Erreur lors de la mise à jour des notifications' });
+    }
+    return true;
+  }
+
+  // PATCH/PUT /api/dashboard/guilds/:guildId/settings
+  if (moduleKey === 'settings' && parts.length === 5 && (method === 'PATCH' || method === 'PUT')) {
+    try {
+      const body = await readJsonBody<{
+        discordChannel?: string;
+        logChannelId?: string | null;
+        moderatorRoleId?: string | null;
+        regulationChannelId?: string | null;
+        propagateSanctions?: boolean;
+        messageTemplate?: string;
+        configChannelId?: string | null;
+        publicChannelId?: string | null;
+        newsChannelId?: string | null;
+        dailyAlgoChannelId?: string | null;
+        meetingAnnouncementChannelId?: string | null;
+        meetingVoiceChannelId?: string | null;
+        baseStaffRoleId?: string | null;
+        testStaffRoleId?: string | null;
+        translationEnabled?: boolean;
+        codePoliceEnabled?: boolean;
+        dailyAlgoEnabled?: boolean;
+        githubReleasesEnabled?: boolean;
+        digestEnabled?: boolean;
+        youtubeEnabled?: boolean;
+        autoThreadEnabled?: boolean;
+        twitchEnabled?: boolean;
+        socialNetworksEnabled?: boolean;
+      }>(req);
+
+      if (!body) {
+        json(res, 400, { error: 'Payload settings invalide' });
+        return true;
+      }
+
+      const data: any = {};
+      if (Object.prototype.hasOwnProperty.call(body, 'discordChannel')) {
+        data.statusCheckChannelId = extractDiscordSnowflake(body.discordChannel);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'logChannelId')) {
+        data.logChannelId = extractDiscordSnowflake(body.logChannelId);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'moderatorRoleId')) {
+        data.moderatorRoleId = extractDiscordSnowflake(body.moderatorRoleId);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'regulationChannelId')) {
+        data.regulationChannelId = extractDiscordSnowflake(body.regulationChannelId);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'propagateSanctions')) {
+        data.propagateSanctions = !!body.propagateSanctions;
+        data.sanctionSyncEnabled = !!body.propagateSanctions;
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'configChannelId')) {
+        data.configChannelId = extractDiscordSnowflake(body.configChannelId);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'publicChannelId')) {
+        data.publicChannelId = extractDiscordSnowflake(body.publicChannelId);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'newsChannelId')) {
+        data.newsChannelId = extractDiscordSnowflake(body.newsChannelId);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'dailyAlgoChannelId')) {
+        data.dailyAlgoChannelId = extractDiscordSnowflake(body.dailyAlgoChannelId);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'meetingAnnouncementChannelId')) {
+        data.meetingAnnouncementChannelId = extractDiscordSnowflake(body.meetingAnnouncementChannelId);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'meetingVoiceChannelId')) {
+        data.meetingVoiceChannelId = extractDiscordSnowflake(body.meetingVoiceChannelId);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'baseStaffRoleId')) {
+        data.baseStaffRoleId = extractDiscordSnowflake(body.baseStaffRoleId);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'testStaffRoleId')) {
+        data.testStaffRoleId = extractDiscordSnowflake(body.testStaffRoleId);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'translationEnabled')) {
+        data.translationEnabled = !!body.translationEnabled;
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'codePoliceEnabled')) {
+        data.codePoliceEnabled = !!body.codePoliceEnabled;
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'dailyAlgoEnabled')) {
+        data.dailyAlgoEnabled = !!body.dailyAlgoEnabled;
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'githubReleasesEnabled')) {
+        data.githubReleasesEnabled = !!body.githubReleasesEnabled;
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'digestEnabled')) {
+        data.digestEnabled = !!body.digestEnabled;
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'autoThreadEnabled')) {
+        data.autoThreadEnabled = !!body.autoThreadEnabled;
+      }
+
+      if (Object.keys(data).length > 0) {
+        await prisma.guild.update({ where: { id: guildId }, data });
+      }
+
+      const syncFeature = async (featureKey: string, featureName: string, enabled?: boolean, channelId?: string | null, secondaryChannelId?: string | null) => {
+        const updateData: any = {};
+        if (enabled !== undefined) updateData.enabled = enabled;
+        if (channelId !== undefined) updateData.channelId = channelId;
+        if (secondaryChannelId !== undefined) updateData.secondaryChannelId = secondaryChannelId;
+
+        if (Object.keys(updateData).length > 0) {
+          await prisma.dashboardFeatureConfig.upsert({
+            where: { guildId_featureKey: { guildId, featureKey } },
+            create: {
+              guildId,
+              featureKey,
+              featureName,
+              enabled: enabled ?? true,
+              channelId: channelId ?? null,
+              secondaryChannelId: secondaryChannelId ?? null,
+              loggingEnabled: true,
+              userActivityTracking: true,
+              notifyViaDiscordChannel: true,
+            },
+            update: updateData,
+          });
+        }
+      };
+
+      await syncFeature('daily_algo', 'Daily Algo', data.dailyAlgoEnabled, data.dailyAlgoChannelId, undefined);
+      await syncFeature('digest', 'Digest', data.digestEnabled, undefined, undefined);
+      await syncFeature('translation', 'Translation', data.translationEnabled, undefined, undefined);
+      await syncFeature('codepolice', 'Code Police', data.codePoliceEnabled, undefined, undefined);
+      await syncFeature('logs', 'Logs Discord', undefined, data.logChannelId, undefined);
+      await syncFeature('regulation', 'Règlement', undefined, data.regulationChannelId, undefined);
+      await syncFeature('meetings', 'Réunions', undefined, data.meetingAnnouncementChannelId, data.meetingVoiceChannelId);
+      await syncFeature('settings', 'Paramètres', undefined, data.configChannelId, undefined);
+      await syncFeature('dashboard', 'Vue d\'ensemble', undefined, data.publicChannelId, undefined);
+      await syncFeature('news', 'Actualités & RSS', undefined, data.newsChannelId, undefined);
+      await syncFeature('sanctions', 'Sanctions', data.propagateSanctions, undefined, undefined);
+      await syncFeature('auto_thread', 'Auto-Thread', data.autoThreadEnabled, undefined, undefined);
+      
+      if (body.youtubeEnabled !== undefined) {
+        await syncFeature('youtube', 'YouTube', body.youtubeEnabled, undefined, undefined);
+      }
+
+      if (body.twitchEnabled !== undefined) {
+        await syncFeature('twitch', 'Twitch', body.twitchEnabled, undefined, undefined);
+      }
+
+      if (body.socialNetworksEnabled !== undefined) {
+        await syncFeature('social_networks', 'Réseaux Sociaux', body.socialNetworksEnabled, undefined, undefined);
+      }
+
+      const runtime = await getOrCreateRuntime(guildId);
+      if (typeof body.messageTemplate === 'string') {
+        await prisma.dashboardSettings.update({
+          where: { guildId },
+          data: { messageTemplate: body.messageTemplate }
+        });
+      }
+
+      await pushAudit(guildId, {
+        user: auditUser,
+        action: 'Sauvegarde paramètres globaux',
+        context: getGuildName(client, guildId),
+        module: 'Dashboard',
+        eventType: 'Manuel',
+        details: 'Paramètres globaux mis à jour.',
+        channelId: null
+      });
+
+      json(res, 200, { ok: true });
+    } catch (err) {
+      logger.error('SettingsAPI', 'Error updating settings:', err);
+      json(res, 500, { error: 'Erreur lors de la mise à jour des paramètres' });
+    }
+    return true;
+  }
+
+  // Regulation routes
+  if (moduleKey === 'regulation') {
+    // POST /api/dashboard/guilds/:guildId/regulation/articles
+    if (parts.length === 6 && parts[5] === 'articles' && method === 'POST') {
+      try {
+        const body = await readJsonBody<{
+          title?: string;
+          description?: string;
+          emoji?: string | null;
+          sortOrder?: number | string | null;
+          enabled?: boolean;
+        }>(req);
+
+        const title = body?.title?.trim() ?? '';
+        const description = body?.description?.trim() ?? '';
+        const emoji = body?.emoji?.trim() ?? null;
+        const providedSortOrder = body?.sortOrder !== undefined ? Number(body.sortOrder) : null;
+        const highestSortOrder = await prisma.guildRegulationArticle.findFirst({
+          where: { guildId },
+          orderBy: { sortOrder: 'desc' },
+          select: { sortOrder: true },
+        });
+        const sortOrder = Number.isFinite(providedSortOrder)
+          ? (providedSortOrder as number)
+          : (highestSortOrder?.sortOrder ?? -1) + 1;
+
+        if (!title || !description) {
+          json(res, 400, { error: 'Le titre et la description sont obligatoires.' });
+          return true;
+        }
+
+        const article = await prisma.guildRegulationArticle.create({
+          data: {
+            guildId,
+            title,
+            description,
+            emoji: emoji || null,
+            sortOrder,
+            enabled: body?.enabled ?? true,
+          },
+        });
+
+        const orderedArticles = await prisma.guildRegulationArticle.findMany({
+          where: { guildId },
+          select: { id: true },
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+        });
+
+        await prisma.$transaction(
+          orderedArticles.map((entry, index) =>
+            prisma.guildRegulationArticle.update({
+              where: { id: entry.id },
+              data: { sortOrder: index },
+            })
+          )
+        );
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Création article règlement',
+          context: getGuildName(client, guildId),
+          module: 'Règlement',
+          eventType: 'Manuel',
+          details: `Article "${article.title}" ajouté au règlement.`,
+          channelId: null
+        });
+
+        json(res, 201, { ok: true, articleId: article.id });
+      } catch (err) {
+        logger.error('RegulationAPI', 'Error creating regulation article:', err);
+        json(res, 500, { error: 'Erreur lors de la création de l\'article' });
+      }
+      return true;
+    }
+
+    // PATCH /api/dashboard/guilds/:guildId/regulation/articles/reorder
+    if (parts.length === 7 && parts[5] === 'articles' && parts[6] === 'reorder' && method === 'PATCH') {
+      try {
+        const body = await readJsonBody<{ articleIds?: unknown }>(req);
+        const requestedIds = Array.isArray(body?.articleIds)
+          ? body.articleIds.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0)
+          : [];
+
+        if (requestedIds.length === 0) {
+          json(res, 400, { error: 'La liste des articles à réordonner est invalide.' });
+          return true;
+        }
+
+        const existingArticles = await prisma.guildRegulationArticle.findMany({
+          where: { guildId },
+          select: { id: true },
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+        });
+        const existingById = new Set(existingArticles.map((article) => article.id));
+        const orderedIds: string[] = [];
+        const seenIds = new Set<string>();
+
+        for (const articleId of requestedIds) {
+          if (!existingById.has(articleId) || seenIds.has(articleId)) {
+            continue;
+          }
+
+          orderedIds.push(articleId);
+          seenIds.add(articleId);
+        }
+
+        for (const article of existingArticles) {
+          if (seenIds.has(article.id)) {
+            continue;
+          }
+
+          orderedIds.push(article.id);
+          seenIds.add(article.id);
+        }
+
+        await prisma.$transaction(
+          orderedIds.map((articleId, index) =>
+            prisma.guildRegulationArticle.update({
+              where: { id: articleId },
+              data: { sortOrder: index },
+            })
+          )
+        );
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Réordonnancement articles règlement',
+          context: getGuildName(client, guildId),
+          module: 'Règlement',
+          eventType: 'Manuel',
+          details: `${orderedIds.length} article(s) réorganisé(s).`,
+          channelId: null
+        });
+
+        json(res, 200, { ok: true });
+      } catch (err) {
+        logger.error('RegulationAPI', 'Error reordering articles:', err);
+        json(res, 500, { error: 'Erreur lors du réordonnancement des articles' });
+      }
+      return true;
+    }
+
+    // PATCH /api/dashboard/guilds/:guildId/regulation/articles/:articleId
+    if (parts.length === 7 && parts[5] === 'articles' && method === 'PATCH') {
+      const articleId = parts[6];
+      try {
+        const existingArticle = await prisma.guildRegulationArticle.findFirst({
+          where: { id: articleId, guildId },
+        });
+
+        if (!existingArticle) {
+          json(res, 404, { error: 'Article de règlement introuvable.' });
+          return true;
+        }
+
+        const body = await readJsonBody<{
+          title?: string;
+          description?: string;
+          emoji?: string | null;
+          sortOrder?: number | string | null;
+          enabled?: boolean;
+        }>(req);
+
+        const title = typeof body?.title === 'string' ? body.title.trim() : existingArticle.title;
+        const description = typeof body?.description === 'string' ? body.description.trim() : existingArticle.description;
+        const emoji = typeof body?.emoji === 'string' ? body.emoji.trim() : existingArticle.emoji;
+        const sortOrderValue = body?.sortOrder !== undefined ? Number(body.sortOrder) : existingArticle.sortOrder;
+
+        if (!title || !description) {
+          json(res, 400, { error: 'Le titre et la description sont obligatoires.' });
+          return true;
+        }
+
+        const article = await prisma.guildRegulationArticle.update({
+          where: { id: existingArticle.id },
+          data: {
+            title,
+            description,
+            emoji: emoji || null,
+            sortOrder: Number.isFinite(sortOrderValue) ? sortOrderValue : existingArticle.sortOrder,
+            enabled: typeof body?.enabled === 'boolean' ? body.enabled : existingArticle.enabled,
+          },
+        });
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Modification article règlement',
+          context: getGuildName(client, guildId),
+          module: 'Règlement',
+          eventType: 'Manuel',
+          details: `Article "${article.title}" mis à jour.`,
+          channelId: null
+        });
+
+        json(res, 200, { ok: true });
+      } catch (err) {
+        logger.error('RegulationAPI', 'Error patching article:', err);
+        json(res, 500, { error: 'Erreur lors de la modification de l\'article' });
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/regulation/articles/:articleId
+    if (parts.length === 7 && parts[5] === 'articles' && method === 'DELETE') {
+      const articleId = parts[6];
+      try {
+        const article = await prisma.guildRegulationArticle.findFirst({ where: { id: articleId, guildId } });
+
+        if (!article) {
+          json(res, 404, { error: 'Article de règlement introuvable.' });
+          return true;
+        }
+
+        await prisma.guildRegulationArticle.delete({ where: { id: article.id } });
+
+        const remainingArticles = await prisma.guildRegulationArticle.findMany({
+          where: { guildId },
+          select: { id: true },
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+        });
+
+        if (remainingArticles.length > 0) {
+          await prisma.$transaction(
+            remainingArticles.map((entry, index) =>
+              prisma.guildRegulationArticle.update({
+                where: { id: entry.id },
+                data: { sortOrder: index },
+              })
+            )
+          );
+        }
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Suppression article règlement',
+          context: getGuildName(client, guildId),
+          module: 'Règlement',
+          eventType: 'Manuel',
+          details: `Article "${article.title}" supprimé du règlement.`,
+          channelId: null
+        });
+
+        json(res, 200, { ok: true });
+      } catch (err) {
+        logger.error('RegulationAPI', 'Error deleting article:', err);
+        json(res, 500, { error: 'Erreur lors de la suppression de l\'article' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/regulation/publish
+    if (parts.length === 6 && parts[5] === 'publish' && method === 'POST') {
+      try {
+        const result = await publishOrUpdateRegulationMessage(client, guildId);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: result.mode === 'updated' ? 'Actualisation règlement' : 'Publication règlement',
+          context: getGuildName(client, guildId),
+          module: 'Règlement',
+          eventType: 'Manuel',
+          details: result.mode === 'updated'
+              ? 'Message de règlement mis à jour dans le salon de publication du règlement.'
+              : 'Message de règlement publié dans le salon de publication du règlement.',
+          channelId: null
+        });
+
+        json(res, 200, { ok: true, mode: result.mode, messageId: result.messageId });
+      } catch (error) {
+        logger.error('RegulationAPI', `Erreur lors de la publication du règlement pour la guilde ${guildId}:`, error);
+        json(res, 400, {
+          error: error instanceof Error ? error.message : 'Impossible de publier le règlement.',
+        });
+      }
+      return true;
+    }
+  }
+
+  // News routes
+  if (moduleKey === 'news') {
+    // GET /api/dashboard/guilds/:guildId/news
+    if (parts.length === 5 && method === 'GET') {
+      try {
+        const articles = await prisma.newsArticle.findMany({
+          where: { guildId },
+          orderBy: { publishedAt: 'desc' },
+        });
+        json(res, 200, articles);
+      } catch (err: any) {
+        logger.error('NewsAPI', `Error listing news for guild ${guildId}: ${err.message}`);
+        json(res, 500, { error: 'Erreur lors de la récupération des actualités' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/news
+    if (parts.length === 5 && method === 'POST') {
+      try {
+        const body = await readJsonBody<{
+          title: string;
+          content: string;
+          summary?: string;
+          imageUrl?: string;
+          category?: string;
+          subcategory?: string;
+          published?: boolean;
+          publishMode?: 'summary' | 'full_embed';
+        }>(req);
+
+        if (!body || !body.title || !body.content) {
+          json(res, 400, { error: 'Le titre et le contenu sont requis.' });
+          return true;
+        }
+
+        const authorUser = await client.users.fetch(user.userId).catch(() => null);
+        const authorName = authorUser?.globalName || authorUser?.username || user.username || 'Staff';
+        const authorAvatar = authorUser?.displayAvatarURL() || null;
+
+        const isPublished = body.published ?? false;
+
+        const article = await prisma.newsArticle.create({
+          data: {
+            guildId,
+            title: body.title,
+            content: body.content,
+            summary: body.summary || null,
+            imageUrl: body.imageUrl || null,
+            category: body.category || 'Mise à jour',
+            subcategory: body.subcategory || '',
+            published: isPublished,
+            authorId: user.userId,
+            authorName,
+            authorAvatar,
+            publishedAt: new Date(),
+          },
+        });
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: isPublished ? 'Publication actualité' : 'Création brouillon actualité',
+          context: getGuildName(client, guildId),
+          module: 'Actualités',
+          eventType: 'Manuel',
+          details: `Article "${body.title}" de catégorie "${body.category || 'Mise à jour'}" créé.`,
+          channelId: null,
+        });
+
+        if (isPublished) {
+          const publishMode = body.publishMode === 'full_embed' ? 'full_embed' : 'summary';
+          await publishNewsArticle(client, guildId, article.id, publishMode).catch(err => {
+            logger.error('NewsAPI', `Failed to send news notification to Discord for article ${article.id}:`, err);
+          });
+        }
+
+        json(res, 201, article);
+      } catch (err: any) {
+        logger.error('NewsAPI', `Error creating news for guild ${guildId}: ${err.message}`);
+        json(res, 500, { error: 'Erreur lors de la création de l\'actualité' });
+      }
+      return true;
+    }
+
+    // PATCH /api/dashboard/guilds/:guildId/news/:articleId
+    if (parts.length === 6 && method === 'PATCH') {
+      const articleId = parts[5];
+      try {
+        const existing = await prisma.newsArticle.findUnique({
+          where: { id: articleId },
+        });
+
+        if (!existing || existing.guildId !== guildId) {
+          json(res, 404, { error: 'Actualité introuvable' });
+          return true;
+        }
+
+        const body = await readJsonBody<{
+          title?: string;
+          content?: string;
+          summary?: string;
+          imageUrl?: string;
+          category?: string;
+          subcategory?: string;
+          published?: boolean;
+          publishMode?: 'summary' | 'full_embed';
+        }>(req);
+
+        if (!body) {
+          json(res, 400, { error: 'Données manquantes' });
+          return true;
+        }
+
+        const isPublishing = body.published === true && !existing.published;
+
+        const updated = await prisma.newsArticle.update({
+          where: { id: articleId },
+          data: {
+            title: body.title !== undefined ? body.title : undefined,
+            content: body.content !== undefined ? body.content : undefined,
+            summary: body.summary !== undefined ? body.summary : undefined,
+            imageUrl: body.imageUrl !== undefined ? body.imageUrl : undefined,
+            category: body.category !== undefined ? body.category : undefined,
+            subcategory: body.subcategory !== undefined ? body.subcategory : undefined,
+            published: body.published !== undefined ? body.published : undefined,
+            publishedAt: isPublishing ? new Date() : undefined,
+          },
+        });
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: isPublishing ? 'Publication actualité' : 'Modification actualité',
+          context: getGuildName(client, guildId),
+          module: 'Actualités',
+          eventType: 'Manuel',
+          details: `Article "${updated.title}" mis à jour (Publié: ${updated.published}).`,
+          channelId: null,
+        });
+
+        if (isPublishing) {
+          const publishMode = body.publishMode === 'full_embed' ? 'full_embed' : 'summary';
+          await publishNewsArticle(client, guildId, updated.id, publishMode).catch(err => {
+            logger.error('NewsAPI', `Failed to send news notification to Discord for article ${updated.id}:`, err);
+          });
+        }
+
+        json(res, 200, updated);
+      } catch (err: any) {
+        logger.error('NewsAPI', `Error updating news article ${articleId}: ${err.message}`);
+        json(res, 500, { error: 'Erreur lors de la modification de l\'actualité' });
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/news/:articleId
+    if (parts.length === 6 && method === 'DELETE') {
+      const articleId = parts[5];
+      try {
+        const existing = await prisma.newsArticle.findUnique({
+          where: { id: articleId },
+        });
+
+        if (!existing || existing.guildId !== guildId) {
+          json(res, 404, { error: 'Actualité introuvable' });
+          return true;
+        }
+
+        await prisma.newsArticle.delete({
+          where: { id: articleId },
+        });
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Suppression actualité',
+          context: getGuildName(client, guildId),
+          module: 'Actualités',
+          eventType: 'Manuel',
+          details: `Article "${existing.title}" supprimé.`,
+          channelId: null,
+        });
+
+        json(res, 200, { success: true });
+      } catch (err: any) {
+        logger.error('NewsAPI', `Error deleting news article ${articleId}: ${err.message}`);
+        json(res, 500, { error: 'Erreur lors de la suppression de l\'actualité' });
+      }
+      return true;
+    }
+
+    // GET /api/dashboard/guilds/:guildId/news/category-configs
+    if (parts.length === 6 && parts[5] === 'category-configs' && method === 'GET') {
+      try {
+        const configs = await prisma.newsCategoryConfig.findMany({
+          where: { guildId },
+          orderBy: { category: 'asc' },
+        });
+        json(res, 200, configs);
+      } catch (err: any) {
+        logger.error('NewsAPI', `Error listing news category configs for guild ${guildId}: ${err.message}`);
+        json(res, 500, { error: 'Erreur lors de la récupération de la configuration des catégories' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/news/category-configs
+    if (parts.length === 6 && parts[5] === 'category-configs' && method === 'POST') {
+      try {
+        const body = await readJsonBody<{
+          category: string;
+          subcategory?: string;
+          channelId: string;
+        }>(req);
+
+        if (!body || !body.category || !body.channelId) {
+          json(res, 400, { error: 'La catégorie et le salon Discord sont requis.' });
+          return true;
+        }
+
+        const category = body.category.trim();
+        const subcategory = (body.subcategory || '').trim();
+        const channelId = body.channelId.trim();
+
+        const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+        if (!discordGuild) {
+          json(res, 404, { error: 'Serveur introuvable' });
+          return true;
+        }
+        const channel = await discordGuild.channels.fetch(channelId).catch(() => null);
+        if (!channel) {
+          json(res, 400, { error: 'Le salon Discord spécifié est introuvable ou inaccessible.' });
+          return true;
+        }
+
+        const config = await prisma.newsCategoryConfig.upsert({
+          where: {
+            guildId_category_subcategory: {
+              guildId,
+              category,
+              subcategory,
+            }
+          },
+          create: {
+            guildId,
+            category,
+            subcategory,
+            channelId,
+          },
+          update: {
+            channelId,
+          }
+        });
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Config catégorie actualité',
+          context: getGuildName(client, guildId),
+          module: 'Actualités',
+          eventType: 'Manuel',
+          details: `Configuration du salon #${channel.name} pour la catégorie "${category}"${subcategory ? ` (${subcategory})` : ''}.`,
+          channelId: null,
+        });
+
+        json(res, 200, config);
+      } catch (err: any) {
+        logger.error('NewsAPI', `Error saving news category config for guild ${guildId}: ${err.message}`);
+        json(res, 500, { error: 'Erreur lors de l\'enregistrement de la configuration de catégorie' });
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/news/category-configs/:id
+    if (parts.length === 7 && parts[5] === 'category-configs' && method === 'DELETE') {
+      const configId = parts[6];
+      try {
+        const existing = await prisma.newsCategoryConfig.findUnique({
+          where: { id: configId },
+        });
+
+        if (!existing || existing.guildId !== guildId) {
+          json(res, 404, { error: 'Configuration de catégorie introuvable' });
+          return true;
+        }
+
+        await prisma.newsCategoryConfig.delete({
+          where: { id: configId },
+        });
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Suppression config catégorie actualité',
+          context: getGuildName(client, guildId),
+          module: 'Actualités',
+          eventType: 'Manuel',
+          details: `Configuration de catégorie "${existing.category}"${existing.subcategory ? ` (${existing.subcategory})` : ''} supprimée.`,
+          channelId: null,
+        });
+
+        json(res, 200, { success: true });
+      } catch (err: any) {
+        logger.error('NewsAPI', `Error deleting news category config ${configId}: ${err.message}`);
+        json(res, 500, { error: 'Erreur lors de la suppression de la configuration de catégorie' });
+      }
+      return true;
+    }
+  }
+
+  // PUT /api/dashboard/guilds/:guildId/command-access
+  if (moduleKey === 'command-access' && parts.length === 5 && method === 'PUT') {
+    try {
+      const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+      const member = discordGuild ? await discordGuild.members.fetch(user.userId).catch(() => null) : null;
+      const roleIds = member?.roles.cache.map((role) => role.id) ?? [];
+      const featureAccess = await resolveFeatureAccessMap(client, guildId, access, user.userId, roleIds);
+
+      if (!featureAccess.commands?.canConfigure && !access.canManageSettings) {
+        json(res, 403, { error: 'Accès refusé. Permissions insuffisantes.' });
+        return true;
+      }
+
+      const body = await readJsonBody<{ commandRestrictions?: unknown }>(req);
+      if (!body) {
+        json(res, 400, { error: 'Payload de restrictions invalide' });
+        return true;
+      }
+
+      const commandRestrictions = normalizeCommandRestrictions(body.commandRestrictions);
+
+      await prisma.dashboardSettings.update({
+        where: { guildId },
+        data: { commandRestrictions }
+      });
+
+      await pushAudit(guildId, {
+        user: auditUser,
+        action: 'Sauvegarde restrictions commandes',
+        context: getGuildName(client, guildId),
+        module: 'Dashboard',
+        eventType: 'Manuel',
+        details: `${commandRestrictions.length} règle(s) de commande enregistrée(s).`,
+        channelId: null
+      });
+
+      json(res, 200, { ok: true });
+    } catch (err) {
+      logger.error('CommandAccessAPI', 'Error updating command restrictions:', err);
+      json(res, 500, { error: 'Erreur lors de la mise à jour des restrictions' });
+    }
+    return true;
+  }
+
+  // GET/POST/DELETE /api/dashboard/guilds/:guildId/social-follows
+  if (moduleKey === 'social-follows') {
+    if (parts.length === 5 && method === 'GET') {
+      try {
+        const youtube = await (prisma as any).youtubeChannelFollow.findMany({ where: { guildId } });
+        const twitch = await (prisma as any).twitchChannelFollow.findMany({ where: { guildId } });
+        json(res, 200, { youtube, twitch });
+      } catch (err: any) {
+        logger.error('SocialFollowsAPI', `Error fetching social follows: ${err.message}`);
+        json(res, 500, { error: 'Erreur lors de la récupération des réseaux sociaux suivis' });
+      }
+      return true;
+    }
+
+    if (parts.length === 6 && parts[5] === 'youtube' && method === 'POST') {
+      try {
+        const body = await readJsonBody<{ query: string; liveChannelId?: string | null; shortChannelId?: string | null; videoChannelId?: string | null }>(req);
+        if (!body?.query) {
+          json(res, 400, { error: 'Recherche ou URL YouTube requise' });
+          return true;
+        }
+
+        const resolved = await resolveYoutubeChannel(body.query);
+        if (!resolved) {
+          json(res, 400, { error: 'Impossible de résoudre la chaîne YouTube' });
+          return true;
+        }
+
+        const { channelId, channelName } = resolved;
+        const follow = await (prisma as any).youtubeChannelFollow.upsert({
+          where: { guildId_channelId: { guildId, channelId } },
+          create: {
+            guildId,
+            channelId,
+            channelName,
+            liveChannelId: body.liveChannelId || null,
+            shortChannelId: body.shortChannelId || null,
+            videoChannelId: body.videoChannelId || null,
+          },
+          update: {
+            channelName,
+            liveChannelId: body.liveChannelId || null,
+            shortChannelId: body.shortChannelId || null,
+            videoChannelId: body.videoChannelId || null,
+          }
+        });
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'YouTube Follow',
+          context: getGuildName(client, guildId),
+          module: 'YouTube',
+          eventType: 'Manuel',
+          details: `Chaîne YouTube "${channelName}" (${channelId}) suivie/mise à jour.`,
+          channelId: null
+        });
+
+        json(res, 200, follow);
+      } catch (err: any) {
+        logger.error('SocialFollowsAPI', `Error adding youtube follow: ${err.message}`);
+        json(res, 500, { error: 'Erreur lors de l\'ajout du suivi YouTube' });
+      }
+      return true;
+    }
+
+    if (parts.length === 7 && parts[5] === 'youtube' && method === 'DELETE') {
+      try {
+        const followId = parts[6];
+        const follow = await (prisma as any).youtubeChannelFollow.findUnique({ where: { id: followId } });
+        if (follow) {
+          await (prisma as any).youtubeChannelFollow.delete({ where: { id: followId } });
+          await pushAudit(guildId, {
+            user: auditUser,
+            action: 'YouTube Unfollow',
+            context: getGuildName(client, guildId),
+            module: 'YouTube',
+            eventType: 'Manuel',
+            details: `Chaîne YouTube "${follow.channelName}" unfollow.`,
+            channelId: null
+          });
+        }
+        json(res, 200, { success: true });
+      } catch (err: any) {
+        logger.error('SocialFollowsAPI', `Error deleting youtube follow: ${err.message}`);
+        json(res, 500, { error: 'Erreur lors de la suppression du suivi YouTube' });
+      }
+      return true;
+    }
+
+    if (parts.length === 6 && parts[5] === 'twitch' && method === 'POST') {
+      try {
+        const body = await readJsonBody<{ streamerName: string; liveChannelId?: string | null; otherChannelId?: string | null }>(req);
+        if (!body?.streamerName) {
+          json(res, 400, { error: 'streamerName requis' });
+          return true;
+        }
+        const streamerName = body.streamerName.toLowerCase().trim();
+        const streamerId = await getTwitchUserId(streamerName);
+
+        const follow = await (prisma as any).twitchChannelFollow.upsert({
+          where: { guildId_streamerName: { guildId, streamerName } },
+          create: {
+            guildId,
+            streamerName,
+            streamerId,
+            liveChannelId: body.liveChannelId || null,
+            otherChannelId: body.otherChannelId || null,
+          },
+          update: {
+            streamerId,
+            liveChannelId: body.liveChannelId || null,
+            otherChannelId: body.otherChannelId || null,
+          }
+        });
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Twitch Follow',
+          context: getGuildName(client, guildId),
+          module: 'Twitch',
+          eventType: 'Manuel',
+          details: `Streamer Twitch "${streamerName}" suivi/mis à jour.`,
+          channelId: null
+        });
+
+        json(res, 200, follow);
+      } catch (err: any) {
+        logger.error('SocialFollowsAPI', `Error adding twitch follow: ${err.message}`);
+        json(res, 500, { error: 'Erreur lors de l\'ajout du suivi Twitch' });
+      }
+      return true;
+    }
+
+    if (parts.length === 7 && parts[5] === 'twitch' && method === 'DELETE') {
+      try {
+        const followId = parts[6];
+        const follow = await (prisma as any).twitchChannelFollow.findUnique({ where: { id: followId } });
+        if (follow) {
+          await (prisma as any).twitchChannelFollow.delete({ where: { id: followId } });
+          await pushAudit(guildId, {
+            user: auditUser,
+            action: 'Twitch Unfollow',
+            context: getGuildName(client, guildId),
+            module: 'Twitch',
+            eventType: 'Manuel',
+            details: `Streamer Twitch "${follow.streamerName}" unfollow.`,
+            channelId: null
+          });
+        }
+        json(res, 200, { success: true });
+      } catch (err: any) {
+        logger.error('SocialFollowsAPI', `Error deleting twitch follow: ${err.message}`);
+        json(res, 500, { error: 'Erreur lors de la suppression du suivi Twitch' });
+      }
+      return true;
+    }
+  }
+
+  // PUT /api/dashboard/guilds/:guildId/template
+  if (moduleKey === 'template' && parts.length === 5 && method === 'PUT') {
+    try {
+      const body = await readJsonBody<{ messageTemplate: string }>(req);
+      const runtime = await getOrCreateRuntime(guildId);
+      await prisma.dashboardSettings.update({
+        where: { guildId },
+        data: { messageTemplate: body?.messageTemplate || runtime.messageTemplate }
+      });
+      await pushAudit(guildId, {
+        user: auditUser,
+        action: 'Mise à jour template',
+        context: getGuildName(client, guildId),
+        module: 'Contenu',
+        eventType: 'Manuel',
+        details: 'Template de message éditorial mis à jour.',
+        channelId: null
+      });
+      json(res, 200, { ok: true });
+    } catch (err) {
+      logger.error('TemplateAPI', 'Error updating template:', err);
+      json(res, 500, { error: 'Erreur lors de la mise à jour du template' });
+    }
+    return true;
+  }
+
+  // GET/POST /api/dashboard/guilds/:guildId/daily-algo-problems
+  if (moduleKey === 'daily-algo-problems') {
+    if (parts.length === 5 && method === 'GET') {
+      try {
+        const problems = await prisma.dailyAlgoProblem.findMany({
+          orderBy: [
+            { usedAt: { sort: 'asc', nulls: 'first' } },
+            { createdAt: 'desc' },
+          ]
+        });
+        json(res, 200, problems);
+      } catch (err) {
+        logger.error('DailyAlgoAPI', 'Error fetching daily algo problems:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération des exercices' });
+      }
+      return true;
+    }
+
+    if (parts.length === 5 && method === 'POST') {
+      const MAIN_GUILD_ID = '1477350874740424986';
+      const isBotAdmin = await resolveAdminAccess(client, user.userId);
+      
+      if (guildId !== MAIN_GUILD_ID && !isBotAdmin) {
+        json(res, 403, { error: 'Seul le serveur principal peut ajouter des exercices.' });
+        return true;
+      }
+
+      try {
+        const body = await readJsonBody<{
+          title: string;
+          description: string;
+          solution?: string;
+          difficulty?: string;
+          language?: string;
+          functionName?: string;
+          functionArgs?: any;
+          unitTests?: any;
+          allowedLanguages?: string[];
+        }>(req);
+        if (!body || !body.title || !body.description) {
+          json(res, 400, { error: 'Payload invalide : champs manquants' });
+          return true;
+        }
+
+        const problem = await prisma.dailyAlgoProblem.create({
+          data: {
+            title: body.title,
+            description: body.description,
+            solution: body.solution || '',
+            difficulty: body.difficulty || 'moyen',
+            language: body.language || 'fr',
+            functionName: body.functionName || 'solve',
+            functionArgs: body.functionArgs !== undefined ? body.functionArgs : undefined,
+            unitTests: body.unitTests !== undefined ? body.unitTests : undefined,
+            allowedLanguages: body.allowedLanguages !== undefined ? body.allowedLanguages : undefined,
+          }
+        });
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Ajout Exercice',
+          context: getGuildName(client, guildId),
+          module: 'Daily Algo',
+          eventType: 'Manuel',
+          details: `Ajout d'un nouvel exercice : ${problem.title}`,
+          channelId: null
+        });
+
+        json(res, 201, problem);
+      } catch (err) {
+        logger.error('DailyAlgoAPI', 'Error creating daily algo problem:', err);
+        json(res, 500, { error: 'Erreur lors de la création de l\'exercice' });
+      }
+      return true;
+    }
+
+    // PATCH /api/dashboard/guilds/:guildId/daily-algo-problems/:problemId
+    if (parts.length === 6 && method === 'PATCH') {
+      const MAIN_GUILD_ID = '1477350874740424986';
+      const isBotAdmin = await resolveAdminAccess(client, user.userId);
+      
+      if (guildId !== MAIN_GUILD_ID && !isBotAdmin) {
+        json(res, 403, { error: 'Seul le serveur principal peut modifier des exercices.' });
+        return true;
+      }
+
+      const problemId = parts[5];
+      try {
+        const body = await readJsonBody<{
+          title?: string;
+          description?: string;
+          solution?: string;
+          difficulty?: string;
+          language?: string;
+          functionName?: string;
+          functionArgs?: any;
+          unitTests?: any;
+          allowedLanguages?: string[];
+        }>(req);
+
+        if (!body) {
+          json(res, 400, { error: 'Payload invalide' });
+          return true;
+        }
+
+        const existing = await prisma.dailyAlgoProblem.findUnique({
+          where: { id: problemId }
+        });
+
+        if (!existing) {
+          json(res, 404, { error: 'Exercice introuvable' });
+          return true;
+        }
+
+        const updated = await prisma.dailyAlgoProblem.update({
+          where: { id: problemId },
+          data: {
+            title: body.title !== undefined ? body.title : undefined,
+            description: body.description !== undefined ? body.description : undefined,
+            solution: body.solution !== undefined ? body.solution : undefined,
+            difficulty: body.difficulty !== undefined ? body.difficulty : undefined,
+            language: body.language !== undefined ? body.language : undefined,
+            functionName: body.functionName !== undefined ? body.functionName : undefined,
+            functionArgs: body.functionArgs !== undefined ? body.functionArgs : undefined,
+            unitTests: body.unitTests !== undefined ? body.unitTests : undefined,
+            allowedLanguages: body.allowedLanguages !== undefined ? body.allowedLanguages : undefined,
+          }
+        });
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Modification Exercice',
+          context: getGuildName(client, guildId),
+          module: 'Daily Algo',
+          eventType: 'Manuel',
+          details: `Exercice "${updated.title}" mis à jour.`,
+          channelId: null
+        });
+
+        json(res, 200, updated);
+      } catch (err) {
+        logger.error('DailyAlgoAPI', `Error updating daily algo problem ${problemId}:`, err);
+        json(res, 500, { error: 'Erreur lors de la modification de l\'exercice' });
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/daily-algo-problems/:problemId
+    if (parts.length === 6 && method === 'DELETE') {
+      const MAIN_GUILD_ID = '1477350874740424986';
+      const isBotAdmin = await resolveAdminAccess(client, user.userId);
+      
+      if (guildId !== MAIN_GUILD_ID && !isBotAdmin) {
+        json(res, 403, { error: 'Seul le serveur principal peut supprimer des exercices.' });
+        return true;
+      }
+
+      const problemId = parts[5];
+      try {
+        const existing = await prisma.dailyAlgoProblem.findUnique({
+          where: { id: problemId }
+        });
+
+        if (!existing) {
+          json(res, 404, { error: 'Exercice introuvable' });
+          return true;
+        }
+
+        await prisma.dailyAlgoProblem.delete({
+          where: { id: problemId }
+        });
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Suppression Exercice',
+          context: getGuildName(client, guildId),
+          module: 'Daily Algo',
+          eventType: 'Manuel',
+          details: `Exercice "${existing.title}" supprimé.`,
+          channelId: null
+        });
+
+        json(res, 200, { success: true });
+      } catch (err) {
+        logger.error('DailyAlgoAPI', `Error deleting daily algo problem ${problemId}:`, err);
+        json(res, 500, { error: 'Erreur lors de la suppression de l\'exercice' });
+      }
+      return true;
+    }
+  }
+
+  // invitations routes
+  if (moduleKey === 'invitations') {
+    // GET /api/dashboard/guilds/:guildId/invitations
+    if (parts.length === 5 && method === 'GET') {
+      try {
+        const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+        if (discordGuild) {
+          const { syncGuildInvites } = await import('../../../services/inviteService.js');
+          await syncGuildInvites(discordGuild);
+        }
+
+        const invitations = await prisma.guildInvite.findMany({
+          where: { guildId }
+        });
+
+        const suspendedInviters = await prisma.suspendedInviter.findMany({
+          where: { guildId }
+        });
+
+        const inviteUsage = await prisma.memberInvite.groupBy({
+          by: ['inviteCode'],
+          where: { guildId, inviteCode: { not: null } },
+          _count: {
+            _all: true,
+            leftAt: true,
+          },
+          _max: {
+            joinedAt: true,
+          }
+        });
+
+        const inviterUsage = await prisma.memberInvite.groupBy({
+          by: ['inviterId', 'inviterTag'],
+          where: { guildId, inviterId: { not: null } },
+          _count: {
+            _all: true,
+            leftAt: true,
+          },
+          _max: {
+            joinedAt: true,
+          }
+        });
+
+        const totalJoined = await prisma.memberInvite.count({
+          where: { guildId }
+        });
+
+        const totalLeft = await prisma.memberInvite.count({
+          where: { guildId, leftAt: { not: null } }
+        });
+
+        json(res, 200, {
+          invitations,
+          suspendedInviters,
+          inviteUsage,
+          inviterUsage,
+          summary: { totalJoined, totalLeft }
+        });
+      } catch (err) {
+        logger.error('InvitationsAPI', 'Error fetching invitations:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération des invitations' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/invitations/suspended-inviters
+    if (parts.length === 6 && parts[5] === 'suspended-inviters' && method === 'POST') {
+      if (!access.canModerateContent && !access.canManageSettings) {
+        json(res, 403, { error: 'Accès refusé. Permissions de modération requises.' });
+        return true;
+      }
+
+      try {
+        const body = await readJsonBody<{ userId: string; userTag?: string; reason?: string; cascade?: boolean }>(req);
+        if (!body || !body.userId) {
+          json(res, 400, { error: 'ID utilisateur requis' });
+          return true;
+        }
+
+        const suspended = await prisma.suspendedInviter.upsert({
+          where: { guildId_userId: { guildId, userId: body.userId } },
+          create: {
+            guildId,
+            userId: body.userId,
+            userTag: body.userTag || null,
+            reason: body.reason || null
+          },
+          update: {
+            userTag: body.userTag || null,
+            reason: body.reason || null
+          }
+        });
+
+        let cascadeResult: { purgedCount: number } | undefined;
+
+        if (body.cascade) {
+          const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+          if (discordGuild) {
+            const invites = await discordGuild.invites.fetch().catch(() => null);
+            if (invites) {
+              for (const invite of invites.values()) {
+                if (invite.inviter?.id === body.userId) {
+                  await invite.delete('Creator suspended').catch(() => null);
+                }
+              }
+            }
+          }
+
+          await prisma.guildInvite.updateMany({
+            where: { guildId, inviterId: body.userId },
+            data: { isSuspended: true }
+          });
+
+          const membersToPurge = await prisma.memberInvite.findMany({
+            where: { guildId, inviterId: body.userId, leftAt: null }
+          });
+
+          let purgedCount = 0;
+          if (discordGuild) {
+            for (const m of membersToPurge) {
+              const memberObj = await discordGuild.members.fetch(m.userId).catch(() => null);
+              if (memberObj) {
+                await memberObj.kick('Purge en cascade (créateur suspendu)').catch(() => null);
+                purgedCount++;
+              }
+            }
+          }
+
+          await prisma.memberInvite.updateMany({
+            where: { guildId, inviterId: body.userId, leftAt: null },
+            data: { leftAt: new Date() }
+          });
+
+          cascadeResult = { purgedCount };
+        }
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Suspension Créateur',
+          context: getGuildName(client, guildId),
+          module: 'Invitations',
+          eventType: 'Manuel',
+          details: `Créateur d'invitations ${body.userId} suspendu.${body.cascade ? ` Cascade purge active.` : ''}`,
+          channelId: null
+        });
+
+        json(res, 200, { ok: true, suspended, cascade: cascadeResult });
+      } catch (err) {
+        logger.error('InvitationsAPI', 'Error suspending creator:', err);
+        json(res, 500, { error: 'Erreur lors de la suspension du créateur' });
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/invitations/suspended-inviters/:userId
+    if (parts.length === 7 && parts[5] === 'suspended-inviters' && method === 'DELETE') {
+      if (!access.canModerateContent && !access.canManageSettings) {
+        json(res, 403, { error: 'Accès refusé. Permissions de modération requises.' });
+        return true;
+      }
+
+      const userId = parts[6];
+      try {
+        await prisma.suspendedInviter.delete({
+          where: { guildId_userId: { guildId, userId } }
+        });
+
+        await prisma.guildInvite.updateMany({
+          where: { guildId, inviterId: userId },
+          data: { isSuspended: false }
+        });
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Restauration Créateur',
+          context: getGuildName(client, guildId),
+          module: 'Invitations',
+          eventType: 'Manuel',
+          details: `Créateur d'invitations ${userId} réhabilité.`,
+          channelId: null
+        });
+
+        json(res, 200, { ok: true });
+      } catch (err) {
+        logger.error('InvitationsAPI', `Error removing suspended inviter ${userId}:`, err);
+        json(res, 500, { error: 'Erreur lors de la réhabilitation du créateur' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/invitations/inviters/:userId/purge
+    if (parts.length === 8 && parts[5] === 'inviters' && parts[7] === 'purge' && method === 'POST') {
+      if (!access.canModerateContent && !access.canManageSettings) {
+        json(res, 403, { error: 'Accès refusé. Permissions de modération requises.' });
+        return true;
+      }
+
+      const userId = parts[6];
+      try {
+        const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+        const membersToPurge = await prisma.memberInvite.findMany({
+          where: { guildId, inviterId: userId, leftAt: null }
+        });
+
+        let purgedCount = 0;
+        if (discordGuild) {
+          for (const m of membersToPurge) {
+            const memberObj = await discordGuild.members.fetch(m.userId).catch(() => null);
+            if (memberObj) {
+              await memberObj.kick('Purge en cascade (inviter purge)').catch(() => null);
+              purgedCount++;
+            }
+          }
+        }
+
+        await prisma.memberInvite.updateMany({
+          where: { guildId, inviterId: userId, leftAt: null },
+          data: { leftAt: new Date() }
+        });
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Purge Créateur',
+          context: getGuildName(client, guildId),
+          module: 'Invitations',
+          eventType: 'Manuel',
+          details: `Membres invités par ${userId} purgés (${purgedCount} exclus).`,
+          channelId: null
+        });
+
+        json(res, 200, { purgedCount });
+      } catch (err) {
+        logger.error('InvitationsAPI', `Error purging inviter ${userId} members:`, err);
+        json(res, 500, { error: 'Erreur lors de la purge du créateur' });
+      }
+      return true;
+    }
+
+    // PUT /api/dashboard/guilds/:guildId/invitations/:code/suspend
+    if (parts.length === 7 && parts[6] === 'suspend' && method === 'PUT') {
+      if (!access.canModerateContent && !access.canManageSettings) {
+        json(res, 403, { error: 'Accès refusé. Permissions de modération requises.' });
+        return true;
+      }
+
+      const code = parts[5];
+      try {
+        const body = await readJsonBody<{ suspended: boolean }>(req);
+        if (!body || typeof body.suspended !== 'boolean') {
+          json(res, 400, { error: 'Statut de suspension requis' });
+          return true;
+        }
+
+        await prisma.guildInvite.update({
+          where: { code },
+          data: { isSuspended: body.suspended }
+        });
+
+        if (body.suspended) {
+          const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+          if (discordGuild) {
+            const inviteObj = await discordGuild.invites.fetch(code).catch(() => null);
+            if (inviteObj) {
+              await inviteObj.delete('Suspendu depuis le tableau de bord').catch(() => null);
+            }
+          }
+        }
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: body.suspended ? 'Suspension Invitation' : 'Restauration Invitation',
+          context: getGuildName(client, guildId),
+          module: 'Invitations',
+          eventType: 'Manuel',
+          details: `L'invitation ${code} a été ${body.suspended ? 'suspendue' : 'restaurée'}.`,
+          channelId: null
+        });
+
+        json(res, 200, { ok: true });
+      } catch (err) {
+        logger.error('InvitationsAPI', `Error suspending invite ${code}:`, err);
+        json(res, 500, { error: 'Erreur lors de la suspension de l\'invitation' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/invitations/:code/purge
+    if (parts.length === 7 && parts[6] === 'purge' && method === 'POST') {
+      if (!access.canModerateContent && !access.canManageSettings) {
+        json(res, 403, { error: 'Accès refusé. Permissions de modération requises.' });
+        return true;
+      }
+
+      const code = parts[5];
+      try {
+        const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+        const membersToPurge = await prisma.memberInvite.findMany({
+          where: { guildId, inviteCode: code, leftAt: null }
+        });
+
+        let purgedCount = 0;
+        if (discordGuild) {
+          for (const m of membersToPurge) {
+            const memberObj = await discordGuild.members.fetch(m.userId).catch(() => null);
+            if (memberObj) {
+              await memberObj.kick('Purge en cascade (code purge)').catch(() => null);
+              purgedCount++;
+            }
+          }
+        }
+
+        await prisma.memberInvite.updateMany({
+          where: { guildId, inviteCode: code, leftAt: null },
+          data: { leftAt: new Date() }
+        });
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Purge Invitation',
+          context: getGuildName(client, guildId),
+          module: 'Invitations',
+          eventType: 'Manuel',
+          details: `Membres invités via le code ${code} purgés (${purgedCount} exclus).`,
+          channelId: null
+        });
+
+        json(res, 200, { purgedCount });
+      } catch (err) {
+        logger.error('InvitationsAPI', `Error purging members of invite ${code}:`, err);
+        json(res, 500, { error: 'Erreur lors de la purge de l\'invitation' });
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/invitations/:code
+    if (parts.length === 6 && method === 'DELETE') {
+      if (!access.canModerateContent && !access.canManageSettings) {
+        json(res, 403, { error: 'Accès refusé. Permissions de modération requises.' });
+        return true;
+      }
+
+      const code = parts[5];
+      try {
+        const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+        if (discordGuild) {
+          const inviteObj = await discordGuild.invites.fetch(code).catch(() => null);
+          if (inviteObj) {
+            await inviteObj.delete('Supprimé depuis le tableau de bord').catch(() => null);
+          }
+        }
+
+        await prisma.guildInvite.update({
+          where: { code },
+          data: { isDeleted: true }
+        });
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Suppression Invitation',
+          context: getGuildName(client, guildId),
+          module: 'Invitations',
+          eventType: 'Manuel',
+          details: `L'invitation ${code} a été supprimée.`,
+          channelId: null
+        });
+
+        json(res, 200, { ok: true });
+      } catch (err) {
+        logger.error('InvitationsAPI', `Error deleting invite ${code}:`, err);
+        json(res, 500, { error: 'Erreur lors de la suppression de l\'invitation' });
+      }
+      return true;
+    }
+  }
+
+  // Daily-algo runs routes
+  if (moduleKey === 'daily-algo-runs') {
+    // GET /api/dashboard/guilds/:guildId/daily-algo-runs/schedule
+    if (parts.length === 6 && parts[5] === 'schedule' && method === 'GET') {
+      try {
+        const daysBack = Number(url.searchParams.get('daysBack') ?? '7');
+        const daysForward = Number(url.searchParams.get('daysForward') ?? '21');
+        const runs = await getDailyAlgoScheduleRuns(guildId, daysBack, daysForward);
+        json(res, 200, { runs });
+      } catch (err) {
+        logger.error('DailyAlgoAPI', 'Erreur lors de la récupération du planning Daily Algo:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération du planning Daily Algo' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/daily-algo-runs/schedule/ensure
+    if (parts.length === 7 && parts[5] === 'schedule' && parts[6] === 'ensure' && method === 'POST') {
+      try {
+        const body = await readJsonBody<{ daysForward?: unknown }>(req);
+        const parsedDaysForward = Number(body?.daysForward ?? url.searchParams.get('daysForward') ?? '21');
+        const daysForward = Number.isFinite(parsedDaysForward) ? parsedDaysForward : 21;
+        const result = await ensureDailyAlgoScheduleRuns(guildId, daysForward);
+        json(res, 200, { ok: true, ...result });
+      } catch (err) {
+        logger.error('DailyAlgoAPI', 'Erreur lors de la génération du planning Daily Algo:', err);
+        json(res, 500, { error: err instanceof Error ? err.message : 'Erreur lors de la génération du planning Daily Algo' });
+      }
+      return true;
+    }
+  }
+
+  // GET/PATCH daily-algo-submissions routes
+  if (moduleKey === 'daily-algo-submissions') {
+    // GET /api/dashboard/guilds/:guildId/daily-algo-submissions/global-leaderboard
+    if (parts.length === 6 && parts[5] === 'global-leaderboard' && method === 'GET') {
+      try {
+        const dateKey = getLocalDateKey();
+        const runs = await prisma.dailyAlgoRun.findMany({
+          where: { dateKey },
+          select: { id: true, guildId: true }
+        });
+
+        const runIds = runs.map(r => r.id);
+        const rawSubmissions = await prisma.dailyAlgoSubmission.findMany({
+          where: { runId: { in: runIds }, status: 'APPROVED' },
+          include: {
+            run: {
+              select: { guildId: true }
+            }
+          }
+        });
+
+        const submissions = rawSubmissions.map(submission => {
+          const finalScore = resolveDailyAlgoFinalScore(submission);
+          const totalPoints = finalScore !== null
+            ? Math.round((finalScore + (submission.speedBonusPoints ?? 0)) * 10) / 10
+            : null;
+
+          return {
+            id: submission.id,
+            authorId: submission.authorId,
+            authorName: submission.authorName,
+            guildId: submission.run.guildId,
+            guildName: getGuildName(client, submission.run.guildId),
+            scoreFinal: finalScore,
+            speedBonusPoints: submission.speedBonusPoints,
+            totalPoints,
+            submittedAt: submission.submittedAt.toISOString(),
+          };
+        });
+
+        submissions.sort((a, b) => {
+          if ((b.totalPoints ?? 0) !== (a.totalPoints ?? 0)) return (b.totalPoints ?? 0) - (a.totalPoints ?? 0);
+          return new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime();
+        });
+
+        json(res, 200, { dateKey, submissions });
+      } catch (err) {
+        logger.error('DailyAlgoAPI', 'Error getting global leaderboard:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération du classement global' });
+      }
+      return true;
+    }
+
+    // GET /api/dashboard/guilds/:guildId/daily-algo-submissions/today
+    if (parts.length === 6 && parts[5] === 'today' && method === 'GET') {
+      try {
+        const dateKey = getLocalDateKey();
+        const run = await prisma.dailyAlgoRun.findUnique({
+          where: {
+            guildId_dateKey: {
+              guildId,
+              dateKey,
+            },
+          },
+          include: {
+            problem: {
+              select: {
+                id: true,
+                title: true,
+                description: true,
+                difficulty: true,
+              },
+            },
+            submissions: {
+              orderBy: {
+                submittedAt: 'asc',
+              },
+            },
+          },
+        });
+
+        if (!run) {
+          json(res, 200, {
+            dateKey,
+            run: null,
+            submissions: [],
+          });
+          return true;
+        }
+
+        const validatedByIds = [...new Set(run.submissions.map((submission) => submission.validatedById).filter((value): value is string => Boolean(value)))];
+        const validatedByLabelEntries = await Promise.all(
+          validatedByIds.map(async (moderatorId) => {
+            const discordUser = await client.users.fetch(moderatorId).catch(() => null);
+            return [moderatorId, discordUser?.globalName ?? discordUser?.username ?? `Utilisateur ${moderatorId}`] as const;
+          }),
+        );
+        const validatedByMap = new Map<string, string>(validatedByLabelEntries);
+
+        const submissions = run.submissions.map((submission) => {
+          const finalScore = resolveDailyAlgoFinalScore(submission);
+          const totalPoints = finalScore !== null
+            ? Math.round((finalScore + (submission.speedBonusPoints ?? 0)) * 10) / 10
+            : null;
+
+          return {
+            id: submission.id,
+            authorId: submission.authorId,
+            authorName: submission.authorName,
+            solution: submission.solution,
+            status: submission.status,
+            submittedAt: submission.submittedAt.toISOString(),
+            speedRank: submission.speedRank,
+            speedBonusPoints: submission.speedBonusPoints,
+            scoreCorrectness: submission.scoreCorrectness,
+            scoreComments: submission.scoreComments,
+            scoreCompactness: submission.scoreCompactness,
+            scoreOptimization: submission.scoreOptimization,
+            scoreReadability: submission.scoreReadability,
+            scoreFinal: finalScore,
+            totalPoints,
+            reviewFeedback: submission.reviewFeedback,
+            validatedById: submission.validatedById,
+            validatedByName: submission.validatedById ? validatedByMap.get(submission.validatedById) ?? `Utilisateur ${submission.validatedById}` : null,
+            validatedAt: submission.validatedAt?.toISOString() ?? null,
+          };
+        });
+
+        json(res, 200, {
+          dateKey,
+          run: {
+            id: run.id,
+            challengeChannelId: run.challengeChannelId,
+            validationChannelId: run.validationChannelId,
+            problem: {
+              id: run.problem.id,
+              title: run.problem.title,
+              description: run.problem.description,
+              difficulty: run.problem.difficulty,
+            },
+            createdAt: run.createdAt.toISOString(),
+          },
+          submissions,
+        });
+      } catch (err) {
+        logger.error('DailyAlgoAPI', 'Error getting today submissions:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération des soumissions du jour' });
+      }
+      return true;
+    }
+
+    // GET /api/dashboard/guilds/:guildId/daily-algo-submissions/history
+    if (parts.length === 6 && parts[5] === 'history' && method === 'GET') {
+      try {
+        const todayKey = getLocalDateKey();
+        const limitParam = Number(url.searchParams.get('limit') ?? 7);
+        const limit = Number.isFinite(limitParam) ? Math.max(1, Math.min(30, Math.trunc(limitParam))) : 7;
+
+        const runs = await prisma.dailyAlgoRun.findMany({
+          where: {
+            guildId,
+            dateKey: {
+              lt: todayKey,
+            },
+          },
+          orderBy: {
+            dateKey: 'desc',
+          },
+          take: limit,
+          include: {
+            problem: {
+              select: {
+                id: true,
+                title: true,
+                difficulty: true,
+              },
+            },
+            submissions: {
+              orderBy: {
+                submittedAt: 'asc',
+              },
+            },
+          },
+        });
+
+        const history = runs.map((run) => {
+          const approved = run.submissions.filter((submission) => submission.status === 'APPROVED');
+          const rejected = run.submissions.filter((submission) => submission.status === 'REJECTED');
+          const pending = run.submissions.filter((submission) => submission.status === 'PENDING');
+
+          const topEntries = approved
+            .map((submission) => ({
+              finalScore: resolveDailyAlgoFinalScore(submission),
+              id: submission.id,
+              authorName: submission.authorName,
+              totalPoints: 0,
+              scoreFinal: null,
+              speedBonusPoints: submission.speedBonusPoints,
+              speedRank: submission.speedRank,
+            }))
+            .map((entry) => ({
+              ...entry,
+              totalPoints: entry.finalScore !== null
+                ? Math.round(((entry.finalScore + (entry.speedBonusPoints ?? 0)) * 10)) / 10
+                : null,
+              scoreFinal: entry.finalScore,
+            }))
+            .filter((entry) => entry.totalPoints !== null)
+            .sort((left, right) => {
+              if ((right.totalPoints ?? 0) !== (left.totalPoints ?? 0)) return (right.totalPoints ?? 0) - (left.totalPoints ?? 0);
+              return (left.speedRank ?? 999) - (right.speedRank ?? 999);
+            })
+            .slice(0, 3);
+
+          return {
+            id: run.id,
+            dateKey: run.dateKey,
+            createdAt: run.createdAt.toISOString(),
+            problem: {
+              id: run.problem.id,
+              title: run.problem.title,
+              difficulty: run.problem.difficulty,
+            },
+            stats: {
+              total: run.submissions.length,
+              approved: approved.length,
+              rejected: rejected.length,
+              pending: pending.length,
+            },
+            topEntries,
+          };
+        });
+
+        json(res, 200, {
+          todayKey,
+          history,
+        });
+      } catch (err) {
+        logger.error('DailyAlgoAPI', 'Error getting submissions history:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération de l\'historique des soumissions' });
+      }
+      return true;
+    }
+
+    // GET /api/dashboard/guilds/:guildId/daily-algo-submissions/:id
+    if (parts.length === 6 && method === 'GET') {
+      const submissionId = parts[5];
+      try {
+        const submission = await prisma.dailyAlgoSubmission.findUnique({
+          where: { id: submissionId }
+        });
+
+        if (!submission) {
+          json(res, 404, { error: 'Soumission introuvable' });
+          return true;
+        }
+
+        const finalScore = resolveDailyAlgoFinalScore(submission);
+        const totalPoints = finalScore !== null
+          ? Math.round((finalScore + (submission.speedBonusPoints ?? 0)) * 10) / 10
+          : null;
+
+        json(res, 200, {
+          id: submission.id,
+          authorId: submission.authorId,
+          authorName: submission.authorName,
+          solution: submission.solution,
+          status: submission.status,
+          submittedAt: submission.submittedAt.toISOString(),
+          speedRank: submission.speedRank,
+          speedBonusPoints: submission.speedBonusPoints,
+          scoreCorrectness: submission.scoreCorrectness,
+          scoreComments: submission.scoreComments,
+          scoreCompactness: submission.scoreCompactness,
+          scoreOptimization: submission.scoreOptimization,
+          scoreReadability: submission.scoreReadability,
+          scoreFinal: finalScore,
+          totalPoints,
+          reviewFeedback: submission.reviewFeedback,
+          validatedById: submission.validatedById,
+          validatedAt: submission.validatedAt?.toISOString() ?? null,
+        });
+      } catch (err) {
+        logger.error('DailyAlgoAPI', 'Error getting submission:', err);
+        json(res, 500, { error: 'Erreur récupération soumission' });
+      }
+      return true;
+    }
+
+    // PATCH /api/dashboard/guilds/:guildId/daily-algo-submissions/:id
+    if (parts.length === 6 && method === 'PATCH') {
+      const submissionId = parts[5];
+      try {
+        const body = await readJsonBody<{
+          action?: 'approve' | 'reject';
+          feedback?: string;
+          scores?: {
+            correctness?: number;
+            comments?: number;
+            compactness?: number;
+            optimization?: number;
+            readability?: number;
+          };
+        }>(req);
+
+        if (!body?.action || !['approve', 'reject'].includes(body.action)) {
+          json(res, 400, { error: 'Action Daily Algo invalide.' });
+          return true;
+        }
+
+        let scores:
+          | {
+              correctness: number;
+              comments: number;
+              compactness: number;
+              optimization: number;
+              readability: number;
+            }
+          | undefined;
+
+        if (body.action === 'approve') {
+          const rawScores = body.scores;
+          if (!rawScores) {
+            json(res, 400, { error: 'Les notes sont requises pour valider une soumission.' });
+            return true;
+          }
+
+          const parsed = {
+            correctness: Number(rawScores.correctness),
+            comments: Number(rawScores.comments),
+            compactness: Number(rawScores.compactness),
+            optimization: Number(rawScores.optimization),
+            readability: Number(rawScores.readability),
+          };
+
+          const hasInvalidScore = Object.values(parsed).some((value) => !Number.isFinite(value) || value < 1 || value > 5);
+          if (hasInvalidScore) {
+            json(res, 400, { error: 'Chaque note doit être comprise entre 1 et 5.' });
+            return true;
+          }
+
+          scores = parsed;
+        }
+
+        const success = await reviewDailyAlgoSubmission({
+          client,
+          submissionId,
+          action: body.action,
+          moderatorId: user.userId,
+          scores,
+          feedback: body.feedback,
+          allowReviewedUpdate: true,
+        });
+
+        if (!success) {
+          json(res, 404, { error: 'Soumission Daily Algo introuvable ou déjà traitée.' });
+          return true;
+        }
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: body.action === 'approve' ? 'Validation soumission Daily Algo' : 'Rejet soumission Daily Algo',
+          context: getGuildName(client, guildId),
+          module: 'Daily Algo',
+          eventType: 'Manuel',
+          details: body.action === 'approve'
+            ? `Soumission ${submissionId} validée avec notation.`
+            : `Soumission ${submissionId} rejetée.`,
+          channelId: null,
+        });
+
+        json(res, 200, { ok: true });
+      } catch (err) {
+        logger.error('DailyAlgoAPI', 'Error reviewing submission:', err);
+        json(res, 500, { error: 'Erreur lors du traitement de la soumission' });
+      }
+      return true;
+    }
+  }
+
+  // POST /api/dashboard/guilds/:guildId/import
+  if (moduleKey === 'import' && parts.length === 5 && method === 'POST') {
+    try {
+      const body = await readJsonBody<any>(req);
+      if (!body) {
+        json(res, 400, { error: 'Payload import invalide' });
+        return true;
+      }
+
+      const runtime = await getOrCreateRuntime(guildId);
+      await prisma.dashboardSettings.update({
+        where: { guildId },
+        data: {
+          email: body.notifications?.email ?? runtime.email,
+          emailEnabled: !!body.notifications?.emailEnabled,
+          cloudBackup: !!body.notifications?.cloudBackup,
+          debugLog: !!body.notifications?.debugLog,
+          killSwitchEnabled: !!body.notifications?.killSwitchEnabled,
+          severityByModule: body.notifications?.severityByModule ?? runtime.severityByModule,
+          messageTemplate: body.messageTemplate ?? runtime.messageTemplate
+        }
+      });
+
+      await pushAudit(guildId, {
+        user: auditUser,
+        action: 'Import dashboard',
+        context: getGuildName(client, guildId),
+        module: 'Dashboard',
+        eventType: 'Manuel',
+        details: 'Configuration importée depuis un fichier JSON.',
+        channelId: null
+      });
+
+      json(res, 200, { ok: true });
+    } catch (err) {
+      logger.error('ImportAPI', 'Error importing state:', err);
+      json(res, 500, { error: 'Erreur lors de l\'importation de la configuration' });
+    }
+    return true;
+  }
+
+  // Logs event configurations
+  if (moduleKey === 'logs') {
+    const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+    const member = discordGuild ? await discordGuild.members.fetch(user.userId).catch(() => null) : null;
+    const roleIds = member
+      ? member.roles.cache
+          .map((role) => role?.id)
+          .filter((roleId): roleId is string => !!roleId)
+      : [];
+    const featureAccess = await resolveFeatureAccessMap(client, guildId, access, user.userId, roleIds);
+
+    const isGetMethod = method === 'GET';
+    if (!isGetMethod && !access.canManageSettings && !featureAccess.logs?.canConfigure) {
+      json(res, 403, { error: 'Accès refusé. Seuls les administrateurs peuvent modifier les logs.' });
+      return true;
+    }
+
+    if (isGetMethod && !access.canViewDashboard) {
+      json(res, 403, { error: 'Accès refusé. Vous n\'avez pas accès au dashboard.' });
+      return true;
+    }
+
+    // GET /api/dashboard/guilds/:guildId/logs/event-configs
+    if (parts.length === 6 && parts[5] === 'event-configs' && method === 'GET') {
+      try {
+        const LOG_EVENT_TYPES = [
+          'message_delete', 'message_edit', 'message_bulk_delete',
+          'member_join', 'member_leave', 'member_roles_update', 'member_timeout',
+          'moderation_kick', 'moderation_ban', 'moderation_unban',
+          'voice_join', 'voice_leave', 'voice_move',
+          'channel_lifecycle', 'role_lifecycle'
+        ];
+
+        const existingConfigs = await prisma.guildLogEventConfig.findMany({
+          where: { guildId }
+        });
+
+        const existingMap = new Map(existingConfigs.map(c => [c.eventType, c]));
+        const missingTypes = LOG_EVENT_TYPES.filter(t => !existingMap.has(t));
+
+        if (missingTypes.length > 0) {
+          await prisma.$transaction(
+            missingTypes.map(t => prisma.guildLogEventConfig.create({
+              data: {
+                guildId,
+                eventType: t,
+                enabled: true,
+                channelId: null
+              }
+            }))
+          );
+        }
+
+        const allConfigs = await prisma.guildLogEventConfig.findMany({
+          where: { guildId },
+          orderBy: { eventType: 'asc' }
+        });
+
+        json(res, 200, { configs: allConfigs });
+      } catch (err) {
+        logger.error('LogsConfigAPI', 'Error fetching logs event configs:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération de la configuration des événements' });
+      }
+      return true;
+    }
+
+    // PUT /api/dashboard/guilds/:guildId/logs/event-configs
+    if (parts.length === 6 && parts[5] === 'event-configs' && method === 'PUT') {
+      try {
+        const body = await readJsonBody<{
+          configs: Array<{
+            eventType: string;
+            enabled: boolean;
+            channelId: string | null;
+          }>;
+        }>(req);
+
+        if (!body?.configs || !Array.isArray(body.configs)) {
+          json(res, 400, { error: 'Format invalide. Liste de configurations attendue.' });
+          return true;
+        }
+
+        await prisma.$transaction(
+          body.configs.map(c => prisma.guildLogEventConfig.upsert({
+            where: {
+              guildId_eventType: { guildId, eventType: c.eventType }
+            },
+            update: {
+              enabled: c.enabled,
+              channelId: c.channelId ? c.channelId : null
+            },
+            create: {
+              guildId,
+              eventType: c.eventType,
+              enabled: c.enabled,
+              channelId: c.channelId ? c.channelId : null
+            }
+          }))
+        );
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Mise à jour configuration logs granulaires',
+          context: getGuildName(client, guildId),
+          module: 'Logs',
+          eventType: 'Manuel',
+          details: 'Configuration par événement mise à jour.',
+          channelId: null
+        });
+
+        json(res, 200, { ok: true });
+      } catch (err) {
+        logger.error('LogsConfigAPI', 'Error updating logs event configs:', err);
+        json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration des événements' });
+      }
+      return true;
+    }
+  }
+
+  // Tickets routes
+  if (moduleKey === 'tickets') {
+    const isStaff = access.level === 'admin' || access.level === 'moderator';
+    if (!isStaff) {
+      json(res, 403, { error: 'Accès refusé. Réservé au staff.' });
+      return true;
+    }
+
+    // GET /api/dashboard/guilds/:guildId/tickets/config
+    if (parts.length === 6 && parts[5] === 'config' && method === 'GET') {
+      try {
+        const guildConfig = await prisma.guild.findUnique({
+          where: { id: guildId },
+          select: {
+            ticketCategoryId: true,
+            ticketLogChannelId: true,
+            ticketStaffRoleId: true,
+            ticketChannelId: true,
+            ticketEmbedTitle: true,
+            ticketEmbedDesc: true,
+            ticketEmbedButtonText: true,
+            ticketEmbedColor: true,
+            ticketTypes: true,
+            ticketAllowOverclaim: true,
+            ticketOverclaimPermission: true,
+          }
+        });
+        json(res, 200, guildConfig || {});
+      } catch (err) {
+        logger.error('TicketsAPI', 'Error getting ticket config:', err);
+        json(res, 500, { error: 'Erreur configuration' });
+      }
+      return true;
+    }
+
+    // GET /api/dashboard/guilds/:guildId/tickets/transcripts
+    if (parts.length === 6 && parts[5] === 'transcripts' && method === 'GET') {
+      try {
+        const transcripts = await prisma.transcript.findMany({
+          where: { guildId },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            guildId: true,
+            channelId: true,
+            channelName: true,
+            startMessageId: true,
+            endMessageId: true,
+            startTime: true,
+            endTime: true,
+            createdAt: true
+          }
+        });
+        json(res, 200, { transcripts });
+      } catch (err: any) {
+        logger.error('TicketsAPI', `Error listing transcripts: ${err.message}`);
+        json(res, 500, { error: 'Erreur lors de la récupération des transcriptions' });
+      }
+      return true;
+    }
+
+    // PATCH /api/dashboard/guilds/:guildId/tickets/config
+    if (parts.length === 6 && parts[5] === 'config' && method === 'PATCH') {
+      if (access.level !== 'admin') {
+        json(res, 403, { error: 'Seuls les administrateurs peuvent modifier la configuration.' });
+        return true;
+      }
+
+      try {
+        const body = await readJsonBody<any>(req);
+        const updated = await prisma.guild.update({
+          where: { id: guildId },
+          data: {
+            ticketCategoryId: body.ticketCategoryId || null,
+            ticketLogChannelId: body.ticketLogChannelId || null,
+            ticketStaffRoleId: body.ticketStaffRoleId || null,
+            ticketChannelId: body.ticketChannelId || null,
+            ticketEmbedTitle: body.ticketEmbedTitle || 'Support Technique',
+            ticketEmbedDesc: body.ticketEmbedDesc || 'Cliquez sur le bouton ci-dessous pour ouvrir un ticket de support.',
+            ticketEmbedButtonText: body.ticketEmbedButtonText || 'Ouvrir un ticket',
+            ticketEmbedColor: body.ticketEmbedColor || '#5865F2',
+            ...(body.ticketTypes !== undefined
+              ? {
+                  ticketTypes: Array.isArray(body.ticketTypes)
+                    ? body.ticketTypes
+                        .filter((item: any) => item && typeof item === 'object')
+                        .map((item: any, index: number) => ({
+                          id: typeof item.id === 'string' && item.id.trim() ? item.id.trim() : `ticket-type-${index + 1}`,
+                          label: typeof item.label === 'string' && item.label.trim() ? item.label.trim().slice(0, 80) : `Ticket ${index + 1}`,
+                          description: typeof item.description === 'string' ? item.description.trim().slice(0, 200) : null,
+                          emoji: typeof item.emoji === 'string' ? item.emoji.trim().slice(0, 16) : null,
+                          categoryId: typeof item.categoryId === 'string' && item.categoryId.trim() ? item.categoryId.trim() : null,
+                          staffRoleId: typeof item.staffRoleId === 'string' && item.staffRoleId.trim() ? item.staffRoleId.trim() : null,
+                          buttonStyle: item.buttonStyle === 'SECONDARY' || item.buttonStyle === 'SUCCESS' || item.buttonStyle === 'DANGER'
+                            ? item.buttonStyle
+                            : 'PRIMARY',
+                        }))
+                    : null,
+                }
+              : {}),
+            ticketAllowOverclaim: body.ticketAllowOverclaim ?? true,
+            ticketOverclaimPermission: body.ticketOverclaimPermission || 'ANY',
+          }
+        });
+
+        json(res, 200, { success: true, config: updated });
+      } catch (err: any) {
+        logger.error('TicketsAPI', `Error updating ticket config: ${err.message}`);
+        json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/tickets/config/send-embed
+    if (parts.length === 7 && parts[5] === 'config' && parts[6] === 'send-embed' && method === 'POST') {
+      if (access.level !== 'admin') {
+        json(res, 403, { error: 'Seuls les administrateurs peuvent envoyer le panel.' });
+        return true;
+      }
+
+      try {
+        const { sendTicketSetupEmbed } = await import('../../../services/ticketService.js');
+        await sendTicketSetupEmbed(client, guildId);
+        json(res, 200, { success: true });
+      } catch (err: any) {
+        logger.error('TicketsAPI', `Error sending ticket setup embed: ${err.message}`);
+        json(res, 500, { error: err.message || 'Erreur lors de l\'envoi de l\'embed' });
+      }
+      return true;
+    }
+
+    // GET /api/dashboard/guilds/:guildId/tickets
+    if (parts.length === 5 && method === 'GET') {
+      try {
+        const tickets = await prisma.ticket.findMany({
+          where: { guildId },
+          orderBy: { createdAt: 'desc' },
+        });
+        const guildConfig = await prisma.guild.findUnique({
+          where: { id: guildId },
+          select: {
+            ticketCategoryId: true,
+            ticketLogChannelId: true,
+            ticketStaffRoleId: true,
+            ticketChannelId: true,
+            ticketEmbedTitle: true,
+            ticketEmbedDesc: true,
+            ticketEmbedButtonText: true,
+            ticketEmbedColor: true,
+            ticketTypes: true,
+            ticketAllowOverclaim: true,
+            ticketOverclaimPermission: true,
+          }
+        });
+        json(res, 200, { tickets, config: guildConfig || {} });
+      } catch (err: any) {
+        logger.error('TicketsAPI', `Error listing tickets: ${err.message}`);
+        json(res, 500, { error: 'Erreur lors de la récupération des tickets' });
+      }
+      return true;
+    }
+
+    // GET /api/dashboard/guilds/:guildId/tickets/:ticketId
+    if (parts.length === 6 && method === 'GET') {
+      const ticketId = parts[5];
+      try {
+        const ticket = await prisma.ticket.findUnique({
+          where: { id: ticketId }
+        });
+
+        if (!ticket) {
+          json(res, 404, { error: 'Ticket introuvable' });
+          return true;
+        }
+
+        let channelName: string | null = null;
+        let messages: any[] = [];
+        if (ticket.channelId) {
+          const discordChannel = client.channels.cache.get(ticket.channelId);
+          if (discordChannel && discordChannel instanceof TextChannel) {
+            channelName = discordChannel.name;
+            try {
+              const fetched = await discordChannel.messages.fetch({ limit: 50 });
+              const guild = discordChannel.guild;
+              messages = fetched.map(m => ({
+                id: m.id,
+                authorId: m.author.id,
+                authorName: m.member?.displayName || m.author.displayName || m.author.username,
+                authorAvatar: m.author.displayAvatarURL(),
+                isStaff: m.author.bot,
+                content: m.content,
+                htmlContent: parseDiscordMarkdown(m.content, guild),
+                mediaUrls: extractMediaUrls(m.content),
+                stickers: m.stickers ? m.stickers.map(s => ({ id: s.id, name: s.name, url: s.url })) : [],
+                attachments: m.attachments.map(a => ({ url: a.url, contentType: a.contentType })),
+                embeds: msgEmbedsMap(m.embeds, guild),
+                createdAt: m.createdAt.toISOString()
+              }));
+              messages.reverse();
+            } catch (fetchErr) {}
+          }
+        }
+
+        json(res, 200, { ticket: { ...ticket, channelName }, messages });
+      } catch (err: any) {
+        logger.error('TicketsAPI', `Error reading ticket details: ${err.stack}`);
+        json(res, 500, { error: `Erreur lors de la récupération du ticket: ${err.stack}` });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/tickets/:ticketId/message
+    if (parts.length === 7 && parts[6] === 'message' && method === 'POST') {
+      const ticketId = parts[5];
+      try {
+        const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+        if (!ticket || !ticket.channelId) {
+          json(res, 404, { error: 'Ticket introuvable ou salon inactif' });
+          return true;
+        }
+
+        const body = await readJsonBody<{ content: string }>(req);
+        if (!body?.content) {
+          json(res, 400, { error: 'Contenu du message requis' });
+          return true;
+        }
+
+        const discordChannel = client.channels.cache.get(ticket.channelId);
+        if (!discordChannel || !(discordChannel instanceof TextChannel)) {
+          json(res, 400, { error: 'Salon Discord introuvable' });
+          return true;
+        }
+
+        const sent = await discordChannel.send(`💬 **[Kotbo Dashboard - ${user.username}]** ${body.content}`);
+        
+        json(res, 200, {
+          success: true,
+          message: {
+            id: sent.id,
+            author: {
+              id: client.user?.id || 'bot',
+              username: 'Kotbo',
+              displayName: 'Kotbo',
+              avatar: client.user?.displayAvatarURL() || '',
+              bot: true
+            },
+            content: sent.content,
+            createdAt: sent.createdAt.toISOString()
+          }
+        });
+      } catch (err: any) {
+        logger.error('TicketsAPI', `Error sending message to ticket: ${err.message}`);
+        json(res, 500, { error: 'Erreur lors de l\'envoi du message' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/tickets/:ticketId/claim
+    if (parts.length === 7 && parts[6] === 'claim' && method === 'POST') {
+      const ticketId = parts[5];
+      try {
+        const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+        if (!ticket) {
+          json(res, 404, { error: 'Ticket introuvable' });
+          return true;
+        }
+
+        const guildConfig = await prisma.guild.findUnique({ where: { id: guildId } });
+        if (!guildConfig) {
+          json(res, 404, { error: 'Serveur introuvable' });
+          return true;
+        }
+
+        const allowOverclaim = guildConfig.ticketAllowOverclaim ?? true;
+        const overclaimPermission = guildConfig.ticketOverclaimPermission || 'ANY';
+
+        if (ticket.status === 'CLAIMED') {
+          if (!allowOverclaim || overclaimPermission === 'NONE') {
+            json(res, 400, { error: `Ce ticket est déjà pris en charge par ${ticket.claimedByName || ticket.claimedById}.` });
+            return true;
+          }
+
+          if (ticket.claimedById === user.userId) {
+            json(res, 400, { error: 'Vous prenez déjà en charge ce ticket.' });
+            return true;
+          }
+
+          if (overclaimPermission === 'SUPERIOR_OR_EQUAL') {
+            const isDashboardAdmin = access.level === 'admin';
+            if (!isDashboardAdmin) {
+              const getStaffLevelLocal = async (uid: string) => {
+                const staff = await prisma.staffMember.findUnique({
+                  where: { guildId_userId: { guildId, userId: uid } }
+                });
+                if (!staff) return 0;
+                const role = await prisma.staffRole.findFirst({
+                  where: { guildId, name: staff.grade, enabled: true }
+                });
+                return role ? role.level : 0;
+              };
+
+              const claimantLevel = await getStaffLevelLocal(user.userId);
+              const currentLevel = ticket.claimedById ? await getStaffLevelLocal(ticket.claimedById) : 0;
+
+              if (claimantLevel < currentLevel) {
+                json(res, 403, { error: 'Votre grade est insuffisant pour sur-revendiquer ce ticket.' });
+                return true;
+              }
+            }
+          }
+        }
+
+        const updated = await prisma.ticket.update({
+          where: { id: ticketId },
+          data: {
+            status: 'CLAIMED',
+            claimedById: user.userId,
+            claimedByName: user.username
+          }
+        });
+
+        if (ticket.channelId) {
+          const ch = client.channels.cache.get(ticket.channelId);
+          if (ch && ch instanceof TextChannel) {
+            try {
+              const welcomeMsg = (await ch.messages.fetch({ limit: 50 })).find(m => m.author.id === client.user?.id && m.embeds.length > 0 && m.embeds[0].title?.startsWith('🎫'));
+              if (welcomeMsg) {
+                const oldEmbed = welcomeMsg.embeds[0];
+                if (oldEmbed) {
+                  const updatedEmbed = EmbedBuilder.from(oldEmbed)
+                    .setColor(COLORS.warning as any)
+                    .setDescription(`Ce ticket est actuellement pris en charge par **${user.username}**.\n\n**Auteur :** <@${ticket.userId}>\n**Raison :** ${ticket.reason}\n**Description :** ${ticket.description}`)
+                    .setFields([
+                      { name: 'Statut', value: `🛠️ Pris en charge par <@${user.userId}>`, inline: true }
+                    ]);
+
+                  const componentsList: ButtonBuilder[] = [];
+                  if (allowOverclaim && overclaimPermission !== 'NONE') {
+                    componentsList.push(
+                      new ButtonBuilder().setCustomId(`ticket:claim:${ticketId}`).setLabel('Sur-revendiquer').setStyle(ButtonStyle.Primary).setEmoji('🛠️')
+                    );
+                  }
+                  componentsList.push(
+                    new ButtonBuilder().setCustomId(`ticket:info:${ticketId}`).setLabel('Infos Membre').setStyle(ButtonStyle.Secondary).setEmoji('🔍'),
+                    new ButtonBuilder().setCustomId(`ticket:close:${ticketId}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
+                  );
+
+                  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(componentsList);
+                  await welcomeMsg.edit({ embeds: [updatedEmbed], components: [row] }).catch(() => null);
+                }
+              }
+            } catch (welcomeErr) {
+              logger.error('TicketsAPI', `Error updating welcome embed from dashboard API: ${welcomeErr}`);
+            }
+
+            await ch.send({
+              embeds: [successEmbed('Pris en charge', `Ce ticket a été revendiqué depuis le Dashboard Kotbo par **${user.username}**.`)]
+            }).catch(() => null);
+          }
+        }
+
+        json(res, 200, updated);
+      } catch (err: any) {
+        logger.error('TicketsAPI', `Error claiming ticket: ${err.message}`);
+        json(res, 500, { error: 'Erreur lors de la prise en charge du ticket' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/tickets/:ticketId/close
+    if (parts.length === 7 && parts[6] === 'close' && method === 'POST') {
+      const ticketId = parts[5];
+      try {
+        const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+        if (!ticket) {
+          json(res, 404, { error: 'Ticket introuvable' });
+          return true;
+        }
+
+        const updated = await prisma.ticket.update({
+          where: { id: ticketId },
+          data: {
+            status: 'CLOSED',
+            closedById: user.userId,
+            closedByName: user.username,
+            closedAt: new Date()
+          }
+        });
+
+        if (ticket.channelId) {
+          const ch = client.channels.cache.get(ticket.channelId);
+          if (ch && ch instanceof TextChannel) {
+            await ch.permissionOverwrites.edit(ticket.userId, {
+              ViewChannel: false,
+              SendMessages: false
+            }).catch(() => {});
+
+            const { renameChannelToClosed } = await import('../../../services/ticketService.js');
+            await renameChannelToClosed(client, ticket.channelId).catch(() => {});
+
+            const closeEmbed = new EmbedBuilder()
+              .setTitle('🔒 Ticket Fermé')
+              .setDescription(`Le ticket a été fermé depuis le Dashboard Kotbo par **${user.username}**.`)
+              .setColor(COLORS.danger as any)
+              .setTimestamp();
+
+            const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+              new ButtonBuilder().setCustomId(`ticket:reopen:${ticketId}`).setLabel('Réouvrir').setStyle(ButtonStyle.Success).setEmoji('🔓'),
+              new ButtonBuilder().setCustomId(`ticket:delete:${ticketId}`).setLabel('Supprimer').setStyle(ButtonStyle.Danger).setEmoji('🗑️')
+            );
+
+            await ch.send({ embeds: [closeEmbed], components: [row] }).catch(() => {});
+          }
+        }
+
+        json(res, 200, updated);
+      } catch (err: any) {
+        logger.error('TicketsAPI', `Error closing ticket: ${err.message}`);
+        json(res, 500, { error: 'Erreur' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/tickets/:ticketId/reopen
+    if (parts.length === 7 && parts[6] === 'reopen' && method === 'POST') {
+      const ticketId = parts[5];
+      try {
+        const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+        if (!ticket) {
+          json(res, 404, { error: 'Ticket introuvable' });
+          return true;
+        }
+
+        const updated = await prisma.ticket.update({
+          where: { id: ticketId },
+          data: {
+            status: 'OPEN',
+            closedById: null,
+            closedByName: null,
+            closedAt: null
+          }
+        });
+
+        if (ticket.channelId) {
+          const ch = client.channels.cache.get(ticket.channelId);
+          if (ch && ch instanceof TextChannel) {
+            await ch.permissionOverwrites.edit(ticket.userId, {
+              ViewChannel: true,
+              SendMessages: true,
+              ReadMessageHistory: true
+            }).catch(() => {});
+
+            const { renameChannelToOpen } = await import('../../../services/ticketService.js');
+            await renameChannelToOpen(client, ticket.channelId).catch(() => {});
+
+            await ch.send({
+              embeds: [successEmbed('Ticket Réouvert', `Le ticket a été réouvert depuis le Dashboard Kotbo par **${user.username}**.`)]
+            }).catch(() => null);
+          }
+        }
+
+        json(res, 200, updated);
+      } catch (err: any) {
+        logger.error('TicketsAPI', `Error reopening ticket: ${err.message}`);
+        json(res, 500, { error: 'Erreur' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/tickets/:ticketId/rename
+    if (parts.length === 7 && parts[6] === 'rename' && method === 'POST') {
+      const ticketId = parts[5];
+      try {
+        const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+        if (!ticket) {
+          json(res, 404, { error: 'Ticket introuvable' });
+          return true;
+        }
+
+        const body = await readJsonBody<{ name?: string }>(req);
+        const requestedName = body?.name?.trim();
+        if (!requestedName) {
+          json(res, 400, { error: 'Le nouveau nom est requis' });
+          return true;
+        }
+
+        const guildConfig = await prisma.guild.findUnique({ where: { id: guildId } });
+        if (!guildConfig) {
+          json(res, 404, { error: 'Serveur introuvable' });
+          return true;
+        }
+
+        const { renameTicketChannel } = await import('../../../services/ticketService.js');
+        const finalName = await renameTicketChannel(
+          client,
+          ticket,
+          guildConfig!,
+          { id: user.userId, username: user.username || 'Utilisateur' },
+          requestedName,
+        );
+
+        json(res, 200, { success: true, channelName: finalName });
+      } catch (err: any) {
+        logger.error('TicketsAPI', `Error renaming ticket: ${err.message}`);
+        json(res, 500, { error: 'Erreur lors du renommage du ticket' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/tickets/:ticketId/delete
+    if (parts.length === 7 && parts[6] === 'delete' && method === 'POST') {
+      const ticketId = parts[5];
+      try {
+        const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+        if (!ticket) {
+          json(res, 404, { error: 'Ticket introuvable' });
+          return true;
+        }
+
+        if (!ticket.channelId) {
+          json(res, 200, { success: true });
+          return true;
+        }
+
+        const ch = client.channels.cache.get(ticket.channelId);
+        if (ch && ch instanceof TextChannel) {
+          const { generateTranscript } = await import('../../../services/transcriptService.js');
+          const transcriptData = await generateTranscript(ch);
+          
+          await prisma.ticket.update({
+            where: { id: ticketId },
+            data: {
+              channelId: null,
+              status: 'CLOSED',
+              transcriptId: transcriptData.id
+            }
+          });
+
+          const guildConfig = await prisma.guild.findUnique({ where: { id: guildId } });
+          const dashboardUrl = process.env.DASHBOARD_URL || 'http://localhost:5173';
+          const publicLink = `${dashboardUrl}/transcripts/${transcriptData.id}`;
+          
+          const usersToDm = new Set<string>();
+          if (ticket.userId) usersToDm.add(ticket.userId);
+          if (ticket.claimedById) usersToDm.add(ticket.claimedById);
+          if (ticket.closedById) usersToDm.add(ticket.closedById);
+          if (user.userId) usersToDm.add(user.userId);
+          
+          const dmEmbed = new EmbedBuilder()
+            .setTitle('📄 Transcription de ticket')
+            .setDescription(`Le ticket d'assistance **${ticket.reason}** du serveur **${getGuildName(client, guildId)}** a été supprimé.\n\nVoici le lien pour consulter la transcription complète :`)
+            .addFields([{ name: 'Lien d\'accès', value: `🌐 [Consulter le transcript](${publicLink})` }])
+            .setColor('#5865F2')
+            .setTimestamp();
+            
+          for (const dmUserId of usersToDm) {
+            try {
+              const dmUser = await client.users.fetch(dmUserId);
+              if (dmUser) await dmUser.send({ embeds: [dmEmbed] });
+            } catch (err) {}
+          }
+
+          if (guildConfig && guildConfig.ticketLogChannelId) {
+            const logCh = client.channels.cache.get(guildConfig.ticketLogChannelId);
+            if (logCh && logCh instanceof TextChannel) {
+              const logEmbed = new EmbedBuilder()
+                .setTitle('🗑️ Ticket Supprimé')
+                .setDescription(`Le ticket ouvert par **${ticket.username}** a été définitivement supprimé par **${user.username}** depuis le Dashboard.`)
+                .setColor(0x000000)
+                .addFields([
+                  { name: 'Créateur', value: `<@${ticket.userId}>`, inline: true },
+                  { name: 'Supprimé par', value: `<@${user.userId}>`, inline: true },
+                  { name: 'Transcription publique', value: `🌐 [Consulter le transcript](${publicLink})` }
+                ])
+                .setTimestamp()
+                .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
+              await logCh.send({ embeds: [logEmbed] }).catch(() => {});
+            }
+          }
+
+          setTimeout(async () => {
+            await ch.delete(`Ticket supprimé depuis le Dashboard par ${user.username}`).catch(() => {});
+          }, 1000);
+
+          json(res, 200, { success: true, transcriptId: transcriptData.id });
+        } else {
+          await prisma.ticket.update({
+            where: { id: ticketId },
+            data: { channelId: null }
+          });
+          json(res, 200, { success: true });
+        }
+      } catch (err: any) {
+        logger.error('TicketsAPI', `Error deleting ticket: ${err.message}`);
+        json(res, 500, { error: 'Erreur lors de la suppression' });
+      }
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function msgEmbedsMap(embeds: any[], guild: any) {
+  return embeds.map(e => ({
+    title: e.title,
+    description: e.description,
+    htmlDescription: e.description ? parseDiscordMarkdown(e.description, guild) : '',
+    color: e.hexColor,
+    fields: e.fields ? e.fields.map((f: any) => ({
+      name: f.name,
+      value: f.value,
+      htmlValue: f.value ? parseDiscordMarkdown(f.value, guild) : ''
+    })) : [],
+    image: e.image ? { url: e.image.url } : null,
+    thumbnail: e.thumbnail ? { url: e.thumbnail.url } : null,
+    video: e.video ? { url: e.video.url } : null
+  }));
+}

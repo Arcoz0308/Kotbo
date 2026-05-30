@@ -9,6 +9,7 @@
   type PeriodMode = 'week' | 'month';
   let selectedMode = $state<PeriodMode>('week');
   let selectedOffset = $state(1);
+  // svelte-ignore state_referenced_locally
   let data = $state(initialData);
   $effect(() => {
     data = initialData;

@@ -1,5 +1,6 @@
 <script lang="ts">
   import Papicon from './Papicon.svelte';
+  import HierarchyNode from './HierarchyNode.svelte';
 
   export type HierarchyTreeNode = {
     id: string;
@@ -97,7 +98,7 @@
     <div class="children-row flex flex-wrap justify-center gap-8 mt-10 relative">
       {#each node.children as child (child.id)}
         <div class="child-wrap flex-1 min-w-65 max-w-90">
-          <svelte:self node={child} />
+          <HierarchyNode node={child} />
         </div>
       {/each}
     </div>

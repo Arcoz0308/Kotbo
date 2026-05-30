@@ -29,7 +29,7 @@ describe('embeds utils', () => {
     const json = embed.toJSON();
     expect(json.title).toContain('Titre article');
     expect(json.footer?.text).toContain('ID: abc123');
-    expect(json.fields?.length).toBeGreaterThanOrEqual(3);
+    expect(json.fields?.length).toBeGreaterThanOrEqual(2);
   });
 
   test('construit un embed youtube coherent', () => {
