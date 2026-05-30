@@ -38,6 +38,7 @@ import {
   touchSanctionTargetIdentity,
 } from '../services/memberCaseService.js';
 import * as dcDetectionService from '../services/dcDetectionService.js';
+import { handleMessageXp, addXp } from '../services/levelingService.js';
 
 type MessageSnapshot = {
   guildId: string;
@@ -884,6 +885,11 @@ export function registerAdvancedLogsListener(client: Client): void {
       logger.warn('Casier', `Impossible de mettre à jour l'activité message de ${message.author.id}: ${String(error)}`);
     });
 
+    // 📊 Leveling: award message XP
+    void handleMessageXp(message, client).catch((error) => {
+      logger.error('Leveling', `Erreur lors du traitement d'XP pour le message de ${message.author.id}: ${String(error)}`);
+    });
+
     // 📊 Tracking d'activité staff
     void recordStaffActivity(snapshot.guildId, message.author.id, new Date(), 1, 0).catch((error) => {
       logger.debug('StaffManagement', `Staff activity tracking: ${String(error)}`);
@@ -1030,16 +1036,25 @@ export function registerAdvancedLogsListener(client: Client): void {
       ]);
 
       if (member) {
+        const durationSecs = Math.max(0, Math.floor((Date.now() - joinedAt) / 1000));
         void touchMemberVoiceLeave({
           guildId: guild.id,
           user: member.user,
           channelId: previousChannelId,
           displayName: member.displayName,
           joinedAt: session?.joinedAt ? new Date(session.joinedAt) : undefined,
-          durationSeconds: Math.max(0, Math.floor((Date.now() - joinedAt) / 1000)),
+          durationSeconds: durationSecs,
         }).catch((error) => {
           logger.warn('Casier', `Impossible de fermer l'activité vocale de ${member.id}: ${String(error)}`);
         });
+
+        // 📊 Leveling: award voice XP
+        const voiceXp = Math.floor(durationSecs * (10 / 60));
+        if (voiceXp > 0) {
+          void addXp(guild.id, member.user.id, voiceXp, undefined, client).catch((error) => {
+            logger.error('Leveling', `Erreur lors du traitement d'XP vocal pour ${member.id}: ${String(error)}`);
+          });
+        }
 
         // 📊 Tracking d'activité staff (vocal)
         const durationMinutes = Math.floor((Date.now() - joinedAt) / 60000);
@@ -1074,16 +1089,25 @@ export function registerAdvancedLogsListener(client: Client): void {
       ]);
 
       if (member) {
+        const durationSecs = Math.max(0, Math.floor((Date.now() - joinedAt) / 1000));
         void touchMemberVoiceLeave({
           guildId: guild.id,
           user: member.user,
           channelId: oldState.channelId,
           displayName: member.displayName,
           joinedAt: previousSession?.joinedAt ? new Date(previousSession.joinedAt) : undefined,
-          durationSeconds: Math.max(0, Math.floor((Date.now() - joinedAt) / 1000)),
+          durationSeconds: durationSecs,
         }).catch((error) => {
           logger.warn('Casier', `Impossible de clore l'ancien salon vocal de ${member.id}: ${String(error)}`);
         });
+
+        // 📊 Leveling: award voice XP
+        const voiceXp = Math.floor(durationSecs * (10 / 60));
+        if (voiceXp > 0) {
+          void addXp(guild.id, member.user.id, voiceXp, undefined, client).catch((error) => {
+            logger.error('Leveling', `Erreur lors du traitement d'XP vocal pour ${member.id}: ${String(error)}`);
+          });
+        }
 
         void touchMemberVoiceJoin({
           guildId: guild.id,

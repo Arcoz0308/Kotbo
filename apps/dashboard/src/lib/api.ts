@@ -1343,6 +1343,7 @@ export async function updateChannelsManagementConfig(
     tempVoiceNameTemplate?: string;
     honeypotEnabled?: boolean;
     honeypotChannelId?: string | null;
+    honeypotSanction?: string;
   },
   guildId = authStore.selectedGuildId
 ) {

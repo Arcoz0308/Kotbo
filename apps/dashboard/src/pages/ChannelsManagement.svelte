@@ -43,6 +43,7 @@
     tempVoiceNameTemplate: '🔊 Salon de {user}',
     honeypotEnabled: false,
     honeypotChannelId: '',
+    honeypotSanction: 'TIMEOUT',
   });
 
   let loading = $state(true);
@@ -90,6 +91,7 @@
         config.tempVoiceNameTemplate = res.tempVoiceNameTemplate || '🔊 Salon de {user}';
         config.honeypotEnabled = res.honeypotEnabled ?? false;
         config.honeypotChannelId = res.honeypotChannelId ?? '';
+        config.honeypotSanction = res.honeypotSanction ?? 'TIMEOUT';
       }
     } catch (err) {
       loadError = err instanceof Error ? err.message : 'Impossible de charger la configuration.';
@@ -123,6 +125,7 @@
         tempVoiceNameTemplate: config.tempVoiceNameTemplate,
         honeypotEnabled: config.honeypotEnabled,
         honeypotChannelId: config.honeypotChannelId || null,
+        honeypotSanction: config.honeypotSanction,
       });
 
       if (!res || !res.ok) throw new Error('Erreur de sauvegarde API');
@@ -132,6 +135,7 @@
         if (res.resolved.tempVoiceChannelId) config.tempVoiceChannelId = res.resolved.tempVoiceChannelId;
         if (res.resolved.tempVoiceCategoryId) config.tempVoiceCategoryId = res.resolved.tempVoiceCategoryId;
         if (res.resolved.honeypotChannelId) config.honeypotChannelId = res.resolved.honeypotChannelId;
+        if (res.resolved.honeypotSanction) config.honeypotSanction = res.resolved.honeypotSanction;
         if (res.resolved.statsConfig) {
           config.statsConfig = {
             ...config.statsConfig,
@@ -943,6 +947,22 @@
                 </div>
               </div>
 
+              <!-- Honeypot Sanction Selection -->
+              <div class="space-y-1.5">
+                <label for="honeypot-sanction-select" class="text-xs font-bold text-on-surface/80 block">🛡️ Sanction à appliquer</label>
+                <select
+                  id="honeypot-sanction-select"
+                  bind:value={config.honeypotSanction}
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
+                >
+                  <option value="TIMEOUT">Exclusion Temporaire / Timeout (TO) — Par défaut</option>
+                  <option value="BAN">Bannissement Définitif</option>
+                  <option value="KICK">Exclusion Simple (Kick)</option>
+                  <option value="WARN">Avertissement Simple (Warn)</option>
+                </select>
+                <p class="text-[10px] text-on-surface-variant/40 mt-1">Sélectionnez la sanction automatique à appliquer lorsqu'un membre écrit dans le salon piège.</p>
+              </div>
+
               <!-- Alert Warning Card -->
               <div class="p-5 bg-error/10 border border-error/20 text-error rounded-3xl space-y-3">
                 <h4 class="text-xs font-black uppercase tracking-wider flex items-center gap-2">
@@ -952,7 +972,7 @@
                 <p class="text-xs leading-relaxed opacity-90">
                   Ce salon est configuré pour être visible par 100% des membres (y compris les nouveaux membres et les bots de spam) afin de servir de piège.
                   <br/><br/>
-                  Toute personne (sauf bots et membres ayant les rôles de staff Kotbo configurés) qui enverra un message dans ce salon sera <strong>bannie instantanément</strong> sans préavis.
+                  Toute personne (sauf bots et membres ayant les rôles de staff Kotbo configurés) qui enverra un message dans ce salon recevra la <strong>sanction automatique</strong> configurée ci-dessus, immédiatement et sans préavis.
                 </p>
               </div>
             </div>

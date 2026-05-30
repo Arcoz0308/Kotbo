@@ -1,12 +1,17 @@
 import { Client, Events, Message, TextChannel, PermissionFlagsBits } from 'discord.js';
-import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { errorEmbed } from '../utils/embeds.js';
 import { getCachedGuild } from '../utils/cache.js';
+import {
+  registerWarnSanction,
+  registerKickSanction,
+  registerBanSanction,
+  registerTimeoutSanction,
+} from '../services/sanctionService.js';
 
 export function registerHoneypotListener(client: Client): void {
   client.on(Events.MessageCreate, async (message: Message) => {
-    const { guild, author, member, channelId, channel } = message;
+    const { guild, author, member, channelId } = message;
     if (!guild || !member || author.bot) return;
 
     try {
@@ -32,21 +37,81 @@ export function registerHoneypotListener(client: Client): void {
       // Delete the message immediately to prevent spam spread
       await message.delete().catch(() => null);
 
-      // Ban the user from the guild
-      await member.ban({
-        deleteMessageSeconds: 60 * 60 * 24, // Delete messages from past 24 hours
-        reason: 'Kotbo Honeypot: Sent a message in the restricted honeypot channel (possible hacked account / spam bot).'
-      });
+      const reason = 'Kotbo Honeypot: Sent a message in the restricted honeypot channel (possible hacked account / spam bot).';
+      const target = { id: author.id, tag: author.tag };
+      const moderator = { id: client.user!.id, tag: client.user!.tag };
 
-      logger.warn('Honeypot', `Utilisateur banni car il a écrit dans le salon honeypot : ${author.tag} (${author.id})`);
+      const sanctionType = guildConfig.honeypotSanction || 'TIMEOUT';
 
-      // Log the ban action in the server logs channel
+      let actionText = 'exclu temporairement (Timeout 28 jours)';
+      let logTitle = '🚨 Détection Honeypot : Timeout appliqué';
+
+      if (sanctionType === 'BAN') {
+        await member.ban({
+          deleteMessageSeconds: 60 * 60 * 24, // Delete messages from past 24 hours
+          reason,
+        });
+        await registerBanSanction({
+          guildId: guild.id,
+          target,
+          moderator,
+          reason,
+          client,
+        }).catch(() => null);
+
+        actionText = 'banni du serveur';
+        logTitle = '🚨 Détection Honeypot : Compte banni';
+        logger.warn('Honeypot', `Utilisateur banni car il a écrit dans le salon honeypot : ${author.tag} (${author.id})`);
+      } else if (sanctionType === 'KICK') {
+        await member.kick(reason);
+        await registerKickSanction({
+          guildId: guild.id,
+          target,
+          moderator,
+          reason,
+          client,
+        }).catch(() => null);
+
+        actionText = 'exclu (kick)';
+        logTitle = '🚨 Détection Honeypot : Compte exclu';
+        logger.warn('Honeypot', `Utilisateur exclu car il a écrit dans le salon honeypot : ${author.tag} (${author.id})`);
+      } else if (sanctionType === 'WARN') {
+        await registerWarnSanction({
+          guildId: guild.id,
+          target,
+          moderator,
+          reason,
+          client,
+        }).catch(() => null);
+
+        actionText = 'averti (warn)';
+        logTitle = '🚨 Détection Honeypot : Avertissement appliqué';
+        logger.warn('Honeypot', `Utilisateur averti car il a écrit dans le salon honeypot : ${author.tag} (${author.id})`);
+      } else {
+        // TIMEOUT
+        const durationMs = 28 * 24 * 60 * 60 * 1000;
+        await registerTimeoutSanction({
+          guildId: guild.id,
+          target,
+          moderator,
+          reason,
+          durationMs,
+          member,
+          client,
+        }).catch(() => null);
+
+        actionText = 'exclu temporairement (Timeout 28 jours)';
+        logTitle = '🚨 Détection Honeypot : Timeout appliqué';
+        logger.warn('Honeypot', `Utilisateur mis en timeout car il a écrit dans le salon honeypot : ${author.tag} (${author.id})`);
+      }
+
+      // Log the action in the server logs channel
       if (guildConfig.logChannelId) {
         const logChannel = guild.channels.cache.get(guildConfig.logChannelId);
         if (logChannel && logChannel instanceof TextChannel) {
           const embed = errorEmbed(
-            '🚨 Détection Honeypot : Compte banni',
-            `L'utilisateur **${author.tag}** (\`${author.id}\`) a été banni du serveur car il a écrit dans le salon piège <#${channelId}>.\n\n` +
+            logTitle,
+            `L'utilisateur **${author.tag}** (\`${author.id}\`) a été ${actionText} car il a écrit dans le salon piège <#${channelId}>.\n\n` +
             `**Message supprimé :**\n\`\`\`\n${message.content.slice(0, 1000) || '[Pas de texte/média]'}\n\`\`\``
           );
           await logChannel.send({ embeds: [embed] }).catch(() => null);

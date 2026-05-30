@@ -1035,6 +1035,7 @@ export async function handleModulesRoutes(
             tempVoiceNameTemplate: true,
             honeypotEnabled: true,
             honeypotChannelId: true,
+            honeypotSanction: true,
           },
         });
         if (!guild) {
@@ -1052,6 +1053,7 @@ export async function handleModulesRoutes(
           tempVoiceNameTemplate: guild.tempVoiceNameTemplate,
           honeypotEnabled: guild.honeypotEnabled,
           honeypotChannelId: guild.honeypotChannelId,
+          honeypotSanction: guild.honeypotSanction,
         });
       } catch (err) {
         logger.error('ChannelsManagementAPI', 'GET config error:', err);
@@ -1073,6 +1075,7 @@ export async function handleModulesRoutes(
           tempVoiceNameTemplate?: string;
           honeypotEnabled?: boolean;
           honeypotChannelId?: string | null;
+          honeypotSanction?: string;
         }>(req);
 
         if (!body) {
@@ -1110,6 +1113,14 @@ export async function handleModulesRoutes(
         }
         if (Object.prototype.hasOwnProperty.call(body, 'honeypotChannelId')) {
           data.honeypotChannelId = body.honeypotChannelId;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'honeypotSanction')) {
+          if (['WARN', 'KICK', 'TIMEOUT', 'BAN'].includes(body.honeypotSanction as string)) {
+            data.honeypotSanction = body.honeypotSanction;
+          } else {
+            json(res, 400, { error: 'Type de sanction honeypot invalide' });
+            return true;
+          }
         }
 
         const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
@@ -1318,6 +1329,7 @@ export async function handleModulesRoutes(
             tempVoiceChannelId: data.tempVoiceChannelId,
             tempVoiceCategoryId: data.tempVoiceCategoryId,
             honeypotChannelId: data.honeypotChannelId,
+            honeypotSanction: data.honeypotSanction,
             statsConfig: data.statsConfig,
           }
         });
