@@ -550,7 +550,7 @@
           <div class="flex flex-col gap-1">
             <h3 class="text-sm font-bold text-on-surface">Pseudos autorisés (exacts)</h3>
             <p class="text-xs text-on-surface-variant/50">
-              Ces pseudos complets (insensibles à la casse) ne seront jamais modérés, même s'ils contiennent un mot banni.
+              Ces pseudos complets ne seront jamais modérés, même s'ils contiennent un mot banni (hors mots personnalisés).
             </p>
           </div>
 

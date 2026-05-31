@@ -881,10 +881,8 @@ export async function handleModulesRoutes(
         if (updateData.nicknameModerationWhitelist) {
           const activeBannedWords = await prisma.bannedWord.findMany({
             where: {
-              OR: [
-                { guildId: null, enabled: true },
-                { guildId, enabled: true },
-              ],
+              guildId,
+              enabled: true,
             },
             select: { word: true },
           });
@@ -897,7 +895,7 @@ export async function handleModulesRoutes(
           );
           if (invalidItems.length > 0) {
             json(res, 400, {
-              error: `Impossible d'autoriser ces pseudos car ils font partie de la liste des mots bannis : ${invalidItems.join(', ')}`,
+              error: `Impossible d'autoriser ces pseudos car ils font partie de la liste des mots bannis personnalisés : ${invalidItems.join(', ')}`,
             });
             return true;
           }
