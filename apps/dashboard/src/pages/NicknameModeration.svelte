@@ -375,6 +375,8 @@
             Lorsqu'activé, le bot vérifie les pseudos à l'arrivée et lors des modifications.
             Un pseudo non conforme est remplacé par
             <code class="font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded-lg text-xs">pseudo non conforme | automod</code>.
+            <br />
+            Commande Discord de vérification : <code class="font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded-lg text-xs">/rescan pseudo rescan</code>
           </p>
         </div>
         <div class="flex-shrink-0">
