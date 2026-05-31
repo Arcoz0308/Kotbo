@@ -2,6 +2,7 @@
   import { authStore } from '../lib/stores/auth.svelte';
   import { userPrefs } from '../lib/stores/userPreferences.svelte';
   import { themeStore } from '../lib/stores/theme.svelte';
+  import { toast } from '../lib/stores/toast.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
 
@@ -16,6 +17,7 @@
 
   let savedFeedback = $state(false);
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
+  let importInput = $state<HTMLInputElement | null>(null);
 
   function showSavedFeedback() {
     savedFeedback = true;
@@ -32,6 +34,102 @@
     }
     showSavedFeedback();
   }
+
+  function exportPreferences() {
+    const payload = JSON.stringify(userPrefs.prefs, null, 2);
+    const blob = new Blob([payload], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'kotbo-user-preferences.json';
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success('Export des préférences lancé.');
+  }
+
+  function openImportDialog() {
+    importInput?.click();
+  }
+
+  async function handleImportFile(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    try {
+      const raw = await file.text();
+      const imported = JSON.parse(raw) as Partial<typeof userPrefs.prefs>;
+      const allowedKeys = Object.keys(userPrefs.prefs) as Array<keyof typeof userPrefs.prefs>;
+
+      for (const key of allowedKeys) {
+        if (key in imported) {
+          userPrefs.set(key, imported[key] as any);
+        }
+      }
+
+      toast.success('Préférences importées avec succès.');
+      showSavedFeedback();
+    } catch {
+      toast.error('Le fichier JSON est invalide.');
+    } finally {
+      input.value = '';
+    }
+  }
+
+  async function testNotifications() {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      toast.warning('Les notifications navigateur ne sont pas disponibles ici.');
+      return;
+    }
+
+    const permission = Notification.permission === 'granted'
+      ? 'granted'
+      : await Notification.requestPermission();
+
+    if (permission !== 'granted') {
+      toast.error('Les notifications navigateur ont été refusées.');
+      return;
+    }
+
+    new Notification('Kotbo', {
+      body: 'Aperçu de vos notifications utilisateur.',
+    });
+
+    if (userPrefs.prefs.soundNotifications) {
+      try {
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContextClass) {
+          const context = new AudioContextClass();
+          const oscillator = context.createOscillator();
+          const gain = context.createGain();
+
+          oscillator.type = 'sine';
+          oscillator.frequency.value = 880;
+          gain.gain.value = 0.02;
+
+          oscillator.connect(gain);
+          gain.connect(context.destination);
+          oscillator.start();
+          oscillator.stop(context.currentTime + 0.12);
+        }
+      } catch {
+        // Ignore audio preview errors.
+      }
+    }
+
+    toast.success('Aperçu de notification envoyé.');
+  }
+
+  const activeSummary = $derived([
+    { label: 'Thème', value: userPrefs.prefs.theme === 'dark' ? 'Sombre' : 'Clair' },
+    { label: 'Accent', value: userPrefs.prefs.accentColor },
+    { label: 'Langue', value: userPrefs.prefs.language === 'fr' ? 'Français' : 'English' },
+    { label: 'Dates', value: userPrefs.prefs.dateFormat },
+    { label: 'Sidebar', value: userPrefs.prefs.sidebarBehavior },
+  ]);
 
   const accentColors: { id: AccentColor; label: string; class: string; hex: string }[] = [
     { id: 'violet', label: 'Violet', class: 'bg-violet-500', hex: '#8b5cf6' },
@@ -100,6 +198,43 @@
       </div>
     </div>
   </header>
+
+  <section class="bg-surface-container-low/30 border border-outline-variant/10 p-6 rounded-[2rem] space-y-5">
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      <div>
+        <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Aperçu rapide</p>
+        <h2 class="text-lg font-black mt-1">Vos réglages actifs</h2>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button onclick={openImportDialog} class="px-4 py-2 rounded-xl border border-outline-variant/20 bg-surface-container-high/20 text-sm font-bold hover:border-primary/30 hover:bg-primary/5 transition-colors">
+          Importer
+        </button>
+        <button onclick={exportPreferences} class="px-4 py-2 rounded-xl border border-outline-variant/20 bg-surface-container-high/20 text-sm font-bold hover:border-primary/30 hover:bg-primary/5 transition-colors">
+          Exporter
+        </button>
+        <button onclick={testNotifications} class="px-4 py-2 rounded-xl border border-outline-variant/20 bg-surface-container-high/20 text-sm font-bold hover:border-primary/30 hover:bg-primary/5 transition-colors">
+          Tester les notifications
+        </button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+      {#each activeSummary as item}
+        <div class="rounded-2xl border border-outline-variant/20 bg-surface-container-high/20 p-4">
+          <p class="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest">{item.label}</p>
+          <p class="mt-2 text-sm font-black text-on-surface truncate">{item.value}</p>
+        </div>
+      {/each}
+    </div>
+
+    <input
+      bind:this={importInput}
+      type="file"
+      accept="application/json"
+      class="hidden"
+      onchange={handleImportFile}
+    />
+  </section>
 
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
@@ -316,7 +451,7 @@
       Réinitialise toutes vos préférences utilisateur aux valeurs par défaut. Cette action ne supprime pas vos données.
     </p>
     <button
-      onclick={() => { userPrefs.reset(); showSavedFeedback(); }}
+      onclick={() => { userPrefs.reset(); themeStore.dark = userPrefs.prefs.theme === 'dark'; showSavedFeedback(); toast.success('Préférences réinitialisées.'); }}
       class="px-6 py-2.5 rounded-xl border-2 border-rose-500/40 text-rose-500 font-bold text-sm hover:bg-rose-500/10 transition-all duration-200 hover:border-rose-500/60"
     >
       Réinitialiser les préférences

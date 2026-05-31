@@ -263,13 +263,15 @@
               Mon Activité
             </a>
             <a 
-              href="/settings" 
+              href="/userSettings" 
               class="flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-on-surface-variant transition-all hover:bg-primary/8 hover:text-primary"
               onclick={() => userMenuOpen = false}
             >
               <Papicon icon="settings" size={18} />
               Paramètres
             </a>
+          </div>
+          <div class="border-t border-outline-variant/20 py-1.5">
             <button 
               type="button"
               class="flex items-center gap-3 px-4 py-2.5 w-full text-left text-sm font-bold text-on-surface-variant transition-all hover:bg-primary/8 hover:text-primary cursor-pointer"
@@ -278,8 +280,6 @@
               <Papicon icon="bug_report" size={18} />
               Retour / Suggestion
             </button>
-          </div>
-          <div class="border-t border-outline-variant/20 py-1.5">
             <button 
               type="button"
               onclick={logout} 

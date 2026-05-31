@@ -62,7 +62,7 @@ export const configItems: PageConfig[] = [
 export const otherPages: PageConfig[] = [
   { name: "Administration",      icon: "lock",          href: "/admin",                beta: false, wip: false },
   { name: "Mon Profil",          icon: "user",          href: "/profile",              beta: false, wip: false },
-  { name: "Paramètres Utilisateur", icon: "settings",   href: "/userSettings",         beta: false, wip: false },
+  { name: "Paramètres Utilisateur", icon: "settings",   href: "/userSettings",         beta: true, wip: false },
 ];
 
 export const allPages: PageConfig[] = [
