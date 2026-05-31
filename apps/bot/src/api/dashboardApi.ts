@@ -14,6 +14,7 @@ import {
   extractMediaUrls,
   configRateLimiter,
   errorReportRateLimiter,
+  feedbackReportRateLimiter,
   setDashboardStateBroadcaster,
   broadcastDashboardStateChange,
   type DashboardSanctionType,
@@ -23,6 +24,7 @@ import {
 import { handlePublicRoutes } from './routes/public.js';
 import { handleAuthRoutes } from './routes/auth.js';
 import { handleReportErrorRoute } from './routes/error.js';
+import { handleReportFeedbackRoute } from './routes/feedback.js';
 import { handleUserRoutes } from './routes/user.js';
 import { handleAdminRoutes } from './routes/admin.js';
 import { handleDashboardRoutes } from './routes/dashboard.js';
@@ -113,6 +115,7 @@ export const startDashboardApi = (client: Client) => {
     };
     cleanLimiter(configRateLimiter, 60 * 1000);
     cleanLimiter(errorReportRateLimiter, 15 * 60 * 1000);
+    cleanLimiter(feedbackReportRateLimiter, 15 * 60 * 1000);
   }, 10 * 60 * 1000).unref();
 
   const server = createServer(async (req, res) => {
@@ -122,10 +125,19 @@ export const startDashboardApi = (client: Client) => {
       'http://localhost:5173',
       'http://localhost:3000'
     ]);
+    const isAllowedDevOrigin = (candidate: string) => {
+      try {
+        const parsed = new URL(candidate);
+        if (!['http:', 'https:'].includes(parsed.protocol)) return false;
+        return parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+      } catch {
+        return false;
+      }
+    };
     const origin = req.headers.origin;
     if (origin) {
       const sanitizedOrigin = origin.replace(/\/$/, '');
-      if (allowedOrigins.has(sanitizedOrigin)) {
+      if (allowedOrigins.has(sanitizedOrigin) || isAllowedDevOrigin(sanitizedOrigin)) {
         res.setHeader('Access-Control-Allow-Origin', origin);
         res.setHeader('Access-Control-Allow-Credentials', 'true');
       } else {
@@ -169,6 +181,9 @@ export const startDashboardApi = (client: Client) => {
         return;
       }
       if (await handleReportErrorRoute(req, res, parts, url, client)) {
+        return;
+      }
+      if (await handleReportFeedbackRoute(req, res, parts, url, client)) {
         return;
       }
       if (await handleUserRoutes(req, res, parts, url, client)) {

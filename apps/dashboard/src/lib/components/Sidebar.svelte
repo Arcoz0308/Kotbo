@@ -4,230 +4,469 @@
   import { authStore } from '../stores/auth.svelte';
   import { dashboardStore } from '../stores/dashboard.svelte';
   import { notificationsStore } from '../stores/notifications.svelte';
+  import { sidebarStore } from '../stores/sidebar.svelte';
+  import { portal } from '../actions/portal';
+  import {
+    generalItems,
+    moderationItems,
+    communityItems,
+    staffItems,
+    configItems
+  } from '../config/pages';
 
-  const dashboardItems = $derived.by(() => [
-    { name: "Vue d'ensemble", icon: "grid", href: "/", featureKey: "dashboard" },
-    {
-      name: "Mon Profil",
-      icon: "user",
-      href: authStore.user?.id ? `/profile/${authStore.user.id}` : '/profile',
-      featureKey: "dashboard",
-    },
-    { name: "Inbox", icon: "inbox", href: "/inbox", featureKey: "inbox" },
-    { name: "Analytics", icon: "pie-chart", href: "/analytics", featureKey: "analytics" },
-  ]);
+  let activeTooltip = $state<{ text: string; top: number } | null>(null);
 
-  const moderationItems = [
-    { name: "Daily Algo", icon: "code", href: "/dailyalgo", featureKey: "daily_algo" },
-    { name: "Membres", icon: "user", href: "/members", featureKey: "members" },
-    { name: "Sanctions", icon: "alert-triangle", href: "/sanctions", featureKey: "sanctions" },
-    { name: "Pseudos", icon: "filter", href: "/nickname-moderation", featureKey: "nickname_moderation" },
-    { name: "Doubles Comptes", icon: "users", href: "/double-accounts", featureKey: "double_accounts" },
-    { name: "Détections", icon: "bell", href: "/detections", featureKey: "double_accounts" },
-    { name: "Invitations", icon: "link", href: "/invitations", featureKey: "members" },
-    { name: "Logs Discord", icon: "file-text", href: "/logs", featureKey: "logs" },
-    { name: "Journal d'activité", icon: "history", href: "/activity", featureKey: "activity" },
-    { name: "Événements", icon: "zap", href: "/events", featureKey: "events" },
-  ];
+  function handleMouseEnter(event: MouseEvent, text: string) {
+    if (!collapsed) return;
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    activeTooltip = {
+      text,
+      top: rect.top + rect.height / 2
+    };
+  }
 
-  const managementItems = [
-    { name: "Règlement", icon: "book", href: "/regulation", featureKey: "regulation" },
-    { name: "Actualités & RSS", icon: "rss", href: "/news", featureKey: "news" },
-    { name: "Réseaux sociaux", icon: "share-2", href: "/social-networks", featureKey: "social_networks" },
-  ];
+  function handleMouseLeave() {
+    activeTooltip = null;
+  }
 
-  const staffManagementItems = [
-    { name: "Recrutement", icon: "user-plus", href: "/recruitment", featureKey: "recruitment" },
-    { name: "Tickets Support", icon: "message-square", href: "/tickets", featureKey: "tickets" },
-    { name: "Annuaire Staff", icon: "users", href: "/staff-management?tab=members", featureKey: "staff_directory" },
-    { name: "Hiérarchie & Rôles", icon: "shield", href: "/staff-management?tab=roles", featureKey: "staff_roles" },
-    { name: "Tutorat & Formation", icon: "book-open", href: "/tutoring", featureKey: "tutoring" },
-    { name: "Réunions", icon: "calendar", href: "/meetings", featureKey: "meetings" },
-    { name: "Planning", icon: "sun", href: "/absences", featureKey: "absences" },
-    { name: "Sondages", icon: "bar-chart", href: "/staff-management?tab=polls", featureKey: "polls" },
-    { name: "Discipline", icon: "alert-circle", href: "/staff-management?tab=warnings", featureKey: "discipline" },
-  ];
+  $effect(() => {
+    if (!collapsed) {
+      activeTooltip = null;
+    }
+  });
 
-  const configItems = [
-    { name: "Modules", icon: "package", href: "/modules", featureKey: "modules" },
-    { name: "Gestion des salons", icon: "hash", href: "/channels-management", featureKey: "auto_thread" },
-    { name: "Commandes", icon: "terminal", href: "/command-access", featureKey: "commands" },
-    { name: "Paramètres", icon: "settings", href: "/settings", featureKey: "settings" },
-  ];
+  // ─── Items de navigation (centralisés) ──────────────────────────────────────
 
-  const adminItems = [
-    { name: "Global Admin", icon: "lock", href: "/admin" },
-  ];
+  // ─── Accès / visibilité ───────────────────────────────────────────────────
 
   const featureAccess = $derived(dashboardStore.state.featureAccess || {});
   const fallbackCanView = $derived(
-    authStore.guilds.find((guild) => guild.id === authStore.selectedGuildId)?.accessLevel !== 'none'
+    authStore.guilds.find((g) => g.id === authStore.selectedGuildId)?.accessLevel !== 'none'
   );
 
-  const canViewFeature = (featureKey: string) => {
+  const canViewFeature = (featureKey: string | undefined) => {
     if (!featureKey) return true;
-    const feature = featureAccess?.[featureKey];
+    const feature = (featureAccess as Record<string, any>)?.[featureKey];
     if (feature?.canView !== undefined) return feature.canView;
     return fallbackCanView;
   };
 
-  const canManageSettings = $derived(
-    !!featureAccess?.settings?.canConfigure
-      || authStore.guilds.find((guild) => guild.id === authStore.selectedGuildId)?.accessLevel !== 'moderator'
-  );
-
   const isAdmin = $derived(
-    authStore.guilds.find((guild) => guild.id === authStore.selectedGuildId)?.accessLevel === 'admin'
+    authStore.guilds.find((g) => g.id === authStore.selectedGuildId)?.accessLevel === 'admin'
   );
-
-  const isTutor = $derived(dashboardStore.state.isTutor);
+  const isTutor      = $derived(dashboardStore.state.isTutor);
   const isApprentice = $derived(!!dashboardStore.state.apprenticeProgress);
-  const isStaff = $derived(!!authStore.member);
-  const isModerator = $derived(
-    authStore.guilds.find((guild) => guild.id === authStore.selectedGuildId)?.accessLevel === 'moderator'
+  const isStaff      = $derived(!!authStore.member);
+  const isModerator  = $derived(
+    authStore.guilds.find((g) => g.id === authStore.selectedGuildId)?.accessLevel === 'moderator'
   );
 
-  // Modérateurs ne voient pas Modules, Règlement, Commandes, Paramètres
-  const visibleModerationItems = $derived(
-    moderationItems.filter((item) => (isStaff || isModerator || isAdmin) && canViewFeature(item.featureKey))
+  const visibleGeneral = $derived(
+    generalItems.filter((i) => canViewFeature(i.featureKey))
   );
-  const visibleManagementItems = $derived(
-    managementItems.filter((item) => canViewFeature(item.featureKey))
+  const visibleModeration = $derived(
+    moderationItems.filter((i) => (isStaff || isModerator || isAdmin) && canViewFeature(i.featureKey))
   );
-  const visibleStaffItems = $derived.by(() => {
-    if (isAdmin) return staffManagementItems;
-    return staffManagementItems.filter(item => {
+  const visibleCommunity = $derived(
+    communityItems.filter((i) => canViewFeature(i.featureKey))
+  );
+  const visibleStaff = $derived.by(() => {
+    if (isAdmin) return staffItems.filter((i) => canViewFeature(i.featureKey));
+    return staffItems.filter((item) => {
       if (item.href === '/tutoring') return isTutor || isApprentice || isModerator;
       if (['/absences', '/meetings', '/tickets', '/recruitment'].includes(item.href)) return isStaff || isModerator;
       return false;
-    }).filter((item) => canViewFeature(item.featureKey));
+    }).filter((i) => canViewFeature(i.featureKey));
   });
-  const visibleConfigItems = $derived(
-    configItems.filter((item) => canViewFeature(item.featureKey))
+  const visibleConfig = $derived(
+    configItems.filter((i) => canViewFeature(i.featureKey))
   );
+
+  // ─── Profil (bas de sidebar) ──────────────────────────────────────────────
+
+  const profileHref = $derived(
+    authStore.user?.id ? `/profile/${authStore.user.id}` : '/profile'
+  );
+  const userAvatar = $derived(
+    authStore.user?.id && authStore.user?.avatar
+      ? `https://cdn.discordapp.com/avatars/${authStore.user.id}/${authStore.user.avatar}.png`
+      : 'https://cdn.discordapp.com/embed/avatars/0.png'
+  );
+
+  // ─── Groupes de navigation ────────────────────────────────────────────────
+
+  type NavGroup = { key: string; label: string; icon: string; items: any[] };
+
+  const navGroups = $derived.by((): NavGroup[] => {
+    const groups: NavGroup[] = [];
+    if (visibleGeneral.length > 0)
+      groups.push({ key: 'general',    label: 'Général',     icon: 'home',    items: visibleGeneral });
+    if (visibleModeration.length > 0)
+      groups.push({ key: 'moderation', label: 'Modération',  icon: 'shield',  items: visibleModeration });
+    if (visibleCommunity.length > 0)
+      groups.push({ key: 'community',  label: 'Communauté',  icon: 'users',   items: visibleCommunity });
+    if (visibleStaff.length > 0)
+      groups.push({ key: 'staff',      label: 'Staff',       icon: 'briefcase', items: visibleStaff });
+    if (visibleConfig.length > 0)
+      groups.push({ key: 'config',     label: 'Configuration', icon: 'sliders', items: visibleConfig });
+    return groups;
+  });
+
+  // ─── Sections repliables ──────────────────────────────────────────────────
+
+  function loadGroupStates(): Record<string, boolean> {
+    try {
+      const s = typeof localStorage !== 'undefined' && localStorage.getItem('sidebar_groups');
+      return s ? JSON.parse(s) : {};
+    } catch { return {}; }
+  }
+
+  let groupStates = $state<Record<string, boolean>>(loadGroupStates());
+
+  function isGroupCollapsed(key: string): boolean {
+    // Si un item du groupe est actif, on force l'ouverture
+    const group = navGroups.find((g) => g.key === key);
+    if (group && group.items.some((i) => isActiveNavItem(i.href))) return false;
+    return groupStates[key] === true;
+  }
+
+  function toggleGroup(key: string) {
+    groupStates = { ...groupStates, [key]: !isGroupCollapsed(key) };
+    try {
+      localStorage.setItem('sidebar_groups', JSON.stringify(groupStates));
+    } catch {}
+  }
+
+  // ─── Recherche ────────────────────────────────────────────────────────────
+
+  let searchQuery = $state('');
+  let showOnlyFavorites = $state(false);
+
+  function loadFavorites(): string[] {
+    try {
+      const stored = typeof localStorage !== 'undefined' && localStorage.getItem('sidebar_favorites');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  let favorites = $state<string[]>(loadFavorites());
+
+  function toggleFavorite(href: string, event: Event) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (favorites.includes(href)) {
+      favorites = favorites.filter((h) => h !== href);
+    } else {
+      favorites = [...favorites, href];
+    }
+    try {
+      localStorage.setItem('sidebar_favorites', JSON.stringify(favorites));
+    } catch {}
+  }
+
+  const filteredGroups = $derived.by((): NavGroup[] => {
+    let baseGroups = navGroups;
+    if (showOnlyFavorites) {
+      baseGroups = baseGroups
+        .map((g) => ({
+          ...g,
+          items: g.items.filter((i) => favorites.includes(i.href))
+        }))
+        .filter((g) => g.items.length > 0);
+    }
+    if (!searchQuery.trim()) return baseGroups;
+    const q = searchQuery.toLowerCase().trim();
+    return baseGroups
+      .map((g) => ({ ...g, items: g.items.filter((i) => i.name.toLowerCase().includes(q)) }))
+      .filter((g) => g.items.length > 0);
+  });
+
+  // ─── Active / collapsed state ─────────────────────────────────────────────
 
   function isActiveNavItem(href: string) {
     const r = $router;
     if (href === '/') return r.path === '/';
-    // Handle query params for tabs
     const [path, query] = href.split('?');
-    if (query) {
-      return r.path === path && r.url.includes(query);
-    }
+    if (query) return r.path === path && r.url.includes(query);
     return r.path === path || r.path.startsWith(`${path}/`);
   }
 
-  function isGroupActive(items: any[]) {
-    return items.some(item => isActiveNavItem(item.href));
-  }
-
-  const LOGO_URL = "/favicon.svg";
-
-  type NavGroup = {
-    label: string;
-    items: any[];
-  };
-
-  const navGroups = $derived.by((): NavGroup[] => {
-    const groups: NavGroup[] = [
-      { label: 'Tableau de bord', items: dashboardItems },
-    ];
-    if (visibleModerationItems.length > 0) groups.push({ label: "Modération", items: visibleModerationItems });
-    if (visibleManagementItems.length > 0) groups.push({ label: "Gestion", items: visibleManagementItems });
-    if (visibleStaffItems.length > 0) groups.push({ label: "Staff", items: visibleStaffItems });
-    if (visibleConfigItems.length > 0) groups.push({ label: "Configuration", items: visibleConfigItems });
-    if (authStore.isBotAdmin) groups.push({ label: "Administration", items: adminItems });
-
-    return groups;
-  });
-
-  let searchQuery = $state("");
-
-  const filteredNavGroups = $derived.by((): NavGroup[] => {
-    if (!searchQuery.trim()) return navGroups;
-    const query = searchQuery.toLowerCase().trim();
-    return navGroups
-      .map(group => ({
-        ...group,
-        items: group.items.filter(item => item.name.toLowerCase().includes(query))
-      }))
-      .filter(group => group.items.length > 0);
-  });
+  const collapsed = $derived(sidebarStore.collapsed);
+  const LOGO_URL = '/favicon.svg';
 </script>
 
-<aside class="flex flex-col fixed left-0 top-0 h-screen w-64 bg-surface-container-low/80 backdrop-blur-3xl border-r border-outline-variant/30 z-50 transition-all duration-500 hover:shadow-[20px_0_40px_rgba(0,0,0,0.05)]">
-  <div class="pl-8 pt-8 pb-2 flex items-center gap-4">
-    <div class="relative w-11 h-11">
-      <div class="absolute inset-0 bg-primary/20 rounded-2xl blur-lg animate-pulse"></div>
-      <img alt="Logo" src={LOGO_URL} class="w-full h-full object-cover rounded-xl"/>
+<aside class="sidebar flex flex-col fixed left-0 top-0 h-screen bg-surface-container-low/80 backdrop-blur-3xl border-r border-outline-variant/30 z-50 transition-all duration-300 {collapsed ? 'sidebar--collapsed' : 'sidebar--expanded'}">
+
+  <!-- ─── Bouton collapse (onglet flottant) ─── -->
+  <button
+    type="button"
+    onclick={() => sidebarStore.toggle()}
+    class="absolute -right-3.5 top-16 z-10 w-7 h-7 rounded-full border border-outline-variant/30 bg-surface-container-low shadow-md flex items-center justify-center transition-all duration-300 hover:bg-primary/10 hover:border-primary/40 hover:scale-110 text-on-surface-variant hover:text-primary"
+    aria-label={collapsed ? 'Étendre' : 'Réduire'}
+    title={collapsed ? 'Étendre la sidebar' : 'Réduire la sidebar'}
+  >
+    <div class="transition-transform duration-300 {collapsed ? 'rotate-180' : ''}">
+      <Papicon icon="chevrons-left" size={13} />
     </div>
-    <div class="flex flex-col">
-      <h1 class="text-xl font-black tracking-tighter text-on-surface font-headline leading-none">Kotbo</h1>
+  </button>
+
+  <!-- ─── Header ─── -->
+  <div class="flex items-center gap-3 px-4 pt-6 pb-4 {collapsed ? 'justify-center' : ''}">
+    <div class="relative w-10 h-10 shrink-0">
+      <div class="absolute inset-0 bg-primary/20 rounded-xl blur-md animate-pulse"></div>
+      <img alt="Logo" src={LOGO_URL} class="relative w-full h-full object-cover rounded-xl"/>
     </div>
+    {#if !collapsed}
+      <div class="flex flex-col min-w-0">
+        <span class="text-[15px] font-black tracking-tight text-on-surface leading-none">Kotbo</span>
+        <span class="text-[10px] text-on-surface-variant/50 mt-0.5">Dashboard</span>
+      </div>
+    {/if}
   </div>
 
-  <div class="px-4 py-2">
-    <div class="relative flex items-center">
-      <input
-        type="text"
-        placeholder="Rechercher..."
-        bind:value={searchQuery}
-        class="w-full pl-10 pr-8 py-2 text-xs rounded-xl bg-surface-container/30 border border-outline-variant/20 text-on-surface placeholder:text-on-surface-variant/40 focus:outline-none focus:border-primary/45 focus:bg-surface-container/60 transition-all duration-300"
-      />
-      <div class="absolute left-3.5 flex items-center justify-center text-on-surface-variant/40">
-        <Papicon icon="search" size={14} />
+  <!-- ─── Recherche ─── -->
+  {#if !collapsed}
+    <div class="px-3 pb-3 flex items-center gap-1.5">
+      <div class="relative flex-1 flex items-center">
+        <input
+          type="text"
+          placeholder="Rechercher..."
+          bind:value={searchQuery}
+          class="w-full pl-9 pr-7 py-2 text-xs rounded-xl bg-surface-container/40 border border-outline-variant/20 text-on-surface placeholder:text-on-surface-variant/35 focus:outline-none focus:border-primary/40 focus:bg-surface-container/60 transition-all duration-200"
+        />
+        <div class="absolute left-3 text-on-surface-variant/35">
+          <Papicon icon="search" size={13} />
+        </div>
+        {#if searchQuery}
+          <button
+            type="button"
+            onclick={() => searchQuery = ''}
+            class="absolute right-2.5 text-on-surface-variant/40 hover:text-on-surface transition-colors"
+          >
+            <Papicon icon="x" size={11} />
+          </button>
+        {/if}
       </div>
-      {#if searchQuery}
+
+      <!-- Bouton favoris -->
+      <button
+        type="button"
+        onclick={() => showOnlyFavorites = !showOnlyFavorites}
+        class="flex items-center justify-center w-8 h-8 rounded-xl border transition-all duration-200 shrink-0
+          {showOnlyFavorites 
+            ? 'bg-amber-500/10 border-amber-500/35 text-amber-500 hover:bg-amber-500/20' 
+            : 'bg-surface-container/40 border-outline-variant/20 text-on-surface-variant/50 hover:text-on-surface hover:bg-surface-container/60'}"
+        title={showOnlyFavorites ? "Afficher tout le menu" : "Afficher les favoris"}
+        aria-label="Filtrer par favoris"
+      >
+        <Papicon icon="star" size={14} class={showOnlyFavorites ? "fill-amber-500 text-amber-500" : ""} />
+      </button>
+    </div>
+  {/if}
+
+  <!-- ─── Navigation (scrollable) ─── -->
+  <nav class="flex-1 overflow-y-auto scrollbar-hide pb-2 {collapsed ? 'px-2' : 'px-3'}">
+    {#each filteredGroups as group, gi}
+      {#if gi > 0}
+        <div class="my-1 border-t border-outline-variant/20"></div>
+      {/if}
+
+      {#if collapsed}
+        <!-- Mode icônes : petit séparateur entre groupes -->
+        {#if gi > 0}<div class="h-2"></div>{/if}
+        {#each group.items as item}
+          <a
+            href={item.href}
+            onmouseenter={(e) => handleMouseEnter(e, item.name + (item.wip ? ' (WIP)' : item.beta ? ' (Bêta)' : ''))}
+            onmouseleave={handleMouseLeave}
+            class="relative flex items-center justify-center w-full py-2.5 rounded-xl transition-all duration-200 group
+              {isActiveNavItem(item.href)
+                ? 'text-primary bg-primary/8'
+                : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container/60'}"
+          >
+            {#if isActiveNavItem(item.href)}
+              <div class="absolute left-0 top-2 bottom-2 w-1 bg-primary rounded-full"></div>
+            {/if}
+            <Papicon
+              icon={item.icon}
+              size={19}
+              class="transition-transform duration-200 {isActiveNavItem(item.href) ? '' : 'group-hover:scale-110'}"
+            />
+            {#if item.name === 'Inbox' && notificationsStore.unreadCount > 0}
+              <div class="absolute top-1 right-1 min-w-[14px] h-[14px] px-0.5 bg-primary text-white text-[8px] font-black rounded-full flex items-center justify-center">
+                {notificationsStore.unreadCount > 9 ? '9+' : notificationsStore.unreadCount}
+              </div>
+            {/if}
+          </a>
+        {/each}
+
+      {:else}
+        <!-- En-tête du groupe cliquable -->
         <button
           type="button"
-          onclick={() => searchQuery = ""}
-          class="absolute right-3 flex items-center justify-center p-1 rounded-lg text-on-surface-variant/40 hover:text-on-surface hover:bg-surface-variant/20 transition-all duration-200"
+          onclick={() => toggleGroup(group.key)}
+          class="w-full flex items-center gap-2 px-2 py-1.5 mb-0.5 rounded-lg transition-colors hover:bg-surface-container/40 group/label"
         >
-          <Papicon icon="x" size={12} />
+          <span class="flex-1 text-left text-[10px] font-bold text-on-surface-variant/55 uppercase tracking-[0.18em]">
+            {group.label}
+          </span>
+          <div class="text-on-surface-variant/30 group-hover/label:text-on-surface-variant/60 transition-all duration-200 {isGroupCollapsed(group.key) ? '-rotate-90' : ''}">
+            <Papicon icon="chevron-down" size={11} />
+          </div>
         </button>
-      {/if}
-    </div>
-  </div>
 
-  <nav class="flex-1 mt-2 px-4 pb-8 space-y-1 overflow-y-auto scrollbar-hide">
-    {#each filteredNavGroups as group, groupIdx}
-      {#if groupIdx > 0}
-        <div class="pt-4 mt-3 border-t border-outline-variant/30"></div>
-      {/if}
+        <!-- Items du groupe -->
+        {#if !isGroupCollapsed(group.key)}
+          <div class="space-y-0.5 mb-1">
+            {#each group.items as item}
+              <div
+                class="relative flex items-center rounded-xl transition-all duration-200 group
+                  {isActiveNavItem(item.href)
+                    ? 'text-primary bg-primary/7 font-semibold'
+                    : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container/50'}"
+              >
+                {#if isActiveNavItem(item.href)}
+                  <div class="absolute left-0 top-2 bottom-2 w-[3px] bg-primary rounded-full"></div>
+                {/if}
+                
+                <a
+                  href={item.href}
+                  class="flex-1 flex items-center gap-3 pl-3 py-2.5 min-w-0"
+                >
+                  <Papicon
+                    icon={item.icon}
+                    size={17}
+                    class="shrink-0 transition-all duration-200
+                      {isActiveNavItem(item.href)
+                        ? 'text-primary'
+                        : 'text-on-surface-variant/50 group-hover:text-on-surface/80'}"
+                  />
+                  <span class="text-[13px] leading-none truncate">{item.name}</span>
+                  {#if item.wip}
+                    <span class="ml-1.5 px-1.5 py-0.5 rounded-[4px] text-[9px] font-bold tracking-wider uppercase bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">WIP</span>
+                  {:else if item.beta}
+                    <span class="ml-1.5 px-1.5 py-0.5 rounded-[4px] text-[9px] font-bold tracking-wider uppercase bg-purple-500/10 text-purple-500 border border-purple-500/20 shrink-0">BETA</span>
+                  {/if}
+                </a>
 
-      <div class="px-3 mb-2 text-[10px] font-bold text-on-surface-variant/70 uppercase tracking-[0.2em]">{group.label}</div>
-      {#each group.items as item}
-        <a 
-          href={item.href}
-          class="flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all duration-300 group relative overflow-hidden {isActiveNavItem(item.href) ? 'text-primary bg-primary/5 font-bold' : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-hover/50'}"
-        >
-          {#if isActiveNavItem(item.href)}
-            <div class="absolute left-0 top-3 bottom-3 w-1.5 bg-primary rounded-full animate-in slide-in-from-left-2 duration-300"></div>
-          {/if}
-          <Papicon 
-            icon={item.icon} 
-            size={20} 
-            class="transition-all duration-300 {isActiveNavItem(item.href) ? 'scale-110' : 'opacity-60 group-hover:opacity-100 group-hover:scale-110'}" 
-          />
-          <span class="text-[13px] tracking-tight">{item.name}</span>
-          
-          {#if item.name === 'Inbox' && notificationsStore.unreadCount > 0}
-            <div class="ml-auto min-w-5 h-5 px-1 bg-primary text-white text-[10px] font-black rounded-full flex items-center justify-center shadow-[0_0_10px_rgba(var(--color-primary),0.3)] animate-in zoom-in duration-300">
-              {notificationsStore.unreadCount > 99 ? '99+' : notificationsStore.unreadCount}
-            </div>
-          {/if}
-        </a>
-      {/each}
+                <!-- Badges / Favori sur la droite -->
+                <div class="flex items-center gap-1.5 pr-3 shrink-0">
+                  {#if item.name === 'Inbox' && notificationsStore.unreadCount > 0}
+                    <div class="min-w-[18px] h-[18px] px-1 bg-primary text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                      {notificationsStore.unreadCount > 99 ? '99+' : notificationsStore.unreadCount}
+                    </div>
+                  {/if}
+                  
+                  <button
+                    type="button"
+                    onclick={(e) => toggleFavorite(item.href, e)}
+                    class="flex items-center justify-center w-6 h-6 rounded-lg transition-all duration-200 text-on-surface-variant/30 hover:text-amber-500 hover:bg-amber-500/10
+                      {favorites.includes(item.href) ? 'text-amber-500 opacity-100' : 'opacity-0 group-hover:opacity-100 focus:opacity-100'}"
+                    title={favorites.includes(item.href) ? "Retirer des favoris" : "Ajouter aux favoris"}
+                  >
+                    <Papicon icon="star" size={13} class={favorites.includes(item.href) ? "fill-amber-500 text-amber-500" : ""} />
+                  </button>
+                </div>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      {/if}
     {:else}
-      <div class="flex flex-col items-center justify-center py-8 px-4 text-center">
-        <Papicon icon="info" size={24} class="text-on-surface-variant/40 mb-2" />
-        <p class="text-xs text-on-surface-variant/60">Aucun résultat trouvé</p>
-      </div>
+      {#if !collapsed}
+        <div class="flex flex-col items-center py-8 text-center text-on-surface-variant/40">
+          {#if showOnlyFavorites}
+            <Papicon icon="star" size={20} class="mb-2 text-amber-500/60" />
+            <p class="text-xs px-4">Aucun favori enregistré. Cliquez sur l'étoile d'un menu pour l'ajouter.</p>
+          {:else}
+            <Papicon icon="search" size={20} class="mb-2" />
+            <p class="text-xs">Aucun résultat</p>
+          {/if}
+        </div>
+      {/if}
     {/each}
   </nav>
+
+  <!-- ─── Section basse : Admin + Profil ─── -->
+  <div class="border-t border-outline-variant/20 {collapsed ? 'px-2 py-3' : 'px-3 py-3'} space-y-1">
+    <!-- Admin (bot admin seulement) -->
+    {#if authStore.isBotAdmin}
+      <a
+        href="/admin"
+        onmouseenter={(e) => handleMouseEnter(e, 'Administration')}
+        onmouseleave={handleMouseLeave}
+        class="relative flex items-center {collapsed ? 'justify-center py-2.5' : 'gap-3 px-3 py-2'} rounded-xl transition-all duration-200 group
+          {isActiveNavItem('/admin')
+            ? 'text-amber-400 bg-amber-400/8'
+            : 'text-on-surface-variant/50 hover:text-amber-400 hover:bg-amber-400/8'}"
+      >
+        <Papicon icon="lock" size={collapsed ? 19 : 17} class="shrink-0" />
+        {#if !collapsed}
+          <span class="text-[13px]">Administration</span>
+        {/if}
+      </a>
+    {/if}
+
+    <!-- Profil utilisateur -->
+    <a
+      href={profileHref}
+      onmouseenter={(e) => handleMouseEnter(e, authStore.user?.username ?? 'Mon Profil')}
+      onmouseleave={handleMouseLeave}
+      class="flex items-center {collapsed ? 'justify-center py-2' : 'gap-3 px-2 py-2'} rounded-xl transition-all duration-200 hover:bg-surface-container/60 group"
+    >
+      <div class="relative shrink-0 w-8 h-8">
+        <img
+          src={userAvatar}
+          alt="Avatar"
+          class="w-full h-full rounded-lg object-cover ring-1 ring-outline-variant/30 transition-transform duration-200 group-hover:scale-105"
+        />
+        <!-- Indicateur actif -->
+        {#if isActiveNavItem(profileHref)}
+          <div class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-primary rounded-full border-2 border-surface-container-low"></div>
+        {/if}
+      </div>
+      {#if !collapsed}
+        <div class="flex flex-col min-w-0">
+          <span class="text-[12px] font-semibold text-on-surface truncate leading-none">
+            {authStore.user?.username ?? '...'}
+          </span>
+          <span class="text-[10px] text-on-surface-variant/50 mt-0.5">Mon profil</span>
+        </div>
+      {/if}
+    </a>
+  </div>
 </aside>
 
+{#if activeTooltip && collapsed}
+  <div
+    use:portal
+    class="fixed z-100 -translate-y-1/2 pointer-events-none bg-surface-container-high text-on-surface border border-outline-variant/40 rounded-lg px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap shadow-lg tooltip-arrow animate-in fade-in"
+    style="left: calc(4.5rem + 8px); top: {activeTooltip.top}px"
+  >
+    {activeTooltip.text}
+  </div>
+{/if}
+
 <style>
+  .sidebar--expanded { width: 16rem; }
+  .sidebar--collapsed { width: 4.5rem; }
+
   .scrollbar-hide::-webkit-scrollbar { display: none; }
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* Arrow style for the portal-based tooltip */
+  .tooltip-arrow::before {
+    content: '';
+    position: absolute;
+    left: -5px;
+    top: 50%;
+    transform: translateY(-50%) rotate(45deg);
+    width: 8px;
+    height: 8px;
+    background: var(--surface-container-high);
+    border-left: 1px solid color-mix(in srgb, var(--outline-variant) 40%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--outline-variant) 40%, transparent);
+  }
 </style>

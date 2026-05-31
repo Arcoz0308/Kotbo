@@ -1,10 +1,11 @@
 {
   "name": "@kotbo/bot",
-  "version": "7.16",
+  "version": "7.17",
   "private": true,
   "scripts": {
     "migrate:deploy": "cd ../.. && bun run db:migrate:deploy",
     "prestart": "bun run migrate:deploy && bun run quality:gate",
+    "build": "bun run typecheck",
     "dev": "bun run --watch src/launcher.ts",
     "dev:safe": "bun run quality:gate && bun run --watch src/launcher.ts",
     "start": "bun run src/launcher.ts",

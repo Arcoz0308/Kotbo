@@ -7,6 +7,7 @@
   export let placeholder: string = '';
   export let className: string = '';
   export let clearable: boolean = true;
+  export let disabled: boolean = false;
 
   const dispatch = createEventDispatcher();
 
@@ -20,6 +21,7 @@
   $: filtered = options.filter((o) => normalize(o.name).includes(normalize(query)) || o.id.includes(query));
 
   function select(opt: { id: string; name: string }) {
+    if (disabled) return;
     value = opt.id;
     query = opt.name;
     open = false;
@@ -28,6 +30,7 @@
   }
 
   function clear() {
+    if (disabled) return;
     value = null;
     query = '';
     dispatch('change', { value });
@@ -53,14 +56,15 @@
     type="text"
     placeholder={placeholder}
     bind:value={query}
-    on:input={() => (open = true)}
-    on:focus={() => (open = true)}
+    on:input={() => !disabled && (open = true)}
+    on:focus={() => !disabled && (open = true)}
     on:blur={() => setTimeout(() => (open = false), 150)}
-    class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 outline-none"
+    class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
     autocomplete="off"
+    disabled={disabled}
   />
 
-  {#if clearable && query}
+  {#if clearable && query && !disabled}
     <button type="button" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-on-surface-variant" on:click|preventDefault={clear}>✕</button>
   {/if}
 

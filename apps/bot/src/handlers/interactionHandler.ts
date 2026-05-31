@@ -105,6 +105,28 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
   const { customId, guildId, user } = interaction;
 
+  // ── Giveaway buttons ────────────────────────────────────────────────
+  if (customId.startsWith('giveaway_join:')) {
+    const { handleGiveawayJoin } = await import('../services/giveawayService.js');
+    await handleGiveawayJoin(interaction);
+    return;
+  }
+
+  // ── Reaction Role buttons ───────────────────────────────────────────
+  if (customId.startsWith('role_toggle:')) {
+    const { handleRoleToggleInteraction } = await import('../services/reactionRoleService.js');
+    await handleRoleToggleInteraction(interaction);
+    return;
+  }
+
+  // ── Suggestion buttons ──────────────────────────────────────────────
+  if (customId.startsWith('suggest_vote:')) {
+    const { handleSuggestionVote } = await import('../services/suggestionService.js');
+    const type = customId.split(':')[2] as 'up' | 'down';
+    await handleSuggestionVote(interaction, type);
+    return;
+  }
+
   const caseRoute = parseUserCaseRoute(customId);
   if (caseRoute) {
     if (!guildId) {

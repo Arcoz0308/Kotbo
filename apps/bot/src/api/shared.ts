@@ -166,6 +166,7 @@ export const getClientIp = (req: IncomingMessage): string => {
 
 export const configRateLimiter = new Map<string, number[]>();
 export const errorReportRateLimiter = new Map<string, number[]>();
+export const feedbackReportRateLimiter = new Map<string, number[]>();
 
 export const checkRateLimit = (limiterMap: Map<string, number[]>, ip: string, limit: number, windowMs: number): boolean => {
   const now = Date.now();

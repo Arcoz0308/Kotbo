@@ -1,20 +1,35 @@
 <script lang="ts">
+  interface Props {
+    message?: string;
+    error?: string;
+    idleText?: string;
+    state?: {
+      state: {
+        message: string;
+        error: string;
+      };
+    };
+  }
+
   let {
     message = '',
     error = '',
-    idleText = ''
-  } = $props();
+    idleText = '',
+    state = undefined
+  }: Props = $props();
 
-  const hasError = $derived(!!error);
-  const hasMessage = $derived(!!message);
+  const displayMessage = $derived(state ? state.state.message : message);
+  const displayError = $derived(state ? state.state.error : error);
+  const hasError = $derived(!!displayError);
+  const hasMessage = $derived(!!displayMessage);
 </script>
 
 {#if hasError || hasMessage || idleText}
   <div class="text-xs font-semibold {hasError ? 'text-red-600' : hasMessage ? 'text-emerald-600' : 'text-on-surface-variant'}">
     {#if hasError}
-      <span>{error}</span>
+      <span>{displayError}</span>
     {:else if hasMessage}
-      <span>{message}</span>
+      <span>{displayMessage}</span>
     {:else}
       <span>{idleText}</span>
     {/if}

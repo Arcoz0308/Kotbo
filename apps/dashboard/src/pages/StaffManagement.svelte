@@ -80,8 +80,7 @@
   function switchTab(tab: StaffTab) {
     activeTab = tab;
     router.goto(`/staff-management?tab=${tab}`);
-    // Si on change d'onglet et qu'il n'est pas encore prêt (par ex: lazy load non fini)
-    // on peut forcer le refresh ici si besoin, mais le background load s'en occupe.
+    void loadTabData(tab);
   }
 
   // Data
@@ -654,7 +653,7 @@
     await loadTabData(activeTab);
 
     // 3. Charger le reste en tâche de fond (lazy loading)
-    const otherTabs: StaffTab[] = ['members', 'roles', 'organigramme', 'warnings', 'polls', 'leadership']
+    const otherTabs: StaffTab[] = ['members', 'roles', 'organigramme', 'warnings', 'blacklist', 'polls', 'leadership']
        .filter(t => t !== activeTab) as StaffTab[];
     
     // On lance en parallèle sans await pour ne pas bloquer l'interactivité
@@ -667,6 +666,7 @@
       case 'roles': await Promise.all([loadStaffRoles(), loadHierarchies()]); break;
       case 'organigramme': await loadHierarchySchema(); break;
       case 'warnings': await loadStaffWarnings(); break;
+      case 'blacklist': await loadStaffMembers(); break;
       case 'polls': await loadPolls(); break;
       case 'leadership': await loadLeadershipMetrics(); break;
     }

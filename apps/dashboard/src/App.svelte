@@ -9,6 +9,7 @@
   import { toast } from './lib/stores/toast.svelte';
   import ToastContainer from './lib/components/ToastContainer.svelte';
   import InviteDetailsModal from './lib/components/invitations/InviteDetailsModal.svelte';
+  import FeedbackModal from './lib/components/FeedbackModal.svelte';
   import NotFound from './pages/NotFound.svelte';
   import GlobalErrorOverlay from './lib/components/GlobalErrorOverlay.svelte';
 
@@ -53,9 +54,21 @@
   import InvitationDetail from './pages/InvitationDetail.svelte';
   import Tickets from './pages/Tickets.svelte';
   import TranscriptDetail from './pages/TranscriptDetail.svelte';
+  
+  import Leveling from './pages/Leveling.svelte';
+  import LevelingPublic from './pages/LevelingPublic.svelte';
+  import Giveaways from './pages/Giveaways.svelte';
+  import WelcomeGoodbye from './pages/WelcomeGoodbye.svelte';
+  import ReactionRoles from './pages/ReactionRoles.svelte';
+  import AutoResponses from './pages/AutoResponses.svelte';
+  import AutoMod from './pages/AutoMod.svelte';
+  import Suggestions from './pages/Suggestions.svelte';
+  import EmbedBuilder from './pages/EmbedBuilder.svelte';
+  import UserSettings from './pages/UserSettings.svelte';
 
   const isPublicPage = $derived(
     /^\/\d{17,19}\/news\/?$/.test($router.path) ||
+    /^\/\d{17,19}\/leveling\/classement\/?$/.test($router.path) ||
     ($router.path.startsWith('/profile/') && !authStore.isAuthenticated) ||
     $router.path.startsWith('/transcripts/')
   );
@@ -67,7 +80,7 @@
 
   function canViewFeature(featureKey: string) {
     if (!featureKey) return true;
-    const feature = featureAccess?.[featureKey];
+    const feature = (featureAccess as Record<string, any>)?.[featureKey];
     if (feature?.canView !== undefined) return feature.canView;
     return fallbackCanView;
   }
@@ -91,6 +104,14 @@
     if (path.startsWith('/tutoring')) return 'tutoring';
     if (path.startsWith('/meetings')) return 'meetings';
     if (path.startsWith('/absences')) return 'absences';
+    if (path.startsWith('/leveling')) return 'leveling';
+    if (path.startsWith('/giveaways')) return 'giveaways';
+    if (path.startsWith('/welcome')) return 'welcome_goodbye';
+    if (path.startsWith('/reaction-roles')) return 'reaction_roles';
+    if (path.startsWith('/auto-responses')) return 'auto_responses';
+    if (path.startsWith('/automod')) return 'automod';
+    if (path.startsWith('/suggestions')) return 'suggestions';
+    if (path.startsWith('/embed-builder')) return 'embed_builder';
     if (path.startsWith('/staff-management')) {
       const tab = new URLSearchParams(window.location.search).get('tab');
       if (tab === 'roles') return 'staff_roles';
@@ -252,6 +273,9 @@
       <Route path="/:serverId/news" let:meta>
         <News serverId={meta.params.serverId} />
       </Route>
+      <Route path="/:serverId/leveling/classement" let:meta>
+        <LevelingPublic serverId={meta.params.serverId} />
+      </Route>
       <Route path="/profile/:userId" let:meta>
         <PublicProfile userId={meta.params.userId} />
       </Route>
@@ -359,6 +383,10 @@
         <EventControl eventId={meta.params.eventId} />
       </Route>
       
+      <Route path="/userSettings">
+        <UserSettings />
+      </Route>
+
       <!-- Fallback for authenticated users -->
       <Route fallback>
         <NotFound />
@@ -475,6 +503,31 @@
             <NicknameModeration />
           </Route>
 
+          <Route path="/leveling">
+            <Leveling />
+          </Route>
+          <Route path="/giveaways">
+            <Giveaways />
+          </Route>
+          <Route path="/welcome">
+            <WelcomeGoodbye />
+          </Route>
+          <Route path="/reaction-roles">
+            <ReactionRoles />
+          </Route>
+          <Route path="/auto-responses">
+            <AutoResponses />
+          </Route>
+          <Route path="/automod">
+            <AutoMod />
+          </Route>
+          <Route path="/suggestions">
+            <Suggestions />
+          </Route>
+          <Route path="/embed-builder">
+            <EmbedBuilder />
+          </Route>
+
           <Route path="/double-accounts">
             <DoubleAccounts />
           </Route>
@@ -497,6 +550,10 @@
             <EventControl eventId={meta.params.eventId} />
           </Route>
           
+          <Route path="/userSettings">
+            <UserSettings />
+          </Route>
+
           <!-- Fallback for authenticated users -->
           <Route fallback>
             <NotFound />
@@ -514,11 +571,12 @@
       {/if}
     {/if}
 
-    {#snippet fallback(error)}
-      <GlobalErrorOverlay errorMsg={error.message || String(error)} errorStack={error.stack} />
+    {#snippet failed(error)}
+      <GlobalErrorOverlay errorMsg={error instanceof Error ? error.message : String(error)} errorStack={error instanceof Error ? error.stack : undefined} />
     {/snippet}
   </svelte:boundary>
 {/if}
 
 <ToastContainer />
 <InviteDetailsModal />
+<FeedbackModal />

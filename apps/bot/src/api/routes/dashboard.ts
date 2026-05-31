@@ -20,6 +20,7 @@ import { handleMembersRoutes } from './dashboard/members.js';
 import { handleLeadershipRoutes, handleGuildLeadershipRoutes } from './dashboard/leadership.js';
 import { handleModulesRoutes } from './dashboard/modules.js';
 import { handleEventsRoutes } from './dashboard/events.js';
+import { handleGeneralistModulesRoutes } from './dashboard/generalistModules.js';
 
 export async function handleDashboardRoutes(
   req: IncomingMessage,
@@ -148,6 +149,10 @@ export async function handleDashboardRoutes(
       return true;
     }
     if (await handleModulesRoutes(req, res, parts, url, client, user, guildId, access)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
+      return true;
+    }
+    if (await handleGeneralistModulesRoutes(req, res, parts, url, client, user, guildId, access)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }

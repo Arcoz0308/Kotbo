@@ -383,6 +383,78 @@ export async function handlePublicRoutes(
     return true;
   }
 
+  // GET /api/public/guilds/:guildId/leveling
+  if (parts[2] === 'guilds' && parts[3] && parts[4] === 'leveling' && !parts[5] && method === 'GET') {
+    const guildId = parts[3];
+    if (!/^\d{17,19}$/.test(guildId)) {
+      json(res, 400, { error: 'ID de guilde invalide' });
+      return true;
+    }
+
+    try {
+      const config = await prisma.levelConfig.findUnique({
+        where: { guildId },
+      });
+
+      if (!config || !config.enabled) {
+        json(res, 200, { enabled: false, levels: [], guildName: 'Kotbo Server' });
+        return true;
+      }
+
+      const levels = await prisma.memberLevel.findMany({
+        where: { guildId },
+        orderBy: { xp: 'desc' },
+        take: 100, // Limiter au top 100
+      });
+
+      // Charger les profils de membres de la base de données
+      const userIds = levels.map(l => l.userId);
+      const dbProfiles = await prisma.memberProfile.findMany({
+        where: {
+          guildId,
+          userId: { in: userIds }
+        }
+      });
+      const profileMap = new Map(dbProfiles.map(p => [p.userId, p]));
+
+      // Charger les membres en direct du serveur Discord si possible
+      const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+      let discordMembers = new Map();
+      if (discordGuild && userIds.length > 0) {
+        discordMembers = await discordGuild.members.fetch({ user: userIds }).catch(() => new Map());
+      }
+
+      const levelsWithUserData = levels.map(l => {
+        const profile = profileMap.get(l.userId);
+        const discordMember = discordMembers.get(l.userId);
+
+        const username = discordMember?.user.username || profile?.username || null;
+        const displayName = discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${l.userId}`;
+        const avatarUrl = discordMember?.user.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null;
+
+        return {
+          userId: l.userId,
+          xp: l.xp,
+          level: l.level,
+          username,
+          displayName,
+          avatarUrl
+        };
+      });
+
+      json(res, 200, {
+        enabled: true,
+        guildName: discordGuild?.name || 'Kotbo Server',
+        guildIcon: discordGuild?.iconURL({ size: 128 }) || null,
+        levels: levelsWithUserData
+      });
+    } catch (err: any) {
+      logger.error('PublicAPI', `Error fetching public leveling for guild ${guildId}: ${err.message}`);
+      json(res, 500, { error: 'Erreur lors du chargement du classement de leveling' });
+    }
+    return true;
+  }
+
   // GET /api/public/transcripts/:transcriptId
   if (parts[2] === 'transcripts' && parts[3] && method === 'GET') {
     const transcriptId = parts[3];

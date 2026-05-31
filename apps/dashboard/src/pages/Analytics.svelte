@@ -166,7 +166,7 @@ import GlobalInteractionGraph from '../lib/components/charts/GlobalInteractionGr
       { id: 'messages', label: 'Messages', icon: 'ChatCircleDots' },
       { id: 'voice', label: 'Vocal', icon: 'Microphone' },
       { id: 'interactions', label: 'Réseau', icon: 'Compass' },
-      { id: 'commands', label: 'Commandes', icon: 'Code', badge: 'En cours de développement', disabled: true },
+      { id: 'commands', label: 'Commandes', icon: 'Code' },
       { id: 'members', label: 'Membres', icon: 'UsersFour' },
     ],
     moderation: [
@@ -313,7 +313,7 @@ import GlobalInteractionGraph from '../lib/components/charts/GlobalInteractionGr
       {#each categories as cat}
         <button 
           onclick={() => { activeCategory = cat.id; activeTab = tabsByCategory[cat.id]?.[0]?.id || cat.id; }} 
-          class="flex items-center gap-2.5 px-6 py-3.5 rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest transition-all duration-400 whitespace-nowrap group {activeCategory === cat.id ? 'bg-primary text-on-primary shadow-lg shadow-primary/25 scale-[1.02]' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
+          class="flex items-center gap-2.5 px-6 py-3.5 rounded-3xl text-[10px] font-black uppercase tracking-widest transition-all duration-400 whitespace-nowrap group {activeCategory === cat.id ? 'bg-primary text-on-primary shadow-lg shadow-primary/25 scale-[1.02]' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
           title={cat.description}
         >
           <div class="transition-transform group-hover:scale-110 {activeCategory === cat.id ? 'text-on-primary' : 'text-primary'}">
@@ -328,13 +328,12 @@ import GlobalInteractionGraph from '../lib/components/charts/GlobalInteractionGr
   <!-- Navigation Onglets (sous-catégories) -->
   {#if currentTabs.length > 1}
     <div class="flex justify-center">
-      <div class="flex gap-1 bg-surface-container-low/40 backdrop-blur-lg p-1.5 rounded-[1.5rem] border border-outline-variant/5">
+      <div class="flex gap-1 bg-surface-container-low/40 backdrop-blur-lg p-1.5 rounded-3xl border border-outline-variant/5">
         {#each currentTabs as tab}
           <button 
             onclick={() => selectTab(tab)}
             disabled={tab.disabled}
             aria-disabled={tab.disabled}
-            title={tab.disabled ? 'En cours de développement' : undefined}
             class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest transition-all duration-300 whitespace-nowrap {tab.disabled ? 'bg-surface-container-high/40 text-on-surface-variant/30 cursor-not-allowed opacity-70' : activeTab === tab.id ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
           >
             <div class="transition-transform {tab.disabled ? 'text-on-surface-variant/30' : activeTab === tab.id ? 'text-on-primary' : 'text-primary'}">
@@ -368,7 +367,7 @@ import GlobalInteractionGraph from '../lib/components/charts/GlobalInteractionGr
       <EngagementMetrics {data} mode={activeTab} onOpenMember={openMemberDetails} />
     {:else if activeTab === 'interactions'}
       {#if loadingInteractions}
-        <div class="w-full h-[620px] rounded-4xl border border-white/5 bg-surface-container-low/50 backdrop-blur-xl flex flex-col items-center justify-center gap-4 text-on-surface-variant p-8">
+        <div class="w-full h-155 rounded-4xl border border-white/5 bg-surface-container-low/50 backdrop-blur-xl flex flex-col items-center justify-center gap-4 text-on-surface-variant p-8">
           <div class="relative w-16 h-16 flex items-center justify-center">
             <div class="absolute inset-0 rounded-full border-4 border-primary/10 border-t-primary animate-spin"></div>
             <div class="absolute inset-2 rounded-full border-4 border-secondary/10 border-t-secondary animate-spin" style="animation-direction: reverse; animation-duration: 1.5s;"></div>
@@ -379,7 +378,7 @@ import GlobalInteractionGraph from '../lib/components/charts/GlobalInteractionGr
           </div>
         </div>
       {:else if interactionsError}
-        <div class="w-full h-[620px] rounded-4xl border border-error/10 bg-error-container/5 backdrop-blur-xl flex flex-col items-center justify-center gap-4 text-error p-8 text-center">
+        <div class="w-full h-155 rounded-4xl border border-error/10 bg-error-container/5 backdrop-blur-xl flex flex-col items-center justify-center gap-4 text-error p-8 text-center">
           <div class="w-12 h-12 rounded-full bg-error/10 flex items-center justify-center text-error mb-2">
             <Papicon icon="alert-octagon" size={24} />
           </div>
@@ -413,8 +412,20 @@ import GlobalInteractionGraph from '../lib/components/charts/GlobalInteractionGr
       <WeeklyComparison data={weeklyData} />
     {:else if activeTab === 'algo' && algoData}
       <DailyAlgoAnalyticsCard data={algoData} />
-    {:else if activeTab === 'commands' && data?.commandUsage}
-      <CommandUsage data={data.commandUsage} />
+    {:else if activeTab === 'commands'}
+      {#if data?.commandUsage && data.commandUsage.length > 0}
+        <CommandUsage data={data.commandUsage} />
+      {:else}
+        <div class="rounded-4xl border border-outline-variant/10 bg-surface-container-low/40 p-10 text-center">
+          <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <Papicon icon="Code" size={26} />
+          </div>
+          <h3 class="text-lg font-black text-on-surface">Aucune commande enregistrée sur la période</h3>
+          <p class="mt-2 text-sm text-on-surface-variant/70">
+            Les statistiques de commandes apparaîtront automatiquement dès qu'un membre utilisera des commandes du bot.
+          </p>
+        </div>
+      {/if}
     {:else if activeTab === 'performance' && data?.staffPerformance}
       <StaffPerformance data={data.staffPerformance} onOpenMember={openMemberDetails} />
     {/if}
