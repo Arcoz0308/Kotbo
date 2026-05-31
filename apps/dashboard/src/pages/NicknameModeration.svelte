@@ -51,6 +51,11 @@
   // ---------------------------------------------------------------------------
 
   let enabled = $state(false);
+  let onJoin = $state(true);
+  let onUpdate = $state(true);
+  let checkInvisible = $state(true);
+  let checkGlobal = $state(true);
+  let checkCustom = $state(true);
   let globalWords = $state<BannedWordEntry[]>([]);
   let customWords = $state<BannedWordEntry[]>([]);
   let whitelist = $state<string[]>([]);
@@ -86,6 +91,11 @@
         enabled = config.enabled ?? false;
         whitelist = config.whitelist ?? [];
         bypass = config.bypass ?? [];
+        onJoin = config.onJoin ?? true;
+        onUpdate = config.onUpdate ?? true;
+        checkInvisible = config.checkInvisible ?? true;
+        checkGlobal = config.checkGlobal ?? true;
+        checkCustom = config.checkCustom ?? true;
       }
       if (words) {
         globalWords = words.global ?? [];
@@ -138,6 +148,17 @@
         return true;
       },
       { successMessage: `Module ${enabled ? 'activé' : 'désactivé'}.` }
+    );
+  }
+
+  async function saveGranularToggle(field: 'onJoin' | 'onUpdate' | 'checkInvisible' | 'checkGlobal' | 'checkCustom', value: boolean) {
+    await saveToggleAction.run(
+      async () => {
+        const ok = await updateNicknameModerationConfig({ [field]: value });
+        if (!ok) throw new Error('Erreur API');
+        return true;
+      },
+      { successMessage: `Paramètre mis à jour.` }
     );
   }
 
@@ -354,6 +375,8 @@
             Lorsqu'activé, le bot vérifie les pseudos à l'arrivée et lors des modifications.
             Un pseudo non conforme est remplacé par
             <code class="font-mono text-primary dark:text-blue-300 bg-primary/10 dark:bg-blue-500/15 px-1.5 py-0.5 rounded-lg text-xs">pseudo non conforme | automod</code>.
+            <br />
+            Commande Discord de vérification : <code class="font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded-lg text-xs">/rescan pseudo rescan</code>
           </p>
         </div>
         <div class="flex-shrink-0">
@@ -361,15 +384,30 @@
         </div>
       </div>
 
-      <div class="p-4 rounded-2xl bg-surface-container/30 border border-outline-variant/20 flex flex-col gap-2">
+      <div class="p-4 rounded-2xl bg-surface-container/30 border border-outline-variant/20 flex flex-col gap-3">
         <p class="text-xs font-black uppercase tracking-widest text-on-surface-variant/50">Ce que le bot surveille</p>
-        <ul class="text-sm text-on-surface-variant/70 flex flex-col gap-1.5">
-          <li class="flex items-center gap-2"><span class="text-primary">→</span> Nouveaux membres rejoignant le serveur</li>
-          <li class="flex items-center gap-2"><span class="text-primary">→</span> Membres modifiant leur pseudo</li>
-          <li class="flex items-center gap-2"><span class="text-primary">→</span> Pseudos composés uniquement de caractères invisibles</li>
-          <li class="flex items-center gap-2"><span class="text-primary">→</span> Mots de la liste globale (racisme, menaces, insultes…)</li>
-          <li class="flex items-center gap-2"><span class="text-primary">→</span> Vos mots personnalisés ci-dessous</li>
-        </ul>
+        <div class="flex flex-col gap-2">
+          <div class="flex items-center justify-between gap-4 py-1.5 px-2 rounded-xl hover:bg-surface-container-high/30 transition-colors">
+            <span class="text-sm text-on-surface-variant/80">Nouveaux membres rejoignant le serveur</span>
+            <ToggleSwitch checked={onJoin} onToggle={() => { onJoin = !onJoin; saveGranularToggle('onJoin', onJoin); }} disabled={!enabled || saveToggleAction.state.loading} />
+          </div>
+          <div class="flex items-center justify-between gap-4 py-1.5 px-2 rounded-xl hover:bg-surface-container-high/30 transition-colors">
+            <span class="text-sm text-on-surface-variant/80">Membres modifiant leur pseudo</span>
+            <ToggleSwitch checked={onUpdate} onToggle={() => { onUpdate = !onUpdate; saveGranularToggle('onUpdate', onUpdate); }} disabled={!enabled || saveToggleAction.state.loading} />
+          </div>
+          <div class="flex items-center justify-between gap-4 py-1.5 px-2 rounded-xl hover:bg-surface-container-high/30 transition-colors">
+            <span class="text-sm text-on-surface-variant/80">Pseudos composés uniquement de caractères invisibles</span>
+            <ToggleSwitch checked={checkInvisible} onToggle={() => { checkInvisible = !checkInvisible; saveGranularToggle('checkInvisible', checkInvisible); }} disabled={!enabled || saveToggleAction.state.loading} />
+          </div>
+          <div class="flex items-center justify-between gap-4 py-1.5 px-2 rounded-xl hover:bg-surface-container-high/30 transition-colors">
+            <span class="text-sm text-on-surface-variant/80">Mots de la liste globale (racisme, menaces, insultes…)</span>
+            <ToggleSwitch checked={checkGlobal} onToggle={() => { checkGlobal = !checkGlobal; saveGranularToggle('checkGlobal', checkGlobal); }} disabled={!enabled || saveToggleAction.state.loading} />
+          </div>
+          <div class="flex items-center justify-between gap-4 py-1.5 px-2 rounded-xl hover:bg-surface-container-high/30 transition-colors">
+            <span class="text-sm text-on-surface-variant/80">Vos mots personnalisés ci-dessous</span>
+            <ToggleSwitch checked={checkCustom} onToggle={() => { checkCustom = !checkCustom; saveGranularToggle('checkCustom', checkCustom); }} disabled={!enabled || saveToggleAction.state.loading} />
+          </div>
+        </div>
         <p class="text-xs text-on-surface-variant/40 italic mt-1">
           Le bot ne peut pas renommer le propriétaire du serveur (limitation Discord).
         </p>
@@ -550,7 +588,7 @@
           <div class="flex flex-col gap-1">
             <h3 class="text-sm font-bold text-on-surface">Pseudos autorisés (exacts)</h3>
             <p class="text-xs text-on-surface-variant/50">
-              Ces pseudos complets (insensibles à la casse) ne seront jamais modérés, même s'ils contiennent un mot banni.
+              Ces pseudos complets ne seront jamais modérés, même s'ils contiennent un mot banni. (hors mots personnalisés)
             </p>
           </div>
 
@@ -560,12 +598,12 @@
               bind:value={newWhitelistItem}
               onkeydown={handleWhitelistKeydown}
               placeholder="Ex: xavier085409, fichier.py..."
-              class="flex-1 bg-surface-container/60 border border-outline-variant/30 rounded-2xl px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-primary/60 transition-all"
+              class="flex-1 min-w-0 bg-surface-container/60 border border-outline-variant/30 rounded-2xl px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-primary/60 transition-all"
             />
             <button
               onclick={addWhitelistItem}
               disabled={!newWhitelistItem.trim() || exceptionAction.state.loading}
-              class="px-5 py-3 bg-primary text-white rounded-2xl text-sm font-bold transition-all hover:bg-primary/90 active:scale-95 disabled:opacity-40"
+              class="shrink-0 px-5 py-3 bg-primary text-white rounded-2xl text-sm font-bold transition-all hover:bg-primary/90 active:scale-95 disabled:opacity-40"
             >
               Ajouter
             </button>
@@ -609,12 +647,12 @@
               bind:value={newBypassItem}
               onkeydown={handleBypassKeydown}
               placeholder="Ex: 636012675402..."
-              class="flex-1 bg-surface-container/60 border border-outline-variant/30 rounded-2xl px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-primary/60 transition-all"
+              class="flex-1 min-w-0 bg-surface-container/60 border border-outline-variant/30 rounded-2xl px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-primary/60 transition-all"
             />
             <button
               onclick={addBypassItem}
               disabled={!newBypassItem.trim() || exceptionAction.state.loading}
-              class="px-5 py-3 bg-primary text-white rounded-2xl text-sm font-bold transition-all hover:bg-primary/90 active:scale-95 disabled:opacity-40"
+              class="shrink-0 px-5 py-3 bg-primary text-white rounded-2xl text-sm font-bold transition-all hover:bg-primary/90 active:scale-95 disabled:opacity-40"
             >
               Ajouter
             </button>

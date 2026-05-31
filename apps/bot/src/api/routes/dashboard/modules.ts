@@ -24,6 +24,7 @@ import {
   extractDiscordSnowflake,
   getOrCreateRuntime,
   resolveAdminAccess,
+  broadcastDashboardStateChange,
   type AuthClaims,
   type DashboardAccess,
   type RuntimeState,
@@ -804,6 +805,11 @@ export async function handleModulesRoutes(
             autoNicknameModerationEnabled: true,
             nicknameModerationWhitelist: true,
             nicknameModerationBypass: true,
+            nickModOnJoin: true,
+            nickModOnUpdate: true,
+            nickModCheckInvisible: true,
+            nickModCheckGlobal: true,
+            nickModCheckCustom: true,
           },
         }).catch(async (dbErr) => {
           logger.warn('NicknameAPI', 'Failed to fetch bypass list, retrying without it:', dbErr);
@@ -823,6 +829,11 @@ export async function handleModulesRoutes(
           enabled: guild.autoNicknameModerationEnabled,
           whitelist: guild.nicknameModerationWhitelist,
           bypass: (guild as any).nicknameModerationBypass ?? [],
+          onJoin: (guild as any).nickModOnJoin ?? true,
+          onUpdate: (guild as any).nickModOnUpdate ?? true,
+          checkInvisible: (guild as any).nickModCheckInvisible ?? true,
+          checkGlobal: (guild as any).nickModCheckGlobal ?? true,
+          checkCustom: (guild as any).nickModCheckCustom ?? true,
         });
       } catch (err) {
         logger.error('NicknameAPI', 'GET nickname-moderation error:', err);
@@ -833,11 +844,24 @@ export async function handleModulesRoutes(
 
     if (method === 'PATCH') {
       try {
-        const body = await readJsonBody<{ enabled?: boolean; whitelist?: string[]; bypass?: string[] }>(req);
+        const body = await readJsonBody<{ enabled?: boolean; whitelist?: string[]; bypass?: string[]; onJoin?: boolean; onUpdate?: boolean; checkInvisible?: boolean; checkGlobal?: boolean; checkCustom?: boolean }>(req);
         
         const updateData: any = {};
         if (body && Object.prototype.hasOwnProperty.call(body, 'enabled')) {
           updateData.autoNicknameModerationEnabled = !!body.enabled;
+        }
+        // Toggles granulaires
+        const toggleFields = [
+          { key: 'onJoin', dbKey: 'nickModOnJoin' },
+          { key: 'onUpdate', dbKey: 'nickModOnUpdate' },
+          { key: 'checkInvisible', dbKey: 'nickModCheckInvisible' },
+          { key: 'checkGlobal', dbKey: 'nickModCheckGlobal' },
+          { key: 'checkCustom', dbKey: 'nickModCheckCustom' },
+        ] as const;
+        for (const { key, dbKey } of toggleFields) {
+          if (body && Object.prototype.hasOwnProperty.call(body, key)) {
+            updateData[dbKey] = !!(body as any)[key];
+          }
         }
         if (body && Object.prototype.hasOwnProperty.call(body, 'whitelist')) {
           if (!Array.isArray(body.whitelist) || body.whitelist.some(item => typeof item !== 'string')) {
@@ -880,10 +904,8 @@ export async function handleModulesRoutes(
         if (updateData.nicknameModerationWhitelist) {
           const activeBannedWords = await prisma.bannedWord.findMany({
             where: {
-              OR: [
-                { guildId: null, enabled: true },
-                { guildId, enabled: true },
-              ],
+              guildId,
+              enabled: true,
             },
             select: { word: true },
           });
@@ -896,7 +918,7 @@ export async function handleModulesRoutes(
           );
           if (invalidItems.length > 0) {
             json(res, 400, {
-              error: `Impossible d'autoriser ces pseudos car ils font partie de la liste des mots bannis : ${invalidItems.join(', ')}`,
+              error: `Impossible d'autoriser ces pseudos car ils font partie de la liste des mots bannis personnalisés : ${invalidItems.join(', ')}`,
             });
             return true;
           }
@@ -928,6 +950,8 @@ export async function handleModulesRoutes(
           details: `Modifications appliquées: ${Object.keys(updateData).join(', ')}`,
           channelId: null,
         });
+
+        broadcastDashboardStateChange(guildId, 'nickname_moderation_updated');
 
         json(res, 200, { ok: true });
       } catch (err) {
@@ -1412,6 +1436,8 @@ export async function handleModulesRoutes(
           channelId: null,
         });
 
+        broadcastDashboardStateChange(guildId, 'banned_words_updated');
+
         json(res, 201, { ok: true, id: created.id });
       } catch (err: any) {
         if (err?.code === 'P2002') {
@@ -1456,6 +1482,7 @@ export async function handleModulesRoutes(
         await prisma.bannedWord.update({ where: { id: wordId }, data: { enabled: body.enabled } });
 
         invalidateBannedWordsCache(guildId);
+        broadcastDashboardStateChange(guildId, 'banned_words_updated');
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('BannedWordsAPI', 'PATCH banned-words error:', err);
@@ -1486,6 +1513,8 @@ export async function handleModulesRoutes(
           details: `Mot "${existing.word}" supprimé`,
           channelId: null,
         });
+
+        broadcastDashboardStateChange(guildId, 'banned_words_updated');
 
         json(res, 200, { ok: true });
       } catch (err) {

@@ -52,6 +52,11 @@ model Guild {
   autoNicknameModerationEnabled Boolean   @default(false)
   nicknameModerationWhitelist  String[]  @default([])
   nicknameModerationBypass     String[]  @default([])
+  nickModOnJoin                Boolean   @default(true)
+  nickModOnUpdate              Boolean   @default(true)
+  nickModCheckInvisible        Boolean   @default(true)
+  nickModCheckGlobal           Boolean   @default(true)
+  nickModCheckCustom           Boolean   @default(true)
   bannedWords              BannedWord[]
   
   dailyAlgoEnabled         Boolean @default(false)

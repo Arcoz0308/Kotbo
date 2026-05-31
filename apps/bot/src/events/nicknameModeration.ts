@@ -1,6 +1,6 @@
 import { EmbedBuilder, Events, PermissionFlagsBits, type Client, type GuildMember } from 'discord.js';
 import { isNicknameProblematic, SAFE_NICKNAME, buildRenameReason, loadBannedWords } from '../services/nicknameModerationService.js';
-import { invalidateBannedWordsCache } from '../services/bannedWordsService.js';
+import { invalidateBannedWordsCache, loadGlobalWords, loadCustomWords } from '../services/bannedWordsService.js';
 import { logger } from '../utils/logger.js';
 
 // ---------------------------------------------------------------------------
@@ -11,6 +11,11 @@ type NicknameModConfig = {
   enabled: boolean;
   whitelist: string[];
   bypass: string[];
+  onJoin: boolean;
+  onUpdate: boolean;
+  checkInvisible: boolean;
+  checkGlobal: boolean;
+  checkCustom: boolean;
 };
 
 type ConfigCacheEntry = {
@@ -50,13 +55,23 @@ async function getNicknameModerationConfig(guildId: string): Promise<NicknameMod
       autoNicknameModerationEnabled: true,
       nicknameModerationWhitelist: true,
       nicknameModerationBypass: true,
+      nickModOnJoin: true,
+      nickModOnUpdate: true,
+      nickModCheckInvisible: true,
+      nickModCheckGlobal: true,
+      nickModCheckCustom: true,
     },
   });
 
-  const config = {
+  const config: NicknameModConfig = {
     enabled: guild?.autoNicknameModerationEnabled ?? false,
     whitelist: guild?.nicknameModerationWhitelist ?? [],
     bypass: guild?.nicknameModerationBypass ?? [],
+    onJoin: guild?.nickModOnJoin ?? true,
+    onUpdate: guild?.nickModOnUpdate ?? true,
+    checkInvisible: guild?.nickModCheckInvisible ?? true,
+    checkGlobal: guild?.nickModCheckGlobal ?? true,
+    checkCustom: guild?.nickModCheckCustom ?? true,
   };
 
   configCache.set(guildId, { config, expiresAt: now + CACHE_TTL_MS });
@@ -85,14 +100,24 @@ async function checkAndRename(member: GuildMember): Promise<void> {
   const effectiveName = member.nickname ?? member.user.globalName ?? member.user.username;
   if (!effectiveName) return;
 
-  // Chargement des mots bannis depuis le service générique (global + serveur)
-  const bannedWords = await loadBannedWords(guildId);
+  if (effectiveName.toLowerCase().trim() === SAFE_NICKNAME.toLowerCase().trim()) return;
+
+  // Chargement des mots bannis selon les toggles actifs
+  let bannedWords: string[] = [];
+  if (config.checkGlobal && config.checkCustom) {
+    bannedWords = await loadBannedWords(guildId);
+  } else if (config.checkGlobal) {
+    bannedWords = await loadGlobalWords();
+  } else if (config.checkCustom) {
+    bannedWords = await loadCustomWords(guildId);
+  }
 
   if (
     !isNicknameProblematic(effectiveName, bannedWords, {
       whitelist: config.whitelist,
       userId: member.id,
       bypassUserIds: config.bypass,
+      checkInvisible: config.checkInvisible,
     })
   ) {
     return;
@@ -157,9 +182,13 @@ async function checkAndRename(member: GuildMember): Promise<void> {
 
 export function registerNicknameModerationListener(client: Client): void {
   client.on(Events.GuildMemberAdd, async (member) => {
-    await checkAndRename(member).catch((err) => {
+    try {
+      const config = await getNicknameModerationConfig(member.guild.id);
+      if (!config.enabled || !config.onJoin) return;
+      await checkAndRename(member);
+    } catch (err) {
       logger.error('NicknameAutomod', 'Erreur GuildMemberAdd:', err);
-    });
+    }
   });
 
   client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
@@ -169,11 +198,15 @@ export function registerNicknameModerationListener(client: Client): void {
     const newName = newMember.nickname ?? newMember.user.globalName ?? newMember.user.username;
 
     if (oldName === newName) return;
-    if (newName === SAFE_NICKNAME) return;
+    if (newName.toLowerCase().trim() === SAFE_NICKNAME.toLowerCase().trim()) return;
 
-    await checkAndRename(newMember).catch((err) => {
+    try {
+      const config = await getNicknameModerationConfig(newMember.guild.id);
+      if (!config.enabled || !config.onUpdate) return;
+      await checkAndRename(newMember);
+    } catch (err) {
       logger.error('NicknameAutomod', 'Erreur GuildMemberUpdate:', err);
-    });
+    }
   });
 
   logger.success('NicknameAutomod', 'Listener de modération des pseudos enregistré.');
