@@ -34,8 +34,8 @@ export function isNicknameProblematic(
 
   const normalized = name.toLowerCase().trim();
 
-  // Protection anti-boucle : Ignorer notre propre pseudo de remplacement ou tout ce qui s'y apparente (contient "automod" ou "pseudo non conforme")
-  if (normalized.includes('automod') || normalized.includes('pseudo non conforme')) {
+  // Protection anti-boucle : Ignorer uniquement le pseudo de remplacement exact
+  if (normalized === SAFE_NICKNAME.toLowerCase().trim()) {
     return false;
   }
 
@@ -133,7 +133,7 @@ export async function scanAndModeratePseudos(guild: Guild): Promise<PseudoScanRe
     if (!effectiveName) { result.skippedCount++; continue; }
 
     // Déjà au pseudo de sécurité → skip
-    if (effectiveName === SAFE_NICKNAME) continue;
+    if (effectiveName.toLowerCase().trim() === SAFE_NICKNAME.toLowerCase().trim()) continue;
 
     if (!isNicknameProblematic(effectiveName, bannedWords, { whitelist, userId: member.id, bypassUserIds: bypass })) continue;
 

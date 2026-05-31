@@ -104,11 +104,12 @@ describe('containsBannedWord — Détection automatique', () => {
 describe('isNicknameProblematic — Sécurités & Whitelist', () => {
   it('ignore le pseudo de remplacement exact (SAFE_NICKNAME)', () => {
     expect(isNicknameProblematic('pseudo non conforme | automod', ['con', 'caca'])).toBe(false);
+    expect(isNicknameProblematic('  Pseudo Non Conforme | AutoMod  ', ['con', 'caca'])).toBe(false);
   });
 
-  it('ignore les variations contenant "automod" ou "pseudo non conforme"', () => {
-    expect(isNicknameProblematic('SuperAutoMod', ['auto', 'mod'])).toBe(false);
-    expect(isNicknameProblematic('pseudo non conforme', ['non', 'con'])).toBe(false);
+  it('ne bypass pas les variations contenant "automod" ou "pseudo non conforme" si elles contiennent des mots bannis', () => {
+    expect(isNicknameProblematic('caca automod', ['caca'])).toBe(true);
+    expect(isNicknameProblematic('pseudo non conforme caca', ['caca'])).toBe(true);
   });
 
   it('ignore les pseudos de la whitelist du serveur', () => {

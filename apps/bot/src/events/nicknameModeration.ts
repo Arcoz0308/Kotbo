@@ -85,6 +85,8 @@ async function checkAndRename(member: GuildMember): Promise<void> {
   const effectiveName = member.nickname ?? member.user.globalName ?? member.user.username;
   if (!effectiveName) return;
 
+  if (effectiveName.toLowerCase().trim() === SAFE_NICKNAME.toLowerCase().trim()) return;
+
   // Chargement des mots bannis depuis le service générique (global + serveur)
   const bannedWords = await loadBannedWords(guildId);
 
@@ -169,7 +171,7 @@ export function registerNicknameModerationListener(client: Client): void {
     const newName = newMember.nickname ?? newMember.user.globalName ?? newMember.user.username;
 
     if (oldName === newName) return;
-    if (newName === SAFE_NICKNAME) return;
+    if (newName.toLowerCase().trim() === SAFE_NICKNAME.toLowerCase().trim()) return;
 
     await checkAndRename(newMember).catch((err) => {
       logger.error('NicknameAutomod', 'Erreur GuildMemberUpdate:', err);
