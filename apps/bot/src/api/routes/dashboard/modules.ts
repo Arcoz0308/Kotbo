@@ -805,6 +805,11 @@ export async function handleModulesRoutes(
             autoNicknameModerationEnabled: true,
             nicknameModerationWhitelist: true,
             nicknameModerationBypass: true,
+            nickModOnJoin: true,
+            nickModOnUpdate: true,
+            nickModCheckInvisible: true,
+            nickModCheckGlobal: true,
+            nickModCheckCustom: true,
           },
         }).catch(async (dbErr) => {
           logger.warn('NicknameAPI', 'Failed to fetch bypass list, retrying without it:', dbErr);
@@ -824,6 +829,11 @@ export async function handleModulesRoutes(
           enabled: guild.autoNicknameModerationEnabled,
           whitelist: guild.nicknameModerationWhitelist,
           bypass: (guild as any).nicknameModerationBypass ?? [],
+          onJoin: (guild as any).nickModOnJoin ?? true,
+          onUpdate: (guild as any).nickModOnUpdate ?? true,
+          checkInvisible: (guild as any).nickModCheckInvisible ?? true,
+          checkGlobal: (guild as any).nickModCheckGlobal ?? true,
+          checkCustom: (guild as any).nickModCheckCustom ?? true,
         });
       } catch (err) {
         logger.error('NicknameAPI', 'GET nickname-moderation error:', err);
@@ -834,11 +844,24 @@ export async function handleModulesRoutes(
 
     if (method === 'PATCH') {
       try {
-        const body = await readJsonBody<{ enabled?: boolean; whitelist?: string[]; bypass?: string[] }>(req);
+        const body = await readJsonBody<{ enabled?: boolean; whitelist?: string[]; bypass?: string[]; onJoin?: boolean; onUpdate?: boolean; checkInvisible?: boolean; checkGlobal?: boolean; checkCustom?: boolean }>(req);
         
         const updateData: any = {};
         if (body && Object.prototype.hasOwnProperty.call(body, 'enabled')) {
           updateData.autoNicknameModerationEnabled = !!body.enabled;
+        }
+        // Toggles granulaires
+        const toggleFields = [
+          { key: 'onJoin', dbKey: 'nickModOnJoin' },
+          { key: 'onUpdate', dbKey: 'nickModOnUpdate' },
+          { key: 'checkInvisible', dbKey: 'nickModCheckInvisible' },
+          { key: 'checkGlobal', dbKey: 'nickModCheckGlobal' },
+          { key: 'checkCustom', dbKey: 'nickModCheckCustom' },
+        ] as const;
+        for (const { key, dbKey } of toggleFields) {
+          if (body && Object.prototype.hasOwnProperty.call(body, key)) {
+            updateData[dbKey] = !!(body as any)[key];
+          }
         }
         if (body && Object.prototype.hasOwnProperty.call(body, 'whitelist')) {
           if (!Array.isArray(body.whitelist) || body.whitelist.some(item => typeof item !== 'string')) {

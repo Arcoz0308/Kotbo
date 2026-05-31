@@ -58,7 +58,7 @@ export function invalidateBannedWordsCache(guildId?: string): void {
 // ---------------------------------------------------------------------------
 
 /** Charge les mots globaux (guildId = null) depuis la BDD, avec cache. */
-async function loadGlobalWords(): Promise<string[]> {
+export async function loadGlobalWords(): Promise<string[]> {
   const cached = cache.get(GLOBAL_KEY);
   const now = Date.now();
   if (cached && cached.expiresAt > now) return cached.words;
@@ -103,6 +103,30 @@ export async function loadBannedWords(guildId: string): Promise<string[]> {
     return merged;
   } catch (err) {
     logger.error('BannedWords', `Erreur lors du chargement pour le serveur ${guildId}:`, err);
+    return [];
+  }
+}
+
+/**
+ * Charge uniquement les mots bannis personnalisés d'un serveur (sans les globaux).
+ * Utile quand le toggle "mots globaux" est désactivé.
+ */
+export async function loadCustomWords(guildId: string): Promise<string[]> {
+  const cacheKey = `${guildId}__custom`;
+  const cached = cache.get(cacheKey);
+  const now = Date.now();
+  if (cached && cached.expiresAt > now) return cached.words;
+
+  try {
+    const rows = await prisma.bannedWord.findMany({
+      where: { guildId, enabled: true },
+      select: { word: true },
+    });
+    const words = rows.map((r) => r.word.toLowerCase());
+    cache.set(cacheKey, { words, expiresAt: now + CACHE_TTL_MS });
+    return words;
+  } catch (err) {
+    logger.error('BannedWords', `Erreur lors du chargement des mots personnalisés pour ${guildId}:`, err);
     return [];
   }
 }

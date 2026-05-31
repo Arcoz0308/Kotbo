@@ -4,7 +4,7 @@
  */
 
 import { EmbedBuilder, PermissionFlagsBits, type Guild } from 'discord.js';
-import { containsBannedWord, INVISIBLE_ONLY_REGEX, loadBannedWords } from './bannedWordsService.js';
+import { containsBannedWord, INVISIBLE_ONLY_REGEX, loadBannedWords, loadGlobalWords, loadCustomWords } from './bannedWordsService.js';
 import { logger } from '../utils/logger.js';
 import { fetchAllMembers } from '../utils/discord.js';
 
@@ -27,10 +27,11 @@ export function isNicknameProblematic(
     whitelist?: string[];
     userId?: string;
     bypassUserIds?: string[];
+    checkInvisible?: boolean;
   }
 ): boolean {
   if (!name || name.trim().length === 0) return true;
-  if (INVISIBLE_ONLY_REGEX.test(name)) return true;
+  if ((options?.checkInvisible ?? true) && INVISIBLE_ONLY_REGEX.test(name)) return true;
 
   const normalized = name.toLowerCase().trim();
 
@@ -99,22 +100,35 @@ export async function scanAndModeratePseudos(guild: Guild): Promise<PseudoScanRe
     return result;
   }
 
-  // Charger les mots bannis une seule fois pour tout le scan
-  const bannedWords = await loadBannedWords(guild.id);
-
-  // Charger le channel de logs et la configuration de la whitelist/bypass
+  // Charger le channel de logs et la configuration de la whitelist/bypass/toggles
   const guildData = await prisma.guild.findUnique({
     where: { id: guild.id },
     select: {
       logChannelId: true,
       nicknameModerationWhitelist: true,
       nicknameModerationBypass: true,
+      nickModCheckInvisible: true,
+      nickModCheckGlobal: true,
+      nickModCheckCustom: true,
     },
   }).catch(() => null);
 
   const logChannel = guildData?.logChannelId
     ? guild.channels.cache.get(guildData.logChannelId)
     : null;
+
+  // Charger les mots bannis selon les toggles actifs
+  const checkGlobal = guildData?.nickModCheckGlobal ?? true;
+  const checkCustom = guildData?.nickModCheckCustom ?? true;
+  const checkInvisible = guildData?.nickModCheckInvisible ?? true;
+  let bannedWords: string[] = [];
+  if (checkGlobal && checkCustom) {
+    bannedWords = await loadBannedWords(guild.id);
+  } else if (checkGlobal) {
+    bannedWords = await loadGlobalWords();
+  } else if (checkCustom) {
+    bannedWords = await loadCustomWords(guild.id);
+  }
 
   // Récupérer tous les membres
   const members = await fetchAllMembers(guild).catch(() => null);
@@ -135,7 +149,7 @@ export async function scanAndModeratePseudos(guild: Guild): Promise<PseudoScanRe
     // Déjà au pseudo de sécurité → skip
     if (effectiveName.toLowerCase().trim() === SAFE_NICKNAME.toLowerCase().trim()) continue;
 
-    if (!isNicknameProblematic(effectiveName, bannedWords, { whitelist, userId: member.id, bypassUserIds: bypass })) continue;
+    if (!isNicknameProblematic(effectiveName, bannedWords, { whitelist, userId: member.id, bypassUserIds: bypass, checkInvisible })) continue;
 
     try {
       await member.setNickname(SAFE_NICKNAME, buildRenameReason(effectiveName));
