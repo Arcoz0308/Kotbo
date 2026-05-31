@@ -560,12 +560,12 @@
               bind:value={newWhitelistItem}
               onkeydown={handleWhitelistKeydown}
               placeholder="Ex: xavier085409, fichier.py..."
-              class="flex-1 bg-surface-container/60 border border-outline-variant/30 rounded-2xl px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-primary/60 transition-all"
+              class="flex-1 min-w-0 bg-surface-container/60 border border-outline-variant/30 rounded-2xl px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-primary/60 transition-all"
             />
             <button
               onclick={addWhitelistItem}
               disabled={!newWhitelistItem.trim() || exceptionAction.state.loading}
-              class="px-5 py-3 bg-primary text-white rounded-2xl text-sm font-bold transition-all hover:bg-primary/90 active:scale-95 disabled:opacity-40"
+              class="shrink-0 px-5 py-3 bg-primary text-white rounded-2xl text-sm font-bold transition-all hover:bg-primary/90 active:scale-95 disabled:opacity-40"
             >
               Ajouter
             </button>
@@ -609,12 +609,12 @@
               bind:value={newBypassItem}
               onkeydown={handleBypassKeydown}
               placeholder="Ex: 636012675402..."
-              class="flex-1 bg-surface-container/60 border border-outline-variant/30 rounded-2xl px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-primary/60 transition-all"
+              class="flex-1 min-w-0 bg-surface-container/60 border border-outline-variant/30 rounded-2xl px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-primary/60 transition-all"
             />
             <button
               onclick={addBypassItem}
               disabled={!newBypassItem.trim() || exceptionAction.state.loading}
-              class="px-5 py-3 bg-primary text-white rounded-2xl text-sm font-bold transition-all hover:bg-primary/90 active:scale-95 disabled:opacity-40"
+              class="shrink-0 px-5 py-3 bg-primary text-white rounded-2xl text-sm font-bold transition-all hover:bg-primary/90 active:scale-95 disabled:opacity-40"
             >
               Ajouter
             </button>
