@@ -1105,7 +1105,7 @@
                 <button
                   onclick={handleUpdateReport}
                   disabled={updateReportBusy}
-                  class="flex-[2] py-4 rounded-2xl bg-primary text-on-primary text-[11px] font-black uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-primary/20 disabled:opacity-50"
+                  class="flex-2 py-4 rounded-2xl bg-primary text-on-primary text-[11px] font-black uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-primary/20 disabled:opacity-50"
                 >
                   {updateReportBusy ? 'Enregistrement...' : 'Mettre à jour le rapport'}
                 </button>

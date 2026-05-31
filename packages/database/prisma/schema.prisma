@@ -84,6 +84,16 @@ model Guild {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  memberLevels MemberLevel[]
+  levelRoleRewards LevelRoleReward[]
+  levelConfig LevelConfig?
+  giveaways Giveaway[]
+  welcomeConfig WelcomeConfig?
+  reactionRoleMenus ReactionRoleMenu[]
+  autoResponses AutoResponse[]
+  autoModConfig AutoModConfig?
+  suggestions Suggestion[]
+
   newsArticles NewsArticle[]
   newsCategoryConfigs NewsCategoryConfig[]
   dailyAlgoRuns DailyAlgoRun[]
@@ -1871,4 +1881,172 @@ model TwitchChannelFollow {
 
   @@unique([guildId, streamerName])
   @@map("twitch_channel_follows")
+}
+
+model MemberLevel {
+  id        String   @id @default(cuid())
+  guildId   String
+  userId    String
+  xp        Int      @default(0)
+  level     Int      @default(0)
+  lastXpGain DateTime @default(now())
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, userId])
+  @@index([guildId, xp])
+  @@map("member_levels")
+}
+
+model LevelRoleReward {
+  id       String @id @default(cuid())
+  guildId  String
+  level    Int
+  roleId   String
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, level])
+  @@map("level_role_rewards")
+}
+
+model LevelConfig {
+  guildId         String   @id
+  enabled         Boolean  @default(false)
+  xpMin           Int      @default(15)
+  xpMax           Int      @default(25)
+  cooldownSeconds Int      @default(60)
+  vocalXpPerMin   Int      @default(5)
+  levelUpChannelId String?  // null = same channel, "DM" = DM, or specific channel ID
+  levelUpMessage  String   @default("Félicitations {user} ! Tu passes au niveau **{level}** ! 🎉")
+  stackRewards    Boolean  @default(false)
+  ignoredChannels String[] @default([])
+  ignoredRoles    String[] @default([])
+  xpMultipliers   Json?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  
+  @@map("level_configs")
+}
+
+model Giveaway {
+  id             String   @id @default(cuid())
+  guildId        String
+  channelId      String
+  messageId      String?
+  prize          String
+  description    String?
+  winnerCount    Int      @default(1)
+  endsAt         DateTime
+  ended          Boolean  @default(false)
+  
+  participants   String[] @default([]) // Array of User IDs
+  winners        String[] @default([]) // Array of User IDs
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("giveaways")
+}
+
+model WelcomeConfig {
+  guildId        String  @id
+  welcomeEnabled Boolean @default(false)
+  welcomeChannelId String?
+  welcomeMessage String  @default("Bienvenue {user} sur notre serveur ! 🎉")
+  welcomeImageEnabled Boolean @default(false)
+  welcomeImageUrl String?
+  
+  leaveEnabled   Boolean @default(false)
+  leaveChannelId String?
+  leaveMessage   String  @default("Au revoir {user}... 😢")
+  
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("welcome_configs")
+}
+
+model ReactionRoleMenu {
+  id        String   @id @default(cuid())
+  guildId   String
+  channelId String
+  messageId String?
+  title     String
+  options   Json     // List of { emoji: string, label: string, roleId: string }
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  @@map("reaction_role_menus")
+}
+
+model AutoResponse {
+  id        String   @id @default(cuid())
+  guildId   String
+  trigger   String
+  response  String   // Text or JSON embed
+  matchType String   @default("CONTAINS") // EXACT, CONTAINS, REGEX
+  enabled   Boolean  @default(true)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  
+  @@unique([guildId, trigger])
+  @@map("auto_responses")
+}
+
+model AutoModConfig {
+  guildId              String   @id
+  spamEnabled          Boolean  @default(false)
+  spamLimit            Int      @default(5)     // Max messages in interval
+  spamIntervalSeconds  Int      @default(5)
+  spamAction           String   @default("TIMEOUT") // WARN, TIMEOUT
+  
+  linksEnabled         Boolean  @default(false)
+  linksAction          String   @default("DELETE_AND_WARN")
+  linksWhitelist       String[] @default([]) // Whitelisted domains
+  
+  capsEnabled          Boolean  @default(false)
+  capsThresholdPercent Int      @default(80)
+  capsMinLength        Int      @default(10)
+  
+  emojisEnabled        Boolean  @default(false)
+  emojisLimit          Int      @default(10)
+  
+  mentionsEnabled      Boolean  @default(false)
+  mentionsLimit        Int      @default(5)
+  
+  bypassRoles          String[] @default([])
+  bypassChannels       String[] @default([])
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("automod_configs")
+}
+
+model Suggestion {
+  id             String   @id @default(cuid())
+  guildId        String
+  userId         String
+  username       String
+  content        String
+  status         String   @default("PENDING") // PENDING, APPROVED, REJECTED, IMPLEMENTED
+  channelId      String?
+  messageId      String?
+  responseText   String?
+  respondedById  String?
+  respondedAt    DateTime?
+  
+  upvoters       String[] @default([]) // Array of User IDs
+  downvoters     String[] @default([]) // Array of User IDs
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("suggestions")
 }

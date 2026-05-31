@@ -36,7 +36,7 @@ class DashboardStore {
       canModerateDailyAlgo: false,
       canManageSettings: false
     },
-    featureAccess: {},
+    featureAccess: {} as Record<string, { canView?: boolean; canConfigure?: boolean }>,
     modules: [],
     notifications: {
       discordChannel: '#alertes-redaction',

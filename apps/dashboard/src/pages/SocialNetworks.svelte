@@ -18,7 +18,6 @@
   const actionState = createAsyncActionState();
   let loading = $state(false);
   let activeTab = $state<'youtube' | 'twitch'>('youtube');
-  let showDevNotice = $state(true);
 
   // Cast type to prevent 'never' compiler errors
   const availableChannels = $derived((dashboardStore.state.discordChannels || []) as Array<{ id: string; name: string }>);
@@ -186,27 +185,7 @@
 </script>
 
 <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-  {#if showDevNotice}
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-sm px-4">
-      <div class="w-full max-w-lg rounded-4xl border border-outline-variant/15 bg-surface-container-low p-8 shadow-2xl shadow-black/30 text-center space-y-5">
-        <div class="mx-auto w-16 h-16 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
-          <Papicon icon="Sparkle" size={30} />
-        </div>
-        <div class="space-y-2">
-          <h2 class="text-2xl font-black tracking-tight text-on-surface">En cours de développement</h2>
-          <p class="text-sm text-on-surface-variant/70">Le module Réseaux Sociaux est grisé temporairement pendant sa mise en place.</p>
-        </div>
-        <button
-          onclick={() => showDevNotice = false}
-          class="mx-auto inline-flex items-center justify-center rounded-2xl bg-primary px-5 py-3 text-[10px] font-black uppercase tracking-widest text-on-primary transition-transform hover:scale-[1.02] active:scale-[0.98]"
-        >
-          Compris
-        </button>
-      </div>
-    </div>
-  {/if}
-
-  <div class={showDevNotice ? 'opacity-45 grayscale pointer-events-none select-none' : ''}>
+  <div>
   <!-- Header Card -->
   <header class="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-surface-container-low/40 backdrop-blur-3xl p-8 rounded-4xl border border-outline-variant/30 relative overflow-hidden group">
     <div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-[80px] group-hover:bg-primary/20 transition-all duration-700"></div>
@@ -222,8 +201,8 @@
     </div>
 
     <div class="flex items-center gap-3 px-4 py-2 rounded-2xl border border-outline-variant/10 bg-surface-container-high/35 text-xs font-black uppercase tracking-widest text-on-surface-variant/70">
-      <span class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
-      <span>En cours de développement</span>
+      <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+      <span>Module actif</span>
     </div>
 
     <!-- Active State & Tab Switcher Info -->
@@ -388,7 +367,7 @@
 
       <!-- LIST COLUMN -->
       <div class="lg:col-span-2 space-y-6">
-        <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6 min-h-[400px]">
+        <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6 min-h-100">
           
           {#if activeTab === 'youtube'}
             <div class="flex items-center justify-between border-b border-outline-variant/20 pb-4">

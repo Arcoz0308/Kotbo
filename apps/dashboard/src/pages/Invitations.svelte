@@ -446,7 +446,7 @@
               <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div class="space-y-2">
                   <div class="flex items-center gap-2 flex-wrap">
-                    <code class="text-sm font-black text-primary bg-primary/10 px-3 py-1 rounded-xl">{invite.code}</code>
+                    <code class="text-sm font-black text-primary dark:text-blue-300 bg-primary/10 dark:bg-blue-500/15 px-3 py-1 rounded-xl">{invite.code}</code>
                     <span class="px-2 py-1 rounded-full text-[9px] font-black {getStatusClass(getInviteStatus(invite))}">
                       {getStatusLabel(getInviteStatus(invite))}
                     </span>

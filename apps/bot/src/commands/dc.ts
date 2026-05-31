@@ -278,6 +278,17 @@ export async function execute(interaction: ChatInputCommandInteraction) {
       return interaction.reply({ content: '❌ Salon de logs introuvable.', flags: [MessageFlags.Ephemeral] });
     }
 
+    await altAccountService.linkAccounts({
+      guildId: interaction.guildId!,
+      user1Id: interaction.user.id,
+      user2Id: mainAccount.id,
+      type: 'MANUAL',
+      status: 'PENDING',
+      reason: 'Déclaration de bonne foi par l\'utilisateur',
+      linkedByUserId: interaction.user.id,
+      metadata: { linkedBy: interaction.user.id, at: new Date().toISOString() }
+    });
+
     const embed = new EmbedBuilder()
       .setColor(COLORS.info)
       .setTitle('🛡️ Déclaration de compte secondaire (Bonne foi)')

@@ -79,6 +79,13 @@ import * as statsCmd from './commands/stats.js';
 import * as invitesCmd from './commands/invites.js';
 import * as activateCmd from './commands/activate.js';
 import * as sayCmd from './commands/say.js';
+import * as rankCmd from './commands/rank.js';
+import * as giveawayCmd from './commands/giveaway.js';
+import * as suggestCmd from './commands/suggest.js';
+import { registerLevelingListener } from './events/levelingEvents.js';
+import { registerWelcomeGoodbyeListener } from './events/welcomeGoodbyeEvents.js';
+import { registerAutoModListener } from './events/autoModEvents.js';
+import { registerAutoResponseListener } from './events/autoResponseEvents.js';
 import { loadActivatedGuilds, isGuildActivated } from './utils/activation.js';
 
 initBotSentry();
@@ -177,7 +184,7 @@ type SlashCommand = {
 import * as demissionCmd from './commands/demission.js';
 
 const commands = new Collection<string, SlashCommand>();
-[setupCmd, configCmd, pingCmd, infoCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd, postCmd, dailyAlgoCmd, profileCmd, profilCmd, sanctionCmd, dcCmd, rescanCmd, casierCmd, absentCmd, meetingCmd, statsCmd, invitesCmd, leaderboardCmd, serverstatsCmd, noteCmd, eventCmd, activateCmd, transcriptCmd, ticketCmd, sayCmd, demissionCmd].forEach((cmd) => {
+[setupCmd, configCmd, pingCmd, infoCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd, postCmd, dailyAlgoCmd, profileCmd, profilCmd, sanctionCmd, dcCmd, rescanCmd, casierCmd, absentCmd, meetingCmd, statsCmd, invitesCmd, leaderboardCmd, serverstatsCmd, noteCmd, eventCmd, activateCmd, transcriptCmd, ticketCmd, sayCmd, demissionCmd, rankCmd, giveawayCmd, suggestCmd].forEach((cmd) => {
   commands.set(cmd.data.name, cmd as SlashCommand);
 });
 commands.set(noteCmd.contextData.name, noteCmd as unknown as SlashCommand);
@@ -266,6 +273,10 @@ client.once(Events.ClientReady, async (c) => {
   registerDailyAlgoHandlers(client);
   registerMeetingEvents(client);
   registerAnalyticsListeners(client);
+  registerLevelingListener(client);
+  registerWelcomeGoodbyeListener(client);
+  registerAutoModListener(client);
+  registerAutoResponseListener(client);
   await syncOngoingDailyAlgoButtons(client).catch((error) =>
     logger.error('DailyAlgo', 'Impossible de synchroniser les boutons des runs en cours:', error),
   );

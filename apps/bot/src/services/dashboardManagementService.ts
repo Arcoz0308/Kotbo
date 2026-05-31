@@ -194,6 +194,55 @@ export const defaultFeatures = [
     description: 'Gestion du profil utilisateur et préférences',
     category: 'dashboard',
   },
+  // ─── Fonctionnalités Générales ───
+  {
+    featureKey: 'leveling',
+    featureName: 'Leveling & XP',
+    description: 'Système d\'expérience textuelle/vocale, niveaux et rôles récompenses',
+    category: 'management',
+  },
+  {
+    featureKey: 'giveaways',
+    featureName: 'Giveaways',
+    description: 'Organisation de concours et tirages au sort avec boutons',
+    category: 'management',
+  },
+  {
+    featureKey: 'welcome_goodbye',
+    featureName: 'Accueil & Départ',
+    description: 'Messages personnalisés de bienvenue et de départ dans des salons dédiés',
+    category: 'management',
+  },
+  {
+    featureKey: 'reaction_roles',
+    featureName: 'Reaction Roles',
+    description: 'Attribution automatique de rôles via des boutons cliquables',
+    category: 'management',
+  },
+  {
+    featureKey: 'auto_responses',
+    featureName: 'Auto-Réponses',
+    description: 'Réponses automatiques du bot déclenchées par des mots-clés',
+    category: 'management',
+  },
+  {
+    featureKey: 'automod',
+    featureName: 'AutoMod',
+    description: 'Modération automatique (anti-spam, anti-liens, majuscules, mentions, émojis)',
+    category: 'moderation',
+  },
+  {
+    featureKey: 'suggestions',
+    featureName: 'Suggestions',
+    description: 'Système de suggestions avec votes et modération via dashboard',
+    category: 'management',
+  },
+  {
+    featureKey: 'embed_builder',
+    featureName: 'Créateur d\'Embeds',
+    description: 'Création et édition d\'embeds personnalisés sur le serveur',
+    category: 'management',
+  },
 ];
 
 export async function getOrCreateFeatureConfigs(guildId: string) {

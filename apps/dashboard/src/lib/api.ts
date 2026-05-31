@@ -1273,6 +1273,34 @@ export async function reportDashboardError(errorData: {
   return response.json();
 }
 
+export async function reportFeedback(feedbackData: {
+  type: 'retour' | 'bloquage' | 'suggestion' | 'autre';
+  message: string;
+  url: string;
+  guildId?: string | null;
+}) {
+  const headers: Record<string, string> = { 
+    'Content-Type': 'application/json',
+    'Accept': 'application/json' 
+  };
+  if (authStore.token) {
+    headers.Authorization = `Bearer ${authStore.token}`;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/report-feedback`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(feedbackData)
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || `Server error: ${response.status}`);
+  }
+
+  return response.json();
+}
+
 
 // ==========================================
 // MODÉRATION DES PSEUDOS
@@ -1497,6 +1525,20 @@ export async function fetchPublicNews(guildId: string) {
   return response.json();
 }
 
+export async function fetchPublicLeveling(guildId: string) {
+  const response = await fetch(`${API_BASE_URL}/api/public/guilds/${guildId}/leveling`, {
+    method: 'GET',
+    headers: { Accept: 'application/json' }
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || 'Erreur lors du chargement du classement de leveling');
+  }
+
+  return response.json();
+}
+
 export async function createNews(payload: { title: string; content: string; summary?: string; imageUrl?: string; category?: string; subcategory?: string; published?: boolean; publishMode?: 'summary' | 'full_embed' }, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/news', {
     method: 'POST',
@@ -1681,4 +1723,100 @@ export async function removeMemberHierarchyGrade(userId, hierarchyId, guildId = 
     guildId,
     errorContext: 'API Error (Remove Member Hierarchy Grade):'
   });
+}
+
+// ==========================================
+// GENERALIST MODULES APIs
+// ==========================================
+
+export async function fetchLevelingData(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/leveling', { method: 'GET', guildId, errorContext: 'API Error (Fetch Leveling):' });
+}
+
+export async function updateLevelingConfig(config, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/leveling', { method: 'PATCH', payload: config, guildId, errorContext: 'API Error (Update Leveling):' });
+}
+
+export async function addLevelingReward(level: number, roleId: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/leveling/rewards', { method: 'POST', payload: { level, roleId }, guildId, errorContext: 'API Error (Add Leveling Reward):' });
+}
+
+export async function deleteLevelingReward(rewardId: string, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/leveling/rewards/${rewardId}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete Leveling Reward):' });
+}
+
+export async function fetchGiveaways(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/giveaways', { method: 'GET', guildId, errorContext: 'API Error (Fetch Giveaways):' });
+}
+
+export async function createGiveaway(payload: { prize: string; winnerCount: number; durationMinutes: number; description?: string; channelId: string }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/giveaways', { method: 'POST', payload, guildId, errorContext: 'API Error (Create Giveaway):' });
+}
+
+export async function endGiveaway(giveawayId: string, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/giveaways/${giveawayId}/end`, { method: 'POST', guildId, errorContext: 'API Error (End Giveaway):' });
+}
+
+export async function rerollGiveaway(giveawayId: string, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/giveaways/${giveawayId}/reroll`, { method: 'POST', guildId, errorContext: 'API Error (Reroll Giveaway):' });
+}
+
+export async function deleteGiveaway(giveawayId: string, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/giveaways/${giveawayId}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete Giveaway):' });
+}
+
+export async function fetchWelcomeConfig(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/welcome', { method: 'GET', guildId, errorContext: 'API Error (Fetch Welcome Config):' });
+}
+
+export async function updateWelcomeConfig(config, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/welcome', { method: 'PATCH', payload: config, guildId, errorContext: 'API Error (Update Welcome Config):' });
+}
+
+export async function fetchReactionRoleMenus(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/reaction-roles', { method: 'GET', guildId, errorContext: 'API Error (Fetch Reaction Roles):' });
+}
+
+export async function createReactionRoleMenu(payload: { title: string; channelId: string; options: Array<{ emoji?: string; label: string; roleId: string }> }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/reaction-roles', { method: 'POST', payload, guildId, errorContext: 'API Error (Create Reaction Role Menu):' });
+}
+
+export async function deleteReactionRoleMenu(menuId: string, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/reaction-roles/${menuId}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete Reaction Role Menu):' });
+}
+
+export async function fetchAutoResponses(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/auto-responses', { method: 'GET', guildId, errorContext: 'API Error (Fetch Auto Responses):' });
+}
+
+export async function createAutoResponse(payload: { trigger: string; response: string; matchType: string; enabled?: boolean }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/auto-responses', { method: 'POST', payload, guildId, errorContext: 'API Error (Create Auto Response):' });
+}
+
+export async function updateAutoResponse(id: string, payload: { trigger?: string; response?: string; matchType?: string; enabled?: boolean }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/auto-responses/${id}`, { method: 'PATCH', payload, guildId, errorContext: 'API Error (Update Auto Response):' });
+}
+
+export async function deleteAutoResponse(id: string, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/auto-responses/${id}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete Auto Response):' });
+}
+
+export async function fetchAutoModConfig(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/automod', { method: 'GET', guildId, errorContext: 'API Error (Fetch AutoMod):' });
+}
+
+export async function updateAutoModConfig(config, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/automod', { method: 'PATCH', payload: config, guildId, errorContext: 'API Error (Update AutoMod):' });
+}
+
+export async function fetchSuggestions(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/suggestions', { method: 'GET', guildId, errorContext: 'API Error (Fetch Suggestions):' });
+}
+
+export async function resolveSuggestion(suggestionId: string, payload: { status: 'APPROVED' | 'REJECTED' | 'IMPLEMENTED'; responseText: string }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/suggestions/${suggestionId}/resolve`, { method: 'POST', payload, guildId, errorContext: 'API Error (Resolve Suggestion):' });
+}
+
+export async function sendOrUpdateEmbed(payload: { channelId: string; messageId?: string | null; embed: any }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/embed-builder', { method: 'POST', payload, guildId, errorContext: 'API Error (Send Embed):' });
 }

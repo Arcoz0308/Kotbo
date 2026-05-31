@@ -3,9 +3,13 @@
   import { authStore } from '../stores/auth.svelte';
   import { dashboardStore } from '../stores/dashboard.svelte';
   import { themeStore } from '../stores/theme.svelte';
+  import { feedbackModal } from '../stores/feedbackModal.svelte';
   import { API_BASE_URL } from '../api';
   import NotificationBell from './NotificationBell.svelte';
   import Papicon from './Papicon.svelte';
+  import { sidebarStore } from '../stores/sidebar.svelte';
+
+  const collapsed = $derived(sidebarStore.collapsed);
 
   let config = $state({ discordClientId: '' });
   let userMenuOpen = $state(false);
@@ -101,7 +105,7 @@
 
 <svelte:window />
 
-<header class="flex items-center justify-between px-10 bg-surface/40 backdrop-blur-3xl w-[calc(100%-16rem)] h-20 fixed top-0 right-0 z-40 border-b border-outline-variant/30 transition-all duration-300">
+<header class="flex items-center justify-between px-10 bg-surface/40 backdrop-blur-3xl h-20 fixed top-0 right-0 z-40 border-b border-outline-variant/30 transition-all duration-300 {collapsed ? 'w-[calc(100%-4.5rem)]' : 'w-[calc(100%-16rem)]'}">
   <div class="flex items-center gap-6 server-selector-container relative">
     <button 
       onclick={toggleServerDropdown}
@@ -266,6 +270,14 @@
               <Papicon icon="settings" size={18} />
               Paramètres
             </a>
+            <button 
+              type="button"
+              class="flex items-center gap-3 px-4 py-2.5 w-full text-left text-sm font-bold text-on-surface-variant transition-all hover:bg-primary/8 hover:text-primary cursor-pointer"
+              onclick={() => { userMenuOpen = false; feedbackModal.show(); }}
+            >
+              <Papicon icon="bug_report" size={18} />
+              Retour / Suggestion
+            </button>
           </div>
           <div class="border-t border-outline-variant/20 py-1.5">
             <button 
