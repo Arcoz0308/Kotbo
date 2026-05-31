@@ -156,6 +156,9 @@ export async function scanAndModeratePseudos(guild: Guild): Promise<PseudoScanRe
       result.renamedCount++;
       result.renamed.push({ userId: member.id, original: effectiveName });
 
+      // Petite pause pour éviter de saturer la rate-limit de Discord (max ~10 requêtes par 10 secondes)
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
       logger.warn(
         'NicknameRescan',
         `Pseudo renommé: ${member.user.tag} — "${effectiveName}" → "${SAFE_NICKNAME}"`,
