@@ -24,6 +24,7 @@ import {
   extractDiscordSnowflake,
   getOrCreateRuntime,
   resolveAdminAccess,
+  broadcastDashboardStateChange,
   type AuthClaims,
   type DashboardAccess,
   type RuntimeState,
@@ -929,6 +930,8 @@ export async function handleModulesRoutes(
           channelId: null,
         });
 
+        broadcastDashboardStateChange(guildId, 'nickname_moderation_updated');
+
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('NicknameAPI', 'PATCH nickname-moderation error:', err);
@@ -1412,6 +1415,8 @@ export async function handleModulesRoutes(
           channelId: null,
         });
 
+        broadcastDashboardStateChange(guildId, 'banned_words_updated');
+
         json(res, 201, { ok: true, id: created.id });
       } catch (err: any) {
         if (err?.code === 'P2002') {
@@ -1456,6 +1461,7 @@ export async function handleModulesRoutes(
         await prisma.bannedWord.update({ where: { id: wordId }, data: { enabled: body.enabled } });
 
         invalidateBannedWordsCache(guildId);
+        broadcastDashboardStateChange(guildId, 'banned_words_updated');
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('BannedWordsAPI', 'PATCH banned-words error:', err);
@@ -1486,6 +1492,8 @@ export async function handleModulesRoutes(
           details: `Mot "${existing.word}" supprimé`,
           channelId: null,
         });
+
+        broadcastDashboardStateChange(guildId, 'banned_words_updated');
 
         json(res, 200, { ok: true });
       } catch (err) {
