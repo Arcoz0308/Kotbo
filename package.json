@@ -19,6 +19,7 @@
     "quality:bot": "bun run --filter @kotbo/bot quality:gate",
     "db:generate": "bun run --filter @kotbo/database generate",
     "db:generate:force": "powershell -ExecutionPolicy RemoteSigned -File ./scripts/fix-prisma.ps1",
+    "db:setup": "bun run db:generate && bun run db:push",
     "db:migrate": "bun run --filter @kotbo/database migrate",
     "db:migrate:deploy": "bun run --filter @kotbo/database migrate:deploy",
     "db:push": "bun run --filter @kotbo/database push",
