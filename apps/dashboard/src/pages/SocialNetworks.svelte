@@ -185,7 +185,6 @@
 </script>
 
 <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-  <div>
   <!-- Header Card -->
   <header class="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-surface-container-low/40 backdrop-blur-3xl p-8 rounded-4xl border border-outline-variant/30 relative overflow-hidden group">
     <div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-[80px] group-hover:bg-primary/20 transition-all duration-700"></div>
@@ -249,7 +248,7 @@
   </div>
 
   <!-- Global actions status / Feedback -->
-  <InlineFeedback message={actionState.state.message} error={actionState.state.error} />
+  <InlineFeedback state={actionState} />
 
   {#if loading}
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -517,5 +516,4 @@
       </div>
     </div>
   {/if}
-  </div>
 </div>

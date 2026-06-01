@@ -201,6 +201,7 @@ model DashboardSettings {
   killSwitchEnabled Boolean @default(false)
   severityByModule Json?
   commandRestrictions Json?
+  sidebarFavorites String[] @default([])
   messageTemplate String @default("🔔 {titre}\n\n{resume}\n\nSource: {source}\nAuteur: {auteur}\n\nPublié automatiquement par Kotbo.")
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)

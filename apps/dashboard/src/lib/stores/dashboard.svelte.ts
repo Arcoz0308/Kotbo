@@ -29,6 +29,7 @@ class DashboardStore {
     autoThreadEnabled: false,
     autoThreadChannels: [] as string[],
     commandRestrictions: [] as any[],
+    sidebarFavorites: [] as string[],
     commandCatalog: [] as any[],
     access: {
       level: 'moderator',
@@ -134,6 +135,7 @@ class DashboardStore {
         this.state.autoThreadEnabled = data.autoThreadEnabled || false;
         this.state.autoThreadChannels = data.autoThreadChannels || [];
         this.state.commandRestrictions = data.commandRestrictions || [];
+        this.state.sidebarFavorites = data.sidebarFavorites || [];
         this.state.commandCatalog = data.commandCatalog || [];
         this.state.access = data.access || {
           level: 'moderator',

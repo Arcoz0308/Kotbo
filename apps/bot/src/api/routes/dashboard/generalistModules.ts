@@ -591,6 +591,68 @@ export async function handleGeneralistModulesRoutes(
 
   // 7. SUGGESTIONS ROUTES
   if (moduleKey === 'suggestions') {
+    // GET /api/dashboard/guilds/:guildId/suggestions/config
+    if (parts.length === 6 && parts[5] === 'config' && method === 'GET') {
+      try {
+        const { getOrCreateFeatureConfigs } = await import('../../../services/dashboardManagementService.js');
+        const configs = await getOrCreateFeatureConfigs(guildId);
+        const featureConfig = configs.find((c) => c.featureKey === 'suggestions');
+        json(res, 200, {
+          config: {
+            enabled: featureConfig?.enabled ?? true,
+            channelId: featureConfig?.channelId ?? null,
+          },
+        });
+      } catch (err) {
+        logger.error('SuggestionsAPI', 'Error fetching suggestions config:', err);
+        json(res, 500, { error: 'Erreur de récupération de la configuration' });
+      }
+      return true;
+    }
+
+    // PATCH /api/dashboard/guilds/:guildId/suggestions/config
+    if (parts.length === 6 && parts[5] === 'config' && method === 'PATCH') {
+      try {
+        const body = await readJsonBody<{
+          enabled?: boolean;
+          channelId?: string | null;
+        }>(req);
+
+        if (!body) {
+          json(res, 400, { error: 'Corps de requête manquant' });
+          return true;
+        }
+
+        const { getOrCreateFeatureConfigs, updateFeatureConfig } = await import('../../../services/dashboardManagementService.js');
+        await getOrCreateFeatureConfigs(guildId);
+        const updated = await updateFeatureConfig(guildId, 'suggestions', {
+          enabled: body.enabled,
+          channelId: body.channelId,
+        });
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Mise à jour configuration suggestions',
+          context: getGuildName(client, guildId),
+          module: 'Suggestions',
+          eventType: 'Manuel',
+          details: `Module ${updated.enabled ? 'activé' : 'désactivé'}${updated.channelId ? `, salon <#${updated.channelId}>` : ''}.`,
+          channelId: updated.channelId,
+        });
+
+        json(res, 200, {
+          config: {
+            enabled: updated.enabled,
+            channelId: updated.channelId,
+          },
+        });
+      } catch (err) {
+        logger.error('SuggestionsAPI', 'Error updating suggestions config:', err);
+        json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration' });
+      }
+      return true;
+    }
+
     // GET /api/dashboard/guilds/:guildId/suggestions
     if (parts.length === 5 && method === 'GET') {
       try {

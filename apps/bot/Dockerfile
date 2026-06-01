@@ -24,6 +24,10 @@ RUN bun run db:generate
 # Stage 2: Runtime stage
 FROM oven/bun:1-alpine
 
+# Canvas text rendering requires system fonts (Alpine ships with none)
+RUN apk add --no-cache fontconfig ttf-dejavu \
+  && fc-cache -f
+
 WORKDIR /app
 
 # Copy only necessary files for runtime

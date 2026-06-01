@@ -1,10 +1,14 @@
 <script lang="ts">
   import Papicon from '../Papicon.svelte';
 
-  let { data, metric = 'messages' } = $props<{
-    data: Record<number, Record<number, { messages: number; voice: number; active: number }>>;
-    metric?: 'messages' | 'voice' | 'active';
+  type HeatmapMetric = 'messages' | 'voice' | 'active' | 'joins' | 'leaves' | 'net';
+  type HeatmapCell = { messages: number; voice: number; active: number; joins?: number; leaves?: number; net?: number };
+
+  let { data } = $props<{
+    data: Record<number, Record<number, HeatmapCell>>;
   }>();
+
+  let metric = $state<HeatmapMetric>('messages');
 
   const dayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
   const dayNamesFull = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
@@ -15,17 +19,36 @@
   let hoveredHour = $state<number | null>(null);
 
   const metricConfig = {
-    messages: { label: 'Messages', icon: 'ChatCircleDots', unit: 'msg', color1: '#312e81', color2: '#4f46e5', color3: '#818cf8', colorPeak: '#c7d2fe' },
-    voice: { label: 'Vocal', icon: 'Microphone', unit: 'min', color1: '#701a75', color2: '#a21caf', color3: '#e879f9', colorPeak: '#fae8ff' },
-    active: { label: 'Membres actifs', icon: 'Users', unit: 'membres', color1: '#064e3b', color2: '#059669', color3: '#34d399', colorPeak: '#d1fae5' },
+    messages: { label: 'Messages', icon: 'ChatCircleDots', unit: 'msg', color1: '#312e81', color2: '#4f46e5', color3: '#818cf8', colorPeak: '#c7d2fe', negative: false },
+    voice: { label: 'Vocal', icon: 'Microphone', unit: 'min', color1: '#701a75', color2: '#a21caf', color3: '#e879f9', colorPeak: '#fae8ff', negative: false },
+    active: { label: 'Membres actifs', icon: 'Users', unit: 'membres', color1: '#064e3b', color2: '#059669', color3: '#34d399', colorPeak: '#d1fae5', negative: false },
+    joins: { label: 'Arrivées', icon: 'LogIn', unit: 'membres', color1: '#064e3b', color2: '#059669', color3: '#34d399', colorPeak: '#d1fae5', negative: false },
+    leaves: { label: 'Départs', icon: 'LogOut', unit: 'membres', color1: '#7c2d12', color2: '#ea580c', color3: '#fb923c', colorPeak: '#ffedd5', negative: false },
+    net: { label: 'Cumulé', icon: 'TrendUp', unit: 'net', color1: '#1e3a5f', color2: '#2563eb', color3: '#60a5fa', colorPeak: '#dbeafe', negative: true },
   };
+
+  const activityMetrics = ['messages', 'voice', 'active'] as const;
+  const fluxMetrics = ['joins', 'leaves', 'net'] as const;
+
+  /** joins/leaves = moyennes issues de GuildDailyStat.membersJoined / membersLeft */
+  function cellValue(dow: number, hour: number): number {
+    const cell = data[dow]?.[hour];
+    if (!cell) return 0;
+    if (metric === 'net') {
+      return cell.net ?? ((cell.joins ?? 0) - (cell.leaves ?? 0));
+    }
+    return (cell as Record<string, number>)[metric] ?? 0;
+  }
+
+  const fluxMetricActive = $derived(fluxMetrics.includes(metric as (typeof fluxMetrics)[number]));
 
   const maxValue = $derived.by(() => {
     let max = 0;
     for (let dow = 0; dow < 7; dow++) {
       for (let hour = 0; hour < 24; hour++) {
-        const val = data[dow]?.[hour]?.[metric] || 0;
-        if (val > max) max = val;
+        const val = cellValue(dow, hour);
+        const magnitude = metric === 'net' ? Math.abs(val) : val;
+        if (magnitude > max) max = magnitude;
       }
     }
     return max;
@@ -35,7 +58,7 @@
     let total = 0;
     for (let dow = 0; dow < 7; dow++) {
       for (let hour = 0; hour < 24; hour++) {
-        total += data[dow]?.[hour]?.[metric] || 0;
+        total += cellValue(dow, hour);
       }
     }
     return total;
@@ -46,8 +69,10 @@
     let peak = { dow: 0, hour: 0, val: 0 };
     for (let dow = 0; dow < 7; dow++) {
       for (let hour = 0; hour < 24; hour++) {
-        const val = data[dow]?.[hour]?.[metric] || 0;
-        if (val > peak.val) peak = { dow, hour, val };
+        const val = cellValue(dow, hour);
+        const magnitude = metric === 'net' ? Math.abs(val) : val;
+        const peakMag = metric === 'net' ? Math.abs(peak.val) : peak.val;
+        if (magnitude > peakMag) peak = { dow, hour, val };
       }
     }
     return peak;
@@ -56,24 +81,33 @@
   // Day sums for row totals
   const dayTotals = $derived.by(() => {
     return Array.from({ length: 7 }, (_, dow) =>
-      Array.from({ length: 24 }).reduce((sum, _, h) => sum + (data[dow]?.[h]?.[metric] || 0), 0) as number
+      Array.from({ length: 24 }).reduce((sum, _, h) => sum + cellValue(dow, h), 0) as number
     );
   });
 
   // Hour sums for column totals
   const hourTotals = $derived.by(() => {
     return Array.from({ length: 24 }, (_, h) =>
-      Array.from({ length: 7 }).reduce((sum, _, dow) => sum + (data[dow]?.[h]?.[metric] || 0), 0) as number
+      Array.from({ length: 7 }).reduce((sum, _, dow) => sum + cellValue(dow, h), 0) as number
     );
   });
 
-  const maxDayTotal = $derived(Math.max(...dayTotals, 1));
-  const maxHourTotal = $derived(Math.max(...hourTotals, 1));
+  const maxDayTotal = $derived(Math.max(...dayTotals.map((v) => metric === 'net' ? Math.abs(v) : v), 1));
+  const maxHourTotal = $derived(Math.max(...hourTotals.map((v) => metric === 'net' ? Math.abs(v) : v), 1));
 
   function getCellStyle(val: number, max: number): string {
-    if (max === 0 || val === 0) return 'background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.04);';
-    const t = val / max;
+    if (max === 0 || Math.abs(val) < 0.01) return 'background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.04);';
+    const magnitude = metric === 'net' ? Math.abs(val) : val;
+    const t = magnitude / max;
     const cfg = metricConfig[metric];
+    if (metric === 'net' && val < 0) {
+      if (t < 0.15) return 'background: #7f1d1d25; border-color: #7f1d1d40;';
+      if (t < 0.35) return 'background: #7f1d1d60; border-color: #b91c1c50;';
+      if (t < 0.55) return 'background: #b91c1c80; border-color: #dc262670;';
+      if (t < 0.75) return 'background: #dc2626cc; border-color: #ef444480;';
+      if (t < 0.9) return 'background: #f87171dd; border-color: #f87171; box-shadow: 0 0 8px #f8717140;';
+      return 'background: #fecaca; border-color: #fecaca; color: #0f172a; box-shadow: 0 0 12px #f8717180;';
+    }
     if (t < 0.15) return `background: ${cfg.color1}25; border-color: ${cfg.color1}40;`;
     if (t < 0.35) return `background: ${cfg.color1}60; border-color: ${cfg.color2}50;`;
     if (t < 0.55) return `background: ${cfg.color2}80; border-color: ${cfg.color2}70;`;
@@ -84,15 +118,26 @@
 
   function getCellTextColor(val: number, max: number): string {
     if (max === 0 || val === 0) return 'rgba(255,255,255,0.15)';
-    const t = val / max;
+    const magnitude = metric === 'net' ? Math.abs(val) : val;
+    const t = magnitude / max;
     if (t < 0.55) return 'rgba(255,255,255,0.5)';
     if (t < 0.9) return 'rgba(255,255,255,0.95)';
     return '#0f172a';
   }
 
+  function formatFlux(v: number): string {
+    const abs = Math.abs(v);
+    const prefix = v < 0 ? '−' : v > 0 && metric === 'net' ? '+' : '';
+    if (abs >= 1000) return `${prefix}${(abs / 1000).toFixed(1)}k`;
+    if (abs % 1 !== 0) return `${prefix}${abs.toFixed(1)}`;
+    return `${prefix}${abs}`;
+  }
+
   function formatVal(v: number): string {
-    if (v >= 1000) return `${(v / 1000).toFixed(1)}k`;
-    return v.toString();
+    if (fluxMetricActive) return formatFlux(v);
+    const abs = Math.abs(v);
+    if (abs >= 1000) return `${(abs / 1000).toFixed(1)}k`;
+    return abs.toString();
   }
 
   const cfg = $derived(metricConfig[metric]);
@@ -115,24 +160,42 @@
         </div>
         <div>
           <h3 class="text-xl font-black text-on-surface">Carte Thermique d'Activité</h3>
-          <p class="text-xs font-bold text-on-surface-variant/40">Moyennes par jour de la semaine × heure</p>
+          <p class="text-xs font-bold text-on-surface-variant/40">
+            {fluxMetricActive
+              ? 'Moyennes par jour × heure (mêmes stats que Flux de Population)'
+              : 'Moyennes par jour de la semaine × heure'}
+          </p>
         </div>
       </div>
 
       <!-- Controls -->
-      <div class="flex flex-wrap items-center gap-2">
-        <!-- Metric selector -->
-        {#each (['messages', 'voice', 'active'] as const) as m}
-          <button
-            onclick={() => metric = m}
-            class="flex items-center gap-1.5 px-3 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all duration-200 border {metric === m
-              ? 'bg-primary text-on-primary border-primary shadow-lg shadow-primary/25'
-              : 'bg-surface-container-high/40 text-on-surface-variant/60 border-outline-variant/10 hover:bg-surface-container-high hover:text-on-surface'}"
-          >
-            <Papicon icon={metricConfig[m].icon} size={12} />
-            {metricConfig[m].label}
-          </button>
-        {/each}
+      <div class="flex flex-col items-end gap-2">
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          {#each activityMetrics as m}
+            <button
+              onclick={() => metric = m}
+              class="flex items-center gap-1.5 px-3 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all duration-200 border {metric === m
+                ? 'bg-primary text-on-primary border-primary shadow-lg shadow-primary/25'
+                : 'bg-surface-container-high/40 text-on-surface-variant/60 border-outline-variant/10 hover:bg-surface-container-high hover:text-on-surface'}"
+            >
+              <Papicon icon={metricConfig[m].icon} size={12} />
+              {metricConfig[m].label}
+            </button>
+          {/each}
+        </div>
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          {#each fluxMetrics as m}
+            <button
+              onclick={() => metric = m}
+              class="flex items-center gap-1.5 px-3 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all duration-200 border {metric === m
+                ? 'bg-emerald-600 text-white border-emerald-500 shadow-lg shadow-emerald-600/25'
+                : 'bg-surface-container-high/40 text-on-surface-variant/60 border-outline-variant/10 hover:bg-surface-container-high hover:text-on-surface'}"
+            >
+              <Papicon icon={metricConfig[m].icon} size={12} />
+              {metricConfig[m].label}
+            </button>
+          {/each}
+        </div>
 
         <!-- Show values toggle -->
         <button
@@ -152,11 +215,17 @@
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
       <div class="bg-surface-container-high/30 rounded-2xl p-4 border border-outline-variant/5">
         <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-1">Total période</p>
-        <p class="text-lg font-black text-on-surface">{totalValue.toLocaleString('fr-FR')} <span class="text-xs font-bold text-on-surface-variant/40">{cfg.unit}</span></p>
+        <p class="text-lg font-black text-on-surface {metric === 'net' && totalValue < 0 ? 'text-rose-400' : metric === 'net' && totalValue > 0 ? 'text-emerald-400' : ''}">
+          {metric === 'net' && totalValue > 0 ? '+' : ''}{totalValue.toLocaleString('fr-FR')}
+          <span class="text-xs font-bold text-on-surface-variant/40">{cfg.unit}</span>
+        </p>
       </div>
       <div class="bg-surface-container-high/30 rounded-2xl p-4 border border-outline-variant/5">
         <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-1">Pic absolu</p>
-        <p class="text-lg font-black text-on-surface">{peakCell.val.toLocaleString('fr-FR')} <span class="text-xs font-bold text-on-surface-variant/40">{cfg.unit}</span></p>
+        <p class="text-lg font-black text-on-surface">
+          {metric === 'net' && peakCell.val > 0 ? '+' : ''}{peakCell.val.toLocaleString('fr-FR')}
+          <span class="text-xs font-bold text-on-surface-variant/40">{cfg.unit}</span>
+        </p>
       </div>
       <div class="bg-surface-container-high/30 rounded-2xl p-4 border border-outline-variant/5 md:col-span-2">
         <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-1">Heure de pointe</p>
@@ -200,9 +269,9 @@
 
             <!-- Cells -->
             {#each hours as hour}
-              {@const val = data[dow]?.[hour]?.[metric] || 0}
+              {@const val = cellValue(dow, hour)}
               {@const isHovHour = hoveredHour === hour}
-              {@const isPeak = dow === peakCell.dow && hour === peakCell.hour && peakCell.val > 0}
+              {@const isPeak = dow === peakCell.dow && hour === peakCell.hour && (metric === 'net' ? peakCell.val !== 0 : peakCell.val > 0)}
               <div
                 class="flex-1 aspect-square rounded-lg border transition-all duration-150 flex items-center justify-center cursor-default relative group/cell
                   {(isHovDow || isHovHour) ? 'scale-[1.12] z-10 shadow-lg' : ''}
@@ -215,7 +284,7 @@
                 aria-label="{dayNamesFull[dow]} {String(hour).padStart(2,'0')}h: {val} {cfg.unit}"
               >
                 <!-- Value text -->
-                {#if showValues && val > 0}
+                {#if showValues && Math.abs(val) >= 0.05}
                   <span class="text-[8px] font-black leading-none select-none" style="color: {getCellTextColor(val, maxValue)}">
                     {formatVal(val)}
                   </span>
@@ -228,9 +297,11 @@
                   opacity-0 group-hover/cell:opacity-100 transition-all duration-150 pointer-events-none whitespace-nowrap z-50
                   border border-outline-variant/20 shadow-xl shadow-black/40">
                   <div class="font-black text-[11px]">{dayNamesFull[dow]} {String(hour).padStart(2, '0')}h–{String(hour + 1).padStart(2, '0')}h</div>
-                  <div class="text-primary font-black mt-0.5">{val.toLocaleString('fr-FR')} {cfg.unit}</div>
+                  <div class="text-primary font-black mt-0.5">
+                    {fluxMetricActive ? formatFlux(val) : val.toLocaleString('fr-FR')} {cfg.unit}
+                  </div>
                   {#if maxValue > 0}
-                    <div class="text-on-surface-variant/40 text-[9px] mt-0.5">{Math.round((val / maxValue) * 100)}% du pic</div>
+                    <div class="text-on-surface-variant/40 text-[9px] mt-0.5">{Math.round((Math.abs(val) / maxValue) * 100)}% du pic</div>
                   {/if}
                 </div>
               </div>
@@ -239,7 +310,7 @@
             <!-- Row total bar -->
             <div class="w-12 flex-shrink-0 pl-1.5 flex items-center" title="Total {dayNamesFull[dow]}: {dayTotals[dow]} {cfg.unit}">
               <div class="h-3 rounded-full bg-surface-container-high overflow-hidden w-full">
-                <div class="h-full rounded-full transition-all duration-500" style="width: {Math.round((dayTotals[dow] / maxDayTotal) * 100)}%; background: {cfg.color2}"></div>
+                <div class="h-full rounded-full transition-all duration-500" style="width: {Math.round((Math.abs(dayTotals[dow]) / maxDayTotal) * 100)}%; background: {dayTotals[dow] < 0 && metric === 'net' ? '#ef4444' : cfg.color2}"></div>
               </div>
             </div>
           </div>
@@ -250,7 +321,7 @@
           {#each hours as hour}
             <div class="flex-1 flex flex-col items-center gap-0.5" title="{String(hour).padStart(2,'0')}h: {hourTotals[hour]} {cfg.unit}">
               <div class="w-full max-w-[16px] mx-auto">
-                <div class="rounded-t transition-all duration-500" style="height: {Math.round((hourTotals[hour] / maxHourTotal) * 28)}px; background: {cfg.color2}40; min-height: 2px;"></div>
+                <div class="rounded-t transition-all duration-500" style="height: {Math.round((Math.abs(hourTotals[hour]) / maxHourTotal) * 28)}px; background: {hourTotals[hour] < 0 && metric === 'net' ? '#ef444480' : cfg.color2 + '40'}; min-height: 2px;"></div>
               </div>
             </div>
           {/each}
@@ -274,10 +345,20 @@
         <span class="w-8 h-px bg-outline-variant/20"></span>
         <span>Élevée</span>
       </div>
-      {#if peakCell.val > 0}
+      {#if peakCell.val !== 0}
         <div class="flex items-center gap-1.5 text-[9px] font-bold text-amber-400/70 border border-amber-400/20 px-2 py-1 rounded-lg">
           <div class="w-2 h-2 rounded-full border border-amber-400/60"></div>
-          Pic d'activité
+          {metric === 'net' ? 'Pic de flux' : "Pic d'activité"}
+        </div>
+      {/if}
+      {#if metric === 'net'}
+        <div class="flex items-center gap-1.5 text-[9px] font-bold text-emerald-400/70 border border-emerald-400/20 px-2 py-1 rounded-lg">
+          <div class="w-2 h-2 rounded" style="background: {metricConfig.net.color2}"></div>
+          Gain net
+        </div>
+        <div class="flex items-center gap-1.5 text-[9px] font-bold text-rose-400/70 border border-rose-400/20 px-2 py-1 rounded-lg">
+          <div class="w-2 h-2 rounded bg-rose-500/80"></div>
+          Perte nette
         </div>
       {/if}
     </div>

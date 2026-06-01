@@ -56,6 +56,7 @@
       isTutor: boolean;
       staffGrade: string | null;
       moderatorNote: string | null;
+      isOnServer?: boolean;
     } | null;
     invite: {
       code: string | null;
@@ -486,6 +487,7 @@
   function getPresenceColor(status: string | null | undefined) {
     if (!status) return 'bg-slate-400';
     const s = status.toLowerCase();
+    if (s === 'left') return 'bg-rose-500';
     if (s === 'online') return 'bg-emerald-500';
     if (s === 'idle') return 'bg-amber-500';
     if (s === 'dnd') return 'bg-red-500';
@@ -495,6 +497,7 @@
   function getPresenceLabel(status: string | null | undefined) {
     if (!status) return 'Hors ligne';
     const s = status.toLowerCase();
+    if (s === 'left') return 'A quitté le serveur';
     if (s === 'online') return 'En ligne';
     if (s === 'idle') return 'Absent';
     if (s === 'dnd') return 'Ne pas déranger';

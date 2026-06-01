@@ -214,14 +214,15 @@
                       {previewText(config.welcomeMessage)}
                     </div>
                     {#if config.welcomeImageEnabled}
-                      <div class="mt-3 w-full max-w-sm aspect-5/2 rounded-xl bg-outline-variant/10 flex items-center justify-center border border-outline-variant/10 relative overflow-hidden">
+                      <div class="mt-3 w-full max-w-sm aspect-5/2 rounded-xl bg-[#0b0e14] flex items-center justify-center border border-[#5865f2]/30 relative overflow-hidden">
                         {#if config.welcomeImageUrl}
                           <img src={config.welcomeImageUrl} alt="Background" class="absolute inset-0 w-full h-full object-cover opacity-50" />
                         {/if}
                         <div class="relative flex flex-col items-center gap-1.5 z-10 p-4 text-center">
                           <div class="w-12 h-12 rounded-full border border-primary/20 bg-surface-container/85 flex items-center justify-center text-sm font-black text-primary">JD</div>
-                          <span class="text-xs font-black text-on-surface leading-none">BIENVENUE JEAN DUPONT</span>
-                          <span class="text-[9px] text-on-surface-variant font-bold uppercase tracking-wider">Membre #1,235</span>
+                          <span class="text-xs font-black text-white leading-none drop-shadow-sm">BIENVENUE !</span>
+                          <span class="text-[10px] font-bold text-[#57f287] leading-none">JEANDUPONT</span>
+                          <span class="text-[9px] text-[#b8bcc8] font-medium uppercase tracking-wider">Membre #1,235 sur KOTBO SERVER</span>
                         </div>
                       </div>
                     {/if}

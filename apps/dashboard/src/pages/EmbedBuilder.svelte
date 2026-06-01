@@ -7,8 +7,10 @@
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
   import { sendOrUpdateEmbed } from '../lib/api';
+  import { authStore } from '../lib/stores/auth.svelte';
 
   const actionState = createAsyncActionState();
+  const templateAction = createAsyncActionState();
   let loading = $state(false);
 
   const canManageSettings = $derived(
@@ -22,26 +24,112 @@
   let targetMessageId = $state('');
 
   // Embed Model
-  let embed = $state({
+  type EmbedModel = {
+    title: string;
+    description: string;
+    color: string;
+    thumbnailUrl: string;
+    imageUrl: string;
+    authorName: string;
+    authorIconUrl: string;
+    footerText: string;
+    footerIconUrl: string;
+    fields: Array<{ name: string; value: string; inline: boolean }>;
+  };
+
+  type SavedEmbedTemplate = {
+    id: string;
+    name: string;
+    createdAt: string;
+    embed: EmbedModel;
+    targetChannelId?: string;
+    targetMessageId?: string;
+  };
+
+  const emptyEmbed = (): EmbedModel => ({
     title: '',
     description: '',
-    color: '#5865F2', // Discord Blurple
+    color: '#5865F2',
     thumbnailUrl: '',
     imageUrl: '',
     authorName: '',
     authorIconUrl: '',
     footerText: '',
     footerIconUrl: '',
-    fields: [] as Array<{ name: string; value: string; inline: boolean }>
+    fields: [],
   });
+
+  let embed = $state<EmbedModel>(emptyEmbed());
+  let savedTemplates = $state<SavedEmbedTemplate[]>([]);
+  let templateName = $state('');
+  let selectedTemplateId = $state<string | null>(null);
+
+  function templatesStorageKey() {
+    const guildId = authStore.selectedGuildId || 'global';
+    return `kotbo-embed-templates:${guildId}`;
+  }
+
+  function loadTemplatesFromStorage() {
+    try {
+      const raw = localStorage.getItem(templatesStorageKey());
+      savedTemplates = raw ? (JSON.parse(raw) as SavedEmbedTemplate[]) : [];
+    } catch {
+      savedTemplates = [];
+    }
+  }
+
+  function persistTemplates() {
+    localStorage.setItem(templatesStorageKey(), JSON.stringify(savedTemplates));
+  }
+
+  function saveCurrentAsTemplate() {
+    if (!canManageSettings) return;
+    const name = templateName.trim() || `Modèle ${new Date().toLocaleString('fr-FR')}`;
+    const entry: SavedEmbedTemplate = {
+      id: crypto.randomUUID(),
+      name,
+      createdAt: new Date().toISOString(),
+      embed: structuredClone(embed),
+      targetChannelId: targetChannelId || undefined,
+      targetMessageId: targetMessageId.trim() || undefined,
+    };
+    savedTemplates = [entry, ...savedTemplates].slice(0, 30);
+    templateName = '';
+    persistTemplates();
+    templateAction.setMessage(`Modèle « ${name} » enregistré.`);
+  }
+
+  function loadTemplate(id: string) {
+    const tpl = savedTemplates.find((t) => t.id === id);
+    if (!tpl) return;
+    embed = structuredClone(tpl.embed);
+    targetChannelId = tpl.targetChannelId || '';
+    targetMessageId = tpl.targetMessageId || '';
+    selectedTemplateId = id;
+    templateAction.setMessage(`Modèle « ${tpl.name} » chargé.`);
+  }
+
+  function deleteTemplate(id: string) {
+    savedTemplates = savedTemplates.filter((t) => t.id !== id);
+    if (selectedTemplateId === id) selectedTemplateId = null;
+    persistTemplates();
+    templateAction.setMessage('Modèle supprimé.');
+  }
 
   onMount(async () => {
     loading = true;
     try {
       await dashboardStore.refresh();
+      loadTemplatesFromStorage();
     } finally {
       loading = false;
     }
+  });
+
+  $effect(() => {
+    const guildId = authStore.selectedGuildId;
+    if (!guildId) return;
+    loadTemplatesFromStorage();
   });
 
   function addField() {
@@ -111,6 +199,7 @@
   </header>
 
   <InlineFeedback state={actionState} />
+  <InlineFeedback state={templateAction} />
 
   {#if loading}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -121,6 +210,58 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <!-- Editor Form -->
       <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6 h-fit max-h-[85vh] overflow-y-auto scrollbar-thin pr-3">
+        <div class="p-5 rounded-2xl bg-surface-container-high/20 border border-outline-variant/10 space-y-4">
+          <h3 class="text-sm font-black uppercase tracking-wider text-on-surface-variant/80">Mes modèles</h3>
+          {#if canManageSettings}
+            <div class="flex flex-col sm:flex-row gap-2">
+              <input
+                type="text"
+                bind:value={templateName}
+                placeholder="Nom du modèle (optionnel)"
+                class="flex-1 bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none"
+              />
+              <button
+                type="button"
+                onclick={saveCurrentAsTemplate}
+                class="px-4 py-2.5 bg-secondary/20 text-secondary font-black uppercase tracking-widest text-[10px] rounded-xl hover:bg-secondary/30 transition-all"
+              >
+                Sauvegarder
+              </button>
+            </div>
+          {/if}
+          {#if savedTemplates.length === 0}
+            <p class="text-xs text-on-surface-variant/50 font-medium">Aucun modèle enregistré sur cet appareil.</p>
+          {:else}
+            <ul class="space-y-2 max-h-40 overflow-y-auto pr-1">
+              {#each savedTemplates as tpl (tpl.id)}
+                <li class="flex items-center gap-2 p-2 rounded-xl bg-surface-container-low/50 border border-outline-variant/10">
+                  <button
+                    type="button"
+                    onclick={() => loadTemplate(tpl.id)}
+                    class="flex-1 text-left text-xs font-bold hover:text-primary transition-colors truncate"
+                    title={tpl.name}
+                  >
+                    {tpl.name}
+                  </button>
+                  <span class="text-[9px] text-on-surface-variant/40 shrink-0">
+                    {new Date(tpl.createdAt).toLocaleDateString('fr-FR')}
+                  </span>
+                  {#if canManageSettings}
+                    <button
+                      type="button"
+                      onclick={() => deleteTemplate(tpl.id)}
+                      class="p-1.5 text-error hover:bg-error/10 rounded-lg transition-colors"
+                      title="Supprimer"
+                    >
+                      <Papicon icon="Trash" size={14} />
+                    </button>
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
+
         <h3 class="text-xl font-black flex items-center gap-3">
           <Papicon icon="Pen" size={20} class="text-primary" />
           Éditeur d'Embed

@@ -17,6 +17,8 @@ import DailyAlgoAnalyticsCard from '../lib/components/analytics/DailyAlgoAnalyti
 import CommandUsage from '../lib/components/analytics/CommandUsage.svelte';
 import StaffPerformance from '../lib/components/analytics/StaffPerformance.svelte';
 import GlobalInteractionGraph from '../lib/components/charts/GlobalInteractionGraph.svelte';
+import * as XLSX from 'xlsx';
+import { toast } from '../lib/stores/toast.svelte';
 
   let data: any = $state(null);
   let heatmapData: any = $state(null);
@@ -125,26 +127,254 @@ import GlobalInteractionGraph from '../lib/components/charts/GlobalInteractionGr
     }
   }
 
-  function exportToCSV() {
-    if (!data) return;
-    
-    let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Metric,Date,Value\n";
-    
-    data.dailyTrend?.forEach((row: any) => {
-      csvContent += `Messages,${row.dateKey},${row.messages}\n`;
-      csvContent += `VoiceMinutes,${row.dateKey},${row.voiceMinutes}\n`;
-      csvContent += `MembersJoined,${row.dateKey},${row.membersJoined}\n`;
-      csvContent += `MembersLeft,${row.dateKey},${row.membersLeft}\n`;
-    });
-    
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `analytics_kotbo_${new Date().toISOString().split('T')[0]}.csv`);
+  type ExportRow = Record<string, string | number | boolean | null>;
+  type ExportSheet = { name: string; rows: ExportRow[] };
+
+  function normalizeCellValue(value: unknown): string | number | boolean | null {
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
+    return JSON.stringify(value);
+  }
+
+  function normalizeRow(row: Record<string, unknown>): ExportRow {
+    return Object.fromEntries(
+      Object.entries(row).map(([key, value]) => [key, normalizeCellValue(value)])
+    ) as ExportRow;
+  }
+
+  function appendExportValue(sheets: ExportSheet[], name: string, value: unknown) {
+    if (value === null || value === undefined) return;
+
+    if (Array.isArray(value)) {
+      if (value.length === 0) return;
+      if (typeof value[0] === 'object' && value[0] !== null) {
+        sheets.push({
+          name,
+          rows: value.map((entry) => normalizeRow(entry as Record<string, unknown>))
+        });
+      } else {
+        sheets.push({
+          name,
+          rows: value.map((entry, index) => ({ index: index + 1, value: normalizeCellValue(entry) }))
+        });
+      }
+      return;
+    }
+
+    if (typeof value === 'object') {
+      const entries = Object.entries(value as Record<string, unknown>);
+      const arrayEntries = entries.filter(([, entryValue]) => Array.isArray(entryValue));
+
+      if (arrayEntries.length > 0) {
+        for (const [key, nestedValue] of arrayEntries) {
+          appendExportValue(sheets, `${name}_${key}`, nestedValue);
+        }
+
+        const scalarEntries = entries.filter(([, entryValue]) => !Array.isArray(entryValue));
+        if (scalarEntries.length > 0) {
+          sheets.push({
+            name: `${name}_meta`,
+            rows: scalarEntries.map(([key, entryValue]) => ({
+              key,
+              value: normalizeCellValue(entryValue)
+            }))
+          });
+        }
+        return;
+      }
+
+      sheets.push({ name, rows: [normalizeRow(value as Record<string, unknown>)] });
+      return;
+    }
+
+    sheets.push({ name, rows: [{ value: normalizeCellValue(value) }] });
+  }
+
+  function collectExportSheets(): ExportSheet[] {
+    const sheets: ExportSheet[] = [];
+    appendExportValue(sheets, 'analytics_dailyTrend', data?.dailyTrend);
+    appendExportValue(sheets, 'analytics_topChannels', data?.topChannels);
+    appendExportValue(sheets, 'analytics_topMessageMembers', data?.topMessageMembers);
+    appendExportValue(sheets, 'analytics_topVoiceMembers', data?.topVoiceMembers);
+    appendExportValue(sheets, 'analytics_topInviters', data?.topInviters);
+    appendExportValue(sheets, 'analytics_topModerators', data?.topModerators);
+    appendExportValue(sheets, 'analytics_topSanctionedMembers', data?.topSanctionedMembers);
+    appendExportValue(sheets, 'analytics_recentSanctions', data?.recentSanctions);
+    appendExportValue(sheets, 'analytics_staff', data?.staff);
+    appendExportValue(sheets, 'analytics_recruitmentPipeline', data?.recruitmentPipeline);
+    appendExportValue(sheets, 'analytics_roleDistribution', data?.roleDistribution);
+    appendExportValue(sheets, 'analytics_recentJoins', data?.recentJoins);
+    appendExportValue(sheets, 'analytics_recentLeaves', data?.recentLeaves);
+    appendExportValue(sheets, 'analytics_commandUsage', data?.commandUsage);
+    appendExportValue(sheets, 'invites', invitesData);
+    appendExportValue(sheets, 'heatmap', heatmapData);
+    appendExportValue(sheets, 'weeklyComparison', weeklyData);
+    appendExportValue(sheets, 'dailyAlgo', algoData);
+    appendExportValue(sheets, 'interactions', interactionsData);
+    return sheets;
+  }
+
+  function escapeCsvCell(value: string | number | boolean | null): string {
+    if (value === null || value === undefined) return '';
+    const stringValue = String(value);
+    if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+      return `"${stringValue.replace(/"/g, '""')}"`;
+    }
+    return stringValue;
+  }
+
+  function triggerDownload(content: BlobPart, fileName: string, mimeType: string) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  function exportAllToCSV() {
+    const sheets = collectExportSheets();
+    if (sheets.length === 0) {
+      toast.error('Aucune donnée de graphique à exporter.');
+      return;
+    }
+
+    const csvParts: string[] = [];
+    for (const sheet of sheets) {
+      if (!sheet.rows.length) continue;
+      const headers = Array.from(new Set(sheet.rows.flatMap((row) => Object.keys(row))));
+      csvParts.push(`# ${sheet.name}`);
+      csvParts.push(headers.join(','));
+      for (const row of sheet.rows) {
+        csvParts.push(headers.map((header) => escapeCsvCell(row[header] ?? null)).join(','));
+      }
+      csvParts.push('');
+    }
+
+    const datePart = new Date().toISOString().split('T')[0];
+    triggerDownload(csvParts.join('\n'), `analytics_kotbo_all_${datePart}.csv`, 'text/csv;charset=utf-8');
+    toast.success('Export CSV des graphiques généré.');
+  }
+
+  function sanitizeSheetName(name: string): string {
+    return name.replace(/[\\/*?:\[\]]/g, '_').slice(0, 31) || 'sheet';
+  }
+
+  function exportAllToXLSX() {
+    const sheets = collectExportSheets();
+    if (sheets.length === 0) {
+      toast.error('Aucune donnée de graphique à exporter.');
+      return;
+    }
+
+    const workbook = XLSX.utils.book_new();
+    for (const sheet of sheets) {
+      if (!sheet.rows.length) continue;
+      const worksheet = XLSX.utils.json_to_sheet(sheet.rows);
+      XLSX.utils.book_append_sheet(workbook, worksheet, sanitizeSheetName(sheet.name));
+    }
+
+    const datePart = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(workbook, `analytics_kotbo_all_${datePart}.xlsx`);
+    toast.success('Export XLSX des graphiques généré.');
+  }
+
+  function sanitizeFileNamePart(value: string): string {
+    return value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 40) || 'chart';
+  }
+
+  function isLargeGraphicElement(element: Element): boolean {
+    const rect = element.getBoundingClientRect();
+    return rect.width >= 280 && rect.height >= 160;
+  }
+
+  function resolveGraphicName(element: Element, index: number): string {
+    const titleCandidate = element
+      .closest('section, article, div')
+      ?.querySelector('h1, h2, h3, h4, h5')
+      ?.textContent
+      ?.trim();
+    const safeTitle = sanitizeFileNamePart(titleCandidate || `graph-${index}`);
+    return `${String(index).padStart(2, '0')}_${safeTitle}`;
+  }
+
+  async function svgToBlob(svg: SVGSVGElement): Promise<Blob | null> {
+    const serializer = new XMLSerializer();
+    const source = serializer.serializeToString(svg);
+    const svgBlob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+
+    try {
+      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('Impossible de convertir le SVG'));
+        img.src = url;
+      });
+
+      const rect = svg.getBoundingClientRect();
+      const width = Math.max(1, Math.round(rect.width));
+      const height = Math.max(1, Math.round(rect.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d');
+      if (!context) return null;
+      context.fillStyle = '#0f1118';
+      context.fillRect(0, 0, width, height);
+      context.drawImage(image, 0, 0, width, height);
+
+      return await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  async function exportAllChartsAsImages() {
+    const root = document.getElementById('analytics-export-root');
+    if (!root) {
+      toast.error('Zone des graphiques introuvable.');
+      return;
+    }
+
+    const canvases = Array.from(root.querySelectorAll('canvas')).filter(isLargeGraphicElement);
+    const svgs = Array.from(root.querySelectorAll('svg')).filter(isLargeGraphicElement);
+
+    if (canvases.length === 0 && svgs.length === 0) {
+      toast.error('Aucun graphique visible à exporter en image.');
+      return;
+    }
+
+    let exportedCount = 0;
+
+    for (const [index, canvas] of canvases.entries()) {
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+      if (!blob) continue;
+      triggerDownload(blob, `analytics_${resolveGraphicName(canvas, index + 1)}.png`, 'image/png');
+      exportedCount += 1;
+    }
+
+    const startIndex = exportedCount;
+    for (const [index, svg] of svgs.entries()) {
+      const blob = await svgToBlob(svg);
+      if (!blob) continue;
+      triggerDownload(blob, `analytics_${resolveGraphicName(svg, startIndex + index + 1)}.png`, 'image/png');
+      exportedCount += 1;
+    }
+
+    if (exportedCount === 0) {
+      toast.error('Impossible de générer les images de graphiques.');
+      return;
+    }
+
+    toast.success(`${exportedCount} image(s) de graphique exportée(s).`);
   }
 
   let activeCategory = $state('overview');
@@ -229,7 +459,7 @@ import GlobalInteractionGraph from '../lib/components/charts/GlobalInteractionGr
   const chartLabels = $derived(data?.dailyTrend?.map((d: any) => ({ ...d, label: d.dateKey?.slice(5) })) ?? []);
 </script>
 
-<div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20 max-w-7xl mx-auto px-4 md:px-8">
+<div id="analytics-export-root" class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20 max-w-7xl mx-auto px-4 md:px-8">
   <!-- Header -->
   <div class="relative overflow-hidden bg-surface-container-low/30 p-8 md:p-12 rounded-[3rem] border border-outline-variant/10 group">
     <div class="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors duration-1000"></div>
@@ -252,10 +482,24 @@ import GlobalInteractionGraph from '../lib/components/charts/GlobalInteractionGr
       <div class="flex flex-col items-end gap-4 w-full md:w-auto">
         <div class="flex flex-wrap items-center justify-end gap-3">
           <button 
-            onclick={exportToCSV}
+            onclick={exportAllToCSV}
             class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors"
           >
             <Papicon icon="DownloadSimple" size={14} /> Export CSV
+          </button>
+
+          <button 
+            onclick={exportAllToXLSX}
+            class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors"
+          >
+            <Papicon icon="file-text" size={14} /> Export XLSX
+          </button>
+
+          <button 
+            onclick={exportAllChartsAsImages}
+            class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors"
+          >
+            <Papicon icon="image" size={14} /> Export Images
           </button>
           
           <div class="flex flex-col gap-2">

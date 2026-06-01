@@ -108,8 +108,15 @@ export async function handleGuildGeneralRoutes(
       }
       json(res, 200, state);
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       logger.error('GeneralAPI', `Error getting guild state for ${guildId}:`, err);
-      json(res, 500, { error: 'Erreur interne de chargement de l\'état de la guilde' });
+      const hint = /column|sidebarFavorites|commandRestrictions|channelId/i.test(message)
+        ? 'Exécutez les migrations Prisma : bun run db:migrate:deploy'
+        : undefined;
+      json(res, 500, {
+        error: 'Erreur interne de chargement de l\'état de la guilde',
+        ...(hint ? { hint } : {}),
+      });
     }
     return true;
   }

@@ -170,6 +170,10 @@ export async function fetchGuildState(guildId = authStore.selectedGuildId) {
           if (body?.needsActivation) {
             (error as any).needsActivation = true;
           }
+          if (body?.hint) {
+            (error as any).hint = body.hint;
+            console.error('API hint:', body.hint);
+          }
         } catch {}
         throw error;
     }
@@ -222,6 +226,37 @@ export async function updateGlobalSettings(settings, guildId = authStore.selecte
     guildId,
     errorContext: 'API Error (Global Settings):'
   });
+}
+
+export async function updateSidebarFavorites(sidebarFavorites: string[], guildId = authStore.selectedGuildId) {
+  const selectedGuildId = getGuildId(guildId);
+  if (!selectedGuildId) return false;
+
+  try {
+    const response = await authorizedFetch(`${BASE_URL}/guilds/${selectedGuildId}/settings`, {
+      method: 'PATCH',
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ sidebarFavorites })
+    });
+
+    if (!response.ok) {
+      let message = 'Erreur lors de la sauvegarde des favoris';
+      try {
+        const data = await response.json();
+        message = data.error || data.message || message;
+      } catch {
+        // Ignore JSON parsing errors.
+      }
+      toast.error(message);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('API Error (Sidebar Favorites):', error);
+    toast.error('Erreur réseau ou serveur');
+    return false;
+  }
 }
 
 export async function updateNotificationsSettings(notifications, guildId = authStore.selectedGuildId) {
@@ -1820,6 +1855,17 @@ export async function updateAutoModConfig(config, guildId = authStore.selectedGu
 
 export async function fetchSuggestions(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/suggestions', { method: 'GET', guildId, errorContext: 'API Error (Fetch Suggestions):' });
+}
+
+export async function fetchSuggestionsConfig(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/suggestions/config', { method: 'GET', guildId, errorContext: 'API Error (Fetch Suggestions Config):' });
+}
+
+export async function updateSuggestionsConfig(
+  config: { enabled?: boolean; channelId?: string | null },
+  guildId = authStore.selectedGuildId
+) {
+  return dashboardRequest('/suggestions/config', { method: 'PATCH', payload: config, guildId, errorContext: 'API Error (Update Suggestions Config):' });
 }
 
 export async function resolveSuggestion(suggestionId: string, payload: { status: 'APPROVED' | 'REJECTED' | 'IMPLEMENTED'; responseText: string }, guildId = authStore.selectedGuildId) {

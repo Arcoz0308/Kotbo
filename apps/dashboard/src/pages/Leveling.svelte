@@ -61,6 +61,22 @@
   let newMultRoleId = $state('');
   let newMultValue = $state<number | null>(1.5);
   let searchQuery = $state('');
+  let pendingIgnoreChannelId = $state<string | null>(null);
+  let pendingIgnoreRoleId = $state<string | null>(null);
+
+  $effect(() => {
+    const channelId = pendingIgnoreChannelId;
+    if (!channelId || config.ignoredChannels.includes(channelId)) return;
+    config.ignoredChannels = [...config.ignoredChannels, channelId];
+    pendingIgnoreChannelId = null;
+  });
+
+  $effect(() => {
+    const roleId = pendingIgnoreRoleId;
+    if (!roleId || config.ignoredRoles.includes(roleId)) return;
+    config.ignoredRoles = [...config.ignoredRoles, roleId];
+    pendingIgnoreRoleId = null;
+  });
 
   onMount(async () => {
     loading = true;
@@ -320,16 +336,11 @@
               {#if canManageSettings}
                 <div class="relative w-full">
                   <SearchableSelect 
+                    bind:value={pendingIgnoreChannelId}
                     options={availableChannels.filter(c => !config.ignoredChannels.includes(c.id)).map(c => ({ id: c.id, name: `#${c.name}` }))} 
                     placeholder="Ajouter un salon à exclure..." 
                     className="w-full"
                     clearable={false}
-                    on:change={(e) => {
-                      if (e.detail.value) {
-                        config.ignoredChannels = [...config.ignoredChannels, e.detail.value];
-                        e.detail.value = null;
-                      }
-                    }}
                   />
                 </div>
               {/if}
@@ -354,16 +365,11 @@
               {#if canManageSettings}
                 <div class="relative w-full">
                   <SearchableSelect 
+                    bind:value={pendingIgnoreRoleId}
                     options={availableRoles.filter(r => !config.ignoredRoles.includes(r.id)).map(r => ({ id: r.id, name: `@${r.name}` }))} 
                     placeholder="Ajouter un rôle à exclure..." 
                     className="w-full"
                     clearable={false}
-                    on:change={(e) => {
-                      if (e.detail.value) {
-                        config.ignoredRoles = [...config.ignoredRoles, e.detail.value];
-                        e.detail.value = null;
-                      }
-                    }}
                   />
                 </div>
               {/if}

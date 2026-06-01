@@ -449,7 +449,7 @@ export async function handleMembersRoutes(
     try {
       const memberCase = await buildMemberCaseData(client, guildId, parts[5], user);
       if (!memberCase) {
-        json(res, 404, { error: 'Membre introuvable sur ce serveur.' });
+        json(res, 404, { error: 'Membre introuvable ou identifiant invalide.' });
         return true;
       }
       json(res, 200, memberCase);

@@ -4,16 +4,36 @@
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
+  import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
+  import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
-  import { fetchSuggestions, resolveSuggestion } from '../lib/api';
+  import {
+    fetchSuggestions,
+    fetchSuggestionsConfig,
+    updateSuggestionsConfig,
+    resolveSuggestion,
+  } from '../lib/api';
 
   const actionState = createAsyncActionState();
+  const configAction = createAsyncActionState();
   let loading = $state(false);
 
   const canModerate = $derived(
     !!dashboardStore.state.featureAccess?.suggestions?.canModerate
       || !!dashboardStore.state.access?.canManageSettings
   );
+
+  const canConfigure = $derived(
+    !!dashboardStore.state.featureAccess?.suggestions?.canConfigure
+      || !!dashboardStore.state.access?.canManageSettings
+  );
+
+  const availableChannels = $derived(dashboardStore.state.discordChannels || []);
+
+  let moduleConfig = $state({
+    enabled: true,
+    channelId: null as string | null,
+  });
 
   let suggestions = $state<Array<{
     id: string;
@@ -33,20 +53,47 @@
   // Response text form states mapped by suggestion ID
   let responseDrafts = $state<Record<string, string>>({});
 
+  async function loadSuggestions() {
+    const res = await fetchSuggestions();
+    if (res?.suggestions) {
+      suggestions = res.suggestions;
+    }
+  }
+
+  async function loadConfig() {
+    const res = await fetchSuggestionsConfig();
+    if (res?.config) {
+      moduleConfig = {
+        enabled: res.config.enabled ?? true,
+        channelId: res.config.channelId ?? null,
+      };
+    }
+  }
+
   onMount(async () => {
     loading = true;
     try {
       await dashboardStore.refresh();
-      const res = await fetchSuggestions();
-      if (res && res.suggestions) {
-        suggestions = res.suggestions;
-      }
+      await Promise.all([loadSuggestions(), loadConfig()]);
     } catch (err) {
       console.error(err);
     } finally {
       loading = false;
     }
   });
+
+  async function handleSaveConfig() {
+    if (!canConfigure) return;
+    await configAction.run(async () => {
+      const res = await updateSuggestionsConfig(moduleConfig);
+      if (!res?.config) throw new Error('Erreur de sauvegarde');
+      moduleConfig = {
+        enabled: res.config.enabled ?? true,
+        channelId: res.config.channelId ?? null,
+      };
+      return true;
+    }, { successMessage: 'Configuration des suggestions enregistrée !' });
+  }
 
   async function handleResolve(id: string, status: 'APPROVED' | 'REJECTED' | 'IMPLEMENTED') {
     if (!canModerate) return;
@@ -123,14 +170,64 @@
   </header>
 
   <InlineFeedback state={actionState} />
+  <InlineFeedback state={configAction} />
 
   {#if loading}
+    <Skeleton height="180px" radius="2rem" />
     <div class="space-y-4">
       <Skeleton height="150px" radius="2rem" />
       <Skeleton height="150px" radius="2rem" />
       <Skeleton height="150px" radius="2rem" />
     </div>
   {:else}
+    <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-black">Configuration</h2>
+          <p class="text-xs text-on-surface-variant/70 font-medium mt-1">
+            Définissez le salon où les nouvelles suggestions sont publiées sur Discord.
+          </p>
+        </div>
+        {#if canConfigure}
+          <button
+            onclick={handleSaveConfig}
+            disabled={configAction.loading}
+            class="px-6 py-3 bg-primary text-on-primary font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-primary/20 hover:scale-105 transition-all disabled:opacity-50"
+          >
+            Enregistrer
+          </button>
+        {/if}
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="flex items-center justify-between p-4 bg-surface-container-high/20 rounded-2xl border border-outline-variant/10">
+          <div>
+            <p class="text-sm font-bold">Système de suggestions</p>
+            <p class="text-[10px] text-on-surface-variant/60 font-medium">Active ou désactive la publication des suggestions.</p>
+          </div>
+          <ToggleSwitch
+            checked={moduleConfig.enabled}
+            onToggle={(v) => { moduleConfig.enabled = v; }}
+            disabled={!canConfigure}
+          />
+        </div>
+
+        <div class="space-y-1.5">
+          <label for="suggestions-channel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">
+            Salon des suggestions
+          </label>
+          <SearchableSelect
+            id="suggestions-channel"
+            bind:value={moduleConfig.channelId}
+            options={availableChannels.map((c) => ({ id: c.id, name: `#${c.name}` }))}
+            placeholder="Sélectionner un salon"
+            className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm"
+            disabled={!canConfigure || !moduleConfig.enabled}
+          />
+        </div>
+      </div>
+    </section>
+
     <div class="space-y-6">
       {#each filteredSuggestions as suggestion}
         <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6 hover:bg-surface-container-low/40 transition-all">

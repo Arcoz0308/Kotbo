@@ -531,6 +531,7 @@ export type MemberCaseProfile = {
   staffGrade: string | null;
   isSuspectedDC: boolean;
   moderatorNote: string | null;
+  isOnServer: boolean;
 };
 
 export type LinkedAccountItem = {
@@ -652,15 +653,35 @@ export type DashboardState = {
   logChannelId: string;
   regulationChannelId: string;
   regulationMessageId: string | null;
+  meetingAnnouncementChannelId: string;
+  meetingVoiceChannelId: string;
+  publicChannelId: string;
+  newsChannelId: string;
+  dailyAlgoChannelId: string;
+  baseStaffRoleId: string;
+  testStaffRoleId: string;
+  propagateSanctions: boolean;
+  translationEnabled: boolean;
+  codePoliceEnabled: boolean;
+  dailyAlgoEnabled: boolean;
+  githubReleasesEnabled: boolean;
+  digestEnabled: boolean;
+  youtubeEnabled: boolean;
+  twitchEnabled: boolean;
+  socialNetworksEnabled: boolean;
+  autoThreadEnabled: boolean;
+  autoThreadChannels: string[];
   recruitmentCategoryId: string;
   recruitmentLogChannelId: string;
   recruitmentAutoRejectEnabled: boolean;
   modules: ModuleItem[];
   discordChannels: DashboardChannel[];
   discordVoiceChannels: DashboardChannel[];
+  discordCategories: DashboardChannel[];
   discordRoles: DashboardRole[];
   moderatorRoleId: string;
   commandRestrictions: CommandRestrictionState[];
+  sidebarFavorites: string[];
   commandCatalog: CommandCatalogEntry[];
   access: {
     level: Exclude<DashboardAccessLevel, 'none'>;
@@ -676,6 +697,17 @@ export type DashboardState = {
   regulationRules: RegulationRuleItem[];
   messageTemplate: string;
   analytics: AnalyticsData;
+  member: null | {
+    id: string;
+    nickname: string | null;
+    roles: Array<{
+      id: string;
+      name: string;
+      position: number;
+      managed: boolean;
+    }>;
+    isTutor?: boolean;
+  };
 };
 
 export type RuntimeState = {
@@ -686,6 +718,7 @@ export type RuntimeState = {
   killSwitchEnabled: boolean;
   severityByModule: Array<{ module: string; level: SeverityLevel }>;
   commandRestrictions: CommandRestrictionState[];
+  sidebarFavorites: string[];
   messageTemplate: string;
 };
 
@@ -698,6 +731,7 @@ export const MODULE_DESCRIPTIONS: Record<string, string> = {
   sanctions: 'Historique et gestion des sanctions (warns, mutes, bans).',
   members: 'Gestion avancée des membres et détection de doubles comptes.',
   logs: 'Journaux d\'événements Discord (messages, salons, membres).',
+  nickname_moderation: 'Détection et modération automatique des pseudos inappropriés.',
   activity: 'Suivi détaillé de l\'activité utilisateur sur le dashboard.',
   auto_thread: 'Création automatique de fils de discussion sur les messages.',
   analytics: 'Statistiques de croissance et d\'engagement du serveur.',
@@ -988,6 +1022,7 @@ export const toRuntimeState = (settings: {
   killSwitchEnabled: boolean;
   severityByModule: unknown;
   commandRestrictions: unknown;
+  sidebarFavorites: unknown;
   messageTemplate: string;
 }): RuntimeState => {
   const rawSeverity = Array.isArray(settings.severityByModule)
@@ -1018,6 +1053,9 @@ export const toRuntimeState = (settings: {
     killSwitchEnabled: settings.killSwitchEnabled,
     severityByModule: severityByModule.length > 0 ? severityByModule : DEFAULT_SEVERITY_BY_MODULE,
     commandRestrictions: normalizeCommandRestrictions(settings.commandRestrictions),
+    sidebarFavorites: Array.isArray(settings.sidebarFavorites)
+      ? settings.sidebarFavorites.filter((entry): entry is string => typeof entry === 'string' && entry.startsWith('/'))
+      : [],
     messageTemplate: settings.messageTemplate || DEFAULT_MESSAGE_TEMPLATE
   };
 };
@@ -1303,24 +1341,45 @@ export const deleteValidationQueueMessage = async (client: Client, guildId: stri
   await channel.messages.delete(queueMessageId).catch(() => null);
 };
 
-export const getOrCreateRuntime = async (guildId: string): Promise<RuntimeState> => {
-  const settings = await prisma.dashboardSettings.upsert({
-    where: { guildId },
-    update: {},
-    create: {
-      guildId,
-      email: '',
-      emailEnabled: false,
-      cloudBackup: true,
-      debugLog: false,
-      killSwitchEnabled: false,
-      severityByModule: DEFAULT_SEVERITY_BY_MODULE,
-      commandRestrictions: [],
-      messageTemplate: DEFAULT_MESSAGE_TEMPLATE
-    }
-  });
+const DEFAULT_RUNTIME_STATE: RuntimeState = {
+  email: '',
+  emailEnabled: false,
+  cloudBackup: true,
+  debugLog: false,
+  killSwitchEnabled: false,
+  severityByModule: DEFAULT_SEVERITY_BY_MODULE,
+  commandRestrictions: [],
+  sidebarFavorites: [],
+  messageTemplate: DEFAULT_MESSAGE_TEMPLATE,
+};
 
-  return toRuntimeState(settings);
+export const getOrCreateRuntime = async (guildId: string): Promise<RuntimeState> => {
+  const { ensureDashboardSchemaPatches } = await import('../utils/schemaPatches.js');
+  await ensureDashboardSchemaPatches();
+
+  try {
+    const settings = await prisma.dashboardSettings.upsert({
+      where: { guildId },
+      update: {},
+      create: {
+        guildId,
+        email: '',
+        emailEnabled: false,
+        cloudBackup: true,
+        debugLog: false,
+        killSwitchEnabled: false,
+        severityByModule: DEFAULT_SEVERITY_BY_MODULE,
+        commandRestrictions: [],
+        sidebarFavorites: [],
+        messageTemplate: DEFAULT_MESSAGE_TEMPLATE,
+      },
+    });
+
+    return toRuntimeState(settings);
+  } catch (error) {
+    logger.error('Runtime', `getOrCreateRuntime failed for ${guildId}:`, error);
+    return { ...DEFAULT_RUNTIME_STATE };
+  }
 };
 
 export const pushAudit = async (guildId: string, entry: Omit<AuditEntry, 'id' | 'dateIso' | 'source'>) => {
@@ -1574,6 +1633,51 @@ export function safeIsoDate(value: any, fallback: string | null = null): string 
   }
 }
 
+function resolveMemberCaseRoles(
+  discordGuild: NonNullable<ReturnType<Client['guilds']['cache']['get']>>,
+  member: { roles: { cache: { values: () => IterableIterator<{ id: string; name: string; hexColor?: string; permissions?: { toArray: () => string[] } | string[] }> } } } | null,
+  rolesSnapshot: string[] | null | undefined,
+): DashboardRole[] {
+  const sortRoles = (left: DashboardRole, right: DashboardRole) => {
+    const positionLeft = discordGuild.roles.cache.get(left.id)?.position ?? 0;
+    const positionRight = discordGuild.roles.cache.get(right.id)?.position ?? 0;
+    return positionRight - positionLeft || left.name.localeCompare(right.name, 'fr');
+  };
+
+  if (member) {
+    return [...member.roles.cache.values()]
+      .filter((role) => !!role && role.id !== discordGuild.id)
+      .map((role) => mapGuildRolePermissions(role, `<@&${role.id}>`))
+      .sort(sortRoles);
+  }
+
+  return (rolesSnapshot ?? [])
+    .map((roleId) => {
+      const role = discordGuild.roles.cache.get(roleId);
+      if (!role || role.id === discordGuild.id) return null;
+      return mapGuildRolePermissions(role, `<@&${role.id}>`);
+    })
+    .filter((role): role is DashboardRole => role !== null)
+    .sort(sortRoles);
+}
+
+function resolveMemberDisplayLabel(
+  userId: string,
+  user: { tag?: string | null; username?: string | null; globalName?: string | null; displayName?: string | null } | null,
+  profile: { userTag?: string | null; username?: string | null; globalName?: string | null; displayName?: string | null } | null,
+): string {
+  return (
+    user?.globalName
+    ?? user?.username
+    ?? user?.tag
+    ?? profile?.displayName
+    ?? profile?.globalName
+    ?? profile?.userTag
+    ?? profile?.username
+    ?? `Utilisateur ${userId}`
+  );
+}
+
 export async function buildMemberCaseData(client: Client, guildId: string, userId: string, auth: AuthClaims): Promise<MemberCaseResponse | null> {
   const discordGuild = client.guilds.cache.get(guildId);
   if (!discordGuild) return null;
@@ -1596,8 +1700,14 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
     }
   }
 
+  if (!/^\d{17,20}$/.test(actualUserId)) {
+    return null;
+  }
+
   try {
-    const linkedUserIds = await altAccountService.getAllLinkedUserIds(guildId, actualUserId);
+    const linkedUserIds = await altAccountService
+      .getAllLinkedUserIds(guildId, actualUserId)
+      .catch(() => [actualUserId]);
 
     const [user, member, profile, sanctions, auditLogs, inviteConnections, staffMember, candidatureHistory, sanctionReports, dbInvite] = await Promise.all([
       Promise.race([
@@ -1605,7 +1715,7 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000))
       ]),
       Promise.race([
-        discordGuild.members.fetch({ user: actualUserId, withPresences: true }).catch(() => null),
+        discordGuild.members.fetch(actualUserId).catch(() => null),
         new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000))
       ]),
       prisma.memberProfile.findUnique({
@@ -1645,19 +1755,26 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
       }).catch(() => null),
     ]);
 
-  const effectivePermissions = member?.permissions?.toArray() ?? [];
-  const roles = member
-    ? [...member.roles.cache.values()]
-        .filter((role) => !!role && role.id !== discordGuild.id)
-        .map((role) => mapGuildRolePermissions(role, `<@&${role.id}>`))
-        .sort((left, right) => {
-          const positionLeft = discordGuild.roles.cache.get(left.id)?.position ?? 0;
-          const positionRight = discordGuild.roles.cache.get(right.id)?.position ?? 0;
-          return positionRight - positionLeft || left.name.localeCompare(right.name, 'fr');
-        })
-    : [];
+    if (
+      !user
+      && !member
+      && !profile
+      && (sanctions?.length ?? 0) === 0
+      && (auditLogs?.length ?? 0) === 0
+      && (sanctionReports?.length ?? 0) === 0
+    ) {
+      return null;
+    }
 
-  const tagCandidates = new Set<string>([user?.tag, profile?.userTag, member?.user?.tag].filter((entry): entry is string => !!entry));
+  const isOnServer = !!member;
+  const displayLabel = resolveMemberDisplayLabel(actualUserId, user, profile);
+  const effectivePermissions = member?.permissions?.toArray() ?? [];
+  const roles = resolveMemberCaseRoles(discordGuild, member, profile?.rolesSnapshot);
+
+  const tagCandidates = new Set<string>(
+    [user?.tag, user?.username, profile?.userTag, profile?.username, member?.user?.tag, displayLabel]
+      .filter((entry): entry is string => !!entry),
+  );
 
     const relevantLogs = (auditLogs || []).filter((entry) => {
       try {
@@ -1689,7 +1806,7 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
     inviterId: dbInvite.inviterId,
     inviterTag: dbInvite.inviterTag,
     inviterAvatarUrl: null,
-    joinedAt: dbInvite.joinedAt.toISOString(),
+    joinedAt: safeIsoDate(dbInvite.joinedAt),
   } : null;
 
   if (!invite) {
@@ -1728,6 +1845,7 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
     const messages = (auditLogs || [])
       .filter((entry) => {
         if (entry.module !== 'Messages' || entry.action !== 'Message envoyé') return false;
+        if (!entry.user) return false;
         return entry.user === actualUserId || entry.user.endsWith(`(${actualUserId})`);
       })
       .slice(0, 250)
@@ -1770,7 +1888,12 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
     };
 
     const nodes: MemberCaseInteractionNode[] = [
-      { id: actualUserId, label: user?.tag ?? profile?.userTag ?? "Utilisateur", type: 'user', avatar: profile?.avatarUrl ?? user?.displayAvatarURL?.() }
+      {
+        id: actualUserId,
+        label: displayLabel,
+        type: 'user',
+        avatar: profile?.avatarUrl ?? user?.displayAvatarURL?.({ size: 128 }) ?? null,
+      },
     ];
     const edges: MemberCaseInteractionEdge[] = [];
     const targets = new Map<string, { label: string; mention: number; reply: number; reaction: number; total: number }>();
@@ -1908,12 +2031,13 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
         voiceLastJoinedAt: safeIsoDate(profile?.voiceLastJoinedAt),
         voiceLastLeftAt: safeIsoDate(profile?.voiceLastLeftAt),
         rolesSnapshot: profile?.rolesSnapshot ?? [],
-        presenceStatus: member?.presence?.status ?? null,
+        presenceStatus: member?.presence?.status ?? (!isOnServer || profile?.guildLeftAt ? 'left' : null),
         pronouns: null,
         isTutor: staffMember?.isTutor ?? false,
         staffGrade: staffMember?.grade ?? null,
         isSuspectedDC: profile?.isSuspectedDC ?? false,
         moderatorNote: (profile as any)?.moderatorNote ?? null,
+        isOnServer,
       },
       invite: invite
         ? {
@@ -2117,6 +2241,9 @@ export async function resolveFeatureAccessMap(
 }
 
 export const getGuildState = async (client: Client, guildId: string, access: DashboardAccess, userId?: string): Promise<DashboardState | null> => {
+  const { ensureDashboardSchemaPatches } = await import('../utils/schemaPatches.js');
+  await ensureDashboardSchemaPatches();
+
   const guild = await prisma.guild.findUnique({ 
     where: { id: guildId },
     include: { dashboardFeatureConfigs: true }
@@ -2558,6 +2685,7 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     discordRoles,
     moderatorRoleId: guild.moderatorRoleId ?? '',
     commandRestrictions: runtime.commandRestrictions,
+    sidebarFavorites: runtime.sidebarFavorites,
     commandCatalog: COMMAND_CATALOG,
     access: {
       level: access.level === 'admin' ? 'admin' : 'moderator',

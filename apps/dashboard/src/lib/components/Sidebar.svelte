@@ -5,14 +5,19 @@
   import { dashboardStore } from '../stores/dashboard.svelte';
   import { notificationsStore } from '../stores/notifications.svelte';
   import { sidebarStore } from '../stores/sidebar.svelte';
+  import { updateSidebarFavorites } from '../api';
   import { portal } from '../actions/portal';
   import {
     generalItems,
     moderationItems,
     communityItems,
     staffItems,
-    configItems
+    configItems,
+    isPageBeta,
+    isPageWip,
+    type PageConfig
   } from '../config/pages';
+  import { resolveUserAvatarSrc } from '../discordMedia';
 
   let activeTooltip = $state<{ text: string; top: number } | null>(null);
 
@@ -88,14 +93,18 @@
     authStore.user?.id ? `/profile/${authStore.user.id}` : '/profile'
   );
   const userAvatar = $derived(
-    authStore.user?.id && authStore.user?.avatar
-      ? `https://cdn.discordapp.com/avatars/${authStore.user.id}/${authStore.user.avatar}.png`
-      : 'https://cdn.discordapp.com/embed/avatars/0.png'
+    resolveUserAvatarSrc(authStore.user?.id, authStore.user?.avatar)
   );
 
   // ─── Groupes de navigation ────────────────────────────────────────────────
 
-  type NavGroup = { key: string; label: string; icon: string; items: any[] };
+  type NavGroup = { key: string; label: string; icon: string; items: PageConfig[] };
+
+  function navItemStatusLabel(item: PageConfig): string {
+    if (isPageWip(item)) return `${item.name} (WIP)`;
+    if (isPageBeta(item)) return `${item.name} (Bêta)`;
+    return item.name;
+  }
 
   const navGroups = $derived.by((): NavGroup[] => {
     const groups: NavGroup[] = [];
@@ -142,16 +151,83 @@
   let searchQuery = $state('');
   let showOnlyFavorites = $state(false);
 
-  function loadFavorites(): string[] {
+  function sanitizeFavorites(entries: unknown): string[] {
+    if (!Array.isArray(entries)) return [];
+    return entries
+      .filter((entry): entry is string => typeof entry === 'string' && entry.startsWith('/'))
+      .map((entry) => entry.trim())
+      .filter((entry, index, arr) => entry.length > 0 && arr.indexOf(entry) === index)
+      .slice(0, 80);
+  }
+
+  function readLegacyFavorites(): string[] {
     try {
       const stored = typeof localStorage !== 'undefined' && localStorage.getItem('sidebar_favorites');
-      return stored ? JSON.parse(stored) : [];
+      return sanitizeFavorites(stored ? JSON.parse(stored) : []);
     } catch {
       return [];
     }
   }
 
-  let favorites = $state<string[]>(loadFavorites());
+  let favorites = $state<string[]>([]);
+  let favoritesHydrated = $state(false);
+  let hydratedGuildId = $state<string | null>(null);
+  let favoritesPersistTimer: ReturnType<typeof setTimeout> | null = null;
+
+  $effect(() => {
+    const guildId = authStore.selectedGuildId ?? null;
+    const serverFavorites = sanitizeFavorites((dashboardStore.state as any).sidebarFavorites || []);
+
+    if (hydratedGuildId !== guildId) {
+      hydratedGuildId = guildId;
+      favoritesHydrated = false;
+    }
+
+    if (!favoritesHydrated) {
+      if (serverFavorites.length > 0) {
+        favorites = serverFavorites;
+      } else {
+        const legacyFavorites = readLegacyFavorites();
+        favorites = legacyFavorites;
+        if (legacyFavorites.length > 0 && guildId) {
+          void persistFavorites(legacyFavorites);
+        }
+      }
+      favoritesHydrated = true;
+      return;
+    }
+
+    const serializedServer = JSON.stringify(serverFavorites);
+    const serializedLocal = JSON.stringify(favorites);
+    if (serializedServer !== serializedLocal) {
+      favorites = serverFavorites;
+    }
+  });
+
+  async function persistFavorites(nextFavorites: string[]) {
+    const guildId = authStore.selectedGuildId;
+    if (!guildId) return;
+
+    const sanitizedFavorites = sanitizeFavorites(nextFavorites);
+    (dashboardStore.state as any).sidebarFavorites = sanitizedFavorites;
+
+    try {
+      localStorage.setItem('sidebar_favorites', JSON.stringify(sanitizedFavorites));
+    } catch {
+      // Ignore local storage failures.
+    }
+
+    await updateSidebarFavorites(sanitizedFavorites, guildId);
+  }
+
+  function queuePersistFavorites(nextFavorites: string[]) {
+    if (favoritesPersistTimer) {
+      clearTimeout(favoritesPersistTimer);
+    }
+    favoritesPersistTimer = setTimeout(() => {
+      void persistFavorites(nextFavorites);
+    }, 250);
+  }
 
   function toggleFavorite(href: string, event: Event) {
     event.preventDefault();
@@ -161,9 +237,7 @@
     } else {
       favorites = [...favorites, href];
     }
-    try {
-      localStorage.setItem('sidebar_favorites', JSON.stringify(favorites));
-    } catch {}
+    queuePersistFavorites(favorites);
   }
 
   const filteredGroups = $derived.by((): NavGroup[] => {
@@ -279,7 +353,7 @@
         {#each group.items as item}
           <a
             href={item.href}
-            onmouseenter={(e) => handleMouseEnter(e, item.name + (item.wip ? ' (WIP)' : item.beta ? ' (Bêta)' : ''))}
+            onmouseenter={(e) => handleMouseEnter(e, navItemStatusLabel(item))}
             onmouseleave={handleMouseLeave}
             class="relative flex items-center justify-center w-full py-2.5 rounded-xl transition-all duration-200 group
               {isActiveNavItem(item.href)
@@ -289,11 +363,18 @@
             {#if isActiveNavItem(item.href)}
               <div class="absolute left-0 top-2 bottom-2 w-1 bg-primary rounded-full"></div>
             {/if}
-            <Papicon
-              icon={item.icon}
-              size={19}
-              class="transition-transform duration-200 {isActiveNavItem(item.href) ? '' : 'group-hover:scale-110'}"
-            />
+            <div class="relative">
+              <Papicon
+                icon={item.icon}
+                size={19}
+                class="transition-transform duration-200 {isActiveNavItem(item.href) ? '' : 'group-hover:scale-110'}"
+              />
+              {#if isPageWip(item)}
+                <span class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-500 ring-2 ring-surface-container-low" title="WIP"></span>
+              {:else if isPageBeta(item)}
+                <span class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-purple-500 ring-2 ring-surface-container-low" title="Bêta"></span>
+              {/if}
+            </div>
             {#if item.name === 'Inbox' && notificationsStore.unreadCount > 0}
               <div class="absolute top-1 right-1 min-w-[14px] h-[14px] px-0.5 bg-primary text-white text-[8px] font-black rounded-full flex items-center justify-center">
                 {notificationsStore.unreadCount > 9 ? '9+' : notificationsStore.unreadCount}
@@ -333,7 +414,7 @@
                 
                 <a
                   href={item.href}
-                  class="flex-1 flex items-center gap-3 pl-3 py-2.5 min-w-0"
+                  class="flex-1 flex items-center gap-3 pl-3 py-2.5 min-w-0 overflow-hidden"
                 >
                   <Papicon
                     icon={item.icon}
@@ -343,16 +424,16 @@
                         ? 'text-primary'
                         : 'text-on-surface-variant/50 group-hover:text-on-surface/80'}"
                   />
-                  <span class="text-[13px] leading-none truncate">{item.name}</span>
-                  {#if item.wip}
-                    <span class="ml-1.5 px-1.5 py-0.5 rounded-[4px] text-[9px] font-bold tracking-wider uppercase bg-amber-500/10 text-amber-500 border border-amber-500/20 shrink-0">WIP</span>
-                  {:else if item.beta}
-                    <span class="ml-1.5 px-1.5 py-0.5 rounded-[4px] text-[9px] font-bold tracking-wider uppercase bg-purple-500/10 text-purple-500 border border-purple-500/20 shrink-0">BETA</span>
-                  {/if}
+                  <span class="flex-1 min-w-0 text-[13px] leading-none truncate">{item.name}</span>
                 </a>
 
-                <!-- Badges / Favori sur la droite -->
+                <!-- Badges statut + favori -->
                 <div class="flex items-center gap-1.5 pr-3 shrink-0">
+                  {#if isPageWip(item)}
+                    <span class="px-1.5 py-0.5 rounded-[4px] text-[9px] font-bold tracking-wider uppercase bg-amber-500/10 text-amber-500 border border-amber-500/20">WIP</span>
+                  {:else if isPageBeta(item)}
+                    <span class="px-1.5 py-0.5 rounded-[4px] text-[9px] font-bold tracking-wider uppercase bg-purple-500/10 text-purple-500 border border-purple-500/20">BETA</span>
+                  {/if}
                   {#if item.name === 'Inbox' && notificationsStore.unreadCount > 0}
                     <div class="min-w-[18px] h-[18px] px-1 bg-primary text-white text-[9px] font-black rounded-full flex items-center justify-center">
                       {notificationsStore.unreadCount > 99 ? '99+' : notificationsStore.unreadCount}
@@ -420,6 +501,7 @@
         <img
           src={userAvatar}
           alt="Avatar"
+          referrerpolicy="no-referrer"
           class="w-full h-full rounded-lg object-cover ring-1 ring-outline-variant/30 transition-transform duration-200 group-hover:scale-105"
         />
         <!-- Indicateur actif -->

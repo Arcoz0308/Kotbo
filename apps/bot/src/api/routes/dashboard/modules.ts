@@ -1752,6 +1752,7 @@ export async function handleModulesRoutes(
         regulationChannelId?: string | null;
         propagateSanctions?: boolean;
         messageTemplate?: string;
+        sidebarFavorites?: unknown;
         configChannelId?: string | null;
         publicChannelId?: string | null;
         newsChannelId?: string | null;
@@ -1891,10 +1892,28 @@ export async function handleModulesRoutes(
       }
 
       const runtime = await getOrCreateRuntime(guildId);
+      const dashboardSettingsPatch: { messageTemplate?: string; sidebarFavorites?: string[] } = {};
       if (typeof body.messageTemplate === 'string') {
+        dashboardSettingsPatch.messageTemplate = body.messageTemplate;
+      }
+
+      if (Object.prototype.hasOwnProperty.call(body, 'sidebarFavorites')) {
+        if (!Array.isArray(body.sidebarFavorites)) {
+          json(res, 400, { error: 'sidebarFavorites doit être un tableau de chemins.' });
+          return true;
+        }
+
+        dashboardSettingsPatch.sidebarFavorites = body.sidebarFavorites
+          .filter((entry): entry is string => typeof entry === 'string' && entry.startsWith('/'))
+          .map((entry) => entry.trim())
+          .filter((entry, index, arr) => entry.length > 0 && arr.indexOf(entry) === index)
+          .slice(0, 80);
+      }
+
+      if (Object.keys(dashboardSettingsPatch).length > 0) {
         await prisma.dashboardSettings.update({
           where: { guildId },
-          data: { messageTemplate: body.messageTemplate }
+          data: dashboardSettingsPatch
         });
       }
 

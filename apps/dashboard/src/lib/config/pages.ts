@@ -3,8 +3,18 @@ export interface PageConfig {
   icon?: string;
   href: string;
   featureKey?: string;
+  /** Affiche le badge BETA dans la sidebar et la bannière page */
   beta?: boolean;
+  /** Affiche le badge WIP dans la sidebar et l’overlay page */
   wip?: boolean;
+}
+
+export function isPageBeta(page: PageConfig): boolean {
+  return page.beta === true;
+}
+
+export function isPageWip(page: PageConfig): boolean {
+  return page.wip === true;
 }
 
 export const generalItems: PageConfig[] = [
@@ -16,7 +26,7 @@ export const generalItems: PageConfig[] = [
 export const moderationItems: PageConfig[] = [
   { name: "Membres",             icon: "users",         href: "/members",            featureKey: "members", beta: false, wip: false },
   { name: "Sanctions",           icon: "alert-triangle",href: "/sanctions",          featureKey: "sanctions", beta: false, wip: false },
-  { name: "Modération auto",     icon: "shield-alert",  href: "/automod",            featureKey: "automod", beta: false, wip: false },
+  { name: "Modération auto",     icon: "shield-alert",  href: "/automod",            featureKey: "automod", beta: true, wip: false },
   { name: "Pseudos",             icon: "filter",        href: "/nickname-moderation",featureKey: "nickname_moderation", beta: false, wip: false },
   { name: "Doubles Comptes",     icon: "copy",          href: "/double-accounts",    featureKey: "double_accounts", beta: false, wip: false },
   { name: "Détections",          icon: "bell",          href: "/detections",         featureKey: "double_accounts", beta: false, wip: false },
@@ -28,16 +38,16 @@ export const moderationItems: PageConfig[] = [
 ];
 
 export const communityItems: PageConfig[] = [
-  { name: "Leveling & XP",       icon: "trophy",        href: "/leveling",         featureKey: "leveling", beta: false, wip: false },
-  { name: "Giveaways",           icon: "sparkles",      href: "/giveaways",        featureKey: "giveaways", beta: false, wip: false },
-  { name: "Accueil & Départ",    icon: "door-open",     href: "/welcome",          featureKey: "welcome_goodbye", beta: false, wip: false },
-  { name: "Reaction Roles",      icon: "mouse-pointer", href: "/reaction-roles",   featureKey: "reaction_roles", beta: false, wip: false },
-  { name: "Auto-Réponses",       icon: "message-square",href: "/auto-responses",   featureKey: "auto_responses", beta: false, wip: false },
-  { name: "Suggestions",         icon: "thumbs-up",     href: "/suggestions",      featureKey: "suggestions", beta: false, wip: false },
-  { name: "Embeds",              icon: "file-plus",     href: "/embed-builder",    featureKey: "embed_builder", beta: false, wip: false },
+  { name: "Leveling & XP",       icon: "trophy",        href: "/leveling",         featureKey: "leveling", beta: true, wip: false },
+  { name: "Giveaways",           icon: "sparkles",      href: "/giveaways",        featureKey: "giveaways", beta: true, wip: false },
+  { name: "Accueil & Départ",    icon: "door-open",     href: "/welcome",          featureKey: "welcome_goodbye", beta: true, wip: false },
+  { name: "Reaction Roles",      icon: "mouse-pointer", href: "/reaction-roles",   featureKey: "reaction_roles", beta: true, wip: false },
+  { name: "Auto-Réponses",       icon: "message-square",href: "/auto-responses",   featureKey: "auto_responses", beta: true, wip: false },
+  { name: "Suggestions",         icon: "thumbs-up",     href: "/suggestions",      featureKey: "suggestions", beta: true, wip: false },
+  { name: "Embeds",              icon: "file-plus",     href: "/embed-builder",    featureKey: "embed_builder", beta: true, wip: false },
   { name: "Règlement",           icon: "book",          href: "/regulation",       featureKey: "regulation", beta: false, wip: false },
   { name: "Actualités & RSS",    icon: "rss",           href: "/news",             featureKey: "news", beta: false, wip: false },
-  { name: "Réseaux sociaux",     icon: "share-2",       href: "/social-networks",  featureKey: "social_networks", beta: false, wip: false },
+  { name: "Réseaux sociaux",     icon: "share-2",       href: "/social-networks",  featureKey: "social_networks", beta: false, wip: true },
 ];
 
 export const staffItems: PageConfig[] = [
@@ -54,7 +64,7 @@ export const staffItems: PageConfig[] = [
 
 export const configItems: PageConfig[] = [
   { name: "Modules",             icon: "package",       href: "/modules",              featureKey: "modules", beta: false, wip: false },
-  { name: "Salons",              icon: "hash",          href: "/channels-management",  featureKey: "auto_thread", beta: false, wip: false },
+  { name: "Salons",              icon: "hash",          href: "/channels-management",  featureKey: "auto_thread", beta: true, wip: false },
   { name: "Commandes",           icon: "terminal",      href: "/command-access",       featureKey: "commands", beta: false, wip: false },
   { name: "Paramètres",          icon: "settings",      href: "/settings",             featureKey: "settings", beta: false, wip: false },
 ];
@@ -79,11 +89,11 @@ export function getPageStatus(path: string, url: string = path): { beta: boolean
     const [pPath, pQuery] = page.href.split('?');
     if (pQuery) {
       if (path === pPath && url.includes(pQuery)) {
-        return { beta: !!page.beta, wip: !!page.wip, name: page.name };
+        return { beta: isPageBeta(page), wip: isPageWip(page), name: page.name };
       }
     } else {
       if (path === pPath || (pPath !== '/' && path.startsWith(`${pPath}/`))) {
-        return { beta: !!page.beta, wip: !!page.wip, name: page.name };
+        return { beta: isPageBeta(page), wip: isPageWip(page), name: page.name };
       }
     }
   }

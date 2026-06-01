@@ -414,6 +414,28 @@ export const getChannelCategoryActivity = async (guildId: string, options: { sta
   return Object.entries(channelTotals).map(([channelId, messages]) => ({ channelId, messages }));
 };
 
+function countCalendarDaysPerWeekday(startKey: string, endKey: string): Record<number, number> {
+  const counts: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+  const cursor = new Date(`${startKey}T12:00:00.000Z`);
+  const end = new Date(`${endKey}T12:00:00.000Z`);
+  while (cursor <= end) {
+    counts[cursor.getUTCDay()]++;
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return counts;
+}
+
+function createEmptyHeatmapGrid() {
+  const grid: Record<number, Record<number, { messages: number; voice: number; active: number; joins: number; leaves: number }>> = {};
+  for (let dow = 0; dow < 7; dow++) {
+    grid[dow] = {};
+    for (let hour = 0; hour < 24; hour++) {
+      grid[dow][hour] = { messages: 0, voice: 0, active: 0, joins: 0, leaves: 0 };
+    }
+  }
+  return grid;
+}
+
 /**
  * Get hourly heatmap data (for visualization)
  */
@@ -429,6 +451,9 @@ export const getHourlyHeatmapData = async (guildId: string, options: { days?: nu
     startKey = startDate.toISOString().split('T')[0];
   }
   const finalStartKey = startKey.split('T')[0];
+  const rangeStart = new Date(`${finalStartKey}T00:00:00.000Z`);
+  const rangeEnd = new Date(`${finalEndKey}T23:59:59.999Z`);
+  const daysPerWeekday = countCalendarDaysPerWeekday(finalStartKey, finalEndKey);
 
   const hourlyStats = await prisma.guildHourlyStat.findMany({
     where: {
@@ -441,38 +466,99 @@ export const getHourlyHeatmapData = async (guildId: string, options: { days?: nu
     orderBy: [{ dateKey: 'asc' }, { hour: 'asc' }]
   });
 
-  // Group by day of week and hour to create heatmap
-  const heatmapData: Record<number, Record<number, { messages: number; voice: number; active: number }>> = {};
-
-  for (let dow = 0; dow < 7; dow++) {
-    heatmapData[dow] = {};
-    for (let hour = 0; hour < 24; hour++) {
-      heatmapData[dow][hour] = { messages: 0, voice: 0, active: 0 };
-    }
-  }
-
-  const dayOfWeekCounts: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+  const heatmapData = createEmptyHeatmapGrid();
 
   hourlyStats.forEach(stat => {
     const date = new Date(stat.dateKey + 'T00:00:00Z');
     const dow = date.getUTCDay();
-    dayOfWeekCounts[dow]++;
 
     heatmapData[dow][stat.hour].messages += stat.messagesCount;
     heatmapData[dow][stat.hour].voice += stat.voiceMinutes;
     heatmapData[dow][stat.hour].active += stat.activeMembers;
   });
 
-  // Normalize by number of days in period
-  const normalized: Record<number, Record<number, { messages: number; voice: number; active: number }>> = {};
+  const [joinProfiles, leaveProfiles] = await Promise.all([
+    prisma.memberProfile.findMany({
+      where: {
+        guildId,
+        isBot: false,
+        guildJoinedAt: { gte: rangeStart, lte: rangeEnd },
+      },
+      select: { guildJoinedAt: true },
+    }),
+    prisma.memberProfile.findMany({
+      where: {
+        guildId,
+        isBot: false,
+        guildLeftAt: { gte: rangeStart, lte: rangeEnd },
+      },
+      select: { guildLeftAt: true },
+    }),
+  ]);
+
+  let fluxEvents = joinProfiles.length + leaveProfiles.length;
+
+  if (fluxEvents > 0) {
+    for (const profile of joinProfiles) {
+      if (!profile.guildJoinedAt) continue;
+      const dow = profile.guildJoinedAt.getUTCDay();
+      const hour = profile.guildJoinedAt.getUTCHours();
+      heatmapData[dow][hour].joins += 1;
+    }
+
+    for (const profile of leaveProfiles) {
+      if (!profile.guildLeftAt) continue;
+      const dow = profile.guildLeftAt.getUTCDay();
+      const hour = profile.guildLeftAt.getUTCHours();
+      heatmapData[dow][hour].leaves += 1;
+    }
+  } else {
+    hourlyStats.forEach(stat => {
+      const date = new Date(stat.dateKey + 'T00:00:00Z');
+      const dow = date.getUTCDay();
+      heatmapData[dow][stat.hour].joins += stat.joinsCount;
+      heatmapData[dow][stat.hour].leaves += stat.leavesCount;
+    });
+    fluxEvents = hourlyStats.reduce((sum, s) => sum + s.joinsCount + s.leavesCount, 0);
+  }
+
+  // Dernier recours : stats journalières membersJoined / membersLeft réparties sur la journée
+  if (fluxEvents === 0) {
+    const dailyStats = await prisma.guildDailyStat.findMany({
+      where: {
+        guildId,
+        dateKey: { gte: finalStartKey, lte: finalEndKey },
+        OR: [{ membersJoined: { gt: 0 } }, { membersLeft: { gt: 0 } }],
+      },
+      select: { dateKey: true, membersJoined: true, membersLeft: true },
+    });
+
+    for (const day of dailyStats) {
+      const date = new Date(day.dateKey + 'T00:00:00Z');
+      const dow = date.getUTCDay();
+      const joinsPerHour = day.membersJoined / 24;
+      const leavesPerHour = day.membersLeft / 24;
+      for (let hour = 0; hour < 24; hour++) {
+        heatmapData[dow][hour].joins += joinsPerHour;
+        heatmapData[dow][hour].leaves += leavesPerHour;
+      }
+    }
+  }
+
+  const normalized: Record<number, Record<number, { messages: number; voice: number; active: number; joins: number; leaves: number; net: number }>> = {};
   for (let dow = 0; dow < 7; dow++) {
     normalized[dow] = {};
-    const count = dayOfWeekCounts[dow] || 1;
+    const weekdayCount = daysPerWeekday[dow] || 1;
     for (let hour = 0; hour < 24; hour++) {
+      const joins = Math.round((heatmapData[dow][hour].joins / weekdayCount) * 10) / 10;
+      const leaves = Math.round((heatmapData[dow][hour].leaves / weekdayCount) * 10) / 10;
       normalized[dow][hour] = {
-        messages: Math.round(heatmapData[dow][hour].messages / count),
-        voice: Math.round(heatmapData[dow][hour].voice / count),
-        active: Math.round(heatmapData[dow][hour].active / count)
+        messages: Math.round(heatmapData[dow][hour].messages / weekdayCount),
+        voice: Math.round(heatmapData[dow][hour].voice / weekdayCount),
+        active: Math.round(heatmapData[dow][hour].active / weekdayCount),
+        joins,
+        leaves,
+        net: Math.round((joins - leaves) * 10) / 10,
       };
     }
   }

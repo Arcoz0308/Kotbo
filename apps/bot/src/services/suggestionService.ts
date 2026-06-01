@@ -13,6 +13,9 @@ export async function createSuggestion(guildId: string, userId: string, username
   });
 
   const featureConfig = (guildConfig?.dashboardFeatureConfigs || []).find((f: any) => f.featureKey === 'suggestions');
+  if (featureConfig && featureConfig.enabled === false) {
+    throw new Error('Le système de suggestions est désactivé sur ce serveur.');
+  }
   let targetChannelId = featureConfig?.channelId || guildConfig?.publicChannelId;
 
   const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);

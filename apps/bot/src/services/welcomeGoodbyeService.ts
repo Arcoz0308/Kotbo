@@ -1,6 +1,7 @@
 import { Client, EmbedBuilder, AttachmentBuilder, GuildMember } from 'discord.js';
 import { createCanvas, loadImage } from '@napi-rs/canvas';
 import prisma from '../utils/db.js';
+import { canvasFont, ensureCanvasFonts } from '../utils/canvasFonts.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -87,6 +88,8 @@ export async function handleGuildMemberRemove(member: any, client: Client) {
  * Génère une carte de bienvenue au format PNG avec Canvas
  */
 export async function generateWelcomeCard(member: GuildMember): Promise<Buffer> {
+  ensureCanvasFonts();
+
   const W = 800, H = 300;
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
@@ -137,16 +140,17 @@ export async function generateWelcomeCard(member: GuildMember): Promise<Buffer> 
 
   // Textes de bienvenue
   ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 36px sans-serif';
+  ctx.font = canvasFont(36, 'bold');
   ctx.fillText('BIENVENUE !', W / 2, 195);
 
   ctx.fillStyle = '#57f287';
-  ctx.font = 'bold 24px sans-serif';
+  ctx.font = canvasFont(24, 'bold');
   ctx.fillText(member.user.username.toUpperCase(), W / 2, 230);
 
-  ctx.fillStyle = '#8b949e';
-  ctx.font = '14px sans-serif';
+  ctx.fillStyle = '#b8bcc8';
+  ctx.font = canvasFont(14);
   ctx.fillText(`Membre #${member.guild.memberCount} sur ${member.guild.name.toUpperCase()}`, W / 2, 265);
   ctx.textAlign = 'left';
 

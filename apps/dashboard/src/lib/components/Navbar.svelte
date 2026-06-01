@@ -8,6 +8,7 @@
   import NotificationBell from './NotificationBell.svelte';
   import Papicon from './Papicon.svelte';
   import { sidebarStore } from '../stores/sidebar.svelte';
+  import { resolveGuildIconSrc, resolveUserAvatarSrc } from '../discordMedia';
 
   const collapsed = $derived(sidebarStore.collapsed);
 
@@ -56,12 +57,8 @@
     authStore.logout();
   };
 
-  const getUserAvatar = () => {
-    if (!authStore.user || !authStore.user.id || !authStore.user.avatar) {
-      return 'https://cdn.discordapp.com/embed/avatars/0.png';
-    }
-    return `https://cdn.discordapp.com/avatars/${authStore.user.id}/${authStore.user.avatar}.png`;
-  };
+  const getUserAvatar = () =>
+    resolveUserAvatarSrc(authStore.user?.id, authStore.user?.avatar);
 
   const selectedGuild = $derived(
     authStore.guilds.find((guild) => guild.id === authStore.selectedGuildId)
@@ -92,8 +89,8 @@
   });
 
   const guildIconUrl = $derived(
-    selectedGuild?.icon 
-      ? `https://cdn.discordapp.com/icons/${selectedGuild.id}/${selectedGuild.icon}.png`
+    selectedGuild
+      ? resolveGuildIconSrc(selectedGuild.id, selectedGuild.icon)
       : null
   );
 
@@ -113,7 +110,12 @@
       class="flex items-center gap-3 bg-surface-container-low hover:bg-surface-container-high/80 px-5 py-2.5 rounded-2xl text-xs font-bold text-on-surface border border-outline-variant/30 hover:border-primary/30 transition-all duration-300 shadow-sm hover:shadow-md cursor-pointer disabled:cursor-default disabled:hover:bg-surface-container-low disabled:border-outline-variant/30 group"
     >
       {#if guildIconUrl}
-        <img src={guildIconUrl} alt="Server Logo" class="w-6 h-6 rounded-lg object-cover transition-transform duration-300 group-hover:scale-105">
+        <img
+          src={guildIconUrl}
+          alt="Server Logo"
+          referrerpolicy="no-referrer"
+          class="w-6 h-6 rounded-lg object-cover transition-transform duration-300 group-hover:scale-105"
+        >
       {:else}
         <div class="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center text-[10px] font-black text-primary border border-primary/20 transition-transform duration-300 group-hover:scale-105">
           {selectedGuild?.name?.charAt(0) || '?'}
@@ -163,8 +165,13 @@
                 }}
                 class="w-full flex items-center gap-3 px-4 py-2.5 text-left text-xs font-bold transition-all hover:bg-primary/8 {guild.id === authStore.selectedGuildId ? 'text-primary bg-primary/4' : 'text-on-surface-variant hover:text-primary'}"
               >
-                {#if guild.icon}
-                  <img src={`https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png`} alt={guild.name} class="w-5 h-5 rounded-md object-cover">
+                {#if resolveGuildIconSrc(guild.id, guild.icon)}
+                  <img
+                    src={resolveGuildIconSrc(guild.id, guild.icon)}
+                    alt={guild.name}
+                    referrerpolicy="no-referrer"
+                    class="w-5 h-5 rounded-md object-cover"
+                  >
                 {:else}
                   <div class="w-5 h-5 rounded-md bg-primary/10 flex items-center justify-center text-[8px] font-black text-primary border border-primary/20">
                     {guild.name.charAt(0)}
