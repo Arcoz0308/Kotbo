@@ -269,4 +269,4 @@ Cela démarrera :
 
 ## 📝 Licence
 
-Développement privé sous licence libre. Le code source de **Kotbo** est en libre accès pour consultation mais son exploitation commerciale ou le déploiement public d'instances alternatives est restreint sans l'autorisation préalable de son auteur, **[Elouan](https://github.com/Klaynight)**.
+Développement privé sous licence libre. Le code source de **Kotbo** est en libre accès pour consultation mais son exploitation commerciale ou le déploiement public d'instances alternatives est restreint sans l'autorisation préalable de son auteur, **[Klaynight](https://github.com/Klaynight-dev)**.
