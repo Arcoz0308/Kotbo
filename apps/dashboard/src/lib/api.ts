@@ -1412,7 +1412,7 @@ export async function addBannedWord(
   category = 'custom',
   guildId = authStore.selectedGuildId
 ) {
-  return dashboardMutation('/banned-words', {
+  return dashboardRequest('/banned-words', {
     method: 'POST',
     payload: { word, category },
     guildId,
