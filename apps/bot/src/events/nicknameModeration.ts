@@ -3,6 +3,8 @@ import { isNicknameProblematic, SAFE_NICKNAME, buildRenameReason, loadBannedWord
 import { invalidateBannedWordsCache, loadGlobalWords, loadCustomWords } from '../services/bannedWordsService.js';
 import { logger } from '../utils/logger.js';
 
+import { getCachedGuild, cache } from '../utils/cache.js';
+
 // ---------------------------------------------------------------------------
 // Cache du statut d'activation par serveur (TTL 60s)
 // ---------------------------------------------------------------------------
@@ -18,25 +20,16 @@ type NicknameModConfig = {
   checkCustom: boolean;
 };
 
-type ConfigCacheEntry = {
-  config: NicknameModConfig;
-  expiresAt: number;
-};
-
-const configCache = new Map<string, ConfigCacheEntry>();
-const CACHE_TTL_MS = 60_000;
-
 /**
  * Invalide uniquement le cache de configuration de modération de pseudos.
  * Pour les mots bannis, utiliser invalidateBannedWordsCache depuis bannedWordsService.
  */
 export function invalidateNicknameModerationCache(guildId?: string): void {
   if (guildId) {
-    configCache.delete(guildId);
+    cache.invalidateGuild(guildId);
     invalidateBannedWordsCache(guildId);
     return;
   }
-  configCache.clear();
   invalidateBannedWordsCache();
 }
 
@@ -44,26 +37,9 @@ export function invalidateNicknameModerationCache(guildId?: string): void {
 export { invalidateBannedWordsCache };
 
 async function getNicknameModerationConfig(guildId: string): Promise<NicknameModConfig> {
-  const cached = configCache.get(guildId);
-  const now = Date.now();
-  if (cached && cached.expiresAt > now) return cached.config;
+  const guild = await getCachedGuild(guildId);
 
-  const { default: prisma } = await import('../utils/db.js');
-  const guild = await prisma.guild.findUnique({
-    where: { id: guildId },
-    select: {
-      autoNicknameModerationEnabled: true,
-      nicknameModerationWhitelist: true,
-      nicknameModerationBypass: true,
-      nickModOnJoin: true,
-      nickModOnUpdate: true,
-      nickModCheckInvisible: true,
-      nickModCheckGlobal: true,
-      nickModCheckCustom: true,
-    },
-  });
-
-  const config: NicknameModConfig = {
+  return {
     enabled: guild?.autoNicknameModerationEnabled ?? false,
     whitelist: guild?.nicknameModerationWhitelist ?? [],
     bypass: guild?.nicknameModerationBypass ?? [],
@@ -73,9 +49,6 @@ async function getNicknameModerationConfig(guildId: string): Promise<NicknameMod
     checkGlobal: guild?.nickModCheckGlobal ?? true,
     checkCustom: guild?.nickModCheckCustom ?? true,
   };
-
-  configCache.set(guildId, { config, expiresAt: now + CACHE_TTL_MS });
-  return config;
 }
 
 // ---------------------------------------------------------------------------
