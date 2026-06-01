@@ -364,8 +364,9 @@
       ⚠️ {loadError}
     </div>
   {:else}
-    <!-- ============================================================ -->
-    <!-- Section 1 — Toggle principal                                   -->
+    <div class="flex flex-col gap-8">
+      <!-- ============================================================ -->
+      <!-- Section 1 — Toggle principal                                   -->
     <!-- ============================================================ -->
     <section class="bg-surface-container-low/40 backdrop-blur-xl rounded-4xl border border-outline-variant/30 p-8 flex flex-col gap-6">
       <div class="flex items-start justify-between gap-6">
@@ -682,5 +683,6 @@
         </div>
       </div>
     </section>
+    </div>
   {/if}
 </ModulePage>
