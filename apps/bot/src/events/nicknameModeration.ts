@@ -64,10 +64,12 @@ async function checkAndRename(member: GuildMember): Promise<void> {
 
   // Vérification des permissions du bot
   const botMember = member.guild.members.me ?? await member.guild.members.fetchMe().catch(() => null);
-  if (!botMember?.permissions.has(PermissionFlagsBits.ManageNicknames)) return;
+  if (!botMember) return;
+  if (!botMember.permissions.has(PermissionFlagsBits.ManageNicknames)) return;
 
-  // Le bot ne peut pas renommer le propriétaire du serveur
+  // Le bot ne peut pas renommer le propriétaire du serveur ou des membres avec des rôles supérieurs ou égaux au sien
   if (member.guild.ownerId === member.id) return;
+  if (botMember.roles.highest.comparePositionTo(member.roles.highest) <= 0) return;
 
   // Pseudo effectif : nickname > globalName > username
   const effectiveName = member.nickname ?? member.user.globalName ?? member.user.username;
