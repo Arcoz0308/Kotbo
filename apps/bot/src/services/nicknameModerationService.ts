@@ -140,6 +140,7 @@ export async function scanAndModeratePseudos(guild: Guild): Promise<PseudoScanRe
   for (const [, member] of members) {
     if (member.user.bot) { result.skippedCount++; continue; }
     if (guild.ownerId === member.id) { result.skippedCount++; continue; }
+    if (botMember.roles.highest.comparePositionTo(member.roles.highest) <= 0) { result.skippedCount++; continue; }
 
     result.scannedCount++;
 

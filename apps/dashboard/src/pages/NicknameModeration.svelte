@@ -364,8 +364,9 @@
       ⚠️ {loadError}
     </div>
   {:else}
-    <!-- ============================================================ -->
-    <!-- Section 1 — Toggle principal                                   -->
+    <div class="flex flex-col gap-8">
+      <!-- ============================================================ -->
+      <!-- Section 1 — Toggle principal                                   -->
     <!-- ============================================================ -->
     <section class="bg-surface-container-low/40 backdrop-blur-xl rounded-4xl border border-outline-variant/30 p-8 flex flex-col gap-6">
       <div class="flex items-start justify-between gap-6">
@@ -440,6 +441,15 @@
       </div>
 
       {#if activeTab === 'custom'}
+        {#if !checkCustom}
+          <div class="p-4 rounded-2xl bg-tertiary/10 border border-tertiary/20 flex items-center gap-3">
+            <span class="text-tertiary text-lg">⚠️</span>
+            <p class="text-sm text-on-surface">
+              <strong class="text-tertiary">Inactif</strong> — La surveillance des mots personnalisés est désactivée dans vos paramètres d'activation.
+            </p>
+          </div>
+        {/if}
+
         <!-- Formulaire d'ajout -->
         <div class="flex gap-3 items-start flex-wrap">
           <div class="flex-1 min-w-[200px] relative">
@@ -588,7 +598,7 @@
           <div class="flex flex-col gap-1">
             <h3 class="text-sm font-bold text-on-surface">Pseudos autorisés (exacts)</h3>
             <p class="text-xs text-on-surface-variant/50">
-              Ces pseudos complets ne seront jamais modérés, même s'ils contiennent un mot banni. (hors mots personnalisés)
+              Ces pseudos complets ne seront jamais modérés, même s'ils contiennent un mot banni.
             </p>
           </div>
 
@@ -682,5 +692,6 @@
         </div>
       </div>
     </section>
+    </div>
   {/if}
 </ModulePage>
