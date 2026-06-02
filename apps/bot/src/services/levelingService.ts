@@ -16,11 +16,13 @@ export function getXpForLevel(level: number): number {
   return 100 * Math.pow(level, 2) + 200 * level;
 }
 
-/**
- * Récupère ou initialise la configuration de leveling d'une guilde
- */
 export async function getOrCreateLevelConfig(guildId: string) {
-  let config = await prisma.levelConfig.findUnique({
+  const cacheKey = `guild:${guildId}:level_config`;
+  let config = await cache.get<any>(cacheKey);
+
+  if (config) return config;
+
+  config = await prisma.levelConfig.findUnique({
     where: { guildId },
   });
 
@@ -41,6 +43,8 @@ export async function getOrCreateLevelConfig(guildId: string) {
       },
     });
   }
+
+  await cache.set(cacheKey, config, 60);
   return config;
 }
 
@@ -64,7 +68,7 @@ export async function handleTextXp(guildId: string, userId: string, client: Clie
     if (!member) return;
 
     // Vérifier si le membre possède un rôle exclu
-    if (config.ignoredRoles && config.ignoredRoles.some(roleId => member.roles.cache.has(roleId))) {
+    if (config.ignoredRoles && (config.ignoredRoles as string[]).some(roleId => member.roles.cache.has(roleId))) {
       return;
     }
 

@@ -18,6 +18,8 @@ export function registerLevelingListener(client: Client) {
   
   voiceXpInterval = setInterval(async () => {
     try {
+      const xpPromises: Promise<void>[] = [];
+
       for (const [guildId, guild] of client.guilds.cache) {
         const config = await getOrCreateLevelConfig(guildId).catch(() => null);
         if (!config || !config.enabled || config.vocalXpPerMin <= 0) continue;
@@ -39,7 +41,7 @@ export function registerLevelingListener(client: Client) {
             if (isMuted || isDeafened) continue;
 
             // Vérifier si le membre possède un rôle exclu
-            if (config.ignoredRoles && config.ignoredRoles.some(roleId => member.roles.cache.has(roleId))) continue;
+            if (config.ignoredRoles && (config.ignoredRoles as string[]).some(roleId => member.roles.cache.has(roleId))) continue;
 
             // Calculer le multiplicateur d'XP par rôle
             let multiplier = 1.0;
@@ -57,13 +59,24 @@ export function registerLevelingListener(client: Client) {
             const voiceXp = Math.floor(config.vocalXpPerMin * multiplier);
             if (voiceXp <= 0) continue;
 
-            // Ajouter l'XP vocale
-            await addXp(guildId, member.id, voiceXp, client).catch(err => 
-              logger.error('LevelingService', `Erreur lors de l'attribution XP vocal à ${member.id}:`, err)
+            // Ajouter aux promesses à résoudre
+            xpPromises.push(
+              addXp(guildId, member.id, voiceXp, client).catch(err => 
+                logger.error('LevelingService', `Erreur lors de l'attribution XP vocal à ${member.id}:`, err)
+              )
             );
           }
         }
       }
+
+      // Exécuter l'ajout d'XP par lots pour ne pas saturer la base de données
+      if (xpPromises.length > 0) {
+        const CHUNK_SIZE = 50;
+        for (let i = 0; i < xpPromises.length; i += CHUNK_SIZE) {
+          await Promise.all(xpPromises.slice(i, i + CHUNK_SIZE));
+        }
+      }
+
     } catch (err) {
       logger.error('LevelingEvents', 'Erreur lors de la boucle d\'XP vocale :', err);
     }
