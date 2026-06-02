@@ -437,6 +437,10 @@ async function flushIndexBuffers() {
       });
       await Promise.all(ops);
     } catch (e) {
+      // Re-queue entries so they can be retried on next flush
+      for (const [key, count] of usageEntries) {
+        commandUsageBuffer.set(key, (commandUsageBuffer.get(key) || 0) + count);
+      }
       logger.error('Analytics', 'Erreur lors du flush des command usages', e);
     }
   }
