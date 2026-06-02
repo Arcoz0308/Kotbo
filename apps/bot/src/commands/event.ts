@@ -1,3 +1,4 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import { 
   MessageFlags, 
   SlashCommandBuilder, 
@@ -6,7 +7,7 @@ import {
 import { logger } from '../utils/logger.js';
 import { buildEventResultsView } from '../services/eventService.js';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('event')
   .setDescription('🎯 Commandes liées aux événements')
   .addSubcommand(sub => 
@@ -15,7 +16,7 @@ export const data = new SlashCommandBuilder()
       .setDescription('📈 Voir tes résultats à un quiz')
   );
 
-export async function execute(interaction: ChatInputCommandInteraction) {
+async function execute(interaction: ChatInputCommandInteraction) {
   const subcommand = interaction.options.getSubcommand();
 
   if (subcommand === 'resultat') {
@@ -40,3 +41,5 @@ async function handleResults(interaction: ChatInputCommandInteraction) {
     await interaction.editReply('❌ Une erreur est survenue.');
   }
 }
+
+export const eventCommand = { data, execute } satisfies SlashCommandDefinition;

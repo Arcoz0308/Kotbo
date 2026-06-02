@@ -1,3 +1,4 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -16,7 +17,7 @@ import { buildMemberCasePanel } from '../services/memberCaseService.js';
 import { generateTranscript } from '../services/transcriptService.js';
 import { COLORS, successEmbed } from '../utils/embeds.js';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('ticket')
   .setDescription('🎫 Gère le ticket en cours')
   .setDMPermission(false)
@@ -57,7 +58,7 @@ export const data = new SlashCommandBuilder()
       )
   );
 
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId;
   const channel = interaction.channel;
 
@@ -392,3 +393,5 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     });
   }
 }
+
+export const ticketCommand = { data, execute } satisfies SlashCommandDefinition;

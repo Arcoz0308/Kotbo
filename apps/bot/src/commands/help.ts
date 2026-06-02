@@ -1,3 +1,4 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import {
   ApplicationCommandOptionType,
   EmbedBuilder,
@@ -8,21 +9,21 @@ import {
   type ChatInputCommandInteraction,
 } from 'discord.js';
 import { COLORS } from '../utils/embeds.js';
-import * as setupCmd from './setup.js';
-import * as configCmd from './config.js';
-import * as pingCmd from './ping.js';
-import * as infoCmd from './info.js';
-import * as excuseCmd from './excuse.js';
-import * as epochCmd from './epoch.js';
-import * as devutilsCmd from './devutils.js';
-import * as statusCmd from './status.js';
-import * as adminCmd from './admin.js';
-import * as postCmd from './post.js';
-import * as dailyAlgoCmd from './dailyAlgo.js';
-import * as profileCmd from './profile.js';
-import * as sanctionCmd from './sanction.js';
-import * as casierCmd from './casier.js';
-import * as ticketCmd from './ticket.js';
+import { adminCommand } from './admin.js';
+import { casierCommand } from './casier.js';
+import { configCommand } from './config.js';
+import { dailyAlgoCommand } from './dailyAlgo.js';
+import { devutilsCommand } from './devutils.js';
+import { epochCommand } from './epoch.js';
+import { excuseCommand } from './excuse.js';
+import { infoCommand } from './info.js';
+import { pingCommand } from './ping.js';
+import { postCommand } from './post.js';
+import { profileCommand } from './profile.js';
+import { sanctionCommand } from './sanction.js';
+import { setupCommand } from './setup.js';
+import { statusCommand } from './status.js';
+import { ticketCommand } from './ticket.js';
 
 type CommandJson = {
   name: string;
@@ -40,91 +41,91 @@ type HelpCommand = CommandJson & {
 
 const COMMANDS: HelpCommand[] = [
   {
-    command: setupCmd,
+    command: setupCommand,
     icon: '🚀',
     category: 'Mise en route',
     summary: 'Assistant de configuration guidée du serveur',
   },
   {
-    command: configCmd,
+    command: configCommand,
     icon: '⚙️',
     category: 'Mise en route',
     summary: 'Panneau central pour régler toutes les fonctionnalités',
   },
   {
-    command: infoCmd,
+    command: infoCommand,
     icon: 'ℹ️',
     category: 'Mise en route',
     summary: 'Affiche l’état du bot et les statistiques du serveur',
   },
   {
-    command: pingCmd,
+    command: pingCommand,
     icon: '🏓',
     category: 'Mise en route',
     summary: 'Mesure la latence du bot et de l’API Discord',
   },
   {
-    command: postCmd,
+    command: postCommand,
     icon: '🚀',
     category: 'Flux & actualités',
     summary: 'Publie le digest et/ou le Daily Algo du serveur',
   },
   {
-    command: dailyAlgoCmd,
+    command: dailyAlgoCommand,
     icon: '📚',
     category: 'Flux & actualités',
     summary: 'Affiche le défi, le barème, le classement et la progression Daily Algo',
   },
   {
-    command: profileCmd,
+    command: profileCommand,
     icon: '👤',
     category: 'Outils',
     summary: 'Affiche le profil utilisateur avec classement/streak/historique Daily Algo',
   },
   {
-    command: statusCmd,
+    command: statusCommand,
     icon: '🌐',
     category: 'Outils',
     summary: 'Vérifie rapidement le statut HTTP d’une URL',
   },
   {
-    command: epochCmd,
+    command: epochCommand,
     icon: '🕐',
     category: 'Outils',
     summary: 'Convertit les timestamps Unix en dates lisibles',
   },
   {
-    command: devutilsCmd,
+    command: devutilsCommand,
     icon: '🛠️',
     category: 'Outils',
     summary: 'Décode des JWT, manipule la Base64 et génère des hash',
   },
   {
-    command: excuseCmd,
+    command: excuseCommand,
     icon: '😅',
     category: 'Outils',
     summary: 'Génère une excuse de développeur aléatoire',
   },
   {
-    command: adminCmd,
+    command: adminCommand,
     icon: '🔧',
     category: 'Administration',
     summary: 'Réunit les commandes de maintenance et de configuration avancée',
   },
   {
-    command: sanctionCmd,
+    command: sanctionCommand,
     icon: '🛡️',
     category: 'Administration',
     summary: 'Gère les sanctions: warn, timeout, kick, ban et tempban',
   },
   {
-    command: ticketCmd,
+    command: ticketCommand,
     icon: '🎫',
     category: 'Administration',
     summary: 'Gère les tickets: claim, info membre, close, reopen, delete et rename',
   },
   {
-    command: casierCmd,
+    command: casierCommand,
     icon: '📁',
     category: 'Administration',
     summary: 'Ouvre le casier utilisateur complet avec profil, activité et sanctions',
@@ -147,7 +148,7 @@ const OPTION_TYPE_LABEL: Record<number, string> = {
   [ApplicationCommandOptionType.Attachment]: 'fichier',
 };
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('help')
   .setDescription('❓ Centre d’aide interactif des commandes Kotbo')
   .addStringOption((o) =>
@@ -263,7 +264,7 @@ function buildCommandHelpEmbed(command: CommandJson) {
     .setTimestamp();
 }
 
-export async function autocomplete(interaction: AutocompleteInteraction) {
+async function autocomplete(interaction: AutocompleteInteraction) {
   const focused = interaction.options.getFocused().toLowerCase();
 
   const choices = COMMANDS
@@ -275,7 +276,7 @@ export async function autocomplete(interaction: AutocompleteInteraction) {
   await interaction.respond(choices);
 }
 
-export async function execute(interaction: ChatInputCommandInteraction) {
+async function execute(interaction: ChatInputCommandInteraction) {
   const requestedCmd = interaction.options.getString('cmd', false)?.trim().toLowerCase();
 
   if (!requestedCmd) {
@@ -295,3 +296,5 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   await interaction.reply({ embeds: [buildCommandHelpEmbed(command)], flags: [MessageFlags.Ephemeral] });
 }
+
+export const helpCommand = { data, execute, autocomplete } satisfies SlashCommandDefinition;

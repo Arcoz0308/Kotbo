@@ -1,3 +1,4 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction, PermissionFlagsBits, MessageFlags } from 'discord.js';
 import { successEmbed, errorEmbed, infoEmbed, COLORS, truncate } from '../utils/embeds.js';
 import prisma from '../utils/db.js';
@@ -13,7 +14,7 @@ import {
 
 
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('admin')
   .setDescription('🔧 Commandes administrateur')
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
@@ -116,7 +117,7 @@ export const data = new SlashCommandBuilder()
       )
   );
 
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const subcommand = interaction.options.getSubcommand() as string;
   const guildId = interaction.guildId;
 
@@ -499,3 +500,5 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     }
   }
 }
+
+export const adminCommand = { data, execute } satisfies SlashCommandDefinition;

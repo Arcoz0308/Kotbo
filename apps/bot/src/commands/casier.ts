@@ -1,3 +1,4 @@
+import type { ContextCommandDefinition, SlashCommandDefinition } from '../commands.js';
 import {
   MessageFlags,
   PermissionFlagsBits,
@@ -11,7 +12,7 @@ import { errorEmbed } from '../utils/embeds.js';
 import { renderPanelTarget } from '../utils/interactionResponses.js';
 import { buildMemberCasePanel } from '../services/memberCaseService.js';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('casier')
   .setDescription('📁 Ouvre le casier utilisateur complet')
   .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
@@ -23,7 +24,7 @@ export const data = new SlashCommandBuilder()
       .addStringOption((option) => option.setName('id').setDescription('ID Discord à consulter si le membre n’est plus présent').setRequired(false)),
   );
 
-export const contextData = new ContextMenuCommandBuilder()
+const contextData = new ContextMenuCommandBuilder()
   .setName('Voir le Casier')
   .setType(ApplicationCommandType.User)
   .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers);
@@ -45,7 +46,7 @@ async function replyError(interaction: ChatInputCommandInteraction, title: strin
   await interaction.reply({ embeds: [errorEmbed(title, description)], flags: [MessageFlags.Ephemeral] });
 }
 
-export async function execute(interaction: ChatInputCommandInteraction | UserContextMenuCommandInteraction): Promise<void> {
+async function execute(interaction: ChatInputCommandInteraction | UserContextMenuCommandInteraction): Promise<void> {
   if (!interaction.inCachedGuild()) return;
 
   const targetUserId = interaction.isChatInputCommand()
@@ -76,3 +77,6 @@ export async function execute(interaction: ChatInputCommandInteraction | UserCon
     });
   }
 }
+
+export const casierCommand = { data, execute } satisfies SlashCommandDefinition;
+export const casierContextCommand = { data: contextData, execute } satisfies ContextCommandDefinition;

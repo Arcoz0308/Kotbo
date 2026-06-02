@@ -1,3 +1,4 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import { EmbedBuilder, MessageFlags, SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import {
   getDailyAlgoUserProfile,
@@ -8,7 +9,7 @@ import {
 import { COLORS, truncate } from '../utils/embeds.js';
 import { extractTrackingInfo, resolveModuleFromCommand, wrapModuleTracking } from '../utils/moduleTracking.js';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('daily-algo')
   .setDescription('📚 Infos et stats Daily Algo')
   .addStringOption((option) =>
@@ -230,7 +231,7 @@ async function replyProfile(interaction: ChatInputCommandInteraction, guildId: s
   });
 }
 
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const { guildId, userId } = extractTrackingInfo(interaction);
   const moduleName = resolveModuleFromCommand('daily-algo');
   const view = interaction.options.getString('vue') ?? 'previous';
@@ -279,3 +280,5 @@ async function executeInternal(interaction: ChatInputCommandInteraction): Promis
 
   await replyPreviousRun(interaction, guildId);
 }
+
+export const dailyAlgoCommand = { data, execute } satisfies SlashCommandDefinition;

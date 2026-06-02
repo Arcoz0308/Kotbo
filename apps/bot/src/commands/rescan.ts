@@ -1,3 +1,4 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import {
   SlashCommandBuilder,
   PermissionFlagsBits,
@@ -9,7 +10,7 @@ import { infoEmbed, successEmbed, errorEmbed } from '../utils/embeds.js';
 import { scanGuildMembersForYoungAccounts } from '../services/dcDetectionService.js';
 import { scanAndModeratePseudos } from '../services/nicknameModerationService.js';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('rescan')
   .setDescription('Scanner les membres du serveur.')
   // ──────────────────────────────────────────────────────────────────────────
@@ -86,7 +87,7 @@ async function canUseModerationTools(interaction: ChatInputCommandInteraction): 
 // Handler principal
 // ---------------------------------------------------------------------------
 
-export async function execute(interaction: ChatInputCommandInteraction) {
+async function execute(interaction: ChatInputCommandInteraction) {
   const guild = interaction.guild;
   if (!guild || !interaction.guildId) {
     return interaction.reply({
@@ -214,3 +215,5 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     }
   }
 }
+
+export const rescanCommand = { data, execute } satisfies SlashCommandDefinition;

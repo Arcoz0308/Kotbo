@@ -8,8 +8,9 @@ import prisma from '../utils/db.js';
 import { successEmbed, errorEmbed } from '../utils/embeds.js';
 import { isGuildActivated, activateGuild } from '../utils/activation.js';
 import { initializeAutoBackup } from '../services/autoBackupService.js';
+import type { SlashCommandDefinition } from '../commands.js';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('activate')
   .setDescription('🔑 Activer le bot sur ce serveur à l\'aide d\'un code d\'activation')
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
@@ -20,7 +21,7 @@ export const data = new SlashCommandBuilder()
       .setRequired(true)
   );
 
-export async function execute(interaction: ChatInputCommandInteraction) {
+async function execute(interaction: ChatInputCommandInteraction) {
   const guildId = interaction.guildId;
   if (!guildId) {
     return interaction.reply({
@@ -100,3 +101,5 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     });
   }
 }
+
+export const activateCommand = { data, execute } satisfies SlashCommandDefinition;

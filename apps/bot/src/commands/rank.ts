@@ -1,8 +1,9 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import { SlashCommandBuilder, AttachmentBuilder, MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
 import { getMemberRankData, generateRankCard } from '../services/levelingService.js';
 import { extractTrackingInfo, resolveModuleFromCommand, wrapModuleTracking } from '../utils/moduleTracking.js';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('rank')
   .setDescription('⭐ Affiche votre carte de niveau et d\'expérience')
   .addUserOption((option) =>
@@ -12,7 +13,7 @@ export const data = new SlashCommandBuilder()
       .setRequired(false)
   );
 
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const { guildId, userId } = extractTrackingInfo(interaction);
   const moduleName = resolveModuleFromCommand('rank');
 
@@ -61,3 +62,5 @@ async function executeInternal(interaction: ChatInputCommandInteraction): Promis
     await interaction.editReply('❌ Une erreur est survenue lors de la génération de la carte de niveau.');
   }
 }
+
+export const rankCommand = { data, execute } satisfies SlashCommandDefinition;

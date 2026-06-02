@@ -1,10 +1,11 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import { EmbedBuilder, MessageFlags, SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import { getStaffMember, getStaffMemberStats } from '../services/staffManagementService.js';
 import { getStaffProfileSnapshot } from '../services/profileService.js';
 import { COLORS, truncate } from '../utils/embeds.js';
 import { logger } from '../utils/logger.js';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('profil')
   .setDescription('👤 Affiche le profil staff détaillé')
   .addUserOption((option) =>
@@ -51,7 +52,7 @@ function formatTestingPeriodStatus(status: string): string {
   return '⏳ En cours';
 }
 
-export async function execute(interaction: ChatInputCommandInteraction) {
+async function execute(interaction: ChatInputCommandInteraction) {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   try {
@@ -221,3 +222,5 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     await interaction.editReply({ content: '❌ Une erreur est survenue lors de la récupération du profil.' });
   }
 }
+
+export const profilCommand = { data, execute } satisfies SlashCommandDefinition;

@@ -1,9 +1,10 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import { EmbedBuilder, MessageFlags, SlashCommandBuilder, AttachmentBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import prisma from '../utils/db.js';
 import { generateMemberStatsImage } from '../services/imageService.js';
 import { COLORS } from '../utils/embeds.js';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('stats')
   .setDescription("📊 Affiche les statistiques d'activité d'un membre")
   .addUserOption((option) =>
@@ -24,7 +25,7 @@ export const data = new SlashCommandBuilder()
       ),
   );
 
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId;
 
   if (!guildId) {
@@ -81,3 +82,5 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     files: [attachment],
   });
 }
+
+export const statsCommand = { data, execute } satisfies SlashCommandDefinition;

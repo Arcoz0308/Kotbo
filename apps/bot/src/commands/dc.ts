@@ -1,3 +1,4 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import {
   SlashCommandBuilder,
   EmbedBuilder,
@@ -13,7 +14,7 @@ import prisma from '../utils/db.js';
 import { COLORS, successEmbed, errorEmbed, infoEmbed } from '../utils/embeds.js';
 import { scanGuildMembersForYoungAccounts } from '../services/dcDetectionService.js';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('dc')
   .setDescription('Gestion des doubles comptes et liaisons.')
   .addSubcommand((sub) =>
@@ -80,7 +81,7 @@ async function canUseModerationTools(interaction: ChatInputCommandInteraction): 
   return isAdmin || !!isStaffDb || interaction.memberPermissions?.has(PermissionFlagsBits.ModerateMembers);
 }
 
-export async function execute(interaction: ChatInputCommandInteraction) {
+async function execute(interaction: ChatInputCommandInteraction) {
   const subcommand = interaction.options.getSubcommand();
 
   if (subcommand === 'scan' || subcommand === 'rescan') {
@@ -346,3 +347,5 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     });
   }
 }
+
+export const dcCommand = { data, execute } satisfies SlashCommandDefinition;

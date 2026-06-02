@@ -1,3 +1,4 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import {
   ActionRowBuilder,
   MessageFlags,
@@ -10,11 +11,11 @@ import {
 import prisma from '../utils/db.js';
 import { getStaffMember } from '../services/staffManagementService.js';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('demission')
   .setDescription('Soumet une demande de démission du staff avec un motif.');
 
-export async function execute(interaction: ChatInputCommandInteraction) {
+async function execute(interaction: ChatInputCommandInteraction) {
   if (!interaction.guildId) return;
 
   const staff = await getStaffMember(interaction.guildId, interaction.user.id);
@@ -53,3 +54,5 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(reasonInput));
   await interaction.showModal(modal);
 }
+
+export const demissionCommand = { data, execute } satisfies SlashCommandDefinition;

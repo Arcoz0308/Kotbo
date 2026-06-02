@@ -1,3 +1,4 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import { infoEmbed, errorEmbed } from '../utils/embeds.js';
 import prisma from '../utils/db.js';
@@ -30,7 +31,7 @@ function getStatusLabel(code: number): string {
   return labels[code] ?? 'Statut inconnu';
 }
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('status')
   .setDescription('🌐 Vérifie le statut HTTP d\'une URL')
   .addStringOption(option =>
@@ -40,7 +41,7 @@ export const data = new SlashCommandBuilder()
       .setRequired(true)
   );
 
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const urlInput = interaction.options.getString('url', true);
 
   const guildId = interaction.guildId;
@@ -140,3 +141,5 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     });
   }
 }
+
+export const statusCommand = { data, execute } satisfies SlashCommandDefinition;

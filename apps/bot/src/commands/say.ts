@@ -1,3 +1,4 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import {
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
@@ -29,7 +30,7 @@ const COLOR_MAP: Record<string, number> = {
   white: 0xffffff,
 };
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('say')
   .setDescription('📢 Envoyer un message en tant que bot dans un salon')
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
@@ -67,7 +68,7 @@ export const data = new SlashCommandBuilder()
       .setRequired(false),
   );
 
-export async function execute(interaction: ChatInputCommandInteraction) {
+async function execute(interaction: ChatInputCommandInteraction) {
   if (!interaction.guildId) {
     await interaction.reply({
       embeds: [errorEmbed('Erreur', 'Cette commande ne peut être utilisée que dans un serveur.')],
@@ -131,3 +132,5 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     });
   }
 }
+
+export const sayCommand = { data, execute } satisfies SlashCommandDefinition;

@@ -1,12 +1,13 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import prisma from '../utils/db.js';
 import { errorEmbed, successEmbed } from '../utils/embeds.js';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('excuse')
   .setDescription('😅 Génère une excuse de développeur aléatoire');
 
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const excuses = await prisma.developerExcuse.findMany({
     where: { language: 'fr' },
     select: { text: true },
@@ -27,3 +28,5 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     ],
   });
 }
+
+export const excuseCommand = { data, execute } satisfies SlashCommandDefinition;

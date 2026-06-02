@@ -1,3 +1,4 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import {
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
@@ -7,12 +8,12 @@ import {
 import { sendMainConfigPanel } from '../panels/generalConfigPanel.js';
 import prisma from '../utils/db.js';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('config')
   .setDescription('⚙️ Configure toutes les fonctionnalités de Kotbo')
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId!;
 
   await prisma.guild.upsert({
@@ -23,3 +24,5 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   await sendMainConfigPanel(interaction, guildId);
 }
+
+export const configCommand = { data, execute } satisfies SlashCommandDefinition;

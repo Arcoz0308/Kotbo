@@ -1,3 +1,4 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { sendDailyAlgo } from '../services/dailyAlgoService.js';
 import { formatDailyAlgoDate } from '../services/dailyAlgoService.js';
@@ -12,7 +13,7 @@ function formatPostError(error: unknown): string {
   return String(error ?? 'Erreur inconnue');
 }
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('post')
   .setDescription('🚀 Poster le contenu interactif du serveur')
   .addSubcommand(subcommand =>
@@ -21,7 +22,7 @@ export const data = new SlashCommandBuilder()
       .setDescription('💻 Poster le daily algo du jour')
   );
 
-export async function execute(interaction: ChatInputCommandInteraction) {
+async function execute(interaction: ChatInputCommandInteraction) {
   const subcommand = interaction.options.getSubcommand();
   const guildId = interaction.guildId;
 
@@ -56,3 +57,5 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     });
   }
 }
+
+export const postCommand = { data, execute } satisfies SlashCommandDefinition;

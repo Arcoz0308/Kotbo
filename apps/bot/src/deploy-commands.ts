@@ -4,74 +4,9 @@ dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
 
 import { REST, Routes } from 'discord.js';
 import { logger } from './utils/logger.js';
-import * as setupCmd from './commands/setup.js';
-import * as configCmd from './commands/config.js';
-import * as pingCmd from './commands/ping.js';
-import * as infoCmd from './commands/info.js';
-import * as excuseCmd from './commands/excuse.js';
-import * as epochCmd from './commands/epoch.js';
-import * as devutilsCmd from './commands/devutils.js';
-import * as statusCmd from './commands/status.js';
-import * as adminCmd from './commands/admin.js';
-import * as helpCmd from './commands/help.js';
-import * as postCmd from './commands/post.js';
-import * as dailyAlgoCmd from './commands/dailyAlgo.js';
-import * as profileCmd from './commands/profile.ts';
-import * as profilCmd from './commands/profil.ts';
-import * as sanctionCmd from './commands/sanction.js';
-import * as dcCmd from './commands/dc.js';
-import * as rescanCmd from './commands/rescan.js';
-import * as casierCmd from './commands/casier.js';
-import * as absentCmd from './commands/absent.js';
-import * as statsCmd from './commands/stats.js';
-import * as leaderboardCmd from './commands/leaderboard.js';
-import * as serverstatsCmd from './commands/serverstats.js';
-import * as invitesCmd from './commands/invites.js';
-import * as noteCmd from './commands/note.js';
-import * as transcriptCmd from './commands/transcript.js';
-import * as ticketCmd from './commands/ticket.js';
-import * as sayCmd from './commands/say.js';
-import * as demissionCmd from './commands/demission.js';
-import * as meetingCmd from './commands/meeting.js';
-import * as eventCmd from './commands/event.js';
-import * as activateCmd from './commands/activate.js';
+import { applicationCommands } from './commands.js';
 
-const commands = [
-  setupCmd,
-  configCmd,
-  pingCmd,
-  infoCmd,
-  excuseCmd,
-  epochCmd,
-  devutilsCmd,
-  statusCmd,
-  adminCmd,
-  postCmd,
-  helpCmd,
-  dailyAlgoCmd,
-  profileCmd,
-  profilCmd,
-  sanctionCmd,
-  dcCmd,
-  rescanCmd,
-  casierCmd,
-  absentCmd,
-  meetingCmd,
-  statsCmd,
-  leaderboardCmd,
-  serverstatsCmd,
-  invitesCmd,
-  noteCmd,
-  eventCmd,
-  activateCmd,
-  transcriptCmd,
-  ticketCmd,
-  sayCmd,
-  demissionCmd,
-  { data: noteCmd.contextData },
-  { data: casierCmd.contextData },
-  { data: sanctionCmd.contextData },
-].map((cmd) => cmd.data.toJSON());
+const commands = applicationCommands.map((cmd) => cmd.data.toJSON());
 
 const token = process.env.DISCORD_TOKEN;
 const clientId = process.env.DISCORD_CLIENT_ID;
