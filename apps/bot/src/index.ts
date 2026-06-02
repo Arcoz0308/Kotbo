@@ -454,6 +454,8 @@ async function flushIndexBuffers() {
         data: errorsToInsert
       });
     } catch (e) {
+      // Re-queue entries so they can be retried on next flush
+      errorLogBuffer.unshift(...errorsToInsert);
       logger.error('System', 'Erreur lors du flush des bot error logs', e);
     }
   }
