@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { portal } from '../actions/portal';
   import FormInput from './FormInput.svelte';
   import { dashboardStore } from '../stores/dashboard.svelte.ts';
   import { authStore } from '../stores/auth.svelte.ts';
+  import { toast } from '../stores/toast.svelte';
   import Papicon from './Papicon.svelte';
   import Chart from './charts/Chart.svelte';
   import { router } from 'tinro';
@@ -14,6 +14,7 @@
   import EvidenceInputList from './sanctions/EvidenceInputList.svelte';
   import ReportRuleSelector from './sanctions/ReportRuleSelector.svelte';
   import InteractionTree from './charts/InteractionTree.svelte';
+  import Modal from './Modal.svelte';
 
   type MemberCaseTab = 'resume' | 'identite' | 'activite' | 'messages' | 'logs' | 'sanctions' | 'invites' | 'connexions' | 'analytics' | 'candidatures' | 'linked_accounts' | 'notes';
 
@@ -264,10 +265,10 @@
           }
         }
       } else {
-        alert('Erreur lors de la suppression du lien.');
+        toast.error('Erreur lors de la suppression du lien.');
       }
     } catch (e: any) {
-      alert(e.message || 'Erreur inattendue.');
+      toast.error(e.message || 'Erreur inattendue.');
     } finally {
       unlinkingAccountId = null;
     }
@@ -559,104 +560,99 @@
   });
 </script>
 
-{#if open}
-  <div 
-    use:portal
-    class="modal-backdrop" 
-    role="button" 
-    aria-label="Fermer le dossier"
-    tabindex="0" 
-    onclick={onClose}
-    onkeydown={(e) => e.key === 'Escape' && onClose()}
-  >
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="modal-panel modal-panel-xl space-y-0 p-0 font-body" onclick={(e) => e.stopPropagation()}>
+<Modal
+  open={open}
+  onClose={onClose}
+  size="xl"
+  showCloseButton={false}
+>
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="modal-panel modal-panel-xl space-y-0 p-0 font-body" onclick={(e) => e.stopPropagation()}>
 
-      <!-- ── Hero Section ──────────────────────────────────────── -->
-      <div class="relative overflow-hidden rounded-t-3xl" style="min-height: 180px;">
-        <div class="absolute inset-0" style={getHeroBackground()}></div>
-        <div class="absolute inset-0 bg-linear-to-b from-transparent via-transparent to-(--surface-container-lowest)"></div>
+    <!-- ── Hero Section ──────────────────────────────────────── -->
+    <div class="relative overflow-hidden rounded-t-3xl -mt-6 -mx-6" style="min-height: 180px;">
+      <div class="absolute inset-0" style={getHeroBackground()}></div>
+      <div class="absolute inset-0 bg-linear-to-b from-transparent via-transparent to-(--surface-container-lowest)"></div>
 
-        <!-- Close button -->
-        <button
-          type="button"
-          onclick={onClose}
-          class="absolute top-4 right-4 z-50 flex h-9 w-9 items-center justify-center rounded-xl bg-black/20 text-white/80 backdrop-blur-lg transition-all hover:bg-black/40 hover:text-white hover:scale-110 active:scale-95 shadow-lg"
-        >
-          <Papicon icon="x" size={18} />
-        </button>
+      <!-- Close button -->
+      <button
+        type="button"
+        onclick={onClose}
+        class="absolute top-4 right-4 z-50 flex h-9 w-9 items-center justify-center rounded-xl bg-black/20 text-white/80 backdrop-blur-lg transition-all hover:bg-black/40 hover:text-white hover:scale-110 active:scale-95 shadow-lg"
+      >
+        <Papicon icon="x" size={18} />
+      </button>
 
-        <!-- Avatar + Identity block -->
-        <div class="relative z-10 flex items-end gap-5 px-8 pb-5 pt-20">
-          <div class="relative shrink-0">
-            <div class="absolute -inset-1.5 rounded-3xl bg-white/20 blur-lg animate-pulse"></div>
-            {#if caseData?.profile?.avatarUrl}
-              <img
-                src={caseData?.profile?.avatarUrl}
-                alt="Avatar"
-                class="relative h-20 w-20 rounded-2xl border-4 border-(--surface-container-lowest) object-cover shadow-2xl"
-              />
-            {:else}
-              <div class="relative flex h-20 w-20 items-center justify-center rounded-2xl border-4 border-(--surface-container-lowest) bg-(--surface-container-high) text-2xl font-black text-primary shadow-2xl">
-                {userName.slice(0, 1).toUpperCase()}
-              </div>
-            {/if}
-            <!-- Presence indicator -->
-            <div class="absolute -bottom-1 -right-1 h-5 w-5 rounded-full border-3 border-(--surface-container-lowest) {getPresenceColor(caseData?.profile?.presenceStatus)}" title={getPresenceLabel(caseData?.profile?.presenceStatus)}></div>
-          </div>
-
-          <div class="min-w-0 pb-1">
-            <h3 id="member-case-title" class="text-2xl font-black text-on-surface tracking-tight truncate font-headline">
-              {caseData?.profile?.displayName || caseData?.profile?.globalName || userName}
-            </h3>
-            <div class="mt-1 flex flex-wrap items-center gap-2">
-              <span class="text-sm font-semibold text-on-surface-variant/80">
-                @{caseData?.profile?.username || userName}
-              </span>
-              {#if caseData?.profile?.isBot}
-                <span class="badge badge-info">Bot</span>
-              {/if}
-              {#if caseData?.profile?.pronouns}
-                <span class="badge badge-neutral">{caseData?.profile?.pronouns}</span>
-              {/if}
-              <span class="badge badge-neutral">
-                <span class="h-2 w-2 rounded-full {getPresenceColor(caseData?.profile?.presenceStatus)}"></span>
-                {getPresenceLabel(caseData?.profile?.presenceStatus)}
-              </span>
-              {#if caseData?.profile?.isTutor}
-                <span class="badge bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 shadow-sm animate-in zoom-in-95 duration-500">
-                  <Papicon icon="shield" size={12} class="mr-1" />
-                  Tuteur
-                </span>
-              {/if}
-              {#if caseData?.profile?.staffGrade}
-                <span class="badge bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 dark:border-amber-400/20 shadow-sm animate-in zoom-in-95 duration-500">
-                  <Papicon icon="star" size={12} class="mr-1" />
-                  {caseData?.profile?.staffGrade}
-                </span>
-              {/if}
-              {#if userId}
-                <a
-                  href="/profile/{userId}"
-                  class="inline-flex items-center gap-1.5 rounded-lg bg-white/15 backdrop-blur-md px-3 py-1.5 text-[10px] font-black text-white/80 uppercase tracking-widest transition-all hover:bg-white/25 hover:text-white hover:scale-[1.02] active:scale-[0.98] shadow-sm ml-auto"
-                >
-                  <Papicon icon="external-link" size={14} />
-                  Profil
-                </a>
-              {/if}
+      <!-- Avatar + Identity block -->
+      <div class="relative z-10 flex items-end gap-5 px-8 pb-5 pt-20">
+        <div class="relative shrink-0">
+          <div class="absolute -inset-1.5 rounded-3xl bg-white/20 blur-lg animate-pulse"></div>
+          {#if caseData?.profile?.avatarUrl}
+            <img
+              src={caseData?.profile?.avatarUrl}
+              alt="Avatar"
+              class="relative h-20 w-20 rounded-2xl border-4 border-(--surface-container-lowest) object-cover shadow-2xl"
+            />
+          {:else}
+            <div class="relative flex h-20 w-20 items-center justify-center rounded-2xl border-4 border-(--surface-container-lowest) bg-(--surface-container-high) text-2xl font-black text-primary shadow-2xl">
+              {userName.slice(0, 1).toUpperCase()}
             </div>
+          {/if}
+          <!-- Presence indicator -->
+          <div class="absolute -bottom-1 -right-1 h-5 w-5 rounded-full border-3 border-(--surface-container-lowest) {getPresenceColor(caseData?.profile?.presenceStatus)}" title={getPresenceLabel(caseData?.profile?.presenceStatus)}></div>
+        </div>
+
+        <div class="min-w-0 pb-1">
+          <h3 id="member-case-title" class="text-2xl font-black text-on-surface tracking-tight truncate font-headline">
+            {caseData?.profile?.displayName || caseData?.profile?.globalName || userName}
+          </h3>
+          <div class="mt-1 flex flex-wrap items-center gap-2">
+            <span class="text-sm font-semibold text-on-surface-variant/80">
+              @{caseData?.profile?.username || userName}
+            </span>
+            {#if caseData?.profile?.isBot}
+              <span class="badge badge-info">Bot</span>
+            {/if}
+            {#if caseData?.profile?.pronouns}
+              <span class="badge badge-neutral">{caseData?.profile?.pronouns}</span>
+            {/if}
+            <span class="badge badge-neutral">
+              <span class="h-2 w-2 rounded-full {getPresenceColor(caseData?.profile?.presenceStatus)}"></span>
+              {getPresenceLabel(caseData?.profile?.presenceStatus)}
+            </span>
+            {#if caseData?.profile?.isTutor}
+              <span class="badge bg-indigo-500/15 text-indigo-400 border border-indigo-500/30 shadow-sm animate-in zoom-in-95 duration-500">
+                <Papicon icon="shield" size={12} class="mr-1" />
+                Tuteur
+              </span>
+            {/if}
+            {#if caseData?.profile?.staffGrade}
+              <span class="badge bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 dark:border-amber-400/20 shadow-sm animate-in zoom-in-95 duration-500">
+                <Papicon icon="star" size={12} class="mr-1" />
+                {caseData?.profile?.staffGrade}
+              </span>
+            {/if}
+            {#if userId}
+              <a
+                href="/profile/{userId}"
+                class="inline-flex items-center gap-1.5 rounded-lg bg-white/15 backdrop-blur-md px-3 py-1.5 text-[10px] font-black text-white/80 uppercase tracking-widest transition-all hover:bg-white/25 hover:text-white hover:scale-[1.02] active:scale-[0.98] shadow-sm ml-auto"
+              >
+                <Papicon icon="external-link" size={14} />
+                Profil
+              </a>
+            {/if}
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- ── Tab Navigation ────────────────────────────────────── -->
-      <div class="px-6 pt-4 pb-2">
-        <div class="tab-group overflow-x-auto">
-          {#each tabs as tab}
-            <button
-              type="button"
-              onclick={() => activeTab = tab.id}
+    <!-- ── Tab Navigation ────────────────────────────────────── -->
+    <div class="px-6 pt-4 pb-2">
+      <div class="tab-group overflow-x-auto">
+        {#each tabs as tab}
+          <button
+            type="button"
+            onclick={() => activeTab = tab.id}
               class="tab-button {activeTab === tab.id ? 'active' : ''}"
             >
               <Papicon icon={tab.icon} size={16} />
@@ -1949,6 +1945,5 @@
       </div>
     {/if}
 
-  </div>
-{/if}
+</Modal>
 

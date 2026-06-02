@@ -3,12 +3,13 @@
   import { router } from 'tinro';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
-  import { 
-    API_BASE_URL, 
-    fetchGuildState, 
+  import { toast } from '../lib/stores/toast.svelte';
+  import {
+    API_BASE_URL,
+    fetchGuildState,
     fetchDiscordChannels,
-    fetchPolls, 
-    toggleTutorStatus, 
+    fetchPolls,
+    toggleTutorStatus,
     fetchStaffWarnings,
     fetchFeatureConfigurations,
     updateFeatureConfiguration,
@@ -475,7 +476,7 @@
       staffRoles = nextRoles.map((role, index) => ({ ...role, sortOrder: index }));
     } catch (err) {
       console.error("Erreur lors de la mise à jour de la hiérarchie du rôle:", err);
-      alert("Erreur lors de la mise à jour de la hiérarchie: " + (err instanceof Error ? err.message : String(err)));
+      toast.error("Erreur lors de la mise à jour de la hiérarchie: " + (err instanceof Error ? err.message : String(err)));
       await loadStaffRoles();
     }
   }
@@ -501,7 +502,7 @@
         await updateRoleHierarchyOnServer(sourceRoleId, targetHierarchyId);
       } catch (err) {
         console.error("Erreur lors de la mise à jour de la hiérarchie du rôle:", err);
-        alert("Erreur lors de la mise à jour de la hiérarchie: " + (err instanceof Error ? err.message : String(err)));
+        toast.error("Erreur lors de la mise à jour de la hiérarchie: " + (err instanceof Error ? err.message : String(err)));
         await loadStaffRoles();
         return;
       }
@@ -533,7 +534,7 @@
       await loadStaffRoles();
     } catch (err) {
       console.error('Erreur réordonnancement rôles staff:', err);
-      alert('Erreur lors de la mise à jour de l\'ordre des rôles');
+      toast.error('Erreur lors de la mise à jour de l\'ordre des rôles');
       await loadStaffRoles();
     } finally {
       isSavingRoleOrder = false;
@@ -848,7 +849,7 @@
     if (!guildId || !authStore.token || !newPollTitle.trim()) return;
     const filteredOptions = newPollOptions.filter(o => o.trim() !== '');
     if (filteredOptions.length < 2) {
-      alert('Il faut au moins 2 options valides');
+      toast.warning('Il faut au moins 2 options valides');
       return;
     }
     isSavingPoll = true;
@@ -874,7 +875,7 @@
       newPollClosesAt = '';
       await loadPolls();
     } catch (err) {
-      alert('Erreur lors de la création du sondage');
+      toast.error('Erreur lors de la création du sondage');
     } finally {
       isSavingPoll = false;
     }
@@ -894,7 +895,7 @@
       if (!res.ok) throw new Error('Erreur vote');
       await loadPolls();
     } catch (err) {
-      alert('Erreur lors du vote');
+      toast.error('Erreur lors du vote');
     }
   }
 
@@ -908,7 +909,7 @@
       if (!res.ok) throw new Error('Erreur clôture');
       await loadPolls();
     } catch (err) {
-      alert('Erreur lors de la clôture');
+      toast.error('Erreur lors de la clôture');
     }
   }
 
@@ -916,7 +917,7 @@
     if (!guildId || !authStore.token || !newMemberGrade) return;
 
     if (!newMemberUserId.trim()) {
-      alert('Sélectionne un membre Discord ou saisis un ID valide.');
+      toast.warning('Sélectionne un membre Discord ou saisis un ID valide.');
       return;
     }
 
@@ -949,7 +950,7 @@
       await loadStaffMembers();
     } catch (err) {
       console.error('Erreur:', err);
-      alert('Erreur lors de l\'ajout du membre');
+      toast.error('Erreur lors de l\'ajout du membre');
     }
   }
 
@@ -1001,7 +1002,7 @@
       void Promise.allSettled([loadHierarchies(), loadHierarchySchema()]);
     } catch (err) {
       console.error('Erreur lors de l\'enregistrement de la hiérarchie:', err);
-      alert('Erreur lors de l\'enregistrement de la hiérarchie');
+      toast.error('Erreur lors de l\'enregistrement de la hiérarchie');
     } finally {
       isSavingHierarchy = false;
     }
@@ -1013,7 +1014,7 @@
       await deleteStaffHierarchy(id, guildId);
       await Promise.all([loadHierarchies(), loadHierarchySchema(), loadStaffRoles()]);
     } catch (err) {
-      alert('Erreur lors de la suppression');
+      toast.error('Erreur lors de la suppression');
     }
   }
 
@@ -1035,7 +1036,7 @@
       importResult = res;
       await Promise.all([loadStaffMembers(), loadHierarchies(), loadHierarchySchema()]);
     } catch (err: any) {
-      alert(err.message || 'Erreur lors de l\'import');
+      toast.error(err.message || 'Erreur lors de l\'import');
     } finally {
       isImporting = false;
     }
@@ -1058,7 +1059,7 @@
       showMemberHierarchyGradeForm = false;
       await loadStaffMembers();
     } catch (err: any) {
-      alert(err.message || 'Erreur lors de l\'ajout du grade');
+      toast.error(err.message || 'Erreur lors de l\'ajout du grade');
     } finally {
       isSavingMemberHierarchyGrade = false;
     }
@@ -1070,7 +1071,7 @@
       await removeMemberHierarchyGrade(userId, hierarchyId, guildId);
       await loadStaffMembers();
     } catch (err: any) {
-      alert(err.message || 'Erreur lors du retrait');
+      toast.error(err.message || 'Erreur lors du retrait');
     }
   }
 
@@ -1082,7 +1083,7 @@
       await loadStaffMembers();
     } catch (err) {
       console.error('Erreur toggle tutor:', err);
-      alert('Erreur lors de la modification du statut tuteur');
+      toast.error('Erreur lors de la modification du statut tuteur');
     }
   }
 
@@ -1093,12 +1094,12 @@
     const currentIdx = getOrderedStaffRoles().findIndex(r => r.name === currentGrade);
     
     if (currentIdx === -1) {
-      alert('Grade introuvable dans la hiérarchie actuelle.');
+      toast.warning('Grade introuvable dans la hiérarchie actuelle.');
       return;
     }
     
     if (currentIdx >= getOrderedStaffRoles().length - 1) {
-      alert('Grade maximum atteint');
+      toast.warning('Grade maximum atteint');
       return;
     }
 
@@ -1117,7 +1118,7 @@
       if (!res.ok) throw new Error('Erreur');
       await loadStaffMembers();
     } catch (err) {
-      alert('Erreur lors de la promotion');
+      toast.error('Erreur lors de la promotion');
     }
   }
 
@@ -1128,12 +1129,12 @@
     const currentIdx = getOrderedStaffRoles().findIndex(r => r.name === currentGrade);
     
     if (currentIdx === -1) {
-      alert('Grade introuvable dans la hiérarchie actuelle.');
+      toast.warning('Grade introuvable dans la hiérarchie actuelle.');
       return;
     }
     
     if (currentIdx <= 0) {
-      alert('Grade minimum atteint');
+      toast.warning('Grade minimum atteint');
       return;
     }
 
@@ -1152,7 +1153,7 @@
       if (!res.ok) throw new Error('Erreur');
       await loadStaffMembers();
     } catch (err) {
-      alert('Erreur lors de la démotion');
+      toast.error('Erreur lors de la démotion');
     }
   }
 
@@ -1221,7 +1222,7 @@
       newRoleIsResponsable = false;
       await loadStaffRoles();
     } catch (err) {
-      alert('Erreur lors de la création du rôle');
+      toast.error('Erreur lors de la création du rôle');
     }
   }
 
@@ -1264,7 +1265,7 @@
       warnExpiresAt = '';
       await Promise.all([loadStaffMembers(), loadStaffWarnings()]);
     } catch (err) {
-      alert('Erreur lors de l\'avertissement');
+      toast.error('Erreur lors de l\'avertissement');
     }
   }
 
@@ -1284,7 +1285,7 @@
 
       await Promise.all([loadStaffMembers(), loadStaffWarnings()]);
     } catch (err) {
-      alert('Erreur lors de la suppression de l\'avertissement');
+      toast.error('Erreur lors de la suppression de l\'avertissement');
     }
   }
 
@@ -1313,7 +1314,7 @@
       blacklistEndDate = '';
       await loadStaffMembers();
     } catch (err) {
-      alert('Erreur lors de la blacklist');
+      toast.error('Erreur lors de la blacklist');
     }
   }
 
@@ -1332,7 +1333,7 @@
 
       await loadStaffMembers();
     } catch (err) {
-      alert('Erreur lors du retrait de la blacklist');
+      toast.error('Erreur lors du retrait de la blacklist');
     }
   }
 

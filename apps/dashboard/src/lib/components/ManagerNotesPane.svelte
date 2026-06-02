@@ -1,5 +1,6 @@
 <script lang="ts">
   import { authStore } from '../stores/auth.svelte';
+  import { toast } from '../stores/toast.svelte';
   import { API_BASE_URL, deleteManagerNote } from '../api';
   import type { StaffManagerNote } from '../types';
   import { onMount } from 'svelte';
@@ -52,7 +53,7 @@
       await deleteManagerNote(noteId);
       onNoteDeleted();
     } catch (err) {
-      alert('Erreur lors de la suppression');
+      toast.error('Erreur lors de la suppression');
     }
   }
 

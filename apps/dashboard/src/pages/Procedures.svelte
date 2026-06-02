@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
+  import { toast } from '../lib/stores/toast.svelte';
   import { fetchProcedures, upsertProcedure, deleteProcedure, markProcedureRead } from '../lib/api';
   import Papicon from '../lib/components/Papicon.svelte';
 
@@ -43,7 +44,7 @@
       await loadData();
       selectedProcedure = procedures.find(p => p.id === selectedProcedure.id);
     } catch (err) {
-      alert('Erreur lors du marquage comme lu');
+      toast.error('Erreur lors du marquage comme lu');
     }
   }
 
@@ -53,7 +54,7 @@
       showEditModal = false;
       await loadData();
     } catch (err) {
-      alert('Erreur lors de la sauvegarde');
+      toast.error('Erreur lors de la sauvegarde');
     }
   }
 
@@ -64,7 +65,7 @@
       await loadData();
       if (selectedProcedure?.id === id) selectedProcedure = procedures[0] || null;
     } catch (err) {
-      alert('Erreur lors de la suppression');
+      toast.error('Erreur lors de la suppression');
     }
   }
 

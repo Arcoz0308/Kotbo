@@ -2,8 +2,9 @@
   import { onMount, onDestroy } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { toast } from '../lib/stores/toast.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
-  import { 
+  import {
     API_BASE_URL,
     fetchMemberCase,
     runMemberCaseAction
@@ -272,7 +273,7 @@
       // Reload actual messages
       await loadTicketDetail(selectedTicketId, false);
     } catch (err: any) {
-      alert(err.message || 'Une erreur est survenue');
+      toast.error(err.message || 'Une erreur est survenue');
     }
   }
 
@@ -288,7 +289,7 @@
       await loadTicketDetail(selectedTicketId, false);
       await loadTicketsAndConfig();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   }
 
@@ -310,7 +311,7 @@
       await loadTicketDetail(selectedTicketId, false);
       await loadTicketsAndConfig();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   }
 
@@ -349,7 +350,7 @@
       await loadTicketDetail(selectedTicketId, false);
       await loadTicketsAndConfig();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   }
 
@@ -369,7 +370,7 @@
       messages = [];
       await loadTicketsAndConfig();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   }
 

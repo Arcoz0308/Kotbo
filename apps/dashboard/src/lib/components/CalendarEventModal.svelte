@@ -1,13 +1,19 @@
 <script lang="ts">
   import Papicon from './Papicon.svelte';
   import ActionButton from './ActionButton.svelte';
+  import Modal from './Modal.svelte';
 
-  let { 
-    show = false, 
-    event = null, 
+  let {
+    show = false,
+    event = null,
     onClose = () => {},
     extraActions = null
-  } = $props();
+  } = $props<{
+    show?: boolean;
+    event?: any;
+    onClose?: (e?: any) => void;
+    extraActions?: any;
+  }>();
 
   function formatDate(date: Date) {
     return new Date(date).toLocaleString('fr-FR', {
@@ -53,30 +59,25 @@
 </script>
 
 {#if show && event}
-  <div class="fixed inset-0 z-110 flex items-center justify-center p-4">
-    <div 
-      class="absolute inset-0 bg-black/60 backdrop-blur-sm" 
-      onclick={onClose}
-      onkeydown={(e) => e.key === 'Escape' && onClose()}
-      role="button"
-      tabindex="-1"
-    ></div>
-    
-    <div class="relative w-full max-w-lg max-h-[90vh] bg-surface-container-lowest rounded-[2.5rem] shadow-2xl overflow-hidden border border-outline-variant/30 flex flex-col animate-in fade-in zoom-in duration-300">
-      <!-- Header -->
-      <header class="p-8 border-b border-outline-variant/30 {event.type === 'absence' ? 'bg-amber-500/10' : event.type === 'vocal' ? 'bg-primary/10' : 'bg-emerald-500/10'} flex items-center justify-between shrink-0">
+  <Modal
+    open={show}
+    onClose={onClose}
+    title={event.type === 'absence' ? 'Détails Absence' : event.type === 'vocal' ? 'Activité Vocale' : 'Réunion Staff'}
+    size="lg"
+    showCloseButton={false}
+  >
+    <div class="flex flex-col h-full">
+      <!-- Custom header with icon -->
+      <header class="p-8 border-b border-outline-variant/30 {event.type === 'absence' ? 'bg-amber-500/10' : event.type === 'vocal' ? 'bg-primary/10' : 'bg-emerald-500/10'} flex items-center justify-between shrink-0 -mt-6 -mx-6">
         <div class="flex items-center gap-4">
           <div class="w-14 h-14 {event.type === 'absence' ? 'bg-amber-500 shadow-amber-500/20' : event.type === 'vocal' ? 'bg-primary shadow-primary/20' : 'bg-emerald-500 shadow-emerald-500/20'} rounded-2xl flex items-center justify-center shadow-lg">
-            <Papicon 
-              icon={event.type === 'absence' ? 'calendar-off' : event.type === 'vocal' ? 'mic' : 'users'} 
-              size={28} 
-              class="text-white" 
+            <Papicon
+              icon={event.type === 'absence' ? 'calendar-off' : event.type === 'vocal' ? 'mic' : 'users'}
+              size={28}
+              class="text-white"
             />
           </div>
           <div>
-            <h3 class="text-2xl font-black text-on-surface">
-              {event.type === 'absence' ? 'Détails Absence' : event.type === 'vocal' ? 'Activité Vocale' : 'Réunion Staff'}
-            </h3>
             <div class="flex items-center gap-2 mt-1">
               {#if event.avatarUrl}
                 <img src={event.avatarUrl} alt="" class="w-5 h-5 rounded-full" />
@@ -207,17 +208,17 @@
       </div>
 
       <!-- Footer -->
-      <footer class="p-8 border-t border-outline-variant/30 bg-surface-container-lowest flex items-center justify-end gap-4 shrink-0">
+      <footer class="p-8 border-t border-outline-variant/30 bg-surface-container-lowest flex items-center justify-end gap-4 shrink-0 -mx-6 -mb-6">
         {#if extraActions}
           {@render extraActions()}
         {/if}
-        <ActionButton 
-          variant="surface" 
-          onClick={onClose} 
-          label="Fermer" 
+        <ActionButton
+          variant="muted"
+          onClick={onClose}
+          label="Fermer"
         />
       </footer>
     </div>
-  </div>
+  </Modal>
 {/if}
 

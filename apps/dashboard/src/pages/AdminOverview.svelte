@@ -1,21 +1,22 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { 
-    fetchAdminStats, 
-    fetchAdminGuilds, 
+  import { toast } from '../lib/stores/toast.svelte';
+  import {
+    fetchAdminStats,
+    fetchAdminGuilds,
     fetchAdminShards,
-    fetchAdminGuildInvite, 
-    leaveAdminGuild, 
-    fetchGlobalAdmins, 
-    addGlobalAdmin, 
-    removeGlobalAdmin, 
-    fetchGlobalBlacklist, 
-    addGlobalBlacklist, 
-    removeGlobalBlacklist, 
-    fetchMaintenanceConfig, 
-    updateMaintenanceConfig, 
-    fetchBotErrors, 
-    clearBotErrors, 
+    fetchAdminGuildInvite,
+    leaveAdminGuild,
+    fetchGlobalAdmins,
+    addGlobalAdmin,
+    removeGlobalAdmin,
+    fetchGlobalBlacklist,
+    addGlobalBlacklist,
+    removeGlobalBlacklist,
+    fetchMaintenanceConfig,
+    updateMaintenanceConfig,
+    fetchBotErrors,
+    clearBotErrors,
     sendGlobalBroadcast,
     fetchActivationCodes,
     createActivationCode,
@@ -34,7 +35,6 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import MetricCard from '../lib/components/MetricCard.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
-  import { toast } from '../lib/stores/toast.svelte';
 
   type BannedWordEntry = {
     id: string;
@@ -236,7 +236,7 @@
         window.open(data.url, '_blank');
       }
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message);
     }
   }
 
@@ -247,7 +247,7 @@
       guilds = guilds.filter(g => g.id !== guildId);
       stats.guildCount--;
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message);
     }
   }
 
@@ -260,7 +260,7 @@
       const data = await fetchGlobalAdmins();
       globalAdmins = data.admins;
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message);
     }
   }
 
@@ -270,7 +270,7 @@
       await removeGlobalAdmin(userId);
       globalAdmins = globalAdmins.filter(a => a.userId !== userId);
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message);
     }
   }
 
@@ -278,7 +278,7 @@
     try {
       await updateMaintenanceConfig(!maintenanceMode);
       maintenanceMode = !maintenanceMode;
-    } catch (err) { alert(err.message); }
+    } catch (err) { toast.error(err.message); }
   }
 
   async function handleAddBlacklist(e) {
@@ -290,7 +290,7 @@
       newBlacklistReason = '';
       const data = await fetchGlobalBlacklist();
       globalBlacklist = data.blacklist;
-    } catch (err) { alert(err.message); }
+    } catch (err) { toast.error(err.message); }
   }
 
   async function handleRemoveBlacklist(userId) {
@@ -298,7 +298,7 @@
     try {
       await removeGlobalBlacklist(userId);
       globalBlacklist = globalBlacklist.filter(b => b.userId !== userId);
-    } catch (err) { alert(err.message); }
+    } catch (err) { toast.error(err.message); }
   }
 
   function normalizeGlobalWordValue(value: string) {
@@ -444,7 +444,7 @@
       toast.success(`Mots globaux mis à jour (${result.createdCount ?? 0} créés, ${result.updatedCount ?? 0} mis à jour).`);
       resetGlobalImport();
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message);
     } finally {
       globalImportLoading = false;
     }
@@ -517,7 +517,7 @@
       await deleteGlobalBannedWord(entry.id);
       globalBannedWords = globalBannedWords.filter((word) => word.id !== entry.id);
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message);
     }
   }
 
@@ -533,7 +533,7 @@
       globalBannedWordsPage = 1;
       toast.success(`Nettoyage terminé: ${result.cleanedCount ?? 0} mot(s) conservé(s), ${result.duplicateCount ?? 0} doublon(s) supprimé(s).`);
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message);
     } finally {
       globalCleanupLoading = false;
     }
@@ -546,8 +546,8 @@
     try {
       const res = await sendGlobalBroadcast(broadcastMessage.trim());
       broadcastMessage = '';
-      alert(`Broadcast envoyé !\nSuccès : ${res.successCount} serveurs\nÉchecs : ${res.failCount} serveurs`);
-    } catch (err) { alert(err.message); }
+      toast.success(`Broadcast envoyé ! Succès : ${res.successCount} serveurs, Échecs : ${res.failCount} serveurs`);
+    } catch (err) { toast.error(err.message); }
   }
 
   async function handleClearErrors() {
@@ -555,7 +555,7 @@
     try {
       await clearBotErrors();
       botErrors = [];
-    } catch (err) { alert(err.message); }
+    } catch (err) { toast.error(err.message); }
   }
 
   async function handleGenerateCode() {
@@ -564,7 +564,7 @@
       toast.success(`Nouveau code généré : ${newCode.code}`);
       await loadActivationCodes();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   }
 
@@ -586,7 +586,7 @@
         guilds = guildsData.guilds;
       }
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   }
 
@@ -600,7 +600,7 @@
       guilds = guildsData.guilds;
       await loadActivationCodes();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   }
 
@@ -614,7 +614,7 @@
       guilds = guildsData.guilds;
       await loadActivationCodes();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   }
 
