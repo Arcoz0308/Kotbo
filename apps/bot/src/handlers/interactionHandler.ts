@@ -127,6 +127,30 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
+  // ── Suggestion form button ───────────────────────────────────────────
+  if (customId === 'suggest_form_open') {
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = await import('discord.js');
+    
+    const modal = new ModalBuilder()
+      .setCustomId('suggest_form_modal')
+      .setTitle('💡 Soumettre une suggestion');
+
+    const suggestionInput = new TextInputBuilder()
+      .setCustomId('suggestion_content')
+      .setLabel('Votre suggestion')
+      .setStyle(TextInputStyle.Paragraph)
+      .setPlaceholder('Décrivez votre suggestion en détail...')
+      .setRequired(true)
+      .setMaxLength(1000)
+      .setMinLength(10);
+
+    const row = new ActionRowBuilder<TextInputBuilder>().addComponents(suggestionInput);
+    modal.addComponents(row);
+
+    await interaction.showModal(modal);
+    return;
+  }
+
   const caseRoute = parseUserCaseRoute(customId);
   if (caseRoute) {
     if (!guildId) {
@@ -653,6 +677,33 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
 export async function handleModalSubmit(interaction: ModalSubmitInteraction, client: Client): Promise<void> {
   const { customId, guildId } = interaction;
   if (!guildId) return;
+
+  // ── Suggestion form modal ─────────────────────────────────────────────
+  if (customId === 'suggest_form_modal') {
+    const content = interaction.fields.getTextInputValue('suggestion_content');
+    
+    try {
+      const { createSuggestion } = await import('../services/suggestionService.js');
+      const suggestion = await createSuggestion(
+        guildId,
+        interaction.user.id,
+        interaction.user.username,
+        content,
+        client
+      );
+      
+      await interaction.reply({
+        content: `💡 Votre suggestion a été publiée avec succès ! (ID : \`${suggestion.id}\`)`,
+        flags: [MessageFlags.Ephemeral],
+      });
+    } catch (err: any) {
+      await interaction.reply({
+        content: `❌ Impossible de publier la suggestion : ${err?.message || 'erreur inconnue'}`,
+        flags: [MessageFlags.Ephemeral],
+      });
+    }
+    return;
+  }
 
   if (customId === 'modal:resignation:open') {
     const reason = interaction.fields.getTextInputValue('reason');

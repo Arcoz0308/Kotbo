@@ -82,6 +82,7 @@ import * as sayCmd from './commands/say.js';
 import * as rankCmd from './commands/rank.js';
 import * as giveawayCmd from './commands/giveaway.js';
 import * as suggestCmd from './commands/suggest.js';
+import * as suggestionConfigCmd from './commands/suggestion-config.js';
 import { registerLevelingListener } from './events/levelingEvents.js';
 import { registerWelcomeGoodbyeListener } from './events/welcomeGoodbyeEvents.js';
 import { registerAutoModListener } from './events/autoModEvents.js';
@@ -184,7 +185,7 @@ type SlashCommand = {
 import * as demissionCmd from './commands/demission.js';
 
 const commands = new Collection<string, SlashCommand>();
-[setupCmd, configCmd, pingCmd, infoCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd, postCmd, dailyAlgoCmd, profileCmd, profilCmd, sanctionCmd, dcCmd, rescanCmd, casierCmd, absentCmd, meetingCmd, statsCmd, invitesCmd, leaderboardCmd, serverstatsCmd, noteCmd, eventCmd, activateCmd, transcriptCmd, ticketCmd, sayCmd, demissionCmd, rankCmd, giveawayCmd, suggestCmd].forEach((cmd) => {
+[setupCmd, configCmd, pingCmd, infoCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd, postCmd, dailyAlgoCmd, profileCmd, profilCmd, sanctionCmd, dcCmd, rescanCmd, casierCmd, absentCmd, meetingCmd, statsCmd, invitesCmd, leaderboardCmd, serverstatsCmd, noteCmd, eventCmd, activateCmd, transcriptCmd, ticketCmd, sayCmd, demissionCmd, rankCmd, giveawayCmd, suggestCmd, suggestionConfigCmd].forEach((cmd) => {
   commands.set(cmd.data.name, cmd as SlashCommand);
 });
 commands.set(noteCmd.contextData.name, noteCmd as unknown as SlashCommand);
