@@ -17,7 +17,7 @@
 > [!IMPORTANT]
 > **Open Source mais Activation Restreinte (Usage Privé)**
 > 
-> Bien que le code source de Kotbo soit public et en libre consultation pour des raisons d'audit et de transparence, l'instance officielle du bot est **strictement réservée et exploitable uniquement par son créateur ([Elouan](https://github.com/Klaynight))**.
+> Bien que le code source de Kotbo soit public et en libre consultation pour des raisons d'audit et de transparence, l'instance officielle du bot est **strictement réservée et exploitable uniquement par son créateur ([Klayniht](https://github.com/Klaynight-dev))**.
 > 
 > Pour pouvoir ajouter et utiliser Kotbo sur un serveur Discord, celui-ci doit être explicitement activé en base de données.
 > - **Processus d'activation** : Une fois le bot invité, toutes ses fonctionnalités restent bloquées. L'administrateur du serveur doit exécuter la commande slash `/activate <code>` en fournissant un code d'activation à usage unique.
