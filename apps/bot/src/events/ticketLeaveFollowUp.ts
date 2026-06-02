@@ -14,14 +14,6 @@ import { logger } from '../utils/logger.js';
 export function registerTicketLeaveFollowUpListener(client: Client): void {
   client.on(Events.GuildMemberRemove, async (member) => {
     try {
-      const guildConfig = await prisma.guild.findUnique({
-        where: { id: member.guild.id },
-        select: {
-          ticketStaffRoleId: true,
-          moderatorRoleId: true,
-        },
-      });
-
       const tickets = await prisma.ticket.findMany({
         where: {
           guildId: member.guild.id,
@@ -32,6 +24,14 @@ export function registerTicketLeaveFollowUpListener(client: Client): void {
       });
 
       if (tickets.length === 0) return;
+
+      const guildConfig = await prisma.guild.findUnique({
+        where: { id: member.guild.id },
+        select: {
+          ticketStaffRoleId: true,
+          moderatorRoleId: true,
+        },
+      });
 
       for (const ticket of tickets) {
         if (!ticket.channelId) continue;

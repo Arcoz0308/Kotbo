@@ -350,29 +350,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
         await cache.invalidateGuild(interaction.guildId);
       }
 
-      // Track command usage for analytics
+      // Track command usage for analytics (buffered)
       try {
-        await prisma.dashboardCommandUsage.upsert({
-          where: {
-            guildId_commandName_userId: {
-              guildId: interaction.guildId || 'DM',
-              commandName: interaction.commandName,
-              userId: interaction.user.id
-            }
-          },
-          update: {
-            count: { increment: 1 },
-            lastUsedAt: new Date()
-          },
-          create: {
-            guildId: interaction.guildId || 'DM',
-            commandName: interaction.commandName,
-            userId: interaction.user.id,
-            count: 1
-          }
-        });
+        const usageKey = `${interaction.guildId || 'DM'}:${interaction.commandName}:${interaction.user.id}`;
+        commandUsageBuffer.set(usageKey, (commandUsageBuffer.get(usageKey) || 0) + 1);
       } catch (e) {
-        logger.error('Analytics', 'Erreur lors du tracking de commande', e);
+        logger.error('Analytics', 'Erreur lors de la mise en buffer de commande', e);
       }
     }
 
@@ -431,25 +414,71 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
+// ============================================================================
+// IN-MEMORY BUFFERS FOR PERFORMANCE
+// ============================================================================
+const commandUsageBuffer = new Map<string, number>();
+let errorLogBuffer: Array<{ message: string, stack: string | null, source: string }> = [];
+
+async function flushIndexBuffers() {
+  // Flush Command Usage
+  const usageEntries = [...commandUsageBuffer.entries()];
+  commandUsageBuffer.clear();
+  
+  if (usageEntries.length > 0) {
+    try {
+      const ops = usageEntries.map(([key, count]) => {
+        const [guildId, commandName, userId] = key.split(':');
+        return prisma.dashboardCommandUsage.upsert({
+          where: { guildId_commandName_userId: { guildId, commandName, userId } },
+          update: { count: { increment: count }, lastUsedAt: new Date() },
+          create: { guildId, commandName, userId, count }
+        });
+      });
+      await Promise.all(ops);
+    } catch (e) {
+      logger.error('Analytics', 'Erreur lors du flush des command usages', e);
+    }
+  }
+
+  // Flush Error Logs
+  const errorsToInsert = [...errorLogBuffer];
+  errorLogBuffer = [];
+  if (errorsToInsert.length > 0) {
+    try {
+      await prisma.botErrorLog.createMany({
+        data: errorsToInsert
+      });
+    } catch (e) {
+      logger.error('System', 'Erreur lors du flush des bot error logs', e);
+    }
+  }
+}
+
+// Flush every 5 seconds
+const flushInterval = setInterval(() => {
+  void flushIndexBuffers();
+}, 5000);
+
+process.on('beforeExit', () => {
+  clearInterval(flushInterval);
+  void flushIndexBuffers();
+});
+// ============================================================================
+
 const token = process.env.DISCORD_TOKEN;
 if (!token) {
   logger.error('Bot', 'DISCORD_TOKEN non défini dans .env !');
   process.exit(1);
 }
 
-// Global Error Logging for Dashboard
-async function logErrorToDb(error: Error, source: string) {
-  try {
-    await prisma.botErrorLog.create({
-      data: {
-        message: error.message || 'Erreur inconnue',
-        stack: error.stack?.substring(0, 4000) || null,
-        source
-      }
-    });
-  } catch (e) {
-    logger.error('System', 'Impossible de sauvegarder l\'erreur en BDD', e);
-  }
+// Global Error Logging for Dashboard (buffered)
+function logErrorToDb(error: Error, source: string) {
+  errorLogBuffer.push({
+    message: error.message || 'Erreur inconnue',
+    stack: error.stack?.substring(0, 4000) || null,
+    source
+  });
 }
 
 process.on('uncaughtException', (error) => {
