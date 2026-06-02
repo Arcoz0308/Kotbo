@@ -59,22 +59,24 @@ export function registerLevelingListener(client: Client) {
             const voiceXp = Math.floor(config.vocalXpPerMin * multiplier);
             if (voiceXp <= 0) continue;
 
-            // Ajouter aux promesses à résoudre
+            // Ajouter l'XP vocale (batching: max 50 opérations en parallèle)
             xpPromises.push(
-              addXp(guildId, member.id, voiceXp, client).catch(err => 
+              addXp(guildId, member.id, voiceXp, client).catch(err =>
                 logger.error('LevelingService', `Erreur lors de l'attribution XP vocal à ${member.id}:`, err)
               )
             );
+
+            if (xpPromises.length >= 50) {
+              await Promise.all(xpPromises);
+              xpPromises.length = 0;
+            }
           }
         }
       }
 
-      // Exécuter l'ajout d'XP par lots pour ne pas saturer la base de données
+      // Flush remaining XP updates
       if (xpPromises.length > 0) {
-        const CHUNK_SIZE = 50;
-        for (let i = 0; i < xpPromises.length; i += CHUNK_SIZE) {
-          await Promise.all(xpPromises.slice(i, i + CHUNK_SIZE));
-        }
+        await Promise.all(xpPromises);
       }
 
     } catch (err) {
