@@ -466,6 +466,23 @@ const flushInterval = setInterval(() => {
   void flushIndexBuffers();
 }, 5000);
 
+async function flushAndStop(exitCode = 0) {
+  clearInterval(flushInterval);
+  try {
+    await flushIndexBuffers();
+  } finally {
+    process.exit(exitCode);
+  }
+}
+
+process.on('SIGINT', () => {
+  void flushAndStop(0);
+});
+
+process.on('SIGTERM', () => {
+  void flushAndStop(0);
+});
+
 process.on('beforeExit', () => {
   clearInterval(flushInterval);
   void flushIndexBuffers();
