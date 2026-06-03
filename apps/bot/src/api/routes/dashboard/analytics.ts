@@ -609,6 +609,89 @@ export async function handleAnalyticsRoutes(
       });
       const retentionRate = joinedInRange > 0 ? Math.round((stayedInRange / joinedInRange) * 100) : 0;
 
+      // Fetch member join/leave timestamps for each day in the daily trend
+      const dailyJoinsLeaves = await Promise.all(
+        dailyStats.map(async (d) => {
+          const datePart = d.dateKey.split(' ')[0];
+          const dayStart = new Date(datePart + 'T00:00:00.000Z');
+          const dayEnd = new Date(datePart + 'T23:59:59.999Z');
+          
+          const [joins, leaves, inviteJoins] = await Promise.all([
+            prisma.memberProfile.findMany({
+              where: {
+                guildId,
+                isBot: false,
+                guildJoinedAt: { gte: dayStart, lte: dayEnd }
+              },
+              select: {
+                userId: true,
+                displayName: true,
+                username: true,
+                globalName: true,
+                avatarUrl: true,
+                guildJoinedAt: true
+              },
+              take: 50
+            }),
+            prisma.memberProfile.findMany({
+              where: {
+                guildId,
+                isBot: false,
+                guildLeftAt: { gte: dayStart, lte: dayEnd }
+              },
+              select: {
+                userId: true,
+                displayName: true,
+                username: true,
+                globalName: true,
+                avatarUrl: true,
+                guildLeftAt: true
+              },
+              take: 50
+            }),
+            prisma.memberInvite.findMany({
+              where: {
+                guildId,
+                joinedAt: { gte: dayStart, lte: dayEnd }
+              },
+              select: {
+                userId: true,
+                inviteCode: true,
+                inviterId: true,
+                inviterTag: true,
+                joinedAt: true,
+                leftAt: true
+              },
+              take: 50
+            })
+          ]);
+          
+          return {
+            dateKey: d.dateKey,
+            joins: joins.map(j => ({
+              userId: j.userId,
+              name: j.displayName ?? j.globalName ?? j.username ?? 'Inconnu',
+              avatarUrl: j.avatarUrl,
+              joinedAt: j.guildJoinedAt?.toISOString()
+            })),
+            leaves: leaves.map(l => ({
+              userId: l.userId,
+              name: l.displayName ?? l.globalName ?? l.username ?? 'Inconnu',
+              avatarUrl: l.avatarUrl,
+              leftAt: l.guildLeftAt?.toISOString()
+            })),
+            invites: inviteJoins.map(i => ({
+              userId: i.userId,
+              inviteCode: i.inviteCode,
+              inviterId: i.inviterId,
+              inviterTag: i.inviterTag,
+              joinedAt: i.joinedAt?.toISOString(),
+              leftAt: i.leftAt?.toISOString()
+            }))
+          };
+        })
+      );
+
       const totalMessages = dailyStats.reduce((sum, d) => sum + d.messagesCount, 0);
       const totalVoiceMinutes = dailyStats.reduce((sum, d) => sum + d.voiceMinutes, 0);
       const totalJoins = dailyStats.reduce((sum, d) => sum + d.membersJoined, 0);
@@ -727,8 +810,9 @@ export async function handleAnalyticsRoutes(
           const datePart = d.dateKey.split(' ')[0];
           const trendDate = new Date(datePart + 'T23:59:59.999Z');
           const count = clanTag 
-            ? taggedMembersList.filter(m => m.joinedAt && m.joinedAt <= trendDate).size 
+            ? taggedMembersList.filter(m => m.joinedAt && m.joinedAt <= trendDate).length 
             : 0;
+          const dayData = dailyJoinsLeaves.find(jl => jl.dateKey === d.dateKey);
           return {
             dateKey: d.dateKey,
             messages: d.messagesCount,
@@ -742,6 +826,9 @@ export async function handleAnalyticsRoutes(
             peakVoice: d.peakVoice,
             sanctions: d.sanctionsCount,
             taggedMembersCount: count,
+            memberJoins: dayData?.joins || [],
+            memberLeaves: dayData?.leaves || [],
+            invites: dayData?.invites || [],
           };
         }),
         topChannels,

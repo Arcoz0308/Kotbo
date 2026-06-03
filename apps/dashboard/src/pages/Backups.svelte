@@ -472,17 +472,17 @@
             {#if backup.createdByUserId}
               <button
                 onclick={() => openMemberCase(backup)}
-                class="text-[10px] text-on-surface-variant/50 font-bold truncate max-w-[50%] hover:text-primary transition-colors text-left cursor-pointer"
+                class="text-[10px] text-on-surface-variant/50 font-bold truncate max-w-[35%] hover:text-primary transition-colors text-left cursor-pointer"
                 title="Voir le dossier de {backup.createdByUsername}"
               >
                 Par {backup.createdByUsername}#{backup.createdByTag || '0000'}
               </button>
             {:else}
-              <p class="text-[10px] text-on-surface-variant/50 font-bold truncate max-w-[50%]">
+              <p class="text-[10px] text-on-surface-variant/50 font-bold truncate max-w-[35%]">
                 Par {backup.createdByUsername}#{backup.createdByTag || '0000'}
               </p>
             {/if}
-            <div class="flex gap-2">
+            <div class="flex gap-2 shrink-0">
               <ActionButton onClick={() => handleExportBackup(backup)} variant="muted" size="sm" label="Exporter" icon="download" />
               {#if canManageBackups}
                 <ActionButton onClick={() => { selectedBackup = backup; showRestoreModal = true; }} variant="muted" size="sm" label="Restaurer" icon="rotate-ccw" />
