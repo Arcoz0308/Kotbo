@@ -137,6 +137,9 @@ model Guild {
   dashboardFeatureConfigs DashboardFeatureConfig[]
   logEventConfigs GuildLogEventConfig[]
   events Event[]
+  moduleActivationStats ModuleActivationStat[]
+  moduleUsageStats ModuleUsageStat[]
+  modulePerformanceStats ModulePerformanceStat[]
 
   ticketCategoryId       String?
   ticketLogChannelId     String?
@@ -146,6 +149,7 @@ model Guild {
   ticketEmbedDesc        String   @default("Cliquez sur le bouton ci-dessous pour ouvrir un ticket d'assistance.")
   ticketEmbedButtonText  String   @default("Ouvrir un ticket")
   ticketEmbedColor       String   @default("#5865F2")
+  ticketEmbedType        String   @default("BUTTONS") // "BUTTONS" or "DROPDOWN"
   ticketTypes             Json?
   ticketAllowOverclaim        Boolean  @default(true)
   ticketOverclaimPermission   String   @default("ANY") // "ANY", "SUPERIOR_OR_EQUAL", "NONE"
@@ -168,6 +172,9 @@ model Guild {
   honeypotEnabled         Boolean  @default(false)
   honeypotChannelId       String?
   honeypotSanction        SanctionType @default(TIMEOUT)
+
+  // Backup system
+  backups ServerBackup[]
 
   @@map("guilds")
 }
@@ -2055,4 +2062,148 @@ model Suggestion {
   updatedAt DateTime @updatedAt
 
   @@map("suggestions")
+}
+
+// ============================================================================
+// MODULE STATISTICS - STATISTIQUES GLOBALES DES MODULES KOTBO
+// ============================================================================
+
+model ModuleActivationStat {
+  id String @id @default(cuid())
+
+  guildId String? // null = global (tous serveurs)
+  moduleName String // ex: "dailyAlgo", "sanction", "ticket", etc.
+  enabled Boolean @default(false)
+
+  // Configuration spécifique au module
+  config Json? // Pour stocker des configs spécifiques
+
+  guild Guild? @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  activatedAt DateTime?
+  deactivatedAt DateTime?
+  lastUsedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, moduleName])
+  @@index([guildId, enabled])
+  @@index([moduleName, enabled])
+  @@map("module_activation_stats")
+}
+
+model ModuleUsageStat {
+  id String @id @default(cuid())
+
+  guildId String? // null = global
+  moduleName String
+  dateKey String // YYYY-MM-DD
+
+  // Compteurs d'utilisation
+  commandExecutions Int @default(0)
+  apiCalls Int @default(0)
+  eventTriggers Int @default(0)
+
+  // Détails par type d'action
+  actionBreakdown Json? // { "create": 10, "update": 5, "delete": 2 }
+
+  // Utilisateurs uniques
+  uniqueUsers Int @default(0)
+  topUsers Json? // Array of { userId, count }
+
+  guild Guild? @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, moduleName, dateKey])
+  @@index([guildId, dateKey])
+  @@index([moduleName, dateKey])
+  @@map("module_usage_stats")
+}
+
+model ModulePerformanceStat {
+  id String @id @default(cuid())
+
+  guildId String? // null = global
+  moduleName String
+  dateKey String // YYYY-MM-DD
+
+  // Performance
+  avgExecutionTimeMs Float @default(0)
+  maxExecutionTimeMs Float @default(0)
+  minExecutionTimeMs Float @default(0)
+  totalExecutions Int @default(0)
+
+  // Erreurs
+  errorCount Int @default(0)
+  errorRate Float @default(0) // percentage
+  errorTypes Json? // { "timeout": 5, "permission": 2, etc. }
+
+  // Succès
+  successCount Int @default(0)
+  successRate Float @default(0) // percentage
+
+  guild Guild? @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, moduleName, dateKey])
+  @@index([guildId, dateKey])
+  @@index([moduleName, dateKey])
+  @@map("module_performance_stats")
+}
+
+// ============================================================================
+// SERVER BACKUP SYSTEM - SYSTÈME DE SAUVEGARDE DE SERVEUR
+// ============================================================================
+
+model ServerBackup {
+  id String @id @default(cuid())
+
+  guildId String
+  name String // Nom personnalisé ou auto-généré
+  description String? // Description optionnelle
+
+  // Données du backup (JSON)
+  data Json // Contient: roles, channels, permissions, emojis, stickers, members, etc.
+
+  // Options de backup
+  includeMessages Boolean @default(false)
+  includeMembers Boolean @default(true)
+  includeRoles Boolean @default(true)
+  includeChannels Boolean @default(true)
+  includeEmojis Boolean @default(true)
+  includeStickers Boolean @default(true)
+
+  // Métadonnées
+  createdByUserId String
+  createdByUsername String
+  createdByTag String?
+  serverName String // Nom du serveur au moment du backup
+  serverIcon String? // URL de l'icône du serveur
+
+  sizeBytes Int @default(0) // Taille du backup en octets
+
+  // Statistiques
+  rolesCount Int @default(0)
+  channelsCount Int @default(0)
+  membersCount Int @default(0)
+  messagesCount Int @default(0)
+  emojisCount Int @default(0)
+  stickersCount Int @default(0)
+
+  isPreset Boolean @default(false) // Si c'est un preset importable
+  presetTags String[] @default([]) // Tags pour les presets (ex: "gaming", "community")
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, createdAt])
+  @@index([guildId, isPreset])
+  @@map("server_backups")
 }

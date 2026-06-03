@@ -10,6 +10,7 @@ import { runActivitySnapshot } from './advancedLogs.js';
 import { enqueueBackgroundJob, registerBackgroundJobHandlers, type BackgroundJobName } from '../infra/queues/backgroundQueue.js';
 import { checkYoutubeFollows } from '../services/youtubeService.js';
 import { checkTwitchFollows } from '../services/twitchService.js';
+import { initializeDatabaseBackup, performDatabaseBackup } from '../services/databaseBackupService.js';
 
 const runningJobs = new Set<string>();
 
@@ -95,6 +96,9 @@ async function expireStaffBlacklist(): Promise<void> {
 }
 
 export async function registerCrons(client: Client): Promise<void> {
+  // Initialiser le backup automatique de la base de données
+  initializeDatabaseBackup();
+
   registerBackgroundJobHandlers({
     'daily-algo': async () => {
       const now = new Date();

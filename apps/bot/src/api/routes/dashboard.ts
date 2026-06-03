@@ -21,6 +21,7 @@ import { handleLeadershipRoutes, handleGuildLeadershipRoutes } from './dashboard
 import { handleModulesRoutes } from './dashboard/modules.js';
 import { handleEventsRoutes } from './dashboard/events.js';
 import { handleGeneralistModulesRoutes } from './dashboard/generalistModules.js';
+import { handleBackupRoutes } from './dashboard/backups.js';
 
 export async function handleDashboardRoutes(
   req: IncomingMessage,
@@ -157,6 +158,10 @@ export async function handleDashboardRoutes(
       return true;
     }
     if (await handleEventsRoutes(req, res, parts, url, client, user, guildId, access)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
+      return true;
+    }
+    if (await handleBackupRoutes(req, res, parts, url, client, user)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }

@@ -5,7 +5,7 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
-  import { fetchChannelsManagementConfig, updateChannelsManagementConfig } from '../lib/api';
+  import { fetchChannelsManagementConfig, updateChannelsManagementConfig, rescanChannelsManagementStats } from '../lib/api';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
 
@@ -52,6 +52,15 @@
   let searchQuery = $state('');
 
   const saveAction = createAsyncActionState();
+  const rescanAction = createAsyncActionState();
+
+  async function handleRescanStats(force: boolean) {
+    await rescanAction.run(async () => {
+      const res = await rescanChannelsManagementStats({ force });
+      if (!res || !res.ok) throw new Error(res?.error || 'Erreur lors du lancement du scan');
+      return true;
+    }, { successMessage: 'Scraping historique lancé avec succès en arrière-plan.' });
+  }
 
   const availableChannels = $derived((dashboardStore.state.discordChannels || []) as any[]);
   const availableVoiceChannels = $derived((dashboardStore.state.discordVoiceChannels || []) as any[]);
@@ -327,6 +336,8 @@
       {:else if activeTab === 'stats'}
         <!-- STATS CHANNELS TAB -->
         <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
+          <InlineFeedback message={rescanAction.state.message} error={rescanAction.state.error} />
+
           <div class="flex items-center justify-between">
             <div>
               <h3 class="text-xl font-black flex items-center gap-3">
@@ -368,6 +379,43 @@
                   class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-2xl transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Créer la catégorie
+                </button>
+              </div>
+            </div>
+
+            <!-- Historical Scraping Trigger -->
+            <div class="p-6 bg-primary/5 border border-primary/20 rounded-4xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div class="space-y-1">
+                <h4 class="text-sm font-black flex items-center gap-2 text-primary">
+                  <Papicon icon="history" size={16} />
+                  Reconstruire les Statistiques Historiques
+                </h4>
+                <p class="text-xs text-on-surface-variant/60">
+                  Scrapper tous les messages passés de vos salons textuels pour générer les graphiques d'activité sur le dashboard.
+                </p>
+              </div>
+              <div class="flex gap-2 w-full md:w-auto">
+                <button
+                  type="button"
+                  onclick={async () => {
+                    await handleRescanStats(false);
+                  }}
+                  disabled={rescanAction.state.loading || loading}
+                  class="px-5 py-3 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold rounded-2xl transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed flex-1 md:flex-none"
+                >
+                  Lancer le Scan
+                </button>
+                <button
+                  type="button"
+                  onclick={async () => {
+                    if (confirm("Attention : Cela écrasera et recalculera toutes les statistiques existantes du serveur. Continuer ?")) {
+                      await handleRescanStats(true);
+                    }
+                  }}
+                  disabled={rescanAction.state.loading || loading}
+                  class="px-5 py-3 bg-error/10 hover:bg-error/20 text-error border border-error/20 text-xs font-bold rounded-2xl transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed flex-1 md:flex-none"
+                >
+                  Forcer le Re-scan
                 </button>
               </div>
             </div>

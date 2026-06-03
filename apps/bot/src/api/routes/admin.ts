@@ -1,8 +1,14 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client, TextChannel, EmbedBuilder } from 'discord.js';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { activateGuild, deactivateGuild } from '../../utils/activation.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const servicePath = path.resolve(__dirname, '../../services/messageScraperService.js');
 import {
   json,
   verifyAuth,
@@ -24,6 +30,13 @@ import {
   ShardingMode,
   ShardingConfig,
 } from '../shared.js';
+import {
+  getModuleActivationStats,
+  getModuleUsageStats,
+  getModulePerformanceStats,
+  getModuleStatsSummary,
+  KOTBO_MODULES,
+} from '../../services/moduleStatsService.js';
 
 export async function handleAdminRoutes(
   req: IncomingMessage,
@@ -81,6 +94,40 @@ export async function handleAdminRoutes(
     return true;
   }
 
+  // GET /api/admin/stats/modules - Module statistics
+  if (parts[2] === 'stats' && parts[3] === 'modules' && method === 'GET') {
+    try {
+      const guildId = url.searchParams.get('guildId') || undefined;
+      const moduleName = url.searchParams.get('moduleName') as any || undefined;
+      const startDate = url.searchParams.get('startDate') || undefined;
+      const endDate = url.searchParams.get('endDate') || undefined;
+      const periodDays = url.searchParams.get('period') ? parseInt(url.searchParams.get('period')!) : 30;
+      const summary = url.searchParams.get('summary') === 'true';
+
+      if (summary) {
+        const data = await getModuleStatsSummary({ guildId, periodDays });
+        json(res, 200, data);
+      } else {
+        const [activation, usage, performance] = await Promise.all([
+          getModuleActivationStats(guildId),
+          getModuleUsageStats({ guildId, moduleName, startDate, endDate, periodDays }),
+          getModulePerformanceStats({ guildId, moduleName, startDate, endDate, periodDays }),
+        ]);
+
+        json(res, 200, {
+          modules: KOTBO_MODULES,
+          activation,
+          usage,
+          performance,
+        });
+      }
+    } catch (err) {
+      logger.error('AdminAPI', 'Error fetching module stats:', err);
+      json(res, 500, { error: 'Erreur interne du serveur' });
+    }
+    return true;
+  }
+
   // GET /api/admin/guilds
   if (parts[2] === 'guilds' && parts.length === 3 && method === 'GET') {
     try {
@@ -89,6 +136,7 @@ export async function handleAdminRoutes(
           id: true,
           activated: true,
           activationCode: true,
+          statsConfig: true,
         }
       });
       const dbGuildsMap = new Map(dbGuilds.map((guild) => [guild.id, guild] as const));
@@ -104,6 +152,7 @@ export async function handleAdminRoutes(
           joinedAt: g.joinedAt,
           activated: dbGuild?.activated ?? false,
           activationCode: dbGuild?.activationCode ?? null,
+          statsConfig: dbGuild?.statsConfig ?? null,
           shardId: g.shardId ?? 0,
         };
       });
@@ -189,37 +238,104 @@ export async function handleAdminRoutes(
   }
 
   // Guild specific invite/leave
-  if (parts[2] === 'guilds' && parts.length === 5) {
+  if (parts[2] === 'guilds' && parts.length === 5 && (parts[4] === 'invite' || parts[4] === 'leave')) {
     const guildId = parts[3];
-    const guild = await resolveGuildById(client, guildId);
-    if (!guild) {
+
+    // Check if guild exists across shards
+    let guildExists = false;
+    if ((client as any).shard) {
+      const results = await (client as any).shard.broadcastEval((c: Client, id: string) => c.guilds.cache.has(id), { context: guildId }) as boolean[];
+      guildExists = results.some((r) => r);
+    } else {
+      guildExists = client.guilds.cache.has(guildId) || !!(await client.guilds.fetch(guildId).catch(() => null));
+    }
+
+    if (!guildExists) {
       json(res, 404, { error: 'Serveur introuvable' });
       return true;
     }
 
     // POST /api/admin/guilds/:guildId/invite
     if (parts[4] === 'invite' && method === 'POST') {
-      const channel = guild.channels.cache.find(c => c.type === 0 && c.permissionsFor(guild.members.me!)?.has('CreateInstantInvite'));
-      if (!channel) {
-        json(res, 400, { error: 'Impossible de créer une invitation (pas de salon textuel ou pas la permission)' });
-        return true;
-      }
-      try {
-        const invite = await (channel as TextChannel).createInvite({ maxAge: 86400, maxUses: 1 });
-        json(res, 200, { url: invite.url });
-      } catch (err) {
-        json(res, 500, { error: 'Erreur lors de la création de l\'invitation' });
+      if ((client as any).shard) {
+        const results = await (client as any).shard.broadcastEval(async (shardClient: Client, context: { guildId: string }) => {
+          const guild = shardClient.guilds.cache.get(context.guildId);
+          if (!guild) return null;
+          const channel = guild.channels.cache.find(c => c.type === 0 && c.permissionsFor(guild.members.me!)?.has('CreateInstantInvite'));
+          if (!channel) return { error: 'NO_CHANNEL' };
+          try {
+            const invite = await (channel as any).createInvite({ maxAge: 86400, maxUses: 1 });
+            return { url: invite.url };
+          } catch {
+            return { error: 'CREATE_FAILED' };
+          }
+        }, { context: { guildId } }) as Array<{ error?: string; url?: string } | null>;
+
+        const result = results.find(r => r !== null);
+        if (!result) {
+          json(res, 404, { error: 'Serveur introuvable' });
+        } else if (result.error === 'NO_CHANNEL') {
+          json(res, 400, { error: 'Impossible de créer une invitation (pas de salon textuel ou pas la permission)' });
+        } else if (result.error === 'CREATE_FAILED') {
+          json(res, 500, { error: 'Erreur lors de la création de l\'invitation' });
+        } else if (result.url) {
+          json(res, 200, { url: result.url });
+        }
+      } else {
+        const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+        if (!guild) {
+          json(res, 404, { error: 'Serveur introuvable' });
+          return true;
+        }
+        const channel = guild.channels.cache.find(c => c.type === 0 && c.permissionsFor(guild.members.me!)?.has('CreateInstantInvite'));
+        if (!channel) {
+          json(res, 400, { error: 'Impossible de créer une invitation (pas de salon textuel ou pas la permission)' });
+          return true;
+        }
+        try {
+          const invite = await (channel as TextChannel).createInvite({ maxAge: 86400, maxUses: 1 });
+          json(res, 200, { url: invite.url });
+        } catch (err) {
+          json(res, 500, { error: 'Erreur lors de la création de l\'invitation' });
+        }
       }
       return true;
     }
 
     // POST /api/admin/guilds/:guildId/leave
     if (parts[4] === 'leave' && method === 'POST') {
-      try {
-        await guild.leave();
-        json(res, 200, { success: true });
-      } catch (err) {
-        json(res, 500, { error: 'Impossible de quitter le serveur' });
+      if ((client as any).shard) {
+        const results = await (client as any).shard.broadcastEval(async (shardClient: Client, context: { guildId: string }) => {
+          const guild = shardClient.guilds.cache.get(context.guildId);
+          if (!guild) return null;
+          try {
+            await guild.leave();
+            return { success: true };
+          } catch {
+            return { success: false };
+          }
+        }, { context: { guildId } }) as Array<{ success: boolean } | null>;
+
+        const result = results.find(r => r !== null);
+        if (!result) {
+          json(res, 404, { error: 'Serveur introuvable' });
+        } else if (result.success) {
+          json(res, 200, { success: true });
+        } else {
+          json(res, 500, { error: 'Impossible de quitter le serveur' });
+        }
+      } else {
+        const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+        if (!guild) {
+          json(res, 404, { error: 'Serveur introuvable' });
+          return true;
+        }
+        try {
+          await guild.leave();
+          json(res, 200, { success: true });
+        } catch (err) {
+          json(res, 500, { error: 'Impossible de quitter le serveur' });
+        }
       }
       return true;
     }
@@ -846,6 +962,61 @@ export async function handleAdminRoutes(
     } catch (err) {
       logger.error('AdminAPI', 'Erreur lors de la génération et affectation du code :', err);
       json(res, 500, { error: 'Erreur lors de l\'activation automatique du serveur.' });
+    }
+    return true;
+  }
+
+  // POST /api/admin/guilds/:guildId/rescan-stats
+  if (parts.length === 5 && parts[2] === 'guilds' && parts[4] === 'rescan-stats' && method === 'POST') {
+    const guildId = parts[3];
+
+    // Check if guild exists across shards
+    let guildExists = false;
+    if ((client as any).shard) {
+      const results = await (client as any).shard.broadcastEval((c: Client, id: string) => c.guilds.cache.has(id), { context: guildId }) as boolean[];
+      guildExists = results.some(r => r);
+    } else {
+      guildExists = client.guilds.cache.has(guildId) || !!(await client.guilds.fetch(guildId).catch(() => null));
+    }
+
+    if (!guildExists) {
+      json(res, 404, { error: 'Serveur introuvable' });
+      return true;
+    }
+
+    try {
+      const body = await readJsonBody<{ force?: boolean; forcer?: boolean }>(req);
+      const force = !!(body?.force || body?.forcer);
+
+      if ((client as any).shard) {
+        const results = await (client as any).shard.broadcastEval(async (shardClient: Client, context: { guildId: string; force: boolean; servicePath: string }) => {
+          const guild = shardClient.guilds.cache.get(context.guildId);
+          if (!guild) return null;
+          try {
+            const { startHistoricalScraping } = await import(context.servicePath);
+            await startHistoricalScraping(shardClient, context.guildId, context.force);
+            return { success: true };
+          } catch (err) {
+            return { success: false, error: err instanceof Error ? err.message : String(err) };
+          }
+        }, { context: { guildId, force, servicePath } }) as Array<{ success: boolean; error?: string } | null>;
+
+        const result = results.find(r => r !== null);
+        if (!result) {
+          json(res, 404, { error: 'Serveur introuvable' });
+        } else if (result.success) {
+          json(res, 200, { ok: true, message: 'Scraping historique lancé avec succès.' });
+        } else {
+          json(res, 500, { error: result.error || 'Erreur lors du lancement du scraping' });
+        }
+      } else {
+        const { startHistoricalScraping } = await import('../../services/messageScraperService.js');
+        await startHistoricalScraping(client, guildId, force);
+        json(res, 200, { ok: true, message: 'Scraping historique lancé avec succès.' });
+      }
+    } catch (err) {
+      logger.error('AdminAPI', 'POST rescan-stats error:', err);
+      json(res, 500, { error: 'Erreur lors du lancement du scraping' });
     }
     return true;
   }

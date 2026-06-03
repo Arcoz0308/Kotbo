@@ -3,6 +3,7 @@ import {
   type APIInteractionGuildMember,
   type ButtonInteraction,
   type ModalSubmitInteraction,
+  type StringSelectMenuInteraction,
   TextChannel,
   ChannelType,
   PermissionFlagsBits,
@@ -11,6 +12,7 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  StringSelectMenuBuilder,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
@@ -217,19 +219,116 @@ export async function sendTicketSetupEmbed(client: Client, guildId: string): Pro
     .setColor(colorHex as any)
     .setTimestamp();
 
-  const buttons = ticketTypes.map((type) => new ButtonBuilder()
-    .setCustomId(`ticket:open_modal:${type.id}`)
-    .setLabel(type.label.slice(0, 80))
-    .setStyle(resolveButtonStyle(type.buttonStyle))
-    .setEmoji(type.emoji || '📩'));
+  const embedType = (guildConfig as any).ticketEmbedType || 'BUTTONS';
 
-  const rows: ActionRowBuilder<ButtonBuilder>[] = [];
-  for (let index = 0; index < buttons.length; index += 5) {
-    rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(buttons.slice(index, index + 5)));
+  if (embedType === 'DROPDOWN') {
+    // Create dropdown menu
+    const selectMenu = new StringSelectMenuBuilder()
+      .setCustomId('ticket:select_type')
+      .setPlaceholder('Sélectionnez un type de ticket...')
+      .addOptions(
+        ticketTypes.map((type) => ({
+          label: type.label.slice(0, 80),
+          description: type.description?.slice(0, 100) || undefined,
+          value: type.id,
+          emoji: type.emoji || undefined,
+        }))
+      );
+
+    const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
+    await channel.send({ embeds: [embed], components: [row] });
+  } else {
+    // Create buttons (default behavior)
+    const buttons = ticketTypes.map((type) => new ButtonBuilder()
+      .setCustomId(`ticket:open_modal:${type.id}`)
+      .setLabel(type.label.slice(0, 80))
+      .setStyle(resolveButtonStyle(type.buttonStyle))
+      .setEmoji(type.emoji || '📩'));
+
+    const rows: ActionRowBuilder<ButtonBuilder>[] = [];
+    for (let index = 0; index < buttons.length; index += 5) {
+      rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(buttons.slice(index, index + 5)));
+    }
+
+    await channel.send({ embeds: [embed], components: rows });
+  }
+  logger.success('Ticket', `Embed d'ouverture envoyé avec succès dans #${channel.name} (${guildId})`);
+}
+
+/**
+ * Handles select menu interactions for ticket type selection
+ */
+export async function handleTicketSelectMenu(client: Client, customId: string, interaction: StringSelectMenuInteraction): Promise<void> {
+  const { guildId, user, member, guild } = interaction;
+  if (!guildId || !guild || !member) return;
+
+  if (customId !== 'ticket:select_type') return;
+
+  const guildConfig = await prisma.guild.findUnique({ where: { id: guildId } });
+  if (!guildConfig) {
+    await interaction.reply({ content: '❌ Configuration du serveur introuvable.', flags: [MessageFlags.Ephemeral] });
+    return;
   }
 
-  await channel.send({ embeds: [embed], components: rows });
-  logger.success('Ticket', `Embed d'ouverture envoyé avec succès dans #${channel.name} (${guildId})`);
+  const typeId = interaction.values[0];
+  const ticketType = resolveTicketPanelType(guildConfig, typeId);
+
+  // Vérifier si un ticket est déjà ouvert pour cet utilisateur
+  const existing = await prisma.ticket.findFirst({
+    where: {
+      guildId,
+      userId: user.id,
+      status: { in: ['OPEN', 'CLAIMED'] }
+    }
+  });
+
+  if (existing && existing.channelId) {
+    const ch = guild.channels.cache.get(existing.channelId);
+    if (ch) {
+      await interaction.reply({
+        content: `⚠️ Vous avez déjà un ticket d'ouvert : <#${existing.channelId}>. Merci de l'utiliser !`,
+        flags: [MessageFlags.Ephemeral]
+      });
+      return;
+    }
+  }
+
+  const modal = new ModalBuilder()
+    .setCustomId(`modal:ticket:open:${ticketType.id}`)
+    .setTitle((ticketType.label || guildConfig.ticketEmbedTitle || 'Ouvrir un ticket').substring(0, 45));
+
+  const isSalon = ticketType.label.toLowerCase().includes('salon');
+
+  const reasonInput = new TextInputBuilder()
+    .setCustomId('reason')
+    .setLabel('Sujet / Raison de la demande')
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder('Ex : Problème avec mon grade, Plainte, etc.')
+    .setRequired(true)
+    .setMaxLength(100);
+
+  if (isSalon) {
+    reasonInput.setValue('Demande de salon');
+  }
+
+  const descInput = new TextInputBuilder()
+    .setCustomId('description')
+    .setLabel('Description détaillée')
+    .setStyle(TextInputStyle.Paragraph)
+    .setPlaceholder('Détaillez au maximum votre demande afin de faciliter le traitement par notre staff...')
+    .setRequired(true)
+    .setMaxLength(1000);
+
+  if (isSalon) {
+    descInput.setValue('Créé le pour moi');
+  }
+
+  modal.addComponents(
+    new ActionRowBuilder<TextInputBuilder>().addComponents(reasonInput),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(descInput)
+  );
+
+  await interaction.showModal(modal);
 }
 
 /**

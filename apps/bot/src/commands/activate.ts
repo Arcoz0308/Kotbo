@@ -7,6 +7,7 @@ import {
 import prisma from '../utils/db.js';
 import { successEmbed, errorEmbed } from '../utils/embeds.js';
 import { isGuildActivated, activateGuild } from '../utils/activation.js';
+import { initializeAutoBackup } from '../services/autoBackupService.js';
 
 export const data = new SlashCommandBuilder()
   .setName('activate')
@@ -65,6 +66,19 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
     // Activate
     await activateGuild(guildId, codeStr);
+
+    // Initialize auto backup
+    if (interaction.guild) {
+      await initializeAutoBackup(interaction.guild).catch((err) =>
+        console.error('Failed to initialize auto backup:', err)
+      );
+    }
+
+    // Start historical message scraping
+    const { startHistoricalScraping } = await import('../services/messageScraperService.js');
+    startHistoricalScraping(interaction.client, guildId).catch((err) =>
+      console.error('Failed to start historical scraping:', err)
+    );
 
     await interaction.editReply({
       embeds: [

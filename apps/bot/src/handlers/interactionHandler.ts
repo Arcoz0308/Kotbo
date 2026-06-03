@@ -30,7 +30,7 @@ import { toggleGuildBoolean } from '../utils/prismaToggles.js';
 import { requireSingleSelectedValue, validateTimeField } from '../utils/interactionValidation.js';
 import { buildMemberCasePanel, type MemberCaseSection } from '../services/memberCaseService.js';
 import { handleRecruitmentButton } from '../services/recruitmentService.js';
-import { handleTicketButton, handleTicketModalSubmit } from '../services/ticketService.js';
+import { handleTicketButton, handleTicketModalSubmit, handleTicketSelectMenu } from '../services/ticketService.js';
 import { checkInMeeting, createNotification } from '../services/staffLeadershipService.js';
 import { handleDCInteraction } from '../services/dcDetectionService.js';
 import { showModeratorNoteModal } from '../commands/note.js';
@@ -547,13 +547,20 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
   const { customId, guildId, values } = interaction;
   if (!guildId) return;
 
+  // Ticket system select menu
+  if (customId === 'ticket:select_type') {
+    if (!interaction.isStringSelectMenu()) return;
+    await handleTicketSelectMenu(client, customId, interaction);
+    return;
+  }
+
   const caseRoute = parseUserCaseRoute(customId);
   if (caseRoute?.action === 'section') {
     if (!interaction.isStringSelectMenu()) return;
 
     const member = await resolveGuildMemberByUserId(interaction, interaction.user.id);
     if (!(await canModerate(member, guildId))) {
-      await interaction.reply({ content: '❌ Tu n’as pas les permissions nécessaires pour ouvrir un casier utilisateur.', flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({ content: "❌ Tu n'as pas les permissions nécessaires pour ouvrir un casier utilisateur.", flags: [MessageFlags.Ephemeral] });
       return;
     }
 

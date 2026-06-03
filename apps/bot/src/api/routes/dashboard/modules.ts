@@ -51,6 +51,14 @@ import { invalidateBannedWordsCache } from '../../../services/bannedWordsService
 import { sendTicketSetupEmbed } from '../../../services/ticketService.js';
 import { generateTranscript } from '../../../services/transcriptService.js';
 import { parseDiscordMarkdown, extractMediaUrls } from '../../shared.js';
+import {
+  getModuleStatsSummary,
+  getModuleActivationStats,
+  getModuleUsageStats,
+  getModulePerformanceStats,
+  KOTBO_MODULES,
+  setModuleActivation,
+} from '../../../services/moduleStatsService.js';
 
 const PRESET_LABELS: Record<DashboardPresetKey, string> = {
   general: 'Communauté générale',
@@ -449,6 +457,26 @@ export async function handleModulesRoutes(
         : moduleId === 'traduction'
           ? 'translation'
           : moduleId;
+      
+      // Mapper l'ID du module vers le nom KotboModule
+      const moduleMapping: Record<string, any> = {
+        'codepolice': 'codePolice',
+        'daily_algo': 'dailyAlgo',
+        'translation': 'translation',
+        'sanctions': 'sanction',
+        'nickname_moderation': 'nicknameModeration',
+        'auto_thread': 'autoThread',
+      };
+      
+      const kotboModuleName = moduleMapping[normalizedKey];
+      if (kotboModuleName) {
+        await setModuleActivation(guildId, kotboModuleName, body.status === 'active', {
+          featureKey: normalizedKey,
+        }).catch((err) => {
+          logger.warn('ModulesAPI', 'Failed to track module activation:', err);
+        });
+      }
+      
       await prisma.dashboardFeatureConfig.upsert({
         where: { guildId_featureKey: { guildId, featureKey: normalizedKey } },
         create: {
@@ -962,6 +990,39 @@ export async function handleModulesRoutes(
     }
   }
 
+  // GET /api/dashboard/guilds/:guildId/modules/stats - Module statistics
+  if (moduleKey === 'modules' && parts.length === 6 && parts[5] === 'stats' && method === 'GET') {
+    try {
+      const moduleName = url.searchParams.get('moduleName') as any || undefined;
+      const startDate = url.searchParams.get('startDate') || undefined;
+      const endDate = url.searchParams.get('endDate') || undefined;
+      const periodDays = url.searchParams.get('period') ? parseInt(url.searchParams.get('period')!) : 30;
+      const summary = url.searchParams.get('summary') === 'true';
+
+      if (summary) {
+        const data = await getModuleStatsSummary({ guildId, periodDays });
+        json(res, 200, data);
+      } else {
+        const [activation, usage, performance] = await Promise.all([
+          getModuleActivationStats(guildId),
+          getModuleUsageStats({ guildId, moduleName, startDate, endDate, periodDays }),
+          getModulePerformanceStats({ guildId, moduleName, startDate, endDate, periodDays }),
+        ]);
+
+        json(res, 200, {
+          modules: KOTBO_MODULES,
+          activation,
+          usage,
+          performance,
+        });
+      }
+    } catch (err) {
+      logger.error('ModulesAPI', 'Error fetching module stats:', err);
+      json(res, 500, { error: 'Erreur interne du serveur' });
+    }
+    return true;
+  }
+
   // GET/PATCH /api/dashboard/guilds/:guildId/auto-thread
   if (moduleKey === 'auto-thread' && parts.length === 5) {
     if (method === 'GET') {
@@ -1040,6 +1101,23 @@ export async function handleModulesRoutes(
       }
       return true;
     }
+  }
+
+  // POST /api/dashboard/guilds/:guildId/channels-management/rescan-stats
+  if (moduleKey === 'channels-management' && parts.length === 6 && parts[5] === 'rescan-stats' && method === 'POST') {
+    try {
+      const body = await readJsonBody<{ force?: boolean; forcer?: boolean }>(req);
+      const force = !!(body?.force || body?.forcer);
+
+      const { startHistoricalScraping } = await import('../../../services/messageScraperService.js');
+      await startHistoricalScraping(client, guildId, force);
+
+      json(res, 200, { ok: true, message: 'Scraping historique lancé avec succès.' });
+    } catch (err) {
+      logger.error('ChannelsManagementAPI', 'POST rescan-stats error:', err);
+      json(res, 500, { error: 'Erreur lors du lancement du scraping' });
+    }
+    return true;
   }
 
   // GET/PATCH /api/dashboard/guilds/:guildId/channels-management

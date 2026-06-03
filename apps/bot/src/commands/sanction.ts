@@ -31,6 +31,7 @@ import {
 } from '../services/sanctionService.js';
 import * as altAccountService from '../services/altAccountService.js';
 import { buildMemberCaseActionRow } from '../services/memberCaseService.js';
+import { extractTrackingInfo, resolveModuleFromCommand, wrapModuleTracking } from '../utils/moduleTracking.js';
 
 const DURATION_HELP = 'Exemples: 30m, 2h, 3j, 1 semaine';
 const SANCTION_PAGE_SIZE = 5;
@@ -269,6 +270,25 @@ async function buildSanctionListView(guildId: string, targetUserId: string, targ
 }
 
 export async function execute(interaction: ChatInputCommandInteraction | UserContextMenuCommandInteraction): Promise<void> {
+  const { guildId, userId } = extractTrackingInfo(interaction);
+  const moduleName = resolveModuleFromCommand('sanction');
+  const actionName = interaction.isChatInputCommand() ? interaction.options.getSubcommand(true) : 'context_menu';
+
+  // Wrapper pour tracker les performances et l'utilisation
+  await wrapModuleTracking(
+    moduleName,
+    executeInternal,
+    [interaction],
+    {
+      actionType: 'command',
+      actionName,
+      guildId,
+      userId,
+    }
+  );
+}
+
+async function executeInternal(interaction: ChatInputCommandInteraction | UserContextMenuCommandInteraction): Promise<void> {
   if (!canModerate(interaction)) {
     await replyError(interaction as any, 'Serveur requis', 'Cette commande ne peut être utilisée qu\'en serveur.');
     return;

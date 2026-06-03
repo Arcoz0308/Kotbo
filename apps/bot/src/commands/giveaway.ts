@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
 import { createGiveaway, endGiveaway, rerollGiveaway } from '../services/giveawayService.js';
 import prisma from '../utils/db.js';
+import { extractTrackingInfo, resolveModuleFromCommand, wrapModuleTracking } from '../utils/moduleTracking.js';
 
 export const data = new SlashCommandBuilder()
   .setName('giveaway')
@@ -30,6 +31,25 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  const { guildId, userId } = extractTrackingInfo(interaction);
+  const moduleName = resolveModuleFromCommand('giveaway');
+  const subcommand = interaction.options.getSubcommand();
+
+  // Wrapper pour tracker les performances et l'utilisation
+  await wrapModuleTracking(
+    moduleName,
+    executeInternal,
+    [interaction],
+    {
+      actionType: 'command',
+      actionName: subcommand,
+      guildId,
+      userId,
+    }
+  );
+}
+
+async function executeInternal(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({

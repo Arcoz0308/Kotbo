@@ -31,7 +31,15 @@
   import Regulation from './pages/Regulation.svelte';
   import News from './pages/News.svelte';
   import SocialNetworks from './pages/SocialNetworks.svelte';
-  import AdminOverview from './pages/AdminOverview.svelte';
+  import AdminLayout from './lib/components/AdminLayout.svelte';
+  import AdminOverview from './pages/admin/Overview.svelte';
+  import AdminServers from './pages/admin/Servers.svelte';
+  import AdminShards from './pages/admin/Shards.svelte';
+  import AdminSecurity from './pages/admin/Security.svelte';
+  import AdminContent from './pages/admin/Content.svelte';
+  import AdminConfig from './pages/admin/Config.svelte';
+  import AdminActivation from './pages/admin/Activation.svelte';
+  import AdminModules from './pages/admin/Modules.svelte';
   import Profile from './pages/Profile.svelte';
   import PublicProfile from './pages/PublicProfile.svelte';
   import StaffManagement from './pages/StaffManagement.svelte';
@@ -65,6 +73,7 @@
   import Suggestions from './pages/Suggestions.svelte';
   import EmbedBuilder from './pages/EmbedBuilder.svelte';
   import UserSettings from './pages/UserSettings.svelte';
+  import Backups from './pages/Backups.svelte';
 
   const isPublicPage = $derived(
     /^\/\d{17,19}\/news\/?$/.test($router.path) ||
@@ -126,6 +135,7 @@
     if (path.startsWith('/regulation')) return 'regulation';
     if (path.startsWith('/news')) return 'news';
     if (path.startsWith('/social-networks')) return 'social_networks';
+    if (path.startsWith('/backups')) return 'settings';
     if (path.startsWith('/admin')) return 'centralized_config';
     return null;
   }
@@ -293,6 +303,27 @@
         <Route path="/admin">
           <AdminOverview />
         </Route>
+        <Route path="/admin/servers">
+          <AdminServers />
+        </Route>
+        <Route path="/admin/shards">
+          <AdminShards />
+        </Route>
+        <Route path="/admin/security">
+          <AdminSecurity />
+        </Route>
+        <Route path="/admin/content">
+          <AdminContent />
+        </Route>
+        <Route path="/admin/config">
+          <AdminConfig />
+        </Route>
+        <Route path="/admin/activation">
+          <AdminActivation />
+        </Route>
+        <Route path="/admin/modules">
+          <AdminModules />
+        </Route>
       {/if}
       <Route path="/logs">
         <Logs />
@@ -373,6 +404,10 @@
         {/key}
       </Route>
 
+      <Route path="/backups">
+        <Backups />
+      </Route>
+
       <Route path="/events">
         <Events />
       </Route>
@@ -422,6 +457,27 @@
             <Route path="/admin">
               <AdminOverview />
             </Route>
+            <Route path="/admin/servers">
+              <AdminServers />
+            </Route>
+            <Route path="/admin/shards">
+              <AdminShards />
+            </Route>
+            <Route path="/admin/security">
+              <AdminSecurity />
+            </Route>
+            <Route path="/admin/content">
+              <AdminContent />
+            </Route>
+            <Route path="/admin/config">
+              <AdminConfig />
+            </Route>
+            <Route path="/admin/activation">
+              <AdminActivation />
+            </Route>
+            <Route path="/admin/modules">
+              <AdminModules />
+            </Route>
           {/if}
           <Route path="/logs">
             <Logs />
@@ -463,6 +519,9 @@
             </Route>
             <Route path="/settings">
               <GeneralSettings />
+            </Route>
+            <Route path="/backups">
+              <Backups />
             </Route>
             <Route path="/automations">
               <ModuleCatalog />

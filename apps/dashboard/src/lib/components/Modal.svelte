@@ -4,7 +4,7 @@
   import Papicon from './Papicon.svelte';
 
   let {
-    open = false,
+    open = $bindable(false),
     onClose = () => {},
     title = '',
     subtitle = '',
@@ -60,7 +60,7 @@
 {#if open}
   <div
     use:portal
-    class="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+    class="fixed inset-0 z-9999 flex items-center justify-center p-4"
     role="dialog"
     aria-modal="true"
     aria-labelledby="modal-title"
@@ -80,7 +80,7 @@
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="relative w-full {sizeClasses[size]} bg-surface-container-lowest rounded-[2rem] shadow-2xl overflow-hidden border border-outline-variant/30 flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200"
+      class="relative w-full {sizeClasses[size]} bg-surface-container-lowest rounded-4xl shadow-2xl overflow-hidden border border-outline-variant/30 flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200"
       onclick={(e) => e.stopPropagation()}
     >
       <!-- Header -->

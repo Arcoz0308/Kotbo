@@ -1009,6 +1009,27 @@ export async function fetchAdminStats() {
   return response.json();
 }
 
+export async function fetchAdminModuleStats(options?: {
+  guildId?: string;
+  moduleName?: string;
+  startDate?: string;
+  endDate?: string;
+  periodDays?: number;
+  summary?: boolean;
+}) {
+  const params = new URLSearchParams();
+  if (options?.guildId) params.set('guildId', options.guildId);
+  if (options?.moduleName) params.set('moduleName', options.moduleName);
+  if (options?.startDate) params.set('startDate', options.startDate);
+  if (options?.endDate) params.set('endDate', options.endDate);
+  if (options?.periodDays) params.set('period', options.periodDays.toString());
+  if (options?.summary) params.set('summary', 'true');
+
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/stats/modules?${params.toString()}`);
+  if (!response.ok) throw new Error('Erreur lors du chargement des statistiques de modules');
+  return response.json();
+}
+
 export async function fetchAdminGuilds() {
   const response = await authorizedFetch(`${API_BASE_URL}/api/admin/guilds`);
   if (!response.ok) throw new Error('Erreur lors du chargement des serveurs');
@@ -1190,6 +1211,16 @@ export async function deactivateAdminGuild(guildId: string) {
 export async function activateAdminGuildAuto(guildId: string) {
   const response = await authorizedFetch(`${API_BASE_URL}/api/admin/guilds/${guildId}/activate-auto`, { method: 'POST' });
   if (!response.ok) throw new Error('Erreur lors de l\'activation automatique du serveur');
+  return response.json();
+}
+
+export async function rescanAdminGuildStats(guildId: string, force = false) {
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/guilds/${guildId}/rescan-stats`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ force })
+  });
+  if (!response.ok) throw new Error('Erreur lors du lancement du rescan des statistiques');
   return response.json();
 }
 
@@ -1424,6 +1455,15 @@ export async function updateChannelsManagementConfig(
     payload,
     guildId,
     errorContext: 'API Error (Update Channels Management Config):'
+  });
+}
+
+export async function rescanChannelsManagementStats(payload: { force: boolean }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/channels-management/rescan-stats', {
+    method: 'POST',
+    payload,
+    guildId,
+    errorContext: 'API Error (Rescan Stats):'
   });
 }
 
@@ -1874,4 +1914,59 @@ export async function resolveSuggestion(suggestionId: string, payload: { status:
 
 export async function sendOrUpdateEmbed(payload: { channelId: string; messageId?: string | null; embed: any }, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/embed-builder', { method: 'POST', payload, guildId, errorContext: 'API Error (Send Embed):' });
+}
+
+// Backup API functions
+export async function fetchBackups(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/backups', { method: 'GET', guildId, errorContext: 'API Error (Fetch Backups):' });
+}
+
+export async function createBackup(payload: {
+  name?: string;
+  description?: string;
+  includeMessages?: boolean;
+  includeMembers?: boolean;
+  includeRoles?: boolean;
+  includeChannels?: boolean;
+  includeEmojis?: boolean;
+  includeStickers?: boolean;
+}, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/backups', { method: 'POST', payload, guildId, errorContext: 'API Error (Create Backup):' });
+}
+
+export async function deleteBackup(backupId: string, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/backups/${backupId}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete Backup):' });
+}
+
+export async function exportBackup(backupId: string, guildId = authStore.selectedGuildId) {
+  const selectedGuildId = getGuildId(guildId);
+  if (!selectedGuildId) return null;
+
+  try {
+    const response = await authorizedFetch(`${BASE_URL}/guilds/${selectedGuildId}/backups/${backupId}/export`);
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status}`);
+    }
+    return response;
+  } catch (error) {
+    console.error('API Error (Export Backup):', error);
+    throw error;
+  }
+}
+
+export async function importBackup(fileContent: string, name?: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/backups/import', {
+    method: 'POST',
+    payload: { file: fileContent, name },
+    guildId,
+    errorContext: 'API Error (Import Backup):'
+  });
+}
+
+export async function restoreBackup(backupId: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/backups/${backupId}/restore`, {
+    method: 'POST',
+    guildId,
+    errorContext: 'API Error (Restore Backup):'
+  });
 }

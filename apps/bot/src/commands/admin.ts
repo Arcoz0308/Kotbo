@@ -2,6 +2,14 @@ import { SlashCommandBuilder, type ChatInputCommandInteraction, PermissionFlagsB
 import { successEmbed, errorEmbed, infoEmbed, COLORS, truncate } from '../utils/embeds.js';
 import prisma from '../utils/db.js';
 import { createPagination } from '../utils/pagination.js';
+import { logger } from '../utils/logger.js';
+import {
+  getModuleStatsSummary,
+  getModuleActivationStats,
+  getModuleUsageStats,
+  getModulePerformanceStats,
+  KOTBO_MODULES,
+} from '../services/moduleStatsService.js';
 
 
 
@@ -69,10 +77,47 @@ export const data = new SlashCommandBuilder()
           .setDescription('Le salon des releases GitHub')
           .setRequired(true)
       )
+  )
+  .addSubcommand(sub =>
+    sub
+      .setName('stats')
+      .setDescription('📊 Affiche les statistiques globales et des modules')
+      .addStringOption(option =>
+        option
+          .setName('type')
+          .setDescription('Type de statistiques')
+          .setRequired(true)
+          .addChoices(
+            { name: 'Global', value: 'global' },
+            { name: 'Modules', value: 'modules' },
+            { name: 'Activation', value: 'activation' },
+            { name: 'Usage', value: 'usage' },
+            { name: 'Performance', value: 'performance' },
+          )
+      )
+      .addIntegerOption(option =>
+        option
+          .setName('period')
+          .setDescription('Période en jours (défaut: 30)')
+          .setRequired(false)
+          .setMinValue(1)
+          .setMaxValue(365)
+      )
+  )
+  .addSubcommand(sub =>
+    sub
+      .setName('rescan-stats')
+      .setDescription('📊 Scrapper l\'historique des messages pour initialiser les statistiques')
+      .addBooleanOption(option =>
+        option
+          .setName('forcer')
+          .setDescription('Forcer le re-scrap complet (recommencer à zéro)')
+          .setRequired(false)
+      )
   );
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  const subcommand = interaction.options.getSubcommand();
+  const subcommand = interaction.options.getSubcommand() as string;
   const guildId = interaction.guildId;
 
   if (!guildId) {
@@ -237,5 +282,220 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       data: { githubReleasesChannelId: channel.id },
     });
 
+  } else if (subcommand === 'stats') {
+    const type = interaction.options.getString('type', true);
+    const period = interaction.options.getInteger('period') || 30;
+    const moduleName = interaction.options.getString('module') as any || undefined;
+
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+    try {
+      if (type === 'global') {
+        // Stats globales existantes (guilds, users, sanctions, dailyAlgo, uptime, memory, shards)
+        const guilds = await prisma.guild.findMany({ select: { id: true } });
+        const guildCount = guilds.length;
+        
+        const totalMembers = await prisma.memberProfile.groupBy({
+          by: ['guildId'],
+          _count: true,
+        });
+        const userCount = totalMembers.reduce((acc, g) => acc + g._count, 0);
+
+        const activeSanctions = await prisma.sanction.count({ where: { status: 'ACTIVE' } });
+        const dailyAlgoSubmissions = await prisma.dailyAlgoSubmission.count();
+
+        const uptime = Math.floor(process.uptime());
+        const uptimeHours = Math.floor(uptime / 3600);
+        const uptimeMinutes = Math.floor((uptime % 3600) / 60);
+        const uptimeSeconds = uptime % 60;
+
+        const memoryUsage = process.memoryUsage();
+        const memoryMB = Math.round(memoryUsage.heapUsed / 1024 / 1024);
+
+        await interaction.editReply({
+          embeds: [
+            infoEmbed(
+              '📊 Statistiques Globales Kotbo',
+              `Période: ${period} jours`,
+              [
+                {
+                  name: 'Serveurs',
+                  value: guildCount.toString(),
+                  inline: true,
+                },
+                {
+                  name: 'Utilisateurs',
+                  value: userCount.toString(),
+                  inline: true,
+                },
+                {
+                  name: 'Sanctions actives',
+                  value: activeSanctions.toString(),
+                  inline: true,
+                },
+                {
+                  name: 'Submissions Daily Algo',
+                  value: dailyAlgoSubmissions.toString(),
+                  inline: true,
+                },
+                {
+                  name: 'Uptime',
+                  value: `${uptimeHours}h ${uptimeMinutes}m ${uptimeSeconds}s`,
+                  inline: true,
+                },
+                {
+                  name: 'Mémoire',
+                  value: `${memoryMB} MB`,
+                  inline: true,
+                },
+              ]
+            ),
+          ],
+        });
+      } else if (type === 'modules') {
+        // Résumé complet des modules
+        const summary = await getModuleStatsSummary({ guildId, periodDays: period });
+
+        const fields = summary.topModules.slice(0, 10).map((m, i) => ({
+          name: `${i + 1}. ${m.moduleName}`,
+          value: `Utilisation: ${m.totalUsage} | Temps moyen: ${Math.round(m.avgExecutionTimeMs)}ms | Erreurs: ${Math.round(m.errorRate)}%`,
+          inline: false,
+        }));
+
+        await interaction.editReply({
+          embeds: [
+            infoEmbed(
+              '📊 Statistiques des Modules',
+              `Période: ${period} jours | Top 10 modules`,
+              fields
+            ),
+          ],
+        });
+      } else if (type === 'activation') {
+        // Stats d'activation
+        const activation = await getModuleActivationStats(guildId);
+        const enabledCount = activation.filter(a => a.enabled).length;
+        const disabledCount = activation.length - enabledCount;
+
+        const fields = activation.slice(0, 15).map(a => ({
+          name: `${a.moduleName}`,
+          value: a.enabled ? '✅ Activé' : '❌ Désactivé',
+          inline: true,
+        }));
+
+        await interaction.editReply({
+          embeds: [
+            infoEmbed(
+              '📊 Activation des Modules',
+              `Activés: ${enabledCount} | Désactivés: ${disabledCount}`,
+              fields
+            ),
+          ],
+        });
+      } else if (type === 'usage') {
+        // Stats d'utilisation
+        const usage = await getModuleUsageStats({ guildId, moduleName, periodDays: period });
+
+        const groupedByModule = new Map<string, { totalUsage: number; commandExecutions: number; apiCalls: number; eventTriggers: number }>();
+        for (const u of usage) {
+          const existing = groupedByModule.get(u.moduleName) || { totalUsage: 0, commandExecutions: 0, apiCalls: 0, eventTriggers: 0 };
+          existing.totalUsage += u.totalUsage;
+          existing.commandExecutions += u.commandExecutions;
+          existing.apiCalls += u.apiCalls;
+          existing.eventTriggers += u.eventTriggers;
+          groupedByModule.set(u.moduleName, existing);
+        }
+
+        const sorted = Array.from(groupedByModule.entries())
+          .map(([moduleName, stats]) => ({ moduleName, ...stats }))
+          .sort((a, b) => b.totalUsage - a.totalUsage)
+          .slice(0, 15);
+
+        const fields = sorted.map((m, i) => ({
+          name: `${i + 1}. ${m.moduleName}`,
+          value: `Total: ${m.totalUsage} | Cmd: ${m.commandExecutions} | API: ${m.apiCalls} | Events: ${m.eventTriggers}`,
+          inline: false,
+        }));
+
+        await interaction.editReply({
+          embeds: [
+            infoEmbed(
+              '📊 Utilisation des Modules',
+              `Période: ${period} jours${moduleName ? ` | Module: ${moduleName}` : ''}`,
+              fields
+            ),
+          ],
+        });
+      } else if (type === 'performance') {
+        // Stats de performance
+        const performance = await getModulePerformanceStats({ guildId, moduleName, periodDays: period });
+
+        const groupedByModule = new Map<string, { avgExecutionTimeMs: number; totalExecutions: number; errorCount: number; errorRate: number }>();
+        for (const p of performance) {
+          const existing = groupedByModule.get(p.moduleName) || { avgExecutionTimeMs: 0, totalExecutions: 0, errorCount: 0, errorRate: 0 };
+          existing.avgExecutionTimeMs = (existing.avgExecutionTimeMs * existing.totalExecutions + p.avgExecutionTimeMs * p.totalExecutions) / (existing.totalExecutions + p.totalExecutions);
+          existing.totalExecutions += p.totalExecutions;
+          existing.errorCount += p.errorCount;
+          existing.errorRate = (existing.errorCount / existing.totalExecutions) * 100;
+          groupedByModule.set(p.moduleName, existing);
+        }
+
+        const sorted = Array.from(groupedByModule.entries())
+          .map(([moduleName, stats]) => ({ moduleName, ...stats }))
+          .sort((a, b) => b.totalExecutions - a.totalExecutions)
+          .slice(0, 15);
+
+        const fields = sorted.map((m, i) => ({
+          name: `${i + 1}. ${m.moduleName}`,
+          value: `Exécutions: ${m.totalExecutions} | Temps moyen: ${Math.round(m.avgExecutionTimeMs)}ms | Erreurs: ${Math.round(m.errorRate)}%`,
+          inline: false,
+        }));
+
+        await interaction.editReply({
+          embeds: [
+            infoEmbed(
+              '📊 Performance des Modules',
+              `Période: ${period} jours${moduleName ? ` | Module: ${moduleName}` : ''}`,
+              fields
+            ),
+          ],
+        });
+      }
+    } catch (err) {
+      logger.error('AdminCommand', 'Error fetching stats:', err);
+      await interaction.editReply({
+        embeds: [errorEmbed('Erreur', 'Impossible de récupérer les statistiques.')],
+      });
+    }
+  } else if (subcommand === 'rescan-stats') {
+    const force = interaction.options.getBoolean('forcer') ?? false;
+
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+    try {
+      const { startHistoricalScraping } = await import('../services/messageScraperService.js');
+      await startHistoricalScraping(interaction.client, guildId, force);
+
+      await interaction.editReply({
+        embeds: [
+          successEmbed(
+            'Scan des Statistiques Lancé',
+            `Le scraping historique des messages a été démarré avec succès en arrière-plan.\n\n` +
+            `• **Mode forcé :** ${force ? 'Oui (recommencer à zéro)' : 'Non'}\n` +
+            `• Vous pouvez suivre l'avancement dans les logs ou via le statut en base de données.`
+          ),
+        ],
+      });
+    } catch (err) {
+      console.error('Error starting historical scraping from admin:', err);
+      await interaction.editReply({
+        embeds: [
+          errorEmbed(
+            'Erreur',
+            `Impossible de démarrer le scraping : ${err instanceof Error ? err.message : String(err)}`
+          ),
+        ],
+      });
+    }
   }
 }

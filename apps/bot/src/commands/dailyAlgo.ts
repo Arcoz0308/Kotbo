@@ -6,6 +6,7 @@ import {
   formatDailyAlgoDate,
 } from '../services/dailyAlgoService.js';
 import { COLORS, truncate } from '../utils/embeds.js';
+import { extractTrackingInfo, resolveModuleFromCommand, wrapModuleTracking } from '../utils/moduleTracking.js';
 
 export const data = new SlashCommandBuilder()
   .setName('daily-algo')
@@ -230,6 +231,25 @@ async function replyProfile(interaction: ChatInputCommandInteraction, guildId: s
 }
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  const { guildId, userId } = extractTrackingInfo(interaction);
+  const moduleName = resolveModuleFromCommand('daily-algo');
+  const view = interaction.options.getString('vue') ?? 'previous';
+
+  // Wrapper pour tracker les performances et l'utilisation
+  await wrapModuleTracking(
+    moduleName,
+    executeInternal,
+    [interaction],
+    {
+      actionType: 'command',
+      actionName: view,
+      guildId,
+      userId,
+    }
+  );
+}
+
+async function executeInternal(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId;
 
   if (!guildId) {

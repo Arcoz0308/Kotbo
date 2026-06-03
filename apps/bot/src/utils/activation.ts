@@ -1,5 +1,6 @@
 import prisma from './db.js';
 import { logger } from './logger.js';
+import { getClient } from './client.js';
 
 export const activatedGuilds = new Set<string>();
 
@@ -67,6 +68,23 @@ export async function activateGuild(guildId: string, code: string): Promise<void
   // 3. Update cache
   activatedGuilds.add(guildId);
   logger.success('Activation', `Le serveur ${guildId} a été activé avec le code ${normalizedCode}.`);
+
+  // Broadcast to other shards if present
+  try {
+    const client = getClient();
+    if ((client as any).shard) {
+      const activationPath = import.meta.url;
+      await (client as any).shard.broadcastEval((c: any, context: { id: string; activationPath: string }) => {
+        import(context.activationPath).then((m) => {
+          m.activatedGuilds.add(context.id);
+        }).catch(() => {});
+      }, { context: { id: guildId, activationPath } }).catch((err: any) => {
+        logger.error('Activation', `Failed to broadcast activation for ${guildId}:`, err);
+      });
+    }
+  } catch {
+    // client might not be initialized yet in some contexts (e.g. CLI seed scripts)
+  }
 }
 
 /**
@@ -104,4 +122,21 @@ export async function deactivateGuild(guildId: string): Promise<void> {
   // Update cache
   activatedGuilds.delete(guildId);
   logger.success('Activation', `Le serveur ${guildId} a été désactivé.`);
+
+  // Broadcast to other shards if present
+  try {
+    const client = getClient();
+    if ((client as any).shard) {
+      const activationPath = import.meta.url;
+      await (client as any).shard.broadcastEval((c: any, context: { id: string; activationPath: string }) => {
+        import(context.activationPath).then((m) => {
+          m.activatedGuilds.delete(context.id);
+        }).catch(() => {});
+      }, { context: { id: guildId, activationPath } }).catch((err: any) => {
+        logger.error('Activation', `Failed to broadcast deactivation for ${guildId}:`, err);
+      });
+    }
+  } catch {
+    // client might not be initialized
+  }
 }

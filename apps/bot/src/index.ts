@@ -83,11 +83,13 @@ import * as rankCmd from './commands/rank.js';
 import * as giveawayCmd from './commands/giveaway.js';
 import * as suggestCmd from './commands/suggest.js';
 import * as suggestionConfigCmd from './commands/suggestion-config.js';
+import * as backupCmd from './commands/backup.js';
 import { registerLevelingListener } from './events/levelingEvents.js';
 import { registerWelcomeGoodbyeListener } from './events/welcomeGoodbyeEvents.js';
 import { registerAutoModListener } from './events/autoModEvents.js';
 import { registerAutoResponseListener } from './events/autoResponseEvents.js';
 import { loadActivatedGuilds, isGuildActivated } from './utils/activation.js';
+import { initializeAutoBackupForAllGuilds, initializeAutoBackup, stopAutoBackup } from './services/autoBackupService.js';
 
 initBotSentry();
 
@@ -185,7 +187,7 @@ type SlashCommand = {
 import * as demissionCmd from './commands/demission.js';
 
 const commands = new Collection<string, SlashCommand>();
-[setupCmd, configCmd, pingCmd, infoCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd, postCmd, dailyAlgoCmd, profileCmd, profilCmd, sanctionCmd, dcCmd, rescanCmd, casierCmd, absentCmd, meetingCmd, statsCmd, invitesCmd, leaderboardCmd, serverstatsCmd, noteCmd, eventCmd, activateCmd, transcriptCmd, ticketCmd, sayCmd, demissionCmd, rankCmd, giveawayCmd, suggestCmd, suggestionConfigCmd].forEach((cmd) => {
+[setupCmd, configCmd, pingCmd, infoCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd, postCmd, dailyAlgoCmd, profileCmd, profilCmd, sanctionCmd, dcCmd, rescanCmd, casierCmd, absentCmd, meetingCmd, statsCmd, invitesCmd, leaderboardCmd, serverstatsCmd, noteCmd, eventCmd, activateCmd, transcriptCmd, ticketCmd, sayCmd, demissionCmd, rankCmd, giveawayCmd, suggestCmd, suggestionConfigCmd, backupCmd].forEach((cmd) => {
   commands.set(cmd.data.name, cmd as SlashCommand);
 });
 commands.set(noteCmd.contextData.name, noteCmd as unknown as SlashCommand);
@@ -281,14 +283,50 @@ client.once(Events.ClientReady, async (c) => {
   await syncOngoingDailyAlgoButtons(client).catch((error) =>
     logger.error('DailyAlgo', 'Impossible de synchroniser les boutons des runs en cours:', error),
   );
+  await initializeAutoBackupForAllGuilds(c.guilds.cache.values()).catch((error) =>
+    logger.error('AutoBackup', 'Impossible d\'initialiser les backups automatiques:', error)
+  );
   await registerCrons(client);
+
+  // Trigger historical message scraping for any activated guild that hasn't started yet
+  try {
+    const { startHistoricalScraping } = await import('./services/messageScraperService.js');
+    const activatedGuilds = await prisma.guild.findMany({
+      where: { activated: true },
+      select: { id: true, statsConfig: true }
+    });
+
+    for (const g of activatedGuilds) {
+      const config = (g.statsConfig as any) || {};
+      if (!config.historicalScrapeStatus || config.historicalScrapeStatus === 'NOT_STARTED') {
+        logger.info('System', `Démarrage du scrap historique automatique pour la guilde ${g.id}`);
+        startHistoricalScraping(client, g.id).catch((err) =>
+          logger.error('System', `Erreur lors du démarrage du scrap historique pour ${g.id}:`, err)
+        );
+      }
+    }
+  } catch (err) {
+    logger.error('System', 'Erreur lors de la vérification du scrap historique au démarrage:', err);
+  }
+
   logger.success('System', 'Bot opérationnel et synchronisé.');
 });
 
 client.on(Events.GuildCreate, async (guild) => {
   logger.info('System', `Le bot a rejoint le serveur : ${guild.name} (${guild.id})`);
   
-  if (!isGuildActivated(guild.id)) {
+  // Initialize auto backup if the guild is activated
+  await initializeAutoBackup(guild).catch((err) =>
+    logger.error('AutoBackup', `Impossible d'initialiser les backups pour le serveur ${guild.name}:`, err)
+  );
+
+  if (isGuildActivated(guild.id)) {
+    // Start historical message scraping
+    const { startHistoricalScraping } = await import('./services/messageScraperService.js');
+    startHistoricalScraping(client, guild.id).catch((err) =>
+      logger.error('System', `Impossible de démarrer le scraping historique pour ${guild.name}:`, err)
+    );
+  } else {
     const channel = guild.systemChannel || guild.channels.cache.find(
       (c) => c.isTextBased() && c.permissionsFor(guild.members.me!)?.has('SendMessages')
     );
@@ -301,6 +339,11 @@ client.on(Events.GuildCreate, async (guild) => {
       await channel.send({ embeds: [embed] }).catch(() => null);
     }
   }
+});
+
+client.on(Events.GuildDelete, (guild) => {
+  logger.info('System', `Le bot a quitté le serveur : ${guild.name} (${guild.id})`);
+  stopAutoBackup(guild.id);
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {

@@ -24,6 +24,7 @@
     "db:migrate:deploy": "bun run --filter @kotbo/database migrate:deploy",
     "db:push": "bun run --filter @kotbo/database push",
     "db:seed": "bun run --filter @kotbo/database seed",
+    "db:backup": "powershell -ExecutionPolicy Bypass -File ./scripts/backup-database.ps1",
     "dev:all": "bun run dev:bot && bun run dev:dashboard",
     "deploy-commands": "bun run --filter @kotbo/bot deploy-commands",
     "deploy": "bun db:migrate:deploy && bun run quality:bot && bun deploy-commands",

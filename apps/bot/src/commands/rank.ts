@@ -1,5 +1,6 @@
 import { SlashCommandBuilder, AttachmentBuilder, MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
 import { getMemberRankData, generateRankCard } from '../services/levelingService.js';
+import { extractTrackingInfo, resolveModuleFromCommand, wrapModuleTracking } from '../utils/moduleTracking.js';
 
 export const data = new SlashCommandBuilder()
   .setName('rank')
@@ -12,6 +13,24 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  const { guildId, userId } = extractTrackingInfo(interaction);
+  const moduleName = resolveModuleFromCommand('rank');
+
+  // Wrapper pour tracker les performances et l'utilisation
+  await wrapModuleTracking(
+    moduleName,
+    executeInternal,
+    [interaction],
+    {
+      actionType: 'command',
+      actionName: 'rank',
+      guildId,
+      userId,
+    }
+  );
+}
+
+async function executeInternal(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({

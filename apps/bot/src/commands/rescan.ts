@@ -45,6 +45,25 @@ export const data = new SlashCommandBuilder()
           .setName('rescan')
           .setDescription('Scanner et modérer tous les pseudos non conformes du serveur.')
       )
+  )
+  // ──────────────────────────────────────────────────────────────────────────
+  // Sous-groupe : stats (reconstruction des statistiques)
+  // ──────────────────────────────────────────────────────────────────────────
+  .addSubcommandGroup((group) =>
+    group
+      .setName('stats')
+      .setDescription('Reconstruire ou lancer les statistiques historiques.')
+      .addSubcommand((sub) =>
+        sub
+          .setName('rescan')
+          .setDescription('Scrapper l\'historique des messages pour initialiser les statistiques.')
+          .addBooleanOption((opt) =>
+            opt
+              .setName('forcer')
+              .setDescription('Forcer le re-scrap complet de tous les salons (recommencer à zéro)')
+              .setRequired(false)
+          )
+      )
   );
 
 // ---------------------------------------------------------------------------
@@ -158,5 +177,40 @@ export async function execute(interaction: ChatInputCommandInteraction) {
         : infoEmbed('Rescan des pseudos terminé', summaryLines.join('\n'));
 
     return interaction.editReply({ embeds: [embed] });
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // /rescan stats rescan
+  // ──────────────────────────────────────────────────────────────────────────
+  if (group === 'stats' && sub === 'rescan') {
+    const force = interaction.options.getBoolean('forcer') ?? false;
+
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+    try {
+      const { startHistoricalScraping } = await import('../services/messageScraperService.js');
+      await startHistoricalScraping(interaction.client, guild.id, force);
+
+      return interaction.editReply({
+        embeds: [
+          successEmbed(
+            'Scan des Statistiques Lancé',
+            `Le scraping historique des messages a été démarré avec succès en arrière-plan.\n\n` +
+            `• **Mode forcé :** ${force ? 'Oui (recommencer à zéro)' : 'Non'}\n` +
+            `• Vous pouvez suivre l'avancement dans les logs ou via le statut en base de données.`
+          ),
+        ],
+      });
+    } catch (err) {
+      console.error('Error starting historical scraping:', err);
+      return interaction.editReply({
+        embeds: [
+          errorEmbed(
+            'Erreur',
+            `Impossible de démarrer le scraping : ${err instanceof Error ? err.message : String(err)}`
+          ),
+        ],
+      });
+    }
   }
 }
