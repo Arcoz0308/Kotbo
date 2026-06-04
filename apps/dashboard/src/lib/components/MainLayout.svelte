@@ -41,17 +41,12 @@
       activeEl.getAttribute('contenteditable') === 'true'
     );
 
-    function close() {
-      searchStore.close();
-      serverSwitcherStore.close();
-      feedbackModal.close();
-    }
-
     // Ctrl+G: Sélecteur de serveur
     const isG = e.key === 'g' || e.key === 'G';
     if ((e.ctrlKey || e.metaKey) && isG) {
       e.preventDefault();
-      close();
+      searchStore.close();
+      feedbackModal.close();
       serverSwitcherStore.toggle();
       return;
     } 

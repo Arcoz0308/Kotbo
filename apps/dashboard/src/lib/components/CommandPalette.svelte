@@ -260,6 +260,7 @@
     const isSearchKey = e.key === 'k' || e.key === 'K';
     if ((e.metaKey || e.ctrlKey) && isSearchKey) {
       e.preventDefault();
+      serverSwitcherStore.close();
 
       const now = Date.now();
       if (now - lastCtrlKTime < 500) {
