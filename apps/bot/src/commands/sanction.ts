@@ -1,3 +1,4 @@
+import type { ContextCommandDefinition, SlashCommandDefinition } from '../commands.js';
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -38,7 +39,7 @@ const SANCTION_PAGE_SIZE = 5;
 const SANCTION_LIST_TIMEOUT_MS = 2 * 60 * 1000;
 const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://localhost:5173';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('sanction')
   .setDescription('🛡️ Gère les sanctions (warn, TO, kick, ban, tempban, list)')
   .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
@@ -86,7 +87,7 @@ export const data = new SlashCommandBuilder()
       .addUserOption((option) => option.setName('membre').setDescription('Membre à afficher').setRequired(true)),
   );
 
-export const contextData = new ContextMenuCommandBuilder()
+const contextData = new ContextMenuCommandBuilder()
   .setName('Sanctionner')
   .setType(ApplicationCommandType.User)
   .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers);
@@ -269,7 +270,7 @@ async function buildSanctionListView(guildId: string, targetUserId: string, targ
   return { embed, row, caseRow, pageIndex: safePageIndex, totalPages };
 }
 
-export async function execute(interaction: ChatInputCommandInteraction | UserContextMenuCommandInteraction): Promise<void> {
+async function execute(interaction: ChatInputCommandInteraction | UserContextMenuCommandInteraction): Promise<void> {
   const { guildId, userId } = extractTrackingInfo(interaction);
   const moduleName = resolveModuleFromCommand('sanction');
   const actionName = interaction.isChatInputCommand() ? interaction.options.getSubcommand(true) : 'context_menu';
@@ -567,3 +568,6 @@ async function executeInternal(interaction: ChatInputCommandInteraction | UserCo
     });
   }
 }
+
+export const sanctionCommand = { data, execute } satisfies SlashCommandDefinition;
+export const sanctionContextCommand = { data: contextData, execute } satisfies ContextCommandDefinition;

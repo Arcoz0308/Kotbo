@@ -1,3 +1,4 @@
+import type { ContextCommandDefinition, SlashCommandDefinition } from '../commands.js';
 import {
   ActionRowBuilder,
   ContextMenuCommandBuilder,
@@ -12,7 +13,7 @@ import {
 } from 'discord.js';
 import prisma from '../utils/db.js';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('note')
   .setDescription('📝 Gère la note modérateur d’un membre')
   .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
@@ -20,12 +21,12 @@ export const data = new SlashCommandBuilder()
     option.setName('membre').setDescription('Le membre pour lequel vous souhaitez modifier la note').setRequired(true),
   );
 
-export const contextData = new ContextMenuCommandBuilder()
+const contextData = new ContextMenuCommandBuilder()
   .setName('Note Modérateur')
   .setType(ApplicationCommandType.User)
   .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers);
 
-export async function execute(interaction: ChatInputCommandInteraction | UserContextMenuCommandInteraction): Promise<void> {
+async function execute(interaction: ChatInputCommandInteraction | UserContextMenuCommandInteraction): Promise<void> {
   const targetUser = interaction.isChatInputCommand()
     ? interaction.options.getUser('membre', true)
     : interaction.targetUser;
@@ -86,3 +87,6 @@ export async function showModeratorNoteModal(
 function truncate(str: string, n: number) {
   return str.length > n ? str.slice(0, n - 1) + '…' : str;
 }
+
+export const noteCommand = { data, execute } satisfies SlashCommandDefinition;
+export const noteContextCommand = { data: contextData, execute } satisfies ContextCommandDefinition;

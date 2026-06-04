@@ -1,3 +1,4 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import {
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
@@ -9,13 +10,15 @@ import prisma from '../utils/db.js';
 import { successEmbed, errorEmbed } from '../utils/embeds.js';
 import { sendSetupWelcome, sendSetupStep1 } from '../panels/setupPanel.js';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('setup')
   .setDescription('⚙️ Assistant de configuration pas à pas de Kotbo')
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
-export async function execute(interaction: ChatInputCommandInteraction) {
+async function execute(interaction: ChatInputCommandInteraction) {
   const guildId = interaction.guildId!;
   
   await sendSetupWelcome(interaction.client, guildId, interaction);
 }
+
+export const setupCommand = { data, execute } satisfies SlashCommandDefinition;

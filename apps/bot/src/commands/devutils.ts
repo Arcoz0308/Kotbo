@@ -1,8 +1,9 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import { infoEmbed, errorEmbed } from '../utils/embeds.js';
 import { createHash } from 'crypto';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('devutils')
   .setDescription('🛠️ Utilitaires pour développeurs')
   .addSubcommand(sub =>
@@ -81,7 +82,7 @@ function sha256(str: string): string {
   return createHash('sha256').update(str).digest('hex');
 }
 
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const subcommand = interaction.options.getSubcommand();
 
   try {
@@ -167,3 +168,5 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     });
   }
 }
+
+export const devutilsCommand = { data, execute } satisfies SlashCommandDefinition;

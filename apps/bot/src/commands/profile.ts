@@ -1,9 +1,10 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import { EmbedBuilder, SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, type ChatInputCommandInteraction } from 'discord.js';
 import { getPublicProfileSnapshot } from '../services/profileService.js';
 import { getStaffMember } from '../services/staffManagementService.js';
 import { COLORS, truncate } from '../utils/embeds.js';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('profile')
   .setDescription('👤 Affiche le profil communautaire et la progression Daily Algo')
   .addUserOption((option) =>
@@ -51,7 +52,7 @@ function formatEventType(eventType: string): string {
   return eventType;
 }
 
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId;
 
   if (!guildId) {
@@ -249,3 +250,5 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   await interaction.editReply({ embeds: [embed], components: [row] });
 }
+
+export const profileCommand = { data, execute } satisfies SlashCommandDefinition;

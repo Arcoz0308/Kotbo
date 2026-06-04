@@ -1,7 +1,8 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import { SlashCommandBuilder, MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
 import { createSuggestion } from '../services/suggestionService.js';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('suggest')
   .setDescription('💡 Soumettre une suggestion ou une idée pour le serveur')
   .addStringOption((o) =>
@@ -11,7 +12,7 @@ export const data = new SlashCommandBuilder()
       .setRequired(true)
   );
 
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
@@ -38,3 +39,5 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     await interaction.editReply(`❌ Impossible de publier la suggestion : ${err?.message || 'erreur inconnue'}`);
   }
 }
+
+export const suggestCommand = { data, execute } satisfies SlashCommandDefinition;

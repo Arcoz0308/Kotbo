@@ -1,9 +1,10 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import { EmbedBuilder, MessageFlags, SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import { COLORS } from '../utils/embeds.js';
 import { getInviteLeaderboard, getUserInviteStats } from '../services/inviteService.js';
 import prisma from '../utils/db.js';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('invites')
   .setDescription("📩 Gestion et statistiques d'invitations")
   .addSubcommand(sub =>
@@ -20,7 +21,7 @@ export const data = new SlashCommandBuilder()
       .setDescription("Affiche le classement des meilleurs inviteurs")
   );
 
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId;
   const subcommand = interaction.options.getSubcommand();
 
@@ -104,3 +105,5 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     await interaction.editReply({ embeds: [embed] });
   }
 }
+
+export const invitesCommand = { data, execute } satisfies SlashCommandDefinition;

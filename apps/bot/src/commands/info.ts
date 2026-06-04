@@ -1,3 +1,4 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
 import { errorEmbed, COLORS } from '../utils/embeds.js';
 import prisma from '../utils/db.js';
@@ -44,11 +45,11 @@ function truncate(value: string, max = 120): string {
   return `${value.slice(0, max - 3)}...`;
 }
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('info')
   .setDescription('ℹ️ Informations sur le bot (version, état, configuration)');
 
-export async function execute(interaction: ChatInputCommandInteraction) {
+async function execute(interaction: ChatInputCommandInteraction) {
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({ 
@@ -153,3 +154,5 @@ export async function execute(interaction: ChatInputCommandInteraction) {
 
   await interaction.reply({ embeds: [embed], flags: [MessageFlags.Ephemeral] });
 }
+
+export const infoCommand = { data, execute } satisfies SlashCommandDefinition;

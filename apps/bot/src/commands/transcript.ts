@@ -1,3 +1,4 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import {
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
@@ -12,7 +13,7 @@ import { successEmbed, errorEmbed } from '../utils/embeds.js';
 import { generateTranscriptFromMessages } from '../services/transcriptService.js';
 import { logger } from '../utils/logger.js';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('transcript')
   .setDescription('📄 Génère une transcription des messages de ce salon')
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
@@ -122,7 +123,7 @@ export function parseDateTimeOrDuration(input: string): number | null {
   return null;
 }
 
-export async function execute(interaction: ChatInputCommandInteraction) {
+async function execute(interaction: ChatInputCommandInteraction) {
   const { guildId, channel } = interaction;
   if (!guildId || !channel || !(channel instanceof TextChannel)) {
     await interaction.reply({
@@ -365,3 +366,4 @@ export async function execute(interaction: ChatInputCommandInteraction) {
   }
 }
 
+export const transcriptCommand = { data, execute } satisfies SlashCommandDefinition;

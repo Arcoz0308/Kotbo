@@ -15,8 +15,9 @@ import {
   getLatestOpenAbsenceForMember,
 } from '../services/staffLeadershipService.js';
 import { getStaffMember } from '../services/staffManagementService.js';
+import type { SlashCommandDefinition } from '../commands.js';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('absent')
   .setDescription('Gère vos absences staff (déclaration et clôture).')
   .addSubcommand((subcommand) =>
@@ -150,7 +151,7 @@ const askIndefiniteConfirmation = async (
   }
 };
 
-export async function execute(interaction: ChatInputCommandInteraction) {
+async function execute(interaction: ChatInputCommandInteraction) {
   if (!interaction.guildId) return;
 
   const staff = await getStaffMember(interaction.guildId, interaction.user.id);
@@ -278,3 +279,5 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     });
   }
 }
+
+export const absentCommand: SlashCommandDefinition = { data, execute } satisfies SlashCommandDefinition;

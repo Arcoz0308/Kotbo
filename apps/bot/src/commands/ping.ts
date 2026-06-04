@@ -1,7 +1,8 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import { successEmbed } from '../utils/embeds.js';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('ping')
   .setDescription('🏓 Vérifie la latence du bot');
 
@@ -18,3 +19,5 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     ],
   });
 }
+
+export const pingCommand = { data, execute } satisfies SlashCommandDefinition;

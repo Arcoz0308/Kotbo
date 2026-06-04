@@ -8,10 +8,9 @@ import {
   Collection,
   Events,
   ActivityType,
-  type ChatInputCommandInteraction,
-  type AutocompleteInteraction,
   MessageFlags,
   DiscordAPIError,
+  type ChatInputCommandInteraction,
 } from 'discord.js';
 import { logger } from './utils/logger.js';
 import { replyOrFollowUp } from './utils/interactionResponses.js';
@@ -21,30 +20,6 @@ import {
   handleSelectMenu,
   handleModalSubmit,
 } from './handlers/interactionHandler.js';
-import * as setupCmd from './commands/setup.js';
-import * as configCmd from './commands/config.js';
-import * as pingCmd from './commands/ping.js';
-import * as infoCmd from './commands/info.js';
-import * as excuseCmd from './commands/excuse.js';
-import * as epochCmd from './commands/epoch.js';
-import * as devutilsCmd from './commands/devutils.js';
-import * as statusCmd from './commands/status.js';
-import * as adminCmd from './commands/admin.js';
-import * as helpCmd from './commands/help.js';
-import * as postCmd from './commands/post.js';
-import * as dailyAlgoCmd from './commands/dailyAlgo.js';
-import * as profileCmd from './commands/profile.ts';
-import * as profilCmd from './commands/profil.ts';
-import * as sanctionCmd from './commands/sanction.js';
-import * as dcCmd from './commands/dc.js';
-import * as rescanCmd from './commands/rescan.js';
-import * as casierCmd from './commands/casier.js';
-import * as absentCmd from './commands/absent.js';
-import * as meetingCmd from './commands/meeting.js';
-import * as noteCmd from './commands/note.js';
-import * as eventCmd from './commands/event.js';
-import * as transcriptCmd from './commands/transcript.js';
-import * as ticketCmd from './commands/ticket.js';
 import prisma from './utils/db.js';
 import { errorEmbed } from './utils/embeds.js';
 import { getCachedDashboardSettings, cache } from './utils/cache.js';
@@ -73,23 +48,18 @@ import { initBotSentry, captureException } from './observability/sentry.js';
 import { initRedis } from './infra/redis.js';
 import { startBackgroundQueueWorker } from './infra/queues/backgroundQueue.js';
 import botPackageJson from '../package.json';
-import * as leaderboardCmd from './commands/leaderboard.js';
-import * as serverstatsCmd from './commands/serverstats.js';
-import * as statsCmd from './commands/stats.js';
-import * as invitesCmd from './commands/invites.js';
-import * as activateCmd from './commands/activate.js';
-import * as sayCmd from './commands/say.js';
-import * as rankCmd from './commands/rank.js';
-import * as giveawayCmd from './commands/giveaway.js';
-import * as suggestCmd from './commands/suggest.js';
-import * as suggestionConfigCmd from './commands/suggestion-config.js';
-import * as backupCmd from './commands/backup.js';
 import { registerLevelingListener } from './events/levelingEvents.js';
 import { registerWelcomeGoodbyeListener } from './events/welcomeGoodbyeEvents.js';
 import { registerAutoModListener } from './events/autoModEvents.js';
 import { registerAutoResponseListener } from './events/autoResponseEvents.js';
 import { loadActivatedGuilds, isGuildActivated } from './utils/activation.js';
 import { initializeAutoBackupForAllGuilds, initializeAutoBackup, stopAutoBackup } from './services/autoBackupService.js';
+import {
+  commands as slashCommandDefinitions,
+  contextCommands as contextCommandDefinitions,
+  type ContextCommandDefinition,
+  type SlashCommandDefinition,
+} from './commands.js';
 
 initBotSentry();
 
@@ -177,22 +147,15 @@ if (!client.shard || client.shard.ids.includes(0)) {
   startDashboardApi(client);
 }
 
-
-type SlashCommand = {
-  data: { name: string; toJSON: () => unknown };
-  execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
-  autocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;
-};
-
-import * as demissionCmd from './commands/demission.js';
-
-const commands = new Collection<string, SlashCommand>();
-[setupCmd, configCmd, pingCmd, infoCmd, excuseCmd, epochCmd, devutilsCmd, statusCmd, adminCmd, helpCmd, postCmd, dailyAlgoCmd, profileCmd, profilCmd, sanctionCmd, dcCmd, rescanCmd, casierCmd, absentCmd, meetingCmd, statsCmd, invitesCmd, leaderboardCmd, serverstatsCmd, noteCmd, eventCmd, activateCmd, transcriptCmd, ticketCmd, sayCmd, demissionCmd, rankCmd, giveawayCmd, suggestCmd, suggestionConfigCmd, backupCmd].forEach((cmd) => {
-  commands.set(cmd.data.name, cmd as SlashCommand);
+const slashCommands = new Collection<string, SlashCommandDefinition>();
+slashCommandDefinitions.forEach((cmd) => {
+  slashCommands.set(cmd.data.name, cmd);
 });
-commands.set(noteCmd.contextData.name, noteCmd as unknown as SlashCommand);
-commands.set(casierCmd.contextData.name, casierCmd as unknown as SlashCommand);
-commands.set(sanctionCmd.contextData.name, sanctionCmd as unknown as SlashCommand);
+
+const userContextCommands = new Collection<string, ContextCommandDefinition>();
+contextCommandDefinitions.forEach((cmd) => {
+  userContextCommands.set(cmd.data.name, cmd);
+});
 
 async function enforceCommandAccess(interaction: ChatInputCommandInteraction): Promise<boolean> {
   if (!interaction.guildId) return true;
@@ -381,7 +344,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
       }
 
-      const cmd = commands.get(interaction.commandName);
+      const cmd = slashCommands.get(interaction.commandName);
       if (!cmd) {
         await interaction.reply({
           content: '⚠️ Cette commande n\'est pas encore disponible sur cette instance du bot. Redémarre le bot puis redéploie les commandes.',
@@ -404,13 +367,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     else if (interaction.isAutocomplete()) {
-      const cmd = commands.get(interaction.commandName);
+      const cmd = slashCommands.get(interaction.commandName);
       if (cmd?.autocomplete) await cmd.autocomplete(interaction);
     }
 
     else if (interaction.isUserContextMenuCommand()) {
-      const cmd = commands.get(interaction.commandName);
-      if (cmd) await cmd.execute(interaction as any);
+      const cmd = userContextCommands.get(interaction.commandName);
+      if (cmd) await cmd.execute(interaction);
     }
 
     else if (interaction.isButton()) {

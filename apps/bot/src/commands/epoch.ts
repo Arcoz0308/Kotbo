@@ -1,7 +1,8 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import { infoEmbed, errorEmbed } from '../utils/embeds.js';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('epoch')
   .setDescription('🕐 Convertis entre timestamp Unix et date lisible')
   .addStringOption(option =>
@@ -11,7 +12,7 @@ export const data = new SlashCommandBuilder()
       .setRequired(false)
   );
 
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const input = interaction.options.getString('value');
 
   try {
@@ -90,3 +91,5 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     });
   }
 }
+
+export const epochCommand = { data, execute } satisfies SlashCommandDefinition;

@@ -1,9 +1,10 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import { EmbedBuilder, MessageFlags, SlashCommandBuilder, AttachmentBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import prisma from '../utils/db.js';
 import { generateLeaderboardImage } from '../services/imageService.js';
 import { COLORS } from '../utils/embeds.js';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('leaderboard')
   .setDescription('🏆 Affiche le classement du serveur')
   .addStringOption((option) =>
@@ -29,7 +30,7 @@ export const data = new SlashCommandBuilder()
       ),
   );
 
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId;
 
   if (!guildId) {
@@ -93,3 +94,5 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     files: [attachment],
   });
 }
+
+export const leaderboardCommand = { data, execute } satisfies SlashCommandDefinition;

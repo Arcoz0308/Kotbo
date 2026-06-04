@@ -1,9 +1,10 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import { SlashCommandBuilder, MessageFlags, type ChatInputCommandInteraction, EmbedBuilder } from 'discord.js';
 import { checkInMeeting, getMeetings, createMeeting, syncMeetingPresencesWithAbsences } from '../services/staffLeadershipService.js';
 import { getStaffMember } from '../services/staffManagementService.js';
 import { logger } from '../utils/logger.js';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('meeting')
   .setDescription('Outils de gestion de réunion Staff.')
   .addSubcommand(sub => 
@@ -22,7 +23,7 @@ export const data = new SlashCommandBuilder()
       .addStringOption(opt => opt.setName('date').setDescription('Date et heure (format: YYYY-MM-DD HH:mm)').setRequired(true))
       .addStringOption(opt => opt.setName('description').setDescription('Sujet ou ordre du jour').setRequired(false)));
 
-export async function execute(interaction: ChatInputCommandInteraction) {
+async function execute(interaction: ChatInputCommandInteraction) {
   if (!interaction.guildId) return;
 
   const staff = await getStaffMember(interaction.guildId, interaction.user.id);
@@ -105,3 +106,5 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     }
   }
 }
+
+export const meetingCommand = { data, execute } satisfies SlashCommandDefinition;

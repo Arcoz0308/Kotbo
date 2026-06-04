@@ -1,9 +1,10 @@
+import type { SlashCommandDefinition } from '../commands.js';
 import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
 import { createGiveaway, endGiveaway, rerollGiveaway } from '../services/giveawayService.js';
 import prisma from '../utils/db.js';
 import { extractTrackingInfo, resolveModuleFromCommand, wrapModuleTracking } from '../utils/moduleTracking.js';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('giveaway')
   .setDescription('🎉 Gérer les giveaways/concours')
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
@@ -30,7 +31,7 @@ export const data = new SlashCommandBuilder()
       .addStringOption((o) => o.setName('id').setDescription('ID du giveaway').setRequired(true))
   );
 
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const { guildId, userId } = extractTrackingInfo(interaction);
   const moduleName = resolveModuleFromCommand('giveaway');
   const subcommand = interaction.options.getSubcommand();
@@ -124,3 +125,5 @@ async function executeInternal(interaction: ChatInputCommandInteraction): Promis
     await interaction.editReply(`🎲 Un nouveau gagnant a été tiré au sort pour le giveaway \`${id}\`.`);
   }
 }
+
+export const giveawayCommand = { data, execute } satisfies SlashCommandDefinition;
