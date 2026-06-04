@@ -33,6 +33,7 @@ import { statusCommand } from './commands/status.js';
 import { suggestCommand } from './commands/suggest.js';
 import { ticketCommand } from './commands/ticket.js';
 import { transcriptCommand } from './commands/transcript.js';
+import { suggestionConfigCommand } from './commands/suggestion-config.ts';
 
 export type SlashCommandDefinition = {
   data: { name: string; toJSON: () => unknown };
@@ -83,6 +84,7 @@ export const commands: SlashCommandDefinition[] = [
   rankCommand,
   giveawayCommand,
   suggestCommand,
+  suggestionConfigCommand,
 ];
 
 export const contextCommands: ContextCommandDefinition[] = [

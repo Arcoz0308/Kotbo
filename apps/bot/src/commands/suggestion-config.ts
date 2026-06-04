@@ -8,8 +8,9 @@ import {
 import { getOrCreateFeatureConfigs, updateFeatureConfig } from '../services/dashboardManagementService.js';
 import prisma from '../utils/db.js';
 import { successEmbed, errorEmbed } from '../utils/embeds.js';
+import { SlashCommandDefinition } from '../commands.js';
 
-export const data = new SlashCommandBuilder()
+const data = new SlashCommandBuilder()
   .setName('suggestion-config')
   .setDescription('⚙️ Configure le module de suggestions')
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
@@ -48,7 +49,7 @@ export const data = new SlashCommandBuilder()
       )
   );
 
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
@@ -64,7 +65,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
     const channel = interaction.options.getChannel('channel', true);
-    
+
     try {
       await getOrCreateFeatureConfigs(guildId);
       await updateFeatureConfig(guildId, 'suggestions', {
@@ -202,3 +203,5 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     }
   }
 }
+
+export const suggestionConfigCommand = { data, execute } satisfies SlashCommandDefinition;
