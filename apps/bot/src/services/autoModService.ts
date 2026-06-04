@@ -1,4 +1,4 @@
-import { Message, MessageFlags, PermissionFlagsBits, ChannelType, EmbedBuilder } from 'discord.js';
+import { Message, MessageFlags, PermissionFlagsBits, ChannelType, EmbedBuilder, Client, PartialMessage, User, Role, Collection } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 import { registerWarnSanction, registerTimeoutSanction } from './sanctionService.js';
@@ -43,6 +43,8 @@ export async function getOrCreateAutoModConfig(guildId: string) {
           emojisLimit: 10,
           mentionsEnabled: false,
           mentionsLimit: 5,
+          ghostPingEnabled: false,
+          ghostPingAction: 'ALERT',
         },
       });
     }
@@ -255,6 +257,169 @@ async function applySanction(message: Message, action: string, reason: string, c
       reason,
       durationMs: tenMinutesMs,
       member: message.member!,
+      client,
+    });
+  }
+}
+
+/**
+ * Gère la détection de ghost ping lors de la suppression d'un message
+ */
+export async function handleGhostPingDelete(message: Message | PartialMessage, client: Client) {
+  if (message.partial) return;
+  if (!message.guild || !message.member || message.author.bot) return;
+  if (message.member.permissions.has(PermissionFlagsBits.Administrator)) return;
+
+  try {
+    const guildId = message.guild.id;
+    const config = await getOrCreateAutoModConfig(guildId);
+
+    if (!config.ghostPingEnabled) return;
+
+    // Vérifier si le rôle ou le salon est exempté
+    if (config.bypassChannels.includes(message.channel.id)) return;
+    const hasBypassRole = message.member.roles.cache.some(r => config.bypassRoles.includes(r.id));
+    if (hasBypassRole) return;
+
+    // Récupérer les mentions cibles (exclure l'auteur et les bots)
+    const targetUsers = message.mentions.users.filter(user => !user.bot && user.id !== message.author.id);
+    const targetRoles = message.mentions.roles;
+    const hasEveryone = message.mentions.everyone;
+
+    if (targetUsers.size === 0 && targetRoles.size === 0 && !hasEveryone) return;
+
+    await triggerGhostPingAlert(message as Message, targetUsers, targetRoles, hasEveryone, false, config, client);
+  } catch (err) {
+    logger.error('AutoModService', 'Erreur lors de la détection de ghost ping sur suppression :', err);
+  }
+}
+
+/**
+ * Gère la détection de ghost ping lors de la modification d'un message
+ */
+export async function handleGhostPingUpdate(
+  oldMessage: Message | PartialMessage,
+  newMessage: Message | PartialMessage,
+  client: Client
+) {
+  if (oldMessage.partial || newMessage.partial) return;
+  if (!oldMessage.guild || !oldMessage.member || oldMessage.author.bot) return;
+  if (oldMessage.member.permissions.has(PermissionFlagsBits.Administrator)) return;
+
+  try {
+    const guildId = oldMessage.guild.id;
+    const config = await getOrCreateAutoModConfig(guildId);
+
+    if (!config.ghostPingEnabled) return;
+
+    // Vérifier si le rôle ou le salon est exempté
+    if (config.bypassChannels.includes(oldMessage.channel.id)) return;
+    const hasBypassRole = oldMessage.member.roles.cache.some(r => config.bypassRoles.includes(r.id));
+    if (hasBypassRole) return;
+
+    // Trouver les mentions supprimées lors de l'édition
+    const deletedUsers = oldMessage.mentions.users.filter(user => 
+      !user.bot && 
+      user.id !== oldMessage.author.id && 
+      !newMessage.mentions.users.has(user.id)
+    );
+    const deletedRoles = oldMessage.mentions.roles.filter(role => 
+      !newMessage.mentions.roles.has(role.id)
+    );
+    const deletedEveryone = oldMessage.mentions.everyone && !newMessage.mentions.everyone;
+
+    if (deletedUsers.size === 0 && deletedRoles.size === 0 && !deletedEveryone) return;
+
+    await triggerGhostPingAlert(oldMessage as Message, deletedUsers, deletedRoles, deletedEveryone, true, config, client);
+  } catch (err) {
+    logger.error('AutoModService', 'Erreur lors de la détection de ghost ping sur modification :', err);
+  }
+}
+
+/**
+ * Déclenche l'alerte et la sanction de ghost ping
+ */
+async function triggerGhostPingAlert(
+  message: Message,
+  targetUsers: Collection<string, User>,
+  targetRoles: Collection<string, Role>,
+  hasEveryone: boolean,
+  isEdit: boolean,
+  config: any,
+  client: Client
+) {
+  const guildId = message.guild!.id;
+  const author = message.author;
+  const action = config.ghostPingAction || 'ALERT';
+
+  // 1. Préparer la liste des cibles sans les mentionner à nouveau pour éviter un double ping
+  const targetsList: string[] = [];
+  targetUsers.forEach(u => targetsList.push(`**${u.username}**`));
+  targetRoles.forEach(r => targetsList.push(`**@${r.name}**`));
+  if (hasEveryone) targetsList.push('**@everyone / @here**');
+
+  const targetsString = targetsList.join(', ');
+  const reason = isEdit 
+    ? `[AutoMod] Ghost Ping détecté (mention retirée d'un message modifié)`
+    : `[AutoMod] Ghost Ping détecté (message supprimé contenant une mention)`;
+
+  // 2. Envoyer un message d'alerte publique dans le salon d'origine
+  const alertText = isEdit
+    ? `👻 **Ghost Ping détecté !** <@${author.id}> a mentionné ${targetsString} puis a modifié son message pour retirer la mention.`
+    : `👻 **Ghost Ping détecté !** <@${author.id}> a mentionné ${targetsString} puis a supprimé son message.`;
+
+  await (message.channel as any).send(alertText).catch(() => null);
+
+  // 3. Notifier dans le salon de log si configuré
+  try {
+    const guildDb = await prisma.guild.findUnique({
+      where: { id: guildId },
+      select: { logChannelId: true },
+    });
+    if (guildDb?.logChannelId) {
+      const logChannel = message.guild!.channels.cache.get(guildDb.logChannelId);
+      if (logChannel?.isTextBased()) {
+        const embed = new EmbedBuilder()
+          .setTitle('🛡️ Alerte AutoMod (Ghost Ping)')
+          .setDescription(`Un ghost ping a été détecté dans le salon <#${message.channel.id}>.`)
+          .addFields(
+            { name: 'Utilisateur', value: `${author.tag} (${author.id})`, inline: true },
+            { name: 'Cibles mentionnées', value: targetsString || 'Inconnues', inline: true },
+            { name: 'Action', value: action, inline: true },
+            { name: 'Type d\'infraction', value: isEdit ? 'Modification de message' : 'Suppression de message', inline: true }
+          )
+          .setColor('#ED4245')
+          .setTimestamp();
+
+        // Si le contenu original du message est disponible, l'ajouter de manière sécurisée
+        if (message.content) {
+          const contentSnippet = message.content.substring(0, 1024);
+          embed.addFields({ name: 'Message original', value: contentSnippet, inline: false });
+        }
+
+        await (logChannel as any).send({ embeds: [embed] }).catch(() => null);
+      }
+    }
+  } catch (err) {
+    logger.warn('AutoModService', 'Impossible d\'envoyer le log de Ghost Ping :', err);
+  }
+
+  // 4. Appliquer une sanction d'avertissement (WARN) si configurée
+  if (action === 'WARN') {
+    const target = {
+      id: author.id,
+      tag: author.tag,
+    };
+    const moderator = {
+      id: client.user!.id,
+      tag: client.user!.tag,
+    };
+
+    await registerWarnSanction({
+      guildId,
+      target,
+      moderator,
+      reason,
       client,
     });
   }

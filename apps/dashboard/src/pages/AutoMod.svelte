@@ -39,6 +39,9 @@
     
     mentionsEnabled: false,
     mentionsLimit: 5,
+
+    ghostPingEnabled: false,
+    ghostPingAction: 'ALERT',
     
     bypassRoles: [] as string[],
     bypassChannels: [] as string[]
@@ -70,6 +73,8 @@
           emojisLimit: res.config.emojisLimit ?? 10,
           mentionsEnabled: res.config.mentionsEnabled ?? false,
           mentionsLimit: res.config.mentionsLimit ?? 5,
+          ghostPingEnabled: res.config.ghostPingEnabled ?? false,
+          ghostPingAction: res.config.ghostPingAction ?? 'ALERT',
           bypassRoles: res.config.bypassRoles || [],
           bypassChannels: res.config.bypassChannels || []
         };
@@ -367,6 +372,44 @@
                 class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:outline-none"
                 disabled={!canManageSettings}
               />
+            </div>
+          {/if}
+        </section>
+
+        <!-- Anti-Ghost Ping -->
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
+          <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
+            <h3 class="text-lg font-black flex items-center gap-3">
+              <Papicon icon="Ghost" size={20} class="text-rose-400" />
+              Filtre Anti-Ghost Ping
+            </h3>
+            <ToggleSwitch 
+              checked={config.ghostPingEnabled} 
+              onToggle={(v: boolean) => config.ghostPingEnabled = v} 
+              disabled={!canManageSettings}
+            />
+          </div>
+
+          <p class="text-xs text-on-surface-variant/70 leading-relaxed">
+            Détecte et signale les mentions supprimées ou modifiées rapidement pour masquer un ping.
+            <br />
+            <span class="text-amber-500/90 font-medium">⚠️ Seuls les messages en cache du bot peuvent être analysés (limite de l'API Discord).</span>
+          </p>
+
+          {#if config.ghostPingEnabled}
+            <div class="space-y-4 animate-in fade-in duration-300">
+              <div class="space-y-1.5">
+                <label for="ghostPingAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Sanction en cas d'infraction</label>
+                <select 
+                  id="ghostPingAction"
+                  bind:value={config.ghostPingAction}
+                  class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm text-on-surface focus:outline-none"
+                  disabled={!canManageSettings}
+                >
+                  <option value="ALERT">Simple Alerte (Message)</option>
+                  <option value="WARN">Avertissement (Warn + Alerte)</option>
+                </select>
+              </div>
             </div>
           {/if}
         </section>

@@ -2083,6 +2083,9 @@ model AutoModConfig {
   mentionsEnabled      Boolean  @default(false)
   mentionsLimit        Int      @default(5)
   
+  ghostPingEnabled     Boolean  @default(false)
+  ghostPingAction      String   @default("ALERT")   // ALERT, WARN
+  
   bypassRoles          String[] @default([])
   bypassChannels       String[] @default([])
 
