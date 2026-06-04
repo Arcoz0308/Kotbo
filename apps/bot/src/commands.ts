@@ -20,8 +20,8 @@ import { meetingCommand } from './commands/meeting.js';
 import { noteCommand, noteContextCommand } from './commands/note.js';
 import { pingCommand } from './commands/ping.js';
 import { postCommand } from './commands/post.js';
-import { profilCommand } from './commands/profil.ts';
-import { profileCommand } from './commands/profile.ts';
+import { profilCommand } from './commands/profil.js';
+import { profileCommand } from './commands/profile.js';
 import { rankCommand } from './commands/rank.js';
 import { rescanCommand } from './commands/rescan.js';
 import { sanctionCommand, sanctionContextCommand } from './commands/sanction.js';
@@ -33,7 +33,7 @@ import { statusCommand } from './commands/status.js';
 import { suggestCommand } from './commands/suggest.js';
 import { ticketCommand } from './commands/ticket.js';
 import { transcriptCommand } from './commands/transcript.js';
-import { suggestionConfigCommand } from './commands/suggestion-config.ts';
+import { suggestionConfigCommand } from './commands/suggestion-config.js';
 
 export type SlashCommandDefinition = {
   data: { name: string; toJSON: () => unknown };
