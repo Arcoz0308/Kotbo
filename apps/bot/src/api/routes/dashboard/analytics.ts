@@ -1,5 +1,5 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
-import { Client } from 'discord.js';
+import { Client, Routes } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { COMMAND_CATALOG } from '../../../utils/commandAccess.js';
@@ -712,7 +712,6 @@ export async function handleAnalyticsRoutes(
       let taggedMembersList: any[] = [];
       if (discordGuild) {
         try {
-          const { Routes } = await import('discord.js');
           const rawGuild = await client.rest.get(Routes.guild(guildId)) as any;
           if (rawGuild.clan && rawGuild.clan.tag) {
             clanTag = rawGuild.clan.tag;

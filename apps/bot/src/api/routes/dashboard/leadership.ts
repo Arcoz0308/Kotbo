@@ -1,5 +1,5 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
-import { Client, ChannelType, PermissionFlagsBits, EmbedBuilder } from 'discord.js';
+import { Client, ChannelType, PermissionFlagsBits, EmbedBuilder, TextChannel } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { COLORS } from '../../../utils/embeds.js';
@@ -34,6 +34,9 @@ import {
   getPolls,
   createPoll,
   castPollVote,
+  deleteManagerNote,
+  getManagerNotes,
+  createManagerNote,
 } from '../../../services/staffLeadershipService.js';
 import {
   getStaffMember,
@@ -369,25 +372,25 @@ export async function handleGuildLeadershipRoutes(
         const currentMetadata = (currentConfig?.metadata as Record<string, any>) || {};
         const updatedMetadata = {
           ...currentMetadata,
-          webhookUrl: body.webhookUrl !== undefined ? body.webhookUrl : currentMetadata.webhookUrl
+          webhookUrl: body?.webhookUrl ?? currentMetadata.webhookUrl
         };
 
         const config = await prisma.dashboardFeatureConfig.upsert({
           where: { guildId_featureKey: { guildId, featureKey: 'absences' } },
           update: {
             featureName: 'Absences Staff',
-            channelId: body.channelId !== undefined ? body.channelId : undefined,
-            notificationRoleId: body.notificationRoleId !== undefined ? body.notificationRoleId : undefined,
-            notifyViaDiscordChannel: body.notifyViaDiscordChannel !== undefined ? body.notifyViaDiscordChannel : undefined,
+            channelId: body?.channelId ?? undefined,
+            notificationRoleId: body?.notificationRoleId ?? undefined,
+            notifyViaDiscordChannel: body?.notifyViaDiscordChannel ?? undefined,
             metadata: updatedMetadata,
           },
           create: {
             guildId,
             featureKey: 'absences',
             featureName: 'Absences Staff',
-            channelId: body.channelId ?? null,
-            notificationRoleId: body.notificationRoleId ?? null,
-            notifyViaDiscordChannel: body.notifyViaDiscordChannel ?? true,
+            channelId: body?.channelId ?? null,
+            notificationRoleId: body?.notificationRoleId ?? null,
+            notifyViaDiscordChannel: body?.notifyViaDiscordChannel ?? true,
             metadata: updatedMetadata,
           }
         });
@@ -396,7 +399,7 @@ export async function handleGuildLeadershipRoutes(
           where: { featureConfigId: config.id }
         });
 
-        if (body.managerRoleLevels && body.managerRoleLevels.length > 0) {
+        if (body?.managerRoleLevels && body.managerRoleLevels.length > 0) {
           await prisma.dashboardRoleAccess.createMany({
             data: body.managerRoleLevels.map(level => ({
               guildId,
@@ -1147,7 +1150,6 @@ export async function handleGuildLeadershipRoutes(
           json(res, 400, { error: 'Le contenu de la note est requis' });
           return true;
         }
-
         const note = await createManagerNote(guildId, staffUserId, user.userId, body.content);
 
         await pushAudit(guildId, {
@@ -2208,7 +2210,7 @@ export async function handleGuildLeadershipRoutes(
                   ? `Votre demande de démission a été **approuvée** par la direction.${body.note ? `\n\n📝 **Note :** ${body.note}` : ''}`
                   : `Votre demande de démission a été **refusée** par la direction.${body.note ? `\n\n📝 **Motif :** ${body.note}` : ''}`
               )
-              .setColor(body.action === 'APPROVED' ? COLORS.success : COLORS.error)
+              .setColor(body.action === 'APPROVED' ? COLORS.success : COLORS.warning)
               .setTimestamp();
             await discordUser.send({ embeds: [dmEmbed] }).catch(() => null);
           }
@@ -2297,7 +2299,6 @@ export async function handleGuildLeadershipRoutes(
           });
         }
 
-        const { TextChannel } = await import('discord.js');
         const ticketChannel = await discordGuild.channels.create({
           name: channelName,
           type: ChannelType.GuildText,
@@ -2426,7 +2427,7 @@ export async function handleGuildLeadershipRoutes(
             const diffDays = diffMs / (1000 * 60 * 60 * 24);
 
             if (diffDays < minDays && !body.force) {
-              json(res, 403, { 
+              json(res, 403, {
                 error: `La période de test est trop courte (${Math.floor(diffDays)}j / ${minDays}j).`,
                 canForce: accessLevel.level === 'admin'
               });

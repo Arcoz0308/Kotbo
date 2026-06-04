@@ -149,7 +149,7 @@ export async function handleMembersRoutes(
 
         const discordGuild = client.guilds.cache.get(guildId);
         const dmEmbed = new EmbedBuilder()
-          .setColor(COLORS.error)
+          .setColor(COLORS.warning)
           .setTitle('🔗 Comptes déliés')
           .setDescription(`Vos comptes **<@${link.user1Id}>** et **<@${link.user2Id}>** ont été séparés sur **${discordGuild?.name || 'le serveur'}**.`)
           .setTimestamp();
@@ -548,7 +548,7 @@ export async function handleMembersRoutes(
       
       const discordGuild = client.guilds.cache.get(guildId);
       const dmEmbed = new EmbedBuilder()
-        .setColor(COLORS.error)
+        .setColor(COLORS.warning)
         .setTitle('🔗 Comptes déliés')
         .setDescription(`Vos comptes **<@${u1Id}>** et **<@${u2Id}>** ont été séparés sur **${discordGuild?.name || 'le serveur'}**.`)
         .setTimestamp();
