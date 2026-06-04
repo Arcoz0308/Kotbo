@@ -150,7 +150,10 @@ export async function handleEventsRoutes(
             title: body.title,
             description: body.description,
             channelId: body.channelId,
-            questions: (body.questions && !isLive) ? {
+            triggerType: body.triggerType,
+            triggerValue: body.triggerValue,
+            triggerStatus: (body.triggerType !== (currentEvent as any)?.triggerType || body.triggerValue !== (currentEvent as any)?.triggerValue) ? 'PENDING' : undefined,
+            questions: (body.questions && !isLive && (currentEvent as any)?.type === 'QUIZ') ? {
               deleteMany: {},
               create: body.questions.map((q: any, i: number) => ({
                 text: q.text,
@@ -159,12 +162,25 @@ export async function handleEventsRoutes(
                 sortOrder: i,
                 imageUrl: q.imageUrl
               }))
+            } : undefined,
+            ctfChallenges: (body.ctfChallenges && !isLive && (currentEvent as any)?.type === 'CTF') ? {
+              deleteMany: {},
+              create: body.ctfChallenges.map((c: any, i: number) => ({
+                title: c.title,
+                description: c.description || '',
+                flag: c.flag,
+                points: Number(c.points) || 100,
+                roleIdReward: c.roleIdReward || null,
+                xpReward: Number(c.xpReward) || 0,
+                imageUrl: c.imageUrl || null,
+                sortOrder: i
+              }))
             } : undefined
-          },
-          include: { questions: true }
+          } as any,
+          include: { questions: true, ctfChallenges: true } as any
         });
 
-        if (isLive && body.questions) {
+        if (isLive && body.questions && (currentEvent as any)?.type === 'QUIZ') {
           const existingQuestions = await prisma.eventQuizQuestion.findMany({
             where: { eventId },
             orderBy: { sortOrder: 'asc' }
@@ -183,6 +199,29 @@ export async function handleEventsRoutes(
                 }
               });
             }
+          }
+        }
+
+        if (isLive && body.ctfChallenges && (currentEvent as any)?.type === 'CTF') {
+          const existingChallenges = await (prisma as any).eventCtfChallenge.findMany({
+            where: { eventId },
+            orderBy: { sortOrder: 'asc' }
+          });
+
+          for (let i = 0; i < Math.min(existingChallenges.length, body.ctfChallenges.length); i++) {
+            const c = body.ctfChallenges[i];
+            await (prisma as any).eventCtfChallenge.update({
+              where: { id: existingChallenges[i].id },
+              data: {
+                title: c.title,
+                description: c.description || '',
+                flag: c.flag,
+                points: Number(c.points) || 100,
+                roleIdReward: c.roleIdReward || null,
+                xpReward: Number(c.xpReward) || 0,
+                imageUrl: c.imageUrl || null
+              }
+            });
           }
         }
 

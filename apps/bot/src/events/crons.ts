@@ -100,6 +100,11 @@ export async function registerCrons(client: Client): Promise<void> {
   initializeDatabaseBackup();
 
   registerBackgroundJobHandlers({
+    'scheduled-events': async () => {
+      logger.debug('Cron', 'Vérification des événements planifiés...');
+      const { checkScheduledEvents } = await import('../services/eventService.js');
+      await checkScheduledEvents(client);
+    },
     'daily-algo': async () => {
       const now = new Date();
       const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -184,6 +189,14 @@ export async function registerCrons(client: Client): Promise<void> {
   cron.schedule('* * * * *', async () => {
     await runCronJob('sanctions', async () => {
       await processScheduledSanctions(client);
+    }, 1000);
+  });
+
+  // 🎯 Événements planifiés: Toutes les minutes (CTF & Quiz planifiés)
+  cron.schedule('* * * * *', async () => {
+    await runCronJob('scheduled-events', async () => {
+      const { checkScheduledEvents } = await import('../services/eventService.js');
+      await checkScheduledEvents(client);
     }, 1000);
   });
 

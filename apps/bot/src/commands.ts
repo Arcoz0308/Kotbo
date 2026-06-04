@@ -10,6 +10,7 @@ import { demissionCommand } from './commands/demission.js';
 import { devutilsCommand } from './commands/devutils.js';
 import { epochCommand } from './commands/epoch.js';
 import { eventCommand } from './commands/event.js';
+import { ctfCommand } from './commands/ctf.js';
 import { excuseCommand } from './commands/excuse.js';
 import { giveawayCommand } from './commands/giveaway.js';
 import { helpCommand } from './commands/help.js';
@@ -76,6 +77,7 @@ export const commands: SlashCommandDefinition[] = [
   serverstatsCommand,
   noteCommand,
   eventCommand,
+  ctfCommand,
   activateCommand,
   transcriptCommand,
   ticketCommand,

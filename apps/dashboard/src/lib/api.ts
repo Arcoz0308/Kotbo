@@ -31,7 +31,7 @@ async function authorizedFetch(url: string, options: RequestInit & { headers?: R
   };
 
   const response = await fetch(url, { ...options, headers });
-  
+
   if (response.status === 401) {
     authStore.logout();
     throw new Error('Session expired');
@@ -79,7 +79,7 @@ async function dashboardMutation(path: string, options: {
       headers: hasPayload ? JSON_HEADERS : undefined,
       body: hasPayload ? JSON.stringify(options.payload) : undefined
     });
-    
+
     if (response.ok) {
       if (method !== 'GET') {
         toast.success('Opération réussie');
@@ -89,7 +89,7 @@ async function dashboardMutation(path: string, options: {
       try {
         const data = await response.json();
         message = data.error || data.message || message;
-      } catch {}
+      } catch { }
       toast.error(message);
     }
 
@@ -163,19 +163,19 @@ export async function fetchGuildState(guildId = authStore.selectedGuildId) {
   try {
     const response = await authorizedFetch(`${BASE_URL}/guilds/${selectedGuildId}`);
     if (!response.ok) {
-        const error = new Error(`Server error: ${response.status}`);
-        (error as any).status = response.status;
-        try {
-          const body = await response.clone().json();
-          if (body?.needsActivation) {
-            (error as any).needsActivation = true;
-          }
-          if (body?.hint) {
-            (error as any).hint = body.hint;
-            console.error('API hint:', body.hint);
-          }
-        } catch {}
-        throw error;
+      const error = new Error(`Server error: ${response.status}`);
+      (error as any).status = response.status;
+      try {
+        const body = await response.clone().json();
+        if (body?.needsActivation) {
+          (error as any).needsActivation = true;
+        }
+        if (body?.hint) {
+          (error as any).hint = body.hint;
+          console.error('API hint:', body.hint);
+        }
+      } catch { }
+      throw error;
     }
     return await response.json();
   } catch (error) {
@@ -674,10 +674,10 @@ export async function deleteMeeting(meetingId, options = { deleteEvent: true, de
   if (options.deleteEvent) params.append('deleteEvent', 'true');
   if (options.deleteMessage) params.append('deleteMessage', 'true');
   if (options.deleteNotifications) params.append('deleteNotifications', 'true');
-  
+
   const queryString = params.toString();
   const path = `/meetings/${meetingId}${queryString ? '?' + queryString : ''}`;
-  
+
   return dashboardMutation(path, { method: 'DELETE', guildId });
 }
 
@@ -739,7 +739,7 @@ export async function fetchAnalytics(options: { period?: number, startDate?: str
   if (options.startDate) params.append('startDate', options.startDate);
   if (options.endDate) params.append('endDate', options.endDate);
   if (options.granularity) params.append('granularity', options.granularity);
-  
+
   return dashboardRequest(`/analytics?${params.toString()}`, {
     method: 'GET',
     guildId,
@@ -1091,7 +1091,7 @@ export async function fetchGlobalAdmins() {
 }
 
 export async function addGlobalAdmin(userId: string) {
-  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/admins`, { 
+  const response = await authorizedFetch(`${API_BASE_URL}/api/admin/admins`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userId })
@@ -1318,9 +1318,9 @@ export async function reportDashboardError(errorData: {
   userAgent: string;
   guildId?: string | null;
 }) {
-  const headers: Record<string, string> = { 
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'Accept': 'application/json' 
+    'Accept': 'application/json'
   };
   if (authStore.token) {
     headers.Authorization = `Bearer ${authStore.token}`;
@@ -1345,9 +1345,9 @@ export async function reportFeedback(feedbackData: {
   url: string;
   guildId?: string | null;
 }) {
-  const headers: Record<string, string> = { 
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'Accept': 'application/json' 
+    'Accept': 'application/json'
   };
   if (authStore.token) {
     headers.Authorization = `Bearer ${authStore.token}`;
@@ -1870,19 +1870,19 @@ export async function deleteReactionRoleMenu(menuId: string, guildId = authStore
 }
 
 export async function fetchAutoResponses(guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/auto-responses', { method: 'GET', guildId, errorContext: 'API Error (Fetch Auto Responses):' });
+  return dashboardRequest('/triggers', { method: 'GET', guildId, errorContext: 'API Error (Fetch Auto Responses):' });
 }
 
-export async function createAutoResponse(payload: { trigger: string; response: string; matchType: string; enabled?: boolean }, guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/auto-responses', { method: 'POST', payload, guildId, errorContext: 'API Error (Create Auto Response):' });
+export async function createAutoResponse(payload: { trigger: string; response: string | null; matchType: string; enabled?: boolean; roleIdToAdd?: string | null; roleIdToRemove?: string | null; deleteTrigger?: boolean }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/triggers', { method: 'POST', payload, guildId, errorContext: 'API Error (Create Auto Response):' });
 }
 
-export async function updateAutoResponse(id: string, payload: { trigger?: string; response?: string; matchType?: string; enabled?: boolean }, guildId = authStore.selectedGuildId) {
-  return dashboardRequest(`/auto-responses/${id}`, { method: 'PATCH', payload, guildId, errorContext: 'API Error (Update Auto Response):' });
+export async function updateAutoResponse(id: string, payload: { trigger?: string; response?: string | null; matchType?: string; enabled?: boolean; roleIdToAdd?: string | null; roleIdToRemove?: string | null; deleteTrigger?: boolean }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/triggers/${id}`, { method: 'PATCH', payload, guildId, errorContext: 'API Error (Update Auto Response):' });
 }
 
 export async function deleteAutoResponse(id: string, guildId = authStore.selectedGuildId) {
-  return dashboardMutation(`/auto-responses/${id}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete Auto Response):' });
+  return dashboardMutation(`/triggers/${id}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete Auto Response):' });
 }
 
 export async function fetchAutoModConfig(guildId = authStore.selectedGuildId) {

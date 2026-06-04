@@ -402,9 +402,9 @@ export async function handleGeneralistModulesRoutes(
     }
   }
 
-  // 5. AUTO-RESPONSES ROUTES
-  if (moduleKey === 'auto-responses') {
-    // GET /api/dashboard/guilds/:guildId/auto-responses
+  // 5. triggers ROUTES
+  if (moduleKey === 'triggers') {
+    // GET /api/dashboard/guilds/:guildId/triggers
     if (parts.length === 5 && method === 'GET') {
       try {
         const list = await prisma.autoResponse.findMany({
@@ -419,18 +419,30 @@ export async function handleGeneralistModulesRoutes(
       return true;
     }
 
-    // POST /api/dashboard/guilds/:guildId/auto-responses
+    // POST /api/dashboard/guilds/:guildId/triggers
     if (parts.length === 5 && method === 'POST') {
       try {
         const body = await readJsonBody<{
           trigger: string;
-          response: string;
+          response: string | null;
           matchType: string;
           enabled?: boolean;
+          roleIdToAdd?: string | null;
+          roleIdToRemove?: string | null;
+          deleteTrigger?: boolean;
+          allowedRoleIds?: string[];
+          bannedRoleIds?: string[];
+          allowedChannelIds?: string[];
+          bannedChannelIds?: string[];
         }>(req);
 
-        if (!body || !body.trigger || !body.response) {
-          json(res, 400, { error: 'Déclencheur et réponse requis' });
+        if (!body || !body.trigger) {
+          json(res, 400, { error: 'Déclencheur requis' });
+          return true;
+        }
+
+        if (!body.response && !body.roleIdToAdd && !body.roleIdToRemove && !body.deleteTrigger) {
+          json(res, 400, { error: 'Au moins une action doit être configurée (réponse, ajout/retrait de rôle, ou suppression du message)' });
           return true;
         }
 
@@ -441,6 +453,13 @@ export async function handleGeneralistModulesRoutes(
             response: body.response,
             matchType: body.matchType || 'CONTAINS',
             enabled: body.enabled ?? true,
+            roleIdToAdd: body.roleIdToAdd || null,
+            roleIdToRemove: body.roleIdToRemove || null,
+            deleteTrigger: body.deleteTrigger ?? false,
+            allowedRoleIds: body.allowedRoleIds ?? [],
+            bannedRoleIds: body.bannedRoleIds ?? [],
+            allowedChannelIds: body.allowedChannelIds ?? [],
+            bannedChannelIds: body.bannedChannelIds ?? [],
           },
         });
 
@@ -453,19 +472,51 @@ export async function handleGeneralistModulesRoutes(
       return true;
     }
 
-    // PATCH /api/dashboard/guilds/:guildId/auto-responses/:id
+    // PATCH /api/dashboard/guilds/:guildId/triggers/:id
     if (parts.length === 6 && method === 'PATCH') {
       const id = parts[5];
       try {
         const body = await readJsonBody<{
           trigger?: string;
-          response?: string;
+          response?: string | null;
           matchType?: string;
           enabled?: boolean;
+          roleIdToAdd?: string | null;
+          roleIdToRemove?: string | null;
+          deleteTrigger?: boolean;
+          allowedRoleIds?: string[];
+          bannedRoleIds?: string[];
+          allowedChannelIds?: string[];
+          bannedChannelIds?: string[];
         }>(req);
 
         if (!body) {
           json(res, 400, { error: 'Corps de requête manquant' });
+          return true;
+        }
+
+        const existing = await prisma.autoResponse.findUnique({
+          where: { id },
+        });
+
+        if (!existing) {
+          json(res, 404, { error: 'Déclencheur introuvable' });
+          return true;
+        }
+
+        const combinedTrigger = body.trigger !== undefined ? body.trigger : existing.trigger;
+        const combinedResponse = body.response !== undefined ? body.response : existing.response;
+        const combinedRoleIdToAdd = body.roleIdToAdd !== undefined ? body.roleIdToAdd : existing.roleIdToAdd;
+        const combinedRoleIdToRemove = body.roleIdToRemove !== undefined ? body.roleIdToRemove : existing.roleIdToRemove;
+        const combinedDeleteTrigger = body.deleteTrigger !== undefined ? body.deleteTrigger : existing.deleteTrigger;
+
+        if (!combinedTrigger) {
+          json(res, 400, { error: 'Déclencheur requis' });
+          return true;
+        }
+
+        if (!combinedResponse && !combinedRoleIdToAdd && !combinedRoleIdToRemove && !combinedDeleteTrigger) {
+          json(res, 400, { error: 'Au moins une action doit être configurée (réponse, ajout/retrait de rôle, ou suppression du message)' });
           return true;
         }
 
@@ -476,6 +527,13 @@ export async function handleGeneralistModulesRoutes(
             response: body.response,
             matchType: body.matchType,
             enabled: body.enabled,
+            roleIdToAdd: body.roleIdToAdd,
+            roleIdToRemove: body.roleIdToRemove,
+            deleteTrigger: body.deleteTrigger,
+            allowedRoleIds: body.allowedRoleIds,
+            bannedRoleIds: body.bannedRoleIds,
+            allowedChannelIds: body.allowedChannelIds,
+            bannedChannelIds: body.bannedChannelIds,
           },
         });
 
@@ -488,7 +546,7 @@ export async function handleGeneralistModulesRoutes(
       return true;
     }
 
-    // DELETE /api/dashboard/guilds/:guildId/auto-responses/:id
+    // DELETE /api/dashboard/guilds/:guildId/triggers/:id
     if (parts.length === 6 && method === 'DELETE') {
       const id = parts[5];
       try {
@@ -760,7 +818,7 @@ export async function handleGeneralistModulesRoutes(
         if (body.embed.color) embed.setColor(body.embed.color as any);
         if (body.embed.thumbnailUrl) embed.setThumbnail(body.embed.thumbnailUrl);
         if (body.embed.imageUrl) embed.setImage(body.embed.imageUrl);
-        
+
         if (body.embed.authorName) {
           embed.setAuthor({
             name: body.embed.authorName,

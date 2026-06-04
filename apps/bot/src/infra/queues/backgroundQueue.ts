@@ -19,7 +19,8 @@ export type BackgroundJobName =
   | 'analytics-snapshot'
   | 'missing-reports-check'
   | 'meeting-notifications'
-  | 'dc-scan';
+  | 'dc-scan'
+  | 'scheduled-events';
 
 
 

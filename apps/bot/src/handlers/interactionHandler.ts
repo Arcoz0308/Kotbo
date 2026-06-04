@@ -340,6 +340,45 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
+  if (customId.startsWith('event-ctf-submit-flag-btn:')) {
+    const eventId = customId.split(':')[1];
+    if (!eventId) return;
+
+    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = await import('discord.js');
+    const modal = new ModalBuilder()
+      .setCustomId(`modal:event-ctf-submit-flag:${eventId}`)
+      .setTitle('🚩 Soumettre un Flag');
+
+    const flagInput = new TextInputBuilder()
+      .setCustomId('ctf_flag_input')
+      .setLabel('Flag')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('FLAG{...}')
+      .setRequired(true);
+
+    modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(flagInput));
+    await interaction.showModal(modal);
+    return;
+  }
+
+  if (customId.startsWith('event-ctf-progress-btn:')) {
+    const eventId = customId.split(':')[1];
+    if (!eventId) return;
+
+    const { buildCtfParticipantProgress } = await import('../services/eventService.js');
+    await buildCtfParticipantProgress(interaction, eventId);
+    return;
+  }
+
+  if (customId.startsWith('event-ctf-leaderboard-btn:')) {
+    const eventId = customId.split(':')[1];
+    if (!eventId) return;
+
+    const { buildCtfLeaderboard } = await import('../services/eventService.js');
+    await buildCtfLeaderboard(interaction, eventId);
+    return;
+  }
+
   const eventRoute = parseEventQuizRoute(customId);
   if (eventRoute && eventRoute.optionIndex !== undefined) {
     await handleQuizInteraction(interaction, eventRoute.questionId, eventRoute.optionIndex);
@@ -813,6 +852,15 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
         flags: [MessageFlags.Ephemeral]
       });
     }
+    return;
+  }
+  if (customId.startsWith('modal:event-ctf-submit-flag:')) {
+    const eventId = customId.split(':')[2];
+    if (!eventId) return;
+
+    const flag = interaction.fields.getTextInputValue('ctf_flag_input');
+    const { handleCtfFlagSubmission } = await import('../services/eventService.js');
+    await handleCtfFlagSubmission(interaction, eventId, flag);
     return;
   }
   if (customId.startsWith('modal:ticket:')) {

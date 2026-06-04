@@ -42,7 +42,7 @@ export const communityItems: PageConfig[] = [
   { name: "Giveaways",           icon: "sparkles",      href: "/giveaways",        featureKey: "giveaways", beta: true, wip: false },
   { name: "Accueil & Départ",    icon: "door-open",     href: "/welcome",          featureKey: "welcome_goodbye", beta: true, wip: false },
   { name: "Reaction Roles",      icon: "mouse-pointer", href: "/reaction-roles",   featureKey: "reaction_roles", beta: true, wip: false },
-  { name: "Auto-Réponses",       icon: "message-square",href: "/auto-responses",   featureKey: "auto_responses", beta: true, wip: false },
+  { name: "Déclencheurs",        icon: "message-square",href: "/triggers",         featureKey: "triggers", beta: true, wip: false },
   { name: "Suggestions",         icon: "thumbs-up",     href: "/suggestions",      featureKey: "suggestions", beta: true, wip: false },
   { name: "Embeds",              icon: "file-plus",     href: "/embed-builder",    featureKey: "embed_builder", beta: true, wip: false },
   { name: "Règlement",           icon: "book",          href: "/regulation",       featureKey: "regulation", beta: false, wip: false },

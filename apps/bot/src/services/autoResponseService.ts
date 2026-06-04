@@ -2,7 +2,7 @@ import { Client, Message, EmbedBuilder } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 
-// Cache for auto-responses: key is guildId, value is list of auto responses
+// Cache for triggers: key is guildId, value is list of auto responses
 const responsesCache = new Map<string, any[]>();
 
 /**
@@ -56,25 +56,62 @@ export async function handleAutoResponse(message: Message) {
       }
 
       if (isMatch) {
-        // Déclencher la réponse
-        const responseText = item.response;
+        // ── Filtres salon ──────────────────────────────────────────────
+        const channelId = message.channelId;
+        if (item.bannedChannelIds?.length && item.bannedChannelIds.includes(channelId)) continue;
+        if (item.allowedChannelIds?.length && !item.allowedChannelIds.includes(channelId)) continue;
 
-        // Détection de format JSON pour l'envoi d'embeds riches
-        if (responseText.startsWith('{') && responseText.endsWith('}')) {
-          try {
-            const embedData = JSON.parse(responseText);
-            const embed = new EmbedBuilder(embedData);
-            await message.reply({ embeds: [embed] }).catch(() => null);
-            return;
-          } catch (e) {
-            // Si le parsing JSON échoue, on renvoie simplement en tant que texte brut
-            await message.reply(responseText).catch(() => null);
-            return;
+        // ── Filtres rôle ───────────────────────────────────────────────
+        const member = message.member || await message.guild?.members.fetch(message.author.id).catch(() => null);
+        if (item.bannedRoleIds?.length && member?.roles.cache.some((r: any) => item.bannedRoleIds.includes(r.id))) continue;
+        if (item.allowedRoleIds?.length && !member?.roles.cache.some((r: any) => item.allowedRoleIds.includes(r.id))) continue;
+
+        // 1. Actions sur les rôles
+        if (member) {
+          if (item.roleIdToAdd) {
+            await member.roles.add(item.roleIdToAdd).catch((e) => {
+              logger.error('AutoResponseService', `Impossible d'ajouter le rôle ${item.roleIdToAdd} au membre ${member.id}:`, e);
+            });
           }
-        } else {
-          await message.reply(responseText).catch(() => null);
-          return;
+          if (item.roleIdToRemove) {
+            await member.roles.remove(item.roleIdToRemove).catch((e) => {
+              logger.error('AutoResponseService', `Impossible de retirer le rôle ${item.roleIdToRemove} du membre ${member.id}:`, e);
+            });
+          }
         }
+
+        // 2. Suppression du message déclencheur si requis
+        if (item.deleteTrigger) {
+          await message.delete().catch((e) => {
+            logger.error('AutoResponseService', `Impossible de supprimer le message déclencheur ${message.id}:`, e);
+          });
+        }
+
+        // 3. Envoi de la réponse si elle existe
+        const responseText = item.response;
+        if (responseText && responseText.trim()) {
+          const isJson = responseText.startsWith('{') && responseText.endsWith('}');
+          let sendPayload: any = responseText;
+
+          if (isJson) {
+            try {
+              const embedData = JSON.parse(responseText);
+              const embed = new EmbedBuilder(embedData);
+              sendPayload = { embeds: [embed] };
+            } catch (e) {
+              // Si parsing échoue, on envoie en brut
+              sendPayload = responseText;
+            }
+          }
+
+          if (item.deleteTrigger && 'send' in message.channel) {
+            await (message.channel as any).send(sendPayload).catch(() => null);
+          } else {
+            await message.reply(sendPayload).catch(() => null);
+          }
+        }
+
+        return;
       }
     }
   } catch (err) {

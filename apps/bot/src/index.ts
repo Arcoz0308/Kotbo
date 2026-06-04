@@ -260,8 +260,29 @@ client.once(Events.ClientReady, async (c) => {
     });
 
     for (const g of activatedGuilds) {
-      const config = (g.statsConfig as any) || {};
-      if (!config.historicalScrapeStatus || config.historicalScrapeStatus === 'NOT_STARTED') {
+      let config = (g.statsConfig as any) || {};
+      
+      // If the scraping was stuck in IN_PROGRESS (e.g. bot crashed/restarted), reset it so it can be resumed
+      if (config.historicalScrapeStatus === 'IN_PROGRESS') {
+        logger.info('System', `Correction du scrap historique bloqué en IN_PROGRESS pour la guilde ${g.id}`);
+        config = {
+          ...config,
+          historicalScrapeStatus: 'FAILED',
+          historicalScrapeError: 'Interrompu par le redémarrage du bot',
+        };
+        delete config.historicalScrapeProgress;
+
+        await prisma.guild.update({
+          where: { id: g.id },
+          data: { statsConfig: config }
+        });
+      }
+
+      if (
+        !config.historicalScrapeStatus ||
+        config.historicalScrapeStatus === 'NOT_STARTED' ||
+        config.historicalScrapeStatus === 'FAILED'
+      ) {
         logger.info('System', `Démarrage du scrap historique automatique pour la guilde ${g.id}`);
         startHistoricalScraping(client, g.id).catch((err) =>
           logger.error('System', `Erreur lors du démarrage du scrap historique pour ${g.id}:`, err)

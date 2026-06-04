@@ -68,6 +68,14 @@ async function runScrapeTask(client: Client, guildId: string, force = false): Pr
     return;
   }
 
+  // Ensure the bot member is fetched and cached safely
+  const me = guild.members.me || await guild.members.fetch(client.user!.id).catch(() => null);
+  if (!me) {
+    logger.error('MessageScraper', `Could not fetch bot member in guild ${guild.name} (${guild.id})`);
+    await markScrapeFailed(guildId, 'Could not fetch bot member in guild.');
+    return;
+  }
+
   try {
     logger.info('MessageScraper', `Starting historical message scraping for guild: ${guild.name} (${guild.id})`);
 
@@ -80,7 +88,7 @@ async function runScrapeTask(client: Client, guildId: string, force = false): Pr
       c.isTextBased() &&
       c.type !== ChannelType.GuildVoice &&
       c.type !== ChannelType.GuildStageVoice &&
-      c.permissionsFor(guild.members.me!)?.has(['ViewChannel', 'ReadMessageHistory'])
+      c.permissionsFor(me)?.has(['ViewChannel', 'ReadMessageHistory'])
     ) as TextChannel[];
 
     let guildDb = await prisma.guild.findUnique({
@@ -107,6 +115,8 @@ async function runScrapeTask(client: Client, guildId: string, force = false): Pr
 
     const modifiedDates = new Set<string>();
 
+    const FLUSH_MESSAGE_THRESHOLD = 2000;
+
     for (const channel of textChannels) {
       if (completedChannels.has(channel.id)) {
         continue;
@@ -114,21 +124,35 @@ async function runScrapeTask(client: Client, guildId: string, force = false): Pr
 
       logger.info('MessageScraper', `Scraping channel #${channel.name} (${channel.id}) in guild ${guild.name}`);
 
-      // Update progress details
-      statsConfig.historicalScrapeProgress = {
-        scrapedChannelsCount: completedChannels.size,
-        totalChannelsCount: textChannels.length,
-        currentChannelName: channel.name,
-        scrapedMessagesCount: totalMessagesScraped,
-      };
-
-      await prisma.guild.update({
-        where: { id: guildId },
-        data: { statsConfig },
-      });
-
       let lastMessageId: string | undefined = undefined;
+      
+      // Resume scraping from where we left off if this was the last channel in progress
+      if (
+        statsConfig.historicalScrapeProgress &&
+        statsConfig.historicalScrapeProgress.currentChannelId === channel.id &&
+        statsConfig.historicalScrapeProgress.currentLastMessageId
+      ) {
+        lastMessageId = statsConfig.historicalScrapeProgress.currentLastMessageId;
+        logger.info('MessageScraper', `Resuming scraping for channel #${channel.name} from message ID: ${lastMessageId}`);
+      } else {
+        // Initial setup for the new channel
+        statsConfig.historicalScrapeProgress = {
+          scrapedChannelsCount: completedChannels.size,
+          totalChannelsCount: textChannels.length,
+          currentChannelName: channel.name,
+          currentChannelId: channel.id,
+          currentLastMessageId: null,
+          scrapedMessagesCount: totalMessagesScraped,
+        };
+
+        await prisma.guild.update({
+          where: { id: guildId },
+          data: { statsConfig },
+        });
+      }
+
       let channelMessagesScraped = 0;
+      let messagesSinceLastFlush = 0;
       let hasMore = true;
 
       // In-memory aggregates for the current channel to minimize database upserts
@@ -138,6 +162,113 @@ async function runScrapeTask(client: Client, guildId: string, force = false): Pr
       const channelDailyAuthors = new Map<string, Set<string>>();
       const memberDailyMsg = new Map<string, number>();
       const memberDailyReplies = new Map<string, number>();
+
+      const flushStats = async (isChannelComplete: boolean) => {
+        if (
+          guildDailyMsg.size === 0 &&
+          guildHourlyMsg.size === 0 &&
+          channelDailyMsg.size === 0 &&
+          memberDailyMsg.size === 0 &&
+          !isChannelComplete
+        ) {
+          return;
+        }
+
+        try {
+          logger.info('MessageScraper', `Flushing accumulated stats for #${channel.name} to DB (complete: ${isChannelComplete})...`);
+
+          // Flush GuildDailyStat
+          for (const [dateKey, count] of guildDailyMsg.entries()) {
+            await prisma.guildDailyStat.upsert({
+              where: { guildId_dateKey: { guildId, dateKey } },
+              create: { guildId, dateKey, messagesCount: count },
+              update: { messagesCount: { increment: count } },
+            });
+          }
+          guildDailyMsg.clear();
+
+          // Flush GuildHourlyStat
+          for (const [key, count] of guildHourlyMsg.entries()) {
+            const [dateKey, hourStr] = key.split(':');
+            const hour = parseInt(hourStr, 10);
+            await prisma.guildHourlyStat.upsert({
+              where: { guildId_dateKey_hour: { guildId, dateKey, hour } },
+              create: { guildId, dateKey, hour, messagesCount: count },
+              update: { messagesCount: { increment: count } },
+            });
+          }
+          guildHourlyMsg.clear();
+
+          // Flush ChannelDailyStat
+          for (const [dateKey, count] of channelDailyMsg.entries()) {
+            const uniqueAuthorsCount = channelDailyAuthors.get(dateKey)?.size || 0;
+            await prisma.channelDailyStat.upsert({
+              where: { guildId_channelId_dateKey: { guildId, channelId: channel.id, dateKey } },
+              create: {
+                guildId,
+                channelId: channel.id,
+                dateKey,
+                messagesCount: count,
+                uniqueAuthors: uniqueAuthorsCount,
+              },
+              update: {
+                messagesCount: { increment: count },
+                uniqueAuthors: uniqueAuthorsCount,
+              },
+            });
+          }
+          channelDailyMsg.clear();
+          channelDailyAuthors.clear();
+
+          // Flush MemberDailyStat
+          for (const [key, count] of memberDailyMsg.entries()) {
+            const [userId, dateKey] = key.split(':');
+            const replies = memberDailyReplies.get(key) || 0;
+            await prisma.memberDailyStat.upsert({
+              where: { guildId_userId_dateKey: { guildId, userId, dateKey } },
+              create: { guildId, userId, dateKey, messagesCount: count, repliesCount: replies },
+              update: {
+                messagesCount: { increment: count },
+                repliesCount: { increment: replies },
+              },
+            });
+          }
+          memberDailyMsg.clear();
+          memberDailyReplies.clear();
+
+          if (isChannelComplete) {
+            completedChannels.add(channel.id);
+          }
+
+          statsConfig.historicalScrapedChannels = [...completedChannels];
+          statsConfig.historicalScrapedMessages = totalMessagesScraped;
+
+          if (isChannelComplete) {
+            statsConfig.historicalScrapeProgress = {
+              scrapedChannelsCount: completedChannels.size,
+              totalChannelsCount: textChannels.length,
+              currentChannelName: channel.name,
+              scrapedMessagesCount: totalMessagesScraped,
+            };
+          } else {
+            statsConfig.historicalScrapeProgress = {
+              scrapedChannelsCount: completedChannels.size,
+              totalChannelsCount: textChannels.length,
+              currentChannelName: channel.name,
+              currentChannelId: channel.id,
+              currentLastMessageId: lastMessageId || null,
+              scrapedMessagesCount: totalMessagesScraped,
+            };
+          }
+
+          await prisma.guild.update({
+            where: { id: guildId },
+            data: { statsConfig },
+          });
+        } catch (dbErr) {
+          logger.error('MessageScraper', `Failed to flush stats for channel ${channel.id}:`, dbErr);
+        }
+      };
 
       while (hasMore) {
         try {
@@ -164,6 +295,7 @@ async function runScrapeTask(client: Client, guildId: string, force = false): Pr
 
             channelMessagesScraped++;
             totalMessagesScraped++;
+            messagesSinceLastFlush++;
 
             const dateKey = getDateKey(msg.createdAt);
             const hour = getHourKey(msg.createdAt);
@@ -201,6 +333,12 @@ async function runScrapeTask(client: Client, guildId: string, force = false): Pr
             hasMore = false;
           }
 
+          // Periodic flush to prevent too many accumulated DB upserts and OOM/timeouts
+          if (messagesSinceLastFlush >= FLUSH_MESSAGE_THRESHOLD) {
+            await flushStats(false);
+            messagesSinceLastFlush = 0;
+          }
+
           // Small delay to protect against Discord API rate limit
           await delay(250);
         } catch (fetchErr) {
@@ -210,84 +348,8 @@ async function runScrapeTask(client: Client, guildId: string, force = false): Pr
         }
       }
 
-      // Flush statistics to database for this channel
-      if (channelMessagesScraped > 0) {
-        try {
-          logger.info('MessageScraper', `Flushing ${channelMessagesScraped} message stats for #${channel.name} to DB...`);
-
-          // Flush GuildDailyStat
-          for (const [dateKey, count] of guildDailyMsg.entries()) {
-            await prisma.guildDailyStat.upsert({
-              where: { guildId_dateKey: { guildId, dateKey } },
-              create: { guildId, dateKey, messagesCount: count },
-              update: { messagesCount: { increment: count } },
-            });
-          }
-
-          // Flush GuildHourlyStat
-          for (const [key, count] of guildHourlyMsg.entries()) {
-            const [dateKey, hourStr] = key.split(':');
-            const hour = parseInt(hourStr, 10);
-            await prisma.guildHourlyStat.upsert({
-              where: { guildId_dateKey_hour: { guildId, dateKey, hour } },
-              create: { guildId, dateKey, hour, messagesCount: count },
-              update: { messagesCount: { increment: count } },
-            });
-          }
-
-          // Flush ChannelDailyStat
-          for (const [dateKey, count] of channelDailyMsg.entries()) {
-            const uniqueAuthorsCount = channelDailyAuthors.get(dateKey)?.size || 0;
-            await prisma.channelDailyStat.upsert({
-              where: { guildId_channelId_dateKey: { guildId, channelId: channel.id, dateKey } },
-              create: {
-                guildId,
-                channelId: channel.id,
-                dateKey,
-                messagesCount: count,
-                uniqueAuthors: uniqueAuthorsCount,
-              },
-              update: {
-                messagesCount: { increment: count },
-                uniqueAuthors: uniqueAuthorsCount,
-              },
-            });
-          }
-
-          // Flush MemberDailyStat
-          for (const [key, count] of memberDailyMsg.entries()) {
-            const [userId, dateKey] = key.split(':');
-            const replies = memberDailyReplies.get(key) || 0;
-            await prisma.memberDailyStat.upsert({
-              where: { guildId_userId_dateKey: { guildId, userId, dateKey } },
-              create: { guildId, userId, dateKey, messagesCount: count, repliesCount: replies },
-              update: {
-                messagesCount: { increment: count },
-                repliesCount: { increment: replies },
-              },
-            });
-          }
-
-          completedChannels.add(channel.id);
-          statsConfig.historicalScrapedChannels = [...completedChannels];
-          statsConfig.historicalScrapedMessages = totalMessagesScraped;
-
-          await prisma.guild.update({
-            where: { id: guildId },
-            data: { statsConfig },
-          });
-        } catch (dbErr) {
-          logger.error('MessageScraper', `Failed to flush stats for channel ${channel.id}:`, dbErr);
-        }
-      } else {
-        // No historical messages found for this channel, mark as completed
-        completedChannels.add(channel.id);
-        statsConfig.historicalScrapedChannels = [...completedChannels];
-        await prisma.guild.update({
-          where: { id: guildId },
-          data: { statsConfig },
-        });
-      }
+      // Final flush for this channel
+      await flushStats(true);
     }
 
     // Recalculate daily active members for modified dates

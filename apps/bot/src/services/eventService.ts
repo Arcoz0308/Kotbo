@@ -25,6 +25,7 @@ export async function getEvents(guildId: string) {
       _count: {
         select: {
           questions: true,
+          ctfChallenges: true,
           participants: true,
         },
       },
@@ -39,8 +40,14 @@ export async function getEvent(eventId: string) {
       questions: {
         orderBy: { sortOrder: 'asc' },
       },
+      ctfChallenges: {
+        orderBy: { sortOrder: 'asc' },
+      },
       participants: {
-        orderBy: { score: 'desc' },
+        orderBy: [
+          { score: 'desc' },
+          { lastSolveAt: 'asc' }
+        ] as any,
         include: {
           profile: true,
         },
@@ -49,13 +56,13 @@ export async function getEvent(eventId: string) {
   });
 }
 
-export async function createEvent(guildId: string, data: { title: string; description?: string; type: 'QUIZ'; channelId?: string }) {
+export async function createEvent(guildId: string, data: { title: string; description?: string; type: 'QUIZ' | 'CTF'; channelId?: string }) {
   return prisma.event.create({
     data: {
       guildId,
       title: data.title,
       description: data.description,
-      type: data.type,
+      type: data.type as any,
       channelId: data.channelId,
     },
   });
@@ -64,13 +71,47 @@ export async function createEvent(guildId: string, data: { title: string; descri
 export async function publishEvent(client: Client, eventId: string) {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    include: { questions: true },
+    include: { questions: true, ctfChallenges: true },
   });
 
   if (!event || !event.channelId) throw new Error('Événement ou salon introuvable');
 
   const channel = (await client.channels.fetch(event.channelId).catch(() => null)) as TextChannel | null;
   if (!channel) throw new Error('Salon Discord introuvable');
+
+  if (event.type === 'CTF') {
+    const embed = new EmbedBuilder()
+      .setTitle(`🚩 Capture The Flag : ${event.title}`)
+      .setDescription(event.description || 'Le CTF a commencé ! Trouvez les flags et soumettez-les.')
+      .setColor(COLORS.info)
+      .setTimestamp();
+
+    const submitBtn = new ButtonBuilder()
+      .setCustomId(`event-ctf-submit-flag-btn:${event.id}`)
+      .setLabel('🚩 Soumettre un Flag')
+      .setStyle(ButtonStyle.Primary);
+
+    const progressBtn = new ButtonBuilder()
+      .setCustomId(`event-ctf-progress-btn:${event.id}`)
+      .setLabel('🎯 Ma Progression')
+      .setStyle(ButtonStyle.Secondary);
+
+    const lbBtn = new ButtonBuilder()
+      .setCustomId(`event-ctf-leaderboard-btn:${event.id}`)
+      .setLabel('📊 Classement')
+      .setStyle(ButtonStyle.Success);
+
+    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(submitBtn, progressBtn, lbBtn);
+    const message = await channel.send({ embeds: [embed], components: [row] });
+
+    return prisma.event.update({
+      where: { id: eventId },
+      data: {
+        status: 'ONGOING',
+        messageId: message.id,
+      },
+    });
+  }
 
   const embed = new EmbedBuilder()
     .setTitle(`🎉 Événement : ${event.title}`)
@@ -398,6 +439,36 @@ export async function getEventStats(eventId: string) {
 
   if (!event) return null;
 
+  if (event.type === 'CTF') {
+    const ctfChallenges = await (prisma as any).eventCtfChallenge.findMany({
+      where: { eventId },
+      include: {
+        solves: {
+          include: {
+            participant: true,
+          },
+        },
+      },
+      orderBy: { sortOrder: 'asc' },
+    });
+    return {
+      type: 'CTF',
+      challenges: ctfChallenges.map((c: any) => ({
+        id: c.id,
+        title: c.title,
+        points: c.points,
+        xpReward: c.xpReward,
+        roleIdReward: c.roleIdReward,
+        solveCount: c.solves.length,
+        solves: c.solves.map((s: any) => ({
+          userId: s.participant.userId,
+          username: s.participant.username || s.participant.userTag || s.participant.userId,
+          solvedAt: s.solvedAt,
+        })),
+      })),
+    };
+  }
+
   let currentQuestion = event.questions.find((q) => q.status === 'ONGOING');
   
   // Si la question en cours n'a pas encore de réponses, on affiche les stats de la dernière question terminée
@@ -474,7 +545,10 @@ export async function finishEvent(client: Client, eventId: string) {
     where: { id: eventId },
     include: {
       participants: {
-        orderBy: { score: 'desc' },
+        orderBy: [
+          { score: 'desc' },
+          { lastSolveAt: 'asc' }
+        ],
       },
     },
   });
@@ -485,19 +559,40 @@ export async function finishEvent(client: Client, eventId: string) {
   if (!channel) throw new Error('Salon Discord introuvable');
 
   const message = await channel.messages.fetch(event.messageId).catch(() => null);
+
+  const leaderboard = event.participants
+    .slice(0, 10)
+    .map((p: any, i: number) => `${i + 1}. **${p.userTag || p.userId}** — ${p.score} pts`)
+    .join('\n') || 'Aucun participant.';
+
+  let description = `Bravo à tous les participants !\n\n**Classement Final :**\n${leaderboard}`;
+
+  if (event.type === 'CTF') {
+    const embed = new EmbedBuilder()
+      .setTitle(`🏁 Capture The Flag terminé : ${event.title}`)
+      .setDescription(description)
+      .setColor(COLORS.success)
+      .setTimestamp();
+
+    if (message) {
+      await message.edit({ embeds: [embed], components: [] });
+    } else {
+      await channel.send({ embeds: [embed], components: [] });
+    }
+
+    await prisma.event.update({
+      where: { id: eventId },
+      data: { status: 'COMPLETED' },
+    });
+
+    return { status: 'completed' };
+  }
   
   const lastQuestion = await prisma.eventQuizQuestion.findFirst({
     where: { eventId },
     orderBy: { sortOrder: 'desc' },
   });
 
-  const leaderboard = event.participants
-    .slice(0, 10)
-    .map((p, i) => `${i + 1}. **${p.userTag || p.userId}** — ${p.score} pts`)
-    .join('\n') || 'Aucun participant.';
-
-  let description = `Bravo à tous les participants !\n\n**Classement Final :**\n${leaderboard}`;
-  
   if (lastQuestion) {
     const lastAnswer = (lastQuestion.options as string[])[lastQuestion.correctOptionIndex];
     description = `✅ La bonne réponse à la dernière question était : **${lastAnswer}**\n\n` + description;
@@ -557,9 +652,6 @@ export async function finishEvent(client: Client, eventId: string) {
     where: { id: eventId },
     data: { status: 'COMPLETED' },
   });
-
-  // Ici on pourrait ajouter de la logique pour mettre à jour les profils (XP, badges, etc.)
-  // Pour l'instant, les participations sont déjà liées aux profils via le schéma.
 
   return { status: 'completed' };
 }
@@ -703,5 +795,240 @@ export async function deleteEvent(client: Client, eventId: string) {
   return prisma.event.delete({
     where: { id: eventId },
   });
+}
+
+export async function handleCtfFlagSubmission(interaction: any, eventId: string, flag: string) {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    include: { ctfChallenges: true }
+  });
+
+  if (!event || event.status !== 'ONGOING') {
+    return interaction.reply({ content: '❌ Ce CTF n\'est pas actif.', ephemeral: true });
+  }
+
+  const challenge = (event as any).ctfChallenges.find((c: any) => c.flag.trim().toLowerCase() === flag.trim().toLowerCase());
+  if (!challenge) {
+    return interaction.reply({ content: '❌ Flag incorrect. Essayez encore !', ephemeral: true });
+  }
+
+  await prisma.memberProfile.upsert({
+    where: {
+      guildId_userId: {
+        guildId: interaction.guildId!,
+        userId: interaction.user.id,
+      },
+    },
+    create: {
+      guildId: interaction.guildId!,
+      userId: interaction.user.id,
+      userTag: interaction.user.tag,
+      username: interaction.user.username,
+      displayName: (interaction.member as any)?.displayName || interaction.user.username,
+      avatarUrl: interaction.user.displayAvatarURL(),
+    },
+    update: {
+      userTag: interaction.user.tag,
+      username: interaction.user.username,
+      displayName: (interaction.member as any)?.displayName || interaction.user.username,
+      avatarUrl: interaction.user.displayAvatarURL(),
+    },
+  });
+
+  const participant = await prisma.eventParticipant.upsert({
+    where: {
+      eventId_userId: {
+        eventId,
+        userId: interaction.user.id,
+      },
+    },
+    create: {
+      eventId,
+      userId: interaction.user.id,
+      guildId: interaction.guildId!,
+      userTag: interaction.user.tag,
+      username: interaction.user.username,
+    },
+    update: {
+      userTag: interaction.user.tag,
+      username: interaction.user.username,
+    },
+  });
+
+  const existingSolve = await (prisma as any).eventCtfSolve.findUnique({
+    where: {
+      challengeId_participantId: {
+        challengeId: challenge.id,
+        participantId: participant.id,
+      },
+    },
+  });
+
+  if (existingSolve) {
+    return interaction.reply({ content: '⚠️ Vous avez déjà résolu ce challenge !', ephemeral: true });
+  }
+
+  const previousSolvesCount = await (prisma as any).eventCtfSolve.count({
+    where: { challengeId: challenge.id }
+  });
+
+  await (prisma as any).eventCtfSolve.create({
+    data: {
+      challengeId: challenge.id,
+      participantId: participant.id,
+    },
+  });
+
+  const newScore = participant.score + challenge.points;
+
+  await prisma.eventParticipant.update({
+    where: { id: participant.id },
+    data: {
+      score: newScore,
+      lastSolveAt: new Date(),
+    },
+  });
+
+  let roleFeedback = '';
+  if (challenge.roleIdReward) {
+    const member = interaction.member;
+    if (member && 'roles' in member) {
+      const role = interaction.guild?.roles.cache.get(challenge.roleIdReward);
+      if (role) {
+        await (member.roles as any).add(role).catch((err: any) => {
+          logger.error('CtfService', 'Failed to add reward role:', err);
+        });
+        roleFeedback = ` et le rôle **${role.name}** vous a été attribué`;
+      }
+    }
+  }
+
+  let xpFeedback = '';
+  if (challenge.xpReward > 0) {
+    try {
+      const { addXp } = await import('./levelingService.js');
+      await addXp(interaction.guildId!, interaction.user.id, challenge.xpReward, interaction.client);
+      xpFeedback = ` (+${challenge.xpReward} XP)`;
+    } catch (err) {
+      logger.error('CtfService', 'Failed to add XP reward:', err);
+    }
+  }
+
+  // Broadcast public first blood message
+  if (previousSolvesCount === 0 && event.channelId) {
+    const channel = interaction.guild?.channels.cache.get(event.channelId) as TextChannel | null;
+    if (channel) {
+      await channel.send({
+        content: `🩸 **First Blood !** <@${interaction.user.id}> est le premier à résoudre le challenge **${challenge.title}** !`
+      }).catch(() => null);
+    }
+  }
+
+  return interaction.reply({
+    content: `🎉 **Correct !** Vous avez résolu le challenge **${challenge.title}** (+${challenge.points} pts)${roleFeedback}${xpFeedback} !`,
+    ephemeral: true,
+  });
+}
+
+export async function buildCtfLeaderboard(interaction: any, eventId: string) {
+  const participants = await prisma.eventParticipant.findMany({
+    where: { eventId },
+    orderBy: [
+      { score: 'desc' },
+      { lastSolveAt: 'asc' },
+    ],
+    take: 10,
+  });
+
+  const leaderboard = participants
+    .map((p, idx) => {
+      const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}.`;
+      return `${medal} **${p.userTag || p.username || p.userId}** — ${p.score} pts (résolu le : ${p.lastSolveAt ? p.lastSolveAt.toLocaleDateString('fr-FR') + ' à ' + p.lastSolveAt.toLocaleTimeString('fr-FR') : 'N/A'})`;
+    })
+    .join('\n') || 'Aucun participant pour le moment.';
+
+  const embed = new EmbedBuilder()
+    .setTitle('📊 Classement CTF')
+    .setDescription(leaderboard)
+    .setColor(COLORS.success)
+    .setTimestamp();
+
+  return interaction.reply({ embeds: [embed], ephemeral: true });
+}
+
+export async function buildCtfParticipantProgress(interaction: any, eventId: string) {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    include: {
+      ctfChallenges: {
+        orderBy: { sortOrder: 'asc' },
+      },
+    },
+  });
+
+  if (!event) return interaction.reply({ content: '❌ CTF introuvable.', ephemeral: true });
+
+  const participant = await prisma.eventParticipant.findUnique({
+    where: {
+      eventId_userId: {
+        eventId,
+        userId: interaction.user.id,
+      },
+    },
+    include: {
+      ctfSolves: true,
+    },
+  });
+
+  const solvedChallengeIds = new Set((participant as any)?.ctfSolves.map((s: any) => s.challengeId) || []);
+
+  const list = (event as any).ctfChallenges.map((c: any) => {
+    const isSolved = solvedChallengeIds.has(c.id);
+    const statusIcon = isSolved ? '✅' : '❌';
+    return `${statusIcon} **${c.title}** (${c.points} pts) ${c.xpReward > 0 ? `[+${c.xpReward} XP]` : ''}`;
+  }).join('\n') || 'Aucun challenge dans ce CTF.';
+
+  const totalPoints = (event as any).ctfChallenges.reduce((acc: number, c: any) => acc + c.points, 0);
+  const userPoints = participant?.score || 0;
+
+  const embed = new EmbedBuilder()
+    .setTitle(`🎯 Votre Progression : ${event.title}`)
+    .setDescription(`Score actuel : **${userPoints}** / **${totalPoints}** pts\n\n${list}`)
+    .setColor(COLORS.info)
+    .setTimestamp();
+
+  return interaction.reply({ embeds: [embed], ephemeral: true });
+}
+
+export async function checkScheduledEvents(client: Client) {
+  const now = new Date();
+  const events = await prisma.event.findMany({
+    where: {
+      status: 'DRAFT',
+      triggerType: 'SCHEDULED',
+      triggerStatus: 'PENDING',
+    },
+  });
+
+  for (const event of events) {
+    if (!event.triggerValue) continue;
+    const triggerDate = new Date(event.triggerValue);
+    if (triggerDate <= now) {
+      try {
+        await prisma.event.update({
+          where: { id: event.id },
+          data: { triggerStatus: 'TRIGGERED' },
+        });
+        await publishEvent(client, event.id);
+        logger.info('EventService', `Événement ${event.id} planifié démarré.`);
+      } catch (err) {
+        logger.error('EventService', `Erreur démarrage événement planifié ${event.id}:`, err);
+        await prisma.event.update({
+          where: { id: event.id },
+          data: { triggerStatus: 'FAILED' },
+        }).catch(() => null);
+      }
+    }
+  }
 }
 
