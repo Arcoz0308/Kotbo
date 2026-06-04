@@ -439,7 +439,7 @@ function createEmptyHeatmapGrid() {
 /**
  * Get hourly heatmap data (for visualization)
  */
-export const getHourlyHeatmapData = async (guildId: string, options: { days?: number, startDate?: string, endDate?: string } = {}) => {
+export const getHourlyHeatmapData = async (guildId: string, options: { days?: number, startDate?: string|null, endDate?: string|null } = {}) => {
   const days = options.days || 30;
   const endKey = options.endDate || new Date().toISOString().split('T')[0];
   let startKey = options.startDate;
@@ -653,7 +653,7 @@ export const getWeekOverWeekComparison = async (guildId: string, options: { offs
 /**
  * Get growth and retention metrics
  */
-export const getGrowthAndRetention = async (guildId: string, options: { days?: number, startDate?: string, endDate?: string } = {}) => {
+export const getGrowthAndRetention = async (guildId: string, options: { days?: number, startDate?: string | null, endDate?: string | null } = {}) => {
   const days = options.days || 90;
   const endKey = options.endDate || new Date().toISOString().split('T')[0];
   let startKey = options.startDate;
@@ -712,7 +712,7 @@ export const getGrowthAndRetention = async (guildId: string, options: { days?: n
 /**
  * Get Daily Algo analytics
  */
-export const getDailyAlgoAnalytics = async (guildId: string, options: { days?: number, startDate?: string, endDate?: string } = {}) => {
+export const getDailyAlgoAnalytics = async (guildId: string, options: { days?: number, startDate?: string|null, endDate?: string|null } = {}) => {
   const days = options.days || 30;
   const endKey = options.endDate || new Date().toISOString().split('T')[0];
   let startKey = options.startDate;

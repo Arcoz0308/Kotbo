@@ -217,8 +217,8 @@ export async function handleAnalyticsRoutes(
   if (parts.length === 6 && parts[5] === 'heatmap') {
     try {
       const days = Math.min(90, Math.max(1, parseInt(url.searchParams.get('days') || '30', 10)));
-      const startDate = url.searchParams.get('startDate') || undefined;
-      const endDate = url.searchParams.get('endDate') || undefined;
+      const startDate = url.searchParams.get('startDate');
+      const endDate = url.searchParams.get('endDate');
       const heatmapData = await getHourlyHeatmapData(guildId, { days, startDate, endDate });
       json(res, 200, heatmapData);
     } catch (err) {
@@ -247,8 +247,8 @@ export async function handleAnalyticsRoutes(
   if (parts.length === 6 && parts[5] === 'growth-retention') {
     try {
       const days = Math.min(365, Math.max(7, parseInt(url.searchParams.get('days') || '90', 10)));
-      const startDate = url.searchParams.get('startDate') || undefined;
-      const endDate = url.searchParams.get('endDate') || undefined;
+      const startDate = url.searchParams.get('startDate');
+      const endDate = url.searchParams.get('endDate');
       const growthData = await getGrowthAndRetention(guildId, { days, startDate, endDate });
       json(res, 200, growthData);
     } catch (err) {
@@ -262,8 +262,8 @@ export async function handleAnalyticsRoutes(
   if (parts.length === 6 && parts[5] === 'daily-algo') {
     try {
       const days = Math.min(365, Math.max(1, parseInt(url.searchParams.get('days') || '30', 10)));
-      const startDate = url.searchParams.get('startDate') || undefined;
-      const endDate = url.searchParams.get('endDate') || undefined;
+      const startDate = url.searchParams.get('startDate');
+      const endDate = url.searchParams.get('endDate');
       const algoData = await getDailyAlgoAnalytics(guildId, { days, startDate, endDate });
       json(res, 200, algoData);
     } catch (err) {
