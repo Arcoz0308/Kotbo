@@ -1,5 +1,6 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client } from 'discord.js';
+import { Prisma } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import {
@@ -319,7 +320,7 @@ export async function handlePublicRoutes(
         return true;
       }
 
-      const whereClause: any = { guildId, published: true };
+      const whereClause: Prisma.NewsArticleWhereInput = { guildId, published: true };
       if (category) {
         whereClause.category = { equals: category, mode: 'insensitive' };
       }
@@ -344,8 +345,9 @@ export async function handlePublicRoutes(
         'Cache-Control': 'public, max-age=300'
       });
       res.end(rssXml);
-    } catch (err: any) {
-      logger.error('PublicAPI', `Error generating RSS for guild ${guildId}: ${err.message}`);
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : String(err);
+      logger.error('PublicAPI', `Error generating RSS for guild ${guildId}: ${errMessage}`);
       json(res, 500, { error: 'Erreur lors de la génération du flux RSS' });
     }
     return true;
@@ -376,8 +378,9 @@ export async function handlePublicRoutes(
       });
 
       json(res, 200, articles);
-    } catch (err: any) {
-      logger.error('PublicAPI', `Error listing public news for guild ${guildId}: ${err.message}`);
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : String(err);
+      logger.error('PublicAPI', `Error listing public news for guild ${guildId}: ${errMessage}`);
       json(res, 500, { error: 'Erreur lors de la récupération des actualités publiques' });
     }
     return true;
@@ -448,8 +451,9 @@ export async function handlePublicRoutes(
         guildIcon: discordGuild?.iconURL({ size: 128 }) || null,
         levels: levelsWithUserData
       });
-    } catch (err: any) {
-      logger.error('PublicAPI', `Error fetching public leveling for guild ${guildId}: ${err.message}`);
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : String(err);
+      logger.error('PublicAPI', `Error fetching public leveling for guild ${guildId}: ${errMessage}`);
       json(res, 500, { error: 'Erreur lors du chargement du classement de leveling' });
     }
     return true;
@@ -488,8 +492,9 @@ export async function handlePublicRoutes(
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.statusCode = 200;
       res.end(transcript.html);
-    } catch (err: any) {
-      logger.error('PublicAPI', `Error fetching public transcript ${transcriptId}: ${err.message}`);
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : String(err);
+      logger.error('PublicAPI', `Error fetching public transcript ${transcriptId}: ${errMessage}`);
       json(res, 500, { error: 'Erreur interne du serveur' });
     }
     return true;

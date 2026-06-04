@@ -9,13 +9,12 @@
   import Papicon from './Papicon.svelte';
   import { sidebarStore } from '../stores/sidebar.svelte';
   import { resolveGuildIconSrc, resolveUserAvatarSrc } from '../discordMedia';
+  import { serverSwitcherStore } from '../stores/serverSwitcher.svelte';
 
   const collapsed = $derived(sidebarStore.collapsed);
 
   let config = $state({ discordClientId: '' });
   let userMenuOpen = $state(false);
-  let serverDropdownOpen = $state(false);
-  let searchQuery = $state('');
 
   onMount(() => {
     // Fire async fetch without making the onMount callback async
@@ -36,22 +35,10 @@
       if (!target.closest('.user-menu-container')) {
         userMenuOpen = false;
       }
-      if (!target.closest('.server-selector-container')) {
-        serverDropdownOpen = false;
-        searchQuery = '';
-      }
     };
     window.addEventListener('click', handleClick);
     return () => window.removeEventListener('click', handleClick);
   });
-
-  function toggleServerDropdown(e: MouseEvent) {
-    e.stopPropagation();
-    serverDropdownOpen = !serverDropdownOpen;
-    if (!serverDropdownOpen) {
-      searchQuery = '';
-    }
-  }
 
   const logout = () => {
     authStore.logout();
@@ -105,9 +92,9 @@
 <header class="flex items-center justify-between px-10 bg-surface/40 backdrop-blur-3xl h-20 fixed top-0 right-0 z-40 border-b border-outline-variant/30 transition-all duration-300 {collapsed ? 'w-[calc(100%-4.5rem)]' : 'w-[calc(100%-16rem)]'}">
   <div class="flex items-center gap-6 server-selector-container relative">
     <button 
-      onclick={toggleServerDropdown}
+      onclick={() => serverSwitcherStore.show()}
       disabled={authStore.guilds.length <= 1}
-      class="flex items-center gap-3 bg-surface-container-low hover:bg-surface-container-high/80 px-5 py-2.5 rounded-2xl text-xs font-bold text-on-surface border border-outline-variant/30 hover:border-primary/30 transition-all duration-300 shadow-sm hover:shadow-md cursor-pointer disabled:cursor-default disabled:hover:bg-surface-container-low disabled:border-outline-variant/30 group"
+      class="flex items-center gap-3 bg-surface-container-low hover:bg-surface-container-high/80 px-5 py-2.5 rounded-2xl text-xs font-bold text-on-surface border border-outline-variant/30 hover:border-primary/30 transition-all duration-300 shadow-sm hover:shadow-md cursor-pointer disabled:cursor-default disabled:hover:bg-surface-container-low disabled:border-outline-variant/30 group select-none"
     >
       {#if guildIconUrl}
         <img
@@ -129,67 +116,15 @@
         {/if}
       </span>
       {#if authStore.guilds.length > 1}
-        <Papicon icon="chevron-down" size={14} class="text-on-surface-variant/50 group-hover:text-primary transition-transform duration-300 {serverDropdownOpen ? 'rotate-180 text-primary' : ''}" />
+        <kbd class="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-on-surface/5 border border-outline-variant/10 text-[9px] font-black text-on-surface-variant/40 leading-none group-hover:text-primary group-hover:border-primary/20 transition-all">
+          <svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="inline-block align-middle shrink-0"><path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"/></svg> G
+        </kbd>
       {/if}
     </button>
-
-    {#if serverDropdownOpen && authStore.guilds.length > 1}
-      <div class="absolute left-0 top-14 w-64 rounded-2xl border border-outline-variant/30 bg-surface-container-lowest/95 backdrop-blur-2xl shadow-2xl shadow-black/15 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-50 py-1.5">
-        <div class="px-4 py-2 border-b border-outline-variant/20 mb-1.5 space-y-2">
-          <p class="text-[10px] font-black text-on-surface-variant/60 uppercase tracking-widest">Sélectionner un serveur</p>
-          <div class="relative flex items-center">
-            <span class="absolute left-3 text-on-surface-variant/40">
-              <Papicon icon="search" size={12} />
-            </span>
-            <input
-              type="text"
-              placeholder="Rechercher..."
-              bind:value={searchQuery}
-              class="w-full pl-8 pr-3 py-1.5 rounded-lg bg-surface/50 border border-outline-variant/30 text-[11px] font-medium text-on-surface placeholder:text-on-surface-variant/30 focus:outline-hidden focus:border-primary/50 transition-colors"
-            />
-          </div>
-        </div>
-        <div class="max-h-60 overflow-y-auto pr-1">
-          {#if filteredGuilds.length === 0}
-            <div class="px-4 py-3 text-center text-xs text-on-surface-variant/50 font-bold">
-              Aucun serveur trouvé
-            </div>
-          {:else}
-            {#each filteredGuilds as guild}
-              <button
-                onclick={() => {
-                  authStore.setGuild(guild.id);
-                  serverDropdownOpen = false;
-                  searchQuery = '';
-                  window.location.reload();
-                }}
-                class="w-full flex items-center gap-3 px-4 py-2.5 text-left text-xs font-bold transition-all hover:bg-primary/8 {guild.id === authStore.selectedGuildId ? 'text-primary bg-primary/4' : 'text-on-surface-variant hover:text-primary'}"
-              >
-                {#if resolveGuildIconSrc(guild.id, guild.icon)}
-                  <img
-                    src={resolveGuildIconSrc(guild.id, guild.icon)}
-                    alt={guild.name}
-                    referrerpolicy="no-referrer"
-                    class="w-5 h-5 rounded-md object-cover"
-                  >
-                {:else}
-                  <div class="w-5 h-5 rounded-md bg-primary/10 flex items-center justify-center text-[8px] font-black text-primary border border-primary/20">
-                    {guild.name.charAt(0)}
-                  </div>
-                {/if}
-                <span class="truncate flex-1">{guild.name}</span>
-                {#if guild.id === authStore.selectedGuildId}
-                  <Papicon icon="check" size={14} class="text-primary shrink-0" />
-                {/if}
-              </button>
-            {/each}
-          {/if}
-        </div>
-      </div>
-    {/if}
   </div>
 
   <div class="flex items-center gap-8">
+
     {#if !authStore.member || !authStore.member.roles}
       <div class="hidden md:flex items-center gap-2 bg-slate-500/5 px-4 py-2 rounded-full border border-slate-500/10 animate-pulse">
         <div class="w-5 h-5 bg-slate-500/20 rounded-full"></div>

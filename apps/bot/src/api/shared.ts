@@ -1,4 +1,12 @@
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { createServer, type IncomingMessage, ServerResponse } from 'node:http';
+import { Socket } from 'node:net';
+import { appendFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const debugLogFile = path.resolve(__dirname, '../../scratch/debug_api.log');
+
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -12,10 +20,10 @@ import {
   TextChannel,
   Collection,
   GuildMember,
+  Guild,
 } from 'discord.js';
 import { SanctionType, TutoringItemState } from '@prisma/client';
 import jwt from 'jsonwebtoken';
-import WebSocket, { WebSocketServer } from 'ws';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 export { COLORS, successEmbed } from '../utils/embeds.js';
@@ -268,7 +276,7 @@ export interface CachedMembers {
 export const guildMembersCache = new Map<string, CachedMembers>();
 export const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
 
-export async function getGuildMembers(discordGuild: any): Promise<Collection<string, GuildMember>> {
+export async function getGuildMembers(discordGuild: Guild): Promise<Collection<string, GuildMember>> {
   const guildId = discordGuild.id;
   const cached = guildMembersCache.get(guildId);
   if (cached && (Date.now() - cached.timestamp < CACHE_DURATION)) {
@@ -578,7 +586,7 @@ export type MemberCaseResponse = {
     status: string;
     notes: string;
     createdAt: string;
-    data: any;
+    data: unknown;
     autoRejected: boolean;
     autoRejectReason: string | null;
     rejectionReason: string | null;
@@ -587,6 +595,7 @@ export type MemberCaseResponse = {
   }>;
   linkedAccounts: LinkedAccountItem[];
   isSuspectedDC: boolean;
+  sanctionReports: SanctionReportItem[];
   interactionGraph: MemberCaseInteractionGraph;
 };
 
@@ -1085,7 +1094,7 @@ export const verifyAuth = (req: IncomingMessage): AuthClaims | null => {
   if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
   const token = authHeader.split(' ')[1];
   try {
-    return jwt.verify(token, JWT_SECRET) as AuthClaims;
+    return jwt.verify(token, JWT_SECRET!) as AuthClaims;
   } catch {
     return null;
   }
@@ -1102,7 +1111,7 @@ export const verifyRecruitmentWebhookAuth = async (req: IncomingMessage, guildId
     const token = authHeader.split(' ')[1];
     try {
       return {
-        auth: jwt.verify(token, JWT_SECRET) as AuthClaims,
+        auth: jwt.verify(token, JWT_SECRET!) as AuthClaims,
         reason: 'ok_jwt',
       };
     } catch {
@@ -1256,11 +1265,118 @@ export class HttpError extends Error {
   }
 }
 
+export class BunServerResponse extends ServerResponse {
+  private chunks: Buffer[] = [];
+  private resolvePromise: (res: Response) => void;
+
+  constructor(req: IncomingMessage, resolvePromise: (res: Response) => void) {
+    super(req);
+    this.resolvePromise = resolvePromise;
+  }
+
+  override write(chunk: unknown, cb?: (error: Error | null | undefined) => void): boolean;
+  override write(chunk: unknown, encoding: BufferEncoding, cb?: (error: Error | null | undefined) => void): boolean;
+  override write(chunk: unknown, encodingOrCb?: unknown, cb?: unknown): boolean {
+    const actualChunk = typeof chunk === 'string'
+      ? Buffer.from(chunk, typeof encodingOrCb === 'string' ? (encodingOrCb as BufferEncoding) : 'utf8')
+      : (chunk instanceof Uint8Array ? Buffer.from(chunk) : Buffer.from(String(chunk || '')));
+    this.chunks.push(actualChunk);
+    
+    const callback = typeof encodingOrCb === 'function' ? encodingOrCb : cb;
+    if (typeof callback === 'function') {
+      (callback as (error: Error | null | undefined) => void)(null);
+    }
+    return true;
+  }
+
+  override writeHead(statusCode: number, statusMessage?: unknown, headers?: unknown): this {
+    this.statusCode = statusCode;
+    const actualHeaders = typeof statusMessage === 'object' && statusMessage !== null ? statusMessage : headers;
+    if (actualHeaders && typeof actualHeaders === 'object') {
+      for (const [key, val] of Object.entries(actualHeaders)) {
+        if (typeof val === 'string' || Array.isArray(val)) {
+          this.setHeader(key, val);
+        }
+      }
+    }
+    return this;
+  }
+
+  override flushHeaders(): void {}
+
+  override end(cb?: () => void): this;
+  override end(chunk: unknown, cb?: () => void): this;
+  override end(chunk: unknown, encoding: BufferEncoding, cb?: () => void): this;
+  override end(chunk?: unknown, encodingOrCb?: unknown, cb?: unknown): this {
+    if (chunk !== undefined && chunk !== null) {
+      const actualChunk = typeof chunk === 'string'
+        ? Buffer.from(chunk, typeof encodingOrCb === 'string' ? (encodingOrCb as BufferEncoding) : 'utf8')
+        : (chunk instanceof Uint8Array ? Buffer.from(chunk) : Buffer.from(String(chunk)));
+      this.chunks.push(actualChunk);
+    }
+    
+    const body = Buffer.concat(this.chunks);
+    const headers = new Headers();
+    const nodeHeaders = this.getHeaders();
+    for (const [key, val] of Object.entries(nodeHeaders)) {
+      if (val !== undefined) {
+        if (Array.isArray(val)) {
+          val.forEach(v => headers.append(key, String(v)));
+        } else {
+          headers.set(key, String(val));
+        }
+      }
+    }
+    
+    const response = new Response(body, {
+      status: this.statusCode,
+      headers
+    });
+    
+    this.resolvePromise(response);
+    
+    const callback = typeof encodingOrCb === 'function' ? encodingOrCb : cb;
+    if (typeof callback === 'function') callback();
+    return this;
+  }
+}
+
 export const readJsonBody = async <T>(req: IncomingMessage): Promise<T | null> => {
   const contentType = req.headers['content-type'];
+  const logFile = '/mnt/c/Users/Elouan/Documents/GitHub/Kotbo/apps/bot/scratch/debug_api.log';
+  const logMsg = (msg: string) => {
+    try {
+      appendFileSync(logFile, `[${new Date().toISOString()}] [readJsonBody] ${msg}\n`, 'utf8');
+    } catch {}
+  };
+
+  logMsg(`URL: ${req.url}, contentType: ${contentType}`);
+
   if (!contentType || !contentType.includes('application/json')) {
+    logMsg(`Invalid content type: ${contentType}`);
     throw new HttpError(415, 'Content-Type doit être application/json');
   }
+
+  if (req.bodyText !== undefined) {
+    const text = req.bodyText.trim();
+    logMsg(`Using pre-read bodyText: length=${text.length}, content="${text}"`);
+    if (!text) {
+      logMsg(`Empty bodyText, returning null`);
+      logger.info('readJsonBody', `Empty body for URL: ${req.url}`);
+      return null;
+    }
+    try {
+      const parsed = JSON.parse(text) as T;
+      logMsg(`JSON parse success`);
+      return parsed;
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      logMsg(`JSON parse error: ${errMsg}`);
+      logger.error('readJsonBody', `JSON parse error for URL ${req.url}, text="${text}":`, err);
+      throw new HttpError(400, 'Format JSON invalide');
+    }
+  }
+
   const chunks: Buffer[] = [];
   return new Promise((resolve, reject) => {
     req.on('data', (chunk) => chunks.push(chunk));
@@ -1280,6 +1396,7 @@ export const readJsonBody = async <T>(req: IncomingMessage): Promise<T | null> =
     req.on('error', (err) => reject(err));
   });
 };
+
 
 export const truncate = (value?: string | null, length = 160) => {
   if (!value) return '';
@@ -1489,7 +1606,7 @@ export function formatChannelName(guild: { channels: { cache: Map<string, { id: 
   return channel?.name ? `#${channel.name}` : `Salon ${channelId}`;
 }
 
-export function interpretMentions(guild: any | null, content: string): string {
+export function interpretMentions(guild: Guild | null, content: string): string {
   if (!content) return content;
   
   let escaped = content
@@ -1622,10 +1739,10 @@ export async function fetchMemberConnections(discordToken?: string | null): Prom
   }
 }
 
-export function safeIsoDate(value: any, fallback: string | null = null): string | null {
+export function safeIsoDate(value: unknown, fallback: string | null = null): string | null {
   if (!value) return fallback;
   try {
-    const date = value instanceof Date ? value : new Date(value);
+    const date = value instanceof Date ? value : new Date(typeof value === 'string' || typeof value === 'number' ? value : String(value));
     if (isNaN(date.getTime())) return fallback;
     return date.toISOString();
   } catch {
@@ -2036,7 +2153,7 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
         isTutor: staffMember?.isTutor ?? false,
         staffGrade: staffMember?.grade ?? null,
         isSuspectedDC: profile?.isSuspectedDC ?? false,
-        moderatorNote: (profile as any)?.moderatorNote ?? null,
+        moderatorNote: profile?.moderatorNote ?? null,
         isOnServer,
       },
       invite: invite
@@ -2354,9 +2471,9 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     updatedAt: entry.updatedAt.toISOString(),
   }));
 
-  const featureConfigs = (guild as any).dashboardFeatureConfigs || [];
+  const featureConfigs = guild.dashboardFeatureConfigs || [];
   const getFeatureStatus = (key: string, defaultEnabled = true): ModuleStatus => {
-    const config = featureConfigs.find((c: any) => c.featureKey === key);
+    const config = featureConfigs.find((c) => c.featureKey === key);
     if (config) return config.enabled ? 'active' : 'inactive';
     return defaultEnabled ? 'active' : 'inactive';
   };
@@ -2547,7 +2664,7 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
       id: 'youtube',
       name: 'YouTube',
       description: MODULE_DESCRIPTIONS.youtube,
-      status: getFeatureStatus('youtube', guild.youtubeEnabled),
+      status: getFeatureStatus('youtube', false),
       uptime: 100,
       interactions: 0,
       lastSync: guild.updatedAt.toISOString()
@@ -2672,7 +2789,7 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     digestEnabled: guild.digestEnabled,
     autoThreadEnabled: guild.autoThreadEnabled,
     autoThreadChannels: guild.autoThreadChannels,
-    youtubeEnabled: getFeatureStatus('youtube', guild.youtubeEnabled) === 'active',
+    youtubeEnabled: getFeatureStatus('youtube', false) === 'active',
     twitchEnabled: getFeatureStatus('twitch', false) === 'active',
     socialNetworksEnabled: getFeatureStatus('social_networks', true) === 'active',
     recruitmentCategoryId: guild.recruitmentCategoryId ?? '',
@@ -2794,7 +2911,7 @@ export async function resolveGuildById(client: Client, guildId: string) {
 }
 
 export async function collectShardSnapshots(client: Client): Promise<ShardSnapshot[]> {
-  const sharding = (client as any).shard;
+  const sharding = client.shard;
   if (!sharding) {
     return [{
       shardId: 0,
@@ -2809,8 +2926,8 @@ export async function collectShardSnapshots(client: Client): Promise<ShardSnapsh
   }
 
   const configuredShardCount = Number(sharding.count ?? 1);
-  const onlineSnapshots = await sharding.broadcastEval((shardClient: Client) => ({
-    shardId: Number((shardClient.shard?.ids?.[0] ?? 0) as number),
+  const onlineSnapshots = await sharding.broadcastEval<ShardSnapshot>((shardClient: Client) => ({
+    shardId: Number(shardClient.shard?.ids?.[0] ?? 0),
     status: shardClient.isReady() ? 'online' : 'starting',
     guildCount: shardClient.guilds.cache.size,
     memberCount: shardClient.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0),
@@ -2818,7 +2935,7 @@ export async function collectShardSnapshots(client: Client): Promise<ShardSnapsh
     uptime: Math.floor(process.uptime()),
     readyAt: shardClient.readyAt?.toISOString() ?? null,
     memoryUsage: process.memoryUsage(),
-  })) as ShardSnapshot[];
+  }));
 
   const snapshotById = new Map<number, ShardSnapshot>();
   for (const snapshot of onlineSnapshots) {
@@ -2844,7 +2961,7 @@ export async function collectShardSnapshots(client: Client): Promise<ShardSnapsh
 }
 
 export async function collectShardGuilds(client: Client) {
-  const sharding = (client as any).shard;
+  const sharding = client.shard;
   if (!sharding) {
     return client.guilds.cache.map((guild) => ({
       id: guild.id,
@@ -2858,13 +2975,22 @@ export async function collectShardGuilds(client: Client) {
     }));
   }
 
-  const results = await sharding.broadcastEval((shardClient: Client) => shardClient.guilds.cache.map((guild) => ({
+  interface ShardGuildResult {
+    id: string;
+    name: string;
+    icon: string | null;
+    memberCount: number;
+    joinedAt: string | null;
+    shardId: number;
+  }
+
+  const results = await sharding.broadcastEval<ShardGuildResult[]>((shardClient: Client) => shardClient.guilds.cache.map((guild) => ({
     id: guild.id,
     name: guild.name,
     icon: guild.iconURL(),
     memberCount: guild.memberCount,
     joinedAt: guild.joinedAt?.toISOString() ?? null,
-    shardId: Number((shardClient.shard?.ids?.[0] ?? 0) as number),
+    shardId: Number(shardClient.shard?.ids?.[0] ?? 0),
   })));
 
   return results.flat();

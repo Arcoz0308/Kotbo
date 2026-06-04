@@ -213,6 +213,17 @@ const mockClient = {
         },
         channels: {
           cache: {
+            get: mock((channelId: string) => ({
+              id: channelId,
+              isTextBased: () => true,
+              send: mock((options: any) => Promise.resolve({ id: 'sent-msg-id', ...options })),
+              messages: {
+                fetch: mock((messageId: string) => Promise.resolve({
+                  id: messageId,
+                  edit: mock((options: any) => Promise.resolve({ id: messageId, ...options })),
+                })),
+              },
+            })),
             values: () => [],
           },
         },
@@ -448,6 +459,47 @@ describe('Modular Routers Unit Tests', () => {
       expect(res.statusCode).toBe(200);
       const data = JSON.parse(res.body);
       expect(data.features).toBeDefined();
+    });
+
+    test('POST /api/dashboard/guilds/:guildId/embed-builder parses content and V2 embed fields', async () => {
+      mockDb.guild.findUnique.mockResolvedValue({ id: '1122334455667788' });
+      mockDb.dashboardFeatureConfig.findMany.mockResolvedValue([]);
+
+      const payload = {
+        channelId: '12345678',
+        content: 'This is test content outside the embed',
+        embed: {
+          title: 'V2 Title',
+          description: 'V2 Description',
+          color: '#ff0000',
+          url: 'https://title-url.com',
+          authorName: 'V2 Author',
+          authorUrl: 'https://author-url.com',
+          timestamp: true,
+        },
+      };
+
+      const req = createMockRequest({
+        method: 'POST',
+        url: '/api/dashboard/guilds/1122334455667788/embed-builder',
+        headers: {
+          authorization: `Bearer ${testUserToken}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const res = createMockResponse();
+      const parts = splitPath(req.url!);
+      const url = new URL(req.url!, 'http://localhost');
+
+      const handled = await handleDashboardRoutes(req, res, parts, url, mockClient);
+      expect(handled).toBeTrue();
+      expect(res.statusCode).toBe(200);
+
+      const data = JSON.parse(res.body);
+      expect(data.ok).toBeTrue();
+      expect(data.messageId).toBe('sent-msg-id');
     });
   });
 });

@@ -13,6 +13,23 @@ import {
   JWT_SECRET,
 } from '../shared.js';
 
+interface DiscordTokenResponse {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+  refresh_token?: string;
+  scope: string;
+  error?: string;
+  error_description?: string;
+}
+
+interface DiscordUserResponse {
+  id: string;
+  username: string;
+  avatar: string | null;
+  global_name?: string | null;
+}
+
 export async function handleAuthRoutes(
   req: IncomingMessage,
   res: ServerResponse,
@@ -91,13 +108,13 @@ export async function handleAuthRoutes(
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         });
 
-        const tokenData = await tokenResponse.json() as any;
+        const tokenData = await tokenResponse.json() as DiscordTokenResponse;
         if (tokenData.error) throw new Error(tokenData.error_description);
 
         const userResponse = await fetch('https://discord.com/api/users/@me', {
           headers: { Authorization: `Bearer ${tokenData.access_token}` },
         });
-        const userData = await userResponse.json() as any;
+        const userData = await userResponse.json() as DiscordUserResponse;
 
         const token = jwt.sign({
           userId: userData.id,

@@ -21,6 +21,7 @@
 
   let activeTooltip = $state<{ text: string; top: number } | null>(null);
 
+
   function handleMouseEnter(event: MouseEvent, text: string) {
     if (!collapsed) return;
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
@@ -308,7 +309,7 @@
           type="text"
           placeholder="Rechercher..."
           bind:value={searchQuery}
-          class="w-full pl-9 pr-7 py-2 text-xs rounded-xl bg-surface-container/40 border border-outline-variant/20 text-on-surface placeholder:text-on-surface-variant/35 focus:outline-none focus:border-primary/40 focus:bg-surface-container/60 transition-all duration-200"
+          class="w-full pl-9 pr-12 py-2 text-xs rounded-xl bg-surface-container/40 border border-outline-variant/20 text-on-surface placeholder:text-on-surface-variant/35 focus:outline-none focus:border-primary/40 focus:bg-surface-container/60 transition-all duration-200"
         />
         <div class="absolute left-3 text-on-surface-variant/35">
           <Papicon icon="search" size={13} />
@@ -321,6 +322,10 @@
           >
             <Papicon icon="x" size={11} />
           </button>
+        {:else}
+          <kbd class="absolute right-2.5 px-1.5 py-0.5 rounded bg-on-surface/8 border border-outline-variant/10 text-[9px] font-black font-mono leading-none text-on-surface-variant/35 pointer-events-none">
+            ⌘K
+          </kbd>
         {/if}
       </div>
 
@@ -388,7 +393,7 @@
         <button
           type="button"
           onclick={() => toggleGroup(group.key)}
-          class="w-full flex items-center gap-2 px-2 py-1.5 mb-0.5 rounded-lg transition-colors hover:bg-surface-container/40 group/label"
+          class="w-full flex items-center gap-2 px-2 py-2 mb-0.5 rounded-lg transition-colors hover:bg-surface-container/40 group/label sticky top-0 z-10 bg-surface-container-low/95 backdrop-blur-md"
         >
           <span class="flex-1 text-left text-[10px] font-bold text-on-surface-variant/55 uppercase tracking-[0.18em]">
             {group.label}

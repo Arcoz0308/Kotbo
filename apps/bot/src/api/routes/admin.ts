@@ -2,6 +2,7 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client, TextChannel, EmbedBuilder } from 'discord.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { BannedWord } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { activateGuild, deactivateGuild } from '../../utils/activation.js';
@@ -98,7 +99,7 @@ export async function handleAdminRoutes(
   if (parts[2] === 'stats' && parts[3] === 'modules' && method === 'GET') {
     try {
       const guildId = url.searchParams.get('guildId') || undefined;
-      const moduleName = url.searchParams.get('moduleName') as any || undefined;
+      const moduleName = url.searchParams.get('moduleName') || undefined;
       const startDate = url.searchParams.get('startDate') || undefined;
       const endDate = url.searchParams.get('endDate') || undefined;
       const periodDays = url.searchParams.get('period') ? parseInt(url.searchParams.get('period')!) : 30;
@@ -142,7 +143,15 @@ export async function handleAdminRoutes(
       const dbGuildsMap = new Map(dbGuilds.map((guild) => [guild.id, guild] as const));
 
       const shardGuilds = await collectShardGuilds(client);
-      const guilds = shardGuilds.map((g: any) => {
+      interface ShardGuild {
+        id: string;
+        name: string;
+        icon: string | null;
+        memberCount: number;
+        joinedAt: string | null;
+        shardId: number;
+      }
+      const guilds = shardGuilds.map((g: ShardGuild) => {
         const dbGuild = dbGuildsMap.get(g.id);
         return {
           id: g.id,
@@ -242,9 +251,8 @@ export async function handleAdminRoutes(
     const guildId = parts[3];
 
     // Check if guild exists across shards
-    let guildExists = false;
-    if ((client as any).shard) {
-      const results = await (client as any).shard.broadcastEval((c: Client, id: string) => c.guilds.cache.has(id), { context: guildId }) as boolean[];
+    if (client.shard) {
+      const results = await client.shard.broadcastEval<boolean>((c: Client, id: string) => c.guilds.cache.has(id), { context: guildId });
       guildExists = results.some((r) => r);
     } else {
       guildExists = client.guilds.cache.has(guildId) || !!(await client.guilds.fetch(guildId).catch(() => null));
@@ -257,19 +265,22 @@ export async function handleAdminRoutes(
 
     // POST /api/admin/guilds/:guildId/invite
     if (parts[4] === 'invite' && method === 'POST') {
-      if ((client as any).shard) {
-        const results = await (client as any).shard.broadcastEval(async (shardClient: Client, context: { guildId: string }) => {
+      if (client.shard) {
+        const results = await client.shard.broadcastEval<{ error?: string; url?: string } | null>(async (shardClient: Client, context: { guildId: string }) => {
           const guild = shardClient.guilds.cache.get(context.guildId);
           if (!guild) return null;
-          const channel = guild.channels.cache.find(c => c.type === 0 && c.permissionsFor(guild.members.me!)?.has('CreateInstantInvite'));
+          const channel = guild.channels.cache.find(c => c.type === 0 && c.permissionsFor(shardClient.user!)?.has('CreateInstantInvite'));
           if (!channel) return { error: 'NO_CHANNEL' };
           try {
-            const invite = await (channel as any).createInvite({ maxAge: 86400, maxUses: 1 });
-            return { url: invite.url };
+            if (channel && 'createInvite' in channel && typeof channel.createInvite === 'function') {
+              const invite = await channel.createInvite({ maxAge: 86400, maxUses: 1 });
+              return { url: invite.url };
+            }
+            return { error: 'CREATE_FAILED' };
           } catch {
             return { error: 'CREATE_FAILED' };
           }
-        }, { context: { guildId } }) as Array<{ error?: string; url?: string } | null>;
+        }, { context: { guildId } });
 
         const result = results.find(r => r !== null);
         if (!result) {
@@ -304,8 +315,8 @@ export async function handleAdminRoutes(
 
     // POST /api/admin/guilds/:guildId/leave
     if (parts[4] === 'leave' && method === 'POST') {
-      if ((client as any).shard) {
-        const results = await (client as any).shard.broadcastEval(async (shardClient: Client, context: { guildId: string }) => {
+      if (client.shard) {
+        const results = await client.shard.broadcastEval<{ success: boolean } | null>(async (shardClient: Client, context: { guildId: string }) => {
           const guild = shardClient.guilds.cache.get(context.guildId);
           if (!guild) return null;
           try {
@@ -314,7 +325,7 @@ export async function handleAdminRoutes(
           } catch {
             return { success: false };
           }
-        }, { context: { guildId } }) as Array<{ success: boolean } | null>;
+        }, { context: { guildId } });
 
         const result = results.find(r => r !== null);
         if (!result) {
@@ -447,9 +458,9 @@ export async function handleAdminRoutes(
               create: { userId: body.userId, reason: body.reason, addedBy: user.userId }
             });
 
-            const blacklistSet: Set<string> = (global as any).KOTBO_BLACKLIST || new Set();
+            const blacklistSet: Set<string> = globalThis.KOTBO_BLACKLIST || new Set();
             blacklistSet.add(body.userId);
-            (global as any).KOTBO_BLACKLIST = blacklistSet;
+            globalThis.KOTBO_BLACKLIST = blacklistSet;
 
             json(res, 201, { success: true });
          } catch (err) {
@@ -468,7 +479,7 @@ export async function handleAdminRoutes(
        try {
          await prisma.globalBlacklist.delete({ where: { userId: targetId } }).catch(() => {});
          
-         const blacklistSet: Set<string> = (global as any).KOTBO_BLACKLIST;
+         const blacklistSet: Set<string> = globalThis.KOTBO_BLACKLIST;
          if (blacklistSet) {
            blacklistSet.delete(targetId);
          }
@@ -529,8 +540,8 @@ export async function handleAdminRoutes(
           return true;
         }
 
-        const created: any[] = [];
-        const updated: any[] = [];
+        const created: BannedWord[] = [];
+        const updated: BannedWord[] = [];
 
         for (const entry of seen.values()) {
           const existing = await prisma.bannedWord.findFirst({ where: { guildId: null, word: entry.word } });
@@ -692,7 +703,7 @@ export async function handleAdminRoutes(
            update: { value: body.maintenance ? 'true' : 'false' },
            create: { key: 'MAINTENANCE_MODE', value: body.maintenance ? 'true' : 'false' }
          });
-         (global as any).KOTBO_MAINTENANCE_MODE = body.maintenance;
+         globalThis.KOTBO_MAINTENANCE_MODE = body.maintenance;
          json(res, 200, { success: true });
        } catch (err) {
          json(res, 500, { error: 'Erreur de base de données' });
@@ -741,7 +752,7 @@ export async function handleAdminRoutes(
       let successCount = 0;
       let failCount = 0;
 
-      if ((client as any).shard) {
+      if (client.shard) {
         const dbGuilds = await prisma.guild.findMany({
           select: {
             id: true,
@@ -757,7 +768,7 @@ export async function handleAdminRoutes(
           };
         }
 
-        const results = await (client as any).shard.broadcastEval(async (
+        const results = await client.shard.broadcastEval<{ successCount: number; failCount: number }>(async (
           shardClient: Client,
           context: {
             message: string;
@@ -799,7 +810,7 @@ export async function handleAdminRoutes(
           }
 
           return { successCount: shardSuccessCount, failCount: shardFailCount };
-        }, { context: { message: body.message, guildChannelMap } }) as Array<{ successCount: number; failCount: number }>;
+        }, { context: { message: body.message, guildChannelMap } });
 
         for (const result of results) {
           successCount += result.successCount;
@@ -840,8 +851,9 @@ export async function handleAdminRoutes(
       }
       
       json(res, 200, { success: true, successCount, failCount });
-    } catch (err: any) {
-      logger.error('AdminAPI', `Global announcement broadcast error: ${err.message}`);
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : String(err);
+      logger.error('AdminAPI', `Global announcement broadcast error: ${errMessage}`);
       json(res, 500, { error: 'Erreur de base de données' });
     }
     return true;
@@ -972,8 +984,8 @@ export async function handleAdminRoutes(
 
     // Check if guild exists across shards
     let guildExists = false;
-    if ((client as any).shard) {
-      const results = await (client as any).shard.broadcastEval((c: Client, id: string) => c.guilds.cache.has(id), { context: guildId }) as boolean[];
+    if (client.shard) {
+      const results = await client.shard.broadcastEval<boolean>((c: Client, id: string) => c.guilds.cache.has(id), { context: guildId });
       guildExists = results.some(r => r);
     } else {
       guildExists = client.guilds.cache.has(guildId) || !!(await client.guilds.fetch(guildId).catch(() => null));
@@ -988,8 +1000,8 @@ export async function handleAdminRoutes(
       const body = await readJsonBody<{ force?: boolean; forcer?: boolean }>(req);
       const force = !!(body?.force || body?.forcer);
 
-      if ((client as any).shard) {
-        const results = await (client as any).shard.broadcastEval(async (shardClient: Client, context: { guildId: string; force: boolean; servicePath: string }) => {
+      if (client.shard) {
+        const results = await client.shard.broadcastEval<{ success: boolean; error?: string } | null>(async (shardClient: Client, context: { guildId: string; force: boolean; servicePath: string }) => {
           const guild = shardClient.guilds.cache.get(context.guildId);
           if (!guild) return null;
           try {
@@ -999,7 +1011,7 @@ export async function handleAdminRoutes(
           } catch (err) {
             return { success: false, error: err instanceof Error ? err.message : String(err) };
           }
-        }, { context: { guildId, force, servicePath } }) as Array<{ success: boolean; error?: string } | null>;
+        }, { context: { guildId, force, servicePath } });
 
         const result = results.find(r => r !== null);
         if (!result) {

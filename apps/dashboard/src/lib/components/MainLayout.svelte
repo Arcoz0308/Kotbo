@@ -4,10 +4,15 @@
   import { router } from 'tinro';
   import Sidebar from './Sidebar.svelte';
   import Navbar from './Navbar.svelte';
+  import Breadcrumbs from './Breadcrumbs.svelte';
+  import ServerSwitcherModal from './ServerSwitcherModal.svelte';
   import { dashboardLifecycle } from '../dashboardLifecycle';
   import { sidebarStore } from '../stores/sidebar.svelte';
   import { feedbackModal } from '../stores/feedbackModal.svelte';
   import { getPageStatus } from '../config/pages';
+  import { historyStore } from '../stores/history.svelte';
+  import { serverSwitcherStore } from '../stores/serverSwitcher.svelte';
+  import { searchStore } from '../stores/search.svelte';
 
   let { children }: { children?: Snippet } = $props();
 
@@ -27,7 +32,49 @@
   function dismissBanner(pageName: string) {
     dismissedBanners = { ...dismissedBanners, [pageName]: true };
   }
+
+  function handleGlobalKeyDown(e: KeyboardEvent) {
+    const activeEl = document.activeElement;
+    const isEditing = activeEl && (
+      activeEl.tagName === 'INPUT' || 
+      activeEl.tagName === 'TEXTAREA' || 
+      activeEl.getAttribute('contenteditable') === 'true'
+    );
+
+    function close() {
+      searchStore.close();
+      serverSwitcherStore.close();
+      feedbackModal.close();
+    }
+
+    // Ctrl+G: Sélecteur de serveur
+    const isG = e.key === 'g' || e.key === 'G';
+    if ((e.ctrlKey || e.metaKey) && isG) {
+      e.preventDefault();
+      close();
+      serverSwitcherStore.toggle();
+      return;
+    } 
+
+    if (isEditing) return;
+
+    const isZ = e.key === 'z' || e.key === 'Z';
+    const isY = e.key === 'y' || e.key === 'Y';
+
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && isZ) {
+      e.preventDefault();
+      historyStore.undo();
+    } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && isZ) {
+      e.preventDefault();
+      historyStore.redo();
+    } else if ((e.ctrlKey || e.metaKey) && isY) {
+      e.preventDefault();
+      historyStore.redo();
+    }
+  }
 </script>
+
+<svelte:window onkeydown={handleGlobalKeyDown} />
 
 <div class="flex min-h-screen bg-background text-on-background transition-colors duration-500 relative">
   
@@ -45,6 +92,7 @@
     <Navbar />
     
     <main class="p-12 pb-24 max-w-[1600px] w-full mx-auto relative">
+      <Breadcrumbs />
       {#if pageStatus?.wip}
         <!-- Render WIP Overlay over blurred content -->
         <div class="relative w-full min-h-[500px]">
@@ -115,4 +163,5 @@
       {/if}
     </main>
   </div>
+  <ServerSwitcherModal />
 </div>

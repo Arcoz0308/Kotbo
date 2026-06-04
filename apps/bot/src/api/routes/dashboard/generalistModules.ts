@@ -780,22 +780,26 @@ export async function handleGeneralistModulesRoutes(
         const body = await readJsonBody<{
           channelId: string;
           messageId?: string | null;
-          embed: {
+          content?: string | null;
+          embed?: {
             title?: string;
             description?: string;
             color?: string;
             thumbnailUrl?: string | null;
             imageUrl?: string | null;
+            url?: string | null;
             authorName?: string | null;
             authorIconUrl?: string | null;
+            authorUrl?: string | null;
             footerText?: string | null;
             footerIconUrl?: string | null;
+            timestamp?: boolean | string | null;
             fields?: Array<{ name: string; value: string; inline?: boolean }>;
           };
         }>(req);
 
-        if (!body || !body.channelId || !body.embed) {
-          json(res, 400, { error: 'Salon et données d\'embed requis' });
+        if (!body || !body.channelId || (!body.embed && !body.content)) {
+          json(res, 400, { error: 'Salon et données d\'envoi requis (content ou embed)' });
           return true;
         }
 
@@ -811,48 +815,71 @@ export async function handleGeneralistModulesRoutes(
           return true;
         }
 
-        // Construire l'embed Discord
+        // Construire l'embed Discord si fourni
         const embed = new EmbedBuilder();
-        if (body.embed.title) embed.setTitle(body.embed.title);
-        if (body.embed.description) embed.setDescription(body.embed.description);
-        if (body.embed.color) embed.setColor(body.embed.color as any);
-        if (body.embed.thumbnailUrl) embed.setThumbnail(body.embed.thumbnailUrl);
-        if (body.embed.imageUrl) embed.setImage(body.embed.imageUrl);
+        let hasEmbedData = false;
 
-        if (body.embed.authorName) {
-          embed.setAuthor({
-            name: body.embed.authorName,
-            iconURL: body.embed.authorIconUrl || undefined
-          });
+        if (body.embed) {
+          if (body.embed.title) { embed.setTitle(body.embed.title); hasEmbedData = true; }
+          if (body.embed.description) { embed.setDescription(body.embed.description); hasEmbedData = true; }
+          if (body.embed.color) { embed.setColor(body.embed.color as any); hasEmbedData = true; }
+          if (body.embed.thumbnailUrl) { embed.setThumbnail(body.embed.thumbnailUrl); hasEmbedData = true; }
+          if (body.embed.imageUrl) { embed.setImage(body.embed.imageUrl); hasEmbedData = true; }
+          if (body.embed.url) { embed.setURL(body.embed.url); hasEmbedData = true; }
+          if (body.embed.timestamp) {
+            embed.setTimestamp(body.embed.timestamp === true ? new Date() : new Date(body.embed.timestamp));
+            hasEmbedData = true;
+          }
+
+          if (body.embed.authorName) {
+            embed.setAuthor({
+              name: body.embed.authorName,
+              iconURL: body.embed.authorIconUrl || undefined,
+              url: body.embed.authorUrl || undefined
+            });
+            hasEmbedData = true;
+          }
+
+          if (body.embed.footerText) {
+            embed.setFooter({
+              text: body.embed.footerText,
+              iconURL: body.embed.footerIconUrl || undefined
+            });
+            hasEmbedData = true;
+          }
+
+          if (body.embed.fields && body.embed.fields.length > 0) {
+            embed.addFields(body.embed.fields.map(f => ({
+              name: f.name || '-',
+              value: f.value || '-',
+              inline: !!f.inline
+            })));
+            hasEmbedData = true;
+          }
         }
 
-        if (body.embed.footerText) {
-          embed.setFooter({
-            text: body.embed.footerText,
-            iconURL: body.embed.footerIconUrl || undefined
-          });
+        if (!body.content && !hasEmbedData) {
+          json(res, 400, { error: 'Vous devez fournir du texte de message ou au moins un champ d\'embed.' });
+          return true;
         }
 
-        if (body.embed.fields && body.embed.fields.length > 0) {
-          embed.addFields(body.embed.fields.map(f => ({
-            name: f.name || '-',
-            value: f.value || '-',
-            inline: !!f.inline
-          })));
-        }
+        const messageOptions = {
+          content: body.content || undefined,
+          embeds: hasEmbedData ? [embed] : undefined
+        };
 
         let messageSent;
         if (body.messageId) {
           // Tenter de modifier un message existant
           const msg = await channel.messages.fetch(body.messageId).catch(() => null);
           if (msg) {
-            messageSent = await msg.edit({ embeds: [embed] }).catch(() => null);
+            messageSent = await msg.edit(messageOptions).catch(() => null);
           }
         }
 
         if (!messageSent) {
           // Envoyer un nouveau message
-          messageSent = await channel.send({ embeds: [embed] }).catch(() => null);
+          messageSent = await channel.send(messageOptions).catch(() => null);
         }
 
         if (!messageSent) {

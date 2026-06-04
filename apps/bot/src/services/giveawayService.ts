@@ -2,6 +2,9 @@ import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, Mes
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 
+// Cooldown map to prevent spamming/double clicks on the join button
+const joinCooldowns = new Map<string, number>();
+
 /**
  * Crée un nouveau giveaway sur Discord et en BDD
  */
@@ -67,60 +70,104 @@ export async function createGiveaway(
  */
 export async function handleGiveawayJoin(interaction: any) {
   const giveawayId = interaction.customId.split(':')[1];
-  const giveaway = await prisma.giveaway.findUnique({
-    where: { id: giveawayId },
-  });
+  const userId = interaction.user.id;
 
-  if (!giveaway || giveaway.ended) {
+  // Anti-double-clic / Anti-spam : Cooldown de 2 secondes par utilisateur et par giveaway
+  const cooldownKey = `${userId}:${giveawayId}`;
+  const now = Date.now();
+  const lastClick = joinCooldowns.get(cooldownKey);
+
+  if (lastClick && now - lastClick < 2000) {
     return interaction.reply({
-      content: '❌ Ce giveaway est terminé !',
+      content: '⚠️ Veuillez patienter 2 secondes entre chaque clic.',
       flags: [MessageFlags.Ephemeral],
     });
   }
+  joinCooldowns.set(cooldownKey, now);
 
-  const userId = interaction.user.id;
-  const isParticipant = giveaway.participants.includes(userId);
+  // Nettoyage automatique du cooldown après 2 secondes
+  setTimeout(() => {
+    if (joinCooldowns.get(cooldownKey) === now) {
+      joinCooldowns.delete(cooldownKey);
+    }
+  }, 2000);
 
-  let updatedParticipants = [...giveaway.participants];
-  let responseText = '';
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Verrouiller la ligne du giveaway pour bloquer les écritures/lectures concurrentes
+      await tx.$queryRaw`SELECT 1 FROM giveaways WHERE id = ${giveawayId} FOR UPDATE`;
 
-  if (isParticipant) {
-    // Se désinscrire
-    updatedParticipants = updatedParticipants.filter(id => id !== userId);
-    responseText = '😢 Vous vous êtes retiré du giveaway.';
-  } else {
-    // S'inscrire
-    updatedParticipants.push(userId);
-    responseText = '🎉 Inscription validée ! Bonne chance !';
-  }
+      // 2. Récupérer les données verrouillées et fraîches
+      const giveaway = await tx.giveaway.findUnique({
+        where: { id: giveawayId },
+      });
 
-  // Enregistrer en BDD
-  await prisma.giveaway.update({
-    where: { id: giveawayId },
-    data: { participants: updatedParticipants },
-  });
+      if (!giveaway || giveaway.ended) {
+        throw new Error('ENDED_OR_NOT_FOUND');
+      }
 
-  // Mettre à jour l'embed Discord en temps réel
-  if (giveaway.messageId) {
-    const channel = interaction.channel;
-    if (channel?.isTextBased()) {
-      const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
-      if (message) {
-        const originalEmbed = message.embeds[0];
-        if (originalEmbed) {
-          const updatedEmbed = EmbedBuilder.from(originalEmbed)
-            .setDescription(`${giveaway.description ? `${giveaway.description}\n\n` : ''}Cliquez sur le bouton ci-dessous pour participer !\n\n**Fin :** <t:${Math.floor(giveaway.endsAt.getTime() / 1000)}:R> (<t:${Math.floor(giveaway.endsAt.getTime() / 1000)}:f>)\n**Nombre de gagnants :** ${giveaway.winnerCount}\n**Participants :** ${updatedParticipants.length}`);
-          
-          await message.edit({ embeds: [updatedEmbed] }).catch(() => null);
+      const isParticipant = giveaway.participants.includes(userId);
+      let updatedParticipants = [...giveaway.participants];
+      let responseText = '';
+
+      if (isParticipant) {
+        // Se désinscrire
+        updatedParticipants = updatedParticipants.filter(id => id !== userId);
+        responseText = '😢 Vous vous êtes retiré du giveaway.';
+      } else {
+        // S'inscrire
+        updatedParticipants.push(userId);
+        responseText = '🎉 Inscription validée ! Bonne chance !';
+      }
+
+      await tx.giveaway.update({
+        where: { id: giveawayId },
+        data: { participants: updatedParticipants },
+      });
+
+      return {
+        responseText,
+        updatedParticipants,
+        giveaway,
+      };
+    });
+
+    const { responseText, updatedParticipants, giveaway } = result;
+
+    // 4. Mettre à jour l'embed Discord en temps réel
+    if (giveaway.messageId) {
+      const channel = interaction.channel;
+      if (channel?.isTextBased()) {
+        const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
+        if (message) {
+          const originalEmbed = message.embeds[0];
+          if (originalEmbed) {
+            const updatedEmbed = EmbedBuilder.from(originalEmbed)
+              .setDescription(`${giveaway.description ? `${giveaway.description}\n\n` : ''}Cliquez sur le bouton ci-dessous pour participer !\n\n**Fin :** <t:${Math.floor(giveaway.endsAt.getTime() / 1000)}:R> (<t:${Math.floor(giveaway.endsAt.getTime() / 1000)}:f>)\n**Nombre de gagnants :** ${giveaway.winnerCount}\n**Participants :** ${updatedParticipants.length}`);
+            
+            await message.edit({ embeds: [updatedEmbed] }).catch(() => null);
+          }
         }
       }
     }
-  }
 
-  return interaction.reply({
-    content: responseText,
-    flags: [MessageFlags.Ephemeral],
-  });
+    return interaction.reply({
+      content: responseText,
+      flags: [MessageFlags.Ephemeral],
+    });
+  } catch (err: any) {
+    if (err.message === 'ENDED_OR_NOT_FOUND') {
+      return interaction.reply({
+        content: '❌ Ce giveaway est terminé !',
+        flags: [MessageFlags.Ephemeral],
+      });
+    }
+    logger.error('GiveawayService', 'Erreur lors de handleGiveawayJoin :', err);
+    return interaction.reply({
+      content: '❌ Une erreur est survenue lors de votre inscription.',
+      flags: [MessageFlags.Ephemeral],
+    });
+  }
 }
 
 /**

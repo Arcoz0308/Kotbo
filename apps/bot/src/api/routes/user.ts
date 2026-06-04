@@ -10,7 +10,16 @@ import {
   resolveDashboardAccess,
   hasDashboardAdminPermission,
   DashboardAccessLevel,
+  AuthClaims,
 } from '../shared.js';
+
+interface DiscordGuild {
+  id: string;
+  name: string;
+  icon: string | null;
+  owner: boolean;
+  permissions: string;
+}
 
 export async function handleUserRoutes(
   req: IncomingMessage,
@@ -35,7 +44,11 @@ export async function handleUserRoutes(
   if (parts[2] === 'me' && method === 'GET') {
     const authHeader = req.headers.authorization;
     const token = authHeader!.split(' ')[1];
-    const decoded = jwt.decode(token) as any;
+    const decoded = jwt.decode(token) as AuthClaims | null;
+    if (!decoded) {
+      json(res, 400, { error: 'Token invalide' });
+      return true;
+    }
     const isBotAdmin = await resolveAdminAccess(client, decoded.userId);
     json(res, 200, { id: decoded.userId, username: decoded.username, avatar: decoded.avatar, isBotAdmin });
     return true;
@@ -51,8 +64,8 @@ export async function handleUserRoutes(
         return true;
       }
 
-      const decoded = jwt.decode(token) as any;
-      if (!decoded?.discordToken) {
+      const decoded = jwt.decode(token) as AuthClaims | null;
+      if (!decoded || !decoded.discordToken) {
         json(res, 400, { error: 'Token Discord manquant dans le JWT' });
         return true;
       }
@@ -69,7 +82,7 @@ export async function handleUserRoutes(
         return true;
       }
 
-      const userGuilds = await guildsResponse.json() as any[];
+      const userGuilds = await guildsResponse.json() as DiscordGuild[];
       if (!Array.isArray(userGuilds)) {
         logger.error('API', 'Discord did not return an array of guilds', userGuilds);
         json(res, 500, { error: 'Réponse Discord invalide' });
@@ -77,7 +90,7 @@ export async function handleUserRoutes(
       }
 
       const userGuildPermissions = new Map<string, bigint>();
-      const userGuildsById = new Map<string, any>();
+      const userGuildsById = new Map<string, DiscordGuild>();
 
       for (const guild of userGuilds) {
         userGuildsById.set(guild.id, guild);

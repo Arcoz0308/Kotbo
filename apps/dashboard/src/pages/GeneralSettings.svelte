@@ -9,6 +9,7 @@
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
   import { updateGlobalSettings, updateFeatureConfiguration } from '../lib/api';
+  import { historyStore } from '../lib/stores/history.svelte';
 
   const saveAction = createAsyncActionState();
   let loading = $state(false);
@@ -21,7 +22,7 @@
   const availableVoiceChannels = $derived(dashboardStore.state.discordVoiceChannels || []);
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
 
-  let guildSettings = $state({
+  let guildSettings = $state<Record<string, any>>({
     configChannelId: '',
     publicChannelId: '',
     newsChannelId: '',
@@ -113,7 +114,7 @@
     </div>
     <button 
       onclick={handleSave}
-      disabled={saveAction.loading || loading || !canManageSettings}
+      disabled={saveAction.state.loading || loading || !canManageSettings}
       class="px-8 py-3 bg-primary text-on-primary font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-primary/20 hover:scale-105 transition-all disabled:opacity-50"
     >
       Enregistrer les modifications
@@ -194,7 +195,23 @@
                   <p class="text-sm font-bold">{toggle.label}</p>
                   <p class="text-[10px] text-on-surface-variant/50">{toggle.desc}</p>
                 </div>
-                <ToggleSwitch checked={guildSettings[toggle.key]} onToggle={(v) => { guildSettings[toggle.key] = v; guildSettings = {...guildSettings}; }} />
+                <ToggleSwitch checked={guildSettings[toggle.key]} onToggle={(v: boolean) => {
+                  const previousValue = guildSettings[toggle.key];
+                  const key = toggle.key;
+                  guildSettings[key] = v;
+                  guildSettings = {...guildSettings};
+                  historyStore.push({
+                    label: `Modifier ${toggle.label}`,
+                    undo: () => {
+                      guildSettings[key] = previousValue;
+                      guildSettings = {...guildSettings};
+                    },
+                    redo: () => {
+                      guildSettings[key] = v;
+                      guildSettings = {...guildSettings};
+                    }
+                  });
+                }} />
               </div>
             {/each}
           </div>

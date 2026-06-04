@@ -10,6 +10,7 @@
   import ToastContainer from "./lib/components/ToastContainer.svelte";
   import InviteDetailsModal from "./lib/components/invitations/InviteDetailsModal.svelte";
   import FeedbackModal from "./lib/components/FeedbackModal.svelte";
+  import CommandPalette from "./lib/components/CommandPalette.svelte";
   import NotFound from "./pages/NotFound.svelte";
   import GlobalErrorOverlay from "./lib/components/GlobalErrorOverlay.svelte";
 
@@ -663,3 +664,4 @@
 <ToastContainer />
 <InviteDetailsModal />
 <FeedbackModal />
+<CommandPalette />

@@ -189,6 +189,77 @@
     'CONTAINS': 'Contient',
     'REGEX': 'Expression Régulière (Regex)'
   };
+
+  // Multiple selection states
+  let selectedIds = $state<Set<string>>(new Set());
+  let lastSelectedIndex = $state<number | null>(null);
+
+  const allSelected = $derived(list.length > 0 && selectedIds.size === list.length);
+
+  function toggleSelect(id: string, index: number, event: MouseEvent) {
+    const newSelected = new Set(selectedIds);
+    if (event.shiftKey && lastSelectedIndex !== null) {
+      const start = Math.min(lastSelectedIndex, index);
+      const end = Math.max(lastSelectedIndex, index);
+      for (let i = start; i <= end; i++) {
+        newSelected.add(list[i].id);
+      }
+    } else {
+      if (newSelected.has(id)) {
+        newSelected.delete(id);
+      } else {
+        newSelected.add(id);
+      }
+    }
+    selectedIds = newSelected;
+    lastSelectedIndex = index;
+  }
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      selectedIds = new Set();
+    } else {
+      selectedIds = new Set(list.map(item => item.id));
+    }
+    lastSelectedIndex = null;
+  }
+
+  async function bulkToggle(enabled: boolean) {
+    if (!canManageSettings || selectedIds.size === 0) return;
+    await actionState.run(async () => {
+      const ids = Array.from(selectedIds);
+      let successCount = 0;
+      for (const id of ids) {
+        const ok = await updateAutoResponse(id, { enabled });
+        if (ok) {
+          successCount++;
+          list = list.map(item => item.id === id ? { ...item, enabled } : item);
+        }
+      }
+      selectedIds = new Set();
+      lastSelectedIndex = null;
+      return successCount > 0;
+    }, { successMessage: `${enabled ? 'Activation' : 'Désactivation'} effectuée sur les déclencheurs sélectionnés.` });
+  }
+
+  async function bulkDelete() {
+    if (!canManageSettings || selectedIds.size === 0) return;
+    if (!confirm(`Supprimer les ${selectedIds.size} déclencheurs sélectionnés ?`)) return;
+    await actionState.run(async () => {
+      const ids = Array.from(selectedIds);
+      let successCount = 0;
+      for (const id of ids) {
+        const ok = await deleteAutoResponse(id);
+        if (ok) {
+          successCount++;
+          list = list.filter(item => item.id !== id);
+        }
+      }
+      selectedIds = new Set();
+      lastSelectedIndex = null;
+      return successCount > 0;
+    }, { successMessage: `Suppression effectuée.` });
+  }
 </script>
 
 <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -216,10 +287,20 @@
     <div class="space-y-6">
       <!-- Title & Actions Bar -->
       <div class="flex items-center justify-between gap-4 flex-wrap">
-        <h3 class="text-xl font-black flex items-center gap-3">
-          <Papicon icon="List" size={20} class="text-secondary" />
-          Liste des Déclencheurs ({list.length})
-        </h3>
+        <div class="flex items-center gap-4">
+          <h3 class="text-xl font-black flex items-center gap-3">
+            <Papicon icon="List" size={20} class="text-secondary" />
+            Liste des Déclencheurs ({list.length})
+          </h3>
+          {#if list.length > 0}
+            <button 
+              onclick={toggleSelectAll}
+              class="text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl bg-surface-container-high/40 hover:bg-surface-container-high/80 border border-outline-variant/5 text-on-surface-variant transition-all cursor-pointer select-none"
+            >
+              {allSelected ? 'Tout désélectionner' : 'Tout sélectionner'}
+            </button>
+          {/if}
+        </div>
         
         {#if canManageSettings}
           <button 
@@ -234,102 +315,114 @@
 
       <!-- Triggers Grid -->
       <div class="grid grid-cols-1 gap-4">
-        {#each list as item}
-          <div class="bg-surface-container-low/30 border border-outline-variant/10 p-6 rounded-3xl space-y-4 hover:bg-surface-container-low/50 transition-all">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <!-- Trigger details -->
-              <div class="flex items-center gap-3 flex-wrap">
-                <span class="text-xs font-black uppercase tracking-wider px-3 py-1 rounded-xl bg-primary/10 text-primary border border-primary/25">
-                  {matchTypeLabels[item.matchType] || item.matchType}
-                </span>
-                <span class="text-[11px] text-on-surface-variant/50 font-bold uppercase tracking-wider">Déclencheur :</span>
-                <code class="text-sm font-black font-mono bg-surface-container-high/65 px-3 py-1 rounded-xl text-secondary dark:text-cyan-300 border border-outline-variant/5">{item.trigger}</code>
-              </div>
-
-              <!-- Status & Card Action Buttons -->
-              <div class="flex items-center gap-4 self-end sm:self-auto">
-                <div class="flex items-center gap-2 bg-surface-container-high/40 px-3 py-1.5 rounded-2xl border border-outline-variant/5">
-                  <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-wider">Actif</span>
-                  <ToggleSwitch 
-                    checked={item.enabled} 
-                    onToggle={() => handleToggle(item.id, item.enabled)} 
-                    disabled={!canManageSettings}
-                  />
+        {#each list as item, index}
+          <div class="bg-surface-container-low/30 border border-outline-variant/10 p-6 rounded-3xl space-y-4 hover:bg-surface-container-low/50 transition-all flex items-start gap-4 {selectedIds.has(item.id) ? 'border-primary/40 bg-primary/5! dark:bg-primary/10!' : ''}">
+            <!-- Checkbox -->
+            <div class="pt-1 select-none shrink-0">
+              <input
+                type="checkbox"
+                checked={selectedIds.has(item.id)}
+                onchange={(e) => toggleSelect(item.id, index, e as any)}
+                class="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary/30 transition-all cursor-pointer accent-primary"
+              />
+            </div>
+            
+            <div class="flex-1 min-w-0 space-y-4">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <!-- Trigger details -->
+                <div class="flex items-center gap-3 flex-wrap">
+                  <span class="text-xs font-black uppercase tracking-wider px-3 py-1 rounded-xl bg-primary/10 text-primary border border-primary/25">
+                    {matchTypeLabels[item.matchType] || item.matchType}
+                  </span>
+                  <span class="text-[11px] text-on-surface-variant/50 font-bold uppercase tracking-wider">Déclencheur :</span>
+                  <code class="text-sm font-black font-mono bg-surface-container-high/65 px-3 py-1 rounded-xl text-secondary dark:text-cyan-300 border border-outline-variant/5">{item.trigger}</code>
                 </div>
 
-                {#if canManageSettings}
-                  <div class="flex items-center gap-1 border-l border-outline-variant/25 pl-4">
-                    <button 
-                      onclick={() => openEditModal(item)}
-                      class="p-2 text-on-surface-variant hover:text-primary hover:bg-primary/10 rounded-xl transition-all cursor-pointer"
-                      title="Modifier"
-                    >
-                      <Papicon icon="Edit" size={16} />
-                    </button>
-                    <button 
-                      onclick={() => handleDelete(item.id)}
-                      class="p-2 text-error hover:bg-error/10 rounded-xl transition-all cursor-pointer"
-                      title="Supprimer"
-                    >
-                      <Papicon icon="Trash" size={16} />
-                    </button>
+                <!-- Status & Card Action Buttons -->
+                <div class="flex items-center gap-4 self-end sm:self-auto">
+                  <div class="flex items-center gap-2 bg-surface-container-high/40 px-3 py-1.5 rounded-2xl border border-outline-variant/5">
+                    <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-wider">Actif</span>
+                    <ToggleSwitch 
+                      checked={item.enabled} 
+                      onToggle={() => handleToggle(item.id, item.enabled)} 
+                      disabled={!canManageSettings}
+                    />
                   </div>
+
+                  {#if canManageSettings}
+                    <div class="flex items-center gap-1 border-l border-outline-variant/25 pl-4">
+                      <button 
+                        onclick={() => openEditModal(item)}
+                        class="p-2 text-on-surface-variant hover:text-primary hover:bg-primary/10 rounded-xl transition-all cursor-pointer"
+                        title="Modifier"
+                      >
+                        <Papicon icon="Edit" size={16} />
+                      </button>
+                      <button 
+                        onclick={() => handleDelete(item.id)}
+                        class="p-2 text-error hover:bg-error/10 rounded-xl transition-all cursor-pointer"
+                        title="Supprimer"
+                      >
+                        <Papicon icon="Trash" size={16} />
+                      </button>
+                    </div>
+                  {/if}
+                </div>
+              </div>
+
+              <!-- Optional Response text box -->
+              {#if item.response}
+                <div class="space-y-1">
+                  <span class="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest block ml-1">Message de réponse :</span>
+                  <div class="p-4 bg-surface-container-high/30 border border-outline-variant/5 rounded-2xl text-sm font-medium text-on-surface-variant/90 leading-relaxed whitespace-pre-wrap">
+                    {item.response}
+                  </div>
+                </div>
+              {/if}
+
+              <!-- Badges representing actions -->
+              <div class="flex flex-wrap gap-2 pt-3 border-t border-outline-variant/10">
+                {#if item.response}
+                  <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-blue-500/10 text-blue-500 border border-blue-500/10">
+                    <Papicon icon="MessageSquare" size={10} /> Message
+                  </span>
+                {/if}
+                {#if item.roleIdToAdd}
+                  <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/10">
+                    <Papicon icon="Add" size={10} /> Ajouter {getRoleName(item.roleIdToAdd)}
+                  </span>
+                {/if}
+                {#if item.roleIdToRemove}
+                  <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-red-500/10 text-red-500 border border-red-500/10">
+                    <Papicon icon="Trash" size={10} /> Retirer {getRoleName(item.roleIdToRemove)}
+                  </span>
+                {/if}
+                {#if item.deleteTrigger}
+                  <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/10">
+                    <Papicon icon="Cross" size={10} /> Supprimer le message
+                  </span>
+                {/if}
+                {#if item.allowedRoleIds?.length}
+                  <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-violet-500/10 text-violet-400 border border-violet-500/10">
+                    <Papicon icon="Shield" size={10} /> Rôles autorisés ({item.allowedRoleIds.length})
+                  </span>
+                {/if}
+                {#if item.bannedRoleIds?.length}
+                  <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/10">
+                    <Papicon icon="Block" size={10} /> Rôles interdits ({item.bannedRoleIds.length})
+                  </span>
+                {/if}
+                {#if item.allowedChannelIds?.length}
+                  <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/10">
+                    <Papicon icon="Hash" size={10} /> Salons autorisés ({item.allowedChannelIds.length})
+                  </span>
+                {/if}
+                {#if item.bannedChannelIds?.length}
+                  <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-orange-500/10 text-orange-400 border border-orange-500/10">
+                    <Papicon icon="Block" size={10} /> Salons interdits ({item.bannedChannelIds.length})
+                  </span>
                 {/if}
               </div>
-            </div>
-
-            <!-- Optional Response text box -->
-            {#if item.response}
-              <div class="space-y-1">
-                <span class="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest block ml-1">Message de réponse :</span>
-                <div class="p-4 bg-surface-container-high/30 border border-outline-variant/5 rounded-2xl text-sm font-medium text-on-surface-variant/90 leading-relaxed whitespace-pre-wrap">
-                  {item.response}
-                </div>
-              </div>
-            {/if}
-
-            <!-- Badges representing actions -->
-            <div class="flex flex-wrap gap-2 pt-3 border-t border-outline-variant/10">
-              {#if item.response}
-                <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-blue-500/10 text-blue-500 border border-blue-500/10">
-                  <Papicon icon="MessageSquare" size={10} /> Message
-                </span>
-              {/if}
-              {#if item.roleIdToAdd}
-                <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/10">
-                  <Papicon icon="Add" size={10} /> Ajouter {getRoleName(item.roleIdToAdd)}
-                </span>
-              {/if}
-              {#if item.roleIdToRemove}
-                <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-red-500/10 text-red-500 border border-red-500/10">
-                  <Papicon icon="Trash" size={10} /> Retirer {getRoleName(item.roleIdToRemove)}
-                </span>
-              {/if}
-              {#if item.deleteTrigger}
-                <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/10">
-                  <Papicon icon="Cross" size={10} /> Supprimer le message
-                </span>
-              {/if}
-              {#if item.allowedRoleIds?.length}
-                <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-violet-500/10 text-violet-400 border border-violet-500/10">
-                  <Papicon icon="Shield" size={10} /> Rôles autorisés ({item.allowedRoleIds.length})
-                </span>
-              {/if}
-              {#if item.bannedRoleIds?.length}
-                <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/10">
-                  <Papicon icon="Block" size={10} /> Rôles interdits ({item.bannedRoleIds.length})
-                </span>
-              {/if}
-              {#if item.allowedChannelIds?.length}
-                <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/10">
-                  <Papicon icon="Hash" size={10} /> Salons autorisés ({item.allowedChannelIds.length})
-                </span>
-              {/if}
-              {#if item.bannedChannelIds?.length}
-                <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-orange-500/10 text-orange-400 border border-orange-500/10">
-                  <Papicon icon="Block" size={10} /> Salons interdits ({item.bannedChannelIds.length})
-                </span>
-              {/if}
             </div>
           </div>
         {:else}
@@ -339,6 +432,42 @@
           </div>
         {/each}
       </div>
+      <!-- Floating Action Bar for Bulk Actions -->
+      {#if selectedIds.size > 0}
+        <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-surface-container-high/90 backdrop-blur-xl border border-outline-variant/30 px-6 py-4 rounded-4xl shadow-2xl flex items-center gap-6 animate-in slide-in-from-bottom-6 duration-300 select-none">
+          <span class="text-xs font-black text-on-surface">
+            {selectedIds.size} sélectionné{selectedIds.size > 1 ? 's' : ''}
+          </span>
+          <div class="h-6 w-px bg-outline-variant/30"></div>
+          <div class="flex items-center gap-2">
+            <button 
+              onclick={() => bulkToggle(true)}
+              class="flex items-center gap-1.5 px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/25 border border-emerald-500/20 text-emerald-500 dark:text-emerald-400 font-black text-[10px] uppercase tracking-wider rounded-xl transition-all cursor-pointer"
+            >
+              <Papicon icon="Check" size={10} /> Activer
+            </button>
+            <button 
+              onclick={() => bulkToggle(false)}
+              class="flex items-center gap-1.5 px-4 py-2 bg-amber-500/10 hover:bg-amber-500/25 border border-amber-500/20 text-amber-500 dark:text-amber-400 font-black text-[10px] uppercase tracking-wider rounded-xl transition-all cursor-pointer"
+            >
+              <Papicon icon="Block" size={10} /> Désactiver
+            </button>
+            <button 
+              onclick={bulkDelete}
+              class="flex items-center gap-1.5 px-4 py-2 bg-red-500/10 hover:bg-red-500/25 border border-red-500/20 text-red-500 dark:text-red-400 font-black text-[10px] uppercase tracking-wider rounded-xl transition-all cursor-pointer"
+            >
+              <Papicon icon="Trash" size={10} /> Supprimer
+            </button>
+          </div>
+          <div class="h-6 w-px bg-outline-variant/30"></div>
+          <button 
+            onclick={() => { selectedIds = new Set(); lastSelectedIndex = null; }}
+            class="text-[10px] text-on-surface-variant/60 hover:text-on-surface font-black uppercase tracking-wider transition-colors cursor-pointer"
+          >
+            Annuler
+          </button>
+        </div>
+      {/if}
     </div>
   {/if}
 </div>

@@ -125,8 +125,9 @@ export async function handleReportFeedbackRoute(
           } else {
             logger.warn('ReportFeedback', `Impossible de trouver l'administrateur avec l'ID ${adminId}`);
           }
-        } catch (err: any) {
-          logger.error('ReportFeedback', `Erreur lors de l'envoi du retour à l'admin ${adminId}: ${err.message}`);
+        } catch (err: unknown) {
+          const errMessage = err instanceof Error ? err.message : String(err);
+          logger.error('ReportFeedback', `Erreur lors de l'envoi du retour à l'admin ${adminId}: ${errMessage}`);
         }
       }
 
@@ -136,8 +137,9 @@ export async function handleReportFeedbackRoute(
       }
 
       json(res, 200, { success: true });
-    } catch (err: any) {
-      logger.error('ReportFeedback', `Erreur lors de la transmission du retour: ${err.message}`);
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : String(err);
+      logger.error('ReportFeedback', `Erreur lors de la transmission du retour: ${errMessage}`);
       json(res, 500, { error: 'Erreur lors de la transmission' });
     }
     return true;

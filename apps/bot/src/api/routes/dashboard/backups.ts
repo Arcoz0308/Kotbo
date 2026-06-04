@@ -1,5 +1,6 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
-import { Client, Guild } from 'discord.js';
+import { Client } from 'discord.js';
+import { Prisma } from '@prisma/client';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { createBackup } from '../../../services/backupService.js';
@@ -8,8 +9,37 @@ import {
   readJsonBody,
   resolveDashboardAccess,
   type AuthClaims,
-  type DashboardAccess,
 } from '../../shared.js';
+
+interface ImportBackupData {
+  name?: string | null;
+  description?: string | null;
+  serverName?: string | null;
+  serverIcon?: string | null;
+  data?: Prisma.InputJsonValue;
+  options?: {
+    includeMessages?: boolean;
+    includeMembers?: boolean;
+    includeRoles?: boolean;
+    includeChannels?: boolean;
+    includeEmojis?: boolean;
+    includeStickers?: boolean;
+  } | null;
+  stats?: {
+    sizeBytes?: number;
+    rolesCount?: number;
+    channelsCount?: number;
+    membersCount?: number;
+    messagesCount?: number;
+    emojisCount?: number;
+    stickersCount?: number;
+  } | null;
+}
+
+interface ImportDataStructure {
+  version?: string | null;
+  backup?: ImportBackupData | null;
+}
 
 export async function handleBackupRoutes(
   req: IncomingMessage,
@@ -44,7 +74,7 @@ export async function handleBackupRoutes(
   // GET /api/dashboard/guilds/:guildId/backups
   if (parts.length === 5 && method === 'GET') {
     try {
-      const backups = await (prisma as any).serverBackup.findMany({
+      const backups = await prisma.serverBackup.findMany({
         where: { guildId },
         orderBy: { createdAt: 'desc' },
       });
@@ -101,7 +131,7 @@ export async function handleBackupRoutes(
   if (parts.length === 6 && method === 'DELETE') {
     try {
       const backupId = parts[5];
-      const backup = await (prisma as any).serverBackup.findUnique({
+      const backup = await prisma.serverBackup.findUnique({
         where: { id: backupId },
       });
 
@@ -115,7 +145,7 @@ export async function handleBackupRoutes(
         return true;
       }
 
-      await (prisma as any).serverBackup.delete({
+      await prisma.serverBackup.delete({
         where: { id: backupId },
       });
 
@@ -131,7 +161,7 @@ export async function handleBackupRoutes(
   if (parts.length === 7 && parts[6] === 'export' && method === 'GET') {
     try {
       const backupId = parts[5];
-      const backup = await (prisma as any).serverBackup.findUnique({
+      const backup = await prisma.serverBackup.findUnique({
         where: { id: backupId },
       });
 
@@ -205,10 +235,16 @@ export async function handleBackupRoutes(
       }
 
       // Parser le JSON
-      let importData: any;
+      let importData: ImportDataStructure;
       try {
-        importData = JSON.parse(body.file);
-      } catch (error) {
+        const parsed = JSON.parse(body.file);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          importData = parsed;
+        } else {
+          json(res, 400, { error: 'Le fichier JSON est invalide' });
+          return true;
+        }
+      } catch {
         json(res, 400, { error: 'Le fichier JSON est invalide' });
         return true;
       }
@@ -222,7 +258,7 @@ export async function handleBackupRoutes(
       const backupData = importData.backup;
 
       // Vérifier le nombre de backups existants
-      const existingBackups = await (prisma as any).serverBackup.count({
+      const existingBackups = await prisma.serverBackup.count({
         where: { guildId, isPreset: false },
       });
 
@@ -236,12 +272,12 @@ export async function handleBackupRoutes(
       const backupName = body.name || backupData.name || `Import - ${backupData.serverName || 'Serveur'} - ${new Date().toLocaleDateString('fr-FR')}`;
 
       // Créer le backup dans la base de données
-      const newBackup = await (prisma as any).serverBackup.create({
+      const newBackup = await prisma.serverBackup.create({
         data: {
           guildId,
           name: backupName,
           description: backupData.description,
-          data: backupData.data,
+          data: backupData.data !== undefined ? backupData.data : Prisma.JsonNull,
           includeMessages: backupData.options?.includeMessages ?? false,
           includeMembers: backupData.options?.includeMembers ?? true,
           includeRoles: backupData.options?.includeRoles ?? true,

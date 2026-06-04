@@ -27,6 +27,25 @@
   const pendingAbsences = $derived(staffStore.pendingAbsences);
   const nextMeeting = $derived(staffStore.upcomingMeetings[0]);
   
+  const dynamicGreeting = $derived.by(() => {
+    const user = authStore.user?.username || 'Gérant';
+    const hour = new Date().getHours();
+    if (hour >= 18) return `Bonsoir, ${user} !`;
+    if (hour >= 12) return `Ravi de vous revoir, ${user} !`;
+    return `Bonjour, ${user} !`;
+  });
+
+  const dynamicSubtitle = $derived.by(() => {
+    const guildName = dashboardStore.state.guildName || 'votre serveur';
+    if (errorModulesCount > 0) {
+      return `Attention, ${errorModulesCount} module(s) requièrent votre intervention sur ${guildName} 🔧.`;
+    }
+    if (notificationsStore.unreadCount > 0) {
+      return `Vous avez ${notificationsStore.unreadCount} notification(s) en attente sur ${guildName}.`;
+    }
+    return `Tout fonctionne à merveille sur ${guildName} ✨.`;
+  });
+
   let selectedStat = $state('messages');
 
   $effect(() => {
@@ -116,10 +135,10 @@
       </div>
       <div>
         <h2 class="text-2xl md:text-3xl font-black tracking-tight text-on-surface font-headline leading-tight">
-          {authStore.user?.username ? `Ravi de vous revoir, ${authStore.user.username} !` : 'Bonjour !'}
+          {dynamicGreeting}
         </h2>
         <p class="text-on-surface-variant/60 mt-1 font-medium text-sm md:text-base">
-          Voici l'état actuel de <span class="text-primary font-bold">{dashboardStore.state.guildName || 'votre serveur'}</span>.
+          {dynamicSubtitle}
         </p>
       </div>
     </div>

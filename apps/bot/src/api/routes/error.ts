@@ -33,35 +33,41 @@ export async function handleReportErrorRoute(
     }
 
     try {
-      const payload = await readJsonBody<{
-        error: any;
-        stack?: any;
-        url: any;
-        userAgent: any;
-        guildId?: any;
+      const body = await readJsonBody<{
+        error: unknown;
+        stack?: unknown;
+        url: unknown;
+        userAgent: unknown;
+        guildId?: unknown;
       }>(req);
 
+      if (!body) {
+        json(res, 400, { error: 'Payload invalide' });
+        return true;
+      }
+
+      const { error, stack, url: errorUrl, userAgent, guildId } = body;
+
       if (
-        !payload ||
-        typeof payload.error !== 'string' ||
-        payload.error.trim() === '' ||
-        (payload.stack !== undefined && typeof payload.stack !== 'string') ||
-        (payload.url !== undefined && typeof payload.url !== 'string') ||
-        (payload.userAgent !== undefined && typeof payload.userAgent !== 'string') ||
-        (payload.guildId !== undefined && payload.guildId !== null && typeof payload.guildId !== 'string')
+        typeof error !== 'string' ||
+        error.trim() === '' ||
+        (stack !== undefined && typeof stack !== 'string') ||
+        (errorUrl !== undefined && typeof errorUrl !== 'string') ||
+        (userAgent !== undefined && typeof userAgent !== 'string') ||
+        (guildId !== undefined && guildId !== null && typeof guildId !== 'string')
       ) {
         json(res, 400, { error: 'Payload invalide' });
         return true;
       }
 
-      const errorStr = payload.error.slice(0, 1000);
-      const stackStr = payload.stack ? payload.stack.slice(0, 2000) : undefined;
-      const urlStr = payload.url ? payload.url.slice(0, 500) : 'Inconnu';
-      const userAgentStr = payload.userAgent ? payload.userAgent.slice(0, 250) : 'Inconnu';
-      const guildIdStr = payload.guildId ? payload.guildId.slice(0, 50) : 'Aucun';
+      const errorStr = error.slice(0, 1000);
+      const stackStr = stack ? stack.slice(0, 2000) : undefined;
+      const urlStr = errorUrl ? errorUrl.slice(0, 500) : 'Inconnu';
+      const userAgentStr = userAgent ? userAgent.slice(0, 250) : 'Inconnu';
+      const guildIdStr = guildId ? guildId.slice(0, 50) : 'Aucun';
 
       const allowedOriginPattern = /^(https?:\/\/)?([a-zA-Z0-9-]+\.)*(nathaan\.me|localhost)(:\d+)?(\/.*)?$/;
-      if (payload.url && !allowedOriginPattern.test(payload.url)) {
+      if (errorUrl && !allowedOriginPattern.test(errorUrl)) {
         json(res, 400, { error: 'URL non autorisée' });
         return true;
       }
@@ -119,8 +125,9 @@ export async function handleReportErrorRoute(
           } else {
             logger.warn('ReportError', `Impossible de trouver l'administrateur avec l'ID ${adminId}`);
           }
-        } catch (err: any) {
-          logger.error('ReportError', `Erreur lors de l'envoi du rapport à l'admin ${adminId}: ${err.message}`);
+        } catch (err: unknown) {
+          const errMessage = err instanceof Error ? err.message : String(err);
+          logger.error('ReportError', `Erreur lors de l'envoi du rapport à l'admin ${adminId}: ${errMessage}`);
         }
       }
 
@@ -130,8 +137,9 @@ export async function handleReportErrorRoute(
       }
 
       json(res, 200, { success: true });
-    } catch (err: any) {
-      logger.error('ReportError', `Erreur lors de la transmission du rapport d'erreur: ${err.message}`);
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : String(err);
+      logger.error('ReportError', `Erreur lors de la transmission du rapport d'erreur: ${errMessage}`);
       json(res, 500, { error: 'Erreur lors de la transmission' });
     }
     return true;

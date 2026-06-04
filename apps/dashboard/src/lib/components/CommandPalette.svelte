@@ -1,12 +1,23 @@
 <script lang="ts">
   import { router } from 'tinro';
   import Papicon from './Papicon.svelte';
-
-  interface Props {
-    open?: boolean;
-  }
-
-  let { open = $bindable(false) }: Props = $props();
+  import { authStore } from '../stores/auth.svelte';
+  import { dashboardStore } from '../stores/dashboard.svelte';
+  import { themeStore } from '../stores/theme.svelte';
+  import { feedbackModal } from '../stores/feedbackModal.svelte';
+  import { searchStore } from '../stores/search.svelte';
+  import { sidebarStore } from '../stores/sidebar.svelte';
+  import { serverSwitcherStore } from '../stores/serverSwitcher.svelte';
+  import {
+    generalItems,
+    moderationItems,
+    communityItems,
+    staffItems,
+    configItems,
+    isPageBeta,
+    isPageWip,
+    type PageConfig
+  } from '../config/pages';
 
   interface PaletteItem {
     id: string;
@@ -21,27 +32,180 @@
   let selectedIndex = $state(0);
   let inputEl: HTMLInputElement;
 
-  const navItems: PaletteItem[] = [
-    { id: 'go-overview',    label: "Vue d'ensemble",      sublabel: 'Admin',                     icon: 'activity',    group: 'Navigation', action: () => router.goto('/admin') },
-    { id: 'go-servers',    label: 'Serveurs',             sublabel: 'Admin',                     icon: 'Server',      group: 'Navigation', action: () => router.goto('/admin/servers') },
-    { id: 'go-shards',     label: 'Shards',               sublabel: 'Admin',                     icon: 'Zap',         group: 'Navigation', action: () => router.goto('/admin/shards') },
-    { id: 'go-modules',    label: 'Modules',              sublabel: 'Admin',                     icon: 'Box',         group: 'Navigation', action: () => router.goto('/admin/modules') },
-    { id: 'go-security',   label: 'Sécurité',             sublabel: 'Admin · Admins & Blacklist', icon: 'ShieldCheck', group: 'Navigation', action: () => router.goto('/admin/security') },
-    { id: 'go-content',    label: 'Mots globaux',         sublabel: 'Admin',                     icon: 'filter',      group: 'Navigation', action: () => router.goto('/admin/content') },
-    { id: 'go-activation', label: "Codes d'activation",  sublabel: 'Admin',                     icon: 'Key',         group: 'Navigation', action: () => router.goto('/admin/activation') },
-    { id: 'go-config',     label: 'Avancé',               sublabel: 'Admin · Configuration',     icon: 'Settings',    group: 'Navigation', action: () => router.goto('/admin/config') },
-    { id: 'go-dashboard',  label: 'Dashboard',            sublabel: 'Retour au dashboard',       icon: 'ArrowLeft',   group: 'Navigation', action: () => router.goto('/') },
-  ];
+  const open = $derived(searchStore.open);
+
+  // ─── Accès / visibilité (reproduit depuis Sidebar.svelte) ──────────────────
+  const featureAccess = $derived(dashboardStore.state.featureAccess || {});
+  const fallbackCanView = $derived(
+    authStore.guilds.find((g) => g.id === authStore.selectedGuildId)?.accessLevel !== 'none'
+  );
+
+  const canViewFeature = (featureKey: string | undefined) => {
+    if (!featureKey) return true;
+    const feature = (featureAccess as Record<string, any>)?.[featureKey];
+    if (feature?.canView !== undefined) return feature.canView;
+    return fallbackCanView;
+  };
+
+  const isAdmin = $derived(
+    authStore.guilds.find((g) => g.id === authStore.selectedGuildId)?.accessLevel === 'admin'
+  );
+  const isTutor      = $derived(dashboardStore.state.isTutor);
+  const isApprentice = $derived(!!dashboardStore.state.apprenticeProgress);
+  const isStaff      = $derived(!!authStore.member);
+  const isModerator  = $derived(
+    authStore.guilds.find((g) => g.id === authStore.selectedGuildId)?.accessLevel === 'moderator'
+  );
+
+  const visibleGeneral = $derived(
+    generalItems.filter((i) => canViewFeature(i.featureKey))
+  );
+  const visibleModeration = $derived(
+    moderationItems.filter((i) => (isStaff || isModerator || isAdmin) && canViewFeature(i.featureKey))
+  );
+  const visibleCommunity = $derived(
+    communityItems.filter((i) => canViewFeature(i.featureKey))
+  );
+  const visibleStaff = $derived.by(() => {
+    if (isAdmin) return staffItems.filter((i) => canViewFeature(i.featureKey));
+    return staffItems.filter((item) => {
+      if (item.href === '/tutoring') return isTutor || isApprentice || isModerator;
+      if (['/absences', '/meetings', '/tickets', '/recruitment'].includes(item.href)) return isStaff || isModerator;
+      return false;
+    }).filter((i) => canViewFeature(i.featureKey));
+  });
+  const visibleConfig = $derived(
+    configItems.filter((i) => canViewFeature(i.featureKey))
+  );
+
+  // ─── Éléments de la palette ────────────────────────────────────────────────
+  const allPaletteItems = $derived.by(() => {
+    const items: PaletteItem[] = [];
+
+    // General Items
+    for (const item of visibleGeneral) {
+      items.push({
+        id: `general-${item.name}`,
+        label: item.name,
+        sublabel: 'Page · Général',
+        icon: item.icon || 'home',
+        group: 'Général',
+        action: () => router.goto(item.href)
+      });
+    }
+
+    // Moderation Items
+    for (const item of visibleModeration) {
+      items.push({
+        id: `moderation-${item.name}`,
+        label: item.name,
+        sublabel: 'Page · Modération',
+        icon: item.icon || 'shield',
+        group: 'Modération',
+        action: () => router.goto(item.href)
+      });
+    }
+
+    // Community Items
+    for (const item of visibleCommunity) {
+      items.push({
+        id: `community-${item.name}`,
+        label: item.name,
+        sublabel: 'Page · Communauté',
+        icon: item.icon || 'users',
+        group: 'Communauté',
+        action: () => router.goto(item.href)
+      });
+    }
+
+    // Staff Items
+    for (const item of visibleStaff) {
+      items.push({
+        id: `staff-${item.name}`,
+        label: item.name,
+        sublabel: 'Page · Staff',
+        icon: item.icon || 'briefcase',
+        group: 'Staff',
+        action: () => router.goto(item.href)
+      });
+    }
+
+    // Configuration Items
+    for (const item of visibleConfig) {
+      items.push({
+        id: `config-${item.name}`,
+        label: item.name,
+        sublabel: 'Page · Configuration',
+        icon: item.icon || 'sliders',
+        group: 'Configuration',
+        action: () => router.goto(item.href)
+      });
+    }
+
+    // Admin Items (only if isBotAdmin is true)
+    if (authStore.isBotAdmin) {
+      items.push({ id: 'admin-overview', label: "Console d'administration", sublabel: 'Admin · Vue d\'ensemble', icon: 'activity', group: 'Administration', action: () => router.goto('/admin') });
+      items.push({ id: 'admin-servers',  label: 'Serveurs', sublabel: 'Admin · Liste des serveurs', icon: 'Server', group: 'Administration', action: () => router.goto('/admin/servers') });
+      items.push({ id: 'admin-shards',   label: 'Shards', sublabel: 'Admin · Status des fragments', icon: 'Zap', group: 'Administration', action: () => router.goto('/admin/shards') });
+      items.push({ id: 'admin-modules',  label: 'Modules système', sublabel: 'Admin · Supervision', icon: 'Box', group: 'Administration', action: () => router.goto('/admin/modules') });
+      items.push({ id: 'admin-security', label: 'Sécurité & Blacklist', sublabel: 'Admin · Accès globaux', icon: 'ShieldCheck', group: 'Administration', action: () => router.goto('/admin/security') });
+      items.push({ id: 'admin-content',  label: 'Mots globaux', sublabel: 'Admin · Filtrage', icon: 'filter', group: 'Administration', action: () => router.goto('/admin/content') });
+      items.push({ id: 'admin-activation', label: "Codes d'activation", sublabel: 'Admin · Licences', icon: 'Key', group: 'Administration', action: () => router.goto('/admin/activation') });
+      items.push({ id: 'admin-config',   label: 'Configuration avancée', sublabel: 'Admin · Système', icon: 'Settings', group: 'Administration', action: () => router.goto('/admin/config') });
+    }
+
+    // Profil page
+    items.push({
+      id: 'profile',
+      label: 'Mon Profil',
+      sublabel: 'Profil utilisateur',
+      icon: 'user',
+      group: 'Compte',
+      action: () => router.goto(authStore.user?.id ? `/profile/${authStore.user.id}` : '/profile')
+    });
+
+    // Theme Toggle action
+    items.push({
+      id: 'action-theme',
+      label: 'Basculer le thème (Sombre / Clair)',
+      sublabel: themeStore.dark ? 'Activer le mode clair' : 'Activer le mode sombre',
+      icon: themeStore.dark ? 'sun' : 'moon',
+      group: 'Actions',
+      action: () => themeStore.toggle()
+    });
+
+    // Feedback modal action
+    items.push({
+      id: 'action-feedback',
+      label: 'Envoyer un retour / signaler un bug',
+      sublabel: 'Feedback & suggestions',
+      icon: 'bug_report',
+      group: 'Actions',
+      action: () => feedbackModal.show()
+    });
+
+    // Logout action
+    items.push({
+      id: 'action-logout',
+      label: 'Déconnexion',
+      sublabel: 'Se déconnecter du dashboard',
+      icon: 'log-out',
+      group: 'Actions',
+      action: () => authStore.logout()
+    });
+
+    return items;
+  });
 
   const filteredItems = $derived(() => {
     const q = query.toLowerCase().trim();
     const matched = q
-      ? navItems.filter(item =>
+      ? allPaletteItems.filter(item =>
           item.label.toLowerCase().includes(q) ||
           item.sublabel?.toLowerCase().includes(q) ||
           item.group.toLowerCase().includes(q)
         )
-      : navItems;
+      : allPaletteItems;
 
     // Group by group label
     const groups: Record<string, PaletteItem[]> = {};
@@ -63,7 +227,7 @@
   });
 
   function close() {
-    open = false;
+    searchStore.close();
   }
 
   function runItem(item: PaletteItem) {
@@ -90,10 +254,43 @@
     }
   }
 
+  let lastCtrlKTime = 0;
+
   function handleGlobalKeydown(e: KeyboardEvent) {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    const isSearchKey = e.key === 'k' || e.key === 'K';
+    if ((e.metaKey || e.ctrlKey) && isSearchKey) {
       e.preventDefault();
-      open = !open;
+
+      const now = Date.now();
+      if (now - lastCtrlKTime < 500) {
+        // Double Ctrl+K: toggle command palette navigation modal
+        close();
+        searchStore.toggle();
+        lastCtrlKTime = 0;
+
+        // Blur sidebar input if it was focused
+        const sidebarSearchInput = document.querySelector('.sidebar input') as HTMLInputElement;
+        if (sidebarSearchInput) {
+          sidebarSearchInput.blur();
+        }
+      } else {
+        // Single Ctrl+K: focus sidebar search if it exists
+        const sidebarSearchInput = document.querySelector('.sidebar input') as HTMLInputElement;
+        if (sidebarSearchInput) {
+          if (sidebarStore.collapsed) {
+            sidebarStore.set(false);
+          }
+          setTimeout(() => {
+            const input = document.querySelector('.sidebar input') as HTMLInputElement;
+            input?.focus();
+            input?.select();
+          }, 50);
+        } else {
+          // If sidebar search doesn't exist (e.g. admin pages), toggle command palette instantly
+          searchStore.toggle();
+        }
+        lastCtrlKTime = now;
+      }
     }
   }
 </script>

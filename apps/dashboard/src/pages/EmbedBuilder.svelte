@@ -30,10 +30,13 @@
     color: string;
     thumbnailUrl: string;
     imageUrl: string;
+    url: string;
     authorName: string;
     authorIconUrl: string;
+    authorUrl: string;
     footerText: string;
     footerIconUrl: string;
+    timestamp: boolean;
     fields: Array<{ name: string; value: string; inline: boolean }>;
   };
 
@@ -42,6 +45,7 @@
     name: string;
     createdAt: string;
     embed: EmbedModel;
+    content?: string;
     targetChannelId?: string;
     targetMessageId?: string;
   };
@@ -52,14 +56,18 @@
     color: '#5865F2',
     thumbnailUrl: '',
     imageUrl: '',
+    url: '',
     authorName: '',
     authorIconUrl: '',
+    authorUrl: '',
     footerText: '',
     footerIconUrl: '',
+    timestamp: false,
     fields: [],
   });
 
   let embed = $state<EmbedModel>(emptyEmbed());
+  let content = $state('');
   let savedTemplates = $state<SavedEmbedTemplate[]>([]);
   let templateName = $state('');
   let selectedTemplateId = $state<string | null>(null);
@@ -90,6 +98,7 @@
       name,
       createdAt: new Date().toISOString(),
       embed: structuredClone(embed),
+      content: content || undefined,
       targetChannelId: targetChannelId || undefined,
       targetMessageId: targetMessageId.trim() || undefined,
     };
@@ -102,7 +111,11 @@
   function loadTemplate(id: string) {
     const tpl = savedTemplates.find((t) => t.id === id);
     if (!tpl) return;
-    embed = structuredClone(tpl.embed);
+    embed = {
+      ...emptyEmbed(),
+      ...structuredClone(tpl.embed)
+    };
+    content = tpl.content || '';
     targetChannelId = tpl.targetChannelId || '';
     targetMessageId = tpl.targetMessageId || '';
     selectedTemplateId = id;
@@ -151,22 +164,32 @@
       return;
     }
 
+    const hasEmbedData = embed.title || embed.description || embed.authorName || embed.footerText || embed.fields.length > 0 || embed.imageUrl || embed.thumbnailUrl;
+    if (!content.trim() && !hasEmbedData) {
+      actionState.setError('Vous devez saisir du texte de message ou remplir au moins un champ de l\'embed.');
+      return;
+    }
+
     await actionState.run(async () => {
       const payload = {
         channelId: targetChannelId,
         messageId: targetMessageId.trim() || null,
-        embed: {
+        content: content.trim() || undefined,
+        embed: hasEmbedData ? {
           title: embed.title || undefined,
           description: embed.description || undefined,
           color: embed.color || undefined,
           thumbnailUrl: embed.thumbnailUrl || undefined,
           imageUrl: embed.imageUrl || undefined,
+          url: embed.url || undefined,
           authorName: embed.authorName || undefined,
           authorIconUrl: embed.authorIconUrl || undefined,
+          authorUrl: embed.authorUrl || undefined,
           footerText: embed.footerText || undefined,
           footerIconUrl: embed.footerIconUrl || undefined,
+          timestamp: embed.timestamp || undefined,
           fields: embed.fields.length > 0 ? embed.fields : undefined
-        }
+        } : undefined
       };
 
       const res = await sendOrUpdateEmbed(payload);
@@ -294,6 +317,20 @@
         </div>
 
         <div class="space-y-4 pt-4 border-t border-outline-variant/10">
+          <h4 class="text-xs font-black uppercase text-on-surface-variant/80 tracking-wider">Texte du message</h4>
+          <div class="space-y-1.5">
+            <label for="msgContent" class="text-[8px] font-bold text-on-surface-variant/60 ml-2 uppercase">Contenu textuel (hors embed)</label>
+            <textarea 
+              id="msgContent"
+              bind:value={content} 
+              placeholder="Texte brut à afficher en dehors de l'embed..."
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-2.5 text-sm focus:outline-none h-20 resize-none text-on-surface"
+              disabled={!canManageSettings}
+            ></textarea>
+          </div>
+        </div>
+
+        <div class="space-y-4 pt-4 border-t border-outline-variant/10">
           <h4 class="text-xs font-black uppercase text-on-surface-variant/80 tracking-wider">Auteur</h4>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-1.5">
@@ -318,6 +355,17 @@
                 disabled={!canManageSettings}
               />
             </div>
+            <div class="space-y-1.5 sm:col-span-2">
+              <label for="authorUrl" class="text-[8px] font-bold text-on-surface-variant/60 ml-2 uppercase">URL du lien de l'auteur (clic sur le nom)</label>
+              <input 
+                id="authorUrl"
+                type="url" 
+                bind:value={embed.authorUrl} 
+                placeholder="https://example.com/author"
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none"
+                disabled={!canManageSettings}
+              />
+            </div>
           </div>
         </div>
 
@@ -330,6 +378,18 @@
               type="text" 
               bind:value={embed.title} 
               placeholder="Entrez un titre accrocheur"
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none"
+              disabled={!canManageSettings}
+            />
+          </div>
+
+          <div class="space-y-1.5">
+            <label for="embedUrl" class="text-[8px] font-bold text-on-surface-variant/60 ml-2 uppercase">URL du titre (lien de redirection)</label>
+            <input 
+              id="embedUrl"
+              type="url" 
+              bind:value={embed.url} 
+              placeholder="https://example.com/details"
               class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none"
               disabled={!canManageSettings}
             />
@@ -486,6 +546,16 @@
                 disabled={!canManageSettings}
               />
             </div>
+            <div class="flex items-center gap-2 pt-2 sm:col-span-2">
+              <input 
+                id="embedTimestamp"
+                type="checkbox" 
+                bind:checked={embed.timestamp} 
+                class="rounded border-outline-variant/20 text-primary focus:ring-primary/20"
+                disabled={!canManageSettings}
+              />
+              <label for="embedTimestamp" class="text-[9px] font-bold text-on-surface-variant/60 uppercase">Afficher l'horodatage (Timestamp)</label>
+            </div>
           </div>
         </div>
 
@@ -493,7 +563,7 @@
           <div class="pt-6 border-t border-outline-variant/15 flex justify-end">
             <button 
               onclick={handleSend}
-              disabled={actionState.loading || !targetChannelId}
+              disabled={actionState.state.loading || !targetChannelId}
               class="px-8 py-3.5 bg-primary text-on-primary font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-primary/20 hover:scale-105 transition-all disabled:opacity-50"
             >
               {targetMessageId.trim() ? "Modifier l'embed" : "Publier l'embed"}
@@ -521,6 +591,11 @@
                 <span class="text-[9px] text-on-surface-variant/40">Aujourd'hui à 12:10</span>
               </div>
               
+              <!-- Message content (outside embed) -->
+              {#if content.trim()}
+                <p class="mt-2 text-sm font-medium text-[#dcddde] whitespace-pre-wrap leading-relaxed text-left">{content}</p>
+              {/if}
+
               <!-- Simulated Discord Embed Body -->
               {#if embed.title || embed.description || embed.authorName || embed.footerText || embed.fields.length > 0 || embed.imageUrl || embed.thumbnailUrl}
                 <div 
@@ -534,13 +609,23 @@
                         {#if embed.authorIconUrl}
                           <img src={embed.authorIconUrl} alt="" class="w-6 h-6 rounded-full object-cover" />
                         {/if}
-                        <span>{embed.authorName}</span>
+                        {#if embed.authorUrl}
+                          <a href={embed.authorUrl} target="_blank" rel="noopener noreferrer" class="hover:underline text-white">{embed.authorName}</a>
+                        {:else}
+                          <span>{embed.authorName}</span>
+                        {/if}
                       </div>
                     {/if}
 
                     <!-- Title -->
                     {#if embed.title}
-                      <h4 class="text-base font-black text-white leading-snug">{embed.title}</h4>
+                      <h4 class="text-base font-black text-white leading-snug">
+                        {#if embed.url}
+                          <a href={embed.url} target="_blank" rel="noopener noreferrer" class="text-[#00a8fc] hover:underline">{embed.title}</a>
+                        {:else}
+                          {embed.title}
+                        {/if}
+                      </h4>
                     {/if}
 
                     <!-- Description -->
@@ -569,25 +654,33 @@
                       </div>
                     {/if}
 
-                    <!-- Footer -->
-                    {#if embed.footerText}
+                    <!-- Footer / Timestamp -->
+                    {#if embed.footerText || embed.timestamp}
                       <div class="flex items-center gap-2 text-[10px] text-[#72767d] font-bold pt-1">
                         {#if embed.footerIconUrl}
                           <img src={embed.footerIconUrl} alt="" class="w-4 h-4 rounded-full object-cover" />
                         {/if}
-                        <span>{embed.footerText}</span>
+                        <span>
+                          {embed.footerText}
+                          {#if embed.footerText && embed.timestamp}
+                            <span class="mx-1">•</span>
+                          {/if}
+                          {#if embed.timestamp}
+                            Aujourd'hui à 12:10
+                          {/if}
+                        </span>
                       </div>
                     {/if}
                   </div>
 
                   <!-- Thumbnail -->
                   {#if embed.thumbnailUrl}
-                    <div class="w-20 h-20 rounded-md overflow-hidden flex-shrink-0 self-start border border-[#202225]">
+                    <div class="w-20 h-20 rounded-md overflow-hidden shrink-0 self-start border border-[#202225]">
                       <img src={embed.thumbnailUrl} alt="" class="w-full h-full object-cover" />
                     </div>
                   {/if}
                 </div>
-              {:else}
+              {:else if !content.trim()}
                 <p class="text-xs text-on-surface-variant/40 italic mt-2">Saisissez des informations à gauche pour voir l'aperçu de l'embed.</p>
               {/if}
             </div>
