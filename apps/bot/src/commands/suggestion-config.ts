@@ -3,6 +3,10 @@ import {
   ChannelType,
   PermissionFlagsBits,
   MessageFlags,
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   type ChatInputCommandInteraction,
 } from 'discord.js';
 import { getOrCreateFeatureConfigs, updateFeatureConfig } from '../services/dashboardManagementService.js';
@@ -157,8 +161,6 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
         });
         return;
       }
-
-      const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = await import('discord.js');
 
       const embed = new EmbedBuilder()
         .setTitle('💡 Suggestions')

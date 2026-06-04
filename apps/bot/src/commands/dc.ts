@@ -78,7 +78,7 @@ async function canUseModerationTools(interaction: ChatInputCommandInteraction): 
   const isStaffDb = await prisma.staffMember.findUnique({ where: { guildId_userId: { guildId: guild.id, userId: interaction.user.id } } });
   const isAdmin = interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) || false;
 
-  return isAdmin || !!isStaffDb || interaction.memberPermissions?.has(PermissionFlagsBits.ModerateMembers);
+  return isAdmin || !!isStaffDb || interaction.memberPermissions?.has(PermissionFlagsBits.ModerateMembers) || false;
 }
 
 async function execute(interaction: ChatInputCommandInteraction) {
@@ -330,7 +330,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
     await altAccountService.unlinkAccounts(interaction.guildId!, u1.id, u2.id);
 
     const dmEmbed = new EmbedBuilder()
-      .setColor(COLORS.error)
+      .setColor(COLORS.warning)
       .setTitle('🔗 Comptes déliés')
       .setDescription(`Vos comptes **<@${u1.id}>** et **<@${u2.id}>** ont été séparés sur **${interaction.guild?.name || 'le serveur'}**.`)
       .setTimestamp();

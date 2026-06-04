@@ -78,7 +78,7 @@ export async function showModeratorNoteModal(
     if (interaction.isRepliable()) {
       await interaction.reply({
         content: '❌ Impossible d’afficher le menu de note. Réessaie plus tard.',
-        flags: [import('discord.js').MessageFlags.Ephemeral],
+        flags: ["Ephemeral"],
       }).catch(() => null);
     }
   }

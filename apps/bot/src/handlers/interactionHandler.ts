@@ -14,13 +14,14 @@ import {
   TextInputBuilder,
   TextInputStyle,
   ModalBuilder,
+  StringSelectMenuBuilder,
 } from 'discord.js';
 import prisma from '../utils/db.js';
 import { getCachedGuild } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
 import { DigestFrequency } from '@prisma/client';
 import { COLORS, successEmbed, truncate } from '../utils/embeds.js';
-import { handleConfigButton, handleConfigModal } from './configHandler.js';
+import { handleConfigButton, handleConfigChannelSelect, handleConfigModal, handleConfigSelectMenu } from './configHandler.js';
 import { sendSetupStep1, sendSetupStep2, sendSetupStep3, sendSetupFinish } from '../panels/setupPanel.js';
 import { reviewDailyAlgoSubmission } from '../services/dailyAlgoService.js';
 import { renderPanelTarget } from '../utils/interactionResponses.js';
@@ -129,7 +130,6 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
   // ── Suggestion form button ───────────────────────────────────────────
   if (customId === 'suggest_form_open') {
-    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = await import('discord.js');
     
     const modal = new ModalBuilder()
       .setCustomId('suggest_form_modal')
@@ -344,7 +344,6 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     const eventId = customId.split(':')[1];
     if (!eventId) return;
 
-    const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = await import('discord.js');
     const modal = new ModalBuilder()
       .setCustomId(`modal:event-ctf-submit-flag:${eventId}`)
       .setTitle('🚩 Soumettre un Flag');
