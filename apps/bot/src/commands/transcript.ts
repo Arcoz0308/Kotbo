@@ -314,7 +314,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
         const messages = await channel.messages.fetch({ limit, before: lastId });
         if (messages.size === 0) break;
         fetchedMessages.push(...messages.values());
-        lastId = messages.last()?.id;
+        lastId = messages.last()?.id ?? lastId;
       }
       fetchedMessages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
 

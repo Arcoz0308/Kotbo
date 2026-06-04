@@ -1,5 +1,5 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
-import { Client } from 'discord.js';
+import { Client, Routes } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { COMMAND_CATALOG } from '../../../utils/commandAccess.js';
@@ -217,8 +217,8 @@ export async function handleAnalyticsRoutes(
   if (parts.length === 6 && parts[5] === 'heatmap') {
     try {
       const days = Math.min(90, Math.max(1, parseInt(url.searchParams.get('days') || '30', 10)));
-      const startDate = url.searchParams.get('startDate');
-      const endDate = url.searchParams.get('endDate');
+      const startDate = url.searchParams.get('startDate') || undefined;
+      const endDate = url.searchParams.get('endDate') || undefined;
       const heatmapData = await getHourlyHeatmapData(guildId, { days, startDate, endDate });
       json(res, 200, heatmapData);
     } catch (err) {
@@ -247,8 +247,8 @@ export async function handleAnalyticsRoutes(
   if (parts.length === 6 && parts[5] === 'growth-retention') {
     try {
       const days = Math.min(365, Math.max(7, parseInt(url.searchParams.get('days') || '90', 10)));
-      const startDate = url.searchParams.get('startDate');
-      const endDate = url.searchParams.get('endDate');
+      const startDate = url.searchParams.get('startDate') || undefined;
+      const endDate = url.searchParams.get('endDate') || undefined;
       const growthData = await getGrowthAndRetention(guildId, { days, startDate, endDate });
       json(res, 200, growthData);
     } catch (err) {
@@ -262,8 +262,8 @@ export async function handleAnalyticsRoutes(
   if (parts.length === 6 && parts[5] === 'daily-algo') {
     try {
       const days = Math.min(365, Math.max(1, parseInt(url.searchParams.get('days') || '30', 10)));
-      const startDate = url.searchParams.get('startDate');
-      const endDate = url.searchParams.get('endDate');
+      const startDate = url.searchParams.get('startDate') || undefined;
+      const endDate = url.searchParams.get('endDate') || undefined;
       const algoData = await getDailyAlgoAnalytics(guildId, { days, startDate, endDate });
       json(res, 200, algoData);
     } catch (err) {
@@ -712,7 +712,6 @@ export async function handleAnalyticsRoutes(
       let taggedMembersList: any[] = [];
       if (discordGuild) {
         try {
-          const { Routes } = await import('discord.js');
           const rawGuild = await client.rest.get(Routes.guild(guildId)) as any;
           if (rawGuild.clan && rawGuild.clan.tag) {
             clanTag = rawGuild.clan.tag;
