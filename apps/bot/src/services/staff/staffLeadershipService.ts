@@ -164,13 +164,13 @@ const sendAbsenceDiscordRelay = async (params: {
     if (guild) {
       await Promise.all(Array.from(targetChannelIds).map(async (channelId) => {
         const channel = await client.channels.fetch(channelId).catch(() => null);
-        if (!channel || !channel.isTextBased()) return;
+        if (!channel || !('send' in channel)) return;
 
-        await channel.send({
+        await (channel as any).send({
           content,
           embeds: [embed],
-          allowedMentions: params.featureConfig.notificationRoleId ? { roles: [params.featureConfig.notificationRoleId] } : undefined,
-        }).catch((error) => {
+          allowedMentions: params.featureConfig?.notificationRoleId ? { roles: [params.featureConfig.notificationRoleId] } : undefined,
+        }).catch((error: any) => {
           logger.warn('StaffLeadership', `Impossible d'envoyer le relai Discord d'absence vers ${channelId}: ${String(error)}`);
         });
       }));

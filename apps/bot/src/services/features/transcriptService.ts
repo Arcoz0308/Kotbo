@@ -194,7 +194,7 @@ export async function generateTranscriptFromMessages(channel: TextChannel, allMe
           <div class="discord-embed" style="border-left-color: ${borderHex}">
             <div class="discord-embed-content">
               <div class="discord-embed-text">
-                ${embed.provider ? `<div class="discord-embed-provider">${escapeHtml(embed.provider.name)}</div>` : ''}
+                ${embed.provider && embed.provider.name ? `<div class="discord-embed-provider">${escapeHtml(embed.provider.name || '')}</div>` : ''}
                 ${embed.author ? `
                   <div class="discord-embed-author">
                     ${embed.author.iconURL ? `<img class="discord-embed-author-icon" src="${embed.author.iconURL}" alt="" />` : ''}

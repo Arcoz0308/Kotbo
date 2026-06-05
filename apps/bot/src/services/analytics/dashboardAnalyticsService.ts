@@ -119,26 +119,35 @@ export const getDashboardAnalytics = async (guildId: string, options: { days?: n
         gte: startKey,
         lte: endKey
       }
-    },
-    include: {
-      memberProfile: {
-        select: {
-          userTag: true,
-          username: true,
-          displayName: true,
-          avatarUrl: true
-        }
-      }
     }
   });
 
+  const uniqueUserIds = [...new Set(memberStats.map(s => s.userId))];
+
+  const memberProfiles = await prisma.memberProfile.findMany({
+    where: {
+      guildId,
+      userId: { in: uniqueUserIds }
+    },
+    select: {
+      userId: true,
+      userTag: true,
+      username: true,
+      displayName: true,
+      avatarUrl: true
+    }
+  });
+
+  const memberProfileMap = new Map(memberProfiles.map(p => [p.userId, p]));
+
   const memberTotals = memberStats.reduce((acc, curr) => {
     if (!acc[curr.userId]) {
+      const profile = memberProfileMap.get(curr.userId);
       acc[curr.userId] = {
         userId: curr.userId,
-        name: curr.memberProfile?.displayName || curr.memberProfile?.username || curr.memberProfile?.userTag || 'Inconnu',
-        username: curr.memberProfile?.username || curr.memberProfile?.userTag || 'Inconnu',
-        avatarUrl: curr.memberProfile?.avatarUrl,
+        name: profile?.displayName || profile?.username || profile?.userTag || 'Inconnu',
+        username: profile?.username || profile?.userTag || 'Inconnu',
+        avatarUrl: profile?.avatarUrl,
         messageCount: 0,
         voiceTimeSeconds: 0
       };
@@ -197,11 +206,11 @@ export const getDashboardAnalytics = async (guildId: string, options: { days?: n
     where: { guildId }
   });
 
-  const activeAbsences = await prisma.absence.count({
+  const activeAbsences = await prisma.staffAbsence.count({
     where: { guildId, status: 'APPROVED', endDate: { gte: new Date() } }
   });
 
-  const recentMeetings = await prisma.meeting.findMany({
+  const recentMeetings = await prisma.staffMeeting.findMany({
     where: { guildId, scheduledAt: { gte: startISO, lte: endISO } },
     include: { presences: true }
   });
@@ -209,7 +218,7 @@ export const getDashboardAnalytics = async (guildId: string, options: { days?: n
   let totalPresences = 0;
   let possiblePresences = 0;
   for (const m of recentMeetings) {
-    totalPresences += m.presences.filter(p => p.isPresent).length;
+    totalPresences += m.presences.filter(p => p.status === 'PRESENT').length;
     possiblePresences += staffMembers.length;
   }
   const avgMeetingAttendance = possiblePresences > 0 ? Math.round((totalPresences / possiblePresences) * 100) : 0;
@@ -222,27 +231,27 @@ export const getDashboardAnalytics = async (guildId: string, options: { days?: n
     ...sanctions.map(s => s.moderatorUserId)
   ]);
 
-  const profiles = await prisma.memberProfile.findMany({
+  const enrichmentProfiles = await prisma.memberProfile.findMany({
     where: { userId: { in: Array.from(allUserIds) }, guildId },
-    select: { userId: true, displayName: true, username: true, globalName: true, avatarUrl: true }
+    select: { userId: true, displayName: true, username: true, userTag: true, avatarUrl: true }
   });
 
-  const profileMap = new Map(profiles.map(p => [p.userId, p]));
+  const enrichmentProfileMap = new Map(enrichmentProfiles.map(p => [p.userId, p]));
 
   const enrichedTopModerators = topModerators.map(m => {
-    const p = profileMap.get(m.userId);
+    const p = enrichmentProfileMap.get(m.userId);
     return {
       ...m,
-      moderatorTag: p?.displayName || p?.globalName || p?.username || m.moderatorTag || 'Inconnu',
+      moderatorTag: p?.displayName || p?.userTag || p?.username || m.moderatorTag || 'Inconnu',
       avatarUrl: p?.avatarUrl || m.avatarUrl
     };
   });
 
   const enrichedTopSanctioned = topSanctionedMembers.map(m => {
-    const p = profileMap.get(m.targetUserId);
+    const p = enrichmentProfileMap.get(m.targetUserId);
     return {
       ...m,
-      targetTag: p?.displayName || p?.globalName || p?.username || m.targetTag || 'Inconnu',
+      targetTag: p?.displayName || p?.userTag || p?.username || m.targetTag || 'Inconnu',
       avatarUrl: p?.avatarUrl || m.avatarUrl
     };
   });
@@ -250,10 +259,10 @@ export const getDashboardAnalytics = async (guildId: string, options: { days?: n
   const staffLeaderboard = staffMembers.map(staff => {
     const memData = memberTotals[staff.userId] || { messageCount: 0, voiceTimeSeconds: 0 };
     const score = memData.messageCount + Math.round(memData.voiceTimeSeconds / 60);
-    const p = profileMap.get(staff.userId);
+    const p = enrichmentProfileMap.get(staff.userId);
     return {
       userId: staff.userId,
-      name: staff.displayName || p?.displayName || staff.username || p?.username || staff.userTag || p?.globalName || 'Inconnu',
+      name: staff.displayName || p?.displayName || staff.username || p?.username || staff.userTag || p?.userTag || 'Inconnu',
       avatarUrl: staff.avatarUrl || p?.avatarUrl,
       grade: staff.grade,
       messages: memData.messageCount,
@@ -277,13 +286,13 @@ export const getDashboardAnalytics = async (guildId: string, options: { days?: n
     topMessageMembers,
     topVoiceMembers,
     recentSanctions: recentSanctions.map(s => {
-       const targetP = profileMap.get(s.targetUserId);
-       const modP = profileMap.get(s.moderatorUserId);
+       const targetP = enrichmentProfileMap.get(s.targetUserId);
+       const modP = enrichmentProfileMap.get(s.moderatorUserId);
        return {
          ...s,
-         targetTag: targetP?.displayName || targetP?.globalName || s.targetTag,
+         targetTag: targetP?.displayName || targetP?.userTag || s.targetTag,
          targetAvatarUrl: targetP?.avatarUrl || null,
-         moderatorTag: modP?.displayName || modP?.globalName || s.moderatorTag,
+         moderatorTag: modP?.displayName || modP?.userTag || s.moderatorTag,
          moderatorAvatarUrl: modP?.avatarUrl || null
        };
     }),
@@ -757,12 +766,20 @@ export const getDailyAlgoAnalytics = async (guildId: string, options: { days?: n
   // Calculate metrics
   const totalRuns = runs.length;
   const totalSubmissions = submissions.length;
-  const completedSubmissions = submissions.filter(s => s.status === 'VALIDATED').length;
+  const completedSubmissions = submissions.filter(s => s.status === 'APPROVED').length;
   const avgSubmissionsPerRun = totalRuns > 0 ? Math.round(totalSubmissions / totalRuns) : 0;
   const completionRate = totalSubmissions > 0 ? Math.round((completedSubmissions / totalSubmissions) * 100) : 0;
 
   // Get top performers
-  const performerMap: Record<string, any> = {};
+  interface Performer {
+    userId: string;
+    name: string;
+    submissions: number;
+    validated: number;
+    avgScore: number;
+    scores: number[];
+  }
+  const performerMap: Record<string, Performer> = {};
   submissions.forEach(sub => {
     if (!performerMap[sub.authorId]) {
       performerMap[sub.authorId] = {
@@ -775,7 +792,7 @@ export const getDailyAlgoAnalytics = async (guildId: string, options: { days?: n
       };
     }
     performerMap[sub.authorId].submissions++;
-    if (sub.status === 'VALIDATED') {
+    if (sub.status === 'APPROVED') {
       performerMap[sub.authorId].validated++;
       if (sub.scoreFinal !== null) {
         performerMap[sub.authorId].scores.push(sub.scoreFinal);

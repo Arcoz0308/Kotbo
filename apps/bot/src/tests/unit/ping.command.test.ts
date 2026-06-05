@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { execute } from '../../commands/ping';
+import { execute } from '../../commands/utility/ping';
 
 describe('commande ping', () => {
   test('repond puis edite la reponse avec un embed de latence', async () => {

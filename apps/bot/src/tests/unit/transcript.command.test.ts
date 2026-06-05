@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { parseDurationToMs, parseDateTimeOrDuration } from '../../commands/transcript';
+import { parseDurationToMs, parseDateTimeOrDuration } from '../../commands/moderation/transcript';
 
 describe('commande transcript duration parser', () => {
   test('parse correctement les durées valides', () => {

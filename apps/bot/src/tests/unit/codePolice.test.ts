@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { analyzeCodeContent, hasRawCodeIndicators, isAlreadyFormatted, buildCorrectedMessage, buildSafetyWarning, type CodePoliceRule } from '../../services/codePoliceService';
+import { analyzeCodeContent, hasRawCodeIndicators, isAlreadyFormatted, buildCorrectedMessage, buildSafetyWarning, type CodePoliceRule } from '../../services/moderation/codePoliceService';
 
 const rules: CodePoliceRule[] = [
   { key: 'signal.js.function', category: 'SIGNAL', matchType: 'EXACT', language: 'javascript', pattern: 'function', label: 'Fonction JavaScript', feedback: 'Repère une définition de fonction JavaScript.', severity: 'INFO', enabled: true },

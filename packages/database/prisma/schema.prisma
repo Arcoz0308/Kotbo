@@ -71,6 +71,12 @@ model Guild {
   statusCheckChannelId     String?
   logChannelId             String?
 
+  youtubeEnabled           Boolean @default(false)
+  youtubeChannelId         String?
+  nathanChannelId          String?
+  youtubeShortRoleId       String?
+  youtubeVideoRoleId       String?
+
   // Configuration de la modération du personnel
   warnsToDemote               Int      @default(3)
   warnsToBlacklist            Int      @default(5)
@@ -131,6 +137,7 @@ model Guild {
   linkedAccounts LinkedAccount[]
   youtubeFollows YoutubeChannelFollow[]
   twitchFollows TwitchChannelFollow[]
+  feeds Feed[]
 
   tutoringConfig TutoringConfig?
   tutoringItems TutoringItem[]
@@ -2261,4 +2268,60 @@ model ServerBackup {
   @@index([guildId, createdAt])
   @@index([guildId, isPreset])
   @@map("server_backups")
+}
+
+model Feed {
+  id String @id @default(cuid())
+  guildId String
+  name String
+  url String
+  category String
+  language String?
+  enabled Boolean @default(true)
+  autoPublish Boolean @default(false)
+  includeKeywords String[] @default([])
+  excludeKeywords String[] @default([])
+  ignoredKeywords String[] @default([])
+  
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  items FeedItem[]
+  subscribers FeedSubscriber[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("feeds")
+}
+
+model FeedItem {
+  id String @id @default(cuid())
+  feedId String
+  title String
+  titleTranslated String?
+  interestScore Float?
+  interestDecision InterestDecision @default(ALLOWED)
+  interestReason String?
+  topics String[] @default([])
+  status ItemStatus @default(PENDING)
+  
+  feed Feed @relation(fields: [feedId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("feed_items")
+}
+
+model FeedSubscriber {
+  id String @id @default(cuid())
+  feedId String
+  userId String
+  
+  feed Feed @relation(fields: [feedId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([feedId, userId])
+  @@map("feed_subscribers")
 }

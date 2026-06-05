@@ -1019,6 +1019,7 @@ export async function getSanctionTypeBreakdown(guildId: string, targetUserId: st
     TIMEOUT: 0,
     TEMP_BAN: 0,
     BAN: 0,
+    SOFTBAN: 0,
   };
 
   for (const row of rows) {

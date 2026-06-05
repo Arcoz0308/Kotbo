@@ -19,7 +19,7 @@ import {
 import prisma from '../utils/db.js';
 import { getCachedGuild } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
-import { DigestFrequency } from '@prisma/client';
+import { DigestFrequency, SanctionType } from '@prisma/client';
 import { COLORS, successEmbed, errorEmbed, truncate } from '../utils/embeds.js';
 import { handleConfigButton, handleConfigChannelSelect, handleConfigModal, handleConfigSelectMenu } from './configHandler.js';
 import { sendSetupStep1, sendSetupStep2, sendSetupStep3, sendSetupFinish } from '../panels/setupPanel.js';
@@ -413,12 +413,13 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
         .setColor(COLORS.info)
         .setTimestamp();
 
-      const total = Object.values(stats.distribution).reduce((s: number, v: any) => s + (v || 0), 0);
+      const distribution = stats.distribution || {};
+      const total = Object.values(distribution).reduce((s: number, v: any) => s + (v || 0), 0);
 
-      (Object.keys(stats.distribution) || []).forEach((k) => {
+      (Object.keys(distribution) || []).forEach((k) => {
         const idx = parseInt(k, 10);
         const label = (stats.options && stats.options[idx]) ? stats.options[idx] : `Option ${idx + 1}`;
-        const count = stats.distribution[idx] ?? 0;
+        const count = distribution[idx] ?? 0;
         embed.addFields({ name: `${label}`, value: `${count} vote(s)`, inline: true });
       });
 
@@ -717,7 +718,12 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
     return;
   }
 
-
+  const eventRoute = parseEventQuizRoute(customId);
+  if (eventRoute && interaction.isStringSelectMenu()) {
+    const optionIndex = parseInt(interaction.values[0], 10);
+    await handleQuizInteraction(interaction, eventRoute.questionId, optionIndex);
+    return;
+  }
 }
 
 export async function handleModalSubmit(interaction: ModalSubmitInteraction, client: Client): Promise<void> {
@@ -919,46 +925,65 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
     const executor = interaction.user;
 
     try {
+      const targetUser = await client.users.fetch(targetUserId).catch(() => null);
+      const target = {
+        id: targetUserId,
+        tag: targetUser?.tag || 'Utilisateur inconnu',
+      };
+      const moderator = {
+        id: executor.id,
+        tag: executor.tag,
+      };
+
       if (action === 'warn') {
-        const warnResult = await registerWarnSanction({
+        await registerWarnSanction({
           guildId: interaction.guildId!,
-          targetUserId,
-          executorUserId: executor.id,
-          executorTag: executor.tag,
+          target,
+          moderator,
           reason,
+          client,
         });
-        await interaction.editReply({ embeds: [successEmbed('Avertissement appliqué', `L'avertissement a bien été enregistré. (Warn #${warnResult.warnCount})`)] });
+        const warnCount = await prisma.sanction.count({
+          where: { guildId: interaction.guildId!, targetUserId, type: SanctionType.WARN },
+        });
+        await interaction.editReply({ embeds: [successEmbed('Avertissement appliqué', `L'avertissement a bien été enregistré. (Warn #${warnCount})`)] });
       } else if (action === 'timeout') {
         const durationMs = parseDurationToMs(durationInput || '');
         if (!durationMs) {
           await interaction.editReply({ embeds: [errorEmbed('Durée invalide', 'Le format de la durée est invalide.')] });
           return;
         }
+        const targetMember = await interaction.guild?.members.fetch(targetUserId).catch(() => null);
+        if (!targetMember) {
+          await interaction.editReply({ embeds: [errorEmbed('Membre introuvable', "L'utilisateur n'est pas sur ce serveur.")] });
+          return;
+        }
         await registerTimeoutSanction({
           guildId: interaction.guildId!,
-          targetUserId,
-          executorUserId: executor.id,
-          executorTag: executor.tag,
+          target,
+          moderator,
           reason,
           durationMs,
+          member: targetMember,
+          client,
         });
         await interaction.editReply({ embeds: [successEmbed('Timeout appliqué', `Le timeout de ${durationInput} a bien été enregistré.`)] });
       } else if (action === 'kick') {
         await registerKickSanction({
           guildId: interaction.guildId!,
-          targetUserId,
-          executorUserId: executor.id,
-          executorTag: executor.tag,
+          target,
+          moderator,
           reason,
+          client,
         });
         await interaction.editReply({ embeds: [successEmbed('Expulsion appliquée', `L'utilisateur a été expulsé.`)] });
       } else if (action === 'ban') {
         await registerBanSanction({
           guildId: interaction.guildId!,
-          targetUserId,
-          executorUserId: executor.id,
-          executorTag: executor.tag,
+          target,
+          moderator,
           reason,
+          client,
         });
         await interaction.editReply({ embeds: [successEmbed('Bannissement appliqué', `L'utilisateur a été banni.`)] });
       }
@@ -1178,13 +1203,6 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
       content: `✅ Note modérateur mise à jour pour <@${targetUserId}>.`,
       flags: [MessageFlags.Ephemeral],
     });
-    return;
-  }
-
-  const eventRoute = parseEventQuizRoute(customId);
-  if (eventRoute && interaction.isStringSelectMenu()) {
-    const optionIndex = parseInt(interaction.values[0], 10);
-    await handleQuizInteraction(interaction, eventRoute.questionId, optionIndex);
     return;
   }
 }

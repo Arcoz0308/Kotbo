@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { generateRssXml } from '../../services/newsService';
+import { generateRssXml } from '../../services/core/newsService';
 
 describe('news RSS generator', () => {
   test('génère un document XML RSS 2.0 valide à partir d\'articles', () => {

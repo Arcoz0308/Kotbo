@@ -37,6 +37,7 @@ import {
   getModulePerformanceStats,
   getModuleStatsSummary,
   KOTBO_MODULES,
+  type KotboModule,
 } from '../../services/analytics/moduleStatsService.js';
 
 export async function handleAdminRoutes(
@@ -99,7 +100,8 @@ export async function handleAdminRoutes(
   if (parts[2] === 'stats' && parts[3] === 'modules' && method === 'GET') {
     try {
       const guildId = url.searchParams.get('guildId') || undefined;
-      const moduleName = url.searchParams.get('moduleName') || undefined;
+      const moduleNameRaw = url.searchParams.get('moduleName') || undefined;
+      const moduleName = (moduleNameRaw && (KOTBO_MODULES as readonly string[]).includes(moduleNameRaw)) ? (moduleNameRaw as KotboModule) : undefined;
       const startDate = url.searchParams.get('startDate') || undefined;
       const endDate = url.searchParams.get('endDate') || undefined;
       const periodDays = url.searchParams.get('period') ? parseInt(url.searchParams.get('period')!) : 30;
@@ -250,9 +252,10 @@ export async function handleAdminRoutes(
   if (parts[2] === 'guilds' && parts.length === 5 && (parts[4] === 'invite' || parts[4] === 'leave')) {
     const guildId = parts[3];
 
+    let guildExists = false;
     // Check if guild exists across shards
     if (client.shard) {
-      const results = await client.shard.broadcastEval<boolean>((c: Client, id: string) => c.guilds.cache.has(id), { context: guildId });
+      const results = await client.shard.broadcastEval<boolean, string>((c, id) => c.guilds.cache.has(id), { context: guildId });
       guildExists = results.some((r) => r);
     } else {
       guildExists = client.guilds.cache.has(guildId) || !!(await client.guilds.fetch(guildId).catch(() => null));
@@ -266,7 +269,7 @@ export async function handleAdminRoutes(
     // POST /api/admin/guilds/:guildId/invite
     if (parts[4] === 'invite' && method === 'POST') {
       if (client.shard) {
-        const results = await client.shard.broadcastEval<{ error?: string; url?: string } | null>(async (shardClient: Client, context: { guildId: string }) => {
+        const results = await client.shard.broadcastEval<{ error?: string; url?: string } | null, { guildId: string }>(async (shardClient, context) => {
           const guild = shardClient.guilds.cache.get(context.guildId);
           if (!guild) return null;
           const channel = guild.channels.cache.find(c => c.type === 0 && c.permissionsFor(shardClient.user!)?.has('CreateInstantInvite'));
@@ -316,7 +319,7 @@ export async function handleAdminRoutes(
     // POST /api/admin/guilds/:guildId/leave
     if (parts[4] === 'leave' && method === 'POST') {
       if (client.shard) {
-        const results = await client.shard.broadcastEval<{ success: boolean } | null>(async (shardClient: Client, context: { guildId: string }) => {
+        const results = await client.shard.broadcastEval<{ success: boolean } | null, { guildId: string }>(async (shardClient, context) => {
           const guild = shardClient.guilds.cache.get(context.guildId);
           if (!guild) return null;
           try {
@@ -768,12 +771,12 @@ export async function handleAdminRoutes(
           };
         }
 
-        const results = await client.shard.broadcastEval<{ successCount: number; failCount: number }>(async (
-          shardClient: Client,
-          context: {
-            message: string;
-            guildChannelMap: Record<string, { newsChannelId: string | null; publicChannelId: string | null }>;
-          }
+        const results = await client.shard.broadcastEval<{ successCount: number; failCount: number }, {
+          message: string;
+          guildChannelMap: Record<string, { newsChannelId: string | null; publicChannelId: string | null }>;
+        }>(async (
+          shardClient,
+          context
         ) => {
           let shardSuccessCount = 0;
           let shardFailCount = 0;
@@ -985,7 +988,7 @@ export async function handleAdminRoutes(
     // Check if guild exists across shards
     let guildExists = false;
     if (client.shard) {
-      const results = await client.shard.broadcastEval<boolean>((c: Client, id: string) => c.guilds.cache.has(id), { context: guildId });
+      const results = await client.shard.broadcastEval<boolean, string>((c, id) => c.guilds.cache.has(id), { context: guildId });
       guildExists = results.some(r => r);
     } else {
       guildExists = client.guilds.cache.has(guildId) || !!(await client.guilds.fetch(guildId).catch(() => null));
@@ -1001,7 +1004,7 @@ export async function handleAdminRoutes(
       const force = !!(body?.force || body?.forcer);
 
       if (client.shard) {
-        const results = await client.shard.broadcastEval<{ success: boolean; error?: string } | null>(async (shardClient: Client, context: { guildId: string; force: boolean; servicePath: string }) => {
+        const results = await client.shard.broadcastEval<{ success: boolean; error?: string } | null, { guildId: string; force: boolean; servicePath: string }>(async (shardClient, context) => {
           const guild = shardClient.guilds.cache.get(context.guildId);
           if (!guild) return null;
           try {

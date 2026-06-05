@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { parseMarkdown } from '../../services/transcriptService';
+import { parseMarkdown } from '../../services/features/transcriptService';
 
 describe('Transcript markdown & entity parser', () => {
   test('converts custom emojis properly', () => {

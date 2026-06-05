@@ -153,20 +153,22 @@ export async function publishOrUpdateRegulationMessage(client: Client, guildId: 
     } else {
       // Notifier TOUS les membres du serveur (hors bots)
       try {
-        const members = await fetchAllMembers(discordGuild).catch(() => null);
-        if (members) {
-          const memberList = Array.from(members.values()).filter(m => !m.user.bot);
-          await Promise.all(memberList.map(m => 
-            createNotification(
-              guildId,
-              m.id,
-              'Règlement mis à jour',
-              'Le règlement du serveur a été mis à jour. Merci d\'en prendre connaissance.',
-              'INFO',
-              '/regulation',
-              true
-            ).catch(() => null)
-          ));
+        if (discordGuild) {
+          const members = await fetchAllMembers(discordGuild).catch(() => null);
+          if (members) {
+            const memberList = Array.from(members.values()).filter(m => !m.user.bot);
+            await Promise.all(memberList.map(m => 
+              createNotification(
+                guildId,
+                m.id,
+                'Règlement mis à jour',
+                'Le règlement du serveur a été mis à jour. Merci d\'en prendre connaissance.',
+                'INFO',
+                '/regulation',
+                true
+              ).catch(() => null)
+            ));
+          }
         }
       } catch (err) {
         logger.error('Règlement', `Erreur lors de la notification DM de tous les membres: ${err}`);

@@ -24,7 +24,6 @@ export function initBotSentry(): boolean {
     environment: process.env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV ?? 'development',
     release: process.env.SENTRY_RELEASE,
     tracesSampleRate: parseRate(process.env.SENTRY_TRACES_SAMPLE_RATE, 0.1),
-    profilesSampleRate: parseRate(process.env.SENTRY_PROFILES_SAMPLE_RATE, 0),
   });
 
   initialized = true;

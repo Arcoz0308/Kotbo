@@ -4,16 +4,16 @@ import path from 'node:path';
 // Mock the database dependency
 const mockDb = {
   activationCode: {
-    update: mock(() => Promise.resolve({})),
-    findFirst: mock(() => Promise.resolve(null)),
-    findUnique: mock(() => Promise.resolve(null)),
-    delete: mock(() => Promise.resolve({})),
+    update: mock(() => Promise.resolve({} as any)) as any,
+    findFirst: mock(() => Promise.resolve(null as any)) as any,
+    findUnique: mock(() => Promise.resolve(null as any)) as any,
+    delete: mock(() => Promise.resolve({} as any)) as any,
   },
   guild: {
-    findMany: mock(() => Promise.resolve([])),
-    findUnique: mock(() => Promise.resolve(null)),
-    update: mock(() => Promise.resolve({})),
-    upsert: mock(() => Promise.resolve({})),
+    findMany: mock(() => Promise.resolve([] as any[])) as any,
+    findUnique: mock(() => Promise.resolve(null as any)) as any,
+    update: mock(() => Promise.resolve({} as any)) as any,
+    upsert: mock(() => Promise.resolve({} as any)) as any,
   }
 };
 

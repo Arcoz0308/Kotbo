@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { createTranslationService } from '../../services/translationService';
+import { createTranslationService } from '../../services/integrations/translationService';
 
 describe('translationService', () => {
   test('met en cache une traduction pour eviter les appels repetes', async () => {
@@ -58,7 +58,7 @@ describe('translationService', () => {
     type TranslationDeps = Parameters<typeof createTranslationService>[0];
 
     const calls: Array<{ target: string; source?: string }> = [];
-    const translator: TranslationDeps['translator'] = async (_text, target, source) => {
+    const translator: TranslationDeps['translator'] = async (_text: string, target: string, source?: string) => {
       calls.push({ target, source });
       return 'ok';
     };

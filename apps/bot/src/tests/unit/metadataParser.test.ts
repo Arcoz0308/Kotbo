@@ -5,7 +5,7 @@ describe('fetchArticleMetadata', () => {
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
-    globalThis.fetch = mock();
+    globalThis.fetch = mock() as any;
   });
 
   afterEach(() => {

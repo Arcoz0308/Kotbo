@@ -4,7 +4,7 @@ import {
   formatReleaseMessage,
   resetReleaseStoreForTests,
   type GitHubRelease,
-} from '../../services/githubReleaseService';
+} from '../../services/system/githubReleaseService';
 
 describe('githubReleaseService', () => {
   afterEach(() => {

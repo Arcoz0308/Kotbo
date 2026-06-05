@@ -142,7 +142,7 @@ import { fetchAllMembers } from '../utils/discord.js';
 export const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 export const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
 export const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI;
-export let JWT_SECRET = process.env.JWT_SECRET;
+export let JWT_SECRET: string = process.env.JWT_SECRET || '';
 if (!JWT_SECRET) {
   logger.warn('DashboardAPI', 'JWT_SECRET variable is not set. Generating ephemeral secret. Instance-isolated!');
   JWT_SECRET = crypto.randomBytes(32).toString('hex');
@@ -394,7 +394,7 @@ export const buildCommandRestrictionsForPreset = (
     });
 };
 
-export type DashboardSanctionType = 'WARN' | 'KICK' | 'TIMEOUT' | 'TEMP_BAN' | 'BAN';
+export type DashboardSanctionType = 'WARN' | 'KICK' | 'TIMEOUT' | 'TEMP_BAN' | 'BAN' | 'SOFTBAN';
 export type DashboardSanctionStatus = 'ACTIVE' | 'RESOLVED' | 'FAILED';
 
 export type SanctionItem = {
@@ -942,7 +942,7 @@ export function normalizeLangCode(value: string | null | undefined): string | nu
 }
 
 export function isDashboardSanctionType(value: string): value is DashboardSanctionType {
-  return value === 'WARN' || value === 'KICK' || value === 'TIMEOUT' || value === 'TEMP_BAN' || value === 'BAN';
+  return value === 'WARN' || value === 'KICK' || value === 'TIMEOUT' || value === 'TEMP_BAN' || value === 'BAN' || value === 'SOFTBAN';
 }
 
 export function toSanctionType(value: DashboardSanctionType): SanctionType {

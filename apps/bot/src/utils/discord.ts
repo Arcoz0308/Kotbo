@@ -28,7 +28,7 @@ export async function fetchAllMembers(guild: Guild): Promise<Collection<string, 
         options.after = lastId;
       }
       
-      const chunk = await guild.members.fetch(options);
+      const chunk = (await guild.members.fetch(options)) as unknown as Collection<string, GuildMember>;
       if (!chunk || chunk.size === 0) {
         break;
       }
@@ -38,7 +38,7 @@ export async function fetchAllMembers(guild: Guild): Promise<Collection<string, 
       }
 
       // Collect the keys to find the last ID in lexicographical (snowflake) order
-      const sortedKeys = Array.from(chunk.keys()).sort();
+      const sortedKeys = Array.from(chunk.keys()).sort() as string[];
       lastId = sortedKeys[sortedKeys.length - 1];
 
       if (chunk.size < 1000) {

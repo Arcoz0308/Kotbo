@@ -11,8 +11,8 @@ import {
 } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { errorEmbed, infoEmbed, successEmbed } from '../../utils/embeds.js';
-import { createBackup } from '../../services/backupService';
-import { restoreBackup, RestoreOptions } from '../../services/restoreService';
+import { createBackup } from '../../services/system/backupService.js';
+import { restoreBackup, RestoreOptions } from '../../services/system/restoreService.js';
 import { extractTrackingInfo, resolveModuleFromCommand, wrapModuleTracking } from '../../utils/moduleTracking.js';
 
 const MAX_BACKUPS_PER_GUILD = 3;

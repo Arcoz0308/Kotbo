@@ -269,7 +269,7 @@ async function ensureDailyAlgoScheduleRuns(guildId: string, daysForward: number)
   };
 }
 
-type DashboardSanctionType = 'WARN' | 'KICK' | 'TIMEOUT' | 'TEMP_BAN' | 'BAN';
+type DashboardSanctionType = 'WARN' | 'KICK' | 'TIMEOUT' | 'TEMP_BAN' | 'BAN' | 'SOFTBAN';
 
 function toSanctionType(value: DashboardSanctionType): SanctionType {
   return value as SanctionType;

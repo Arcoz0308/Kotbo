@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { resolveOnlineMembersCount } from '../../services/presenceDetectionService';
+import { resolveOnlineMembersCount } from '../../services/core/presenceDetectionService';
 
 describe('presenceDetectionService', () => {
   test('utilise le compte de presence approximate quand le cache dit 0 en ligne', async () => {
