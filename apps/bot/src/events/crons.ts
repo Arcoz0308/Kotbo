@@ -1,16 +1,16 @@
 import { type Client, Events } from 'discord.js';
 import cron from 'node-cron';
 import prisma from '../utils/db.js';
-import { runDailyAlgoForAllGuilds, runDailyAlgoSummariesForAllGuilds } from '../services/dailyAlgoService.js';
-import { scanGuildMembersForYoungAccounts, JOIN_TO_ACCOUNT_CREATION_PROXIMITY_MS } from '../services/dcDetectionService.js';
-import { processScheduledSanctions, checkMissingReports } from '../services/sanctionService.js';
-import { processMeetingNotifications } from '../services/staffLeadershipService.js';
+import { runDailyAlgoForAllGuilds, runDailyAlgoSummariesForAllGuilds } from '../services/progression/dailyAlgoService.js';
+import { scanGuildMembersForYoungAccounts, JOIN_TO_ACCOUNT_CREATION_PROXIMITY_MS } from '../services/moderation/dcDetectionService.js';
+import { processScheduledSanctions, checkMissingReports } from '../services/moderation/sanctionService.js';
+import { processMeetingNotifications } from '../services/staff/staffLeadershipService.js';
 import { logger } from '../utils/logger.js';
 import { runActivitySnapshot } from './advancedLogs.js';
 import { enqueueBackgroundJob, registerBackgroundJobHandlers, type BackgroundJobName } from '../infra/queues/backgroundQueue.js';
-import { checkYoutubeFollows } from '../services/youtubeService.js';
-import { checkTwitchFollows } from '../services/twitchService.js';
-import { initializeDatabaseBackup, performDatabaseBackup } from '../services/databaseBackupService.js';
+import { checkYoutubeFollows } from '../services/integrations/youtubeService.js';
+import { checkTwitchFollows } from '../services/integrations/twitchService.js';
+import { initializeDatabaseBackup, performDatabaseBackup } from '../services/system/databaseBackupService.js';
 
 const runningJobs = new Set<string>();
 
@@ -102,7 +102,7 @@ export async function registerCrons(client: Client): Promise<void> {
   registerBackgroundJobHandlers({
     'scheduled-events': async () => {
       logger.debug('Cron', 'Vérification des événements planifiés...');
-      const { checkScheduledEvents } = await import('../services/eventService.js');
+      const { checkScheduledEvents } = await import('../services/features/eventService.js');
       await checkScheduledEvents(client);
     },
     'daily-algo': async () => {
@@ -195,7 +195,7 @@ export async function registerCrons(client: Client): Promise<void> {
   // 🎯 Événements planifiés: Toutes les minutes (CTF & Quiz planifiés)
   cron.schedule('* * * * *', async () => {
     await runCronJob('scheduled-events', async () => {
-      const { checkScheduledEvents } = await import('../services/eventService.js');
+      const { checkScheduledEvents } = await import('../services/features/eventService.js');
       await checkScheduledEvents(client);
     }, 1000);
   });

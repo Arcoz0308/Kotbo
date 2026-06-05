@@ -17,7 +17,7 @@ import {
   DISCORD_CLIENT_ID,
   DASHBOARD_ORIGIN,
 } from '../shared.js';
-import { generateRssXml } from '../../services/newsService.js';
+import { generateRssXml } from '../../services/core/newsService.js';
 
 export async function handlePublicRoutes(
   req: IncomingMessage,
@@ -288,7 +288,7 @@ export async function handlePublicRoutes(
       const activeDays = dailyData.length;
       const peakDayMessages = dailyData.reduce((a, b) => Math.max(a, b.messages), 0);
 
-      const { generateMemberStatsImage } = await import('../../services/imageService.js');
+      const { generateMemberStatsImage } = await import('../../services/core/imageService.js');
       const buffer = await generateMemberStatsImage(userId, days, { totalMessages, totalVoice, activeDays, peakDayMessages }, dailyData);
 
       res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=300' });

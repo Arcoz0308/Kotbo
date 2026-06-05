@@ -1,7 +1,7 @@
 import { Client, Events, VoiceState } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
-import { checkInMeeting } from '../services/staffLeadershipService.js';
+import { checkInMeeting } from '../services/staff/staffLeadershipService.js';
 
 /**
  * Enregistre les événements liés aux réunions (pointage automatique en vocal).

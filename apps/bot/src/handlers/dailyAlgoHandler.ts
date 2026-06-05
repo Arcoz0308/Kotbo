@@ -12,7 +12,7 @@ import {
   getDailyAlgoSubmissionAvailability,
   getDailyAlgoSubmissionFeedbackForUser,
   queueDailyAlgoSubmission,
-} from '../services/dailyAlgoService.js';
+} from '../services/progression/dailyAlgoService.js';
 import { replyOrFollowUp } from '../utils/interactionResponses.js';
 
 function formatRankLabel(rank: number): string {

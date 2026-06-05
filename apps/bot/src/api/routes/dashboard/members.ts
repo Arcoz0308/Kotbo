@@ -3,8 +3,8 @@ import { Client, EmbedBuilder } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { COLORS } from '../../../utils/embeds.js';
-import * as altAccountService from '../../../services/altAccountService.js';
-import { scanGuildMembersForYoungAccounts } from '../../../services/dcDetectionService.js';
+import * as altAccountService from '../../../services/moderation/altAccountService.js';
+import { scanGuildMembersForYoungAccounts } from '../../../services/moderation/dcDetectionService.js';
 import {
   json,
   readJsonBody,
@@ -24,7 +24,7 @@ import {
   registerTimeoutSanction,
   registerWarnSanction,
   runGuildBan,
-} from '../../../services/sanctionService.js';
+} from '../../../services/moderation/sanctionService.js';
 
 export async function handleMembersRoutes(
   req: IncomingMessage,

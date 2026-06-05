@@ -1,5 +1,5 @@
 import { AuditLogEvent, Events, type Client, type GuildAuditLogsEntry } from 'discord.js';
-import { registerBanSanction, registerKickSanction, registerObservedTimeoutSanction } from '../services/sanctionService.js';
+import { registerBanSanction, registerKickSanction, registerObservedTimeoutSanction } from '../services/moderation/sanctionService.js';
 import { logger } from '../utils/logger.js';
 
 type Actor = {

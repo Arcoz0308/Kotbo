@@ -21,7 +21,7 @@ import {
   rejectCandidature,
   completeOral,
   assignTutor,
-} from '../../../services/recruitmentService.js';
+} from '../../../services/staff/recruitmentService.js';
 
 /**
  * Handles Webhook candidature submissions (does NOT require user authentication)

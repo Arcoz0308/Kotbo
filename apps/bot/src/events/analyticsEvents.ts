@@ -1,6 +1,6 @@
 import { Events, type Client, type VoiceState, type Message, type GuildMember } from 'discord.js';
-import { trackMessage, trackVoiceSession, trackMemberJoin, trackMemberLeave, trackReaction, trackThreadCreation, trackReply } from '../services/analyticsService.js';
-import { logStaffVoiceSession } from '../services/staffLeadershipService.js';
+import { trackMessage, trackVoiceSession, trackMemberJoin, trackMemberLeave, trackReaction, trackThreadCreation, trackReply } from '../services/analytics/analyticsService.js';
+import { logStaffVoiceSession } from '../services/staff/staffLeadershipService.js';
 import { logger } from '../utils/logger.js';
 
 // In-memory store for voice sessions

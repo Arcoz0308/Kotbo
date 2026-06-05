@@ -36,20 +36,20 @@ import {
   type NotificationSettings,
 } from '../../shared.js';
 import { normalizeCommandRestrictions } from '../../../utils/commandAccess.js';
-import { getTwitchUserId } from '../../../services/twitchService.js';
-import { resolveYoutubeChannel } from '../../../services/youtubeService.js';
-import { publishOrUpdateRegulationMessage } from '../../../services/regulationService.js';
-import { publishNewsArticle } from '../../../services/newsService.js';
+import { getTwitchUserId } from '../../../services/integrations/twitchService.js';
+import { resolveYoutubeChannel } from '../../../services/integrations/youtubeService.js';
+import { publishOrUpdateRegulationMessage } from '../../../services/staff/regulationService.js';
+import { publishNewsArticle } from '../../../services/core/newsService.js';
 import {
   getLocalDateKey,
   reviewDailyAlgoSubmission,
-} from '../../../services/dailyAlgoService.js';
+} from '../../../services/progression/dailyAlgoService.js';
 import { invalidateNicknameModerationCache } from '../../../events/nicknameModeration.js';
 import { invalidateAutoThreadCache } from '../../../events/autoThread.js';
 import { updateGuildStats } from '../../../events/stats.js';
-import { invalidateBannedWordsCache } from '../../../services/bannedWordsService.js';
-import { sendTicketSetupEmbed } from '../../../services/ticketService.js';
-import { generateTranscript } from '../../../services/transcriptService.js';
+import { invalidateBannedWordsCache } from '../../../services/moderation/bannedWordsService.js';
+import { sendTicketSetupEmbed } from '../../../services/features/ticketService.js';
+import { generateTranscript } from '../../../services/features/transcriptService.js';
 import { parseDiscordMarkdown, extractMediaUrls } from '../../shared.js';
 import {
   getModuleStatsSummary,
@@ -58,7 +58,7 @@ import {
   getModulePerformanceStats,
   KOTBO_MODULES,
   setModuleActivation,
-} from '../../../services/moduleStatsService.js';
+} from '../../../services/analytics/moduleStatsService.js';
 
 const PRESET_LABELS: Record<DashboardPresetKey, string> = {
   general: 'Communauté générale',
@@ -568,7 +568,7 @@ export async function handleModulesRoutes(
         modRoleIds,
       });
 
-      const { applyPresetToFeatureAccess } = await import('../../../services/dashboardManagementService.js');
+      const { applyPresetToFeatureAccess } = await import('../../../services/core/dashboardManagementService.js');
       await applyPresetToFeatureAccess(guildId, presetKey, { adminRoleIds, modRoleIds });
 
       await prisma.$transaction([
@@ -1109,7 +1109,7 @@ export async function handleModulesRoutes(
       const body = await readJsonBody<{ force?: boolean; forcer?: boolean }>(req);
       const force = !!(body?.force || body?.forcer);
 
-      const { startHistoricalScraping } = await import('../../../services/messageScraperService.js');
+      const { startHistoricalScraping } = await import('../../../services/analytics/messageScraperService.js');
       await startHistoricalScraping(client, guildId, force);
 
       json(res, 200, { ok: true, message: 'Scraping historique lancé avec succès.' });
@@ -1606,7 +1606,7 @@ export async function handleModulesRoutes(
   // GET /api/dashboard/guilds/:guildId/notifications/features
   if (moduleKey === 'notifications' && parts.length === 6 && parts[5] === 'features' && method === 'GET') {
     try {
-      const { getOrCreateFeatureConfigs } = await import('../../../services/dashboardManagementService.js');
+      const { getOrCreateFeatureConfigs } = await import('../../../services/core/dashboardManagementService.js');
       const configs = await getOrCreateFeatureConfigs(guildId);
       json(res, 200, { features: configs });
     } catch (err) {
@@ -1643,7 +1643,7 @@ export async function handleModulesRoutes(
         return true;
       }
 
-      const { updateFeatureConfig } = await import('../../../services/dashboardManagementService.js');
+      const { updateFeatureConfig } = await import('../../../services/core/dashboardManagementService.js');
       const updated = await updateFeatureConfig(guildId, featureKey, body);
 
       await pushAudit(guildId, {
@@ -1701,7 +1701,7 @@ export async function handleModulesRoutes(
           return true;
         }
 
-        const { updateRoleAccess } = await import('../../../services/dashboardManagementService.js');
+        const { updateRoleAccess } = await import('../../../services/core/dashboardManagementService.js');
         const updated = await updateRoleAccess(guildId, featureConfig.id, body.roleAccessConfigs);
 
         await pushAudit(guildId, {
@@ -1750,7 +1750,7 @@ export async function handleModulesRoutes(
           return true;
         }
 
-        const { updateNotificationTargets } = await import('../../../services/dashboardManagementService.js');
+        const { updateNotificationTargets } = await import('../../../services/core/dashboardManagementService.js');
         const updated = await updateNotificationTargets(guildId, featureConfig.id, body.notificationTargets);
 
         await pushAudit(guildId, {
@@ -3023,7 +3023,7 @@ export async function handleModulesRoutes(
       try {
         const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
         if (discordGuild) {
-          const { syncGuildInvites } = await import('../../../services/inviteService.js');
+          const { syncGuildInvites } = await import('../../../services/analytics/inviteService.js');
           await syncGuildInvites(discordGuild);
         }
 
@@ -4084,7 +4084,7 @@ export async function handleModulesRoutes(
       }
 
       try {
-        const { sendTicketSetupEmbed } = await import('../../../services/ticketService.js');
+        const { sendTicketSetupEmbed } = await import('../../../services/features/ticketService.js');
         await sendTicketSetupEmbed(client, guildId);
         json(res, 200, { success: true });
       } catch (err: any) {
@@ -4360,7 +4360,7 @@ export async function handleModulesRoutes(
               SendMessages: false
             }).catch(() => {});
 
-            const { renameChannelToClosed } = await import('../../../services/ticketService.js');
+            const { renameChannelToClosed } = await import('../../../services/features/ticketService.js');
             await renameChannelToClosed(client, ticket.channelId).catch(() => {});
 
             const closeEmbed = new EmbedBuilder()
@@ -4415,7 +4415,7 @@ export async function handleModulesRoutes(
               ReadMessageHistory: true
             }).catch(() => {});
 
-            const { renameChannelToOpen } = await import('../../../services/ticketService.js');
+            const { renameChannelToOpen } = await import('../../../services/features/ticketService.js');
             await renameChannelToOpen(client, ticket.channelId).catch(() => {});
 
             await ch.send({
@@ -4455,7 +4455,7 @@ export async function handleModulesRoutes(
           return true;
         }
 
-        const { renameTicketChannel } = await import('../../../services/ticketService.js');
+        const { renameTicketChannel } = await import('../../../services/features/ticketService.js');
         const finalName = await renameTicketChannel(
           client,
           ticket,
@@ -4489,7 +4489,7 @@ export async function handleModulesRoutes(
 
         const ch = client.channels.cache.get(ticket.channelId);
         if (ch && ch instanceof TextChannel) {
-          const { generateTranscript } = await import('../../../services/transcriptService.js');
+          const { generateTranscript } = await import('../../../services/features/transcriptService.js');
           const transcriptData = await generateTranscript(ch);
           
           await prisma.ticket.update({

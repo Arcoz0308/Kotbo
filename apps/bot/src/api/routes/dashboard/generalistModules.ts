@@ -2,13 +2,13 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client, EmbedBuilder, TextChannel } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
-import { getOrCreateLevelConfig } from '../../../services/levelingService.js';
-import { getOrCreateWelcomeConfig } from '../../../services/welcomeGoodbyeService.js';
-import { getOrCreateAutoModConfig, invalidateAutoModCache } from '../../../services/autoModService.js';
-import { createGiveaway, endGiveaway, rerollGiveaway } from '../../../services/giveawayService.js';
-import { createReactionRoleMenu } from '../../../services/reactionRoleService.js';
-import { invalidateAutoResponseCache } from '../../../services/autoResponseService.js';
-import { resolveSuggestion } from '../../../services/suggestionService.js';
+import { getOrCreateLevelConfig } from '../../../services/progression/levelingService.js';
+import { getOrCreateWelcomeConfig } from '../../../services/features/welcomeGoodbyeService.js';
+import { getOrCreateAutoModConfig, invalidateAutoModCache } from '../../../services/moderation/autoModService.js';
+import { createGiveaway, endGiveaway, rerollGiveaway } from '../../../services/features/giveawayService.js';
+import { createReactionRoleMenu } from '../../../services/features/reactionRoleService.js';
+import { invalidateAutoResponseCache } from '../../../services/features/autoResponseService.js';
+import { resolveSuggestion } from '../../../services/features/suggestionService.js';
 import { json, readJsonBody, getGuildName, pushAudit, type AuthClaims, type DashboardAccess } from '../../shared.js';
 
 export async function handleGeneralistModulesRoutes(
@@ -656,7 +656,7 @@ export async function handleGeneralistModulesRoutes(
     // GET /api/dashboard/guilds/:guildId/suggestions/config
     if (parts.length === 6 && parts[5] === 'config' && method === 'GET') {
       try {
-        const { getOrCreateFeatureConfigs } = await import('../../../services/dashboardManagementService.js');
+        const { getOrCreateFeatureConfigs } = await import('../../../services/core/dashboardManagementService.js');
         const configs = await getOrCreateFeatureConfigs(guildId);
         const featureConfig = configs.find((c) => c.featureKey === 'suggestions');
         json(res, 200, {
@@ -685,7 +685,7 @@ export async function handleGeneralistModulesRoutes(
           return true;
         }
 
-        const { getOrCreateFeatureConfigs, updateFeatureConfig } = await import('../../../services/dashboardManagementService.js');
+        const { getOrCreateFeatureConfigs, updateFeatureConfig } = await import('../../../services/core/dashboardManagementService.js');
         await getOrCreateFeatureConfigs(guildId);
         const updated = await updateFeatureConfig(guildId, 'suggestions', {
           enabled: body.enabled,

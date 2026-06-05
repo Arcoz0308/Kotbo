@@ -23,19 +23,19 @@ import { DigestFrequency } from '@prisma/client';
 import { COLORS, successEmbed, errorEmbed, truncate } from '../utils/embeds.js';
 import { handleConfigButton, handleConfigChannelSelect, handleConfigModal, handleConfigSelectMenu } from './configHandler.js';
 import { sendSetupStep1, sendSetupStep2, sendSetupStep3, sendSetupFinish } from '../panels/setupPanel.js';
-import { reviewDailyAlgoSubmission } from '../services/dailyAlgoService.js';
+import { reviewDailyAlgoSubmission } from '../services/progression/dailyAlgoService.js';
 import { renderPanelTarget } from '../utils/interactionResponses.js';
 import { parseSetupStep, parseUserCaseRoute, parseValidateRoute, parseEventQuizRoute, parseEventResultRoute } from './interactionRoutes.js';
-import { handleQuizInteraction, buildEventResultsView, getEventStats } from '../services/eventService.js';
+import { handleQuizInteraction, buildEventResultsView, getEventStats } from '../services/features/eventService.js';
 import { toggleGuildBoolean } from '../utils/prismaToggles.js';
 import { requireSingleSelectedValue, validateTimeField } from '../utils/interactionValidation.js';
-import { buildMemberCasePanel, type MemberCaseSection } from '../services/memberCaseService.js';
-import { handleRecruitmentButton } from '../services/recruitmentService.js';
-import { handleTicketButton, handleTicketModalSubmit, handleTicketSelectMenu } from '../services/ticketService.js';
-import { checkInMeeting, createNotification } from '../services/staffLeadershipService.js';
-import { handleDCInteraction } from '../services/dcDetectionService.js';
-import { showModeratorNoteModal } from '../commands/note.js';
-import { sendReportToAdmin } from '../commands/signal.js';
+import { buildMemberCasePanel, type MemberCaseSection } from '../services/moderation/memberCaseService.js';
+import { handleRecruitmentButton } from '../services/staff/recruitmentService.js';
+import { handleTicketButton, handleTicketModalSubmit, handleTicketSelectMenu } from '../services/features/ticketService.js';
+import { checkInMeeting, createNotification } from '../services/staff/staffLeadershipService.js';
+import { handleDCInteraction } from '../services/moderation/dcDetectionService.js';
+import { showModeratorNoteModal } from '../commands/moderation/note.js';
+import { sendReportToAdmin } from '../commands/moderation/signal.js';
 import {
   parseDurationToMs,
   registerBanSanction,
@@ -43,7 +43,7 @@ import {
   registerTimeoutSanction,
   registerWarnSanction,
   runGuildBan,
-} from '../services/sanctionService.js';
+} from '../services/moderation/sanctionService.js';
 
 
 function normalizeTargetLanguage(value: string | null | undefined): 'FR' | 'EN' | 'ES' | 'DE' {
@@ -109,21 +109,21 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
   // ── Giveaway buttons ────────────────────────────────────────────────
   if (customId.startsWith('giveaway_join:')) {
-    const { handleGiveawayJoin } = await import('../services/giveawayService.js');
+    const { handleGiveawayJoin } = await import('../services/features/giveawayService.js');
     await handleGiveawayJoin(interaction);
     return;
   }
 
   // ── Reaction Role buttons ───────────────────────────────────────────
   if (customId.startsWith('role_toggle:')) {
-    const { handleRoleToggleInteraction } = await import('../services/reactionRoleService.js');
+    const { handleRoleToggleInteraction } = await import('../services/features/reactionRoleService.js');
     await handleRoleToggleInteraction(interaction);
     return;
   }
 
   // ── Suggestion buttons ──────────────────────────────────────────────
   if (customId.startsWith('suggest_vote:')) {
-    const { handleSuggestionVote } = await import('../services/suggestionService.js');
+    const { handleSuggestionVote } = await import('../services/features/suggestionService.js');
     const type = customId.split(':')[2] as 'up' | 'down';
     await handleSuggestionVote(interaction, type);
     return;
@@ -365,7 +365,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     const eventId = customId.split(':')[1];
     if (!eventId) return;
 
-    const { buildCtfParticipantProgress } = await import('../services/eventService.js');
+    const { buildCtfParticipantProgress } = await import('../services/features/eventService.js');
     await buildCtfParticipantProgress(interaction, eventId);
     return;
   }
@@ -374,7 +374,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     const eventId = customId.split(':')[1];
     if (!eventId) return;
 
-    const { buildCtfLeaderboard } = await import('../services/eventService.js');
+    const { buildCtfLeaderboard } = await import('../services/features/eventService.js');
     await buildCtfLeaderboard(interaction, eventId);
     return;
   }
@@ -729,7 +729,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
     const content = interaction.fields.getTextInputValue('suggestion_content');
     
     try {
-      const { createSuggestion } = await import('../services/suggestionService.js');
+      const { createSuggestion } = await import('../services/features/suggestionService.js');
       const suggestion = await createSuggestion(
         guildId,
         interaction.user.id,
@@ -859,7 +859,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
     if (!eventId) return;
 
     const flag = interaction.fields.getTextInputValue('ctf_flag_input');
-    const { handleCtfFlagSubmission } = await import('../services/eventService.js');
+    const { handleCtfFlagSubmission } = await import('../services/features/eventService.js');
     await handleCtfFlagSubmission(interaction, eventId, flag);
     return;
   }

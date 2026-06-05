@@ -16,17 +16,17 @@ import {
 } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
-import { trackMessage } from '../services/analyticsService.js';
+import { trackMessage } from '../services/analytics/analyticsService.js';
 import { queueAuditLog } from '../utils/auditLogger.js';
 import { cache } from '../utils/cache.js';
-import { recordStaffActivity, syncStaffHierarchyMembership } from '../services/staffManagementService.js';
-import { resolveOnlineMembersCount } from '../services/presenceDetectionService.js';
+import { recordStaffActivity, syncStaffHierarchyMembership } from '../services/staff/staffManagementService.js';
+import { resolveOnlineMembersCount } from '../services/core/presenceDetectionService.js';
 import {
   syncGuildInvites,
   markInviteAsDeleted,
   recordInvitedMemberLeave,
   syncAllGuildsInvites,
-} from '../services/inviteService.js';
+} from '../services/analytics/inviteService.js';
 import {
   buildMemberCaseActionRow,
   touchMemberJoin,
@@ -36,8 +36,8 @@ import {
   touchMemberVoiceJoin,
   touchMemberVoiceLeave,
   touchSanctionTargetIdentity,
-} from '../services/memberCaseService.js';
-import * as dcDetectionService from '../services/dcDetectionService.js';
+} from '../services/moderation/memberCaseService.js';
+import * as dcDetectionService from '../services/moderation/dcDetectionService.js';
 
 type MessageSnapshot = {
   guildId: string;

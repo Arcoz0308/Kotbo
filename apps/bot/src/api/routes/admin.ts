@@ -37,7 +37,7 @@ import {
   getModulePerformanceStats,
   getModuleStatsSummary,
   KOTBO_MODULES,
-} from '../../services/moduleStatsService.js';
+} from '../../services/analytics/moduleStatsService.js';
 
 export async function handleAdminRoutes(
   req: IncomingMessage,
@@ -1022,7 +1022,7 @@ export async function handleAdminRoutes(
           json(res, 500, { error: result.error || 'Erreur lors du lancement du scraping' });
         }
       } else {
-        const { startHistoricalScraping } = await import('../../services/messageScraperService.js');
+        const { startHistoricalScraping } = await import('../../services/analytics/messageScraperService.js');
         await startHistoricalScraping(client, guildId, force);
         json(res, 200, { ok: true, message: 'Scraping historique lancé avec succès.' });
       }

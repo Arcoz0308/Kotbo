@@ -3,7 +3,7 @@ import { Client, ChannelType } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { isGuildActivated, activateGuild } from '../../../utils/activation.js';
-import { translate } from '../../../services/translationService.js';
+import { translate } from '../../../services/integrations/translationService.js';
 import {
   json,
   readJsonBody,

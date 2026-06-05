@@ -1,6 +1,6 @@
 import { Client, Events, GuildMember } from 'discord.js';
-import { handleGuildMemberAdd, handleGuildMemberRemove } from '../services/welcomeGoodbyeService.js';
-import { checkMemberCountTriggers } from '../services/ctfTriggerService.js';
+import { handleGuildMemberAdd, handleGuildMemberRemove } from '../services/features/welcomeGoodbyeService.js';
+import { checkMemberCountTriggers } from '../services/core/ctfTriggerService.js';
 import { logger } from '../utils/logger.js';
 
 export function registerWelcomeGoodbyeListener(client: Client) {

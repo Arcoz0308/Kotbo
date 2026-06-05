@@ -1,5 +1,5 @@
 import { type Client, PermissionFlagsBits } from 'discord.js';
-import { analyzeCodeContent, buildCorrectedMessage, buildSafetyWarning, hasRawCodeIndicators, isAlreadyFormatted, loadCodePoliceRules } from '../services/codePoliceService.js';
+import { analyzeCodeContent, buildCorrectedMessage, buildSafetyWarning, hasRawCodeIndicators, isAlreadyFormatted, loadCodePoliceRules } from '../services/moderation/codePoliceService.js';
 import { logger } from '../utils/logger.js';
 import { getCachedGuild, cache } from '../utils/cache.js';
 
@@ -15,7 +15,7 @@ async function isCodePoliceEnabled(guildId: string): Promise<boolean> {
   return guild?.codePoliceEnabled ?? false;
 }
 
-export { analyzeCodeContent } from '../services/codePoliceService.js';
+export { analyzeCodeContent } from '../services/moderation/codePoliceService.js';
 
 export function registerCodePoliceListener(client: Client): void {
   client.on('messageCreate', async message => {

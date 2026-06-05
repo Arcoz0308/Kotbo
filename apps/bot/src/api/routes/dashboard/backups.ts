@@ -3,7 +3,7 @@ import { Client } from 'discord.js';
 import { Prisma } from '@prisma/client';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
-import { createBackup } from '../../../services/backupService.js';
+import { createBackup } from '../../../services/system/backupService.js';
 import {
   json,
   readJsonBody,

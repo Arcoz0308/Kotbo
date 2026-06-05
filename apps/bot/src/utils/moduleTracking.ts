@@ -3,7 +3,7 @@ import {
   incrementModuleUsage,
   setModuleActivation,
   type KotboModule,
-} from '../services/moduleStatsService.js';
+} from '../services/analytics/moduleStatsService.js';
 
 /**
  * Wrapper pour tracker automatiquement les performances et l'utilisation des modules

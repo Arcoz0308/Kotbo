@@ -1,5 +1,5 @@
 import { Client, Events, Message, PartialMessage } from 'discord.js';
-import { handleAutoMod, handleGhostPingDelete, handleGhostPingUpdate } from '../services/autoModService.js';
+import { handleAutoMod, handleGhostPingDelete, handleGhostPingUpdate } from '../services/moderation/autoModService.js';
 import { logger } from '../utils/logger.js';
 
 export function registerAutoModListener(client: Client) {

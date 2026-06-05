@@ -37,7 +37,7 @@ import {
   deleteManagerNote,
   getManagerNotes,
   createManagerNote,
-} from '../../../services/staffLeadershipService.js';
+} from '../../../services/staff/staffLeadershipService.js';
 import {
   getStaffMember,
   addStaffMember,
@@ -69,10 +69,10 @@ import {
   removeMemberFromHierarchy,
   syncStaffHierarchyMemberships,
   importRoleMembers,
-} from '../../../services/staffManagementService.js';
-import { getStaffProfileSnapshot } from '../../../services/profileService.js';
-import * as tutoringService from '../../../services/tutoringService.js';
-import * as altAccountService from '../../../services/altAccountService.js';
+} from '../../../services/staff/staffManagementService.js';
+import { getStaffProfileSnapshot } from '../../../services/progression/profileService.js';
+import * as tutoringService from '../../../services/core/tutoringService.js';
+import * as altAccountService from '../../../services/moderation/altAccountService.js';
 import { TutoringItemState } from '@prisma/client';
 
 type RoleDisplay = {

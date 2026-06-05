@@ -1,6 +1,6 @@
 import { EmbedBuilder, Events, PermissionFlagsBits, type Client, type GuildMember } from 'discord.js';
-import { isNicknameProblematic, SAFE_NICKNAME, buildRenameReason, loadBannedWords } from '../services/nicknameModerationService.js';
-import { invalidateBannedWordsCache, loadGlobalWords, loadCustomWords } from '../services/bannedWordsService.js';
+import { isNicknameProblematic, SAFE_NICKNAME, buildRenameReason, loadBannedWords } from '../services/moderation/nicknameModerationService.js';
+import { invalidateBannedWordsCache, loadGlobalWords, loadCustomWords } from '../services/moderation/bannedWordsService.js';
 import { logger } from '../utils/logger.js';
 
 import { getCachedGuild, cache } from '../utils/cache.js';

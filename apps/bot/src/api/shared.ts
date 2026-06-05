@@ -28,9 +28,9 @@ import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 export { COLORS, successEmbed } from '../utils/embeds.js';
 import { isGuildActivated, activateGuild, deactivateGuild, activatedGuilds } from '../utils/activation.js';
-import { translate } from '../services/translationService.js';
-import { getTwitchUserId } from '../services/twitchService.js';
-import { resolveYoutubeChannel } from '../services/youtubeService.js';
+import { translate } from '../services/integrations/translationService.js';
+import { getTwitchUserId } from '../services/integrations/twitchService.js';
+import { resolveYoutubeChannel } from '../services/integrations/youtubeService.js';
 export {
   registerBanSanction,
   registerKickSanction,
@@ -38,13 +38,13 @@ export {
   registerWarnSanction,
   runGuildBan,
   formatDurationFr,
-} from '../services/sanctionService.js';
+} from '../services/moderation/sanctionService.js';
 import {
   COMMAND_CATALOG,
   normalizeCommandRestrictions,
   type CommandRestrictionRule,
 } from '../utils/commandAccess.js';
-import { getDailyAlgoUserProfile, getDailyAlgoUserParticipations, getLocalDateKey, reviewDailyAlgoSubmission } from '../services/dailyAlgoService.js';
+import { getDailyAlgoUserProfile, getDailyAlgoUserParticipations, getLocalDateKey, reviewDailyAlgoSubmission } from '../services/progression/dailyAlgoService.js';
 import {
   hashAPIKey,
   generateAPIKey,
@@ -79,11 +79,11 @@ import {
   removeMemberFromHierarchy,
   syncStaffHierarchyMemberships,
   importRoleMembers,
-} from '../services/staffManagementService.js';
+} from '../services/staff/staffManagementService.js';
 export {
   getPublicProfileSnapshot,
   getStaffProfileSnapshot,
-} from '../services/profileService.js';
+} from '../services/progression/profileService.js';
 import {
   getPolls,
   createPoll,
@@ -106,8 +106,8 @@ import {
   markAllNotificationsRead,
   createNotification,
   getStaffCalendarData,
-} from '../services/staffLeadershipService.js';
-import * as tutoringService from '../services/tutoringService.js';
+} from '../services/staff/staffLeadershipService.js';
+import * as tutoringService from '../services/core/tutoringService.js';
 import {
   getEvents,
   getEvent,
@@ -118,7 +118,7 @@ import {
   prevQuestion,
   finishEvent,
   deleteEvent
-} from '../services/eventService.js';
+} from '../services/features/eventService.js';
 import {
   getCandidatures,
   createCandidature,
@@ -130,11 +130,11 @@ import {
   completeOral,
   assignTutor,
   getCandidatureHistory,
-} from '../services/recruitmentService.js';
-import * as altAccountService from '../services/altAccountService.js';
-import { scanGuildMembersForYoungAccounts } from '../services/dcDetectionService.js';
-import { publishOrUpdateRegulationMessage } from '../services/regulationService.js';
-import { publishNewsArticle, generateRssXml } from '../services/newsService.js';
+} from '../services/staff/recruitmentService.js';
+import * as altAccountService from '../services/moderation/altAccountService.js';
+import { scanGuildMembersForYoungAccounts } from '../services/moderation/dcDetectionService.js';
+import { publishOrUpdateRegulationMessage } from '../services/staff/regulationService.js';
+import { publishNewsArticle, generateRssXml } from '../services/core/newsService.js';
 import { env } from 'node:process';
 import crypto from 'node:crypto';
 import { fetchAllMembers } from '../utils/discord.js';
@@ -2270,7 +2270,7 @@ export async function resolveFeatureAccessMap(
   userId: string | null,
   roleIds: string[],
 ): Promise<FeatureAccessMap> {
-  const { getOrCreateFeatureConfigs } = await import('../services/dashboardManagementService.js');
+  const { getOrCreateFeatureConfigs } = await import('../services/core/dashboardManagementService.js');
   const featureConfigs = await getOrCreateFeatureConfigs(guildId);
   const isGlobalAdmin = userId ? await resolveAdminAccess(client, userId) : false;
 

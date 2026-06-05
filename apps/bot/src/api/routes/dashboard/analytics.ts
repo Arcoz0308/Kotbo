@@ -17,7 +17,7 @@ import {
   getDailyAlgoAnalytics,
   getGlobalInteractions,
   getDashboardAnalytics,
-} from '../../../services/dashboardAnalyticsService.js';
+} from '../../../services/analytics/dashboardAnalyticsService.js';
 
 export async function handleAnalyticsRoutes(
   req: IncomingMessage,

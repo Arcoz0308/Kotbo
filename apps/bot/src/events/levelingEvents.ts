@@ -1,5 +1,5 @@
 import { Client, Events, Message } from 'discord.js';
-import { handleTextXp, addXp, getOrCreateLevelConfig } from '../services/levelingService.js';
+import { handleTextXp, addXp, getOrCreateLevelConfig } from '../services/progression/levelingService.js';
 import { logger } from '../utils/logger.js';
 import prisma from '../utils/db.js';
 

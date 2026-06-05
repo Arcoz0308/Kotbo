@@ -18,7 +18,7 @@ import {
   prevQuestion,
   finishEvent,
   deleteEvent,
-} from '../../../services/eventService.js';
+} from '../../../services/features/eventService.js';
 
 export async function handleEventsRoutes(
   req: IncomingMessage,

@@ -17,7 +17,7 @@
     "test:watch": "bun test --watch src/tests",
     "typecheck": "bun x tsc -p tsconfig.json --noEmit",
     "quality:gate": "bun run lint && bun run test:unit && bun run coverage:gate",
-    "lint": "eslint src/api --ext .ts"
+    "lint": "eslint src --ext .ts"
   },
   "dependencies": {
     "@kotbo/database": "workspace:*",

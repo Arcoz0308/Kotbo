@@ -7,8 +7,8 @@
  */
 
 import { describe, it, expect } from 'bun:test';
-import { containsBannedWord } from '../../services/bannedWordsService.js';
-import { isNicknameProblematic } from '../../services/nicknameModerationService.js';
+import { containsBannedWord } from '../../services/moderation/bannedWordsService.js';
+import { isNicknameProblematic } from '../../services/moderation/nicknameModerationService.js';
 
 describe('containsBannedWord — Détection automatique', () => {
   // ---------------------------------------------------------------------------

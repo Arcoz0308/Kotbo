@@ -41,8 +41,8 @@ import { registerStatsChannelListener } from './events/stats.js';
 import { registerDailyAlgoHandlers } from './handlers/dailyAlgoHandler.js';
 import { registerMeetingEvents } from './events/meetingEvents.js';
 import { registerAnalyticsListeners } from './events/analyticsEvents.js';
-import { syncOngoingDailyAlgoButtons } from './services/dailyAlgoService.js';
-import { checkTranslationProviderHealth } from './services/translationService.js';
+import { syncOngoingDailyAlgoButtons } from './services/progression/dailyAlgoService.js';
+import { checkTranslationProviderHealth } from './services/integrations/translationService.js';
 import { startDashboardApi } from './api/dashboardApi.js';
 import { initBotSentry, captureException } from './observability/sentry.js';
 import { initRedis } from './infra/redis.js';
@@ -53,7 +53,7 @@ import { registerWelcomeGoodbyeListener } from './events/welcomeGoodbyeEvents.js
 import { registerAutoModListener } from './events/autoModEvents.js';
 import { registerAutoResponseListener } from './events/autoResponseEvents.js';
 import { loadActivatedGuilds, isGuildActivated } from './utils/activation.js';
-import { initializeAutoBackupForAllGuilds, initializeAutoBackup, stopAutoBackup } from './services/autoBackupService.js';
+import { initializeAutoBackupForAllGuilds, initializeAutoBackup, stopAutoBackup } from './services/system/autoBackupService.js';
 import {
   commands as slashCommandDefinitions,
   contextCommands as contextCommandDefinitions,
@@ -253,7 +253,7 @@ client.once(Events.ClientReady, async (c) => {
 
   // Trigger historical message scraping for any activated guild that hasn't started yet
   try {
-    const { startHistoricalScraping } = await import('./services/messageScraperService.js');
+    const { startHistoricalScraping } = await import('./services/analytics/messageScraperService.js');
     const activatedGuilds = await prisma.guild.findMany({
       where: { activated: true },
       select: { id: true, statsConfig: true }
@@ -306,7 +306,7 @@ client.on(Events.GuildCreate, async (guild) => {
 
   if (isGuildActivated(guild.id)) {
     // Start historical message scraping
-    const { startHistoricalScraping } = await import('./services/messageScraperService.js');
+    const { startHistoricalScraping } = await import('./services/analytics/messageScraperService.js');
     startHistoricalScraping(client, guild.id).catch((err) =>
       logger.error('System', `Impossible de démarrer le scraping historique pour ${guild.name}:`, err)
     );
@@ -535,6 +535,7 @@ function logErrorToDb(error: Error, source: string) {
 process.on('uncaughtException', (error) => {
   logger.error('System', 'Uncaught Exception:', error);
   logErrorToDb(error, 'uncaughtException');
+  void flushAndStop(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {

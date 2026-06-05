@@ -2,23 +2,23 @@
   "root": true,
   "parser": "@typescript-eslint/parser",
   "plugins": ["@typescript-eslint"],
-  "overrides": [
-    {
-      "files": ["src/api/*.ts", "src/api/routes/*.ts"],
-      "rules": {
-        "@typescript-eslint/no-explicit-any": "error",
-        "no-restricted-syntax": [
-          "error",
-          {
-            "selector": "TSAsExpression[typeAnnotation.type='TSAnyKeyword']",
-            "message": "Casting to 'any' (as any) is forbidden. Use proper typing instead."
-          },
-          {
-            "selector": "TSTypeAssertion[typeAnnotation.type='TSAnyKeyword']",
-            "message": "Casting to 'any' (<any>) is forbidden. Use proper typing instead."
-          }
-        ]
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended"
+  ],
+  "rules": {
+    "@typescript-eslint/no-explicit-any": "error",
+    "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "no-restricted-syntax": [
+      "error",
+      {
+        "selector": "TSAsExpression[typeAnnotation.type='TSAnyKeyword']",
+        "message": "Casting to 'any' (as any) is forbidden. Use proper typing instead."
+      },
+      {
+        "selector": "TSTypeAssertion[typeAnnotation.type='TSAnyKeyword']",
+        "message": "Casting to 'any' (<any>) is forbidden. Use proper typing instead."
       }
-    }
-  ]
+    ]
+  }
 }

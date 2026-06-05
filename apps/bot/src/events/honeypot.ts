@@ -7,7 +7,7 @@ import {
   registerKickSanction,
   registerBanSanction,
   registerTimeoutSanction,
-} from '../services/sanctionService.js';
+} from '../services/moderation/sanctionService.js';
 
 export function registerHoneypotListener(client: Client): void {
   client.on(Events.MessageCreate, async (message: Message) => {
