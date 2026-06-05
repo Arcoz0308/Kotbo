@@ -54,7 +54,7 @@ async function incrementModerationStats(guildId: string, type: SanctionType): Pr
   if (type === SanctionType.WARN) updateData.warnsCount = { increment: 1 };
   else if (type === SanctionType.KICK) updateData.kicksCount = { increment: 1 };
   else if (type === SanctionType.TIMEOUT) updateData.timeoutsCount = { increment: 1 };
-  else if (type === SanctionType.BAN || type === SanctionType.TEMP_BAN) updateData.bansCount = { increment: 1 };
+  else if (type === SanctionType.BAN || type === SanctionType.TEMP_BAN || type === SanctionType.SOFTBAN) updateData.bansCount = { increment: 1 };
 
   await prisma.guildDailyStat.upsert({
     where: { guildId_dateKey: { guildId, dateKey } },
@@ -65,7 +65,7 @@ async function incrementModerationStats(guildId: string, type: SanctionType): Pr
       warnsCount: type === SanctionType.WARN ? 1 : 0,
       kicksCount: type === SanctionType.KICK ? 1 : 0,
       timeoutsCount: type === SanctionType.TIMEOUT ? 1 : 0,
-      bansCount: (type === SanctionType.BAN || type === SanctionType.TEMP_BAN) ? 1 : 0,
+      bansCount: (type === SanctionType.BAN || type === SanctionType.TEMP_BAN || type === SanctionType.SOFTBAN) ? 1 : 0,
     },
     update: updateData,
   }).catch((error) => {
@@ -549,6 +549,73 @@ export async function registerBanSanction(params: {
       moderator: params.moderator,
       reason: params.reason,
       durationMs: params.temporaryDurationMs
+    }).catch(() => null);
+  }
+
+  return sanction;
+}
+
+export async function registerSoftbanSanction(params: {
+  guildId: string;
+  target: Target;
+  moderator: Actor;
+  reason: string;
+  client?: Client;
+  isSync?: boolean;
+}) {
+  const existing = await findRecentSanction({
+    guildId: params.guildId,
+    type: SanctionType.SOFTBAN,
+    targetUserId: params.target.id,
+    moderatorUserId: params.moderator.id,
+  });
+
+  if (existing) return existing;
+
+  const sanction = await prisma.sanction.create({
+    data: {
+      guildId: params.guildId,
+      type: SanctionType.SOFTBAN,
+      status: SanctionStatus.RESOLVED,
+      targetUserId: params.target.id,
+      targetTag: params.target.tag,
+      moderatorUserId: params.moderator.id,
+      moderatorTag: params.moderator.tag,
+      reason: params.reason,
+      resolvedAt: new Date(),
+      resolutionNote: 'Softban exécuté (ban puis déban immédiat).'
+    }
+  });
+
+  void incrementModerationStats(params.guildId, SanctionType.SOFTBAN).catch(() => null);
+
+  void touchSanctionTargetIdentity({
+    guildId: params.guildId,
+    userId: params.target.id,
+    userTag: params.target.tag,
+  }).catch(() => null);
+
+  await emitSanctionReportReminder({
+    guildId: sanction.guildId,
+    sanctionId: sanction.id,
+    sanctionType: sanction.type,
+    targetTag: sanction.targetTag,
+    targetUserId: sanction.targetUserId,
+    moderatorTag: sanction.moderatorTag,
+    moderatorUserId: sanction.moderatorUserId,
+  });
+
+  void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
+
+  if (params.client && !params.isSync) {
+    void propagateSanction(params.client, params.guildId, sanction).catch(() => null);
+    void altAccountService.synchronizeSanction({
+      client: params.client,
+      guildId: params.guildId,
+      originalUserId: params.target.id,
+      type: SanctionType.SOFTBAN,
+      moderator: params.moderator,
+      reason: params.reason
     }).catch(() => null);
   }
 

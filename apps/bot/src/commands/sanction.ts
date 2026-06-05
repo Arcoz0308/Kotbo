@@ -28,6 +28,7 @@ import {
   registerKickSanction,
   registerTimeoutSanction,
   registerWarnSanction,
+  registerSoftbanSanction,
   runGuildBan,
 } from '../services/sanctionService.js';
 import * as altAccountService from '../services/altAccountService.js';
@@ -79,6 +80,13 @@ const data = new SlashCommandBuilder()
       .addUserOption((option) => option.setName('membre').setDescription('Membre à bannir temporairement').setRequired(true))
       .addStringOption((option) => option.setName('duree').setDescription(DURATION_HELP).setRequired(true))
       .addStringOption((option) => option.setName('raison').setDescription('Raison du tempban').setRequired(true)),
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('softban')
+      .setDescription('Bannit puis débannit immédiatement un membre pour supprimer ses messages récents (7 jours)')
+      .addUserOption((option) => option.setName('membre').setDescription('Membre à softban').setRequired(true))
+      .addStringOption((option) => option.setName('raison').setDescription('Raison du softban').setRequired(true)),
   )
   .addSubcommand((sub) =>
     sub
@@ -157,6 +165,8 @@ function sanctionTypeLabel(type: SanctionType): string {
       return 'Tempban';
     case SanctionType.BAN:
       return 'Ban';
+    case SanctionType.SOFTBAN:
+      return 'Softban';
     default:
       return type;
   }
@@ -174,6 +184,8 @@ function sanctionTypeEmoji(type: SanctionType): string {
       return '🚫';
     case SanctionType.BAN:
       return '⛔';
+    case SanctionType.SOFTBAN:
+      return '🧼';
     default:
       return '📌';
   }
@@ -545,6 +557,50 @@ async function executeInternal(interaction: ChatInputCommandInteraction | UserCo
             { name: 'Durée', value: formatDurationFr(durationMs), inline: true },
             { name: 'Raison', value: reason, inline: false },
             { name: 'Déban auto', value: `<t:${Math.floor((sanction.expiresAt?.getTime() ?? Date.now()) / 1000)}:F>`, inline: false },
+          ),
+        ],
+        components: [buildMemberCaseActionRow(targetUser.id)],
+      });
+
+      await notifyModeratorDashboardReportReminder(interaction, {
+        sanctionId: sanction.id,
+        targetLabel: targetUser.tag,
+      });
+      return;
+    }
+
+    if (subcommand === 'softban') {
+      const reason = interaction.options.getString('raison', true).trim();
+
+      if (targetMember && !targetMember.bannable) {
+        await replyError(interaction, 'Action impossible', 'Le bot ne peut pas bannir/softban ce membre. Vérifie la hiérarchie des rôles.');
+        return;
+      }
+
+      // 1. Bannir le membre avec suppression des messages de 7 jours (604800 secondes)
+      await interaction.guild.members.ban(targetUser.id, {
+        deleteMessageSeconds: 7 * 24 * 60 * 60,
+        reason: `${reason} | Softban par ${interaction.user.tag}`
+      });
+
+      // 2. Débannir le membre immédiatement
+      await interaction.guild.members.unban(targetUser.id, `Softban (re-déban automatique) | Modération: ${interaction.user.tag}`);
+
+      // 3. Enregistrer la sanction dans la BDD
+      const sanction = await registerSoftbanSanction({
+        guildId: interaction.guildId,
+        target,
+        moderator,
+        reason,
+        client: interaction.client,
+      });
+
+      await interaction.reply({
+        embeds: [
+          successEmbed('Softban exécuté', `${targetUser.tag} a été softban (banni puis débanni immédiatement).`).addFields(
+            { name: 'Messages supprimés', value: '7 derniers jours', inline: true },
+            { name: 'Raison', value: reason, inline: false },
+            { name: 'ID sanction', value: sanction.id, inline: false }
           ),
         ],
         components: [buildMemberCaseActionRow(targetUser.id)],

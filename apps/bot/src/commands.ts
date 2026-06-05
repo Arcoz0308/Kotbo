@@ -35,6 +35,9 @@ import { suggestCommand } from './commands/suggest.js';
 import { ticketCommand } from './commands/ticket.js';
 import { transcriptCommand } from './commands/transcript.js';
 import { suggestionConfigCommand } from './commands/suggestion-config.js';
+import { clearCommand } from './commands/clear.js';
+import { channelCommand } from './commands/channel.js';
+import { signalCommand, signalContextCommand } from './commands/signal.js';
 
 export type SlashCommandDefinition = {
   data: { name: string; toJSON: () => unknown };
@@ -87,12 +90,16 @@ export const commands: SlashCommandDefinition[] = [
   giveawayCommand,
   suggestCommand,
   suggestionConfigCommand,
+  clearCommand,
+  channelCommand,
+  signalCommand,
 ];
 
 export const contextCommands: ContextCommandDefinition[] = [
   noteContextCommand,
   casierContextCommand,
   sanctionContextCommand,
+  signalContextCommand,
 ];
 
 export const applicationCommands: ApplicationCommandDefinition[] = [

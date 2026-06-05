@@ -206,6 +206,12 @@ export async function synchronizeSanction(params: {
             temporaryDurationMs: durationMs 
           });
           break;
+
+        case SanctionType.SOFTBAN:
+          await guild.members.ban(altId, { deleteMessageSeconds: 7 * 24 * 3600, reason: syncReason }).catch(() => null);
+          await guild.members.unban(altId, `Unban synchronisation softban`).catch(() => null);
+          await sanctionService.registerSoftbanSanction({ guildId, target, moderator, reason: syncReason });
+          break;
       }
     } catch (error) {
       logger.error('AltAccount', `Erreur lors de la synchronisation de la sanction pour l'alt ${altId}:`, error);

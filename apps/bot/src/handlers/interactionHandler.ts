@@ -20,7 +20,7 @@ import prisma from '../utils/db.js';
 import { getCachedGuild } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
 import { DigestFrequency } from '@prisma/client';
-import { COLORS, successEmbed, truncate } from '../utils/embeds.js';
+import { COLORS, successEmbed, errorEmbed, truncate } from '../utils/embeds.js';
 import { handleConfigButton, handleConfigChannelSelect, handleConfigModal, handleConfigSelectMenu } from './configHandler.js';
 import { sendSetupStep1, sendSetupStep2, sendSetupStep3, sendSetupFinish } from '../panels/setupPanel.js';
 import { reviewDailyAlgoSubmission } from '../services/dailyAlgoService.js';
@@ -35,6 +35,7 @@ import { handleTicketButton, handleTicketModalSubmit, handleTicketSelectMenu } f
 import { checkInMeeting, createNotification } from '../services/staffLeadershipService.js';
 import { handleDCInteraction } from '../services/dcDetectionService.js';
 import { showModeratorNoteModal } from '../commands/note.js';
+import { sendReportToAdmin } from '../commands/signal.js';
 import {
   parseDurationToMs,
   registerBanSanction,
@@ -1110,6 +1111,44 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
 
   if (customId.startsWith('cfg:')) {
     await handleConfigModal(interaction);
+    return;
+  }
+
+  // ── Signal User Modal ───────────────────────────────────────────────────
+  if (customId.startsWith('modal:signal:')) {
+    const targetUserId = customId.split(':')[2];
+    const reason = interaction.fields.getTextInputValue('raison').trim();
+
+    if (!targetUserId) return;
+
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+    const targetUser = await client.users.fetch(targetUserId).catch(() => null);
+    if (!targetUser) {
+      await interaction.editReply({
+        embeds: [errorEmbed('Utilisateur introuvable', 'Impossible de trouver cet utilisateur Discord.')],
+      });
+      return;
+    }
+
+    const success = await sendReportToAdmin({
+      client,
+      reporter: interaction.user,
+      target: targetUser,
+      reason,
+      guildName: interaction.guild?.name ?? 'Message Privé',
+      guildId: interaction.guildId ?? 'N/A',
+    });
+
+    if (success) {
+      await interaction.editReply({
+        embeds: [successEmbed('Signalement envoyé', `L'utilisateur ${targetUser} a été signalé avec succès à l'administrateur du bot.`)],
+      });
+    } else {
+      await interaction.editReply({
+        embeds: [errorEmbed('Échec de l\'envoi', 'Impossible de transmettre le signalement à l\'administrateur du bot.')],
+      });
+    }
     return;
   }
 

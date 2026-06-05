@@ -627,6 +627,7 @@ enum SanctionType {
   TIMEOUT
   TEMP_BAN
   BAN
+  SOFTBAN
 }
 
 enum SanctionStatus {
