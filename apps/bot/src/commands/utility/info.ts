@@ -1,6 +1,6 @@
 import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
-import { errorEmbed, COLORS } from '../../utils/embeds.js';
+import { errorEmbed, COLORS, baseEmbed } from '../../utils/embeds.js';
 import prisma from '../../utils/db.js';
 import fs from 'fs/promises';
 
@@ -84,8 +84,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
 
 
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.info)
+  const embed = baseEmbed(COLORS.info, { user: interaction.user })
     .setTitle('🛰️ Tableau de bord Kotbo')
     .setDescription('Vue rapide de la santé du bot, des modules actifs et des métriques de ce serveur.')
     .setThumbnail(interaction.client.user?.displayAvatarURL() ?? null)

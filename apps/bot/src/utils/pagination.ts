@@ -2,11 +2,11 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  EmbedBuilder,
   type ChatInputCommandInteraction,
   ComponentType,
   type ColorResolvable,
 } from 'discord.js';
+import { baseEmbed } from './embeds.js';
 
 export interface PaginationOptions {
   interaction: ChatInputCommandInteraction;
@@ -31,18 +31,20 @@ export async function createPagination(opts: PaginationOptions) {
     const end = start + pageSize;
     const pageItems = items.slice(start, end);
 
-    const embed = new EmbedBuilder()
+    const embed = baseEmbed(color, { user: interaction.user })
       .setTitle(title)
-      .setDescription(pageItems.join('\n') || 'Aucun élément.')
-      .setColor(color ?? (0x5865f2 as ColorResolvable))
-      .setTimestamp();
+      .setDescription(pageItems.join('\n') || 'Aucun élément.');
 
     if (totalPages > 1) {
       embed.setFooter({ 
-        text: `${footerPrefix}${footerPrefix ? ' · ' : ''}Page ${pageIndex + 1} / ${totalPages}` 
+        text: `${footerPrefix}${footerPrefix ? ' · ' : ''}Page ${pageIndex + 1} / ${totalPages} • Demandé par ${interaction.user.username}`,
+        iconURL: interaction.user.displayAvatarURL()
       });
     } else if (footerPrefix) {
-      embed.setFooter({ text: footerPrefix });
+      embed.setFooter({ 
+        text: `${footerPrefix} • Demandé par ${interaction.user.username}`,
+        iconURL: interaction.user.displayAvatarURL()
+      });
     }
 
     return embed;

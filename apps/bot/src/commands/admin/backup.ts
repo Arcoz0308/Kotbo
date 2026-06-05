@@ -10,7 +10,7 @@ import {
   type ChatInputCommandInteraction,
 } from 'discord.js';
 import prisma from '../../utils/db.js';
-import { errorEmbed, infoEmbed, successEmbed } from '../../utils/embeds.js';
+import { errorEmbed, infoEmbed, successEmbed, baseEmbed, COLORS } from '../../utils/embeds.js';
 import { createBackup } from '../../services/system/backupService.js';
 import { restoreBackup, RestoreOptions } from '../../services/system/restoreService.js';
 import { extractTrackingInfo, resolveModuleFromCommand, wrapModuleTracking } from '../../utils/moduleTracking.js';
@@ -219,9 +219,8 @@ async function handleList(interaction: ChatInputCommandInteraction, guildId: str
     return;
   }
 
-  const embed = new EmbedBuilder()
+  const embed = baseEmbed(COLORS.primary, { user: interaction.user })
     .setTitle('💾 Sauvegardes du serveur')
-    .setColor('#5865F2')
     .setDescription(
       backups
         .map(

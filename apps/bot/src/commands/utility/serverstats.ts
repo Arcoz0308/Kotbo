@@ -2,7 +2,7 @@ import type { SlashCommandDefinition } from '../../commands.js';
 import { EmbedBuilder, MessageFlags, SlashCommandBuilder, AttachmentBuilder, type ChatInputCommandInteraction } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { generateServerStatsImage } from '../../services/core/imageService.js';
-import { COLORS } from '../../utils/embeds.js';
+import { COLORS, baseEmbed } from '../../utils/embeds.js';
 
 const data = new SlashCommandBuilder()
   .setName('serverstats')
@@ -63,8 +63,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
   const imageBuffer = await generateServerStatsImage(guildName, periodDays, statsObj);
   const attachment = new AttachmentBuilder(imageBuffer, { name: 'serverstats.png' });
 
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.info)
+  const embed = baseEmbed(COLORS.info, { user: interaction.user })
     .setImage('attachment://serverstats.png')
     .setFooter({ text: `Kotbo Analytics • Requis par ${interaction.user.username}` });
 

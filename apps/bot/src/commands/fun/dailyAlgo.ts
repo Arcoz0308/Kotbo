@@ -6,7 +6,7 @@ import {
   getPreviousDailyAlgoRun,
   formatDailyAlgoDate,
 } from '../../services/progression/dailyAlgoService.js';
-import { COLORS, truncate } from '../../utils/embeds.js';
+import { COLORS, truncate, baseEmbed } from '../../utils/embeds.js';
 import { extractTrackingInfo, resolveModuleFromCommand, wrapModuleTracking } from '../../utils/moduleTracking.js';
 
 const data = new SlashCommandBuilder()
@@ -58,8 +58,7 @@ async function replyPreviousRun(interaction: ChatInputCommandInteraction, guildI
 
   const dateLabel = formatDailyAlgoDate(previousRun.dateKey ?? '');
 
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.info)
+  const embed = baseEmbed(COLORS.info, { user: interaction.user })
     .setTitle(`📚 Daily Algo du ${dateLabel}`)
     .addFields(
       {
@@ -93,8 +92,7 @@ async function replyPreviousRun(interaction: ChatInputCommandInteraction, guildI
 }
 
 async function replyScoring(interaction: ChatInputCommandInteraction): Promise<void> {
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.info)
+  const embed = baseEmbed(COLORS.info, { user: interaction.user })
     .setTitle('🧮 Barème de notation Daily Algo')
     .setDescription(
       'Le score final est la moyenne des 5 critères ci-dessous. La qualité du code prime sur la vitesse de soumission (pas de bonus rapidité).',
@@ -162,8 +160,7 @@ async function replyRanking(interaction: ChatInputCommandInteraction, guildId: s
     ? `Ton rang: **#${currentUserRank.rank}** sur **${ranking.length}** · streak **${currentUserRank.currentStreak}** · ${formatTierBadge(currentUserRank.tier)}`
     : 'Tu n\'es pas encore classé (aucune soumission validée).';
 
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.info)
+  const embed = baseEmbed(COLORS.info, { user: interaction.user })
     .setTitle('📊 Classement Daily Algo du serveur')
     .setDescription(lines.join('\n'))
     .addFields({
@@ -192,8 +189,7 @@ async function replyProfile(interaction: ChatInputCommandInteraction, guildId: s
     return;
   }
 
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.success)
+  const embed = baseEmbed(COLORS.success, { user: interaction.user })
     .setTitle(`🎯 Profil Daily Algo · ${profile.authorName}`)
     .addFields(
       {

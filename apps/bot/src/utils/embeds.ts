@@ -13,23 +13,37 @@ export const COLORS = {
   dark: 0x2b2d31 as ColorResolvable,
 };
 
-export function baseEmbed(color: ColorResolvable = COLORS.primary) {
-  return new EmbedBuilder()
+export interface EmbedOptions {
+  user?: { username: string; displayAvatarURL?: () => string };
+}
+
+export function baseEmbed(color: ColorResolvable = COLORS.primary, options?: EmbedOptions) {
+  const embed = new EmbedBuilder()
     .setColor(color)
-    .setTimestamp()
-    .setFooter({ text: 'Kotbo' });
+    .setTimestamp();
+
+  if (options?.user) {
+    embed.setFooter({
+      text: `Kotbo • Demandé par ${options.user.username}`,
+      iconURL: options.user.displayAvatarURL ? options.user.displayAvatarURL() : undefined
+    });
+  } else {
+    embed.setFooter({ text: 'Kotbo • Assistant V2' });
+  }
+
+  return embed;
 }
 
-export function successEmbed(title: string, description?: string) {
-  return baseEmbed(COLORS.success).setTitle(`✅ ${title}`).setDescription(description ?? null);
+export function successEmbed(title: string, description?: string, options?: EmbedOptions) {
+  return baseEmbed(COLORS.success, options).setTitle(`✅ ${title}`).setDescription(description ?? null);
 }
 
-export function errorEmbed(title: string, description?: string) {
-  return baseEmbed(COLORS.danger).setTitle(`❌ ${title}`).setDescription(description ?? null);
+export function errorEmbed(title: string, description?: string, options?: EmbedOptions) {
+  return baseEmbed(COLORS.danger, options).setTitle(`❌ ${title}`).setDescription(description ?? null);
 }
 
-export function infoEmbed(title: string, description?: string, fields?: APIEmbedField[]) {
-  const e = baseEmbed(COLORS.info).setTitle(`ℹ️ ${title}`);
+export function infoEmbed(title: string, description?: string, fields?: APIEmbedField[], options?: EmbedOptions) {
+  const e = baseEmbed(COLORS.info, options).setTitle(`ℹ️ ${title}`);
   if (description) e.setDescription(description);
   if (fields?.length) e.addFields(fields);
   return e;
