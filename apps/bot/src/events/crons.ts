@@ -130,7 +130,9 @@ export async function registerCrons(client: Client): Promise<void> {
     'staff-warnings-expiration': expireStaffWarnings,
     'staff-blacklist-expiration': expireStaffBlacklist,
     'activity-10min-snapshot': async () => {
-      await runActivitySnapshot(client);
+      runActivitySnapshot(client).catch((error) => {
+        logger.error('Analytics', 'Erreur lors du snapshot d\'activité en arrière-plan:', error);
+      });
     },
     'missing-reports-check': async () => {
       logger.info('Cron', 'Vérification des rapports de sanction manquants...');
