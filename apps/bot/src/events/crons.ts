@@ -100,6 +100,14 @@ export async function registerCrons(client: Client): Promise<void> {
   // Initialiser le backup automatique de la base de données
   initializeDatabaseBackup();
 
+  // Initialiser les planifications dynamiques de la base de données
+  try {
+    const { initializeScheduler } = await import('../services/system/scheduleService.js');
+    await initializeScheduler(client);
+  } catch (err) {
+    logger.error('Cron', 'Erreur lors du démarrage du planificateur de tâches planifiées:', err);
+  }
+
   registerBackgroundJobHandlers({
     'scheduled-events': async () => {
       logger.debug('Cron', 'Vérification des événements planifiés...');

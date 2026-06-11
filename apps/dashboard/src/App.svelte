@@ -80,6 +80,7 @@
   import EmbedBuilder from "./pages/EmbedBuilder.svelte";
   import UserSettings from "./pages/UserSettings.svelte";
   import Backups from "./pages/Backups.svelte";
+  import Schedules from "./pages/Schedules.svelte";
 
   const isPublicPage = $derived(
     /^\/\d{17,19}\/news\/?$/.test($router.path) ||
@@ -146,6 +147,7 @@
     if (path.startsWith("/news")) return "news";
     if (path.startsWith("/social-networks")) return "social_networks";
     if (path.startsWith("/backups")) return "settings";
+    if (path.startsWith("/schedules")) return "settings";
     if (path.startsWith("/admin")) return "centralized_config";
     return null;
   }
@@ -523,6 +525,9 @@
       <Route path="/backups">
         <Backups />
       </Route>
+      <Route path="/schedules">
+        <Schedules />
+      </Route>
 
       <Route path="/events">
         <Events />
@@ -637,6 +642,9 @@
               </Route>
               <Route path="/backups">
                 <Backups />
+              </Route>
+              <Route path="/schedules">
+                <Schedules />
               </Route>
               <Route path="/automations">
                 <ModuleCatalog />

@@ -22,6 +22,7 @@ import { handleModulesRoutes } from './dashboard/modules.js';
 import { handleEventsRoutes } from './dashboard/events.js';
 import { handleGeneralistModulesRoutes } from './dashboard/generalistModules.js';
 import { handleBackupRoutes } from './dashboard/backups.js';
+import { handleScheduleRoutes } from './dashboard/schedules.js';
 
 export async function handleDashboardRoutes(
   req: IncomingMessage,
@@ -161,6 +162,10 @@ export async function handleDashboardRoutes(
       return true;
     }
     if (await handleBackupRoutes(req, res, parts, url, client, user)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
+      return true;
+    }
+    if (await handleScheduleRoutes(req, res, parts, url, client, user)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }

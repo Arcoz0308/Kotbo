@@ -69,6 +69,7 @@ export const configItems: PageConfig[] = [
   { name: "Commandes",           icon: "terminal",      href: "/command-access",       featureKey: "commands", beta: false, wip: false },
   { name: "Paramètres",          icon: "settings",      href: "/settings",             featureKey: "settings", beta: false, wip: false },
   { name: "Sauvegardes",         icon: "archive",        href: "/backups",              featureKey: "settings", beta: false, wip: false },
+  { name: "Planifications",      icon: "calendar",      href: "/schedules",            featureKey: "settings", beta: true, wip: false },
 ];
 
 export const otherPages: PageConfig[] = [
