@@ -12,7 +12,7 @@
     icon = 'Grid', 
     featureKey = '', 
     children,
-    actions
+    actions = undefined
   } = $props();
 
   const saveAction = createAsyncActionState();
@@ -65,7 +65,7 @@
           <ToggleSwitch 
             checked={isModuleEnabled} 
             onToggle={toggleModule}
-            disabled={saveAction.loading}
+            disabled={saveAction.state.loading}
           />
         </div>
       {/if}

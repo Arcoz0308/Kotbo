@@ -273,9 +273,9 @@ export async function handleGeneralistModulesRoutes(
     }
   }
 
-  // 3. WELCOME & GOODBYE ROUTES
-  if (moduleKey === 'welcome') {
-    // GET /api/dashboard/guilds/:guildId/welcome
+  // 3. WELCOME & GOODBYE / ANNOUNCEMENT ROUTES
+  if (moduleKey === 'announcement' || moduleKey === 'welcome') {
+    // GET /api/dashboard/guilds/:guildId/announcement (or /welcome)
     if (parts.length === 5 && method === 'GET') {
       try {
         const config = await getOrCreateWelcomeConfig(guildId);
@@ -287,7 +287,7 @@ export async function handleGeneralistModulesRoutes(
       return true;
     }
 
-    // PATCH /api/dashboard/guilds/:guildId/welcome
+    // PATCH /api/dashboard/guilds/:guildId/announcement (or /welcome)
     if (parts.length === 5 && method === 'PATCH') {
       try {
         const body = await readJsonBody<{
@@ -299,6 +299,15 @@ export async function handleGeneralistModulesRoutes(
           leaveEnabled?: boolean;
           leaveChannelId?: string | null;
           leaveMessage?: string;
+          boostEnabled?: boolean;
+          boostChannelId?: string | null;
+          boostMessage?: string;
+          boostImageEnabled?: boolean;
+          boostImageUrl?: string | null;
+          joinRoleId?: string | null;
+          tagAutoRoleEnabled?: boolean;
+          tagAutoRoleWord?: string;
+          tagAutoRoleId?: string | null;
         }>(req);
 
         if (!body) {
@@ -317,16 +326,25 @@ export async function handleGeneralistModulesRoutes(
             leaveEnabled: body.leaveEnabled,
             leaveChannelId: body.leaveChannelId,
             leaveMessage: body.leaveMessage,
+            boostEnabled: body.boostEnabled,
+            boostChannelId: body.boostChannelId,
+            boostMessage: body.boostMessage,
+            boostImageEnabled: body.boostImageEnabled,
+            boostImageUrl: body.boostImageUrl,
+            joinRoleId: body.joinRoleId,
+            tagAutoRoleEnabled: body.tagAutoRoleEnabled,
+            tagAutoRoleWord: body.tagAutoRoleWord,
+            tagAutoRoleId: body.tagAutoRoleId,
           },
         });
 
         await pushAudit(guildId, {
           user: auditUser,
-          action: 'Mise à jour Accueil/Départ',
+          action: 'Mise à jour Annonces/Auto-Rôle',
           context: getGuildName(client, guildId),
-          module: 'WelcomeGoodbye',
+          module: 'Announcement',
           eventType: 'Manuel',
-          details: `Modifications appliquées. Envoi accueil: ${config.welcomeEnabled}, Envoi départ: ${config.leaveEnabled}`,
+          details: `Modifications appliquées. Accueil: ${config.welcomeEnabled}, Départ: ${config.leaveEnabled}, Boost: ${config.boostEnabled}, Tag Auto-Role: ${config.tagAutoRoleEnabled}`,
           channelId: null
         });
 

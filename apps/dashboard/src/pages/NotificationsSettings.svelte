@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onDestroy, untrack } from 'svelte';
+  import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { updateGlobalSettings, updateNotificationsSettings } from '../lib/api';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
@@ -26,9 +28,21 @@
     severityByModule: []
   });
 
+  let savedNotifications = $state({
+    discordChannel: '#alertes-redaction',
+    logChannelId: '',
+    moderatorRoleId: '',
+    email: '',
+    emailEnabled: false,
+    cloudBackup: true,
+    debugLog: false,
+    killSwitchEnabled: false,
+    severityByModule: [] as any[]
+  });
+
   $effect(() => {
     if (!dashboardStore.state.loading) {
-      notificationsDraft = {
+      const loaded = {
         discordChannel: dashboardStore.state.notifications?.discordChannel || '#alertes-redaction',
         logChannelId: dashboardStore.state.logChannelId || '',
         moderatorRoleId: dashboardStore.state.moderatorRoleId || '',
@@ -39,15 +53,45 @@
         killSwitchEnabled: !!dashboardStore.state.notifications?.killSwitchEnabled,
         severityByModule: dashboardStore.state.notifications?.severityByModule || []
       };
+      notificationsDraft = { ...loaded };
+      savedNotifications = JSON.parse(JSON.stringify(loaded));
     }
   });
 
-  async function saveNotifications() {
+  $effect(() => {
+    const dirty = JSON.stringify(notificationsDraft) !== JSON.stringify(savedNotifications);
+    if (dirty && canManageSettings) {
+      untrack(() => {
+        unsavedChanges.register({
+          label: 'Paramètres & Notifications',
+          onSave: () => saveNotifications(),
+          onReset: () => {
+            notificationsDraft = JSON.parse(JSON.stringify(savedNotifications));
+          }
+        });
+      });
+    } else if (!dirty) {
+      untrack(() => {
+        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Paramètres & Notifications') {
+          unsavedChanges.clear();
+        }
+      });
+    }
+  });
+
+  onDestroy(() => {
+    if (unsavedChanges.pageLabel === 'Paramètres & Notifications') {
+      unsavedChanges.clear();
+    }
+  });
+
+  async function saveNotifications(): Promise<boolean> {
     if (!canManageSettings) {
       saveAction.setError('Seuls les administrateurs peuvent modifier ces paramètres.');
-      return;
+      return false;
     }
 
+    let success = false;
     await saveAction.run(
       async () => {
         const notificationsPayload = {
@@ -72,6 +116,8 @@
         if (!settingsSaved) return false;
 
         await dashboardStore.refresh();
+        savedNotifications = JSON.parse(JSON.stringify(notificationsDraft));
+        success = true;
         return true;
       },
       {
@@ -79,6 +125,7 @@
         failureMessage: 'Impossible d\'enregistrer les paramètres pour le moment.'
       }
     );
+    return success;
   }
 
   async function persistDiscordChannel() {
@@ -167,7 +214,7 @@
           </div>
           <ToggleSwitch
             checked={notificationsDraft.killSwitchEnabled}
-            onToggle={(checked) => (notificationsDraft.killSwitchEnabled = checked)}
+            onToggle={(checked: boolean) => (notificationsDraft.killSwitchEnabled = checked)}
             activeClass="peer-checked:bg-red-500"
           />
         </div>
@@ -192,7 +239,7 @@
               <ToggleSwitch
                 size="sm"
                 checked={notificationsDraft.cloudBackup}
-                onToggle={(checked) => (notificationsDraft.cloudBackup = checked)}
+                onToggle={(checked: boolean) => (notificationsDraft.cloudBackup = checked)}
               />
             </div>
             <p class="text-xs text-on-surface-variant">Synchronisation quotidienne de la base de données.</p>
@@ -209,7 +256,7 @@
               <ToggleSwitch
                 size="sm"
                 checked={notificationsDraft.debugLog}
-                onToggle={(checked) => (notificationsDraft.debugLog = checked)}
+                onToggle={(checked: boolean) => (notificationsDraft.debugLog = checked)}
               />
             </div>
             <p class="text-xs text-on-surface-variant">Logs plus verbeux pour l'analyse des erreurs.</p>
@@ -226,7 +273,7 @@
               <ToggleSwitch
                 size="sm"
                 checked={notificationsDraft.emailEnabled}
-                onToggle={(checked) => (notificationsDraft.emailEnabled = checked)}
+                onToggle={(checked: boolean) => (notificationsDraft.emailEnabled = checked)}
               />
             </div>
             <p class="text-xs text-on-surface-variant">Recevoir un rapport par email si le bot crash.</p>
@@ -251,24 +298,6 @@
         {#if !canManageSettings}
           <p class="text-xs text-on-surface-variant">Accès modérateur: consultation et modération de contenu uniquement.</p>
         {/if}
-        <div class="flex items-center gap-3">
-          <button
-            type="button"
-            onclick={resetNotifications}
-            disabled={!canManageSettings}
-            class="px-4 py-2.5 rounded-xl border border-outline-variant/30 text-xs font-black uppercase tracking-wider text-on-surface-variant hover:bg-surface-container-low"
-          >
-            Réinitialiser
-          </button>
-          <button
-            type="button"
-            onclick={saveNotifications}
-            disabled={saveAction.state.loading || !canManageSettings}
-            class="px-5 py-2.5 rounded-xl bg-primary text-white text-xs font-black uppercase tracking-wider shadow-lg shadow-primary/10 hover:opacity-90 disabled:opacity-50"
-          >
-            {saveAction.state.loading ? 'Enregistrement...' : 'Enregistrer'}
-          </button>
-        </div>
       </div>
     </div>
   </div>
@@ -315,7 +344,7 @@
             <Papicon icon="rss_feed" size={18} class="text-slate-400" />
           </div>
           <div>
-            <p class="text-xs font-bold text-slate-800 dark:text-slate-200">{dashboardStore.state.feeds?.length ?? 0} Flux RSS Configurés</p>
+            <p class="text-xs font-bold text-slate-800 dark:text-slate-200">{(dashboardStore.state as any).feeds?.length ?? 0} Flux RSS Configurés</p>
           </div>
         </div>
       </div>

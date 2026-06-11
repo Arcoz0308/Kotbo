@@ -38,7 +38,7 @@ import {
 import { normalizeCommandRestrictions } from '../../../utils/commandAccess.js';
 import { getTwitchUserId } from '../../../services/integrations/twitchService.js';
 import { resolveYoutubeChannel } from '../../../services/integrations/youtubeService.js';
-import { publishOrUpdateRegulationMessage } from '../../../services/staff/regulationService.js';
+import { publishOrUpdateRegulationMessage, applyRegulationLock } from '../../../services/staff/regulationService.js';
 import { publishNewsArticle } from '../../../services/core/newsService.js';
 import {
   getLocalDateKey,
@@ -1889,6 +1889,9 @@ export async function handleModulesRoutes(
         autoThreadEnabled?: boolean;
         twitchEnabled?: boolean;
         socialNetworksEnabled?: boolean;
+        regulationVerificationEnabled?: boolean;
+        regulationRoleId?: string | null;
+        regulationLockEnabled?: boolean;
       }>(req);
 
       if (!body) {
@@ -1896,7 +1899,18 @@ export async function handleModulesRoutes(
         return true;
       }
 
+      const oldGuild = await prisma.guild.findUnique({
+        where: { id: guildId },
+        select: {
+          regulationVerificationEnabled: true,
+          regulationRoleId: true,
+          regulationLockEnabled: true,
+          regulationChannelId: true,
+        },
+      });
+
       const data: any = {};
+      let applyLockChanged = false;
       if (Object.prototype.hasOwnProperty.call(body, 'discordChannel')) {
         data.statusCheckChannelId = extractDiscordSnowflake(body.discordChannel);
       }
@@ -1908,6 +1922,19 @@ export async function handleModulesRoutes(
       }
       if (Object.prototype.hasOwnProperty.call(body, 'regulationChannelId')) {
         data.regulationChannelId = extractDiscordSnowflake(body.regulationChannelId);
+        applyLockChanged = true;
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'regulationVerificationEnabled')) {
+        data.regulationVerificationEnabled = !!body.regulationVerificationEnabled;
+        applyLockChanged = true;
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'regulationRoleId')) {
+        data.regulationRoleId = extractDiscordSnowflake(body.regulationRoleId);
+        applyLockChanged = true;
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'regulationLockEnabled')) {
+        data.regulationLockEnabled = !!body.regulationLockEnabled;
+        applyLockChanged = true;
       }
       if (Object.prototype.hasOwnProperty.call(body, 'propagateSanctions')) {
         data.propagateSanctions = !!body.propagateSanctions;
@@ -1961,6 +1988,62 @@ export async function handleModulesRoutes(
 
       if (Object.keys(data).length > 0) {
         await prisma.guild.update({ where: { id: guildId }, data });
+      }
+
+      if (applyLockChanged) {
+        const finalGuild = await prisma.guild.findUnique({
+          where: { id: guildId },
+          select: {
+            regulationVerificationEnabled: true,
+            regulationRoleId: true,
+            regulationLockEnabled: true,
+            regulationChannelId: true,
+          },
+        });
+        if (finalGuild) {
+          const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+          if (discordGuild) {
+            let verifiedRoleId = finalGuild.regulationRoleId;
+            if (finalGuild.regulationVerificationEnabled && !verifiedRoleId) {
+              let role = discordGuild.roles.cache.find((r) => r.name === 'Vérifié') ?? null;
+              if (!role) {
+                try {
+                  role = await discordGuild.roles.create({
+                    name: 'Vérifié',
+                    reason: 'Créé automatiquement pour le règlement du serveur.',
+                  });
+                } catch (err) {
+                  logger.error('SettingsAPI', `Impossible de créer le rôle 'Vérifié' :`, err);
+                }
+              }
+              if (role) {
+                verifiedRoleId = role.id;
+                await prisma.guild.update({
+                  where: { id: guildId },
+                  data: { regulationRoleId: role.id },
+                });
+              }
+            }
+
+            const oldLocked = !!(oldGuild?.regulationVerificationEnabled && oldGuild?.regulationLockEnabled);
+            const newLocked = !!(finalGuild.regulationVerificationEnabled && finalGuild.regulationLockEnabled);
+            const lockStateChanged = oldLocked !== newLocked;
+            const roleChanged = oldGuild?.regulationRoleId !== finalGuild.regulationRoleId;
+            const channelChanged = oldGuild?.regulationChannelId !== finalGuild.regulationChannelId;
+
+            if (verifiedRoleId && finalGuild.regulationChannelId && (lockStateChanged || roleChanged || channelChanged)) {
+              // Run in background to prevent API timeout / rate limit blocks
+              applyRegulationLock(
+                discordGuild,
+                verifiedRoleId,
+                finalGuild.regulationChannelId,
+                newLocked
+              ).catch((err) => {
+                logger.error('SettingsAPI', `Error in applyRegulationLock background task:`, err);
+              });
+            }
+          }
+        }
       }
 
       const syncFeature = async (featureKey: string, featureName: string, enabled?: boolean, channelId?: string | null, secondaryChannelId?: string | null) => {

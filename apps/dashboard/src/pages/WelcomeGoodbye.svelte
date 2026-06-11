@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
+  import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
@@ -19,6 +20,7 @@
 
   const availableChannels = $derived(dashboardStore.state.discordChannels || []);
 
+  // The current (possibly-modified) config
   let config = $state({
     welcomeEnabled: false,
     welcomeChannelId: null as string | null,
@@ -30,13 +32,56 @@
     leaveMessage: 'Au revoir {user}... 😢'
   });
 
+  // Snapshot of the last-saved config – used to detect dirty state & reset
+  let savedConfig = $state({
+    welcomeEnabled: false,
+    welcomeChannelId: null as string | null,
+    welcomeMessage: 'Bienvenue {user} sur notre serveur ! 🎉',
+    welcomeImageEnabled: false,
+    welcomeImageUrl: null as string | null,
+    leaveEnabled: false,
+    leaveChannelId: null as string | null,
+    leaveMessage: 'Au revoir {user}... 😢'
+  });
+
+  // Detect changes and register/deregister with the global bar
+  $effect(() => {
+    // Read all fields to make this reactive
+    const current = JSON.stringify(config);
+    const saved = JSON.stringify(savedConfig);
+    const dirty = current !== saved;
+
+    if (dirty && canManageSettings) {
+      untrack(() => {
+        unsavedChanges.register({
+          label: 'Accueil & Départ',
+          onSave: () => handleSave(),
+          onReset: () => { config = { ...savedConfig }; }
+        });
+      });
+    } else if (!dirty) {
+      untrack(() => {
+        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Accueil & Départ') {
+          unsavedChanges.clear();
+        }
+      });
+    }
+  });
+
+  // Clear bar when page is unmounted
+  onDestroy(() => {
+    if (unsavedChanges.pageLabel === 'Accueil & Départ') {
+      unsavedChanges.clear();
+    }
+  });
+
   onMount(async () => {
     loading = true;
     try {
       await dashboardStore.refresh();
       const res = await fetchWelcomeConfig();
       if (res && res.config) {
-        config = {
+        const loaded = {
           welcomeEnabled: res.config.welcomeEnabled ?? false,
           welcomeChannelId: res.config.welcomeChannelId ?? null,
           welcomeMessage: res.config.welcomeMessage ?? '',
@@ -46,6 +91,8 @@
           leaveChannelId: res.config.leaveChannelId ?? null,
           leaveMessage: res.config.leaveMessage ?? ''
         };
+        config = loaded;
+        savedConfig = { ...loaded };
       }
     } catch (err) {
       console.error(err);
@@ -54,12 +101,13 @@
     }
   });
 
-  async function handleSave() {
-    if (!canManageSettings) return;
+  async function handleSave(): Promise<boolean> {
+    if (!canManageSettings) return false;
+    let success = false;
     await actionState.run(async () => {
       const res = await updateWelcomeConfig(config);
       if (!res) throw new Error('Erreur de sauvegarde');
-      config = {
+      const saved = {
         welcomeEnabled: res.config.welcomeEnabled ?? false,
         welcomeChannelId: res.config.welcomeChannelId ?? null,
         welcomeMessage: res.config.welcomeMessage ?? '',
@@ -69,8 +117,12 @@
         leaveChannelId: res.config.leaveChannelId ?? null,
         leaveMessage: res.config.leaveMessage ?? ''
       };
+      config = saved;
+      savedConfig = { ...saved };
+      success = true;
       return true;
     }, { successMessage: 'Configuration Accueil/Départ enregistrée !' });
+    return success;
   }
 
   // Preview helper
@@ -94,13 +146,6 @@
         <p class="text-on-surface-variant/80 font-medium">Configurez des messages automatiques lors de l'arrivée ou du départ des membres.</p>
       </div>
     </div>
-    <button 
-      onclick={handleSave}
-      disabled={actionState.loading || loading || !canManageSettings}
-      class="px-8 py-3 bg-primary text-on-primary font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-primary/20 hover:scale-105 transition-all disabled:opacity-50"
-    >
-      Enregistrer les modifications
-    </button>
   </header>
 
   <InlineFeedback state={actionState} />

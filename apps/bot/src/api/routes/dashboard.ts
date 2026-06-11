@@ -6,7 +6,6 @@ import {
   resolveAdminAccess,
   resolveDashboardAccess,
   resolveFeatureAccessMap,
-  type AuthClaims,
 } from '../shared.js';
 import { isGuildActivated } from '../../utils/activation.js';
 import { logger } from '../../utils/logger.js';
@@ -82,10 +81,10 @@ export async function handleDashboardRoutes(
     }
 
     // Gating check for write actions
-    const isSanctionAction = parts.length === 6
+    const isSanctionAction = (parts.length === 6 || parts.length === 7)
       && parts[4] === 'sanctions'
       && parts[5] === 'reports'
-      && method === 'POST';
+      && (method === 'POST' || method === 'PATCH');
 
     const isDailyAlgoReviewAction = parts.length === 6
       && parts[4] === 'daily-algo-submissions'
@@ -105,11 +104,6 @@ export async function handleDashboardRoutes(
 
     if (!access.canManageSettings && method !== 'GET' && !isSanctionAction && !isDailyAlgoReviewAction && !isStaffAbsenceAction && !isNotificationAction && !isMeetingAction && !isNewsAction) {
       json(res, 403, { error: 'Action réservée aux administrateurs du dashboard.' });
-      return true;
-    }
-
-    if (isSanctionAction && !access.canModerateContent) {
-      json(res, 403, { error: 'Action de rapport de sanction non autorisée.' });
       return true;
     }
 

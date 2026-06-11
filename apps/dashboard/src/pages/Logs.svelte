@@ -16,7 +16,8 @@
     fetchLogEventConfigs,
     updateLogEventConfigs
   } from '../lib/api';
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
+  import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import FormSelect from '../lib/components/FormSelect.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
@@ -161,7 +162,7 @@
   let caseModalOpen = $state(false);
   let selectedCaseUser = $state<{ name: string; id: string | null } | null>(null);
 
-  let selectedCaseData = $state<MemberCaseResponse | null>(null);
+  let selectedCaseData = $state<any>(null);
   let selectedCaseLoading = $state(false);
   let selectedCaseError = $state('');
   let memberActionReason = $state('Action lancée depuis le profil membre.');
@@ -242,6 +243,37 @@
   let logsConfig = $state<any>(null);
   let loadingConfig = $state(false);
   let eventConfigs = $state<Array<{ eventType: string; enabled: boolean; channelId: string | null }>>([]);
+  let savedEventConfigs = $state<Array<{ eventType: string; enabled: boolean; channelId: string | null }>>([]);
+
+  $effect(() => {
+    const current = JSON.stringify(eventConfigs);
+    const saved = JSON.stringify(savedEventConfigs);
+    const dirty = current !== saved;
+
+    if (dirty && canManageSettings) {
+      untrack(() => {
+        unsavedChanges.register({
+          label: 'Logs & Activités',
+          onSave: () => handleSaveEventConfigs(),
+          onReset: () => {
+            eventConfigs = JSON.parse(JSON.stringify(savedEventConfigs));
+          }
+        });
+      });
+    } else if (!dirty) {
+      untrack(() => {
+        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Logs & Activités') {
+          unsavedChanges.clear();
+        }
+      });
+    }
+  });
+
+  onDestroy(() => {
+    if (unsavedChanges.pageLabel === 'Logs & Activités') {
+      unsavedChanges.clear();
+    }
+  });
 
   onMount(async () => {
     loadingConfig = true;
@@ -252,6 +284,7 @@
       ]);
       logsConfig = configs?.features?.find((c: any) => c.featureKey === 'logs') || null;
       eventConfigs = eventConfigsRes?.configs || [];
+      savedEventConfigs = JSON.parse(JSON.stringify(eventConfigs));
     } catch (err) {
       console.error('Error fetching logs config:', err);
     } finally {
@@ -259,12 +292,16 @@
     }
   });
 
-  async function handleSaveEventConfigs() {
+  async function handleSaveEventConfigs(): Promise<boolean> {
+    let success = false;
     await saveAction.run(async () => {
       const ok = await updateLogEventConfigs(eventConfigs);
       if (!ok) throw new Error('Erreur API');
+      savedEventConfigs = JSON.parse(JSON.stringify(eventConfigs));
+      success = true;
       return true;
     }, { successMessage: 'Configurations des événements enregistrées avec succès.' });
+    return success;
   }
 
   async function toggleConfig(key: string, value: boolean) {
@@ -278,9 +315,8 @@
     }, { successMessage: 'Configuration mise à jour.' });
   }
 
-  async function handleLogChannelChange(event: Event) {
-    const target = event.target as HTMLSelectElement;
-    const channelId = target.value || '';
+  async function handleLogChannelChange() {
+    const channelId = selectedLogChannelId || '';
     
     await saveAction.run(async () => {
       const ok = await updateGlobalSettings({ logChannelId: channelId });
@@ -298,7 +334,7 @@
   }
 
   // Filter to only Discord logs
-  const discordLogs = $derived(dashboardStore.state.auditTrail.filter(entry => entry.source === 'discord'));
+  const discordLogs = $derived((dashboardStore.state.auditTrail as any[]).filter(entry => entry.source === 'discord'));
 
   function extractUserIdFromText(value: string | null | undefined) {
     if (!value) return null;
@@ -514,6 +550,7 @@
 
   async function executeMemberAction(action: 'WARN' | 'KICK' | 'TIMEOUT' | 'BAN') {
     if (!selectedCaseUser?.id) return;
+    const userId = selectedCaseUser.id;
 
     const reason = memberActionReason.trim() || 'Action lancée depuis le profil membre.';
     const durationMs = action === 'TIMEOUT' ? parseDurationToMs(memberActionDuration) : null;
@@ -529,9 +566,9 @@
     memberActionIsError = false;
 
     try {
-      await runMemberCaseAction(selectedCaseUser.id, action, { reason, durationMs: durationMs ?? undefined });
+      await runMemberCaseAction(userId, action, { reason, durationMs: durationMs ?? undefined });
       memberActionFeedback = 'Action appliquée avec succès.';
-      await loadMemberCase(selectedCaseUser.id);
+      await loadMemberCase(userId);
     } catch (error) {
       memberActionIsError = true;
       memberActionFeedback = error instanceof Error ? error.message : 'L’action de modération a échoué.';
@@ -566,15 +603,16 @@
     selectedCaseError = '';
   }
 
-  const sanctions = $derived(dashboardStore.state.sanctions || []);
+  const sanctions = $derived((dashboardStore.state.sanctions as any[]) || []);
   const selectedCaseSanctions = $derived.by(() => {
     if (selectedCaseData?.sanctions) {
       return [...selectedCaseData.sanctions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }
 
-    if (!selectedCaseUser?.id) return [];
+    const userId = selectedCaseUser?.id;
+    if (!userId) return [];
     return sanctions
-      .filter((entry) => entry.targetUserId === selectedCaseUser.id)
+      .filter((entry) => entry.targetUserId === userId)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   });
 
@@ -750,13 +788,6 @@
         <h4 class="text-sm font-black uppercase tracking-widest text-on-surface">Configuration par événement</h4>
         <p class="text-xs text-on-surface-variant/60 mt-1">Personnalisez précisément l'activation et le salon cible pour chaque événement, comme sur MEE6.</p>
       </div>
-      <button
-        type="button"
-        onclick={handleSaveEventConfigs}
-        class="px-6 py-3 bg-primary text-on-primary text-[10px] font-black uppercase tracking-widest rounded-xl hover:scale-[1.03] transition-all shadow-md shadow-primary/20"
-      >
-        Enregistrer les modifications
-      </button>
     </div>
 
     {#if saveAction.state.message}
@@ -790,7 +821,7 @@
                     </div>
                     <ToggleSwitch 
                       checked={eventConfigs[confIdx].enabled}
-                      onToggle={(v) => {
+                      onToggle={(v: boolean) => {
                         eventConfigs[confIdx].enabled = v;
                         eventConfigs = [...eventConfigs];
                       }}
@@ -800,16 +831,16 @@
                   {#if eventConfigs[confIdx].enabled}
                     <div class="space-y-1.5 pt-3 border-t border-outline-variant/10">
                       <label for="select-{ev.type}" class="text-[9px] font-bold text-on-surface-variant/60 uppercase tracking-wider">Salon de destination</label>
-                      <FormSelect
+                      <select
                         id="select-{ev.type}"
                         bind:value={eventConfigs[confIdx].channelId}
-                        className="w-full bg-surface-container-high/40 text-xs px-3 py-2 rounded-xl border border-outline-variant/10 focus:ring-1 focus:ring-primary/20 transition-all outline-none"
+                        class="w-full bg-surface-container-high/40 text-xs px-3 py-2 rounded-xl border border-outline-variant/10 focus:ring-1 focus:ring-primary/20 transition-all outline-none"
                       >
-                        <option value="">Salon de logs par défaut</option>
+                        <option value={null}>Salon de logs par défaut</option>
                         {#each dashboardStore.state.discordChannels as c}
                           <option value={c.id}>#{c.name}</option>
                         {/each}
-                      </FormSelect>
+                      </select>
                     </div>
                   {/if}
                 </div>
@@ -1003,7 +1034,7 @@
 
 {#if caseModalOpen && selectedCaseUser}
   <MemberCaseModal 
-    bind:open={caseModalOpen}
+    open={caseModalOpen}
     userId={selectedCaseUser?.id}
     caseData={selectedCaseData}
     loading={selectedCaseLoading}

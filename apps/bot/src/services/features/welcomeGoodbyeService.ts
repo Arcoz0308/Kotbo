@@ -1,4 +1,4 @@
-import { Client, EmbedBuilder, AttachmentBuilder, GuildMember } from 'discord.js';
+import { Client, AttachmentBuilder, GuildMember } from 'discord.js';
 import { createCanvas, loadImage } from '@napi-rs/canvas';
 import prisma from '../../utils/db.js';
 import { canvasFont, ensureCanvasFonts } from '../../utils/canvasFonts.js';
@@ -21,6 +21,11 @@ export async function getOrCreateWelcomeConfig(guildId: string) {
         welcomeImageEnabled: false,
         leaveEnabled: false,
         leaveMessage: "Au revoir {user}... 😢",
+        boostEnabled: false,
+        boostMessage: "Merci pour ton boost {user} ! 🚀",
+        boostImageEnabled: false,
+        tagAutoRoleEnabled: false,
+        tagAutoRoleWord: "",
       },
     });
   }
@@ -35,13 +40,14 @@ function replaceTokens(template: string, member: GuildMember): string {
     .replace(/{user}/g, `<@${member.id}>`)
     .replace(/{username}/g, member.user.username)
     .replace(/{server}/g, member.guild.name)
-    .replace(/{memberCount}/g, String(member.guild.memberCount));
+    .replace(/{memberCount}/g, String(member.guild.memberCount))
+    .replace(/{boostCount}/g, String(member.guild.premiumSubscriptionCount ?? 0));
 }
 
 /**
  * Gère l'arrivée d'un membre (Welcome)
  */
-export async function handleGuildMemberAdd(member: GuildMember, client: Client) {
+export async function handleGuildMemberAdd(member: GuildMember, _client: Client) {
   try {
     const config = await getOrCreateWelcomeConfig(member.guild.id);
     if (!config.welcomeEnabled || !config.welcomeChannelId) return;
@@ -68,7 +74,7 @@ export async function handleGuildMemberAdd(member: GuildMember, client: Client) 
 /**
  * Gère le départ d'un membre (Leave)
  */
-export async function handleGuildMemberRemove(member: any, client: Client) {
+export async function handleGuildMemberRemove(member: GuildMember, _client: Client) {
   try {
     const config = await getOrCreateWelcomeConfig(member.guild.id);
     if (!config.leaveEnabled || !config.leaveChannelId) return;
@@ -76,7 +82,6 @@ export async function handleGuildMemberRemove(member: any, client: Client) {
     const channel = member.guild.channels.cache.get(config.leaveChannelId);
     if (!channel?.isTextBased()) return;
 
-    // Récupérer le membre sous forme de GuildMember pour les tokens
     const text = replaceTokens(config.leaveMessage, member);
     await channel.send({ content: text }).catch(() => null);
   } catch (err) {
@@ -85,9 +90,84 @@ export async function handleGuildMemberRemove(member: any, client: Client) {
 }
 
 /**
+ * Gère le boost d'un membre (Boost)
+ */
+export async function handleGuildBoost(newMember: GuildMember, _client: Client) {
+  try {
+    const config = await getOrCreateWelcomeConfig(newMember.guild.id);
+    if (!config.boostEnabled || !config.boostChannelId) return;
+
+    const channel = newMember.guild.channels.cache.get(config.boostChannelId);
+    if (!channel?.isTextBased()) return;
+
+    const text = replaceTokens(config.boostMessage, newMember);
+    const options: { content: string; files?: AttachmentBuilder[] } = { content: text };
+
+    if (config.boostImageEnabled) {
+      const buffer = await generateWelcomeCard(newMember, 'MERCI !');
+      const attachment = new AttachmentBuilder(buffer, { name: 'boost-card.png' });
+      options.files = [attachment];
+    }
+
+    await channel.send(options).catch(() => null);
+  } catch (err) {
+    logger.error('WelcomeGoodbyeService', `Erreur lors du boost du membre ${newMember.id}:`, err);
+  }
+}
+
+/**
+ * Attribue le rôle automatique d'arrivée si configuré
+ */
+export async function applyJoinAutoRole(member: GuildMember) {
+  try {
+    const config = await getOrCreateWelcomeConfig(member.guild.id);
+    if (!config.joinRoleId) return;
+
+    const role = member.guild.roles.cache.get(config.joinRoleId);
+    if (!role) return;
+
+    if (!member.roles.cache.has(config.joinRoleId)) {
+      await member.roles.add(role, "Auto-rôle à l'arrivée").catch(() => null);
+    }
+  } catch (err) {
+    logger.error('WelcomeGoodbyeService', `Erreur auto-rôle join pour ${member.id}:`, err);
+  }
+}
+
+/**
+ * Attribue ou retire le rôle du tag si configuré
+ */
+export async function applyTagAutoRole(member: GuildMember) {
+  try {
+    if (member.user.bot) return;
+
+    const config = await getOrCreateWelcomeConfig(member.guild.id);
+    if (!config.tagAutoRoleEnabled || !config.tagAutoRoleId || !config.tagAutoRoleWord) return;
+
+    const role = member.guild.roles.cache.get(config.tagAutoRoleId);
+    if (!role) return;
+
+    // Vérifie le pseudo, le nom global et le surnom
+    const nameToCheck = `${member.nickname ?? ''} ${member.user.globalName ?? ''} ${member.user.username}`.toLowerCase();
+    const hasTag = nameToCheck.includes(config.tagAutoRoleWord.toLowerCase());
+    const hasRole = member.roles.cache.has(config.tagAutoRoleId);
+
+    if (hasTag && !hasRole) {
+      await member.roles.add(role, 'Auto-rôle tag configuré détecté').catch(() => null);
+      logger.info('AutoRole', `Rôle tag attribué à ${member.user.tag} dans ${member.guild.name}`);
+    } else if (!hasTag && hasRole) {
+      await member.roles.remove(role, 'Retrait auto-rôle tag (tag retiré)').catch(() => null);
+      logger.info('AutoRole', `Rôle tag retiré de ${member.user.tag} dans ${member.guild.name}`);
+    }
+  } catch (err) {
+    logger.error('WelcomeGoodbyeService', `Erreur auto-rôle tag pour ${member.id}:`, err);
+  }
+}
+
+/**
  * Génère une carte de bienvenue au format PNG avec Canvas
  */
-export async function generateWelcomeCard(member: GuildMember): Promise<Buffer> {
+export async function generateWelcomeCard(member: GuildMember, titleText = 'BIENVENUE !'): Promise<Buffer> {
   ensureCanvasFonts();
 
   const W = 800, H = 300;
@@ -143,7 +223,7 @@ export async function generateWelcomeCard(member: GuildMember): Promise<Buffer> 
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#ffffff';
   ctx.font = canvasFont(36, 'bold');
-  ctx.fillText('BIENVENUE !', W / 2, 195);
+  ctx.fillText(titleText, W / 2, 195);
 
   ctx.fillStyle = '#57f287';
   ctx.font = canvasFont(24, 'bold');
@@ -158,6 +238,7 @@ export async function generateWelcomeCard(member: GuildMember): Promise<Buffer> 
 }
 
 // Helper rectangle arrondi
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function roundRect(ctx: any, x: number, y: number, w: number, h: number, r: number, fill: string | CanvasGradient) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);

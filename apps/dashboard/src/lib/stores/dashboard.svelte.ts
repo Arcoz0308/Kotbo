@@ -8,6 +8,9 @@ class DashboardStore {
     logChannelId: '',
     regulationChannelId: '',
     regulationMessageId: null,
+    regulationVerificationEnabled: false,
+    regulationRoleId: '',
+    regulationLockEnabled: false,
     meetingAnnouncementChannelId: '',
     meetingVoiceChannelId: '',
     publicChannelId: '',
@@ -48,11 +51,11 @@ class DashboardStore {
       killSwitchEnabled: false,
       severityByModule: []
     },
-    auditTrail: [],
-    sanctions: [],
-    sanctionReports: [],
+    auditTrail: [] as any[],
+    sanctions: [] as any[],
+    sanctionReports: [] as any[],
     statusCheckChannelId: '',
-    regulationRules: [],
+    regulationRules: [] as any[],
     messageTemplate: '',
     analytics: {
       activityTrend: [0, 0, 0, 0, 0, 0, 0],
@@ -114,6 +117,9 @@ class DashboardStore {
         this.state.logChannelId = data.logChannelId || '';
         this.state.regulationChannelId = data.regulationChannelId || '';
         this.state.regulationMessageId = data.regulationMessageId || null;
+        this.state.regulationVerificationEnabled = data.regulationVerificationEnabled || false;
+        this.state.regulationRoleId = data.regulationRoleId || '';
+        this.state.regulationLockEnabled = data.regulationLockEnabled || false;
         this.state.meetingAnnouncementChannelId = data.meetingAnnouncementChannelId || '';
         this.state.meetingVoiceChannelId = data.meetingVoiceChannelId || '';
         this.state.publicChannelId = data.publicChannelId || '';

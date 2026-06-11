@@ -456,7 +456,15 @@ import { toast } from '../lib/stores/toast.svelte';
     if (h > 0) return `${h}h${m > 0 ? String(m).padStart(2, '0') : ''}`;
     return `${m}min`;
   };
-  const chartLabels = $derived(data?.dailyTrend?.map((d: any) => ({ ...d, label: d.dateKey?.slice(5) })) ?? []);
+  const isWeeklyView = $derived(!isCustomPeriod && period > 90);
+  const chartLabels = $derived(data?.dailyTrend?.map((d: any) => {
+    if (isWeeklyView) {
+      // Format: "Sem. DD/MM" (dateKey is already the Monday of the week)
+      const parts = d.dateKey?.slice(5)?.split('-');
+      return { ...d, label: parts ? `Sem. ${parts[1]}/${parts[0]}` : d.dateKey?.slice(5) };
+    }
+    return { ...d, label: d.dateKey?.slice(5) };
+  }) ?? []);
 </script>
 
 <div id="analytics-export-root" class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20 max-w-7xl mx-auto px-4 md:px-8">

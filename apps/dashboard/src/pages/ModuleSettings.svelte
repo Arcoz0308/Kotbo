@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
+  import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import {
     API_BASE_URL,
@@ -51,12 +52,12 @@
       || !!dashboardStore.state.access?.canManageSettings
   );
   const canModerateContent = $derived(
-    !!dashboardStore.state.featureAccess?.content?.canModerate
+    !!(dashboardStore.state.featureAccess as any)?.content?.canModerate
       || !!dashboardStore.state.access?.canModerateContent
   );
   const canModerateDailyAlgo = $derived(() => {
     if (moduleId === 'daily_algo') {
-      return !!dashboardStore.state.featureAccess?.daily_algo?.canModerate
+      return !!(dashboardStore.state.featureAccess as any)?.daily_algo?.canModerate
         || !!dashboardStore.state.access?.canModerateDailyAlgo
         || canModerateContent;
     }
@@ -1267,27 +1268,60 @@
     });
   });
 
+  let savedStatus = $state('inactive');
+
   $effect(() => {
-    desiredModuleStatus = module.status === 'active' ? 'active' : 'inactive';
+    if (module) {
+      savedStatus = module.status === 'active' ? 'active' : 'inactive';
+      desiredModuleStatus = savedStatus;
+    }
+  });
+
+  $effect(() => {
+    const dirty = desiredModuleStatus !== savedStatus;
+    if (dirty && canManageSettings) {
+      untrack(() => {
+        unsavedChanges.register({
+          label: `Module ${module.name}`,
+          onSave: () => handleSave(),
+          onReset: () => {
+            desiredModuleStatus = savedStatus;
+          }
+        });
+      });
+    } else if (!dirty) {
+      untrack(() => {
+        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === `Module ${module.name}`) {
+          unsavedChanges.clear();
+        }
+      });
+    }
+  });
+
+  onDestroy(() => {
+    if (unsavedChanges.pageLabel === `Module ${module.name}`) {
+      unsavedChanges.clear();
+    }
   });
 
 
 
-  async function handleSave() {
+  async function handleSave(): Promise<boolean> {
     formAction.clearFeedback();
 
     if (!canManageSettings) {
       formAction.setError('Seuls les administrateurs peuvent modifier ce module.');
-      return;
+      return false;
     }
 
-
-
+    let success = false;
     await formAction.run(
       async () => {
-        const success = await updateModuleStatus(moduleId, desiredModuleStatus);
-        if (!success) return false;
+        const successRes = await updateModuleStatus(moduleId, desiredModuleStatus);
+        if (!successRes) return false;
         await dashboardStore.refresh();
+        savedStatus = desiredModuleStatus;
+        success = true;
         return true;
       },
       {
@@ -1295,6 +1329,7 @@
         failureMessage: 'Impossible de sauvegarder la configuration du module.'
       }
     );
+    return success;
   }
 
 
@@ -1333,13 +1368,7 @@
         className="px-6 py-3.5 text-xs font-black uppercase tracking-widest rounded-2xl bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/30 text-on-surface-variant/60 hover:text-on-surface shadow-none"
         iconClass="text-base"
       />
-      <button 
-        onclick={handleSave}
-        disabled={formAction.state.loading || !canManageSettings}
-        class="px-10 py-3.5 bg-primary text-on-primary text-xs font-black rounded-2xl shadow-2xl shadow-primary/30 hover:scale-105 active:scale-95 transition-all uppercase tracking-widest"
-      >
-        {formAction.state.loading ? 'Enregistrement...' : 'Enregistrer'}
-      </button>
+      <!-- Save button removed since global bottom bar handles saving -->
     </div>
   </div>
 

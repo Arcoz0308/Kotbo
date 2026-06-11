@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
+  import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -19,7 +20,7 @@
   let loading = $state(false);
 
   const canModerate = $derived(
-    !!dashboardStore.state.featureAccess?.suggestions?.canModerate
+    !!(dashboardStore.state.featureAccess as any)?.suggestions?.canModerate
       || !!dashboardStore.state.access?.canManageSettings
   );
 
@@ -33,6 +34,39 @@
   let moduleConfig = $state({
     enabled: true,
     channelId: null as string | null,
+  });
+
+  // Snapshot of last-saved state
+  let savedConfig = $state({
+    enabled: true,
+    channelId: null as string | null,
+  });
+
+  $effect(() => {
+    const dirty = JSON.stringify(moduleConfig) !== JSON.stringify(savedConfig);
+    if (dirty && canConfigure) {
+      untrack(() => {
+        unsavedChanges.register({
+          label: 'Suggestions',
+          onSave: () => handleSaveConfig(),
+          onReset: () => {
+            moduleConfig = { ...savedConfig };
+          }
+        });
+      });
+    } else if (!dirty) {
+      untrack(() => {
+        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Suggestions') {
+          unsavedChanges.clear();
+        }
+      });
+    }
+  });
+
+  onDestroy(() => {
+    if (unsavedChanges.pageLabel === 'Suggestions') {
+      unsavedChanges.clear();
+    }
   });
 
   let suggestions = $state<Array<{
@@ -63,10 +97,12 @@
   async function loadConfig() {
     const res = await fetchSuggestionsConfig();
     if (res?.config) {
-      moduleConfig = {
+      const loaded = {
         enabled: res.config.enabled ?? true,
         channelId: res.config.channelId ?? null,
       };
+      moduleConfig = loaded;
+      savedConfig = { ...loaded };
     }
   }
 
@@ -82,17 +118,22 @@
     }
   });
 
-  async function handleSaveConfig() {
-    if (!canConfigure) return;
+  async function handleSaveConfig(): Promise<boolean> {
+    if (!canConfigure) return false;
+    let success = false;
     await configAction.run(async () => {
       const res = await updateSuggestionsConfig(moduleConfig);
       if (!res?.config) throw new Error('Erreur de sauvegarde');
-      moduleConfig = {
+      const saved = {
         enabled: res.config.enabled ?? true,
         channelId: res.config.channelId ?? null,
       };
+      moduleConfig = saved;
+      savedConfig = { ...saved };
+      success = true;
       return true;
     }, { successMessage: 'Configuration des suggestions enregistrée !' });
+    return success;
   }
 
   async function handleResolve(id: string, status: 'APPROVED' | 'REJECTED' | 'IMPLEMENTED') {
@@ -188,15 +229,7 @@
             Définissez le salon où les nouvelles suggestions sont publiées sur Discord.
           </p>
         </div>
-        {#if canConfigure}
-          <button
-            onclick={handleSaveConfig}
-            disabled={configAction.loading}
-            class="px-6 py-3 bg-primary text-on-primary font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-primary/20 hover:scale-105 transition-all disabled:opacity-50"
-          >
-            Enregistrer
-          </button>
-        {/if}
+        <!-- Save button removed since global bottom bar handles saving -->
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -207,7 +240,7 @@
           </div>
           <ToggleSwitch
             checked={moduleConfig.enabled}
-            onToggle={(v) => { moduleConfig.enabled = v; }}
+            onToggle={(v: boolean) => { moduleConfig.enabled = v; }}
             disabled={!canConfigure}
           />
         </div>

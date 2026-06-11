@@ -18,9 +18,25 @@
     type PageConfig
   } from '../config/pages';
   import { resolveUserAvatarSrc } from '../discordMedia';
+  import { unsavedChanges } from '../stores/unsavedChanges.svelte';
 
   let activeTooltip = $state<{ text: string; top: number } | null>(null);
 
+  /**
+   * Guard navigation: if there are unsaved changes, ask for confirmation.
+   * Works for all sidebar links (tinro uses href-based SPA routing).
+   */
+  function handleNavClick(e: MouseEvent, href: string) {
+    if (!unsavedChanges.isDirty) return; // allow default tinro handling
+    e.preventDefault();
+    const confirmed = window.confirm(
+      `Vous avez des modifications non sauvegard\u00e9es sur \u00ab\u00a0${unsavedChanges.pageLabel}\u00a0\u00bb.\n\nQuitter sans enregistrer ?`
+    );
+    if (confirmed) {
+      unsavedChanges.clear();
+      router.goto(href);
+    }
+  }
 
   function handleMouseEnter(event: MouseEvent, text: string) {
     if (!collapsed) return;
@@ -358,6 +374,7 @@
         {#each group.items as item}
           <a
             href={item.href}
+            onclick={(e) => handleNavClick(e, item.href)}
             onmouseenter={(e) => handleMouseEnter(e, navItemStatusLabel(item))}
             onmouseleave={handleMouseLeave}
             class="relative flex items-center justify-center w-full py-2.5 rounded-xl transition-all duration-200 group
@@ -419,6 +436,7 @@
                 
                 <a
                   href={item.href}
+                  onclick={(e) => handleNavClick(e, item.href)}
                   class="flex-1 flex items-center gap-3 pl-3 py-2.5 min-w-0 overflow-hidden"
                 >
                   <Papicon
@@ -481,6 +499,7 @@
     {#if authStore.isBotAdmin}
       <a
         href="/admin"
+        onclick={(e) => handleNavClick(e, '/admin')}
         onmouseenter={(e) => handleMouseEnter(e, 'Administration')}
         onmouseleave={handleMouseLeave}
         class="relative flex items-center {collapsed ? 'justify-center py-2.5' : 'gap-3 px-3 py-2'} rounded-xl transition-all duration-200 group
@@ -498,6 +517,7 @@
     <!-- Profil utilisateur -->
     <a
       href={profileHref}
+      onclick={(e) => handleNavClick(e, profileHref)}
       onmouseenter={(e) => handleMouseEnter(e, authStore.user?.username ?? 'Mon Profil')}
       onmouseleave={handleMouseLeave}
       class="flex items-center {collapsed ? 'justify-center py-2' : 'gap-3 px-2 py-2'} rounded-xl transition-all duration-200 hover:bg-surface-container/60 group"

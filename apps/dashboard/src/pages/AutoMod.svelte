@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
+  import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -50,6 +51,42 @@
     bypassChannels: [] as string[]
   });
 
+  // Snapshot of last-saved state
+  let savedConfig = $state(JSON.parse(JSON.stringify({
+    spamEnabled: false, spamLimit: 5, spamIntervalSeconds: 5, spamAction: 'TIMEOUT',
+    linksEnabled: false, linksAction: 'DELETE_AND_WARN', linksWhitelist: [],
+    capsEnabled: false, capsThresholdPercent: 80, capsMinLength: 10,
+    emojisEnabled: false, emojisLimit: 10,
+    mentionsEnabled: false, mentionsLimit: 5,
+    ghostPingEnabled: false, ghostPingAction: 'ALERT',
+    antiEveryoneEnabled: false, antiEveryoneAction: 'DELETE_AND_WARN',
+    bypassRoles: [], bypassChannels: []
+  })));
+
+  $effect(() => {
+    const dirty = JSON.stringify(config) !== JSON.stringify(savedConfig);
+    if (dirty && canManageSettings) {
+      untrack(() => {
+        unsavedChanges.register({
+          label: 'AutoMod',
+          onSave: () => handleSave(),
+          onReset: () => {
+            config = JSON.parse(JSON.stringify(savedConfig));
+            whitelistInput = config.linksWhitelist.join('\n');
+          }
+        });
+      });
+    } else if (!dirty) {
+      untrack(() => {
+        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'AutoMod') unsavedChanges.clear();
+      });
+    }
+  });
+
+  onDestroy(() => {
+    if (unsavedChanges.pageLabel === 'AutoMod') unsavedChanges.clear();
+  });
+
   // Helper local states for lists editing
   let whitelistInput = $state('');
   let selectedBypassRole = $state('');
@@ -61,28 +98,8 @@
       await dashboardStore.refresh();
       const res = await fetchAutoModConfig();
       if (res && res.config) {
-        config = {
-          spamEnabled: res.config.spamEnabled ?? false,
-          spamLimit: res.config.spamLimit ?? 5,
-          spamIntervalSeconds: res.config.spamIntervalSeconds ?? 5,
-          spamAction: res.config.spamAction ?? 'TIMEOUT',
-          linksEnabled: res.config.linksEnabled ?? false,
-          linksAction: res.config.linksAction ?? 'DELETE_AND_WARN',
-          linksWhitelist: res.config.linksWhitelist || [],
-          capsEnabled: res.config.capsEnabled ?? false,
-          capsThresholdPercent: res.config.capsThresholdPercent ?? 80,
-          capsMinLength: res.config.capsMinLength ?? 10,
-          emojisEnabled: res.config.emojisEnabled ?? false,
-          emojisLimit: res.config.emojisLimit ?? 10,
-          mentionsEnabled: res.config.mentionsEnabled ?? false,
-          mentionsLimit: res.config.mentionsLimit ?? 5,
-          ghostPingEnabled: res.config.ghostPingEnabled ?? false,
-          ghostPingAction: res.config.ghostPingAction ?? 'ALERT',
-          antiEveryoneEnabled: res.config.antiEveryoneEnabled ?? false,
-          antiEveryoneAction: res.config.antiEveryoneAction ?? 'DELETE_AND_WARN',
-          bypassRoles: res.config.bypassRoles || [],
-          bypassChannels: res.config.bypassChannels || []
-        };
+        config = res.config;
+        savedConfig = JSON.parse(JSON.stringify(res.config));
         whitelistInput = config.linksWhitelist.join('\n');
       }
     } catch (err) {
@@ -92,8 +109,8 @@
     }
   });
 
-  async function handleSave() {
-    if (!canManageSettings) return;
+  async function handleSave(): Promise<boolean> {
+    if (!canManageSettings) return false;
     
     // Parse domains list
     config.linksWhitelist = whitelistInput
@@ -101,12 +118,16 @@
       .map(d => d.trim().toLowerCase())
       .filter(d => d.length > 0);
 
+    let success = false;
     await actionState.run(async () => {
       const res = await updateAutoModConfig(config);
       if (!res || !res.config) throw new Error('Erreur de sauvegarde AutoMod');
       config = res.config;
+      savedConfig = JSON.parse(JSON.stringify(res.config));
+      success = true;
       return true;
     }, { successMessage: 'Verrous AutoMod mis à jour avec succès !' });
+    return success;
   }
 
   function addBypassRole() {
@@ -155,13 +176,6 @@
         <p class="text-on-surface-variant/80 font-medium">Configurez les filtres de sécurité pour modérer automatiquement les comportements néfastes.</p>
       </div>
     </div>
-    <button 
-      onclick={handleSave}
-      disabled={actionState.state.loading || loading || !canManageSettings}
-      class="px-8 py-3 bg-primary text-on-primary font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-primary/20 hover:scale-105 transition-all disabled:opacity-50"
-    >
-      Enregistrer les modifications
-    </button>
   </header>
 
   <InlineFeedback state={actionState} />

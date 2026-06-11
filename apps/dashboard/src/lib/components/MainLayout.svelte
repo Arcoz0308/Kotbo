@@ -6,6 +6,7 @@
   import Navbar from './Navbar.svelte';
   import Breadcrumbs from './Breadcrumbs.svelte';
   import ServerSwitcherModal from './ServerSwitcherModal.svelte';
+  import UnsavedChangesBar from './UnsavedChangesBar.svelte';
   import { dashboardLifecycle } from '../dashboardLifecycle';
   import { sidebarStore } from '../stores/sidebar.svelte';
   import { feedbackModal } from '../stores/feedbackModal.svelte';
@@ -13,12 +14,35 @@
   import { historyStore } from '../stores/history.svelte';
   import { serverSwitcherStore } from '../stores/serverSwitcher.svelte';
   import { searchStore } from '../stores/search.svelte';
+  import { unsavedChanges } from '../stores/unsavedChanges.svelte';
 
   let { children }: { children?: Snippet } = $props();
 
   onMount(() => {
     dashboardLifecycle.init();
-    return () => dashboardLifecycle.destroy();
+
+    // Block browser tab/window close when there are unsaved changes
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (unsavedChanges.isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      dashboardLifecycle.destroy();
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  });
+
+  // Intercept tinro SPA navigation when there are unsaved changes
+  $effect(() => {
+    const path = $router.path;
+    // When the route changes and there were dirty changes that weren't cleared,
+    // we just clear them (the page unmounted, so changes are gone anyway).
+    // The real guard happens via the sidebar link click interception.
+    void path;
   });
 
   const collapsed = $derived(sidebarStore.collapsed);
@@ -65,6 +89,22 @@
     } else if ((e.ctrlKey || e.metaKey) && isY) {
       e.preventDefault();
       historyStore.redo();
+    }
+  }
+
+  // Expose a navigation guard used by Sidebar & other nav elements
+  export function guardedNavigate(href: string) {
+    if (!unsavedChanges.isDirty) {
+      router.goto(href);
+      return;
+    }
+    // Show a confirm dialog and let the user decide
+    const confirmed = window.confirm(
+      `Vous avez des modifications non sauvegardées sur « ${unsavedChanges.pageLabel} ».\n\nQuitter sans enregistrer ?`
+    );
+    if (confirmed) {
+      unsavedChanges.clear();
+      router.goto(href);
     }
   }
 </script>
@@ -159,4 +199,6 @@
     </main>
   </div>
   <ServerSwitcherModal />
+  <!-- Discord-style unsaved changes overlay -->
+  <UnsavedChangesBar />
 </div>

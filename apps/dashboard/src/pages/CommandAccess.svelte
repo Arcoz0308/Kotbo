@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onMount, onDestroy, untrack } from 'svelte';
+  import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { updateCommandAccessSettings } from '../lib/api';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
@@ -19,6 +21,69 @@
 
   const saveAction = createAsyncActionState();
 
+  let savedRestrictions = $state<any[]>([]);
+
+  const currentRestrictions = $derived.by(() => {
+    if (!selectedCommandName) return dashboardStore.state.commandRestrictions || [];
+    const nextRules = (dashboardStore.state.commandRestrictions || []).filter(
+      (entry) => entry.commandName !== selectedCommandName
+    );
+    const nextRule = {
+      commandName: selectedCommandName,
+      allowedChannelIds: uniqueIds(commandDraft.allowedChannelIds),
+      blockedChannelIds: uniqueIds(commandDraft.blockedChannelIds),
+      allowedRoleIds: uniqueIds(commandDraft.allowedRoleIds),
+      blockedRoleIds: uniqueIds(commandDraft.blockedRoleIds),
+      allowedUserIds: uniqueIds(commandDraft.allowedUserIds),
+      blockedUserIds: uniqueIds(commandDraft.blockedUserIds),
+    };
+
+    const hasAnyRestriction =
+      nextRule.allowedChannelIds.length > 0
+      || nextRule.blockedChannelIds.length > 0
+      || nextRule.allowedRoleIds.length > 0
+      || nextRule.blockedRoleIds.length > 0
+      || nextRule.allowedUserIds.length > 0
+      || nextRule.blockedUserIds.length > 0;
+
+    return hasAnyRestriction ? [...nextRules, nextRule] : nextRules;
+  });
+
+  $effect(() => {
+    const dirty = JSON.stringify(currentRestrictions) !== JSON.stringify(savedRestrictions);
+    if (dirty && canManageSettings) {
+      untrack(() => {
+        unsavedChanges.register({
+          label: 'Restrictions des commandes',
+          onSave: () => saveCommandAccess(),
+          onReset: () => {
+            dashboardStore.state.commandRestrictions = JSON.parse(JSON.stringify(savedRestrictions));
+            if (selectedCommandName) {
+              loadCommandDraft(selectedCommandName);
+            }
+          }
+        });
+      });
+    } else if (!dirty) {
+      untrack(() => {
+        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Restrictions des commandes') {
+          unsavedChanges.clear();
+        }
+      });
+    }
+  });
+
+  onDestroy(() => {
+    if (unsavedChanges.pageLabel === 'Restrictions des commandes') {
+      unsavedChanges.clear();
+    }
+  });
+
+  onMount(async () => {
+    await dashboardStore.refresh();
+    savedRestrictions = JSON.parse(JSON.stringify(dashboardStore.state.commandRestrictions || []));
+  });
+
   type RestrictionMode = 'neutral' | 'allowedOnly' | 'blockedOnly';
 
   let commandSearch = $state('');
@@ -29,23 +94,23 @@
   let selectedCommandName = $state('');
   let commandDraft = $state({
     commandName: '',
-    allowedChannelIds: [],
-    blockedChannelIds: [],
-    allowedRoleIds: [],
-    blockedRoleIds: [],
-    allowedUserIds: [],
-    blockedUserIds: [],
+    allowedChannelIds: [] as string[],
+    blockedChannelIds: [] as string[],
+    allowedRoleIds: [] as string[],
+    blockedRoleIds: [] as string[],
+    allowedUserIds: [] as string[],
+    blockedUserIds: [] as string[],
   });
   let userIdInput = $state('');
 
   const emptyDraft = () => ({
     commandName: '',
-    allowedChannelIds: [],
-    blockedChannelIds: [],
-    allowedRoleIds: [],
-    blockedRoleIds: [],
-    allowedUserIds: [],
-    blockedUserIds: [],
+    allowedChannelIds: [] as string[],
+    blockedChannelIds: [] as string[],
+    allowedRoleIds: [] as string[],
+    blockedRoleIds: [] as string[],
+    allowedUserIds: [] as string[],
+    blockedUserIds: [] as string[],
   });
 
   const uniqueIds = (ids: string[]) => [...new Set(ids)];
@@ -345,20 +410,23 @@
     commandDraft = { ...nextRule };
   }
 
-  async function saveCommandAccess() {
+  async function saveCommandAccess(): Promise<boolean> {
     if (!canManageSettings) {
       saveAction.setError('Seuls les administrateurs peuvent modifier ces paramètres.');
-      return;
+      return false;
     }
 
     upsertCommandDraft();
 
+    let success = false;
     await saveAction.run(
       async () => {
         const saved = await updateCommandAccessSettings(dashboardStore.state.commandRestrictions);
         if (!saved) return false;
 
         await dashboardStore.refresh();
+        savedRestrictions = JSON.parse(JSON.stringify(dashboardStore.state.commandRestrictions));
+        success = true;
         return true;
       },
       {
@@ -366,6 +434,7 @@
         failureMessage: 'Impossible d’enregistrer les restrictions pour le moment.'
       }
     );
+    return success;
   }
 
   function resetCommandDraft() {
@@ -764,24 +833,6 @@
           error={saveAction.state.error}
           idleText="Les modifications ne sont appliquées qu’après enregistrement."
         />
-        <div class="flex items-center gap-3">
-          <button
-            type="button"
-            onclick={resetCommandDraft}
-            disabled={!canManageSettings || !selectedCommandName}
-            class="px-4 py-2.5 rounded-xl border border-outline-variant/30 text-xs font-black uppercase tracking-wider text-on-surface-variant hover:bg-surface-container-low"
-          >
-            Réinitialiser
-          </button>
-          <button
-            type="button"
-            onclick={saveCommandAccess}
-            disabled={saveAction.state.loading || !canManageSettings || !selectedCommandName}
-            class="px-5 py-2.5 rounded-xl bg-primary text-white text-xs font-black uppercase tracking-wider shadow-lg shadow-primary/10 hover:opacity-90 disabled:opacity-50"
-          >
-            {saveAction.state.loading ? 'Enregistrement...' : 'Enregistrer'}
-          </button>
-        </div>
       </div>
     </div>
   </div>

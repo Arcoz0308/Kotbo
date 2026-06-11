@@ -2,10 +2,8 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client, Routes } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
-import { COMMAND_CATALOG } from '../../../utils/commandAccess.js';
 import {
   json,
-  getGuildName,
   getGuildMembers,
   type AuthClaims,
   type DashboardAccess,
@@ -16,7 +14,6 @@ import {
   getGrowthAndRetention,
   getDailyAlgoAnalytics,
   getGlobalInteractions,
-  getDashboardAnalytics,
 } from '../../../services/analytics/dashboardAnalyticsService.js';
 
 export async function handleAnalyticsRoutes(
@@ -27,7 +24,7 @@ export async function handleAnalyticsRoutes(
   client: Client,
   user: AuthClaims,
   guildId: string,
-  access: DashboardAccess
+  _access: DashboardAccess
 ): Promise<boolean> {
   const method = req.method;
 
@@ -216,7 +213,7 @@ export async function handleAnalyticsRoutes(
   // GET /api/dashboard/guilds/:guildId/analytics/heatmap - Hourly activity heatmap
   if (parts.length === 6 && parts[5] === 'heatmap') {
     try {
-      const days = Math.min(90, Math.max(1, parseInt(url.searchParams.get('days') || '30', 10)));
+      const days = Math.min(365, Math.max(1, parseInt(url.searchParams.get('days') || '30', 10)));
       const startDate = url.searchParams.get('startDate');
       const endDate = url.searchParams.get('endDate');
       const heatmapData = await getHourlyHeatmapData(guildId, { days, startDate, endDate });
@@ -291,24 +288,42 @@ export async function handleAnalyticsRoutes(
   // GET /api/dashboard/guilds/:guildId/analytics - Full analytics data
   if (parts.length === 5) {
     try {
-      const periodDays = Math.min(90, Math.max(1, parseInt(url.searchParams.get('period') || '30', 10)));
+      const queryStartDate = url.searchParams.get('startDate');
+      const queryEndDate = url.searchParams.get('endDate');
       const now = new Date();
-      const startDate = new Date(now);
-      startDate.setDate(startDate.getDate() - periodDays);
+      let startDate: Date;
+      let endDate: Date;
+      let periodDays: number;
+
+      if (queryStartDate) {
+        startDate = new Date(queryStartDate);
+        endDate = queryEndDate ? new Date(queryEndDate) : new Date();
+        const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+        periodDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      } else {
+        periodDays = Math.min(365, Math.max(1, parseInt(url.searchParams.get('period') || '30', 10)));
+        endDate = new Date();
+        startDate = new Date(endDate);
+        startDate.setDate(startDate.getDate() - periodDays);
+      }
+
       const startDateKey = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`;
+      const endDateKey = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
 
       let dailyStats: any[] = [];
       const granularity = url.searchParams.get('granularity');
       const use30Min = periodDays === 1 || granularity === '30';
+      // For periods > 90 days, aggregate by week to keep the dataset lean
+      const useWeeklyAggregation = periodDays > 90 && !use30Min;
 
       if (use30Min) {
         const hourlyStats = await prisma.guildHourlyStat.findMany({
-          where: { guildId },
+          where: { guildId, dateKey: { gte: startDateKey, lte: endDateKey } },
           orderBy: [
             { dateKey: 'desc' },
             { hour: 'desc' }
           ],
-          take: 24
+          take: 48
         });
         hourlyStats.reverse();
         
@@ -343,16 +358,60 @@ export async function handleAnalyticsRoutes(
             sanctionsCount: 0,
           });
         }
+      } else if (useWeeklyAggregation) {
+        // Fetch raw daily stats then bucket into ISO weeks to reduce data points
+        const rawDailyStats = await prisma.guildDailyStat.findMany({
+          where: { guildId, dateKey: { gte: startDateKey, lte: endDateKey } },
+          orderBy: { dateKey: 'asc' },
+        });
+        // Group by ISO year-week
+        const weekMap = new Map<string, any>();
+        for (const d of rawDailyStats) {
+          const date = new Date(d.dateKey + 'T12:00:00Z');
+          const dayOfWeek = date.getUTCDay(); // 0=Sun
+          const monday = new Date(date);
+          monday.setUTCDate(date.getUTCDate() - ((dayOfWeek + 6) % 7));
+          const weekKey = `${monday.getUTCFullYear()}-${String(monday.getUTCMonth() + 1).padStart(2, '0')}-${String(monday.getUTCDate()).padStart(2, '0')}`;
+          if (!weekMap.has(weekKey)) {
+            weekMap.set(weekKey, {
+              dateKey: weekKey,
+              messagesCount: 0,
+              voiceMinutes: 0,
+              voiceSessionsCount: 0,
+              membersJoined: 0,
+              membersLeft: 0,
+              totalMembers: d.totalMembers,
+              onlineMembers: 0,
+              peakOnline: 0,
+              peakVoice: 0,
+              sanctionsCount: 0,
+              _dayCount: 0,
+            });
+          }
+          const w = weekMap.get(weekKey)!;
+          w.messagesCount += d.messagesCount;
+          w.voiceMinutes += d.voiceMinutes;
+          w.voiceSessionsCount += d.voiceSessionsCount;
+          w.membersJoined += d.membersJoined;
+          w.membersLeft += d.membersLeft;
+          w.totalMembers = d.totalMembers; // keep latest
+          w.onlineMembers = Math.max(w.onlineMembers, d.onlineMembers);
+          w.peakOnline = Math.max(w.peakOnline, d.peakOnline);
+          w.peakVoice = Math.max(w.peakVoice, d.peakVoice);
+          w.sanctionsCount += d.sanctionsCount;
+          w._dayCount++;
+        }
+        dailyStats = [...weekMap.values()].sort((a, b) => a.dateKey.localeCompare(b.dateKey));
       } else {
         dailyStats = await prisma.guildDailyStat.findMany({
-          where: { guildId, dateKey: { gte: startDateKey } },
+          where: { guildId, dateKey: { gte: startDateKey, lte: endDateKey } },
           orderBy: { dateKey: 'asc' },
         });
       }
 
       const channelStats = await prisma.channelDailyStat.groupBy({
         by: ['channelId'],
-        where: { guildId, dateKey: { gte: startDateKey } },
+        where: { guildId, dateKey: { gte: startDateKey, lte: endDateKey } },
         _sum: { messagesCount: true },
         orderBy: { _sum: { messagesCount: 'desc' } },
         take: 15,
@@ -396,7 +455,7 @@ export async function handleAnalyticsRoutes(
       const botsCount = discordGuild?.members.cache.filter(m => m.user.bot).size ?? 0;
 
       const sanctions = await prisma.sanction.findMany({
-        where: { guildId, createdAt: { gte: startDate } },
+        where: { guildId, createdAt: { gte: startDate, lte: endDate } },
         select: { type: true, status: true, moderatorUserId: true, moderatorTag: true, targetUserId: true, targetTag: true, createdAt: true },
       });
 
@@ -449,7 +508,7 @@ export async function handleAnalyticsRoutes(
       const activeSanctions = await prisma.sanction.count({ where: { guildId, status: 'ACTIVE' } });
 
       const staffActivities = await prisma.staffActivity.findMany({
-        where: { guildId, activityDate: { gte: startDate } },
+        where: { guildId, activityDate: { gte: startDate, lte: endDate } },
         include: { staffMember: { select: { userId: true, displayName: true, username: true, avatarUrl: true, grade: true } } },
       });
 
@@ -470,7 +529,7 @@ export async function handleAnalyticsRoutes(
       const totalStaff = await prisma.staffMember.count({ where: { guildId } });
 
       const meetings = await prisma.staffMeeting.findMany({
-        where: { guildId, scheduledAt: { gte: startDate } },
+        where: { guildId, scheduledAt: { gte: startDate, lte: endDate } },
         include: { _count: { select: { presences: true } }, presences: { where: { status: 'PRESENT' }, select: { id: true } } },
       });
       const avgMeetingAttendance = meetings.length > 0
@@ -485,7 +544,7 @@ export async function handleAnalyticsRoutes(
       const recruitmentPipeline = candidatures.map(c => ({ status: c.status, count: c._count }));
 
       const algoRuns = await prisma.dailyAlgoRun.findMany({
-        where: { guildId, createdAt: { gte: startDate } },
+        where: { guildId, createdAt: { gte: startDate, lte: endDate } },
         include: { _count: { select: { submissions: true } } },
       });
       const algoAvgParticipation = algoRuns.length > 0
@@ -494,7 +553,7 @@ export async function handleAnalyticsRoutes(
 
       const DBInvites = await prisma.memberInvite.groupBy({
         by: ['inviterId'],
-        where: { guildId, inviterId: { not: null }, joinedAt: { gte: startDate } },
+        where: { guildId, inviterId: { not: null }, joinedAt: { gte: startDate, lte: endDate } },
         _count: true,
         orderBy: { _count: { inviterId: 'desc' } },
         take: 10,
@@ -590,7 +649,7 @@ export async function handleAnalyticsRoutes(
         };
       }));
 
-      const sevenDaysAgo = new Date();
+      const sevenDaysAgo = new Date(endDate);
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       const joinedInRange = await prisma.memberProfile.count({
         where: {
@@ -604,93 +663,81 @@ export async function handleAnalyticsRoutes(
           guildId,
           isBot: false,
           guildJoinedAt: { gte: startDate, lte: sevenDaysAgo },
-          guildLeftAt: null
+          OR: [
+            { guildLeftAt: null },
+            { guildLeftAt: { gt: endDate } }
+          ]
         }
       });
       const retentionRate = joinedInRange > 0 ? Math.round((stayedInRange / joinedInRange) * 100) : 0;
 
-      // Fetch member join/leave timestamps for each day in the daily trend
-      const dailyJoinsLeaves = await Promise.all(
-        dailyStats.map(async (d) => {
-          const datePart = d.dateKey.split(' ')[0];
-          const dayStart = new Date(datePart + 'T00:00:00.000Z');
-          const dayEnd = new Date(datePart + 'T23:59:59.999Z');
-          
-          const [joins, leaves, inviteJoins] = await Promise.all([
-            prisma.memberProfile.findMany({
-              where: {
-                guildId,
-                isBot: false,
-                guildJoinedAt: { gte: dayStart, lte: dayEnd }
-              },
-              select: {
-                userId: true,
-                displayName: true,
-                username: true,
-                globalName: true,
-                avatarUrl: true,
-                guildJoinedAt: true
-              },
-              take: 50
-            }),
-            prisma.memberProfile.findMany({
-              where: {
-                guildId,
-                isBot: false,
-                guildLeftAt: { gte: dayStart, lte: dayEnd }
-              },
-              select: {
-                userId: true,
-                displayName: true,
-                username: true,
-                globalName: true,
-                avatarUrl: true,
-                guildLeftAt: true
-              },
-              take: 50
-            }),
-            prisma.memberInvite.findMany({
-              where: {
-                guildId,
-                joinedAt: { gte: dayStart, lte: dayEnd }
-              },
-              select: {
-                userId: true,
-                inviteCode: true,
-                inviterId: true,
-                inviterTag: true,
-                joinedAt: true,
-                leftAt: true
-              },
-              take: 50
-            })
-          ]);
-          
-          return {
-            dateKey: d.dateKey,
-            joins: joins.map(j => ({
-              userId: j.userId,
-              name: j.displayName ?? j.globalName ?? j.username ?? 'Inconnu',
-              avatarUrl: j.avatarUrl,
-              joinedAt: j.guildJoinedAt?.toISOString()
-            })),
-            leaves: leaves.map(l => ({
-              userId: l.userId,
-              name: l.displayName ?? l.globalName ?? l.username ?? 'Inconnu',
-              avatarUrl: l.avatarUrl,
-              leftAt: l.guildLeftAt?.toISOString()
-            })),
-            invites: inviteJoins.map(i => ({
-              userId: i.userId,
-              inviteCode: i.inviteCode,
-              inviterId: i.inviterId,
-              inviterTag: i.inviterTag,
-              joinedAt: i.joinedAt?.toISOString(),
-              leftAt: i.leftAt?.toISOString()
-            }))
-          };
-        })
-      );
+      // Fetch member join/leave timestamps with a single bulk query (avoids N×3 round-trips)
+      // For weekly-aggregated periods we skip per-day detail (too noisy) and return empty arrays.
+      let dailyJoinsLeaves: Array<{ dateKey: string; joins: any[]; leaves: any[]; invites: any[] }> = [];
+      if (!useWeeklyAggregation) {
+        const [allJoins, allLeaves, allInviteJoins] = await Promise.all([
+          prisma.memberProfile.findMany({
+            where: { guildId, isBot: false, guildJoinedAt: { gte: startDate, lte: endDate } },
+            select: {
+              userId: true, displayName: true, username: true, globalName: true,
+              avatarUrl: true, guildJoinedAt: true
+            },
+            take: 2000,
+          }),
+          prisma.memberProfile.findMany({
+            where: { guildId, isBot: false, guildLeftAt: { gte: startDate, lte: endDate } },
+            select: {
+              userId: true, displayName: true, username: true, globalName: true,
+              avatarUrl: true, guildLeftAt: true
+            },
+            take: 2000,
+          }),
+          prisma.memberInvite.findMany({
+            where: { guildId, joinedAt: { gte: startDate, lte: endDate } },
+            select: {
+              userId: true, inviteCode: true, inviterId: true,
+              inviterTag: true, joinedAt: true, leftAt: true
+            },
+            take: 2000,
+          }),
+        ]);
+
+        // Group in-memory by dateKey
+        const joinsMap = new Map<string, any[]>();
+        for (const j of allJoins) {
+          if (!j.guildJoinedAt) continue;
+          const d = j.guildJoinedAt;
+          const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+          if (!joinsMap.has(key)) joinsMap.set(key, []);
+          joinsMap.get(key)!.push({ userId: j.userId, name: j.displayName ?? j.globalName ?? j.username ?? 'Inconnu', avatarUrl: j.avatarUrl, joinedAt: j.guildJoinedAt?.toISOString() });
+        }
+        const leavesMap = new Map<string, any[]>();
+        for (const l of allLeaves) {
+          if (!l.guildLeftAt) continue;
+          const d = l.guildLeftAt;
+          const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+          if (!leavesMap.has(key)) leavesMap.set(key, []);
+          leavesMap.get(key)!.push({ userId: l.userId, name: l.displayName ?? l.globalName ?? l.username ?? 'Inconnu', avatarUrl: l.avatarUrl, leftAt: l.guildLeftAt?.toISOString() });
+        }
+        const invitesMap = new Map<string, any[]>();
+        for (const i of allInviteJoins) {
+          if (!i.joinedAt) continue;
+          const d = i.joinedAt as Date;
+          const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+          if (!invitesMap.has(key)) invitesMap.set(key, []);
+          invitesMap.get(key)!.push({ userId: i.userId, inviteCode: i.inviteCode, inviterId: i.inviterId, inviterTag: i.inviterTag, joinedAt: (i.joinedAt as Date)?.toISOString(), leftAt: (i.leftAt as Date | null)?.toISOString() ?? null });
+        }
+
+        dailyJoinsLeaves = dailyStats.map(d => ({
+          dateKey: d.dateKey,
+          joins: joinsMap.get(d.dateKey.split(' ')[0]) ?? [],
+          leaves: leavesMap.get(d.dateKey.split(' ')[0]) ?? [],
+          invites: invitesMap.get(d.dateKey.split(' ')[0]) ?? [],
+        }));
+      } else {
+        // Weekly mode: empty detail arrays (aggregated counts come from dailyStats sums)
+        dailyJoinsLeaves = dailyStats.map(d => ({ dateKey: d.dateKey, joins: [], leaves: [], invites: [] }));
+      }
 
       const totalMessages = dailyStats.reduce((sum, d) => sum + d.messagesCount, 0);
       const totalVoiceMinutes = dailyStats.reduce((sum, d) => sum + d.voiceMinutes, 0);
@@ -698,7 +745,7 @@ export async function handleAnalyticsRoutes(
       const totalLeaves = dailyStats.reduce((sum, d) => sum + d.membersLeft, 0);
 
       const halfPeriod = Math.floor(periodDays / 2);
-      const midDate = new Date(now);
+      const midDate = new Date(endDate);
       midDate.setDate(midDate.getDate() - halfPeriod);
       const midDateKey = `${midDate.getFullYear()}-${String(midDate.getMonth() + 1).padStart(2, '0')}-${String(midDate.getDate()).padStart(2, '0')}`;
       const recentStats = dailyStats.filter(d => d.dateKey >= midDateKey);

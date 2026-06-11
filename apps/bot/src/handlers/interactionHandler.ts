@@ -205,6 +205,77 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
+  // Regulation acceptance button
+  if (customId === 'regulation_accept') {
+    if (!guildId) {
+      await interaction.reply({ content: '❌ Action impossible hors serveur.', flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+    try {
+      const guild = await prisma.guild.findUnique({
+        where: { id: guildId },
+        select: { regulationRoleId: true },
+      });
+
+      const discordGuild = interaction.guild;
+      if (!discordGuild) {
+        await interaction.editReply({ content: '❌ Erreur : Serveur Discord introuvable.' });
+        return;
+      }
+
+      const member = await discordGuild.members.fetch(user.id).catch(() => null);
+      if (!member) {
+        await interaction.editReply({ content: '❌ Erreur : Membre introuvable.' });
+        return;
+      }
+
+      const roleId = guild?.regulationRoleId;
+      let role = roleId ? discordGuild.roles.cache.get(roleId) : null;
+
+      if (!role) {
+        // Find existing "Vérifié" role or create it
+        role = discordGuild.roles.cache.find((r) => r.name === 'Vérifié') ?? null;
+        if (!role) {
+          try {
+            role = await discordGuild.roles.create({
+              name: 'Vérifié',
+              reason: 'Créé automatiquement pour le règlement du serveur.',
+            });
+          } catch (err) {
+            logger.error('RegulationButton', `Impossible de créer le rôle 'Vérifié' :`, err);
+            await interaction.editReply({ content: '❌ Impossible de créer le rôle de vérification. Demandez à un administrateur de configurer le rôle.' });
+            return;
+          }
+        }
+
+        // Update database with the new or found role ID
+        await prisma.guild.update({
+          where: { id: guildId },
+          data: { regulationRoleId: role.id },
+        });
+      }
+
+      if (member.roles.cache.has(role.id)) {
+        await interaction.editReply({ content: 'ℹ️ Tu as déjà accepté le règlement et tu es déjà vérifié !' });
+        return;
+      }
+
+      await member.roles.add(role, 'Acceptation du règlement du serveur').catch((err) => {
+        logger.error('RegulationButton', `Impossible d'attribuer le rôle de vérification :`, err);
+        throw err;
+      });
+
+      await interaction.editReply({ content: '✅ Merci d’avoir accepté le règlement ! Tu as maintenant accès au serveur.' });
+    } catch (err) {
+      logger.error('RegulationButton', `Erreur lors de l'acceptation du règlement :`, err);
+      await interaction.editReply({ content: '❌ Une erreur est survenue lors de l’attribution du rôle. Veuillez contacter un administrateur.' });
+    }
+    return;
+  }
+
 
 
   // ── Double Account Buttons ───────────────────────────────────────────

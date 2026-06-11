@@ -47,11 +47,12 @@
   let draftDescription = $state('');
   let draftEmoji = $state('');
   let draftEnabled = $state(true);
-  let selectedRegulationChannelId = $state('');
   let draggingRuleId = $state<string | null>(null);
   let dragOverRuleId = $state<string | null>(null);
   let reordering = $state(false);
   const saveAction = createAsyncActionState();
+  let showVerificationWarningModal = $state(false);
+  const guildState = dashboardStore.state as any;
 
   let featureConfig = $state<any>(null);
   let loadingConfig = $state(false);
@@ -71,32 +72,41 @@
   async function toggleConfig(key: string, value: boolean) {
     if (!featureConfig) return;
     
-    await saveAction.run(async () => {
-      const ok = await updateFeatureConfiguration('regulation', { [key]: value });
-      if (!ok) throw new Error('Erreur API');
-      featureConfig[key] = value;
+    const previousValue = featureConfig[key];
+    featureConfig[key] = value;
+    
+    const ok = await saveAction.run(async () => {
+      const resOk = await updateFeatureConfiguration('regulation', { [key]: value });
+      if (!resOk) throw new Error('Erreur API');
       return true;
     }, { successMessage: 'Configuration mise à jour.' });
+
+    if (!ok) {
+      featureConfig[key] = previousValue;
+    }
   }
 
   const canManageSettings = $derived(
-    !!dashboardStore.state.featureAccess?.regulation?.canConfigure
-      || !!dashboardStore.state.access?.canManageSettings
+    !!guildState.featureAccess?.regulation?.canConfigure
+      || !!guildState.access?.canManageSettings
   );
   const regulationRules = $derived(
-    [...(dashboardStore.state.regulationRules || [])]
+    [...(guildState.regulationRules || [])]
       .sort((left, right) => left.sortOrder - right.sortOrder || left.title.localeCompare(right.title, 'fr'))
   );
   const activeRules = $derived(regulationRules.filter((rule) => rule.enabled));
   const regulationChannelLabel = $derived(
-    dashboardStore.state.regulationChannelId
-      ? `<#${dashboardStore.state.regulationChannelId}>`
-      : dashboardStore.state.configChannelId
-        ? `<#${dashboardStore.state.configChannelId}> (fallback configuration)`
-        : 'Aucun salon de publication'
+    (() => {
+      const isFallback = !guildState.regulationChannelId;
+      const channelId = guildState.regulationChannelId || guildState.configChannelId;
+      if (!channelId) return 'Aucun salon de publication';
+      const channel = (guildState.discordChannels || []).find((c: any) => c.id === channelId);
+      const name = channel ? `#${channel.name}` : `Salon #${channelId}`;
+      return name + (isFallback ? ' (Configuration par défaut)' : '');
+    })()
   );
   const publicationStatusLabel = $derived(
-    dashboardStore.state.regulationMessageId ? 'Message publié et synchronisable' : 'Aucun message publié pour le moment'
+    guildState.regulationMessageId ? 'Message publié et synchronisable' : 'Aucun message publié pour le moment'
   );
 
   function resetDraft() {
@@ -161,14 +171,14 @@
   }
 
   async function persistRuleOrder(nextRules: RegulationRule[]) {
-    const previousRules = dashboardStore.state.regulationRules || [];
-    dashboardStore.state.regulationRules = nextRules;
+    const previousRules = guildState.regulationRules || [];
+    guildState.regulationRules = nextRules;
     reordering = true;
 
     try {
       const ok = await reorderRegulationArticles(nextRules.map((rule) => rule.id));
       if (!ok) {
-        dashboardStore.state.regulationRules = previousRules;
+        guildState.regulationRules = previousRules;
         feedbackMessage = 'Impossible de réordonner les articles du règlement.';
         feedbackIsError = true;
         await dashboardStore.refresh();
@@ -346,7 +356,7 @@
     feedbackMessage = '';
     feedbackIsError = false;
 
-    if (!dashboardStore.state.regulationChannelId && !dashboardStore.state.configChannelId) {
+    if (!guildState.regulationChannelId && !guildState.configChannelId) {
       feedbackMessage = 'Le salon de publication du règlement n’est pas défini. Configure-le avant de publier le règlement.';
       feedbackIsError = true;
       return;
@@ -355,7 +365,7 @@
     publishing = true;
     try {
       await publishRegulation();
-      await refreshState(dashboardStore.state.regulationMessageId ? 'Règlement actualisé dans le salon de publication.' : 'Règlement publié dans le salon de publication.');
+      await refreshState(guildState.regulationMessageId ? 'Règlement actualisé dans le salon de publication.' : 'Règlement publié dans le salon de publication.');
     } catch (error) {
       feedbackMessage = error instanceof Error ? error.message : 'Impossible de publier ou mettre à jour le règlement.';
       feedbackIsError = true;
@@ -364,35 +374,124 @@
     }
   }
 
-  async function handleRegulationChannelChange(event: Event) {
-    const target = event.target as HTMLSelectElement;
-    const channelId = target.value || null;
+  const availableRoles = $derived(guildState.discordRoles || []);
 
+  async function handleRegulationChannelChange(channelId: string | null) {
     feedbackMessage = '';
     feedbackIsError = false;
+    const previousChannelId = guildState.regulationChannelId;
     saving = true;
 
     try {
-      await saveAction.run(async () => {
-        const ok = await updateRegulationSettings(channelId);
-        if (!ok) throw new Error('Erreur API');
+      const ok = await saveAction.run(async () => {
+        const resOk = await updateRegulationSettings({ regulationChannelId: channelId });
+        if (!resOk) throw new Error('Erreur API');
         
         if (featureConfig) {
           await updateFeatureConfiguration('regulation', { channelId });
           featureConfig.channelId = channelId;
         }
-
-        await dashboardStore.refresh();
         return true;
       }, { successMessage: channelId ? 'Salon de publication du règlement mis à jour.' : 'Salon de publication spécifique supprimé (fallback configuration actif).' });
+      
+      if (!ok) {
+        guildState.regulationChannelId = previousChannelId;
+      } else {
+        guildState.regulationChannelId = channelId ?? '';
+      }
+    } catch (err) {
+      guildState.regulationChannelId = previousChannelId;
     } finally {
       saving = false;
     }
   }
 
-  $effect(() => {
-    selectedRegulationChannelId = dashboardStore.state.regulationChannelId || '';
-  });
+  async function handleVerificationToggle(enabled: boolean) {
+    if (!canManageSettings) return;
+
+    if (enabled) {
+      guildState.regulationVerificationEnabled = true;
+      showVerificationWarningModal = true;
+      return;
+    }
+
+    await saveVerificationSettings(false);
+  }
+
+  async function confirmVerificationToggle() {
+    showVerificationWarningModal = false;
+    await saveVerificationSettings(true);
+  }
+
+  function cancelVerificationToggle() {
+    showVerificationWarningModal = false;
+    guildState.regulationVerificationEnabled = false;
+  }
+
+  async function saveVerificationSettings(enabled: boolean) {
+    const previous = enabled ? false : true;
+    guildState.regulationVerificationEnabled = enabled;
+    saving = true;
+    try {
+      const ok = await saveAction.run(async () => {
+        const resOk = await updateRegulationSettings({ regulationVerificationEnabled: enabled });
+        if (!resOk) throw new Error('Erreur API');
+        return true;
+      }, { successMessage: enabled ? 'Vérification du règlement activée !' : 'Vérification du règlement désactivée.' });
+      
+      if (!ok) {
+        guildState.regulationVerificationEnabled = previous;
+      }
+    } catch (err) {
+      guildState.regulationVerificationEnabled = previous;
+    } finally {
+      saving = false;
+    }
+  }
+
+  async function handleRegulationRoleChange(roleId: string | null) {
+    if (!canManageSettings) return;
+    const previous = guildState.regulationRoleId;
+    guildState.regulationRoleId = roleId ?? '';
+    saving = true;
+    try {
+      const ok = await saveAction.run(async () => {
+        const resOk = await updateRegulationSettings({ regulationRoleId: roleId });
+        if (!resOk) throw new Error('Erreur API');
+        return true;
+      }, { successMessage: 'Rôle de vérification mis à jour.' });
+      
+      if (!ok) {
+        guildState.regulationRoleId = previous;
+      }
+    } catch (err) {
+      guildState.regulationRoleId = previous;
+    } finally {
+      saving = false;
+    }
+  }
+
+  async function handleLockToggle(enabled: boolean) {
+    if (!canManageSettings) return;
+    const previous = guildState.regulationLockEnabled;
+    guildState.regulationLockEnabled = enabled;
+    saving = true;
+    try {
+      const ok = await saveAction.run(async () => {
+        const resOk = await updateRegulationSettings({ regulationLockEnabled: enabled });
+        if (!resOk) throw new Error('Erreur API');
+        return true;
+      }, { successMessage: enabled ? 'Verrouillage du serveur activé !' : 'Verrouillage du serveur désactivé.' });
+
+      if (!ok) {
+        guildState.regulationLockEnabled = previous;
+      }
+    } catch (err) {
+      guildState.regulationLockEnabled = previous;
+    } finally {
+      saving = false;
+    }
+  }
 </script>
 
 <ModulePage 
@@ -405,7 +504,7 @@
     <div class="flex items-center gap-3">
       <RefreshButton
         onClick={() => dashboardStore.refresh()}
-        loading={dashboardStore.state.loading}
+        loading={guildState.loading}
         label="Actualiser"
         className="flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest bg-on-surface text-surface shadow-xl hover:scale-105 transition-all duration-300"
         iconClass="text-lg"
@@ -413,7 +512,7 @@
     </div>
   {/snippet}
 
-  {#if dashboardStore.state.regulationRules}
+  {#if guildState.regulationRules}
     <div class="flex items-center gap-4 text-xs font-bold text-on-surface-variant/40 bg-surface-container-low/40 px-4 py-2 rounded-xl border border-outline-variant/5 mb-8">
        <div class="flex items-center gap-2">
           <span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
@@ -425,7 +524,7 @@
   {/if}
 
   <!-- Config & Stats -->
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
     <div class="bg-surface-container-low/30 p-6 rounded-4xl border border-outline-variant/10 space-y-4">
       <div class="flex items-center gap-3">
         <div class="bg-primary/10 p-2 rounded-xl text-primary">
@@ -434,14 +533,13 @@
         <h3 class="text-sm font-black uppercase tracking-widest text-on-surface">Salon de publication</h3>
       </div>
       <div class="space-y-4">
-        <div class="flex items-center justify-between p-4 bg-surface-container-high/40 rounded-2xl border border-outline-variant/10">
-          <span class="text-sm font-bold text-on-surface-variant">Actuel</span>
-          <span class="text-sm font-black text-primary bg-primary/5 px-3 py-1 rounded-lg">{regulationChannelLabel}</span>
+        <div class="flex flex-col gap-2 p-4 bg-surface-container-high/40 rounded-2xl border border-outline-variant/10">
+          <span class="text-xs font-black uppercase tracking-widest text-on-surface-variant/60">Actuel</span>
+          <span class="text-sm font-black text-primary bg-primary/5 px-3 py-2 rounded-lg break-all">{regulationChannelLabel}</span>
         </div>
         {#if canManageSettings}
           <div class="space-y-2">
-            <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60 ml-1" for="regulation-channel-select">Changer le salon</label>
-            <SearchableSelect id="regulation-channel-select" bind:value={selectedRegulationChannelId} options={(dashboardStore.state.discordChannels || []).map(channel => ({ id: channel.id, name: channel.name }))} placeholder="Utiliser le salon de configuration (fallback)" className="w-full rounded-xl border border-outline-variant/10 bg-surface-container-high/60 px-4 py-3 text-sm font-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all cursor-pointer" on:change={() => handleRegulationChannelChange()} disabled={saving || dashboardStore.state.loading || dashboardStore.state.discordChannels.length === 0} />
+            <SearchableSelect id="regulation-channel-select" bind:value={guildState.regulationChannelId} options={(guildState.discordChannels || []).map((channel: any) => ({ id: channel.id, name: channel.name }))} placeholder="Par défaut (salon config)" className="w-full" on:change={(e) => handleRegulationChannelChange(e.detail.value)} disabled={saving || guildState.loading || guildState.discordChannels.length === 0} />
           </div>
         {/if}
       </div>
@@ -502,9 +600,60 @@
           disabled={!canManageSettings || publishing || reordering || regulationRules.length === 0}
           variant="primary"
           className="w-full py-4 rounded-xl shadow-lg shadow-primary/10"
-          icon={dashboardStore.state.regulationMessageId ? 'ArrowsCounterClockwise' : 'Megaphone'}
-          label={publishing ? 'Publication en cours...' : dashboardStore.state.regulationMessageId ? 'Actualiser le message' : 'Publier le règlement'}
+          icon={guildState.regulationMessageId ? 'ArrowsCounterClockwise' : 'Megaphone'}
+          label={publishing ? 'Publication en cours...' : guildState.regulationMessageId ? 'Actualiser le message' : 'Publier le règlement'}
         />
+      </div>
+    </div>
+
+    <div class="bg-surface-container-low/30 p-6 rounded-4xl border border-outline-variant/10 space-y-4">
+      <div class="flex items-center gap-3">
+        <div class="bg-primary/10 p-2 rounded-xl text-primary">
+          <Papicon icon="ShieldCheck" size={18} />
+        </div>
+        <h3 class="text-sm font-black uppercase tracking-widest text-on-surface">Vérification</h3>
+      </div>
+      <div class="space-y-4">
+        {#if canManageSettings}
+          <div class="flex items-center justify-between p-4 bg-surface-container-high/40 rounded-2xl border border-outline-variant/10">
+            <div class="space-y-0.5">
+              <span class="text-sm font-bold text-on-surface">Vérification</span>
+              <p class="text-[9px] text-on-surface-variant/60 leading-tight">Activer le bouton règlement</p>
+            </div>
+            <ToggleSwitch 
+              checked={guildState.regulationVerificationEnabled}
+              disabled={saving || guildState.loading}
+              onToggle={() => handleVerificationToggle(!guildState.regulationVerificationEnabled)}
+            />
+          </div>
+
+          {#if guildState.regulationVerificationEnabled}
+            <div class="space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
+              <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60 ml-1" for="regulation-role-select">Rôle attribué</label>
+              <SearchableSelect 
+                id="regulation-role-select" 
+                bind:value={guildState.regulationRoleId} 
+                options={availableRoles.map((role: any) => ({ id: role.id, name: `@${role.name}` }))} 
+                placeholder="Création automatique ('Vérifié')" 
+                className="w-full" 
+                on:change={(e) => handleRegulationRoleChange(e.detail.value)} 
+                disabled={saving || guildState.loading} 
+              />
+            </div>
+
+            <div class="flex items-center justify-between p-4 bg-surface-container-high/40 rounded-2xl border border-outline-variant/10 animate-in fade-in slide-in-from-top-1 duration-200">
+              <div class="space-y-0.5">
+                <span class="text-sm font-bold text-on-surface">Verrouiller</span>
+                <p class="text-[9px] text-on-surface-variant/60 leading-tight">Masquer les autres salons</p>
+              </div>
+              <ToggleSwitch 
+                checked={guildState.regulationLockEnabled}
+                disabled={saving || guildState.loading}
+                onToggle={() => handleLockToggle(!guildState.regulationLockEnabled)}
+              />
+            </div>
+          {/if}
+        {/if}
       </div>
     </div>
   </div>
@@ -549,7 +698,7 @@
     {/if}
 
     <div class="grid grid-cols-1 gap-4">
-      {#if dashboardStore.state.loading && regulationRules.length === 0}
+      {#if guildState.loading && regulationRules.length === 0}
         {#each Array(4) as _}
           <div class="h-32 rounded-4xl bg-surface-container-low/30 border border-outline-variant/10 animate-pulse"></div>
         {/each}
@@ -692,7 +841,7 @@
             <div class="relative flex items-center justify-center">
               <input type="checkbox" bind:checked={draftEnabled} class="peer h-6 w-6 rounded-lg border-2 border-outline-variant/20 text-primary focus:ring-primary/40 transition-all appearance-none checked:bg-primary checked:border-primary" />
               <div class="absolute pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity text-on-primary">
-                <Papicon icon="Check" size={14} weight="bold" />
+                <Papicon icon="Check" size={14} />
               </div>
             </div>
             <div class="flex-1">
@@ -784,6 +933,42 @@
       <div class="flex flex-col gap-2">
         <ActionButton onClick={confirmDeleteRule} variant="danger" label={saving ? 'Suppression...' : 'Confirmer la Suppression'} disabled={saving} className="w-full py-4 rounded-xl shadow-xl shadow-error/20" />
         <button onclick={closeDeleteModal} class="w-full py-4 rounded-xl text-xs font-black uppercase tracking-widest text-on-surface-variant hover:bg-surface-container-high transition-all">Annuler</button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if showVerificationWarningModal}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div class="modal-backdrop backdrop-blur-sm bg-amber-500/10" role="dialog" aria-modal="true" aria-labelledby="verification-warning-title" tabindex="-1" onclick={cancelVerificationToggle}>
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="modal-panel max-w-lg rounded-[3rem]! border border-amber-500/20 shadow-2xl bg-surface! space-y-6 p-8" onclick={(e) => e.stopPropagation()}>
+      <div class="flex flex-col items-center text-center space-y-4">
+        <div class="bg-amber-500/10 p-5 rounded-full text-amber-500">
+          <Papicon icon="Warning" size={40} />
+        </div>
+        <div>
+          <p class="text-[10px] font-black uppercase tracking-[0.25em] text-amber-500/60">Attention de sécurité</p>
+          <h3 id="verification-warning-title" class="text-2xl font-black text-on-surface tracking-tight">Activer la vérification ?</h3>
+        </div>
+        <p class="text-sm font-bold text-on-surface-variant leading-relaxed">
+          L'activation de la vérification par règlement peut causer des conflits de permissions Discord et donner par mégarde un accès de lecture à <span class="text-amber-500 font-black">@everyone</span> sur certains salons privés.
+        </p>
+        <p class="text-xs font-semibold text-on-surface-variant/70 leading-relaxed">
+          Assurez-vous que vos salons privés refusent explicitement l'autorisation de lire les messages pour le rôle <span class="font-black">@everyone</span>.
+        </p>
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <button
+          onclick={confirmVerificationToggle}
+          class="w-full py-4 bg-amber-500 text-white rounded-xl text-xs font-black uppercase tracking-wider hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-amber-500/20"
+        >
+          Activer quand même
+        </button>
+        <button onclick={cancelVerificationToggle} class="w-full py-4 rounded-xl text-xs font-black uppercase tracking-widest text-on-surface-variant hover:bg-surface-container-high transition-all">Annuler</button>
       </div>
     </div>
   </div>

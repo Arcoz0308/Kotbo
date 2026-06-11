@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { useUnsavedChanges } from '../lib/useUnsavedChanges.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { 
@@ -122,6 +123,12 @@
     }
   }
 
+  let savedWebhookUrl = $state('');
+  let savedChannelId = $state('');
+  let savedNotificationRoleId = $state('');
+  let savedNotifyViaDiscordChannel = $state(true);
+  let savedManagerRoleLevels = $state<number[]>([]);
+
   $effect(() => {
     if (absenceConfig) {
       webhookUrl = absenceConfig.metadata?.webhookUrl || '';
@@ -129,14 +136,52 @@
       notificationRoleId = absenceConfig.notificationRoleId || '';
       notifyViaDiscordChannel = absenceConfig.notifyViaDiscordChannel !== false;
       managerRoleLevels = absenceConfig.roleAccess?.map((ra: any) => ra.staffRoleLevel) || [];
+
+      savedWebhookUrl = webhookUrl;
+      savedChannelId = channelId;
+      savedNotificationRoleId = notificationRoleId;
+      savedNotifyViaDiscordChannel = notifyViaDiscordChannel;
+      savedManagerRoleLevels = [...managerRoleLevels];
     }
+  });
+
+  const currentConfig = $derived({
+    webhookUrl,
+    channelId,
+    notificationRoleId,
+    notifyViaDiscordChannel,
+    managerRoleLevels
+  });
+
+  const savedConfig = $derived({
+    webhookUrl: savedWebhookUrl,
+    channelId: savedChannelId,
+    notificationRoleId: savedNotificationRoleId,
+    notifyViaDiscordChannel: savedNotifyViaDiscordChannel,
+    managerRoleLevels: savedManagerRoleLevels
+  });
+
+  useUnsavedChanges({
+    label: 'Absences (Configuration)',
+    getConfig: () => currentConfig,
+    getSaved: () => savedConfig,
+    onSave: () => saveConfig(),
+    onReset: () => {
+      webhookUrl = savedWebhookUrl;
+      channelId = savedChannelId;
+      notificationRoleId = savedNotificationRoleId;
+      notifyViaDiscordChannel = savedNotifyViaDiscordChannel;
+      managerRoleLevels = [...savedManagerRoleLevels];
+    },
+    canEdit: () => isAdmin && absenceConfig !== null
   });
 
   const availableChannels = $derived(dashboardStore.state.discordChannels || []);
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
 
-  async function saveConfig() {
-    if (!isAdmin) return;
+  async function saveConfig(): Promise<boolean> {
+    if (!isAdmin) return false;
+    let success = false;
     await saveAction.run(
       async () => {
         const payload = {
@@ -146,18 +191,20 @@
           notificationRoleId: notificationRoleId || null,
           notifyViaDiscordChannel,
         };
-        const success = await updateAbsenceConfig(payload);
-        if (success) {
+        const ok = await updateAbsenceConfig(payload);
+        if (ok) {
           const configData = await fetchAbsenceConfig().catch(() => null);
           absenceConfig = configData?.config || null;
+          success = true;
         }
-        return success;
+        return ok;
       },
       {
         successMessage: 'Configuration des notifications d\'absence mise à jour.',
         failureMessage: 'Erreur lors de la mise à jour de la configuration.'
       }
     );
+    return success;
   }
 
   let currentRangeStart = new Date();
@@ -392,19 +439,14 @@
           </div>
         </div>
 
-        <div class="flex items-center justify-between pt-6 border-t border-outline-variant/10 mt-6">
-          <InlineFeedback
-            message={saveAction.state.message}
-            error={saveAction.state.error}
-          />
-          <button
-            onclick={saveConfig}
-            disabled={saveAction.state.loading}
-            class="px-6 py-2.5 bg-primary text-on-primary text-[10px] font-black uppercase tracking-widest rounded-xl hover:scale-105 transition-transform disabled:opacity-50"
-          >
-            {saveAction.state.loading ? 'Application...' : 'Appliquer'}
-          </button>
-        </div>
+        {#if saveAction.state.message || saveAction.state.error}
+          <div class="pt-6 border-t border-outline-variant/10 mt-6">
+            <InlineFeedback
+              message={saveAction.state.message}
+              error={saveAction.state.error}
+            />
+          </div>
+        {/if}
       </div>
     </div>
   {/if}

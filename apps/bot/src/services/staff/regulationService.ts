@@ -1,4 +1,13 @@
-import { type Client, EmbedBuilder, type TextChannel } from 'discord.js';
+import {
+  type Client,
+  EmbedBuilder,
+  type TextChannel,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ChannelType,
+  Guild
+} from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { createNotification } from './staffLeadershipService.js';
@@ -81,6 +90,8 @@ export async function publishOrUpdateRegulationMessage(client: Client, guildId: 
       configChannelId: true,
       regulationChannelId: true,
       regulationMessageId: true,
+      regulationVerificationEnabled: true,
+      regulationRoleId: true,
     },
   });
 
@@ -104,20 +115,32 @@ export async function publishOrUpdateRegulationMessage(client: Client, guildId: 
     throw new Error('Le salon de publication du règlement est introuvable ou inaccessible.');
   }
 
+  const components = [];
+  if (guild?.regulationVerificationEnabled) {
+    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId('regulation_accept')
+        .setLabel('Accepter le règlement')
+        .setStyle(ButtonStyle.Success)
+        .setEmoji('✅')
+    );
+    components.push(row);
+  }
+
   let mode: 'created' | 'updated' = 'created';
   let messageId = guild?.regulationMessageId ?? null;
 
   if (messageId) {
     const existingMessage = await channel.messages.fetch(messageId).catch(() => null);
     if (existingMessage) {
-      await existingMessage.edit({ embeds: [embed] });
+      await existingMessage.edit({ embeds: [embed], components });
       mode = 'updated';
     } else {
-      const sentMessage = await channel.send({ embeds: [embed] });
+      const sentMessage = await channel.send({ embeds: [embed], components });
       messageId = sentMessage.id;
     }
   } else {
-    const sentMessage = await channel.send({ embeds: [embed] });
+    const sentMessage = await channel.send({ embeds: [embed], components });
     messageId = sentMessage.id;
   }
 
@@ -177,4 +200,60 @@ export async function publishOrUpdateRegulationMessage(client: Client, guildId: 
   }
 
   return { mode, messageId, targetChannelId };
+}
+
+export async function applyRegulationLock(
+  discordGuild: Guild,
+  verifiedRoleId: string,
+  regulationChannelId: string,
+  enabled: boolean
+) {
+  try {
+    const verifiedRole = discordGuild.roles.cache.get(verifiedRoleId);
+    if (!verifiedRole) {
+      logger.error('RegulationLock', `Rôle de vérification introuvable (${verifiedRoleId}) pour le serveur ${discordGuild.name}`);
+      return;
+    }
+
+    const channels = await discordGuild.channels.fetch();
+    for (const channel of channels.values()) {
+      if (!channel) continue;
+
+      if (
+        channel.type !== ChannelType.GuildText &&
+        channel.type !== ChannelType.GuildVoice &&
+        channel.type !== ChannelType.GuildCategory &&
+        channel.type !== ChannelType.GuildAnnouncement &&
+        channel.type !== ChannelType.GuildStageVoice
+      ) {
+        continue;
+      }
+
+      const isRegulationChannel = channel.id === regulationChannelId;
+
+      if (enabled) {
+        if (isRegulationChannel) {
+          await channel.permissionOverwrites.edit(discordGuild.roles.everyone, {
+            ViewChannel: true,
+          }).catch((err) => logger.warn('RegulationLock', `Impossible de modifier les perms de règlement pour @everyone: ${err}`));
+        } else {
+          await channel.permissionOverwrites.edit(discordGuild.roles.everyone, {
+            ViewChannel: false,
+          }).catch((err) => logger.warn('RegulationLock', `Impossible de masquer le salon ${channel.name} pour @everyone: ${err}`));
+          
+          await channel.permissionOverwrites.edit(verifiedRole, {
+            ViewChannel: true,
+          }).catch((err) => logger.warn('RegulationLock', `Impossible d'autoriser le salon ${channel.name} pour le rôle de vérification: ${err}`));
+        }
+      } else {
+        if (!isRegulationChannel) {
+          await channel.permissionOverwrites.delete(discordGuild.roles.everyone).catch(() => null);
+          await channel.permissionOverwrites.delete(verifiedRole).catch(() => null);
+        }
+      }
+    }
+    logger.info('RegulationLock', `Verrouillage du règlement ${enabled ? 'appliqué' : 'retiré'} sur le serveur ${discordGuild.name}.`);
+  } catch (err) {
+    logger.error('RegulationLock', `Erreur lors de l'application du verrouillage règlement:`, err);
+  }
 }

@@ -72,7 +72,7 @@
   import Leveling from "./pages/Leveling.svelte";
   import LevelingPublic from "./pages/LevelingPublic.svelte";
   import Giveaways from "./pages/Giveaways.svelte";
-  import WelcomeGoodbye from "./pages/WelcomeGoodbye.svelte";
+  import Announcement from "./pages/Announcement.svelte";
   import ReactionRoles from "./pages/ReactionRoles.svelte";
   import AutoResponses from "./pages/Triggers.svelte";
   import AutoMod from "./pages/AutoMod.svelte";
@@ -125,7 +125,7 @@
     if (path.startsWith("/absences")) return "absences";
     if (path.startsWith("/leveling")) return "leveling";
     if (path.startsWith("/giveaways")) return "giveaways";
-    if (path.startsWith("/welcome")) return "welcome_goodbye";
+    if (path.startsWith("/welcome") || path.startsWith("/announcement")) return "welcome_goodbye";
     if (path.startsWith("/reaction-roles")) return "reaction_roles";
     if (path.startsWith("/triggers")) return "auto_responses";
     if (path.startsWith("/automod")) return "automod";
@@ -696,7 +696,10 @@
               <Giveaways />
             </Route>
             <Route path="/welcome">
-              <WelcomeGoodbye />
+              <Announcement />
+            </Route>
+            <Route path="/announcement">
+              <Announcement />
             </Route>
             <Route path="/reaction-roles">
               <ReactionRoles />

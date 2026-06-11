@@ -419,10 +419,10 @@ export async function publishRegulation(guildId = authStore.selectedGuildId) {
   });
 }
 
-export async function updateRegulationSettings(regulationChannelId, guildId = authStore.selectedGuildId) {
+export async function updateRegulationSettings(payload: any, guildId = authStore.selectedGuildId) {
   return dashboardMutation('/settings', {
     method: 'PATCH',
-    payload: { regulationChannelId },
+    payload,
     guildId,
     errorContext: 'API Error (Regulation Settings):'
   });
@@ -1851,11 +1851,11 @@ export async function deleteGiveaway(giveawayId: string, guildId = authStore.sel
 }
 
 export async function fetchWelcomeConfig(guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/welcome', { method: 'GET', guildId, errorContext: 'API Error (Fetch Welcome Config):' });
+  return dashboardRequest('/announcement', { method: 'GET', guildId, errorContext: 'API Error (Fetch Announcement Config):' });
 }
 
 export async function updateWelcomeConfig(config, guildId = authStore.selectedGuildId) {
-  return dashboardRequest('/welcome', { method: 'PATCH', payload: config, guildId, errorContext: 'API Error (Update Welcome Config):' });
+  return dashboardRequest('/announcement', { method: 'PATCH', payload: config, guildId, errorContext: 'API Error (Update Announcement Config):' });
 }
 
 export async function fetchReactionRoleMenus(guildId = authStore.selectedGuildId) {

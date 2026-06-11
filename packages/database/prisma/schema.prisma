@@ -17,6 +17,9 @@ model Guild {
   configChannelId String?
   regulationChannelId String?
   regulationMessageId String?
+  regulationVerificationEnabled Boolean @default(false)
+  regulationRoleId             String?
+  regulationLockEnabled        Boolean @default(false)
   publicChannelId String?
   digestChannelId String?
   meetingAnnouncementChannelId String?
@@ -2065,6 +2068,19 @@ model WelcomeConfig {
   leaveEnabled   Boolean @default(false)
   leaveChannelId String?
   leaveMessage   String  @default("Au revoir {user}... 😢")
+
+  // Custom Boost Announcement
+  boostEnabled      Boolean @default(false)
+  boostChannelId    String?
+  boostMessage      String  @default("Merci pour ton boost {user} ! 🚀")
+  boostImageEnabled Boolean @default(false)
+  boostImageUrl     String?
+
+  // Auto Role
+  joinRoleId         String?
+  tagAutoRoleEnabled Boolean @default(false)
+  tagAutoRoleWord    String  @default("")
+  tagAutoRoleId      String?
   
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 

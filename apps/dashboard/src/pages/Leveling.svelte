@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
+  import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
@@ -50,6 +51,48 @@
     xpMultipliers: {} as Record<string, number>
   });
 
+  // Snapshot of last-saved state
+  let savedConfig = $state(JSON.parse(JSON.stringify({
+    enabled: false,
+    xpMin: 15,
+    xpMax: 25,
+    cooldownSeconds: 60,
+    vocalXpPerMin: 5,
+    levelUpChannelId: null as string | null,
+    levelUpMessage: 'Félicitations {user} ! Tu passes au niveau **{level}** ! 🎉',
+    stackRewards: false,
+    ignoredChannels: [] as string[],
+    ignoredRoles: [] as string[],
+    xpMultipliers: {} as Record<string, number>
+  })));
+
+  $effect(() => {
+    const dirty = JSON.stringify(config) !== JSON.stringify(savedConfig);
+    if (dirty && canManageSettings) {
+      untrack(() => {
+        unsavedChanges.register({
+          label: 'Leveling & XP',
+          onSave: () => handleSaveConfig(),
+          onReset: () => {
+            config = JSON.parse(JSON.stringify(savedConfig));
+          }
+        });
+      });
+    } else if (!dirty) {
+      untrack(() => {
+        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Leveling & XP') {
+          unsavedChanges.clear();
+        }
+      });
+    }
+  });
+
+  onDestroy(() => {
+    if (unsavedChanges.pageLabel === 'Leveling & XP') {
+      unsavedChanges.clear();
+    }
+  });
+
   let rewards = $state<Array<{ id: string; level: number; roleId: string }>>([]);
   let levels = $state<Array<{ userId: string; xp: number; level: number; lastXpGain: string; username?: string; displayName?: string; avatarUrl?: string }>>([]);
 
@@ -97,6 +140,7 @@
           ignoredRoles: res.config.ignoredRoles ?? [],
           xpMultipliers: res.config.xpMultipliers ?? {}
         };
+        savedConfig = JSON.parse(JSON.stringify(config));
         rewards = res.rewards || [];
         levels = res.levels || [];
       }
@@ -107,14 +151,18 @@
     }
   });
 
-  async function handleSaveConfig() {
-    if (!canManageSettings) return;
+  async function handleSaveConfig(): Promise<boolean> {
+    if (!canManageSettings) return false;
+    let success = false;
     await saveAction.run(async () => {
       const res = await updateLevelingConfig(config);
       if (!res) throw new Error('Erreur de sauvegarde');
       config = res.config;
+      savedConfig = JSON.parse(JSON.stringify(res.config));
+      success = true;
       return true;
     }, { successMessage: 'Configuration XP enregistrée.' });
+    return success;
   }
 
   async function handleAddReward() {
@@ -204,7 +252,6 @@
           checked={config.enabled} 
           onToggle={(v: boolean) => { 
             config.enabled = v; 
-            handleSaveConfig();
           }} 
           disabled={!canManageSettings}
         />
@@ -490,16 +537,7 @@
             </div>
           </div>
 
-          {#if canManageSettings}
-            <div class="flex justify-end pt-4">
-              <button 
-                onclick={handleSaveConfig}
-                class="px-8 py-3 bg-primary text-on-primary font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-primary/20 hover:scale-105 transition-all"
-              >
-                Enregistrer la configuration
-              </button>
-            </div>
-          {/if}
+          <!-- Save button removed since global bottom bar handles saving -->
         </section>
       </div>
 

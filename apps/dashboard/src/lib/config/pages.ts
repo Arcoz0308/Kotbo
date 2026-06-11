@@ -40,7 +40,7 @@ export const moderationItems: PageConfig[] = [
 export const communityItems: PageConfig[] = [
   { name: "Leveling & XP",       icon: "trophy",        href: "/leveling",         featureKey: "leveling", beta: true, wip: false },
   { name: "Giveaways",           icon: "sparkles",      href: "/giveaways",        featureKey: "giveaways", beta: true, wip: false },
-  { name: "Accueil & Départ",    icon: "door-open",     href: "/welcome",          featureKey: "welcome_goodbye", beta: true, wip: false },
+  { name: "Annonces & Auto-Rôle", icon: "megaphone",    href: "/announcement",     featureKey: "welcome_goodbye", beta: true, wip: false },
   { name: "Reaction Roles",      icon: "mouse-pointer", href: "/reaction-roles",   featureKey: "reaction_roles", beta: true, wip: false },
   { name: "Déclencheurs",        icon: "message-square",href: "/triggers",         featureKey: "triggers", beta: true, wip: false },
   { name: "Suggestions",         icon: "thumbs-up",     href: "/suggestions",      featureKey: "suggestions", beta: true, wip: false },

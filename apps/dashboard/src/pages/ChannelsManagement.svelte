@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
+  import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -45,6 +46,71 @@
     honeypotChannelId: '',
     honeypotSanction: 'TIMEOUT',
     honeypotReinvite: false,
+  });
+
+  // Snapshot of last-saved state
+  let savedConfig = $state(JSON.parse(JSON.stringify({
+    autoThreadEnabled: false,
+    autoThreadChannels: [] as string[],
+    statsEnabled: false,
+    statsConfig: {
+      categoryId: '',
+      memberEnabled: false,
+      memberChannelId: '',
+      memberTemplate: '👤 Membres : {count}',
+      botEnabled: false,
+      botChannelId: '',
+      botTemplate: '🤖 Bots : {count}',
+      roleEnabled: false,
+      roleChannelId: '',
+      roleTemplate: '👑 Staff : {count}',
+      roleTargetId: '',
+      channelEnabled: false,
+      channelChannelId: '',
+      channelTemplate: '💬 Salons : {count}',
+      categoryEnabled: false,
+      categoryChannelId: '',
+      categoryTemplate: '📁 Catégories : {count}',
+      activityEnabled: false,
+      activityChannelId: '',
+      activityTemplate: '📈 Actifs 24h : {count}',
+      customStats: [] as any[],
+    },
+    tempVoiceEnabled: false,
+    tempVoiceChannelId: '',
+    tempVoiceCategoryId: '',
+    tempVoiceNameTemplate: '🔊 Salon de {user}',
+    honeypotEnabled: false,
+    honeypotChannelId: '',
+    honeypotSanction: 'TIMEOUT',
+    honeypotReinvite: false,
+  })));
+
+  $effect(() => {
+    const dirty = JSON.stringify(config) !== JSON.stringify(savedConfig);
+    if (dirty) {
+      untrack(() => {
+        unsavedChanges.register({
+          label: 'Gestion des salons',
+          onSave: () => handleSave(),
+          onReset: () => {
+            config = JSON.parse(JSON.stringify(savedConfig));
+          }
+        });
+      });
+    } else {
+      untrack(() => {
+        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Gestion des salons') {
+          unsavedChanges.clear();
+        }
+      });
+    }
+  });
+
+  onDestroy(() => {
+    if (unsavedChanges.pageLabel === 'Gestion des salons') {
+      unsavedChanges.clear();
+    }
   });
 
   let loading = $state(true);
@@ -103,6 +169,7 @@
         config.honeypotChannelId = res.honeypotChannelId ?? '';
         config.honeypotSanction = res.honeypotSanction ?? 'TIMEOUT';
         config.honeypotReinvite = res.honeypotReinvite ?? false;
+        savedConfig = JSON.parse(JSON.stringify(config));
       }
     } catch (err) {
       loadError = err instanceof Error ? err.message : 'Impossible de charger la configuration.';
@@ -117,7 +184,8 @@
     config.autoThreadEnabled = activeModule?.status === 'active';
   });
 
-  async function handleSave() {
+  async function handleSave(): Promise<boolean> {
+    let success = false;
     await saveAction.run(async () => {
       // Validate statistics role target only if role channel or auto-creation is requested
       if (config.statsConfig.roleEnabled && !config.statsConfig.roleTargetId) {
@@ -138,7 +206,7 @@
         honeypotChannelId: config.honeypotChannelId || null,
         honeypotSanction: config.honeypotSanction,
         honeypotReinvite: config.honeypotReinvite,
-      });
+      } as any);
 
       if (!res || !res.ok) throw new Error('Erreur de sauvegarde API');
 
@@ -158,8 +226,11 @@
       }
       
       await dashboardStore.refresh();
+      savedConfig = JSON.parse(JSON.stringify(config));
+      success = true;
       return true;
     }, { successMessage: 'Configuration enregistrée avec succès.' });
+    return success;
   }
 
   function toggleChannel(channelId: string) {
@@ -185,15 +256,6 @@
   icon="hash"
   featureKey="auto_thread"
 >
-  {#snippet actions()}
-    <button
-      onclick={handleSave}
-      disabled={saveAction.state.loading || loading}
-      class="px-6 py-3 bg-primary text-on-primary font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-primary/20 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-    >
-      Enregistrer
-    </button>
-  {/snippet}
 
   <InlineFeedback message={saveAction.state.message} error={saveAction.state.error} />
 

@@ -662,6 +662,9 @@ export type DashboardState = {
   logChannelId: string;
   regulationChannelId: string;
   regulationMessageId: string | null;
+  regulationVerificationEnabled: boolean;
+  regulationRoleId: string | null;
+  regulationLockEnabled: boolean;
   meetingAnnouncementChannelId: string;
   meetingVoiceChannelId: string;
   publicChannelId: string;
@@ -2791,6 +2794,9 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     logChannelId: guild.logChannelId ?? '',
     regulationChannelId: guild.regulationChannelId ?? '',
     regulationMessageId: guild.regulationMessageId ?? null,
+    regulationVerificationEnabled: guild.regulationVerificationEnabled,
+    regulationRoleId: guild.regulationRoleId,
+    regulationLockEnabled: guild.regulationLockEnabled,
     meetingAnnouncementChannelId: guild.meetingAnnouncementChannelId ?? '',
     meetingVoiceChannelId: guild.meetingVoiceChannelId ?? '',
     publicChannelId: guild.publicChannelId ?? '',

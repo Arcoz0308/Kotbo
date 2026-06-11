@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
+  import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -38,12 +39,58 @@
     propagateSanctions: false,
   });
 
+  let savedSettings = $state<Record<string, any>>({
+    configChannelId: '',
+    publicChannelId: '',
+    newsChannelId: '',
+    dailyAlgoChannelId: '',
+    meetingVoiceChannelId: '',
+    baseStaffRoleId: '',
+    testStaffRoleId: '',
+    translationEnabled: false,
+    codePoliceEnabled: false,
+    dailyAlgoEnabled: false,
+    githubReleasesEnabled: false,
+    logChannelId: '',
+    propagateSanctions: false,
+  });
+
+  $effect(() => {
+    const current = JSON.stringify(guildSettings);
+    const saved = JSON.stringify(savedSettings);
+    const dirty = current !== saved;
+
+    if (dirty && canManageSettings) {
+      untrack(() => {
+        unsavedChanges.register({
+          label: 'Paramètres Généraux',
+          onSave: () => handleSave(),
+          onReset: () => {
+            guildSettings = { ...savedSettings };
+          }
+        });
+      });
+    } else if (!dirty) {
+      untrack(() => {
+        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Paramètres Généraux') {
+          unsavedChanges.clear();
+        }
+      });
+    }
+  });
+
+  onDestroy(() => {
+    if (unsavedChanges.pageLabel === 'Paramètres Généraux') {
+      unsavedChanges.clear();
+    }
+  });
+
   onMount(async () => {
     loading = true;
     try {
       await dashboardStore.refresh();
       const s = dashboardStore.state as any;
-      guildSettings = {
+      const loaded = {
         configChannelId: s.configChannelId || '',
         publicChannelId: s.publicChannelId || '',
         newsChannelId: s.newsChannelId || '',
@@ -58,23 +105,29 @@
         logChannelId: s.logChannelId || '',
         propagateSanctions: s.propagateSanctions || false,
       };
+      guildSettings = loaded;
+      savedSettings = { ...loaded };
     } finally {
       loading = false;
     }
   });
 
-  async function handleSave() {
+  async function handleSave(): Promise<boolean> {
     if (!canManageSettings) {
       saveAction.setError('Accès refusé: permissions insuffisantes.');
-      return;
+      return false;
     }
+    let success = false;
     await saveAction.run(async () => {
       const ok = await updateGlobalSettings(guildSettings);
       if (!ok) throw new Error('Erreur API');
 
       await dashboardStore.refresh();
+      savedSettings = { ...guildSettings };
+      success = true;
       return true;
     }, { successMessage: 'Paramètres globaux enregistrés.' });
+    return success;
   }
 
   const channelFields = [
@@ -112,13 +165,6 @@
         <p class="text-on-surface-variant/80 font-medium">Configuration globale du serveur et des intégrations.</p>
       </div>
     </div>
-    <button 
-      onclick={handleSave}
-      disabled={saveAction.state.loading || loading || !canManageSettings}
-      class="px-8 py-3 bg-primary text-on-primary font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-primary/20 hover:scale-105 transition-all disabled:opacity-50"
-    >
-      Enregistrer les modifications
-    </button>
   </header>
 
   <InlineFeedback state={saveAction} />

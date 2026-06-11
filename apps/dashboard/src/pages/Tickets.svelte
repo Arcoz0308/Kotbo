@@ -4,6 +4,8 @@
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
+  import { useUnsavedChanges } from '../lib/useUnsavedChanges.svelte';
+  import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import {
     API_BASE_URL,
     fetchMemberCase,
@@ -81,6 +83,62 @@
   let memberActionFeedback = $state('');
   let memberActionIsError = $state(false);
 
+  let savedSettingsConfig = $state<any>(null);
+
+  const currentSettings = $derived({
+    ticketCategoryId,
+    ticketLogChannelId,
+    ticketStaffRoleId,
+    ticketChannelId,
+    ticketEmbedTitle,
+    ticketEmbedDesc,
+    ticketEmbedButtonText,
+    ticketEmbedColor,
+    ticketAllowOverclaim,
+    ticketOverclaimPermission,
+    ticketInactivityEnabled,
+    ticketInactivityHours,
+    ticketInactivityMessage,
+    ticketTypes
+  });
+
+  useUnsavedChanges({
+    label: 'Tickets (Configuration)',
+    getConfig: () => currentSettings,
+    getSaved: () => savedSettingsConfig,
+    onSave: () => saveSettings(),
+    onReset: () => restoreSettingsConfig(),
+    canEdit: () => activeTab === 'config' && savedSettingsConfig !== null
+  });
+
+  function restoreSettingsConfig() {
+    if (!savedSettingsConfig) return;
+    ticketCategoryId = savedSettingsConfig.ticketCategoryId;
+    ticketLogChannelId = savedSettingsConfig.ticketLogChannelId;
+    ticketStaffRoleId = savedSettingsConfig.ticketStaffRoleId;
+    ticketChannelId = savedSettingsConfig.ticketChannelId;
+    ticketEmbedTitle = savedSettingsConfig.ticketEmbedTitle;
+    ticketEmbedDesc = savedSettingsConfig.ticketEmbedDesc;
+    ticketEmbedButtonText = savedSettingsConfig.ticketEmbedButtonText;
+    ticketEmbedColor = savedSettingsConfig.ticketEmbedColor;
+    ticketAllowOverclaim = savedSettingsConfig.ticketAllowOverclaim;
+    ticketOverclaimPermission = savedSettingsConfig.ticketOverclaimPermission;
+    ticketInactivityEnabled = savedSettingsConfig.ticketInactivityEnabled;
+    ticketInactivityHours = savedSettingsConfig.ticketInactivityHours;
+    ticketInactivityMessage = savedSettingsConfig.ticketInactivityMessage;
+    ticketTypes = JSON.parse(JSON.stringify(savedSettingsConfig.ticketTypes));
+  }
+
+  function changeTab(tab: 'tickets' | 'transcripts' | 'config') {
+    if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Tickets (Configuration)') {
+      const confirmLeave = confirm("Vous avez des modifications non sauvegardées. Quitter sans enregistrer ?");
+      if (!confirmLeave) return;
+      unsavedChanges.clear();
+      restoreSettingsConfig();
+    }
+    activeTab = tab;
+  }
+
   // Derived values from Dashboard Store
   const discordChannels = $derived(dashboardStore.state.discordChannels || []);
   const discordCategories = $derived(dashboardStore.state.discordCategories || []);
@@ -113,8 +171,8 @@
   }> {
     if (Array.isArray(config?.ticketTypes) && config.ticketTypes.length > 0) {
       return config.ticketTypes
-        .filter((item) => item && typeof item === 'object')
-        .map((item, index) => ({
+        .filter((item: any) => item && typeof item === 'object')
+        .map((item: any, index: number) => ({
           id: typeof item.id === 'string' && item.id.trim() ? item.id.trim() : crypto.randomUUID(),
           label: typeof item.label === 'string' && item.label.trim() ? item.label.trim().slice(0, 80) : `Ticket ${index + 1}`,
           description: typeof item.description === 'string' ? item.description.trim().slice(0, 200) : '',
@@ -178,6 +236,22 @@
       ticketInactivityHours = config.ticketInactivityHours !== undefined ? config.ticketInactivityHours : 24;
       ticketInactivityMessage = config.ticketInactivityMessage || "Bonjour {user}, votre ticket est inactif depuis un moment. N'hésitez pas à y répondre si vous avez toujours besoin d'aide !";
       ticketTypes = normalizeTicketTypes(config);
+      savedSettingsConfig = {
+        ticketCategoryId,
+        ticketLogChannelId,
+        ticketStaffRoleId,
+        ticketChannelId,
+        ticketEmbedTitle,
+        ticketEmbedDesc,
+        ticketEmbedButtonText,
+        ticketEmbedColor,
+        ticketAllowOverclaim,
+        ticketOverclaimPermission,
+        ticketInactivityEnabled,
+        ticketInactivityHours,
+        ticketInactivityMessage,
+        ticketTypes: JSON.parse(JSON.stringify(ticketTypes))
+      };
     } catch (err: any) {
       error = err.message || 'Une erreur est survenue';
     } finally {
@@ -324,8 +398,9 @@
   // Rename Ticket
   async function renameTicket() {
     if (!selectedTicketId || !authStore.selectedGuildId || !ticketRenameName.trim()) return;
+    const ticketId = selectedTicketId;
     await renameAction.run(async () => {
-      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/${selectedTicketId}/rename`, {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/${ticketId}/rename`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${authStore.token}`,
@@ -338,7 +413,7 @@
       if (data?.channelName) {
         ticketRenameName = data.channelName;
       }
-      await loadTicketDetail(selectedTicketId, false);
+      await loadTicketDetail(ticketId, false);
       await loadTicketsAndConfig();
       return true;
     }, { successMessage: 'Ticket renommé avec succès !' });
@@ -370,7 +445,6 @@
       });
       if (!res.ok) throw new Error('Erreur de suppression');
       showDeleteConfirmModal = false;
-      stopPolling();
       selectedTicketId = null;
       selectedTicketDetail = null;
       messages = [];
@@ -381,7 +455,8 @@
   }
 
   // Save Settings Config
-  async function saveSettings() {
+  async function saveSettings(): Promise<boolean> {
+    let success = false;
     await saveAction.run(async () => {
       const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/config`, {
         method: 'PATCH',
@@ -409,8 +484,10 @@
       if (!res.ok) throw new Error('Erreur lors de la sauvegarde');
       await dashboardStore.refresh();
       await loadTicketsAndConfig();
+      success = true;
       return true;
     }, { successMessage: 'Configuration enregistrée avec succès !' });
+    return success;
   }
 
   // Send Panel to Discord
@@ -543,7 +620,7 @@
     <div class="flex items-center gap-3">
       <RefreshButton onClick={handleRefresh} loading={loading} label="Actualiser" />
       <button 
-        onclick={() => activeTab = activeTab === 'config' ? 'tickets' : 'config'}
+      onclick={() => changeTab(activeTab === 'config' ? 'tickets' : 'config')}
         class="p-3 rounded-xl bg-surface-container-high hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant/70"
         title="Paramètres de configuration"
       >
@@ -555,7 +632,7 @@
   <!-- Tab Switcher -->
   <div class="flex border-b border-outline-variant/10 mb-8">
     <button 
-      onclick={() => activeTab = 'tickets'}
+      onclick={() => changeTab('tickets')}
       class="px-8 py-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative {activeTab === 'tickets' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
     >
       Tickets Support
@@ -564,7 +641,7 @@
       {/if}
     </button>
     <button 
-      onclick={() => activeTab = 'transcripts'}
+      onclick={() => changeTab('transcripts')}
       class="px-8 py-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative {activeTab === 'transcripts' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
     >
       Transcriptions
@@ -573,7 +650,7 @@
       {/if}
     </button>
     <button 
-      onclick={() => activeTab = 'config'}
+      onclick={() => changeTab('config')}
       class="px-8 py-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative {activeTab === 'config' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
     >
       Configuration
@@ -823,10 +900,10 @@
                     <!-- Handle Media URLs (extracted from content) -->
                     {#if msg.mediaUrls && msg.mediaUrls.length > 0}
                       <div class="mt-3 space-y-2">
-                        {#each msg.mediaUrls.filter(media => {
-                          if (msg.attachments?.some(att => att.url === media.url)) return false;
+                        {#each msg.mediaUrls.filter((media: any) => {
+                          if (msg.attachments?.some((att: any) => att.url === media.url)) return false;
                           
-                          const getFilename = (url) => {
+                          const getFilename = (url: any) => {
                             if (!url) return '';
                             const clean = url.split('?')[0];
                             const parts = clean.split('/');
@@ -835,7 +912,7 @@
                           
                           const mediaFilename = getFilename(media.url);
                           
-                          if (msg.embeds?.some(embed => {
+                          if (msg.embeds?.some((embed: any) => {
                             const embedUrl = embed.url || '';
                             const embedImg = embed.image?.url || '';
                             const embedThumb = embed.thumbnail?.url || '';
@@ -1106,12 +1183,12 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
               <label class="block md:col-span-1">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Temps d\'inactivité (Heures)</span>
-                <FormInput type="number" bind:value={ticketInactivityHours} min={1} max={168} className="w-full" />
+                <input type="number" bind:value={ticketInactivityHours} min={1} max={168} class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none" />
               </label>
 
               <label class="block md:col-span-2">
                 <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Message automatique</span>
-                <FormTextarea bind:value={ticketInactivityMessage} placeholder="Ex: Bonjour {user}, votre ticket est inactif..." className="w-full h-20" />
+                <FormTextarea bind:value={ticketInactivityMessage} placeholder={"Ex: Bonjour {user}, votre ticket est inactif..."} className="w-full h-20" />
               </label>
             </div>
           {/if}
@@ -1189,15 +1266,7 @@
         </div>
       </div>
 
-      <div class="pt-6 border-t border-outline-variant/10 flex justify-end gap-4">
-        <button 
-          onclick={saveSettings} 
-          disabled={saveAction.state.loading}
-          class="px-8 py-4 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-wider hover:scale-105 active:scale-95 transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
-        >
-          {saveAction.state.loading ? 'Enregistrement...' : 'Sauvegarder les paramètres'}
-        </button>
-      </div>
+
     </div>
   {:else if activeTab === 'transcripts'}
     <div class="bg-surface-container-low/40 border border-outline-variant/10 rounded-[2.5rem] p-8 flex flex-col h-full min-h-[50vh] font-inter">

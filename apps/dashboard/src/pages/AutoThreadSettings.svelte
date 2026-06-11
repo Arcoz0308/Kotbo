@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
+  import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -17,6 +18,40 @@
   let loadError = $state('');
   let searchQuery = $state('');
 
+  // Snapshot of last-saved state
+  let savedConfig = $state(JSON.parse(JSON.stringify({
+    enabled: false,
+    channels: [] as string[],
+    botsEnabled: false
+  })));
+
+  $effect(() => {
+    const dirty = JSON.stringify(config) !== JSON.stringify(savedConfig);
+    if (dirty) {
+      untrack(() => {
+        unsavedChanges.register({
+          label: 'Auto-Thread',
+          onSave: () => handleSave(),
+          onReset: () => {
+            config = JSON.parse(JSON.stringify(savedConfig));
+          }
+        });
+      });
+    } else {
+      untrack(() => {
+        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Auto-Thread') {
+          unsavedChanges.clear();
+        }
+      });
+    }
+  });
+
+  onDestroy(() => {
+    if (unsavedChanges.pageLabel === 'Auto-Thread') {
+      unsavedChanges.clear();
+    }
+  });
+
   const saveAction = createAsyncActionState();
 
   const availableChannels = $derived(dashboardStore.state.discordChannels || []);
@@ -32,6 +67,7 @@
         config.enabled = res.enabled ?? false;
         config.channels = res.channels ?? [];
         config.botsEnabled = res.botsEnabled ?? false;
+        savedConfig = JSON.parse(JSON.stringify(config));
       }
     } catch (err) {
       loadError = err instanceof Error ? err.message : 'Impossible de charger la configuration.';
@@ -46,19 +82,23 @@
     config.enabled = activeModule?.status === 'active';
   });
 
-  async function handleSave() {
+  async function handleSave(): Promise<boolean> {
+    let success = false;
     await saveAction.run(async () => {
       const ok = await updateAutoThreadConfig({
         enabled: config.enabled,
         channels: config.channels,
         botsEnabled: config.botsEnabled
-      });
+      } as any);
       if (!ok) throw new Error('Erreur de sauvegarde API');
       
       // Update global store state
       await dashboardStore.refresh();
+      savedConfig = JSON.parse(JSON.stringify(config));
+      success = true;
       return true;
     }, { successMessage: 'Configuration Auto-Thread mise à jour avec succès.' });
+    return success;
   }
 
   function toggleChannel(channelId: string) {
@@ -84,15 +124,6 @@
   icon="chat"
   featureKey="auto_thread"
 >
-  {#snippet actions()}
-    <button
-      onclick={handleSave}
-      disabled={saveAction.state.loading || loading}
-      class="px-6 py-3 bg-primary text-on-primary font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-primary/20 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-    >
-      Enregistrer
-    </button>
-  {/snippet}
 
   <InlineFeedback state={saveAction} />
 

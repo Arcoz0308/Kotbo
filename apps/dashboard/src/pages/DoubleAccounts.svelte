@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
+  import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { fetchLinkedAccounts, updateLinkedAccountStatus, deleteLinkedAccount, fetchMemberCase, fetchFeatureConfigurations, updateFeatureConfiguration, scanSuspectedDetections } from '../lib/api';
   import { toast } from '../lib/stores/toast.svelte';
@@ -52,6 +53,58 @@
     dsRoleId: '',
     autoDetectionEnabled: true,
   });
+
+  let savedConfig = $state({
+    enabled: false,
+    validationRoleId: '',
+    sanctionRoleId: '',
+    dsRoleId: '',
+    autoDetectionEnabled: true,
+  });
+
+  $effect(() => {
+    if (!doubleAccountsConfig) return;
+    const current = JSON.stringify({
+      enabled: doubleAccountsConfig.enabled,
+      validationRoleId: workflowDraft.validationRoleId,
+      sanctionRoleId: workflowDraft.sanctionRoleId,
+      dsRoleId: workflowDraft.dsRoleId,
+      autoDetectionEnabled: workflowDraft.autoDetectionEnabled,
+    });
+    const saved = JSON.stringify(savedConfig);
+    const dirty = current !== saved;
+
+    if (dirty) {
+      untrack(() => {
+        unsavedChanges.register({
+          label: 'Doubles Comptes',
+          onSave: () => saveConfig(),
+          onReset: () => {
+            doubleAccountsConfig.enabled = savedConfig.enabled;
+            workflowDraft = {
+              validationRoleId: savedConfig.validationRoleId,
+              sanctionRoleId: savedConfig.sanctionRoleId,
+              dsRoleId: savedConfig.dsRoleId,
+              autoDetectionEnabled: savedConfig.autoDetectionEnabled,
+            };
+          }
+        });
+      });
+    } else {
+      untrack(() => {
+        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Doubles Comptes') {
+          unsavedChanges.clear();
+        }
+      });
+    }
+  });
+
+  onDestroy(() => {
+    if (unsavedChanges.pageLabel === 'Doubles Comptes') {
+      unsavedChanges.clear();
+    }
+  });
+
   const saveAction = createAsyncActionState();
 
   const filteredAccounts = $derived(
@@ -79,13 +132,22 @@
     try {
       const configs = await fetchFeatureConfigurations();
       doubleAccountsConfig = configs?.features?.find((c: any) => c.featureKey === 'double_accounts') || null;
-      const metadata = doubleAccountsConfig?.metadata || {};
-      workflowDraft = {
-        validationRoleId: metadata.validationRoleId || '',
-        sanctionRoleId: metadata.sanctionRoleId || '',
-        dsRoleId: metadata.dsRoleId || '',
-        autoDetectionEnabled: metadata.autoDetectionEnabled ?? true,
-      };
+      if (doubleAccountsConfig) {
+        const metadata = doubleAccountsConfig.metadata || {};
+        workflowDraft = {
+          validationRoleId: metadata.validationRoleId || '',
+          sanctionRoleId: metadata.sanctionRoleId || '',
+          dsRoleId: metadata.dsRoleId || '',
+          autoDetectionEnabled: metadata.autoDetectionEnabled ?? true,
+        };
+        savedConfig = {
+          enabled: doubleAccountsConfig.enabled,
+          validationRoleId: workflowDraft.validationRoleId,
+          sanctionRoleId: workflowDraft.sanctionRoleId,
+          dsRoleId: workflowDraft.dsRoleId,
+          autoDetectionEnabled: workflowDraft.autoDetectionEnabled,
+        };
+      }
     } catch (err) {
       console.error('Error fetching double accounts config:', err);
     } finally {
@@ -93,9 +155,9 @@
     }
   }
 
-  async function saveConfig() {
-    if (!doubleAccountsConfig) return;
-
+  async function saveConfig(): Promise<boolean> {
+    if (!doubleAccountsConfig) return false;
+    let success = false;
     await saveAction.run(async () => {
       const ok = await updateFeatureConfiguration('double_accounts', {
         enabled: doubleAccountsConfig.enabled,
@@ -111,8 +173,10 @@
       });
       if (!ok) throw new Error('Erreur API');
       await loadConfig();
+      success = true;
       return true;
     }, { successMessage: 'Configuration des doubles comptes mise à jour.' });
+    return success;
   }
 
   async function handleUpdateStatus(id: string, status: 'VALIDATED' | 'REJECTED') {
@@ -172,7 +236,7 @@
           </div>
           <ToggleSwitch
             checked={doubleAccountsConfig.enabled}
-            onToggle={(checked) => (doubleAccountsConfig.enabled = checked)}
+            onToggle={(checked: boolean) => (doubleAccountsConfig.enabled = checked)}
             activeClass="peer-checked:bg-emerald-500"
           />
         </div>
@@ -201,19 +265,12 @@
           </div>
           <ToggleSwitch
             checked={workflowDraft.autoDetectionEnabled}
-            onToggle={(checked) => (workflowDraft.autoDetectionEnabled = checked)}
+            onToggle={(checked: boolean) => (workflowDraft.autoDetectionEnabled = checked)}
             activeClass="peer-checked:bg-primary"
           />
         </div>
 
-        <div class="flex justify-end">
-          <button
-            onclick={saveConfig}
-            class="rounded-2xl bg-primary px-5 py-3 text-[10px] font-black uppercase tracking-widest text-on-primary transition-transform hover:scale-[1.02]"
-          >
-            Enregistrer la configuration
-          </button>
-        </div>
+        <!-- Save button removed since global bottom bar handles saving -->
       </div>
 
       <div class="rounded-[2.5rem] border border-amber-500/20 bg-amber-500/5 p-8 space-y-4 flex flex-col justify-between">

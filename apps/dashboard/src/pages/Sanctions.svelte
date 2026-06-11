@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onMount, onDestroy, untrack } from 'svelte';
+  import { unsavedChanges } from '../lib/stores/unsavedChanges.svelte';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { portal } from '../lib/actions/portal';
   import { authStore } from '../lib/stores/auth.svelte';
@@ -27,7 +29,6 @@
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
-  import { onMount } from 'svelte';
   import {
     buildBrokenRulesPayload,
     buildReportRuleOptions,
@@ -36,7 +37,7 @@
   } from '../lib/sanctions/reportRules';
   import EvidenceInputList from '../lib/components/sanctions/EvidenceInputList.svelte';
   import { durationLabel, statusLabel, toDateTimeLocal, typeLabel } from '../lib/sanctions/formatters';
-  import { filterAndSortSanctions, type SanctionFilters, type SortField, type SortOption } from '../lib/sanctions/filterSort';
+  import { filterAndSortSanctions, type SanctionFilters, type SortField, type SortOption, type Sanction } from '../lib/sanctions/filterSort';
 
 
   let activeTab = $state('sanctions');
@@ -131,28 +132,53 @@
     sanctionReportEnabled: true
   });
 
-  let featureConfig = $state<any>(null);
-  let loadingConfig = $state(false);
-
-  onMount(async () => {
-    loadingConfig = true;
-    try {
-      const configs = await fetchFeatureConfigurations();
-      featureConfig = configs?.features?.find((c: any) => c.featureKey === 'sanctions') || null;
-    } catch (err) {
-      console.error('Error fetching sanctions config:', err);
-    } finally {
-      loadingConfig = false;
-    }
+  let savedSettings = $state({
+    moderatorRoleId: '',
+    propagateSanctions: false,
+    sanctionReportEnabled: true
   });
 
   $effect(() => {
     if (dashboardStore.state.moderatorRoleId !== undefined) {
-      guildSettings.moderatorRoleId = dashboardStore.state.moderatorRoleId || '';
-      guildSettings.propagateSanctions = (dashboardStore.state as any).propagateSanctions || false;
-      guildSettings.sanctionReportEnabled = (dashboardStore.state as any).sanctionReportEnabled ?? true;
+      const loaded = {
+        moderatorRoleId: dashboardStore.state.moderatorRoleId || '',
+        propagateSanctions: (dashboardStore.state as any).propagateSanctions || false,
+        sanctionReportEnabled: (dashboardStore.state as any).sanctionReportEnabled ?? true
+      };
+      guildSettings = { ...loaded };
+      savedSettings = { ...loaded };
     }
   });
+
+  $effect(() => {
+    const dirty = JSON.stringify(guildSettings) !== JSON.stringify(savedSettings);
+    if (dirty && canManageSettings) {
+      untrack(() => {
+        unsavedChanges.register({
+          label: 'Sanctions (Configuration)',
+          onSave: () => handleSaveSettings(),
+          onReset: () => {
+            guildSettings = { ...savedSettings };
+          }
+        });
+      });
+    } else if (!dirty) {
+      untrack(() => {
+        if (unsavedChanges.isDirty && unsavedChanges.pageLabel === 'Sanctions (Configuration)') {
+          unsavedChanges.clear();
+        }
+      });
+    }
+  });
+
+  onDestroy(() => {
+    if (unsavedChanges.pageLabel === 'Sanctions (Configuration)') {
+      unsavedChanges.clear();
+    }
+  });
+
+  let featureConfig = $state<any>(null);
+  let loadingConfig = $state(false);
 
   async function toggleConfig(key: string, value: boolean) {
     if (!featureConfig) return;
@@ -165,7 +191,8 @@
     }, { successMessage: 'Configuration mise à jour.' });
   }
 
-  async function handleSaveSettings() {
+  async function handleSaveSettings(): Promise<boolean> {
+    let success = false;
     await saveAction.run(async () => {
       const ok = await updateGlobalSettings({
         moderatorRoleId: guildSettings.moderatorRoleId,
@@ -174,13 +201,12 @@
       });
       if (!ok) throw new Error('Erreur API');
 
-      if (featureConfig) {
-         // Sync with feature config if necessary
-      }
-
       await dashboardStore.refresh();
+      savedSettings = { ...guildSettings };
+      success = true;
       return true;
     }, { successMessage: 'Paramètres enregistrés.' });
+    return success;
   }
 
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
@@ -266,8 +292,8 @@
 
   const regulationRules = $derived(dashboardStore.state.regulationRules || []);
   const reportRuleOptions = $derived(buildReportRuleOptions(regulationRules));
-  const sanctions = $derived(dashboardStore.state.sanctions || []);
-  const sanctionReports = $derived(dashboardStore.state.sanctionReports || []);
+  const sanctions = $derived((dashboardStore.state.sanctions || []) as Sanction[]);
+  const sanctionReports = $derived((dashboardStore.state.sanctionReports || []) as any[]);
   const showSanctionsSkeleton = $derived(dashboardStore.state.loading && sanctions.length === 0);
 
   // Get unique values for filter options
@@ -880,14 +906,11 @@
                   <p class="text-sm font-black text-on-surface">Propagation des sanctions</p>
                   <p class="text-xs text-on-surface-variant/70 mt-1">Appliquer automatiquement les sanctions sur les serveurs liés.</p>
                 </div>
-                <ToggleSwitch
+                 <ToggleSwitch
                   checked={guildSettings.propagateSanctions}
-                  onToggle={() => {
-                    guildSettings.propagateSanctions = !guildSettings.propagateSanctions;
-                    // Auto save for toggles is better UX
-                    void handleSaveSettings();
+                  onToggle={(v: boolean) => {
+                    guildSettings.propagateSanctions = v;
                   }}
-                  loading={saveAction.state.loading}
                 />
               </div>
             </div>
@@ -900,12 +923,9 @@
                 </div>
                 <ToggleSwitch
                   checked={guildSettings.sanctionReportEnabled}
-                  onToggle={() => {
-                    guildSettings.sanctionReportEnabled = !guildSettings.sanctionReportEnabled;
-                    // Auto save for toggles is better UX
-                    void handleSaveSettings();
+                  onToggle={(v: boolean) => {
+                    guildSettings.sanctionReportEnabled = v;
                   }}
-                  loading={saveAction.state.loading}
                 />
               </div>
             </div>
@@ -920,16 +940,7 @@
           </div>
           {/if}
 
-          <div class="pt-6 border-t border-outline-variant/10 flex justify-end">
-            <button
-              onclick={handleSaveSettings}
-              disabled={saveAction.state.loading}
-              class="px-8 py-3 bg-primary text-on-primary rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
-            >
-              {saveAction.state.loading ? 'Enregistrement...' : 'Enregistrer les modifications'}
-            </button>
-          </div>
-          
+          <!-- Save button removed since global bottom bar handles saving -->
           {#if saveAction.state.message}
             <p class="text-xs font-bold text-emerald-600 text-center">{saveAction.state.message}</p>
           {/if}
