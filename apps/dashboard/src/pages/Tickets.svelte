@@ -56,6 +56,9 @@
   let ticketEmbedColor = $state('');
   let ticketAllowOverclaim = $state(true);
   let ticketOverclaimPermission = $state('ANY');
+  let ticketInactivityEnabled = $state(false);
+  let ticketInactivityHours = $state(24);
+  let ticketInactivityMessage = $state("Bonjour {user}, votre ticket est inactif depuis un moment. N'hésitez pas à y répondre si vous avez toujours besoin d'aide !");
   let ticketTypes = $state<Array<{
     id: string;
     label: string;
@@ -171,6 +174,9 @@
       ticketEmbedColor = config.ticketEmbedColor || '#5865F2';
       ticketAllowOverclaim = config.ticketAllowOverclaim !== undefined ? config.ticketAllowOverclaim : true;
       ticketOverclaimPermission = config.ticketOverclaimPermission || 'ANY';
+      ticketInactivityEnabled = config.ticketInactivityEnabled !== undefined ? config.ticketInactivityEnabled : false;
+      ticketInactivityHours = config.ticketInactivityHours !== undefined ? config.ticketInactivityHours : 24;
+      ticketInactivityMessage = config.ticketInactivityMessage || "Bonjour {user}, votre ticket est inactif depuis un moment. N'hésitez pas à y répondre si vous avez toujours besoin d'aide !";
       ticketTypes = normalizeTicketTypes(config);
     } catch (err: any) {
       error = err.message || 'Une erreur est survenue';
@@ -394,7 +400,10 @@
           ticketEmbedColor,
           ticketTypes,
           ticketAllowOverclaim,
-          ticketOverclaimPermission
+          ticketOverclaimPermission,
+          ticketInactivityEnabled,
+          ticketInactivityHours,
+          ticketInactivityMessage
         })
       });
       if (!res.ok) throw new Error('Erreur lors de la sauvegarde');
@@ -1074,6 +1083,38 @@
             <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Couleur Hex de l'Embed</span>
             <FormColorPicker bind:value={ticketEmbedColor} />
           </label>
+        </div>
+      </div>
+
+      <!-- Inactivité du Créateur -->
+      <div class="rounded-4xl border border-outline-variant/10 bg-surface-container/30 p-6 space-y-5">
+        <div>
+          <h4 class="text-xs font-black uppercase tracking-widest text-primary mb-1">Inactivité du Créateur</h4>
+          <p class="text-sm text-on-surface-variant">Configurez un rappel automatique pour relancer le créateur du ticket s\'il ne répond pas.</p>
+        </div>
+
+        <div class="space-y-4">
+          <label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white/5 rounded-xl transition-colors">
+            <input type="checkbox" bind:checked={ticketInactivityEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
+            <div>
+              <span class="text-xs font-bold text-on-surface">Activer les rappels d\'inactivité</span>
+              <p class="text-[10px] text-on-surface-variant/60">Envoie un message automatique après une période d\'inactivité.</p>
+            </div>
+          </label>
+
+          {#if ticketInactivityEnabled}
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <label class="block md:col-span-1">
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Temps d\'inactivité (Heures)</span>
+                <FormInput type="number" bind:value={ticketInactivityHours} min={1} max={168} className="w-full" />
+              </label>
+
+              <label class="block md:col-span-2">
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Message automatique</span>
+                <FormTextarea bind:value={ticketInactivityMessage} placeholder="Ex: Bonjour {user}, votre ticket est inactif..." className="w-full h-20" />
+              </label>
+            </div>
+          {/if}
         </div>
       </div>
 

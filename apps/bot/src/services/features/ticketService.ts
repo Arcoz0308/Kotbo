@@ -1003,3 +1003,75 @@ export async function renameChannelToOpen(client: Client, channelId: string): Pr
     }
   }
 }
+
+/**
+ * Checks open tickets for inactivity and sends automated warnings if configured.
+ */
+export async function checkTicketInactivity(client: Client): Promise<void> {
+  try {
+    const guilds = await prisma.guild.findMany({
+      where: { ticketInactivityEnabled: true },
+      select: {
+        id: true,
+        ticketInactivityHours: true,
+        ticketInactivityMessage: true,
+      },
+    });
+
+    for (const guildConfig of guilds) {
+      const activeTickets = await prisma.ticket.findMany({
+        where: {
+          guildId: guildConfig.id,
+          status: { in: ['OPEN', 'CLAIMED'] },
+          channelId: { not: null },
+          inactivityAlertSent: false,
+        },
+      });
+
+      const inactivityTimeMs = guildConfig.ticketInactivityHours * 60 * 60 * 1000;
+
+      for (const ticket of activeTickets) {
+        if (!ticket.channelId) continue;
+
+        const channel = await client.channels.fetch(ticket.channelId).catch(() => null);
+        if (!channel || !(channel instanceof TextChannel)) continue;
+
+        const messages = await channel.messages.fetch({ limit: 1 }).catch(() => null);
+        const lastMessage = messages?.first();
+
+        let lastActivityTimestamp = ticket.createdAt.getTime();
+        let shouldAlert = false;
+
+        if (lastMessage) {
+          // Si le dernier message a été envoyé par le créateur, on n'alerte pas
+          if (lastMessage.author.id === ticket.userId) {
+            continue;
+          }
+          lastActivityTimestamp = lastMessage.createdTimestamp;
+        }
+
+        if (Date.now() - lastActivityTimestamp > inactivityTimeMs) {
+          shouldAlert = true;
+        }
+
+        if (shouldAlert) {
+          // Formater le message d'inactivité
+          const userMention = `<@${ticket.userId}>`;
+          const rawMessage = guildConfig.ticketInactivityMessage || "Bonjour {user}, votre ticket est inactif depuis un moment. N'hésitez pas à y répondre si vous avez toujours besoin d'aide !";
+          const formattedMessage = rawMessage.replace(/{user}/g, userMention);
+
+          await channel.send({ content: formattedMessage }).catch(() => null);
+
+          await prisma.ticket.update({
+            where: { id: ticket.id },
+            data: { inactivityAlertSent: true },
+          });
+
+          logger.info('Ticket', `Alerte d'inactivité envoyée dans le ticket ${ticket.id} (${ticket.channelId})`);
+        }
+      }
+    }
+  } catch (err) {
+    logger.error('Ticket', 'Erreur lors de la vérification de l\'inactivité des tickets:', err);
+  }
+}

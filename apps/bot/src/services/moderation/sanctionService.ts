@@ -209,6 +209,17 @@ async function emitSanctionReportReminder(params: {
   moderatorUserId: string;
 }) {
   try {
+    // Vérifier si les rapports de sanction sont activés
+    const guild = await prisma.guild.findUnique({
+      where: { id: params.guildId },
+      select: { sanctionReportEnabled: true }
+    });
+
+    if (!guild?.sanctionReportEnabled) {
+      // Rapports désactivés, pas de notification de rapport requis
+      return;
+    }
+
     // Notification temps réel (WS)
     await notifyDashboardSanctionReportRequired({
       guildId: params.guildId,

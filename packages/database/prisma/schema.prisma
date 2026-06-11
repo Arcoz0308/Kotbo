@@ -85,6 +85,7 @@ model Guild {
   demoteRemoveAllRoles        Boolean  @default(false)
 
   sanctionSyncEnabled      Boolean @default(false)
+  sanctionReportEnabled    Boolean @default(true)
   sanctionAlertChannelId   String?
   newsChannelId            String?
 
@@ -126,6 +127,7 @@ model Guild {
   staffResignations StaffResignation[]
   staffProcedures StaffProcedure[]
   candidatures RecruitmentCandidature[]
+  recruitmentForms RecruitmentForm[]
   notifications Notification[]
   guildDailyStats GuildDailyStat[]
   guildHourlyStats GuildHourlyStat[]
@@ -160,10 +162,14 @@ model Guild {
   ticketTypes             Json?
   ticketAllowOverclaim        Boolean  @default(true)
   ticketOverclaimPermission   String   @default("ANY") // "ANY", "SUPERIOR_OR_EQUAL", "NONE"
+  ticketInactivityEnabled     Boolean  @default(false)
+  ticketInactivityHours       Int      @default(24)
+  ticketInactivityMessage     String   @default("Bonjour {user}, votre ticket est inactif depuis un moment. N'hésitez pas à y répondre si vous avez toujours besoin d'aide !")
   tickets                Ticket[]
 
   autoThreadEnabled  Boolean   @default(false)
   autoThreadChannels String[]  @default([])
+  autoThreadBotsEnabled Boolean @default(false)
 
   // Statistics Channels
   statsEnabled            Boolean  @default(false)
@@ -179,6 +185,7 @@ model Guild {
   honeypotEnabled         Boolean  @default(false)
   honeypotChannelId       String?
   honeypotSanction        SanctionType @default(TIMEOUT)
+  honeypotReinvite        Boolean  @default(false)
 
   // Backup system
   backups ServerBackup[]
@@ -1206,7 +1213,11 @@ model RecruitmentCandidature {
   // Who processed this candidature
   processedByUserId String?
   
+  // Link to custom form if using custom form builder
+  formId String?
+  
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  form RecruitmentForm? @relation(fields: [formId], references: [id], onDelete: SetNull)
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1214,6 +1225,34 @@ model RecruitmentCandidature {
   @@index([guildId, status])
   @@index([guildId, discordId])
   @@map("recruitment_candidatures")
+}
+
+// Custom form builder for recruitment
+model RecruitmentForm {
+  id String @id @default(cuid())
+  guildId String
+  
+  name String
+  description String?
+  isActive Boolean @default(true)
+  
+  // Form structure (JSON with questions, types, options, validation)
+  structure Json
+  
+  // API key for this form (for webhook authentication)
+  apiKeyId String?
+  
+  // Statistics
+  submissionsCount Int @default(0)
+  
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  candidatures RecruitmentCandidature[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, isActive])
+  @@map("recruitment_forms")
 }
 
 model Notification {
@@ -1841,6 +1880,7 @@ model Ticket {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
   closedAt      DateTime?
+  inactivityAlertSent Boolean  @default(false)
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
@@ -2093,6 +2133,9 @@ model AutoModConfig {
   
   ghostPingEnabled     Boolean  @default(false)
   ghostPingAction      String   @default("ALERT")   // ALERT, WARN
+  
+  antiEveryoneEnabled  Boolean  @default(false)
+  antiEveryoneAction   String   @default("DELETE_AND_WARN")
   
   bypassRoles          String[] @default([])
   bypassChannels       String[] @default([])

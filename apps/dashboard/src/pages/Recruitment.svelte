@@ -534,7 +534,7 @@
 
 <!-- Config Modal -->
 {#if configVisible}
-  <div class="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+  <div class="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
     <div class="bg-surface border border-outline-variant/30 rounded-[3rem] w-full max-w-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 font-inter">
         <div class="p-8 border-b border-outline-variant/20 flex items-center justify-between bg-primary/5">
           <div>
@@ -599,7 +599,7 @@
 
 <!-- Validate Modal -->
 {#if validateModalTarget}
-  <div class="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+  <div class="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
     <div class="bg-surface border border-outline-variant/30 rounded-[3rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95 duration-300">
         <div class="flex items-center gap-4 mb-2 text-blue-500">
            <Papicon icon="check_circle" size={36} />
@@ -628,7 +628,7 @@
 
 <!-- Reject Modal -->
 {#if rejectModalTarget}
-  <div class="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+  <div class="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
     <div class="bg-surface border border-outline-variant/30 rounded-[3rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95 duration-300">
         <div class="flex items-center gap-4 mb-2 text-rose-500">
            <Papicon icon="cancel" size={36} />
@@ -655,7 +655,7 @@
 
 <!-- Oral Pass Modal -->
 {#if oralPassModalTarget}
-  <div class="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+  <div class="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
     <div class="bg-surface border border-outline-variant/30 rounded-[3rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95 duration-300">
         <div class="flex items-center gap-4 mb-2 text-emerald-500">
            <Papicon icon="how_to_reg" size={36} />
@@ -728,7 +728,7 @@
 
 <!-- Oral Fail Modal -->
 {#if oralFailModalTarget}
-  <div class="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+  <div class="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
     <div class="bg-surface border border-outline-variant/30 rounded-[3rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95 duration-300">
         <div class="flex items-center gap-4 mb-2 text-rose-500">
            <Papicon icon="thumb_down" size={36} />

@@ -597,6 +597,8 @@ export async function handleGeneralistModulesRoutes(
           mentionsLimit?: number;
           ghostPingEnabled?: boolean;
           ghostPingAction?: string;
+          antiEveryoneEnabled?: boolean;
+          antiEveryoneAction?: string;
           bypassRoles?: string[];
           bypassChannels?: string[];
         }>(req);
@@ -625,6 +627,8 @@ export async function handleGeneralistModulesRoutes(
             mentionsLimit: body.mentionsLimit,
             ghostPingEnabled: body.ghostPingEnabled,
             ghostPingAction: body.ghostPingAction,
+            antiEveryoneEnabled: body.antiEveryoneEnabled,
+            antiEveryoneAction: body.antiEveryoneAction,
             bypassRoles: body.bypassRoles,
             bypassChannels: body.bypassChannels,
           },

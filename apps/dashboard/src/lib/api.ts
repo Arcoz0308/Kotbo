@@ -1414,7 +1414,7 @@ export async function fetchAutoThreadConfig(guildId = authStore.selectedGuildId)
 }
 
 export async function updateAutoThreadConfig(
-  payload: { enabled: boolean; channels: string[] },
+  payload: { enabled: boolean; channels: string[]; botsEnabled?: boolean },
   guildId = authStore.selectedGuildId
 ) {
   return dashboardMutation('/auto-thread', {
@@ -1447,6 +1447,7 @@ export async function updateChannelsManagementConfig(
     honeypotEnabled?: boolean;
     honeypotChannelId?: string | null;
     honeypotSanction?: string;
+    honeypotReinvite?: boolean;
   },
   guildId = authStore.selectedGuildId
 ) {

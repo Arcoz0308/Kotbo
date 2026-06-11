@@ -11,10 +11,12 @@
   import InviteDetailsModal from "./lib/components/invitations/InviteDetailsModal.svelte";
   import FeedbackModal from "./lib/components/FeedbackModal.svelte";
   import CommandPalette from "./lib/components/CommandPalette.svelte";
+  import KeyboardShortcutsModal from "./lib/components/KeyboardShortcutsModal.svelte";
   import NotFound from "./pages/NotFound.svelte";
   import GlobalErrorOverlay from "./lib/components/GlobalErrorOverlay.svelte";
 
   let globalError = $state<{ message: string; stack?: string } | null>(null);
+  let showKeyboardShortcuts = $state(false);
 
   import Login from "./pages/Login.svelte";
   import Activation from "./pages/Activation.svelte";
@@ -45,6 +47,10 @@
   import StaffManagement from "./pages/StaffManagement.svelte";
   import Members from "./pages/Members.svelte";
   import Recruitment from "./pages/Recruitment.svelte";
+  import RecruitmentForms from "./pages/RecruitmentForms.svelte";
+  import FormBuilder from "./pages/FormBuilder.svelte";
+  import FormResponses from "./pages/FormResponses.svelte";
+  import PublicForm from "./pages/PublicForm.svelte";
   import Meetings from "./pages/Meetings.svelte";
   import Absences from "./pages/Absences.svelte";
   import Inbox from "./pages/Inbox.svelte";
@@ -79,7 +85,8 @@
     /^\/\d{17,19}\/news\/?$/.test($router.path) ||
       /^\/\d{17,19}\/leveling\/classement\/?$/.test($router.path) ||
       ($router.path.startsWith("/profile/") && !authStore.isAuthenticated) ||
-      $router.path.startsWith("/transcripts/"),
+      $router.path.startsWith("/transcripts/") ||
+      $router.path.startsWith("/form/"),
   );
 
   const featureAccess = $derived(dashboardStore.state.featureAccess || {});
@@ -111,6 +118,7 @@
     if (path.startsWith("/logs")) return "logs";
     if (path.startsWith("/activity")) return "activity";
     if (path.startsWith("/recruitment")) return "recruitment";
+    if (path.startsWith("/recruitment-forms")) return "recruitment";
     if (path.startsWith("/tickets")) return "tickets";
     if (path.startsWith("/tutoring")) return "tutoring";
     if (path.startsWith("/meetings")) return "meetings";
@@ -185,6 +193,83 @@
       sessionStorage.removeItem("error_refreshed");
     }, 5000);
 
+    // Keyboard shortcuts
+    let gKeyPressed = false;
+    let gKeyTimeout: number | null = null;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check for Ctrl + Shift + key combinations
+      if (e.ctrlKey && e.shiftKey) {
+        switch (e.key.toLowerCase()) {
+          case 'd':
+            e.preventDefault();
+            router.goto("/");
+            break;
+          case 'm':
+            e.preventDefault();
+            router.goto("/members");
+            break;
+          case 'c':
+            e.preventDefault();
+            router.goto("/settings");
+            break;
+          case 'l':
+            e.preventDefault();
+            router.goto("/activity");
+            break;
+          case 'n':
+            e.preventDefault();
+            showKeyboardShortcuts = true;
+            break;
+        }
+        return;
+      }
+
+      // Handle G then key sequences
+      if (e.key.toLowerCase() === 'g' && !e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
+        gKeyPressed = true;
+        if (gKeyTimeout) clearTimeout(gKeyTimeout);
+        gKeyTimeout = window.setTimeout(() => {
+          gKeyPressed = false;
+        }, 1000);
+        return;
+      }
+
+      if (gKeyPressed) {
+        switch (e.key.toLowerCase()) {
+          case 'd':
+            e.preventDefault();
+            router.goto("/");
+            gKeyPressed = false;
+            if (gKeyTimeout) clearTimeout(gKeyTimeout);
+            break;
+          case 'm':
+            e.preventDefault();
+            router.goto("/members");
+            gKeyPressed = false;
+            if (gKeyTimeout) clearTimeout(gKeyTimeout);
+            break;
+          case 'c':
+            e.preventDefault();
+            router.goto("/settings");
+            gKeyPressed = false;
+            if (gKeyTimeout) clearTimeout(gKeyTimeout);
+            break;
+          case 'l':
+            e.preventDefault();
+            router.goto("/activity");
+            gKeyPressed = false;
+            if (gKeyTimeout) clearTimeout(gKeyTimeout);
+            break;
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("open-keyboard-shortcuts", () => {
+      showKeyboardShortcuts = true;
+    });
+
     // Global error handling — ignores network/abort errors from WS reconnections
     // and Vite dev-server internal errors to avoid infinite feedback loops
     const IGNORED_MESSAGES = [
@@ -253,6 +338,10 @@
 
     return () => {
       clearTimeout(timer);
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("open-keyboard-shortcuts", () => {
+        showKeyboardShortcuts = true;
+      });
       window.removeEventListener("error", handleError);
       window.removeEventListener(
         "unhandledrejection",
@@ -274,7 +363,9 @@
     if (authStore.isAuthenticated && !isPublicPage) {
       const featureKey = resolveRouteFeatureKey($router.path);
       if (featureKey && !canViewFeature(featureKey)) {
-        router.goto("/");
+        if ($router.path !== "/") {
+          router.goto("/");
+        }
       }
     }
   });
@@ -313,6 +404,9 @@
       </Route>
       <Route path="/transcripts/:transcriptId" let:meta>
         <TranscriptDetail transcriptId={meta.params.transcriptId} />
+      </Route>
+      <Route path="/form/:formId" let:meta>
+        <PublicForm formId={meta.params.formId} />
       </Route>
 
       <Route path="/analytics">
@@ -564,6 +658,18 @@
             <Route path="/recruitment">
               <Recruitment />
             </Route>
+            <Route path="/recruitment-forms">
+              <RecruitmentForms />
+            </Route>
+            <Route path="/recruitment-forms/builder/new">
+              <FormBuilder formId={null} />
+            </Route>
+            <Route path="/recruitment-forms/builder/:formId" let:meta>
+              <FormBuilder formId={meta.params.formId} />
+            </Route>
+            <Route path="/recruitment-forms/:formId/responses" let:meta>
+              <FormResponses formId={meta.params.formId} />
+            </Route>
             <Route path="/tickets">
               <Tickets />
             </Route>
@@ -665,3 +771,4 @@
 <InviteDetailsModal />
 <FeedbackModal />
 <CommandPalette />
+<KeyboardShortcutsModal isOpen={showKeyboardShortcuts} onClose={() => showKeyboardShortcuts = false} />

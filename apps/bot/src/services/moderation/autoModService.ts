@@ -1,4 +1,4 @@
-import { Message, MessageFlags, PermissionFlagsBits, ChannelType, EmbedBuilder, Client, PartialMessage, User, Role, Collection } from 'discord.js';
+import { Message, MessageFlags, PermissionFlagsBits, ChannelType, EmbedBuilder, Client, PartialMessage, User, Role, Collection, AuditLogEvent } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { registerWarnSanction, registerTimeoutSanction } from './sanctionService.js';
@@ -45,6 +45,8 @@ export async function getOrCreateAutoModConfig(guildId: string) {
           mentionsLimit: 5,
           ghostPingEnabled: false,
           ghostPingAction: 'ALERT',
+          antiEveryoneEnabled: false,
+          antiEveryoneAction: 'DELETE_AND_WARN',
         },
       });
     }
@@ -175,6 +177,24 @@ export async function handleAutoMod(message: Message, client: any): Promise<bool
         return true;
       }
     }
+
+    // 6. Anti-Troll Everyone / Here
+    if (config.antiEveryoneEnabled) {
+      const hasMentionEveryonePermission = message.member?.permissionsIn(message.channelId).has(PermissionFlagsBits.MentionEveryone);
+      if (!hasMentionEveryonePermission) {
+        const contentLower = content.toLowerCase();
+        if (message.mentions.everyone || contentLower.includes('@everyone') || contentLower.includes('@here')) {
+          await deleteMessage(message);
+          await applySanction(
+            message,
+            config.antiEveryoneAction || 'DELETE_AND_WARN',
+            "[AutoMod] Tentative de mention d'everyone/here (anti-troll)",
+            client
+          );
+          return true;
+        }
+      }
+    }
   } catch (err) {
     logger.error('AutoModService', 'Erreur lors de l\'exécution d\'AutoMod :', err);
   }
@@ -204,11 +224,13 @@ async function applySanction(message: Message, action: string, reason: string, c
   };
 
   // Informer l'utilisateur dans le salon d'origine de manière éphémère (ou message normal supprimé rapidement)
-  const warnAlert = await (message.channel as any).send(`⚠️ <@${message.author.id}>, votre message a été supprimé : ${reason.replace('[AutoMod] ', '')}`).catch(() => null);
-  if (warnAlert) {
-    setTimeout(() => {
-      warnAlert.delete().catch(() => null);
-    }, 6000);
+  if (action !== 'DELETE_ONLY') {
+    const warnAlert = await (message.channel as any).send(`⚠️ <@${message.author.id}>, votre message a été supprimé : ${reason.replace('[AutoMod] ', '')}`).catch(() => null);
+    if (warnAlert) {
+      setTimeout(() => {
+        warnAlert.delete().catch(() => null);
+      }, 6000);
+    }
   }
 
   // Notifier dans le salon de log si configuré
@@ -276,10 +298,50 @@ export async function handleGhostPingDelete(message: Message | PartialMessage, c
 
     if (!config.ghostPingEnabled) return;
 
+    // Bypasser si l'auteur du message est membre du personnel (staff)
+    const guildDb = await prisma.guild.findUnique({
+      where: { id: guildId },
+      select: { baseStaffRoleId: true, moderatorRoleId: true, testStaffRoleId: true }
+    });
+    const isStaffRole = message.member.roles.cache.some(r => 
+      (guildDb?.baseStaffRoleId && r.id === guildDb.baseStaffRoleId) ||
+      (guildDb?.moderatorRoleId && r.id === guildDb.moderatorRoleId) ||
+      (guildDb?.testStaffRoleId && r.id === guildDb.testStaffRoleId)
+    );
+    const isStaffDb = await prisma.staffMember.findUnique({
+      where: { guildId_userId: { guildId, userId: message.author.id } }
+    });
+    if (isStaffRole || !!isStaffDb) return;
+
     // Vérifier si le rôle ou le salon est exempté
     if (config.bypassChannels.includes(message.channel.id)) return;
     const hasBypassRole = message.member.roles.cache.some(r => config.bypassRoles.includes(r.id));
     if (hasBypassRole) return;
+
+    // Vérifier via l'Audit Log si c'est un staff qui a supprimé le message
+    // Si oui, ne pas déclencher le ghost ping (ce n'est pas l'auteur qui a supprimé)
+    try {
+      await new Promise(resolve => setTimeout(resolve, 500)); // Laisser le temps à l'audit log de se mettre à jour
+      const auditLogs = await message.guild.fetchAuditLogs({
+        type: AuditLogEvent.MessageDelete,
+        limit: 5,
+      });
+
+      const deletionLog = auditLogs.entries.find(entry => {
+        const isRecent = Date.now() - entry.createdTimestamp < 5000;
+        const isTargetMessage =
+          (entry.target as any)?.id === message.author.id &&
+          (entry.extra as any)?.channel?.id === message.channel.id;
+        return isRecent && isTargetMessage;
+      });
+
+      if (deletionLog && deletionLog.executor?.id !== message.author.id) {
+        // Un autre membre (staff) a supprimé le message → pas de ghost ping
+        return;
+      }
+    } catch {
+      // Si on ne peut pas lire l'audit log (permissions manquantes), on continue normalement
+    }
 
     // Récupérer les mentions cibles (exclure l'auteur et les bots)
     const targetUsers = message.mentions.users.filter(user => !user.bot && user.id !== message.author.id);
@@ -311,6 +373,21 @@ export async function handleGhostPingUpdate(
     const config = await getOrCreateAutoModConfig(guildId);
 
     if (!config.ghostPingEnabled) return;
+
+    // Bypasser si l'auteur du message est membre du personnel (staff)
+    const guildDb = await prisma.guild.findUnique({
+      where: { id: guildId },
+      select: { baseStaffRoleId: true, moderatorRoleId: true, testStaffRoleId: true }
+    });
+    const isStaffRole = oldMessage.member.roles.cache.some(r => 
+      (guildDb?.baseStaffRoleId && r.id === guildDb.baseStaffRoleId) ||
+      (guildDb?.moderatorRoleId && r.id === guildDb.moderatorRoleId) ||
+      (guildDb?.testStaffRoleId && r.id === guildDb.testStaffRoleId)
+    );
+    const isStaffDb = await prisma.staffMember.findUnique({
+      where: { guildId_userId: { guildId, userId: oldMessage.author.id } }
+    });
+    if (isStaffRole || !!isStaffDb) return;
 
     // Vérifier si le rôle ou le salon est exempté
     if (config.bypassChannels.includes(oldMessage.channel.id)) return;

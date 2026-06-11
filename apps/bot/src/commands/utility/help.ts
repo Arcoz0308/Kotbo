@@ -24,6 +24,7 @@ import { sanctionCommand } from '../moderation/sanction.js';
 import { setupCommand } from '../admin/setup.js';
 import { statusCommand } from '../admin/status.js';
 import { ticketCommand } from './ticket.js';
+import { dashboardCommand } from './dashboard.js';
 
 type CommandJson = {
   name: string;
@@ -81,6 +82,12 @@ const COMMANDS: HelpCommand[] = [
     icon: '👤',
     category: 'Outils',
     summary: 'Affiche le profil utilisateur avec classement/streak/historique Daily Algo',
+  },
+  {
+    command: dashboardCommand,
+    icon: '🌐',
+    category: 'Outils',
+    summary: 'Obtiens le lien pour accéder au dashboard de Kotbo',
   },
   {
     command: statusCommand,

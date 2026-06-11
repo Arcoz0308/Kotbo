@@ -63,6 +63,37 @@ export function registerHoneypotListener(client: Client): void {
         logTitle = '🚨 Détection Honeypot : Compte banni';
         logger.warn('Honeypot', `Utilisateur banni car il a écrit dans le salon honeypot : ${author.tag} (${author.id})`);
       } else if (sanctionType === 'KICK') {
+        let inviteUrl: string | null = null;
+        if (guildConfig.honeypotReinvite) {
+          try {
+            const targetChannel = (guildConfig.publicChannelId ? guild.channels.cache.get(guildConfig.publicChannelId) : null) ||
+                                  guild.systemChannel ||
+                                  guild.rulesChannel ||
+                                  guild.channels.cache.find(c => c.isTextBased() && c.type === 0 && c.permissionsFor(client.user!)?.has('CreateInstantInvite'));
+            if (targetChannel && 'createInvite' in targetChannel && typeof targetChannel.createInvite === 'function') {
+              const invite = await targetChannel.createInvite({
+                maxAge: 24 * 60 * 60,
+                maxUses: 1,
+                reason: 'Kotbo Honeypot: Automatic reinvite'
+              });
+              inviteUrl = invite.url;
+            }
+          } catch (err) {
+            logger.error('Honeypot', `Impossible de créer une invitation automatique pour la guilde ${guild.id}:`, err);
+          }
+        }
+
+        if (inviteUrl) {
+          try {
+            await member.send(
+              `Bonjour, vous avez été exclu de **${guild.name}** car vous avez envoyé un message dans un salon piège (Honeypot).\n` +
+              `S'il s'agit d'une erreur, vous pouvez rejoindre à nouveau le serveur en utilisant ce lien d'invitation unique (valable 24h) : ${inviteUrl}`
+            );
+          } catch (err) {
+            logger.warn('Honeypot', `Impossible d'envoyer le message de réinvitation en DM à ${author.tag} (${author.id}) :`, err);
+          }
+        }
+
         await member.kick(reason);
         await registerKickSanction({
           guildId: guild.id,

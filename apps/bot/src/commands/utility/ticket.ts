@@ -9,6 +9,8 @@ import {
   PermissionFlagsBits,
   MessageFlags,
   TextChannel,
+  Role,
+  User,
   type GuildMember,
 } from 'discord.js';
 import prisma from '../../utils/db.js';
@@ -54,6 +56,28 @@ const data = new SlashCommandBuilder()
         option
           .setName('nom')
           .setDescription('Nouveau nom du salon du ticket')
+          .setRequired(true)
+      )
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName('add')
+      .setDescription('Ajoute un membre ou un rôle au ticket')
+      .addMentionableOption((option) =>
+        option
+          .setName('cible')
+          .setDescription('Le membre ou le rôle à ajouter')
+          .setRequired(true)
+      )
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName('remove')
+      .setDescription('Retire un membre ou un rôle du ticket')
+      .addMentionableOption((option) =>
+        option
+          .setName('cible')
+          .setDescription('Le membre ou le rôle à retirer')
           .setRequired(true)
       )
   );
@@ -347,6 +371,108 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     } catch (error: any) {
       await interaction.editReply({
         content: `❌ Impossible de supprimer le ticket : ${error?.message || 'erreur inconnue'}`,
+      });
+    }
+    return;
+  }
+
+  if (subcommand === 'add') {
+    if (!isStaff) {
+      await interaction.reply({
+        content: '❌ Seuls les membres du personnel peuvent gérer les accès du ticket.',
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
+    const target = interaction.options.getMentionable('cible', true) as Role | GuildMember | User;
+    const targetId = target.id;
+
+    if (!targetId) {
+      await interaction.reply({
+        content: '❌ Cible invalide.',
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+    try {
+      await channel.permissionOverwrites.edit(targetId, {
+        ViewChannel: true,
+        SendMessages: true,
+        ReadMessageHistory: true,
+        EmbedLinks: true,
+        AttachFiles: true,
+      });
+
+      const isRole = target instanceof Role;
+      const mentionString = isRole ? `<@&${targetId}>` : `<@${targetId}>`;
+
+      await channel.send({
+        embeds: [successEmbed('Accès ajouté', `${mentionString} a été ajouté au ticket par <@${interaction.user.id}>.`)],
+      }).catch(() => null);
+
+      await interaction.editReply({
+        content: `✅ Accès accordé à ${mentionString}.`,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'erreur inconnue';
+      await interaction.editReply({
+        content: `❌ Impossible d'ajouter la cible : ${message}`,
+      });
+    }
+    return;
+  }
+
+  if (subcommand === 'remove') {
+    if (!isStaff) {
+      await interaction.reply({
+        content: '❌ Seuls les membres du personnel peuvent gérer les accès du ticket.',
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
+    const target = interaction.options.getMentionable('cible', true) as Role | GuildMember | User;
+    const targetId = target.id;
+
+    if (!targetId) {
+      await interaction.reply({
+        content: '❌ Cible invalide.',
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
+    if (targetId === ticket.userId) {
+      await interaction.reply({
+        content: '❌ Vous ne pouvez pas retirer le créateur du ticket.',
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+    try {
+      await channel.permissionOverwrites.delete(targetId);
+
+      const isRole = target instanceof Role;
+      const mentionString = isRole ? `<@&${targetId}>` : `<@${targetId}>`;
+
+      await channel.send({
+        embeds: [successEmbed('Accès retiré', `${mentionString} a été retiré du ticket par <@${interaction.user.id}>.`)],
+      }).catch(() => null);
+
+      await interaction.editReply({
+        content: `✅ Accès retiré pour ${mentionString}.`,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'erreur inconnue';
+      await interaction.editReply({
+        content: `❌ Impossible de retirer la cible : ${message}`,
       });
     }
     return;

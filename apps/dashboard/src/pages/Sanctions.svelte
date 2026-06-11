@@ -127,7 +127,8 @@
 
   let guildSettings = $state({
     moderatorRoleId: '',
-    propagateSanctions: false
+    propagateSanctions: false,
+    sanctionReportEnabled: true
   });
 
   let featureConfig = $state<any>(null);
@@ -149,6 +150,7 @@
     if (dashboardStore.state.moderatorRoleId !== undefined) {
       guildSettings.moderatorRoleId = dashboardStore.state.moderatorRoleId || '';
       guildSettings.propagateSanctions = (dashboardStore.state as any).propagateSanctions || false;
+      guildSettings.sanctionReportEnabled = (dashboardStore.state as any).sanctionReportEnabled ?? true;
     }
   });
 
@@ -167,10 +169,11 @@
     await saveAction.run(async () => {
       const ok = await updateGlobalSettings({
         moderatorRoleId: guildSettings.moderatorRoleId,
-        propagateSanctions: guildSettings.propagateSanctions
+        propagateSanctions: guildSettings.propagateSanctions,
+        sanctionReportEnabled: guildSettings.sanctionReportEnabled
       });
       if (!ok) throw new Error('Erreur API');
-      
+
       if (featureConfig) {
          // Sync with feature config if necessary
       }
@@ -881,6 +884,24 @@
                   checked={guildSettings.propagateSanctions}
                   onToggle={() => {
                     guildSettings.propagateSanctions = !guildSettings.propagateSanctions;
+                    // Auto save for toggles is better UX
+                    void handleSaveSettings();
+                  }}
+                  loading={saveAction.state.loading}
+                />
+              </div>
+            </div>
+
+            <div class="space-y-4">
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-sm font-black text-on-surface">Rapports de sanction</p>
+                  <p class="text-xs text-on-surface-variant/70 mt-1">Exiger la création de rapports détaillés pour chaque sanction.</p>
+                </div>
+                <ToggleSwitch
+                  checked={guildSettings.sanctionReportEnabled}
+                  onToggle={() => {
+                    guildSettings.sanctionReportEnabled = !guildSettings.sanctionReportEnabled;
                     // Auto save for toggles is better UX
                     void handleSaveSettings();
                   }}

@@ -43,6 +43,9 @@
     ghostPingEnabled: false,
     ghostPingAction: 'ALERT',
     
+    antiEveryoneEnabled: false,
+    antiEveryoneAction: 'DELETE_AND_WARN',
+    
     bypassRoles: [] as string[],
     bypassChannels: [] as string[]
   });
@@ -75,6 +78,8 @@
           mentionsLimit: res.config.mentionsLimit ?? 5,
           ghostPingEnabled: res.config.ghostPingEnabled ?? false,
           ghostPingAction: res.config.ghostPingAction ?? 'ALERT',
+          antiEveryoneEnabled: res.config.antiEveryoneEnabled ?? false,
+          antiEveryoneAction: res.config.antiEveryoneAction ?? 'DELETE_AND_WARN',
           bypassRoles: res.config.bypassRoles || [],
           bypassChannels: res.config.bypassChannels || []
         };
@@ -152,7 +157,7 @@
     </div>
     <button 
       onclick={handleSave}
-      disabled={actionState.loading || loading || !canManageSettings}
+      disabled={actionState.state.loading || loading || !canManageSettings}
       class="px-8 py-3 bg-primary text-on-primary font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-primary/20 hover:scale-105 transition-all disabled:opacity-50"
     >
       Enregistrer les modifications
@@ -179,7 +184,7 @@
             </h3>
             <ToggleSwitch 
               checked={config.spamEnabled} 
-              onToggle={(v) => config.spamEnabled = v} 
+              onToggle={(v: boolean) => config.spamEnabled = v} 
               disabled={!canManageSettings}
             />
           </div>
@@ -237,7 +242,7 @@
             </h3>
             <ToggleSwitch 
               checked={config.linksEnabled} 
-              onToggle={(v) => config.linksEnabled = v} 
+              onToggle={(v: boolean) => config.linksEnabled = v} 
               disabled={!canManageSettings}
             />
           </div>
@@ -280,7 +285,7 @@
             </h3>
             <ToggleSwitch 
               checked={config.capsEnabled} 
-              onToggle={(v) => config.capsEnabled = v} 
+              onToggle={(v: boolean) => config.capsEnabled = v} 
               disabled={!canManageSettings}
             />
           </div>
@@ -327,7 +332,7 @@
             </h3>
             <ToggleSwitch 
               checked={config.emojisEnabled} 
-              onToggle={(v) => config.emojisEnabled = v} 
+              onToggle={(v: boolean) => config.emojisEnabled = v} 
               disabled={!canManageSettings}
             />
           </div>
@@ -356,7 +361,7 @@
             </h3>
             <ToggleSwitch 
               checked={config.mentionsEnabled} 
-              onToggle={(v) => config.mentionsEnabled = v} 
+              onToggle={(v: boolean) => config.mentionsEnabled = v} 
               disabled={!canManageSettings}
             />
           </div>
@@ -408,6 +413,43 @@
                 >
                   <option value="ALERT">Simple Alerte (Message)</option>
                   <option value="WARN">Avertissement (Warn + Alerte)</option>
+                </select>
+              </div>
+            </div>
+          {/if}
+        </section>
+
+        <!-- Anti-Everyone/Here Troll -->
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
+          <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
+            <h3 class="text-lg font-black flex items-center gap-3">
+              <Papicon icon="ShieldAlert" size={20} class="text-red-400" />
+              Filtre Anti-Mention Everyone & Here
+            </h3>
+            <ToggleSwitch 
+              checked={config.antiEveryoneEnabled} 
+              onToggle={(v: boolean) => config.antiEveryoneEnabled = v} 
+              disabled={!canManageSettings}
+            />
+          </div>
+
+          <p class="text-xs text-on-surface-variant/70 leading-relaxed">
+            Supprime les messages contenant des tentatives de mention de @everyone ou @here pour les membres n'ayant pas la permission.
+          </p>
+
+          {#if config.antiEveryoneEnabled}
+            <div class="space-y-4 animate-in fade-in duration-300">
+              <div class="space-y-1.5">
+                <label for="antiEveryoneAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Sanction en cas d'infraction</label>
+                <select 
+                  id="antiEveryoneAction"
+                  bind:value={config.antiEveryoneAction}
+                  class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm text-on-surface focus:outline-none"
+                  disabled={!canManageSettings}
+                >
+                  <option value="DELETE_ONLY">Suppression simple</option>
+                  <option value="DELETE_AND_WARN">Supprimer & Avertir le membre</option>
+                  <option value="TIMEOUT">Exclusion temporaire (Mute 10 min)</option>
                 </select>
               </div>
             </div>

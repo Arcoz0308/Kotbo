@@ -215,6 +215,13 @@
         <button onclick={testNotifications} class="px-4 py-2 rounded-xl border border-outline-variant/20 bg-surface-container-high/20 text-sm font-bold hover:border-primary/30 hover:bg-primary/5 transition-colors">
           Tester les notifications
         </button>
+        <button
+          onclick={() => window.dispatchEvent(new CustomEvent('open-keyboard-shortcuts'))}
+          class="px-4 py-2 rounded-xl border border-outline-variant/20 bg-surface-container-high/20 text-sm font-bold hover:border-primary/30 hover:bg-primary/5 transition-colors flex items-center gap-2"
+        >
+          <Papicon icon="Keyboard" size={14} />
+          Raccourcis clavier
+        </button>
       </div>
     </div>
 

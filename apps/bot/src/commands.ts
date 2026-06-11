@@ -38,6 +38,7 @@ import { suggestionConfigCommand } from './commands/utility/suggestion-config.js
 import { clearCommand } from './commands/moderation/clear.js';
 import { channelCommand } from './commands/moderation/channel.js';
 import { signalCommand, signalContextCommand } from './commands/moderation/signal.js';
+import { dashboardCommand } from './commands/utility/dashboard.js';
 
 export type SlashCommandDefinition = {
   data: { name: string; toJSON: () => unknown };
@@ -93,6 +94,7 @@ export const commands: SlashCommandDefinition[] = [
   clearCommand,
   channelCommand,
   signalCommand,
+  dashboardCommand,
 ];
 
 export const contextCommands: ContextCommandDefinition[] = [

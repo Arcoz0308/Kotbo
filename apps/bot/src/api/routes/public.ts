@@ -500,5 +500,123 @@ export async function handlePublicRoutes(
     return true;
   }
 
+  // GET /api/public/forms/:formId - Get form structure (no auth)
+  if (parts[2] === 'forms' && parts[3] && !parts[4] && method === 'GET') {
+    const formId = parts[3];
+    try {
+      const form = await prisma.recruitmentForm.findFirst({
+        where: { id: formId, isActive: true },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          structure: true,
+          guildId: true,
+        },
+      });
+
+      if (!form) {
+        json(res, 404, { error: 'Formulaire introuvable ou inactif' });
+        return true;
+      }
+
+      json(res, 200, {
+        id: form.id,
+        name: form.name,
+        description: form.description,
+        structure: form.structure,
+        guildId: form.guildId,
+      });
+    } catch (err) {
+      logger.error('PublicAPI', `Error fetching public form ${parts[3]}:`, err);
+      json(res, 500, { error: 'Erreur lors du chargement du formulaire' });
+    }
+    return true;
+  }
+
+  // POST /api/public/forms/:formId/submit - Submit a form response (no auth)
+  if (parts[2] === 'forms' && parts[3] && parts[4] === 'submit' && method === 'POST') {
+    const formId = parts[3];
+    try {
+      const form = await prisma.recruitmentForm.findFirst({
+        where: { id: formId, isActive: true },
+      });
+
+      if (!form) {
+        json(res, 404, { error: 'Formulaire introuvable ou inactif' });
+        return true;
+      }
+
+      const body = await readJsonBody<{
+        data: Record<string, unknown>;
+        discordId?: string;
+        email?: string;
+        username?: string;
+      }>(req);
+
+      if (!body?.data || typeof body.data !== 'object') {
+        json(res, 400, { error: 'Les données de réponse sont requises' });
+        return true;
+      }
+
+      // Create the candidature
+      const candidature = await prisma.recruitmentCandidature.create({
+        data: {
+          guildId: form.guildId,
+          formId: form.id,
+          discordId: body.discordId || null,
+          email: body.email || null,
+          username: body.username || null,
+          data: body.data as Record<string, unknown>,
+          status: 'PENDING',
+        },
+      });
+
+      // Increment submission counter
+      await prisma.recruitmentForm.update({
+        where: { id: formId },
+        data: { submissionsCount: { increment: 1 } },
+      });
+
+      // Trigger Discord notification if a webhook channel is configured
+      try {
+        const guildConfig = await prisma.guild.findUnique({
+          where: { id: form.guildId },
+          select: { id: true },
+        });
+        if (guildConfig) {
+          const notifChannel = await prisma.moduleConfig.findFirst({
+            where: { guildId: form.guildId, moduleKey: 'recruitment', key: 'candidature_channel_id' },
+          });
+          if (notifChannel?.value) {
+            const discordGuild = client.guilds.cache.get(form.guildId) || await client.guilds.fetch(form.guildId).catch(() => null);
+            const channel = discordGuild?.channels.cache.get(notifChannel.value as string);
+            if (channel?.isTextBased()) {
+              await (channel as import('discord.js').TextChannel).send({
+                embeds: [{
+                  title: '📋 Nouvelle candidature reçue',
+                  description: `Formulaire: **${form.name}**\n\nDiscord: ${body.discordId ? `<@${body.discordId}>` : 'Non renseigné'}\nEmail: ${body.email || 'Non renseigné'}`,
+                  color: 0x6366f1,
+                  timestamp: new Date().toISOString(),
+                  footer: { text: `Candidature ID: ${candidature.id}` },
+                }],
+              });
+            }
+          }
+        }
+      } catch (notifErr) {
+        logger.warn('PublicAPI', 'Could not send Discord notification for form submission:', notifErr);
+      }
+
+      logger.success('PublicAPI', `Form submission for ${formId} from ${body.discordId || 'unknown'}`);
+      json(res, 201, { ok: true, id: candidature.id });
+    } catch (err) {
+      logger.error('PublicAPI', `Error submitting form ${parts[3]}:`, err);
+      json(res, 500, { error: 'Erreur lors de la soumission du formulaire' });
+    }
+    return true;
+  }
+
   return false;
 }
+

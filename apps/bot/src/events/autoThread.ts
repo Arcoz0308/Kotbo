@@ -6,12 +6,13 @@ export function invalidateAutoThreadCache(guildId?: string): void {
   // Handled by the central cache invalidation
 }
 
-async function getAutoThreadConfig(guildId: string): Promise<{ enabled: boolean; channels: string[] }> {
+async function getAutoThreadConfig(guildId: string): Promise<{ enabled: boolean; channels: string[]; botsEnabled: boolean }> {
   try {
     const guild = await getCachedGuild(guildId);
     return {
       enabled: guild?.autoThreadEnabled ?? false,
       channels: guild?.autoThreadChannels ?? [],
+      botsEnabled: guild?.autoThreadBotsEnabled ?? false,
     };
   } catch (error) {
     logger.error('AutoThread', `Erreur lors de la récupération de la config pour la guilde ${guildId} :`, error);
@@ -21,13 +22,17 @@ async function getAutoThreadConfig(guildId: string): Promise<{ enabled: boolean;
 
 export function registerAutoThreadListener(client: Client): void {
   client.on('messageCreate', async message => {
-    if (message.author.bot || message.channel.isDMBased()) return;
+    if (message.channel.isDMBased()) return;
     if (message.channel.isThread()) return;
     if (!message.guildId) return;
 
     try {
       const config = await getAutoThreadConfig(message.guildId);
       if (!config.enabled || !config.channels.includes(message.channelId)) {
+        return;
+      }
+
+      if (message.author.bot && !config.botsEnabled) {
         return;
       }
 

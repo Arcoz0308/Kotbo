@@ -44,6 +44,7 @@
     honeypotEnabled: false,
     honeypotChannelId: '',
     honeypotSanction: 'TIMEOUT',
+    honeypotReinvite: false,
   });
 
   let loading = $state(true);
@@ -101,6 +102,7 @@
         config.honeypotEnabled = res.honeypotEnabled ?? false;
         config.honeypotChannelId = res.honeypotChannelId ?? '';
         config.honeypotSanction = res.honeypotSanction ?? 'TIMEOUT';
+        config.honeypotReinvite = res.honeypotReinvite ?? false;
       }
     } catch (err) {
       loadError = err instanceof Error ? err.message : 'Impossible de charger la configuration.';
@@ -135,6 +137,7 @@
         honeypotEnabled: config.honeypotEnabled,
         honeypotChannelId: config.honeypotChannelId || null,
         honeypotSanction: config.honeypotSanction,
+        honeypotReinvite: config.honeypotReinvite,
       });
 
       if (!res || !res.ok) throw new Error('Erreur de sauvegarde API');
@@ -145,6 +148,7 @@
         if (res.resolved.tempVoiceCategoryId) config.tempVoiceCategoryId = res.resolved.tempVoiceCategoryId;
         if (res.resolved.honeypotChannelId) config.honeypotChannelId = res.resolved.honeypotChannelId;
         if (res.resolved.honeypotSanction) config.honeypotSanction = res.resolved.honeypotSanction;
+        if (res.resolved.honeypotReinvite !== undefined) config.honeypotReinvite = res.resolved.honeypotReinvite;
         if (res.resolved.statsConfig) {
           config.statsConfig = {
             ...config.statsConfig,
@@ -1010,6 +1014,24 @@
                 </select>
                 <p class="text-[10px] text-on-surface-variant/40 mt-1">Sélectionnez la sanction automatique à appliquer lorsqu'un membre écrit dans le salon piège.</p>
               </div>
+
+              {#if config.honeypotSanction === 'KICK'}
+                <!-- Honeypot Auto Reinvite toggle -->
+                <div class="flex items-center justify-between p-5 bg-surface-container-high/20 border border-outline-variant/5 rounded-3xl transition-all">
+                  <div class="space-y-0.5">
+                    <label for="honeypot-reinvite-toggle" class="text-xs font-bold text-on-surface/80 block">📨 Réinvitation automatique</label>
+                    <p class="text-[10px] text-on-surface-variant/60">Envoyer automatiquement une invitation temporaire en DM à l'utilisateur exclu par le honeypot.</p>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <input 
+                      id="honeypot-reinvite-toggle"
+                      type="checkbox" 
+                      bind:checked={config.honeypotReinvite} 
+                      class="w-10 h-6 bg-surface-container-high rounded-full relative appearance-none cursor-pointer transition-all border border-outline-variant/20 checked:bg-primary before:content-[''] before:absolute before:h-4 before:w-4 before:rounded-full before:bg-white before:top-0.5 before:left-0.5 checked:before:translate-x-4 before:transition-all"
+                    />
+                  </div>
+                </div>
+              {/if}
 
               <!-- Alert Warning Card -->
               <div class="p-5 bg-error/10 border border-error/20 text-error rounded-3xl space-y-3">

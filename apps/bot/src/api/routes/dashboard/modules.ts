@@ -444,7 +444,10 @@ export async function handleModulesRoutes(
       if (moduleId === 'codepolice') updates.codePoliceEnabled = body.status === 'active';
       if (moduleId === 'dailyalgo' || moduleId === 'daily_algo') updates.dailyAlgoEnabled = body.status === 'active';
       if (moduleId === 'traduction' || moduleId === 'translation') updates.translationEnabled = body.status === 'active';
-      if (moduleId === 'sanctions') updates.sanctionSyncEnabled = body.status === 'active';
+      if (moduleId === 'sanctions') {
+        updates.sanctionSyncEnabled = body.status === 'active';
+        updates.sanctionReportEnabled = body.status === 'active';
+      }
       if (moduleId === 'nickname_moderation') updates.autoNicknameModerationEnabled = body.status === 'active';
       if (moduleId === 'auto_thread') updates.autoThreadEnabled = body.status === 'active';
 
@@ -641,6 +644,17 @@ export async function handleModulesRoutes(
   // POST /api/dashboard/guilds/:guildId/sanctions/reports
   if (moduleKey === 'sanctions' && parts.length === 6 && parts[5] === 'reports' && method === 'POST') {
     try {
+      // Vérifier si les rapports de sanction sont activés
+      const guild = await prisma.guild.findUnique({
+        where: { id: guildId },
+        select: { sanctionReportEnabled: true }
+      });
+
+      if (!guild?.sanctionReportEnabled) {
+        json(res, 403, { error: 'Les rapports de sanction sont désactivés sur ce serveur.' });
+        return true;
+      }
+
       const body = await readJsonBody<{
         sanctionId?: string | null;
         staffPseudo?: string;
@@ -748,6 +762,17 @@ export async function handleModulesRoutes(
   if (moduleKey === 'sanctions' && parts.length === 7 && parts[5] === 'reports' && method === 'PATCH') {
     const reportId = parts[6];
     try {
+      // Vérifier si les rapports de sanction sont activés
+      const guild = await prisma.guild.findUnique({
+        where: { id: guildId },
+        select: { sanctionReportEnabled: true }
+      });
+
+      if (!guild?.sanctionReportEnabled) {
+        json(res, 403, { error: 'Les rapports de sanction sont désactivés sur ce serveur.' });
+        return true;
+      }
+
       const existingReport = await prisma.sanctionReport.findFirst({
         where: { id: reportId, guildId }
       });
@@ -1029,13 +1054,13 @@ export async function handleModulesRoutes(
       try {
         const guild = await prisma.guild.findUnique({
           where: { id: guildId },
-          select: { autoThreadEnabled: true, autoThreadChannels: true },
+          select: { autoThreadEnabled: true, autoThreadChannels: true, autoThreadBotsEnabled: true },
         });
         if (!guild) {
           json(res, 404, { error: 'Serveur introuvable' });
           return true;
         }
-        json(res, 200, { enabled: guild.autoThreadEnabled, channels: guild.autoThreadChannels });
+        json(res, 200, { enabled: guild.autoThreadEnabled, channels: guild.autoThreadChannels, botsEnabled: guild.autoThreadBotsEnabled });
       } catch (err) {
         logger.error('AutoThreadAPI', 'GET auto-thread error:', err);
         json(res, 500, { error: 'Erreur lors de la récupération de la configuration' });
@@ -1045,7 +1070,7 @@ export async function handleModulesRoutes(
 
     if (method === 'PATCH') {
       try {
-        const body = await readJsonBody<{ enabled?: boolean; channels?: string[] }>(req);
+        const body = await readJsonBody<{ enabled?: boolean; channels?: string[]; botsEnabled?: boolean }>(req);
         if (!body) {
           json(res, 400, { error: 'Payload settings invalide' });
           return true;
@@ -1057,6 +1082,9 @@ export async function handleModulesRoutes(
         }
         if (Object.prototype.hasOwnProperty.call(body, 'channels')) {
           data.autoThreadChannels = body.channels;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'botsEnabled')) {
+          data.autoThreadBotsEnabled = !!body.botsEnabled;
         }
 
         await prisma.guild.update({
@@ -1129,6 +1157,7 @@ export async function handleModulesRoutes(
           select: {
             autoThreadEnabled: true,
             autoThreadChannels: true,
+            autoThreadBotsEnabled: true,
             statsEnabled: true,
             statsConfig: true,
             tempVoiceEnabled: true,
@@ -1138,6 +1167,7 @@ export async function handleModulesRoutes(
             honeypotEnabled: true,
             honeypotChannelId: true,
             honeypotSanction: true,
+            honeypotReinvite: true,
           },
         });
         if (!guild) {
@@ -1147,6 +1177,7 @@ export async function handleModulesRoutes(
         json(res, 200, {
           autoThreadEnabled: guild.autoThreadEnabled,
           autoThreadChannels: guild.autoThreadChannels,
+          autoThreadBotsEnabled: guild.autoThreadBotsEnabled,
           statsEnabled: guild.statsEnabled,
           statsConfig: guild.statsConfig,
           tempVoiceEnabled: guild.tempVoiceEnabled,
@@ -1156,6 +1187,7 @@ export async function handleModulesRoutes(
           honeypotEnabled: guild.honeypotEnabled,
           honeypotChannelId: guild.honeypotChannelId,
           honeypotSanction: guild.honeypotSanction,
+          honeypotReinvite: guild.honeypotReinvite,
         });
       } catch (err) {
         logger.error('ChannelsManagementAPI', 'GET config error:', err);
@@ -1169,6 +1201,7 @@ export async function handleModulesRoutes(
         const body = await readJsonBody<{
           autoThreadEnabled?: boolean;
           autoThreadChannels?: string[];
+          autoThreadBotsEnabled?: boolean;
           statsEnabled?: boolean;
           statsConfig?: any;
           tempVoiceEnabled?: boolean;
@@ -1178,6 +1211,7 @@ export async function handleModulesRoutes(
           honeypotEnabled?: boolean;
           honeypotChannelId?: string | null;
           honeypotSanction?: string;
+          honeypotReinvite?: boolean;
         }>(req);
 
         if (!body) {
@@ -1191,6 +1225,9 @@ export async function handleModulesRoutes(
         }
         if (Object.prototype.hasOwnProperty.call(body, 'autoThreadChannels')) {
           data.autoThreadChannels = body.autoThreadChannels;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'autoThreadBotsEnabled')) {
+          data.autoThreadBotsEnabled = !!body.autoThreadBotsEnabled;
         }
         if (Object.prototype.hasOwnProperty.call(body, 'statsEnabled')) {
           data.statsEnabled = !!body.statsEnabled;
@@ -1223,6 +1260,9 @@ export async function handleModulesRoutes(
             json(res, 400, { error: 'Type de sanction honeypot invalide' });
             return true;
           }
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'honeypotReinvite')) {
+          data.honeypotReinvite = !!body.honeypotReinvite;
         }
 
         const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
@@ -1432,6 +1472,7 @@ export async function handleModulesRoutes(
             tempVoiceCategoryId: data.tempVoiceCategoryId,
             honeypotChannelId: data.honeypotChannelId,
             honeypotSanction: data.honeypotSanction,
+            honeypotReinvite: data.honeypotReinvite,
             statsConfig: data.statsConfig,
           }
         });
@@ -1871,6 +1912,9 @@ export async function handleModulesRoutes(
       if (Object.prototype.hasOwnProperty.call(body, 'propagateSanctions')) {
         data.propagateSanctions = !!body.propagateSanctions;
         data.sanctionSyncEnabled = !!body.propagateSanctions;
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'sanctionReportEnabled')) {
+        data.sanctionReportEnabled = !!body.sanctionReportEnabled;
       }
       if (Object.prototype.hasOwnProperty.call(body, 'configChannelId')) {
         data.configChannelId = extractDiscordSnowflake(body.configChannelId);
@@ -3988,6 +4032,9 @@ export async function handleModulesRoutes(
             ticketTypes: true,
             ticketAllowOverclaim: true,
             ticketOverclaimPermission: true,
+            ticketInactivityEnabled: true,
+            ticketInactivityHours: true,
+            ticketInactivityMessage: true,
           }
         });
         json(res, 200, guildConfig || {});
@@ -4065,6 +4112,9 @@ export async function handleModulesRoutes(
               : {}),
             ticketAllowOverclaim: body.ticketAllowOverclaim ?? true,
             ticketOverclaimPermission: body.ticketOverclaimPermission || 'ANY',
+            ticketInactivityEnabled: body.ticketInactivityEnabled ?? false,
+            ticketInactivityHours: body.ticketInactivityHours !== undefined ? Number(body.ticketInactivityHours) : 24,
+            ticketInactivityMessage: body.ticketInactivityMessage !== undefined ? String(body.ticketInactivityMessage) : "Bonjour {user}, votre ticket est inactif depuis un moment. N'hésitez pas à y répondre si vous avez toujours besoin d'aide !",
           }
         });
 
@@ -4115,6 +4165,9 @@ export async function handleModulesRoutes(
             ticketTypes: true,
             ticketAllowOverclaim: true,
             ticketOverclaimPermission: true,
+            ticketInactivityEnabled: true,
+            ticketInactivityHours: true,
+            ticketInactivityMessage: true,
           }
         });
         json(res, 200, { tickets, config: guildConfig || {} });

@@ -11,6 +11,7 @@ import { enqueueBackgroundJob, registerBackgroundJobHandlers, type BackgroundJob
 import { checkYoutubeFollows } from '../services/integrations/youtubeService.js';
 import { checkTwitchFollows } from '../services/integrations/twitchService.js';
 import { initializeDatabaseBackup, performDatabaseBackup } from '../services/system/databaseBackupService.js';
+import { checkTicketInactivity } from '../services/features/ticketService.js';
 
 const runningJobs = new Set<string>();
 
@@ -138,6 +139,10 @@ export async function registerCrons(client: Client): Promise<void> {
       logger.info('Cron', 'Vérification des rapports de sanction manquants...');
       await checkMissingReports();
     },
+    'ticket-inactivity': async () => {
+      logger.debug('Cron', 'Vérification de l\'inactivité des tickets...');
+      await checkTicketInactivity(client);
+    },
     'meeting-notifications': async () => {
       await processMeetingNotifications();
     },
@@ -218,8 +223,8 @@ export async function registerCrons(client: Client): Promise<void> {
     await runCronJob('staff-blacklist-expiration', expireStaffBlacklist, 1000);
   });
 
-  // 🛡️ Sanctions: Rapports manquants (toutes les heures)
-  cron.schedule('30 * * * *', async () => {
+  // 🛡️ Sanctions: Rapports manquants (tous les 3 jours à 12:00)
+  cron.schedule('* 12 */3 * *', async () => {
     await runCronJob('missing-reports-check', async () => {
       await checkMissingReports();
     }, 2000);
@@ -269,6 +274,13 @@ export async function registerCrons(client: Client): Promise<void> {
     await runCronJob('twitch', async () => {
       await checkTwitchFollows(client);
     }, 5000);
+  });
+
+  // 🎫 Ticket Inactivity Checks: toutes les 10 minutes
+  cron.schedule('*/10 * * * *', async () => {
+    await runCronJob('ticket-inactivity', async () => {
+      await checkTicketInactivity(client);
+    }, 2000);
   });
 
   logger.success('Cron', 'Tous les jobs cron sont enregistrés (Suivi d\'activité minute activé)');

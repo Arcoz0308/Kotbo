@@ -20,6 +20,7 @@ export type BackgroundJobName =
   | 'missing-reports-check'
   | 'meeting-notifications'
   | 'dc-scan'
+  | 'ticket-inactivity'
   | 'scheduled-events';
 
 

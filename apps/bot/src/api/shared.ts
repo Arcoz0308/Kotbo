@@ -680,6 +680,7 @@ export type DashboardState = {
   socialNetworksEnabled: boolean;
   autoThreadEnabled: boolean;
   autoThreadChannels: string[];
+  autoThreadBotsEnabled: boolean;
   recruitmentCategoryId: string;
   recruitmentLogChannelId: string;
   recruitmentAutoRejectEnabled: boolean;
@@ -1107,6 +1108,8 @@ export type RecruitmentWebhookAuthResult = {
 
 export const verifyRecruitmentWebhookAuth = async (req: IncomingMessage, guildId: string): Promise<RecruitmentWebhookAuthResult> => {
   const authHeader = req.headers.authorization;
+  let bearerToken: string | undefined;
+
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.split(' ')[1];
     try {
@@ -1115,19 +1118,33 @@ export const verifyRecruitmentWebhookAuth = async (req: IncomingMessage, guildId
         reason: 'ok_jwt',
       };
     } catch {
-      // ignore and try API key below
+      // ignore, might be a raw API key passed in Authorization header
+      bearerToken = token;
     }
   }
 
-  const apiKey = req.headers['x-kotbo-api-key'] ?? req.headers['x-api-key'];
+  const apiKey = req.headers['x-kotbo-api-key'] ?? req.headers['x-api-key'] ?? bearerToken;
   const apiKeyValue = Array.isArray(apiKey) ? apiKey[0] : apiKey;
   if (!apiKeyValue || typeof apiKeyValue !== 'string') {
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      return { auth: null, reason: 'invalid_jwt' };
-    }
     return { auth: null, reason: 'missing_credentials' };
   }
 
+  // Try the new recruitment form API key system first
+  const { verifyAPIKey: verifyRecruitmentAPIKey } = await import('../services/staff/recruitmentFormService.js');
+  const isValidRecruitmentKey = await verifyRecruitmentAPIKey(apiKeyValue.trim(), guildId);
+  
+  if (isValidRecruitmentKey) {
+    // For recruitment forms, we don't need a specific user - the form itself is authenticated
+    return {
+      auth: {
+        userId: 'recruitment_form',
+        username: 'Recruitment Form Webhook',
+      },
+      reason: 'ok_api_key',
+    };
+  }
+
+  // Fallback to the old API key system
   const key = await verifyAPIKey(hashAPIKey(apiKeyValue.trim()), guildId);
   if (!key) return { auth: null, reason: 'invalid_api_key' };
 
@@ -2789,6 +2806,7 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     digestEnabled: guild.digestEnabled,
     autoThreadEnabled: guild.autoThreadEnabled,
     autoThreadChannels: guild.autoThreadChannels,
+    autoThreadBotsEnabled: guild.autoThreadBotsEnabled,
     youtubeEnabled: getFeatureStatus('youtube', false) === 'active',
     twitchEnabled: getFeatureStatus('twitch', false) === 'active',
     socialNetworksEnabled: getFeatureStatus('social_networks', true) === 'active',

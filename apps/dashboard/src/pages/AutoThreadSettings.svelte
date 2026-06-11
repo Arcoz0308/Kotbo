@@ -3,13 +3,15 @@
   import ModulePage from '../lib/components/ModulePage.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import { fetchAutoThreadConfig, updateAutoThreadConfig } from '../lib/api';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
 
   let config = $state({
     enabled: false,
-    channels: [] as string[]
+    channels: [] as string[],
+    botsEnabled: false
   });
   let loading = $state(true);
   let loadError = $state('');
@@ -29,6 +31,7 @@
       if (res) {
         config.enabled = res.enabled ?? false;
         config.channels = res.channels ?? [];
+        config.botsEnabled = res.botsEnabled ?? false;
       }
     } catch (err) {
       loadError = err instanceof Error ? err.message : 'Impossible de charger la configuration.';
@@ -47,7 +50,8 @@
     await saveAction.run(async () => {
       const ok = await updateAutoThreadConfig({
         enabled: config.enabled,
-        channels: config.channels
+        channels: config.channels,
+        botsEnabled: config.botsEnabled
       });
       if (!ok) throw new Error('Erreur de sauvegarde API');
       
@@ -83,7 +87,7 @@
   {#snippet actions()}
     <button
       onclick={handleSave}
-      disabled={saveAction.loading || loading}
+      disabled={saveAction.state.loading || loading}
       class="px-6 py-3 bg-primary text-on-primary font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-primary/20 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
     >
       Enregistrer
@@ -187,6 +191,23 @@
             <p class="text-sm font-bold">Aucun salon ne correspond à votre recherche.</p>
           </div>
         {/if}
+      </section>
+
+      <!-- Section Bots -->
+      <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-xl font-black flex items-center gap-3">
+              <Papicon icon="bot" size={20} class="text-primary" />
+              Prise en charge des bots & webhooks
+            </h3>
+            <p class="text-xs text-on-surface-variant/80 mt-1 font-medium">Activer la création automatique de fils de discussion pour les messages envoyés par d'autres bots ou webhooks (ex: flux RSS).</p>
+          </div>
+          <ToggleSwitch 
+            checked={config.botsEnabled} 
+            onToggle={(v: boolean) => config.botsEnabled = v} 
+          />
+        </div>
       </section>
     </div>
   {/if}
