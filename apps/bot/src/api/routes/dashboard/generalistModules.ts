@@ -1,8 +1,8 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
-import { Client, EmbedBuilder, TextChannel } from 'discord.js';
+import { Client, EmbedBuilder } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
-import { getOrCreateLevelConfig } from '../../../services/progression/levelingService.js';
+import { getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel } from '../../../services/progression/levelingService.js';
 import { getOrCreateWelcomeConfig } from '../../../services/features/welcomeGoodbyeService.js';
 import { getOrCreateAutoModConfig, invalidateAutoModCache } from '../../../services/moderation/autoModService.js';
 import { createGiveaway, endGiveaway, rerollGiveaway } from '../../../services/features/giveawayService.js';
@@ -19,7 +19,7 @@ export async function handleGeneralistModulesRoutes(
   client: Client,
   user: AuthClaims,
   guildId: string,
-  access: DashboardAccess
+  _access: DashboardAccess
 ): Promise<boolean> {
   const method = req.method;
   const moduleKey = parts[4];
@@ -38,7 +38,6 @@ export async function handleGeneralistModulesRoutes(
         const levels = await prisma.memberLevel.findMany({
           where: { guildId },
           orderBy: { xp: 'desc' },
-          take: 100, // Limiter au top 100
         });
 
         // Charger les profils de membres de la base de données
@@ -51,20 +50,16 @@ export async function handleGeneralistModulesRoutes(
         });
         const profileMap = new Map(dbProfiles.map(p => [p.userId, p]));
 
-        // Charger les membres en direct du serveur Discord si possible
-        const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
-        let discordMembers = new Map();
-        if (discordGuild && userIds.length > 0) {
-          discordMembers = await discordGuild.members.fetch({ user: userIds }).catch(() => new Map());
-        }
+        // Charger les membres depuis le cache du serveur Discord si présent
+        const discordGuild = client.guilds.cache.get(guildId);
 
         const levelsWithUserData = levels.map(l => {
           const profile = profileMap.get(l.userId);
-          const discordMember = discordMembers.get(l.userId);
+          const discordMember = discordGuild?.members.cache.get(l.userId);
 
-          const username = discordMember?.user.username || profile?.username || null;
+          const username = discordMember?.user?.username || profile?.username || null;
           const displayName = discordMember?.displayName || profile?.displayName || profile?.globalName || `Utilisateur ${l.userId}`;
-          const avatarUrl = discordMember?.user.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null;
+          const avatarUrl = discordMember?.user?.displayAvatarURL({ size: 128 }) || profile?.avatarUrl || null;
 
           return {
             ...l,
@@ -178,6 +173,193 @@ export async function handleGeneralistModulesRoutes(
       }
       return true;
     }
+
+    // POST /api/dashboard/guilds/:guildId/leveling/import
+    if (parts.length === 6 && parts[5] === 'import' && method === 'POST') {
+      try {
+        const body = await readJsonBody<unknown>(req);
+        if (!body || !Array.isArray(body)) {
+          json(res, 400, { error: "Le corps de la requête doit être un tableau d'utilisateurs." });
+          return true;
+        }
+
+        const validItems: Array<{
+          username?: string;
+          displayName?: string;
+          level?: number;
+          xp?: number;
+        }> = [];
+
+        const failedMembers: Array<{
+          username?: string;
+          display_name?: string;
+          reason: string;
+        }> = [];
+
+        for (const item of body) {
+          if (!item || typeof item !== 'object') {
+            failedMembers.push({ reason: "Format invalide (doit être un objet)" });
+            continue;
+          }
+
+          const rawItem = item as Record<string, unknown>;
+          const username = rawItem.username;
+          const displayName = rawItem.display_name || rawItem.displayName;
+          const level = typeof rawItem.level === 'number' ? rawItem.level : (typeof rawItem.level === 'string' ? parseInt(rawItem.level as string, 10) : NaN);
+          const xp = typeof rawItem.xp === 'number' ? rawItem.xp : (typeof rawItem.xp === 'string' ? parseInt(rawItem.xp as string, 10) : NaN);
+
+          if (!username && !displayName) {
+            failedMembers.push({ reason: "Nom d'utilisateur ou pseudo manquant" });
+            continue;
+          }
+
+          if (isNaN(level) && isNaN(xp)) {
+            failedMembers.push({
+              username: username ? String(username) : undefined,
+              display_name: displayName ? String(displayName) : undefined,
+              reason: "Niveau ou XP invalide/manquant"
+            });
+            continue;
+          }
+
+          validItems.push({
+            username: username ? String(username) : undefined,
+            displayName: displayName ? String(displayName) : undefined,
+            level: isNaN(level) ? undefined : level,
+            xp: isNaN(xp) ? undefined : xp
+          });
+        }
+
+        const dbProfiles = await prisma.memberProfile.findMany({
+          where: { guildId }
+        });
+
+        const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+        const discordMembers = discordGuild ? await discordGuild.members.fetch().catch(() => new Map()) : new Map();
+
+        const identityMap = new Map<string, string>();
+
+        const normalize = (str: string) => {
+          return str.toLowerCase().replace(/^@/, '').trim();
+        };
+
+        for (const p of dbProfiles) {
+          if (p.userId) {
+            if (p.username) identityMap.set(normalize(p.username), p.userId);
+            if (p.displayName) identityMap.set(normalize(p.displayName), p.userId);
+            if (p.globalName) identityMap.set(normalize(p.globalName), p.userId);
+            if (p.userTag) identityMap.set(normalize(p.userTag), p.userId);
+          }
+        }
+
+        if (discordMembers.size > 0) {
+          for (const [id, member] of discordMembers) {
+            identityMap.set(normalize(member.user.username), id);
+            if (member.nickname) identityMap.set(normalize(member.nickname), id);
+            identityMap.set(normalize(member.displayName), id);
+            identityMap.set(normalize(member.user.tag), id);
+          }
+        }
+
+        const importedSuccessfully: Array<{ userId: string; level: number; xp: number }> = [];
+
+        for (const item of validItems) {
+          let userId: string | undefined;
+
+          if (item.username) {
+            userId = identityMap.get(normalize(item.username));
+          }
+          if (!userId && item.displayName) {
+            userId = identityMap.get(normalize(item.displayName));
+          }
+
+          if (!userId) {
+            failedMembers.push({
+              username: item.username,
+              display_name: item.displayName,
+              reason: "Membre introuvable sur le serveur Discord"
+            });
+            continue;
+          }
+
+          let xp = item.xp;
+          let level = item.level;
+
+          if (xp === undefined && level !== undefined) {
+            xp = getXpForLevel(level - 1);
+          } else if (level === undefined && xp !== undefined) {
+            level = 0;
+            let nextXp = getXpForLevel(level);
+            while (xp >= nextXp) {
+              level++;
+              nextXp = getXpForLevel(level);
+            }
+          }
+
+          if (xp === undefined || level === undefined) {
+            failedMembers.push({
+              username: item.username,
+              display_name: item.displayName,
+              reason: "Valeur de niveau/XP invalide"
+            });
+            continue;
+          }
+
+          importedSuccessfully.push({ userId, level, xp });
+        }
+
+        for (const record of importedSuccessfully) {
+          await prisma.memberLevel.upsert({
+            where: { guildId_userId: { guildId, userId: record.userId } },
+            update: {
+              xp: record.xp,
+              level: record.level,
+              lastXpGain: new Date()
+            },
+            create: {
+              guildId,
+              userId: record.userId,
+              xp: record.xp,
+              level: record.level,
+              lastXpGain: new Date()
+            }
+          });
+        }
+
+        if (importedSuccessfully.length > 0) {
+          (async () => {
+            for (const record of importedSuccessfully) {
+              await updateMemberLevelRoles(guildId, record.userId, record.level, client).catch(() => {});
+              await new Promise(resolve => setTimeout(resolve, 250));
+            }
+          })().catch(err => {
+            logger.error('LevelingAPI', 'Error updating roles in background:', err);
+          });
+        }
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Import de classement',
+          context: getGuildName(client, guildId),
+          module: 'Leveling',
+          eventType: 'Manuel',
+          details: `Importation réussie de ${importedSuccessfully.length} membres (échec: ${failedMembers.length})`,
+          channelId: null
+        });
+
+        json(res, 200, {
+          success: true,
+          importedCount: importedSuccessfully.length,
+          failedCount: failedMembers.length,
+          failedMembers
+        });
+      } catch (err) {
+        logger.error('LevelingAPI', 'Error during leveling import:', err);
+        json(res, 500, { error: 'Erreur lors de l\'importation des données' });
+      }
+      return true;
+    }
+
   }
 
   // 2. GIVEAWAYS MODULE ROUTES
@@ -927,6 +1109,179 @@ export async function handleGeneralistModulesRoutes(
       } catch (err) {
         logger.error('EmbedBuilderAPI', 'Error building/sending embed:', err);
         json(res, 500, { error: 'Erreur lors du traitement de l\'embed' });
+      }
+      return true;
+    }
+  }
+
+  // 9. FUN MODULE ROUTES
+  if (moduleKey === 'fun') {
+    // GET /api/dashboard/guilds/:guildId/fun
+    if (parts.length === 5 && method === 'GET') {
+      try {
+        const guild = await prisma.guild.findUnique({
+          where: { id: guildId },
+          select: {
+            funEnabled: true,
+            funCountingChannelId: true,
+            funOneWordStoryChannelId: true,
+            funGuessNumberChannelId: true,
+          }
+        });
+
+        if (!guild) {
+          json(res, 404, { error: 'Serveur introuvable' });
+          return true;
+        }
+
+        const { getOrCreateFunGameState } = await import('../../../services/features/funService.js');
+        const gameState = await getOrCreateFunGameState(guildId);
+
+        json(res, 200, {
+          config: guild,
+          gameState: {
+            countingCurrent: gameState.countingCurrent,
+            countingLastUserId: gameState.countingLastUserId,
+            oneWordStoryLastUserId: gameState.oneWordStoryLastUserId,
+            guessNumberTarget: gameState.guessNumberTarget,
+          }
+        });
+      } catch (err) {
+        logger.error('FunAPI', 'Error fetching fun config:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération de la configuration fun' });
+      }
+      return true;
+    }
+
+    // PATCH /api/dashboard/guilds/:guildId/fun
+    if (parts.length === 5 && method === 'PATCH') {
+      try {
+        const body = await readJsonBody<{
+          funEnabled?: boolean;
+          funCountingChannelId?: string | null;
+          funOneWordStoryChannelId?: string | null;
+          funGuessNumberChannelId?: string | null;
+        }>(req);
+
+        if (!body) {
+          json(res, 400, { error: 'Corps de requête manquant' });
+          return true;
+        }
+
+        const updatedGuild = await prisma.guild.update({
+          where: { id: guildId },
+          data: {
+            funEnabled: body.funEnabled,
+            funCountingChannelId: body.funCountingChannelId,
+            funOneWordStoryChannelId: body.funOneWordStoryChannelId,
+            funGuessNumberChannelId: body.funGuessNumberChannelId,
+          },
+        });
+
+        // Initialize target if Guess the Number is enabled and target is 0
+        const { getOrCreateFunGameState } = await import('../../../services/features/funService.js');
+        const gameState = await getOrCreateFunGameState(guildId);
+        if (body.funGuessNumberChannelId && gameState.guessNumberTarget === 0) {
+          const newTarget = Math.floor(Math.random() * 1000) + 1;
+          await prisma.funGameState.update({
+            where: { guildId },
+            data: { guessNumberTarget: newTarget }
+          });
+        }
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Mise à jour Salons Fun',
+          context: getGuildName(client, guildId),
+          module: 'Fun',
+          eventType: 'Manuel',
+          details: `Configuration des salons fun modifiée. Actif: ${updatedGuild.funEnabled}`,
+          channelId: null
+        });
+
+        const latestState = await prisma.funGameState.findUnique({ where: { guildId } });
+
+        json(res, 200, {
+          config: {
+            funEnabled: updatedGuild.funEnabled,
+            funCountingChannelId: updatedGuild.funCountingChannelId,
+            funOneWordStoryChannelId: updatedGuild.funOneWordStoryChannelId,
+            funGuessNumberChannelId: updatedGuild.funGuessNumberChannelId,
+          },
+          gameState: {
+            countingCurrent: latestState?.countingCurrent ?? 0,
+            countingLastUserId: latestState?.countingLastUserId ?? null,
+            oneWordStoryLastUserId: latestState?.oneWordStoryLastUserId ?? null,
+            guessNumberTarget: latestState?.guessNumberTarget ?? 0,
+          }
+        });
+      } catch (err) {
+        logger.error('FunAPI', 'Error updating fun config:', err);
+        json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration fun' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/fun/counting/reset
+    if (parts.length === 7 && parts[5] === 'counting' && parts[6] === 'reset' && method === 'POST') {
+      try {
+        const { resetCounting } = await import('../../../services/features/funService.js');
+        const state = await resetCounting(guildId);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Réinitialisation Comptage',
+          context: getGuildName(client, guildId),
+          module: 'Fun',
+          eventType: 'Manuel',
+          details: `Le comptage a été réinitialisé à 0 depuis le dashboard.`,
+          channelId: null
+        });
+
+        json(res, 200, {
+          success: true,
+          gameState: {
+            countingCurrent: state.countingCurrent,
+            countingLastUserId: state.countingLastUserId,
+            oneWordStoryLastUserId: state.oneWordStoryLastUserId,
+            guessNumberTarget: state.guessNumberTarget,
+          }
+        });
+      } catch (err) {
+        logger.error('FunAPI', 'Error resetting counting:', err);
+        json(res, 500, { error: 'Erreur lors de la réinitialisation du comptage' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/fun/guess-number/reset
+    if (parts.length === 7 && parts[5] === 'guess-number' && parts[6] === 'reset' && method === 'POST') {
+      try {
+        const { resetGuessNumber } = await import('../../../services/features/funService.js');
+        const state = await resetGuessNumber(guildId);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Réinitialisation Nombre Mystère',
+          context: getGuildName(client, guildId),
+          module: 'Fun',
+          eventType: 'Manuel',
+          details: `Un nouveau nombre mystère a été généré depuis le dashboard.`,
+          channelId: null
+        });
+
+        json(res, 200, {
+          success: true,
+          gameState: {
+            countingCurrent: state.countingCurrent,
+            countingLastUserId: state.countingLastUserId,
+            oneWordStoryLastUserId: state.oneWordStoryLastUserId,
+            guessNumberTarget: state.guessNumberTarget,
+          }
+        });
+      } catch (err) {
+        logger.error('FunAPI', 'Error resetting guess target:', err);
+        json(res, 500, { error: 'Erreur lors du changement du nombre mystère' });
       }
       return true;
     }

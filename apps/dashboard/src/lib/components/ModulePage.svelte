@@ -72,7 +72,7 @@
     </div>
   </header>
 
-  <main class="flex-1 {isModuleEnabled || isFixed ? '' : 'opacity-40 pointer-events-none grayscale-[0.5] transition-all duration-500'}">
+  <main class="flex-1 {isModuleEnabled || isFixed || featureKey === 'sanctions' ? '' : 'opacity-40 pointer-events-none grayscale-[0.5] transition-all duration-500'}">
     {@render children()}
   </main>
 </div>

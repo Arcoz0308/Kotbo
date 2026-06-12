@@ -89,7 +89,7 @@
     const header = keys.join(',');
     const rows = filtered.map(r =>
       keys.map(k => {
-        const val = k in r ? (r as Record<string, unknown>)[k] : (r.data || {})[k];
+        const val = k in r ? (r as any)[k] : (r.data || {})[k];
         const str = Array.isArray(val) ? val.join('; ') : (val ?? '');
         return `"${String(str).replace(/"/g, '""')}"`;
       }).join(',')
@@ -215,10 +215,18 @@
 
 <!-- Detail modal -->
 {#if selectedResponse}
-  <div class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
-    onclick={() => selectedResponse = null} role="button" tabindex="0">
-    <div class="bg-surface rounded-3xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto"
-      onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+  <div class="fixed inset-0 z-55 flex items-center justify-center p-4"
+    role="dialog" aria-modal="true" tabindex="-1" onkeydown={(e) => { if (e.key === 'Escape') selectedResponse = null; }}>
+    <!-- Backdrop -->
+    <button
+      type="button"
+      class="absolute inset-0 bg-black/40 backdrop-blur-sm border-none cursor-default w-full h-full text-left p-0"
+      onclick={() => selectedResponse = null}
+      aria-label="Fermer"
+    ></button>
+
+    <!-- Detail panel -->
+    <div class="relative z-10 bg-surface rounded-3xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto">
       <div class="sticky top-0 bg-surface border-b border-outline-variant/10 px-6 py-4 flex items-start justify-between rounded-t-3xl">
         <div>
           <h2 class="font-black text-on-surface text-lg">Réponse détaillée</h2>

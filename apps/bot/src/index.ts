@@ -39,6 +39,7 @@ import { registerAutoThreadListener } from './events/autoThread.js';
 import { registerTempVoiceListener } from './events/tempVoice.js';
 import { registerHoneypotListener } from './events/honeypot.js';
 import { registerStatsChannelListener } from './events/stats.js';
+import { registerFunEventsListener } from './events/funEvents.js';
 import { registerDailyAlgoHandlers } from './handlers/dailyAlgoHandler.js';
 import { registerMeetingEvents } from './events/meetingEvents.js';
 import { registerAnalyticsListeners } from './events/analyticsEvents.js';
@@ -238,6 +239,7 @@ client.once(Events.ClientReady, async (c) => {
   registerTempVoiceListener(client);
   registerHoneypotListener(client);
   registerStatsChannelListener(client);
+  registerFunEventsListener(client);
   registerDailyAlgoHandlers(client);
   registerMeetingEvents(client);
   registerAnalyticsListeners(client);

@@ -450,6 +450,7 @@ export async function handleModulesRoutes(
       }
       if (moduleId === 'nickname_moderation') updates.autoNicknameModerationEnabled = body.status === 'active';
       if (moduleId === 'auto_thread') updates.autoThreadEnabled = body.status === 'active';
+      if (moduleId === 'fun') updates.funEnabled = body.status === 'active';
 
       if (Object.keys(updates).length > 0) {
         await prisma.guild.update({ where: { id: guildId }, data: updates });
@@ -469,6 +470,7 @@ export async function handleModulesRoutes(
         'sanctions': 'sanction',
         'nickname_moderation': 'nicknameModeration',
         'auto_thread': 'autoThread',
+        'fun': 'fun',
       };
       
       const kotboModuleName = moduleMapping[normalizedKey];
@@ -644,17 +646,6 @@ export async function handleModulesRoutes(
   // POST /api/dashboard/guilds/:guildId/sanctions/reports
   if (moduleKey === 'sanctions' && parts.length === 6 && parts[5] === 'reports' && method === 'POST') {
     try {
-      // Vérifier si les rapports de sanction sont activés
-      const guild = await prisma.guild.findUnique({
-        where: { id: guildId },
-        select: { sanctionReportEnabled: true }
-      });
-
-      if (!guild?.sanctionReportEnabled) {
-        json(res, 403, { error: 'Les rapports de sanction sont désactivés sur ce serveur.' });
-        return true;
-      }
-
       const body = await readJsonBody<{
         sanctionId?: string | null;
         staffPseudo?: string;
@@ -762,17 +753,6 @@ export async function handleModulesRoutes(
   if (moduleKey === 'sanctions' && parts.length === 7 && parts[5] === 'reports' && method === 'PATCH') {
     const reportId = parts[6];
     try {
-      // Vérifier si les rapports de sanction sont activés
-      const guild = await prisma.guild.findUnique({
-        where: { id: guildId },
-        select: { sanctionReportEnabled: true }
-      });
-
-      if (!guild?.sanctionReportEnabled) {
-        json(res, 403, { error: 'Les rapports de sanction sont désactivés sur ce serveur.' });
-        return true;
-      }
-
       const existingReport = await prisma.sanctionReport.findFirst({
         where: { id: reportId, guildId }
       });
@@ -2081,7 +2061,6 @@ export async function handleModulesRoutes(
       await syncFeature('settings', 'Paramètres', undefined, data.configChannelId, undefined);
       await syncFeature('dashboard', 'Vue d\'ensemble', undefined, data.publicChannelId, undefined);
       await syncFeature('news', 'Actualités & RSS', undefined, data.newsChannelId, undefined);
-      await syncFeature('sanctions', 'Sanctions', data.propagateSanctions, undefined, undefined);
       await syncFeature('auto_thread', 'Auto-Thread', data.autoThreadEnabled, undefined, undefined);
       
       if (body.youtubeEnabled !== undefined) {

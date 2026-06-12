@@ -410,7 +410,7 @@
         <button
           type="button"
           onclick={() => toggleGroup(group.key)}
-          class="w-full flex items-center gap-2 px-2 py-2 mb-0.5 rounded-lg transition-colors hover:bg-surface-container/40 group/label sticky top-0 z-10 bg-surface-container-low/95 backdrop-blur-md"
+          class="w-full flex items-center gap-2 px-2 py-2 mb-0.5 rounded-lg transition-colors hover:bg-surface-container/40 group/label"
         >
           <span class="flex-1 text-left text-[10px] font-bold text-on-surface-variant/55 uppercase tracking-[0.18em]">
             {group.label}

@@ -57,7 +57,7 @@
   function formatXp(xp: number): string {
     if (xp >= 1_000_000) return `${(xp / 1_000_000).toFixed(1)}M`;
     if (xp >= 1_000) return `${(xp / 1_000).toFixed(1)}k`;
-    return xp.toString();
+    return xp.toLocaleString();
   }
 
   function getRankColor(index: number) {
@@ -71,213 +71,292 @@
 <svelte:head>
   <title>Classement Leveling — {guildName}</title>
   <meta name="description" content="Classement XP et niveaux des membres de {guildName} sur Discord." />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet" />
 </svelte:head>
 
-<!-- Fond cosmique animé -->
-<div class="min-h-screen bg-[#07090f] text-white relative overflow-x-hidden">
-  <!-- Décoration de fond -->
-  <div class="fixed inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
-    <div class="absolute top-[-20%] left-[-10%] w-[60vw] h-[60vw] bg-indigo-600/10 rounded-full blur-[120px]"></div>
-    <div class="absolute top-[30%] right-[-15%] w-[50vw] h-[50vw] bg-violet-600/8 rounded-full blur-[150px]"></div>
-    <div class="absolute bottom-[-10%] left-[20%] w-[40vw] h-[40vw] bg-cyan-600/6 rounded-full blur-[100px]"></div>
+<div class="min-h-screen bg-[#060813] text-slate-100 relative overflow-x-hidden font-sans selection:bg-indigo-500/30 selection:text-white" style="font-family: 'Outfit', sans-serif;">
+  
+  <!-- Fond dynamique avec effets lumineux cosmiques -->
+  <div class="fixed inset-0 pointer-events-none overflow-hidden z-0" aria-hidden="true">
+    <div class="absolute top-[-25%] left-[-15%] w-[80vw] h-[80vw] rounded-full blur-[140px]" style="background: radial-gradient(circle, rgba(79, 70, 229, 0.15) 0%, rgba(79, 70, 229, 0.03) 50%, transparent 100%);"></div>
+    <div class="absolute top-[25%] right-[-20%] w-[70vw] h-[70vw] rounded-full blur-[160px]" style="background: radial-gradient(circle, rgba(139, 92, 246, 0.12) 0%, rgba(139, 92, 246, 0.02) 50%, transparent 100%);"></div>
+    <div class="absolute bottom-[-15%] left-[10%] w-[60vw] h-[60vw] rounded-full blur-[120px]" style="background: radial-gradient(circle, rgba(6, 182, 212, 0.1) 0%, rgba(6, 182, 212, 0.02) 50%, transparent 100%);"></div>
+    
+    <!-- Grille de points subtile de style moderne -->
+    <div class="absolute inset-0 opacity-[0.03]" style="background-image: linear-gradient(to right, #808080 1px, transparent 1px), linear-gradient(to bottom, #808080 1px, transparent 1px); background-size: 24px 24px;"></div>
   </div>
 
-  <div class="relative z-10 w-full max-w-4xl mx-auto px-4 sm:px-8 py-10 space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+  <div class="relative z-10 w-full max-w-4xl mx-auto px-4 sm:px-6 py-12 space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
 
-    <!-- ─── En-tête ─── -->
-    <header class="relative flex flex-col sm:flex-row sm:items-center justify-between gap-6 bg-white/3 backdrop-blur-2xl p-7 sm:p-8 rounded-3xl border border-white/10 shadow-2xl overflow-hidden">
-      <!-- Shimmer accent -->
-      <div class="absolute top-0 left-0 w-full h-px bg-linear-to-r from-transparent via-indigo-400/40 to-transparent"></div>
-
-      <div class="flex items-center gap-5">
+    <!-- ─── En-tête de page premium ─── -->
+    <header class="relative flex flex-col sm:flex-row sm:items-center justify-between gap-6 bg-slate-900/40 backdrop-blur-2xl p-8 rounded-4xl border border-white/10 shadow-2xl overflow-hidden group">
+      <!-- Ligne d'accent lumineuse supérieure -->
+      <div class="absolute top-0 left-0 w-full h-[2px] bg-linear-to-r from-transparent via-indigo-500/50 to-transparent group-hover:via-indigo-400 transition-all duration-700"></div>
+      
+      <div class="flex items-center gap-6">
         {#if guildIcon}
-          <div class="relative">
-            <div class="absolute inset-0 bg-indigo-500/30 rounded-2xl blur-lg scale-110"></div>
-            <img src={guildIcon} alt="{guildName} Logo" class="relative w-16 h-16 rounded-2xl border border-white/10 shadow-xl object-cover" />
+          <div class="relative group">
+            <div class="absolute inset-0 bg-indigo-500/30 rounded-2xl blur-lg scale-110 group-hover:scale-125 transition-transform duration-500"></div>
+            <img src={guildIcon} alt="{guildName} Logo" class="relative w-20 h-20 rounded-2xl border border-white/10 shadow-2xl object-cover transform group-hover:rotate-3 transition-transform duration-500" />
           </div>
         {:else}
-          <div class="w-16 h-16 bg-indigo-500/20 rounded-2xl flex items-center justify-center font-black text-xl text-indigo-300 border border-indigo-500/20 shadow-lg">
-            {guildName.slice(0, 2).toUpperCase()}
+          <div class="relative w-20 h-20 bg-linear-to-br from-indigo-500/20 to-violet-500/20 rounded-2xl flex items-center justify-center font-black text-2xl text-indigo-300 border border-indigo-500/30 shadow-2xl shrink-0">
+            <div class="absolute inset-0 bg-indigo-500/10 rounded-2xl blur-md"></div>
+            <span class="relative z-10">{guildName.slice(0, 2).toUpperCase()}</span>
           </div>
         {/if}
-        <div>
-          <h1 class="text-2xl sm:text-3xl font-black tracking-tight bg-linear-to-r from-indigo-300 via-violet-300 to-cyan-300 bg-clip-text text-transparent">
+        
+        <div class="space-y-1">
+          <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight bg-linear-to-r from-white via-slate-100 to-indigo-200 bg-clip-text text-transparent">
             {guildName}
           </h1>
-          <p class="text-white/40 font-medium text-sm mt-0.5">Classement Leveling & Expérience</p>
+          <div class="flex items-center gap-2 text-indigo-300/60 font-semibold text-sm">
+            <Papicon icon="Trophy" size={14} class="text-indigo-400" />
+            <span>Classement XP & Niveaux</span>
+          </div>
         </div>
       </div>
 
-      <div class="flex items-center gap-2 self-start sm:self-auto px-4 py-2 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
-        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-        <span class="text-xs font-black uppercase tracking-widest text-emerald-400">Live</span>
+      <!-- Badge "Live" vibrant -->
+      <div class="flex items-center gap-2.5 self-start sm:self-auto px-4.5 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 shadow-lg shadow-emerald-500/5 hover:bg-emerald-500/15 transition-colors">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+        <span class="w-2 h-2 rounded-full bg-emerald-400 absolute"></span>
+        <span class="text-[10px] font-black uppercase tracking-widest text-emerald-400">Temps Réel</span>
       </div>
     </header>
 
     {#if loading}
-      <!-- Skeletons -->
-      <div class="space-y-4">
+      <!-- Skeletons animés premiums -->
+      <div class="space-y-6">
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {#each Array(4) as _}
-            <Skeleton height="90px" radius="1.5rem" />
+            <Skeleton height="95px" radius="1.5rem" />
           {/each}
         </div>
-        <Skeleton height="220px" radius="2rem" />
-        <Skeleton height="400px" radius="2rem" />
+        <Skeleton height="260px" radius="2rem" />
+        <Skeleton height="500px" radius="2rem" />
       </div>
 
     {:else if errorMsg}
-      <div class="bg-red-500/10 border border-red-500/20 p-10 rounded-3xl text-center space-y-3">
-        <div class="text-4xl">⚠️</div>
-        <p class="text-red-400 font-black text-lg">Une erreur est survenue</p>
-        <p class="text-white/50 text-sm font-medium">{errorMsg}</p>
+      <!-- Interface d'erreur élégante -->
+      <div class="bg-red-500/5 border border-red-500/20 p-12 rounded-4xl text-center space-y-4 shadow-2xl relative overflow-hidden">
+        <div class="absolute inset-0 blur-xl" style="background: radial-gradient(circle, rgba(239, 68, 68, 0.05) 0%, transparent 70%);"></div>
+        <div class="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center text-red-400 mx-auto border border-red-500/20 shadow-lg shadow-red-500/5">
+          <Papicon icon="AlertTriangle" size={24} />
+        </div>
+        <div class="space-y-1.5 relative z-10">
+          <p class="text-red-400 font-extrabold text-xl">Une erreur est survenue</p>
+          <p class="text-slate-400 text-sm max-w-md mx-auto leading-relaxed">{errorMsg}</p>
+        </div>
       </div>
 
     {:else if !enabled}
-      <div class="bg-white/3 border border-white/8 p-16 rounded-3xl text-center flex flex-col items-center space-y-5">
-        <div class="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center text-4xl">🔒</div>
-        <h2 class="text-2xl font-black text-white/70">Classement Inactif</h2>
-        <p class="text-white/40 font-medium text-sm max-w-sm">
-          Le module Leveling & XP n'est pas activé pour ce serveur ou le classement a été désactivé par un administrateur.
-        </p>
+      <!-- Interface module désactivé -->
+      <div class="bg-slate-900/20 border border-white/5 p-16 rounded-4xl text-center flex flex-col items-center space-y-6 shadow-2xl relative overflow-hidden">
+        <div class="absolute inset-0 blur-2xl" style="background: radial-gradient(circle, rgba(99, 102, 241, 0.05) 0%, transparent 70%);"></div>
+        <div class="w-20 h-20 rounded-full bg-slate-800/60 border border-white/10 flex items-center justify-center text-indigo-400 shadow-inner animate-pulse">
+          <Papicon icon="Lock" size={32} />
+        </div>
+        <div class="space-y-2 max-w-sm relative z-10">
+          <h2 class="text-2xl font-black text-slate-200">Classement Inactif</h2>
+          <p class="text-slate-400/80 font-medium text-sm leading-relaxed">
+            Le module de Leveling n'est pas activé sur ce serveur ou le classement a été masqué par les administrateurs.
+          </p>
+        </div>
       </div>
 
     {:else}
 
-      <!-- ─── Stats globales ─── -->
+      <!-- ─── Stats globales en verres translucides ─── -->
       {#if levels.length > 0}
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div class="bg-white/3 border border-white/8 rounded-2xl p-5 text-center space-y-1.5 hover:border-indigo-500/30 transition-colors group">
-            <p class="text-2xl sm:text-3xl font-black text-indigo-300 group-hover:scale-110 transition-transform inline-block">{levels.length}</p>
-            <p class="text-[10px] font-bold text-white/30 uppercase tracking-widest">Membres classés</p>
+          <div class="bg-slate-900/40 border border-white/10 rounded-3xl p-5 text-center space-y-2 hover:border-indigo-500/30 transition-all hover:bg-slate-900/60 shadow-xl group">
+            <p class="text-3xl font-extrabold text-indigo-300 group-hover:scale-105 transition-transform duration-300 tabular-nums">{levels.length}</p>
+            <p class="text-[10px] font-extrabold text-slate-400/60 uppercase tracking-widest">Membres Classés</p>
           </div>
-          <div class="bg-white/3 border border-white/8 rounded-2xl p-5 text-center space-y-1.5 hover:border-amber-500/30 transition-colors group">
-            <p class="text-2xl sm:text-3xl font-black text-amber-300 group-hover:scale-110 transition-transform inline-block">{maxLevel}</p>
-            <p class="text-[10px] font-bold text-white/30 uppercase tracking-widest">Niveau max</p>
+          <div class="bg-slate-900/40 border border-white/10 rounded-3xl p-5 text-center space-y-2 hover:border-amber-500/30 transition-all hover:bg-slate-900/60 shadow-xl group">
+            <p class="text-3xl font-extrabold text-amber-300 group-hover:scale-105 transition-transform duration-300 tabular-nums">{maxLevel}</p>
+            <p class="text-[10px] font-extrabold text-slate-400/60 uppercase tracking-widest">Niveau Max</p>
           </div>
-          <div class="bg-white/3 border border-white/8 rounded-2xl p-5 text-center space-y-1.5 hover:border-violet-500/30 transition-colors group">
-            <p class="text-2xl sm:text-3xl font-black text-violet-300 group-hover:scale-110 transition-transform inline-block">{avgLevel}</p>
-            <p class="text-[10px] font-bold text-white/30 uppercase tracking-widest">Niveau moyen</p>
+          <div class="bg-slate-900/40 border border-white/10 rounded-3xl p-5 text-center space-y-2 hover:border-violet-500/30 transition-all hover:bg-slate-900/60 shadow-xl group">
+            <p class="text-3xl font-extrabold text-violet-300 group-hover:scale-105 transition-transform duration-300 tabular-nums">{avgLevel}</p>
+            <p class="text-[10px] font-extrabold text-slate-400/60 uppercase tracking-widest">Niveau Moyen</p>
           </div>
-          <div class="bg-white/3 border border-white/8 rounded-2xl p-5 text-center space-y-1.5 hover:border-cyan-500/30 transition-colors group">
-            <p class="text-2xl sm:text-3xl font-black text-cyan-300 group-hover:scale-110 transition-transform inline-block">{formatXp(totalXp)}</p>
-            <p class="text-[10px] font-bold text-white/30 uppercase tracking-widest">XP Total</p>
+          <div class="bg-slate-900/40 border border-white/10 rounded-3xl p-5 text-center space-y-2 hover:border-cyan-500/30 transition-all hover:bg-slate-900/60 shadow-xl group">
+            <p class="text-3xl font-extrabold text-cyan-300 group-hover:scale-105 transition-transform duration-300 tabular-nums">{formatXp(totalXp)}</p>
+            <p class="text-[10px] font-extrabold text-slate-400/60 uppercase tracking-widest">XP Total Cumulé</p>
           </div>
         </div>
       {/if}
 
-      <!-- ─── Classement principal ─── -->
-      <section class="bg-white/3 border border-white/8 rounded-3xl overflow-hidden shadow-2xl">
-        <!-- Titre + Recherche -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 sm:p-8 border-b border-white/8">
-          <h2 class="text-xl font-black flex items-center gap-3 text-white">
-            <span class="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/20 flex items-center justify-center text-indigo-300">
+      <!-- ─── Section Top 3 Sleek Cards ─── -->
+      {#if !searchQuery && levels.length > 0}
+        <div class="space-y-4">
+          <h3 class="text-xs font-black uppercase tracking-widest text-slate-400/50 flex items-center gap-2 ml-2">
+            <Papicon icon="Trophy" size={14} class="text-amber-500" />
+            <span>Le Trio de Tête</span>
+          </h3>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 relative z-10">
+            
+            <!-- Rank 2 Card -->
+            {#if levels[1]}
+              <div class="relative bg-slate-900/30 border border-white/5 rounded-3xl p-6 flex flex-col justify-between hover:border-slate-500/20 transition-all duration-300 group shadow-lg order-2 sm:order-1">
+                <div class="flex items-start justify-between">
+                  <div class="relative">
+                    <img
+                      src={levels[1].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/1.png'}
+                      alt=""
+                      class="w-16 h-16 rounded-2xl object-cover border border-white/10"
+                    />
+                    <!-- Rank indicator -->
+                    <div class="absolute -bottom-2 -right-2 bg-slate-800 text-slate-300 border border-white/10 w-6 h-6 rounded-lg flex items-center justify-center font-bold text-xs font-mono">
+                      2
+                    </div>
+                  </div>
+                  <!-- Badge or Medal Icon -->
+                  <div class="text-slate-400">
+                    <Papicon icon="Medal" size={20} />
+                  </div>
+                </div>
+                
+                <div class="mt-6 space-y-4">
+                  <div class="space-y-0.5">
+                    <p class="font-bold text-slate-100 truncate group-hover:text-white" title={levels[1].displayName}>
+                      {levels[1].displayName || levels[1].username || 'Inconnu'}
+                    </p>
+                    {#if levels[1].username && levels[1].displayName !== levels[1].username}
+                      <p class="text-xs text-slate-500 font-medium truncate">@{levels[1].username}</p>
+                    {/if}
+                  </div>
+                  
+                  <div class="flex items-center justify-between border-t border-white/5 pt-3 text-xs">
+                    <span class="text-slate-400 font-semibold">Niveau {levels[1].level}</span>
+                    <span class="text-slate-400 font-mono font-medium">{formatXp(levels[1].xp)} XP</span>
+                  </div>
+                </div>
+              </div>
+            {/if}
+
+            <!-- Rank 1 Card (Highlighted) -->
+            {#if levels[0]}
+              <div class="relative bg-slate-900/50 border border-amber-500/20 rounded-3xl overflow-hidden p-6 flex flex-col justify-between hover:border-amber-500/35 transition-all duration-300 group shadow-xl ring-1 ring-amber-500/10 order-1 sm:order-2">
+                <!-- Top accent bar -->
+                <div class="absolute top-0 inset-x-0 h-1 bg-linear-to-r from-amber-500 to-yellow-450"></div>
+                
+                <div class="flex items-start justify-between mt-1">
+                  <div class="relative">
+                    <img
+                      src={levels[0].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                      alt=""
+                      class="w-20 h-20 rounded-2xl object-cover border border-amber-500/30"
+                    />
+                    <!-- Rank indicator -->
+                    <div class="absolute -bottom-2 -right-2 bg-amber-500 text-amber-950 w-7 h-7 rounded-lg flex items-center justify-center font-black text-sm font-mono shadow-md">
+                      1
+                    </div>
+                  </div>
+                  <!-- Crown Icon -->
+                  <div class="text-amber-450 filter drop-shadow-[0_0_8px_rgba(245,158,11,0.3)]">
+                    <Papicon icon="Crown" size={24} />
+                  </div>
+                </div>
+                
+                <div class="mt-6 space-y-4">
+                  <div class="space-y-0.5">
+                    <p class="font-extrabold text-white text-lg truncate group-hover:text-amber-200" title={levels[0].displayName}>
+                      {levels[0].displayName || levels[0].username || 'Inconnu'}
+                    </p>
+                    {#if levels[0].username && levels[0].displayName !== levels[0].username}
+                      <p class="text-xs text-amber-500/70 font-medium truncate">@{levels[0].username}</p>
+                    {/if}
+                  </div>
+                  
+                  <div class="flex items-center justify-between border-t border-amber-500/10 pt-3 text-sm">
+                    <span class="text-amber-300 font-extrabold">Niveau {levels[0].level}</span>
+                    <span class="text-amber-450 font-mono font-bold">{formatXp(levels[0].xp)} XP</span>
+                  </div>
+                </div>
+              </div>
+            {/if}
+
+            <!-- Rank 3 Card -->
+            {#if levels[2]}
+              <div class="relative bg-slate-900/30 border border-white/5 rounded-3xl p-6 flex flex-col justify-between hover:border-slate-500/20 transition-all duration-300 group shadow-lg order-3">
+                <div class="flex items-start justify-between">
+                  <div class="relative">
+                    <img
+                      src={levels[2].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/2.png'}
+                      alt=""
+                      class="w-16 h-16 rounded-2xl object-cover border border-white/10"
+                    />
+                    <!-- Rank indicator -->
+                    <div class="absolute -bottom-2 -right-2 bg-slate-800 text-amber-600/80 border border-white/10 w-6 h-6 rounded-lg flex items-center justify-center font-bold text-xs font-mono">
+                      3
+                    </div>
+                  </div>
+                  <!-- Badge or Medal Icon -->
+                  <div class="text-amber-700/80">
+                    <Papicon icon="Medal" size={20} />
+                  </div>
+                </div>
+                
+                <div class="mt-6 space-y-4">
+                  <div class="space-y-0.5">
+                    <p class="font-bold text-slate-100 truncate group-hover:text-white" title={levels[2].displayName}>
+                      {levels[2].displayName || levels[2].username || 'Inconnu'}
+                    </p>
+                    {#if levels[2].username && levels[2].displayName !== levels[2].username}
+                      <p class="text-xs text-slate-500 font-medium truncate">@{levels[2].username}</p>
+                    {/if}
+                  </div>
+                  
+                  <div class="flex items-center justify-between border-t border-white/5 pt-3 text-xs">
+                    <span class="text-slate-400 font-semibold">Niveau {levels[2].level}</span>
+                    <span class="text-slate-400 font-mono font-medium">{formatXp(levels[2].xp)} XP</span>
+                  </div>
+                </div>
+              </div>
+            {/if}
+
+          </div>
+        </div>
+      {/if}
+
+      <!-- ─── Liste Principale & Barre de Recherche ─── -->
+      <section class="bg-slate-900/30 border border-white/10 rounded-[2.5rem] p-6 sm:p-8 space-y-6 shadow-2xl backdrop-blur-3xl">
+        
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+          <h3 class="text-lg font-extrabold flex items-center gap-3">
+            <span class="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shadow-inner">
               <Papicon icon="Grades" size={18} />
             </span>
-            Top {levels.length} Leaderboard
-          </h2>
+            <span>Membres du Serveur</span>
+          </h3>
 
-          <div class="relative w-full sm:w-72">
+          <!-- Recherche premium -->
+          <div class="relative w-full sm:w-80">
             <input
               type="text"
               id="leaderboard-search"
               placeholder="Rechercher un membre..."
               bind:value={searchQuery}
-              class="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-2.5 pl-10 text-sm text-white focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 placeholder:text-white/25 transition-all"
+              class="w-full bg-slate-950/50 border border-white/10 rounded-2xl px-4 py-3 pl-11 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/15 transition-all shadow-inner"
             />
-            <div class="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/25 text-xs">🔍</div>
+            <div class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 flex items-center">
+              <Papicon icon="Search" size={14} />
+            </div>
             {#if searchQuery}
               <button
                 onclick={() => searchQuery = ''}
-                class="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-red-400 text-xs font-bold transition-colors"
+                class="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-white/5 hover:bg-red-500/10 hover:text-red-400 text-slate-400 flex items-center justify-center text-[10px] font-bold transition-all"
               >✕</button>
             {/if}
           </div>
         </div>
 
-        <!-- ─── Podium Top 3 ─── -->
-        {#if !searchQuery && levels.length > 0}
-          <div class="relative px-6 py-10 border-b border-white/8 bg-linear-to-b from-indigo-950/20 to-transparent overflow-hidden">
-            <!-- Étoiles décoratives -->
-            <div class="absolute inset-0 pointer-events-none" aria-hidden="true">
-              {#each Array(12) as _, i}
-                <div
-                  class="absolute w-1 h-1 rounded-full bg-white/20 animate-pulse"
-                  style="top: {10 + (i * 7) % 80}%; left: {5 + (i * 8.3) % 90}%; animation-delay: {i * 0.4}s"
-                ></div>
-              {/each}
-            </div>
-
-            <div class="grid grid-cols-3 gap-6 items-end max-w-2xl mx-auto">
-              <!-- 2ème Place -->
-              {#if levels[1]}
-                <div class="flex flex-col items-center text-center gap-3">
-                  <div class="relative">
-                    <div class="absolute -top-5 left-1/2 -translate-x-1/2 text-xl leading-none">🥈</div>
-                    <div class="absolute inset-0 bg-slate-400/20 rounded-full blur-md scale-150"></div>
-                    <img
-                      src={levels[1].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/1.png'}
-                      alt=""
-                      class="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full border-2 border-slate-300/50 shadow-xl object-cover"
-                    />
-                    <div class="absolute -bottom-2 -right-1.5 w-6 h-6 rounded-full bg-slate-300 text-slate-900 flex items-center justify-center font-black text-xs shadow-lg">2</div>
-                  </div>
-                  <div class="min-w-0 w-full">
-                    <p class="text-sm font-black text-white truncate" title={levels[1].displayName}>{levels[1].displayName || 'Inconnu'}</p>
-                    <p class="text-[10px] text-white/40 font-bold mt-0.5">Niv. {levels[1].level}</p>
-                    <p class="text-[11px] text-slate-400 font-black">{formatXp(levels[1].xp)} XP</p>
-                  </div>
-                </div>
-              {/if}
-
-              <!-- 1ère Place -->
-              {#if levels[0]}
-                <div class="flex flex-col items-center text-center gap-3 -translate-y-5">
-                  <div class="relative">
-                    <div class="absolute -top-7 left-1/2 -translate-x-1/2 text-2xl leading-none animate-bounce">👑</div>
-                    <div class="absolute inset-0 bg-amber-400/25 rounded-full blur-xl scale-[1.8]"></div>
-                    <div class="absolute inset-0 rounded-full ring-4 ring-amber-400/30 blur-md scale-125"></div>
-                    <img
-                      src={levels[0].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'}
-                      alt=""
-                      class="relative w-20 h-20 sm:w-28 sm:h-28 rounded-full border-4 border-amber-400/80 shadow-2xl shadow-amber-400/30 object-cover"
-                    />
-                    <div class="absolute -bottom-2 -right-1.5 w-7 h-7 rounded-full bg-amber-400 text-amber-950 flex items-center justify-center font-black text-sm shadow-xl">1</div>
-                  </div>
-                  <div class="min-w-0 w-full">
-                    <p class="text-base font-black text-white truncate" title={levels[0].displayName}>{levels[0].displayName || 'Inconnu'}</p>
-                    <p class="text-[10px] text-amber-400/80 font-extrabold uppercase tracking-wider mt-0.5">Niv. {levels[0].level}</p>
-                    <p class="text-xs text-amber-300 font-black">{formatXp(levels[0].xp)} XP</p>
-                  </div>
-                </div>
-              {/if}
-
-              <!-- 3ème Place -->
-              {#if levels[2]}
-                <div class="flex flex-col items-center text-center gap-3">
-                  <div class="relative">
-                    <div class="absolute -top-5 left-1/2 -translate-x-1/2 text-xl leading-none">🥉</div>
-                    <div class="absolute inset-0 bg-amber-700/20 rounded-full blur-md scale-150"></div>
-                    <img
-                      src={levels[2].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/2.png'}
-                      alt=""
-                      class="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full border-2 border-amber-700/50 shadow-xl object-cover"
-                    />
-                    <div class="absolute -bottom-2 -right-1.5 w-6 h-6 rounded-full bg-amber-700 text-amber-100 flex items-center justify-center font-black text-xs shadow-lg">3</div>
-                  </div>
-                  <div class="min-w-0 w-full">
-                    <p class="text-sm font-black text-white truncate" title={levels[2].displayName}>{levels[2].displayName || 'Inconnu'}</p>
-                    <p class="text-[10px] text-white/40 font-bold mt-0.5">Niv. {levels[2].level}</p>
-                    <p class="text-[11px] text-amber-600 font-black">{formatXp(levels[2].xp)} XP</p>
-                  </div>
-                </div>
-              {/if}
-            </div>
-          </div>
-        {/if}
-
-        <!-- ─── Liste complète ─── -->
-        <div class="divide-y divide-white/5">
+        <!-- Cartes du classement -->
+        <div class="space-y-3 max-h-[650px] overflow-y-auto pr-1">
           {#each filteredLevels as userLvl}
             {@const index = levels.findIndex(l => l.userId === userLvl.userId)}
             {@const nextLvlXp = getXpForLevel(userLvl.level)}
@@ -289,17 +368,19 @@
             <button
               type="button"
               onclick={() => highlightedUserId = highlightedUserId === userLvl.userId ? null : userLvl.userId}
-              class="flex w-full items-center gap-4 px-5 sm:px-7 py-4 text-left
-                {highlightedUserId === userLvl.userId ? 'bg-indigo-500/10' : 'hover:bg-white/3'}
-                {index < 3 ? 'hover:bg-white/5' : ''}
-                transition-colors group"
+              class="flex w-full items-center gap-4 p-4 rounded-2xl border transition-all duration-300 text-left
+                {highlightedUserId === userLvl.userId ? 'bg-indigo-500/10 border-indigo-500/30 shadow-lg' : 'bg-slate-900/20 border-white/5 hover:bg-slate-900/40 hover:border-white/10'}
+                relative overflow-hidden group"
             >
+              <!-- Effet de lueur hover -->
+              <div class="absolute -right-16 top-1/2 -translate-y-1/2 w-32 h-32 bg-indigo-500/5 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+
               <!-- Rang -->
-              <div class="w-9 h-9 rounded-full shrink-0 flex items-center justify-center font-black text-sm
-                {color === 'amber' ? 'bg-amber-400/15 text-amber-400 ring-1 ring-amber-400/30' :
-                 color === 'silver' ? 'bg-slate-300/15 text-slate-300 ring-1 ring-slate-300/30' :
-                 color === 'bronze' ? 'bg-amber-700/15 text-amber-600 ring-1 ring-amber-700/30' :
-                 'bg-white/5 text-white/40'}">
+              <div class="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center font-extrabold text-sm font-mono
+                {color === 'amber' ? 'bg-amber-400/15 text-amber-400 border border-amber-400/30' :
+                 color === 'silver' ? 'bg-slate-300/15 text-slate-200 border border-slate-300/30' :
+                 color === 'bronze' ? 'bg-amber-700/15 text-amber-600 border border-amber-700/30' :
+                 'bg-slate-950/40 text-slate-400/60 border border-white/5'}">
                 {index + 1}
               </div>
 
@@ -308,10 +389,10 @@
                 <img
                   src={userLvl.avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'}
                   alt=""
-                  class="w-10 h-10 rounded-full border object-cover
-                    {color === 'amber' ? 'border-amber-400/40' :
-                     color === 'silver' ? 'border-slate-300/40' :
-                     color === 'bronze' ? 'border-amber-700/40' :
+                  class="w-11 h-11 rounded-xl object-cover border
+                    {color === 'amber' ? 'border-amber-400/40 shadow-lg shadow-amber-400/5' :
+                     color === 'silver' ? 'border-slate-300/40 shadow-lg shadow-slate-300/5' :
+                     color === 'bronze' ? 'border-amber-700/40 shadow-lg shadow-amber-700/5' :
                      'border-white/10'}"
                 />
               </div>
@@ -319,49 +400,55 @@
               <!-- Nom & Progression -->
               <div class="flex-1 min-w-0">
                 <div class="flex items-baseline gap-2 mb-1.5">
-                  <p class="text-sm font-black text-white truncate">{userLvl.displayName || userLvl.username || 'Inconnu'}</p>
+                  <p class="text-sm font-extrabold text-slate-100 truncate group-hover:text-white transition-colors">{userLvl.displayName || userLvl.username || 'Inconnu'}</p>
                   {#if userLvl.username && userLvl.displayName !== userLvl.username}
-                    <span class="text-[10px] text-white/25 font-semibold font-mono truncate">@{userLvl.username}</span>
+                    <span class="text-[10px] text-slate-500 font-bold font-mono truncate">@{userLvl.username}</span>
                   {/if}
                 </div>
+                
                 <!-- Barre de progression -->
-                <div class="flex items-center gap-2.5">
-                  <div class="flex-1 h-1.5 bg-white/8 rounded-full overflow-hidden">
+                <div class="flex items-center gap-3">
+                  <div class="flex-1 h-2 bg-slate-950/60 rounded-full overflow-hidden p-[2px] border border-white/5">
                     <div
                       class="h-full rounded-full transition-all duration-700
                         {color === 'amber' ? 'bg-linear-to-r from-amber-400 to-yellow-300' :
-                         color === 'silver' ? 'bg-linear-to-r from-slate-300 to-slate-400' :
+                         color === 'silver' ? 'bg-linear-to-r from-slate-200 to-slate-400' :
                          color === 'bronze' ? 'bg-linear-to-r from-amber-700 to-amber-500' :
-                         'bg-linear-to-r from-indigo-500 to-violet-500'}"
+                         'bg-linear-to-r from-indigo-500 to-cyan-400'}"
                       style="width: {percent}%"
                     ></div>
                   </div>
-                  <span class="text-[9px] font-bold text-white/25 whitespace-nowrap tabular-nums">{formatXp(userLvl.xp)} / {formatXp(nextLvlXp)}</span>
+                  <span class="text-[9px] font-bold text-slate-400/50 whitespace-nowrap font-mono tracking-wide">{formatXp(userLvl.xp)} / {formatXp(nextLvlXp)} XP</span>
                 </div>
               </div>
 
               <!-- Niveau badge -->
               <div class="shrink-0 text-right">
-                <span class="text-[11px] font-black uppercase tracking-wider px-3 py-1.5 rounded-full border whitespace-nowrap
-                  {color === 'amber' ? 'bg-amber-400/10 text-amber-300 border-amber-400/25' :
-                   color === 'silver' ? 'bg-slate-300/10 text-slate-300 border-slate-300/25' :
-                   color === 'bronze' ? 'bg-amber-700/10 text-amber-600 border-amber-700/25' :
-                   'bg-indigo-500/10 text-indigo-300 border-indigo-500/20'}">
+                <span class="text-xs font-black uppercase tracking-wider px-3.5 py-2 rounded-xl border whitespace-nowrap shadow-sm
+                  {color === 'amber' ? 'bg-amber-400/10 text-amber-300 border-amber-400/20' :
+                   color === 'silver' ? 'bg-slate-300/10 text-slate-200 border-slate-300/20' :
+                   color === 'bronze' ? 'bg-amber-700/10 text-amber-600 border-amber-700/20' :
+                   'bg-indigo-500/10 text-indigo-300 border-indigo-500/15'}">
                   Lvl {userLvl.level}
                 </span>
               </div>
             </button>
           {:else}
+            <!-- Aucun résultat de recherche -->
             <div class="flex flex-col items-center justify-center py-20 text-center space-y-4">
-              <div class="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center text-3xl">
-                {#if searchQuery}🔍{:else}🏆{/if}
+              <div class="w-16 h-16 rounded-full bg-slate-900/50 border border-white/5 flex items-center justify-center text-indigo-400 animate-bounce">
+                {#if searchQuery}
+                  <Papicon icon="Search" size={24} />
+                {:else}
+                  <Papicon icon="Trophy" size={24} />
+                {/if}
               </div>
-              <div>
-                <p class="text-white/60 font-black text-base">
-                  {#if searchQuery}Aucun résultat pour "{searchQuery}"{:else}Aucun membre dans le classement.{/if}
+              <div class="space-y-1">
+                <p class="text-slate-300 font-extrabold text-base">
+                  {#if searchQuery}Aucun membre trouvé pour "{searchQuery}"{:else}Le classement est vide.{/if}
                 </p>
                 {#if searchQuery}
-                  <button onclick={() => searchQuery = ''} class="text-indigo-400 text-xs font-bold mt-1 hover:underline">Effacer la recherche</button>
+                  <button onclick={() => searchQuery = ''} class="text-indigo-400 text-xs font-semibold hover:underline">Effacer le filtre</button>
                 {/if}
               </div>
             </div>
@@ -370,15 +457,16 @@
       </section>
 
       <!-- ─── Footer Kotbo ─── -->
-      <footer class="flex flex-col sm:flex-row items-center justify-between gap-3 py-4 border-t border-white/5 text-center">
-        <p class="text-xs text-white/20 font-medium">
-          Propulsé par <span class="text-indigo-400 font-black">Kotbo</span> · Données mises à jour en temps réel
+      <footer class="flex flex-col sm:flex-row items-center justify-between gap-4 py-6 border-t border-white/5 text-center relative z-10">
+        <p class="text-xs text-slate-500 font-semibold">
+          Propulsé par le bot Discord <span class="text-indigo-400 font-extrabold">Kotbo</span> · Données synchronisées
         </p>
         <a
           href="/"
-          class="text-xs font-black text-white/20 hover:text-indigo-400 transition-colors tracking-widest uppercase"
+          class="text-xs font-black text-slate-500 hover:text-indigo-300 transition-colors tracking-widest uppercase flex items-center gap-1.5"
         >
-          Dashboard →
+          <span>Dashboard</span>
+          <span>→</span>
         </a>
       </footer>
 

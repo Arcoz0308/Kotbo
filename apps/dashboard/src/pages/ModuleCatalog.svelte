@@ -107,7 +107,8 @@
       'absences': '/absences',
       'inbox': '/inbox',
       'tutoring': '/tutoring',
-      'double_accounts': '/double-accounts'
+      'double_accounts': '/double-accounts',
+      'fun': '/fun'
     };
     return mapping[moduleId] || `/module-settings/${moduleId}`;
   }

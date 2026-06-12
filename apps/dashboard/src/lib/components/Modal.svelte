@@ -35,12 +35,14 @@
 
   function handleBackdropClick(e: MouseEvent) {
     if (closeOnBackdropClick && e.currentTarget === e.target) {
+      open = false;
       onClose(e);
     }
   }
 
   function handleKeydown(e: KeyboardEvent) {
     if (closeOnEscape && e.key === 'Escape') {
+      open = false;
       onClose(e);
     }
   }
@@ -97,7 +99,7 @@
           {#if showCloseButton}
             <button
               type="button"
-              onclick={onClose}
+              onclick={(e) => { open = false; onClose(e); }}
               class="ml-4 h-9 w-9 flex items-center justify-center rounded-xl bg-surface-container-high/60 hover:bg-surface-container-high hover:scale-105 transition-all text-on-surface-variant hover:text-on-surface"
               aria-label="Fermer"
             >

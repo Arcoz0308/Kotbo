@@ -37,6 +37,7 @@ export const KOTBO_MODULES = [
   'tempVoice',
   'honeypot',
   'autoThread',
+  'fun',
   'analytics',
   'dashboard',
 ] as const;

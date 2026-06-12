@@ -8,7 +8,7 @@
 
   let query = $state('');
   let selectedIndex = $state(0);
-  let inputEl: HTMLInputElement;
+  let inputEl = $state<HTMLInputElement>();
 
   const open = $derived(serverSwitcherStore.open);
 
@@ -67,20 +67,24 @@
 {#if open}
   <div
     class="fixed inset-0 z-100 flex items-start justify-center pt-[15vh] px-4"
-    onclick={close}
     role="dialog"
     aria-modal="true"
     aria-label="Sélecteur de serveurs"
-    transition:fade={{ duration: 150 }}
+    tabindex="-1"
+    onkeydown={(e) => { if (e.key === 'Escape') close(); }}
   >
     <!-- Backdrop -->
-    <div class="absolute inset-0 bg-black/70 backdrop-blur-md"></div>
+    <button
+      type="button"
+      class="absolute inset-0 bg-black/70 backdrop-blur-md border-none cursor-default w-full h-full text-left p-0"
+      onclick={close}
+      aria-label="Fermer"
+      transition:fade={{ duration: 150 }}
+    ></button>
 
     <!-- Switcher panel -->
     <div
       class="relative z-10 w-full max-w-md bg-surface-container border border-outline-variant/20 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden"
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={handleKeydown}
       role="document"
       transition:scale={{ start: 0.97, duration: 150 }}
     >
@@ -91,6 +95,7 @@
           bind:this={inputEl}
           bind:value={query}
           oninput={() => selectedIndex = 0}
+          onkeydown={handleKeydown}
           type="text"
           placeholder="Rechercher un serveur..."
           class="flex-1 bg-transparent text-sm text-on-surface placeholder-on-surface-variant/30 focus:outline-none font-medium"

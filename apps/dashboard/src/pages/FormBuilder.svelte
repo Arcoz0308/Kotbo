@@ -312,9 +312,9 @@
         {#each sectionFields(sIdx) as field (field.id)}
           {#if field.type !== 'section_header'}
             <div class="bg-surface border border-outline-variant/20 rounded-2xl p-5 shadow">
-              <label class="block font-semibold text-on-surface mb-1">
+              <span class="block font-semibold text-on-surface mb-1">
                 {field.label}{#if field.required}<span class="text-rose-500 ml-1">*</span>{/if}
-              </label>
+              </span>
               {#if field.description}<p class="text-xs text-on-surface-variant/60 mb-3">{field.description}</p>{/if}
 
               {#if field.type === 'short_text' || field.type === 'email' || field.type === 'number'}
@@ -465,7 +465,9 @@
             {#each PALETTE as color}
               <button onclick={() => headerColor = color}
                 class="w-6 h-6 rounded-full transition-transform hover:scale-110 {headerColor === color ? 'ring-2 ring-offset-2 ring-offset-surface ring-primary scale-110' : ''}"
-                style="background:{color}"></button>
+                style="background:{color}"
+                aria-label="Sélectionner la couleur d'en-tête {color}"
+              ></button>
             {/each}
           </div>
         </div>
@@ -545,13 +547,16 @@
           {#each sectionFields(activeSection) as field (field.id)}
             {@const isActive = activeFieldId === field.id}
             <div
+              role="button"
+              tabindex="0"
               draggable="true"
               ondragstart={(e) => onDragStart(e, field.id)}
               ondragover={(e) => onDragOver(e, field.id)}
               ondrop={(e) => onDrop(e, field.id)}
               ondragleave={() => dragOverId = null}
               onclick={() => activeFieldId = field.id}
-              class="rounded-2xl bg-surface border-2 shadow-sm cursor-pointer transition-all
+              onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') activeFieldId = field.id; }}
+              class="rounded-2xl bg-surface border-2 shadow-sm cursor-pointer transition-all outline-none focus:ring-2 focus:ring-primary/40
                 {isActive ? 'border-primary shadow-primary/10' : 'border-outline-variant/20 hover:border-outline-variant/40'}
                 {dragOverId === field.id ? 'scale-[1.01] border-primary/60' : ''}">
 

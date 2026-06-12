@@ -1830,6 +1830,11 @@ export async function deleteLevelingReward(rewardId: string, guildId = authStore
   return dashboardMutation(`/leveling/rewards/${rewardId}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete Leveling Reward):' });
 }
 
+export async function importLevelingData(data: unknown[], guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/leveling/import', { method: 'POST', payload: data, guildId, errorContext: 'API Error (Import Leveling):' });
+}
+
+
 export async function fetchGiveaways(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/giveaways', { method: 'GET', guildId, errorContext: 'API Error (Fetch Giveaways):' });
 }
@@ -1970,6 +1975,23 @@ export async function restoreBackup(backupId: string, guildId = authStore.select
     guildId,
     errorContext: 'API Error (Restore Backup):'
   });
+}
+
+// Fun API functions
+export async function fetchFunConfig(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/fun', { method: 'GET', guildId, errorContext: 'API Error (Fetch Fun Config):' });
+}
+
+export async function updateFunConfig(config, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/fun', { method: 'PATCH', payload: config, guildId, errorContext: 'API Error (Update Fun Config):' });
+}
+
+export async function resetCountingGame(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/fun/counting/reset', { method: 'POST', guildId, errorContext: 'API Error (Reset Counting):' });
+}
+
+export async function resetGuessNumberGame(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/fun/guess-number/reset', { method: 'POST', guildId, errorContext: 'API Error (Reset Guess Number):' });
 }
 
 // Schedules API functions

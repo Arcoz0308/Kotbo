@@ -81,6 +81,7 @@
   import UserSettings from "./pages/UserSettings.svelte";
   import Backups from "./pages/Backups.svelte";
   import Schedules from "./pages/Schedules.svelte";
+  import FunSettings from "./pages/FunSettings.svelte";
 
   const isPublicPage = $derived(
     /^\/\d{17,19}\/news\/?$/.test($router.path) ||
@@ -148,6 +149,7 @@
     if (path.startsWith("/social-networks")) return "social_networks";
     if (path.startsWith("/backups")) return "settings";
     if (path.startsWith("/schedules")) return "settings";
+    if (path.startsWith("/fun")) return "fun";
     if (path.startsWith("/admin")) return "centralized_config";
     return null;
   }
@@ -381,6 +383,7 @@
     'recruitment': '/recruitment',
     'tickets': '/tickets',
     'meetings': '/meetings',
+    'fun': '/fun',
     'dailyalgo': $router.query.submissionId ? `/dailyalgo/ide?submissionId=${$router.query.submissionId}` : '/dailyalgo'
   }}
   {@const target = mapping[moduleId] || "/modules"}
@@ -528,6 +531,7 @@
       <Route path="/schedules">
         <Schedules />
       </Route>
+
 
       <Route path="/events">
         <Events />
@@ -723,6 +727,9 @@
             </Route>
             <Route path="/embed-builder">
               <EmbedBuilder />
+            </Route>
+            <Route path="/fun">
+              <FunSettings />
             </Route>
 
             <Route path="/double-accounts">

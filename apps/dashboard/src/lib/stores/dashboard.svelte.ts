@@ -23,6 +23,7 @@ class DashboardStore {
     discordRoles: [] as any[],
     moderatorRoleId: '',
     propagateSanctions: false,
+    sanctionReportEnabled: true,
     translationEnabled: false,
     codePoliceEnabled: false,
     dailyAlgoEnabled: false,
@@ -31,6 +32,10 @@ class DashboardStore {
     youtubeEnabled: false,
     autoThreadEnabled: false,
     autoThreadChannels: [] as string[],
+    funEnabled: false,
+    funCountingChannelId: '',
+    funOneWordStoryChannelId: '',
+    funGuessNumberChannelId: '',
     commandRestrictions: [] as any[],
     sidebarFavorites: [] as string[],
     commandCatalog: [] as any[],
@@ -132,6 +137,7 @@ class DashboardStore {
         this.state.discordRoles = data.discordRoles || [];
         this.state.moderatorRoleId = data.moderatorRoleId || '';
         this.state.propagateSanctions = data.propagateSanctions || false;
+        this.state.sanctionReportEnabled = data.sanctionReportEnabled ?? true;
         this.state.translationEnabled = data.translationEnabled || false;
         this.state.codePoliceEnabled = data.codePoliceEnabled || false;
         this.state.dailyAlgoEnabled = data.dailyAlgoEnabled || false;
@@ -140,6 +146,10 @@ class DashboardStore {
         this.state.youtubeEnabled = data.youtubeEnabled || false;
         this.state.autoThreadEnabled = data.autoThreadEnabled || false;
         this.state.autoThreadChannels = data.autoThreadChannels || [];
+        this.state.funEnabled = data.funEnabled || false;
+        this.state.funCountingChannelId = data.funCountingChannelId || '';
+        this.state.funOneWordStoryChannelId = data.funOneWordStoryChannelId || '';
+        this.state.funGuessNumberChannelId = data.funGuessNumberChannelId || '';
         this.state.commandRestrictions = data.commandRestrictions || [];
         this.state.sidebarFavorites = data.sidebarFavorites || [];
         this.state.commandCatalog = data.commandCatalog || [];

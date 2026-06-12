@@ -30,7 +30,7 @@
 
   let query = $state('');
   let selectedIndex = $state(0);
-  let inputEl: HTMLInputElement;
+  let inputEl = $state<HTMLInputElement>();
 
   const open = $derived(searchStore.open);
 
@@ -301,19 +301,23 @@
 {#if open}
   <div
     class="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh] px-4"
-    onclick={close}
     role="dialog"
     aria-modal="true"
     aria-label="Palette de commandes"
+    tabindex="-1"
+    onkeydown={(e) => { if (e.key === 'Escape') close(); }}
   >
     <!-- Backdrop -->
-    <div class="absolute inset-0 bg-black/70 backdrop-blur-md animate-in fade-in duration-150"></div>
+    <button
+      type="button"
+      class="absolute inset-0 bg-black/70 backdrop-blur-md animate-in fade-in duration-150 border-none cursor-default w-full h-full text-left p-0"
+      onclick={close}
+      aria-label="Fermer"
+    ></button>
 
     <!-- Palette panel -->
     <div
       class="relative z-10 w-full max-w-xl bg-surface-container border border-outline-variant/20 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={handleKeydown}
       role="document"
     >
       <!-- Search input -->
@@ -323,6 +327,7 @@
           bind:this={inputEl}
           bind:value={query}
           oninput={() => selectedIndex = 0}
+          onkeydown={handleKeydown}
           type="text"
           placeholder="Chercher une page, une action..."
           class="flex-1 bg-transparent text-sm text-on-surface placeholder-on-surface-variant/30 focus:outline-none font-medium"

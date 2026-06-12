@@ -147,19 +147,25 @@
 
 <!-- ── Modal sélection du type d'événement ───────────────────────── -->
 {#if showTypeModal}
-  <!-- Backdrop -->
   <div
-    role="presentation"
-    class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6"
-    onclick={() => { if (!isCreating) showTypeModal = false; }}
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="modal-title"
+    tabindex="-1"
+    class="fixed inset-0 z-50 flex items-center justify-center p-6"
+    onkeydown={(e) => { if (e.key === 'Escape' && !isCreating) showTypeModal = false; }}
   >
-    <!-- Panneau (stoppe la propagation au backdrop) -->
+    <!-- Backdrop -->
+    <button
+      type="button"
+      class="absolute inset-0 bg-black/60 backdrop-blur-sm border-none cursor-default w-full h-full text-left p-0"
+      onclick={() => { if (!isCreating) showTypeModal = false; }}
+      aria-label="Fermer"
+    ></button>
+
+    <!-- Panneau -->
     <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="modal-title"
-      class="relative bg-surface-container rounded-[2.5rem] border border-outline-variant/20 shadow-2xl w-full max-w-2xl p-10 flex flex-col gap-8"
-      onclick={(e) => e.stopPropagation()}
+      class="relative z-10 bg-surface-container rounded-[2.5rem] border border-outline-variant/20 shadow-2xl w-full max-w-2xl p-10 flex flex-col gap-8"
     >
       <!-- Header -->
       <div class="flex items-start justify-between gap-4">

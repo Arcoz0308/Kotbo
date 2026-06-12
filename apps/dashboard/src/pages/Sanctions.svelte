@@ -138,6 +138,18 @@
     sanctionReportEnabled: true
   });
 
+  onMount(async () => {
+    loadingConfig = true;
+    try {
+      const configs = await fetchFeatureConfigurations();
+      featureConfig = configs?.features?.find((c: any) => c.featureKey === 'sanctions') || null;
+    } catch (err) {
+      console.error('Error fetching sanctions config:', err);
+    } finally {
+      loadingConfig = false;
+    }
+  });
+
   $effect(() => {
     if (dashboardStore.state.moderatorRoleId !== undefined) {
       const loaded = {

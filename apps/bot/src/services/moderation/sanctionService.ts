@@ -199,6 +199,58 @@ async function findRecentSanction(params: {
   });
 }
 
+function formatSanctionDurationLabel(seconds: number | null): string | null {
+  if (!seconds) return null;
+
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const parts: string[] = [];
+
+  if (days) parts.push(`${days}j`);
+  if (hours) parts.push(`${hours}h`);
+  if (minutes) parts.push(`${minutes}m`);
+
+  return parts.length > 0 ? parts.join(' ') : `${seconds}s`;
+}
+
+async function createAutomaticReport(params: {
+  guildId: string;
+  sanctionId: string;
+  sanctionType: SanctionType;
+  targetTag: string | null;
+  targetUserId: string;
+  moderatorTag: string | null;
+  moderatorUserId: string;
+  durationSeconds?: number | null;
+  reason?: string | null;
+}) {
+  const staffPseudo = params.moderatorTag?.trim() || `Modérateur ${params.moderatorUserId}`;
+  const memberPseudo = params.targetTag?.trim() || `Utilisateur ${params.targetUserId}`;
+  const memberReference = params.targetUserId;
+  const sanctionDurationLabel = formatSanctionDurationLabel(params.durationSeconds ?? null);
+  const incidentAt = new Date();
+  const brokenRules = JSON.stringify([]);
+  const detailedReason = params.reason || 'Rapport créé automatiquement (rapports manuels désactivés).';
+
+  await prisma.sanctionReport.create({
+    data: {
+      guildId: params.guildId,
+      sanctionId: params.sanctionId,
+      staffPseudo,
+      incidentAt,
+      memberPseudo,
+      memberReference,
+      sanctionType: params.sanctionType,
+      sanctionDurationLabel,
+      brokenRules,
+      detailedReason,
+      createdByUserId: params.moderatorUserId,
+      createdByTag: params.moderatorTag,
+    }
+  });
+}
+
 async function emitSanctionReportReminder(params: {
   guildId: string;
   sanctionId: string;
@@ -207,16 +259,26 @@ async function emitSanctionReportReminder(params: {
   targetUserId: string;
   moderatorTag: string | null;
   moderatorUserId: string;
+  durationSeconds?: number | null;
+  reason?: string | null;
 }) {
   try {
-    // Vérifier si les rapports de sanction sont activés
+    // Vérifier si le module de sanctions et les rapports sont activés
+    const { getOrCreateFeatureConfigs } = await import('../core/dashboardManagementService.js');
+    const featureConfigs = await getOrCreateFeatureConfigs(params.guildId);
+    const sanctionsFeature = featureConfigs.find((c) => c.featureKey === 'sanctions');
+    const isModuleEnabled = sanctionsFeature ? sanctionsFeature.enabled : true;
+
     const guild = await prisma.guild.findUnique({
       where: { id: params.guildId },
       select: { sanctionReportEnabled: true }
     });
 
-    if (!guild?.sanctionReportEnabled) {
-      // Rapports désactivés, pas de notification de rapport requis
+    if (!isModuleEnabled || !guild?.sanctionReportEnabled) {
+      // Rapports désactivés ou module inactif, on crée le rapport automatiquement en arrière-plan
+      await createAutomaticReport(params).catch((err) => {
+        logger.error('Sanctions', `Erreur lors de la création du rapport automatique pour la sanction ${params.sanctionId}:`, err);
+      });
       return;
     }
 
@@ -470,6 +532,8 @@ export async function registerKickSanction(params: {
     targetUserId: sanction.targetUserId,
     moderatorTag: sanction.moderatorTag,
     moderatorUserId: sanction.moderatorUserId,
+    durationSeconds: sanction.durationSeconds,
+    reason: sanction.reason,
   });
 
   void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
@@ -546,6 +610,8 @@ export async function registerBanSanction(params: {
     targetUserId: sanction.targetUserId,
     moderatorTag: sanction.moderatorTag,
     moderatorUserId: sanction.moderatorUserId,
+    durationSeconds: sanction.durationSeconds,
+    reason: sanction.reason,
   });
 
   void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
@@ -614,6 +680,8 @@ export async function registerSoftbanSanction(params: {
     targetUserId: sanction.targetUserId,
     moderatorTag: sanction.moderatorTag,
     moderatorUserId: sanction.moderatorUserId,
+    durationSeconds: sanction.durationSeconds,
+    reason: sanction.reason,
   });
 
   void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
@@ -691,6 +759,8 @@ export async function registerTimeoutSanction(params: {
     targetUserId: sanction.targetUserId,
     moderatorTag: sanction.moderatorTag,
     moderatorUserId: sanction.moderatorUserId,
+    durationSeconds: sanction.durationSeconds,
+    reason: sanction.reason,
   });
 
   void notifyStaffOfSanction(params.guildId, sanction).catch(() => null);
@@ -758,6 +828,8 @@ export async function registerObservedTimeoutSanction(params: {
     targetUserId: sanction.targetUserId,
     moderatorTag: sanction.moderatorTag,
     moderatorUserId: sanction.moderatorUserId,
+    durationSeconds: sanction.durationSeconds,
+    reason: sanction.reason,
   });
 
   return sanction;

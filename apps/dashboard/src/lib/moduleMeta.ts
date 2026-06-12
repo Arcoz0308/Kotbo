@@ -18,6 +18,10 @@ const MODULE_META = {
   personnalise: {
     icon: 'extension',
     headerToneClasses: 'bg-fuchsia-500/10 text-fuchsia-600 border-fuchsia-500/20'
+  },
+  fun: {
+    icon: 'smile',
+    headerToneClasses: 'bg-amber-500/10 text-amber-600 border-amber-500/20'
   }
 };
 

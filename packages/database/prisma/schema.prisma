@@ -194,7 +194,26 @@ model Guild {
   backups ServerBackup[]
   scheduledTasks ScheduledTask[]
 
+  // Fun Channels configuration
+  funEnabled               Boolean  @default(false)
+  funCountingChannelId     String?
+  funOneWordStoryChannelId String?
+  funGuessNumberChannelId  String?
+  funGameState             FunGameState?
+
   @@map("guilds")
+}
+
+model FunGameState {
+  guildId            String   @id
+  countingCurrent    Int      @default(0)
+  countingLastUserId String?
+  oneWordStoryLastUserId String?
+  guessNumberTarget  Int      @default(0)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("fun_game_states")
 }
 
 model GuildRegulationArticle {

@@ -410,3 +410,64 @@ function roundRect(ctx: any, x: number, y: number, w: number, h: number, r: numb
   ctx.fillStyle = fill;
   ctx.fill();
 }
+
+/**
+ * Met à jour les rôles de récompense pour un utilisateur en fonction de son niveau,
+ * sans envoyer de message dans le chat (utile pour les imports).
+ */
+export async function updateMemberLevelRoles(guildId: string, userId: string, level: number, client: Client) {
+  try {
+    const config = await getOrCreateLevelConfig(guildId);
+    const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+    if (!discordGuild) return;
+
+    const member = await discordGuild.members.fetch(userId).catch(() => null);
+    if (!member) return;
+
+    const rewards = await prisma.levelRoleReward.findMany({
+      where: { guildId },
+      orderBy: { level: 'asc' },
+    });
+
+    if (rewards.length > 0) {
+      const rolesToAdd: string[] = [];
+      const rolesToRemove: string[] = [];
+
+      for (const reward of rewards) {
+        if (level >= reward.level) {
+          if (!member.roles.cache.has(reward.roleId)) {
+            rolesToAdd.push(reward.roleId);
+          }
+        } else {
+          if (member.roles.cache.has(reward.roleId)) {
+            rolesToRemove.push(reward.roleId);
+          }
+        }
+      }
+
+      if (!config.stackRewards) {
+        const eligibleRewards = rewards.filter(r => level >= r.level);
+        if (eligibleRewards.length > 1) {
+          const highestReward = eligibleRewards[eligibleRewards.length - 1];
+          for (const prevReward of eligibleRewards.slice(0, -1)) {
+            if (member.roles.cache.has(prevReward.roleId) && !rolesToRemove.includes(prevReward.roleId)) {
+              rolesToRemove.push(prevReward.roleId);
+            }
+            const addIdx = rolesToAdd.indexOf(prevReward.roleId);
+            if (addIdx !== -1) rolesToAdd.splice(addIdx, 1);
+          }
+        }
+      }
+
+      if (rolesToRemove.length > 0) {
+        await member.roles.remove(rolesToRemove).catch(e => logger.warn('LevelingService', `Impossible de retirer les rôles récompenses à ${userId}:`, e));
+      }
+      if (rolesToAdd.length > 0) {
+        await member.roles.add(rolesToAdd).catch(e => logger.warn('LevelingService', `Impossible d'ajouter les rôles récompenses à ${userId}:`, e));
+      }
+    }
+  } catch (err) {
+    logger.error('LevelingService', `Erreur lors de la mise à jour des rôles de niveau pour ${userId}:`, err);
+  }
+}
+

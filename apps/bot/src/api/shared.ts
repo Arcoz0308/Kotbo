@@ -684,6 +684,10 @@ export type DashboardState = {
   autoThreadEnabled: boolean;
   autoThreadChannels: string[];
   autoThreadBotsEnabled: boolean;
+  funEnabled: boolean;
+  funCountingChannelId: string;
+  funOneWordStoryChannelId: string;
+  funGuessNumberChannelId: string;
   recruitmentCategoryId: string;
   recruitmentLogChannelId: string;
   recruitmentAutoRejectEnabled: boolean;
@@ -749,6 +753,7 @@ export const MODULE_DESCRIPTIONS: Record<string, string> = {
   auto_thread: 'Création automatique de fils de discussion sur les messages.',
   analytics: 'Statistiques de croissance et d\'engagement du serveur.',
   profile: 'Gestion du profil utilisateur et paramètres personnels.',
+  fun: 'Salons de jeux et divertissement (comptage, one word story, nombre mystère).',
   recruitment: 'Suivi des candidatures et intégration du personnel.',
   tickets: 'Système complet de tickets d\'assistance et de support configurable.',
   youtube: 'Intégration YouTube pour les notifications de nouvelles vidéos.',
@@ -2518,6 +2523,15 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
       lastSync: guild.updatedAt.toISOString()
     },
     {
+      id: 'fun',
+      name: 'Salons Fun',
+      description: MODULE_DESCRIPTIONS.fun,
+      status: getFeatureStatus('fun', guild.funEnabled),
+      uptime: guild.funEnabled ? 99.9 : 100,
+      interactions: 0,
+      lastSync: guild.updatedAt.toISOString()
+    },
+    {
       id: 'tutoring',
       name: 'Tutorat & Formation',
       description: MODULE_DESCRIPTIONS.tutoring,
@@ -2805,6 +2819,7 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     baseStaffRoleId: guild.baseStaffRoleId ?? '',
     testStaffRoleId: guild.testStaffRoleId ?? '',
     propagateSanctions: guild.propagateSanctions,
+    sanctionReportEnabled: guild.sanctionReportEnabled,
     translationEnabled: guild.translationEnabled,
     codePoliceEnabled: guild.codePoliceEnabled,
     dailyAlgoEnabled: guild.dailyAlgoEnabled,
@@ -2813,6 +2828,10 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     autoThreadEnabled: guild.autoThreadEnabled,
     autoThreadChannels: guild.autoThreadChannels,
     autoThreadBotsEnabled: guild.autoThreadBotsEnabled,
+    funEnabled: guild.funEnabled,
+    funCountingChannelId: guild.funCountingChannelId ?? '',
+    funOneWordStoryChannelId: guild.funOneWordStoryChannelId ?? '',
+    funGuessNumberChannelId: guild.funGuessNumberChannelId ?? '',
     youtubeEnabled: getFeatureStatus('youtube', false) === 'active',
     twitchEnabled: getFeatureStatus('twitch', false) === 'active',
     socialNetworksEnabled: getFeatureStatus('social_networks', true) === 'active',

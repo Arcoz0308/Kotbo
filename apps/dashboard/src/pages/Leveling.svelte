@@ -13,13 +13,14 @@
     fetchLevelingData, 
     updateLevelingConfig, 
     addLevelingReward, 
-    deleteLevelingReward 
+    deleteLevelingReward,
+    importLevelingData
   } from '../lib/api';
 
   const saveAction = createAsyncActionState();
   const rewardAction = createAsyncActionState();
   let loading = $state(false);
-  let activeTab = $state<'config' | 'leaderboard'>('config');
+  let activeTab = $state<'config' | 'leaderboard' | 'import'>('config');
   let copySuccess = $state(false);
 
   const canManageSettings = $derived(
@@ -231,6 +232,104 @@
   const totalXp = $derived(levels.reduce((sum, u) => sum + u.xp, 0));
   const avgLevel = $derived(levels.length > 0 ? Math.round(levels.reduce((sum, u) => sum + u.level, 0) / levels.length) : 0);
   const maxLevel = $derived(levels.length > 0 ? Math.max(...levels.map(u => u.level)) : 0);
+
+  // Import states
+  let importRawJson = $state('');
+  let importFileError = $state<string | null>(null);
+  const importActionState = createAsyncActionState();
+  let importResults = $state<{
+    importedCount: number;
+    failedCount: number;
+    failedMembers: Array<{ username?: string; display_name?: string; reason: string }>;
+  } | null>(null);
+
+  let isDragging = $state(false);
+
+  async function handleImportSubmit() {
+    importFileError = null;
+    importResults = null;
+    if (!importRawJson.trim()) {
+      importFileError = 'Veuillez saisir du JSON ou glisser-déposer un fichier.';
+      return;
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(importRawJson);
+    } catch (err) {
+      importFileError = `Format JSON invalide : ${(err as Error).message}`;
+      return;
+    }
+
+    if (!Array.isArray(parsed)) {
+      importFileError = 'Le JSON doit être un tableau d\'utilisateurs (ex: [ { ... }, { ... } ]).';
+      return;
+    }
+
+    await importActionState.run(async () => {
+      const res = await importLevelingData(parsed);
+      if (!res) throw new Error('Erreur lors de l\'importation');
+      importResults = res;
+      // Refresh leveling data after import to reflect the new leaderboard
+      const updatedData = await fetchLevelingData();
+      if (updatedData) {
+        levels = updatedData.levels || [];
+      }
+      return true;
+    }, { successMessage: 'Importation terminée avec succès.' });
+  }
+
+  function handleFileDrop(e: DragEvent) {
+    e.preventDefault();
+    isDragging = false;
+    importFileError = null;
+    importResults = null;
+
+    const file = e.dataTransfer?.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.json')) {
+      importFileError = 'Seuls les fichiers .json sont acceptés.';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result;
+      if (typeof text === 'string') {
+        importRawJson = text;
+      }
+    };
+    reader.onerror = () => {
+      importFileError = 'Erreur lors de la lecture du fichier.';
+    };
+    reader.readAsText(file);
+  }
+
+  function handleFileSelect(e: Event) {
+    importFileError = null;
+    importResults = null;
+    const target = e.target as HTMLInputElement;
+    const file = target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.json')) {
+      importFileError = 'Seuls les fichiers .json sont acceptés.';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result;
+      if (typeof text === 'string') {
+        importRawJson = text;
+      }
+    };
+    reader.onerror = () => {
+      importFileError = 'Erreur lors de la lecture du fichier.';
+    };
+    reader.readAsText(file);
+  }
 </script>
 
 <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -285,6 +384,16 @@
         </span>
       {/if}
     </button>
+    {#if canManageSettings}
+      <button
+        id="tab-import"
+        onclick={() => activeTab = 'import'}
+        class="flex items-center gap-2.5 px-6 py-3 rounded-2xl text-sm font-black transition-all duration-300 {activeTab === 'import' ? 'bg-secondary text-on-secondary shadow-lg shadow-secondary/20 scale-[1.02]' : 'text-on-surface-variant/70 hover:bg-surface-container-high/40 hover:text-on-surface'}"
+      >
+        <Papicon icon="Upload" size={16} />
+        Importer
+      </button>
+    {/if}
   </nav>
 
   {#if loading}
@@ -623,34 +732,35 @@
       </section>
     </div>
 
-  {:else}
+  {:else if activeTab === 'leaderboard'}
     <!-- === ONGLET CLASSEMENT === -->
     <div class="space-y-6 animate-in fade-in duration-300">
 
-      <!-- Bannière lien public -->
-      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-linear-to-r from-tertiary/10 to-secondary/10 border border-tertiary/20 rounded-3xl p-5 px-6">
-        <div class="flex items-center gap-3">
-          <div class="w-9 h-9 rounded-xl bg-tertiary/20 flex items-center justify-center text-tertiary">
-            <Papicon icon="Globe" size={18} />
+      <!-- Bannière lien public premium -->
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-linear-to-r from-tertiary/10 to-secondary/10 border border-tertiary/20 rounded-4xl p-6 px-8 shadow-xs relative overflow-hidden group">
+        <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700" style="background: radial-gradient(circle, color-mix(in srgb, var(--color-tertiary) 5%, transparent) 0%, transparent 70%);"></div>
+        <div class="flex items-center gap-4 relative z-10">
+          <div class="w-12 h-12 rounded-2xl bg-tertiary/10 border border-tertiary/20 flex items-center justify-center text-tertiary shadow-inner transform group-hover:scale-105 transition-transform duration-350">
+            <Papicon icon="Globe" size={22} />
           </div>
           <div>
             <p class="text-sm font-black text-on-surface">Page publique du classement</p>
-            <p class="text-xs text-on-surface-variant/60 font-medium">Partagez ce lien avec vos membres pour qu'ils voient leur rang.</p>
+            <p class="text-xs text-on-surface-variant/70 font-medium">Partagez ce lien avec vos membres pour qu'ils consultent leur progression en direct.</p>
           </div>
         </div>
-        <div class="flex items-center gap-2 shrink-0">
+        <div class="flex items-center gap-3 shrink-0 relative z-10 w-full sm:w-auto">
           <a
             href={publicLeaderboardUrl}
             target="_blank"
             rel="noopener noreferrer"
-            class="flex items-center gap-2 px-4 py-2.5 bg-tertiary/20 text-tertiary border border-tertiary/20 rounded-2xl text-xs font-black hover:bg-tertiary/30 transition-all hover:scale-105"
+            class="flex items-center justify-center gap-2 px-5 py-3 bg-tertiary/20 text-tertiary border border-tertiary/25 rounded-2xl text-xs font-black hover:bg-tertiary/30 transition-all hover:scale-103 w-full sm:w-auto text-center"
           >
             <Papicon icon="ExternalLink" size={14} />
             Voir la page
           </a>
           <button
             onclick={copyPublicUrl}
-            class="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-black transition-all hover:scale-105 {copySuccess ? 'bg-green-500/20 text-green-400 border border-green-500/20' : 'bg-surface-container-high/40 text-on-surface-variant border border-outline-variant/10 hover:bg-surface-container-high/60'}"
+            class="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all hover:scale-103 w-full sm:w-auto {copySuccess ? 'bg-green-500/15 text-green-400 border border-green-500/20' : 'bg-surface-container-high/40 text-on-surface-variant border border-outline-variant/10 hover:bg-surface-container-high/60'}"
           >
             {#if copySuccess}
               <Papicon icon="Check" size={14} />
@@ -666,20 +776,20 @@
       <!-- Stats globales -->
       {#if levels.length > 0}
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-3xl p-5 text-center space-y-1">
-            <p class="text-2xl font-black text-primary">{levels.length}</p>
+          <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-3xl p-5 text-center space-y-1.5 hover:border-primary/20 transition-all duration-300 group">
+            <p class="text-2xl font-black text-primary group-hover:scale-105 transition-transform duration-300">{levels.length}</p>
             <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Membres classés</p>
           </div>
-          <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-3xl p-5 text-center space-y-1">
-            <p class="text-2xl font-black text-secondary">{maxLevel}</p>
+          <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-3xl p-5 text-center space-y-1.5 hover:border-secondary/20 transition-all duration-300 group">
+            <p class="text-2xl font-black text-secondary group-hover:scale-105 transition-transform duration-300">{maxLevel}</p>
             <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Niveau max</p>
           </div>
-          <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-3xl p-5 text-center space-y-1">
-            <p class="text-2xl font-black text-tertiary">{avgLevel}</p>
+          <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-3xl p-5 text-center space-y-1.5 hover:border-tertiary/20 transition-all duration-300 group">
+            <p class="text-2xl font-black text-tertiary group-hover:scale-105 transition-transform duration-300">{avgLevel}</p>
             <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Niveau moyen</p>
           </div>
-          <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-3xl p-5 text-center space-y-1">
-            <p class="text-2xl font-black text-amber-400">{(totalXp / 1000).toFixed(1)}k</p>
+          <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-3xl p-5 text-center space-y-1.5 hover:border-amber-500/20 transition-all duration-300 group">
+            <p class="text-2xl font-black text-amber-500 group-hover:scale-105 transition-transform duration-300">{(totalXp / 1000).toFixed(1)}k</p>
             <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">XP Total</p>
           </div>
         </div>
@@ -694,20 +804,20 @@
           </h3>
 
           <!-- Barre de recherche -->
-          <div class="relative w-full md:w-72">
+          <div class="relative w-full md:w-80">
             <input 
               type="text" 
               placeholder="Rechercher un membre..." 
               bind:value={searchQuery}
-              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-2.5 pl-10 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-tertiary/30 placeholder:text-on-surface-variant/40"
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 pl-11 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-tertiary/30 placeholder:text-on-surface-variant/50 transition-all shadow-inner"
             />
-            <div class="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs opacity-50">
-              🔍
+            <div class="absolute left-4 top-1/2 -translate-y-1/2 text-sm opacity-40 text-on-surface flex items-center">
+              <Papicon icon="Search" size={14} />
             </div>
             {#if searchQuery}
               <button 
                 onclick={() => searchQuery = ''}
-                class="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-on-surface-variant/40 hover:text-error transition-colors"
+                class="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-surface-container-high/60 hover:bg-error/10 hover:text-error text-on-surface-variant/60 flex items-center justify-center text-[10px] font-bold transition-all"
               >
                 ✕
               </button>
@@ -715,73 +825,134 @@
           </div>
         </div>
 
-        <!-- Podium Visuel (Top 3) -->
+        <!-- Section Top 3 Sleek Cards -->
         {#if !searchQuery && levels.length > 0}
-          <div class="grid grid-cols-3 gap-4 items-end pt-6 pb-8 border-b border-outline-variant/10 bg-linear-to-b from-surface-container-high/10 to-transparent rounded-3xl p-6">
-            <!-- 2ème Place -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-4xl mx-auto pt-4 pb-8 border-b border-outline-variant/10">
+            
+            <!-- Rank 2 Card -->
             {#if levels[1]}
-              <div class="flex flex-col items-center text-center space-y-3">
-                <div class="relative">
-                  <div class="absolute -top-4 left-1/2 -translate-x-1/2 text-lg">🥈</div>
-                  <img 
-                    src={levels[1].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/1.png'} 
-                    alt="" 
-                    class="w-16 h-16 rounded-full border-2 border-slate-300/60 shadow-lg shadow-slate-300/10 object-cover" 
-                  />
-                  <div class="absolute -bottom-2 -right-1 w-6 h-6 rounded-full bg-slate-300 text-slate-900 flex items-center justify-center font-black text-[11px] shadow-md">2</div>
+              <div class="relative bg-surface-container-low/30 border border-outline-variant/10 rounded-3xl p-6 flex flex-col justify-between hover:border-primary/25 transition-all duration-300 group shadow-sm order-2 sm:order-1">
+                <div class="flex items-start justify-between">
+                  <div class="relative">
+                    <img
+                      src={levels[1].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/1.png'}
+                      alt=""
+                      class="w-16 h-16 rounded-2xl object-cover border border-outline-variant/10 shadow-inner"
+                    />
+                    <!-- Rank indicator -->
+                    <div class="absolute -bottom-2 -right-2 bg-surface-container-high text-on-surface-variant border border-outline-variant/15 w-6 h-6 rounded-lg flex items-center justify-center font-bold text-xs font-mono">
+                      2
+                    </div>
+                  </div>
+                  <!-- Medal Icon -->
+                  <div class="text-on-surface-variant/40 group-hover:text-primary transition-colors">
+                    <Papicon icon="Medal" size={20} />
+                  </div>
                 </div>
-                <div class="min-w-0 w-full">
-                  <p class="text-sm font-black text-on-surface truncate" title={levels[1].displayName}>{levels[1].displayName || 'Inconnu'}</p>
-                  <p class="text-[10px] text-on-surface-variant/60 font-bold uppercase tracking-wider">Niveau {levels[1].level}</p>
-                  <p class="text-[10px] text-slate-400 font-extrabold">{levels[1].xp.toLocaleString()} XP</p>
+                
+                <div class="mt-6 space-y-4">
+                  <div class="space-y-0.5">
+                    <p class="font-bold text-on-surface truncate group-hover:text-primary transition-colors" title={levels[1].displayName}>
+                      {levels[1].displayName || levels[1].username || 'Inconnu'}
+                    </p>
+                    {#if levels[1].username && levels[1].displayName !== levels[1].username}
+                      <p class="text-xs text-on-surface-variant/50 font-medium truncate">@{levels[1].username}</p>
+                    {/if}
+                  </div>
+                  
+                  <div class="flex items-center justify-between border-t border-outline-variant/5 pt-3 text-xs">
+                    <span class="text-on-surface-variant/70 font-semibold">Niveau {levels[1].level}</span>
+                    <span class="text-on-surface-variant/80 font-mono font-medium">{levels[1].xp.toLocaleString()} XP</span>
+                  </div>
                 </div>
               </div>
             {/if}
 
-            <!-- 1ère Place -->
+            <!-- Rank 1 Card (Highlighted) -->
             {#if levels[0]}
-              <div class="flex flex-col items-center text-center space-y-3 transform -translate-y-4">
-                <div class="relative">
-                  <div class="absolute -top-5 left-1/2 -translate-x-1/2 text-2xl animate-bounce">👑</div>
-                  <div class="absolute inset-0 rounded-full bg-amber-400/20 blur-xl scale-125"></div>
-                  <img 
-                    src={levels[0].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'} 
-                    alt="" 
-                    class="relative w-20 h-20 rounded-full border-4 border-amber-400 shadow-2xl shadow-amber-400/30 object-cover" 
-                  />
-                  <div class="absolute -bottom-2 -right-1 w-7 h-7 rounded-full bg-amber-400 text-amber-950 flex items-center justify-center font-black text-sm shadow-lg">1</div>
+              <div class="relative bg-surface-container-low/60 border border-tertiary/20 rounded-3xl overflow-hidden p-6 flex flex-col justify-between hover:border-tertiary/40 transition-all duration-300 group shadow-md ring-1 ring-tertiary/5 order-1 sm:order-2">
+                <!-- Top accent bar -->
+                <div class="absolute top-0 inset-x-0 h-1 bg-linear-to-r from-tertiary to-secondary"></div>
+                
+                <div class="flex items-start justify-between mt-1">
+                  <div class="relative">
+                    <img
+                      src={levels[0].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                      alt=""
+                      class="w-20 h-20 rounded-2xl object-cover border border-tertiary/20 shadow-inner"
+                    />
+                    <!-- Rank indicator -->
+                    <div class="absolute -bottom-2 -right-2 bg-tertiary text-on-tertiary w-7 h-7 rounded-lg flex items-center justify-center font-black text-sm font-mono shadow-md">
+                      1
+                    </div>
+                  </div>
+                  <!-- Crown Icon -->
+                  <div class="text-tertiary filter drop-shadow-[0_0_8px_rgba(var(--tertiary-color),0.2)]">
+                    <Papicon icon="Crown" size={24} />
+                  </div>
                 </div>
-                <div class="min-w-0 w-full">
-                  <p class="text-base font-black text-on-surface truncate" title={levels[0].displayName}>{levels[0].displayName || 'Inconnu'}</p>
-                  <p class="text-[10px] text-amber-400 font-extrabold uppercase tracking-wider">Niveau {levels[0].level}</p>
-                  <p class="text-[10px] text-amber-400/80 font-bold">{levels[0].xp.toLocaleString()} XP</p>
+                
+                <div class="mt-6 space-y-4">
+                  <div class="space-y-0.5">
+                    <p class="font-extrabold text-on-surface text-lg truncate group-hover:text-tertiary transition-colors" title={levels[0].displayName}>
+                      {levels[0].displayName || levels[0].username || 'Inconnu'}
+                    </p>
+                    {#if levels[0].username && levels[0].displayName !== levels[0].username}
+                      <p class="text-xs text-tertiary/70 font-medium truncate">@{levels[0].username}</p>
+                    {/if}
+                  </div>
+                  
+                  <div class="flex items-center justify-between border-t border-tertiary/10 pt-3 text-sm">
+                    <span class="text-tertiary font-extrabold">Niveau {levels[0].level}</span>
+                    <span class="text-tertiary/90 font-mono font-bold">{levels[0].xp.toLocaleString()} XP</span>
+                  </div>
                 </div>
               </div>
             {/if}
 
-            <!-- 3ème Place -->
+            <!-- Rank 3 Card -->
             {#if levels[2]}
-              <div class="flex flex-col items-center text-center space-y-3">
-                <div class="relative">
-                  <div class="absolute -top-4 left-1/2 -translate-x-1/2 text-lg">🥉</div>
-                  <img 
-                    src={levels[2].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/2.png'} 
-                    alt="" 
-                    class="w-16 h-16 rounded-full border-2 border-amber-700/60 shadow-lg shadow-amber-700/10 object-cover" 
-                  />
-                  <div class="absolute -bottom-2 -right-1 w-6 h-6 rounded-full bg-amber-700 text-amber-100 flex items-center justify-center font-black text-[11px] shadow-md">3</div>
+              <div class="relative bg-surface-container-low/30 border border-outline-variant/10 rounded-3xl p-6 flex flex-col justify-between hover:border-primary/25 transition-all duration-300 group shadow-sm order-3">
+                <div class="flex items-start justify-between">
+                  <div class="relative">
+                    <img
+                      src={levels[2].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/2.png'}
+                      alt=""
+                      class="w-16 h-16 rounded-2xl object-cover border border-outline-variant/10 shadow-inner"
+                    />
+                    <!-- Rank indicator -->
+                    <div class="absolute -bottom-2 -right-2 bg-surface-container-high text-on-surface-variant border border-outline-variant/15 w-6 h-6 rounded-lg flex items-center justify-center font-bold text-xs font-mono">
+                      3
+                    </div>
+                  </div>
+                  <!-- Medal Icon -->
+                  <div class="text-on-surface-variant/40 group-hover:text-primary transition-colors">
+                    <Papicon icon="Medal" size={20} />
+                  </div>
                 </div>
-                <div class="min-w-0 w-full">
-                  <p class="text-sm font-black text-on-surface truncate" title={levels[2].displayName}>{levels[2].displayName || 'Inconnu'}</p>
-                  <p class="text-[10px] text-on-surface-variant/60 font-bold uppercase tracking-wider">Niveau {levels[2].level}</p>
-                  <p class="text-[10px] text-amber-600 font-extrabold">{levels[2].xp.toLocaleString()} XP</p>
+                
+                <div class="mt-6 space-y-4">
+                  <div class="space-y-0.5">
+                    <p class="font-bold text-on-surface truncate group-hover:text-primary transition-colors" title={levels[2].displayName}>
+                      {levels[2].displayName || levels[2].username || 'Inconnu'}
+                    </p>
+                    {#if levels[2].username && levels[2].displayName !== levels[2].username}
+                      <p class="text-xs text-on-surface-variant/50 font-medium truncate">@{levels[2].username}</p>
+                    {/if}
+                  </div>
+                  
+                  <div class="flex items-center justify-between border-t border-outline-variant/5 pt-3 text-xs">
+                    <span class="text-on-surface-variant/70 font-semibold">Niveau {levels[2].level}</span>
+                    <span class="text-on-surface-variant/80 font-mono font-medium">{levels[2].xp.toLocaleString()} XP</span>
+                  </div>
                 </div>
               </div>
             {/if}
+
           </div>
         {/if}
 
-        <!-- Liste des membres -->
+        <!-- Liste complète des membres avec design en cartes premiums -->
         <div class="space-y-3 max-h-[600px] overflow-y-auto pr-1">
           {#each filteredLevels as userLvl}
             {@const index = levels.findIndex(l => l.userId === userLvl.userId)}
@@ -790,13 +961,14 @@
             {@const currentProgress = userLvl.xp - prevLvlXp}
             {@const neededProgress = nextLvlXp - prevLvlXp}
             {@const percent = Math.min(100, Math.max(0, (currentProgress / neededProgress) * 100))}
-            <div class="flex items-center gap-4 p-4 rounded-2xl bg-surface-container-high/15 border border-outline-variant/5 hover:bg-surface-container-high/30 transition-all group">
+            
+            <div class="flex items-center gap-4 p-4 rounded-2xl bg-surface-container-high/15 border border-outline-variant/5 hover:bg-surface-container-high/30 hover:border-outline-variant/15 transition-all duration-350 group">
               <!-- Rang -->
-              <div class="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm shrink-0
-                {index === 0 ? 'bg-amber-400/20 text-amber-400 ring-1 ring-amber-400/30' : 
-                 index === 1 ? 'bg-slate-300/20 text-slate-300 ring-1 ring-slate-300/30' : 
-                 index === 2 ? 'bg-amber-700/20 text-amber-600 ring-1 ring-amber-700/30' : 
-                 'bg-surface-container text-on-surface-variant/60'}">
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center font-extrabold text-sm shrink-0 font-mono
+                {index === 0 ? 'bg-amber-400/15 text-amber-500 border border-amber-400/25 shadow-sm shadow-amber-400/5' : 
+                 index === 1 ? 'bg-slate-400/15 text-slate-500 border border-slate-400/25 shadow-sm shadow-slate-400/5' : 
+                 index === 2 ? 'bg-amber-700/15 text-amber-600 border border-amber-700/25 shadow-sm shadow-amber-700/5' : 
+                 'bg-surface-container text-on-surface-variant/50 border border-outline-variant/5'}">
                 {index + 1}
               </div>
 
@@ -804,23 +976,23 @@
               <img 
                 src={userLvl.avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'} 
                 alt="" 
-                class="w-10 h-10 rounded-full border border-outline-variant/10 shadow-sm object-cover shrink-0"
+                class="w-11 h-11 rounded-xl border border-outline-variant/10 shadow-inner object-cover shrink-0"
               />
 
               <!-- Nom & Progression -->
               <div class="flex-1 min-w-0">
-                <div class="flex items-baseline gap-1.5 mb-1.5">
-                  <p class="text-sm font-black text-on-surface truncate">{userLvl.displayName || userLvl.username || 'Inconnu'}</p>
+                <div class="flex items-baseline gap-2 mb-1.5">
+                  <p class="text-sm font-extrabold text-on-surface truncate">{userLvl.displayName || userLvl.username || 'Inconnu'}</p>
                   {#if userLvl.username && userLvl.displayName !== userLvl.username}
                     <span class="text-[10px] text-on-surface-variant/40 truncate font-semibold font-mono">@{userLvl.username}</span>
                   {/if}
                 </div>
 
                 <!-- Barre de progression -->
-                <div class="flex items-center gap-2">
-                  <div class="flex-1 h-1.5 bg-surface-container rounded-full overflow-hidden">
+                <div class="flex items-center gap-2.5">
+                  <div class="flex-1 h-2 bg-surface-container/60 rounded-full overflow-hidden p-[2px] border border-outline-variant/5">
                     <div 
-                      class="h-full rounded-full transition-all duration-500
+                      class="h-full rounded-full transition-all duration-700
                         {index === 0 ? 'bg-linear-to-r from-amber-400 to-yellow-300' : 
                          index === 1 ? 'bg-linear-to-r from-slate-300 to-slate-400' : 
                          index === 2 ? 'bg-linear-to-r from-amber-700 to-amber-600' : 
@@ -828,33 +1000,231 @@
                       style="width: {percent}%"
                     ></div>
                   </div>
-                  <span class="text-[9px] font-bold text-on-surface-variant/50 whitespace-nowrap">{userLvl.xp.toLocaleString()} / {nextLvlXp.toLocaleString()} XP</span>
+                  <span class="text-[9px] font-bold text-on-surface-variant/40 whitespace-nowrap font-mono tracking-wide">{userLvl.xp.toLocaleString()} / {nextLvlXp.toLocaleString()} XP</span>
                 </div>
               </div>
 
               <!-- Niveau Badge -->
               <div class="text-right shrink-0">
-                <span class="text-xs font-black uppercase tracking-wider px-3 py-1.5 rounded-full border
-                  {index === 0 ? 'bg-amber-400/10 text-amber-400 border-amber-400/20' : 
-                   index === 1 ? 'bg-slate-300/10 text-slate-300 border-slate-300/20' : 
+                <span class="text-xs font-black uppercase tracking-wider px-3.5 py-2 rounded-xl border whitespace-nowrap shadow-xs
+                  {index === 0 ? 'bg-amber-400/10 text-amber-500 border-amber-400/20' : 
+                   index === 1 ? 'bg-slate-400/10 text-slate-500 border-slate-400/20' : 
                    index === 2 ? 'bg-amber-700/10 text-amber-600 border-amber-700/20' : 
-                   'bg-primary/10 text-primary border-primary/10'}">
+                   'bg-primary/10 text-primary border-primary/15'}">
                   Lvl {userLvl.level}
                 </span>
               </div>
             </div>
           {:else}
-            <div class="flex flex-col items-center justify-center py-16 text-center space-y-3">
-              <div class="w-14 h-14 rounded-full bg-surface-container-high/30 flex items-center justify-center text-2xl">
-                {#if searchQuery}🔍{:else}🏆{/if}
+            <!-- Aucun membre trouvé -->
+            <div class="flex flex-col items-center justify-center py-20 text-center space-y-4">
+              <div class="w-16 h-16 rounded-2xl bg-surface-container-high/30 border border-outline-variant/10 flex items-center justify-center text-primary animate-bounce">
+                {#if searchQuery}
+                  <Papicon icon="Search" size={24} />
+                {:else}
+                  <Papicon icon="Trophy" size={24} />
+                {/if}
               </div>
-              <p class="text-sm text-on-surface-variant/60 font-semibold">
-                {#if searchQuery}Aucun membre trouvé pour "{searchQuery}"{:else}Aucun membre dans le classement.{/if}
-              </p>
+              <div class="space-y-1">
+                <p class="text-sm text-on-surface font-extrabold">
+                  {#if searchQuery}Aucun membre trouvé pour "{searchQuery}"{:else}Le classement est vide.{/if}
+                </p>
+                {#if searchQuery}
+                  <button onclick={() => searchQuery = ''} class="text-primary text-xs font-semibold hover:underline">Effacer la recherche</button>
+                {/if}
+              </div>
             </div>
           {/each}
         </div>
       </section>
+    </div>
+  {:else if activeTab === 'import'}
+    <!-- === ONGLET IMPORTATION === -->
+    <div class="space-y-8 animate-in fade-in duration-300">
+      
+      <!-- Avertissement de sécurité / explicatif -->
+      <div class="bg-surface-container-low/40 border border-outline-variant/10 p-6 rounded-3xl flex items-start gap-4">
+        <div class="w-10 h-10 bg-secondary/15 rounded-2xl flex items-center justify-center text-secondary shrink-0">
+          <Papicon icon="Info" size={20} />
+        </div>
+        <div class="space-y-1">
+          <h4 class="text-sm font-black text-on-surface">Comment fonctionne l'importation ?</h4>
+          <p class="text-xs text-on-surface-variant/70 leading-relaxed font-medium">
+            L'importation permet de charger une liste de membres avec leurs niveaux et XP. Le système essaiera de faire correspondre chaque membre avec un utilisateur Discord du serveur en comparant de manière insensible à la casse son <strong>nom d'utilisateur (@username)</strong>, son <strong>nom d'affichage (Display Name)</strong> ou son <strong>tag classique</strong>. Les membres non trouvés seront ignorés et listés dans un récapitulatif.
+          </p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Zone d'importation (2/3 de large) -->
+        <div class="lg:col-span-2 space-y-6">
+          <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
+            <h3 class="text-xl font-black flex items-center gap-3">
+              <Papicon icon="Upload" size={20} class="text-secondary" />
+              Saisie des Données
+            </h3>
+
+            <!-- Glisser-déposer / Sélecteur de fichier -->
+            <div 
+              role="button"
+              tabindex="0"
+              class="w-full border-2 border-dashed border-outline-variant/20 rounded-3xl p-8 text-center hover:bg-surface-container-high/20 transition-all cursor-pointer flex flex-col items-center justify-center space-y-2 relative {isDragging ? 'border-primary bg-primary/5 scale-[1.01]' : ''}"
+              ondragover={(e) => { e.preventDefault(); isDragging = true; }}
+              ondragleave={() => isDragging = false}
+              ondrop={handleFileDrop}
+            >
+              <input 
+                type="file" 
+                accept=".json" 
+                class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                onchange={handleFileSelect}
+              />
+              <div class="w-12 h-12 bg-secondary/10 text-secondary rounded-2xl flex items-center justify-center shadow-inner mb-2">
+                <Papicon icon="Upload" size={24} />
+              </div>
+              <p class="text-sm font-black text-on-surface">Glissez-déposez un fichier `.json` ici</p>
+              <p class="text-xs text-on-surface-variant/60 font-medium">ou cliquez pour parcourir vos dossiers</p>
+            </div>
+
+            <!-- Textarea alternatif -->
+            <div class="space-y-2">
+              <label for="rawJsonTextarea" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Ou collez le JSON directement</label>
+              <textarea
+                id="rawJsonTextarea"
+                rows="10"
+                bind:value={importRawJson}
+                placeholder={`[\n  {\n    "username": "@klaynight",\n    "display_name": "Klaynight",\n    "level": 48,\n    "xp": 119652\n  }\n]`}
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-xs font-mono focus:ring-2 focus:ring-secondary/30 transition-all text-on-surface focus:outline-none resize-y"
+              ></textarea>
+            </div>
+
+            <!-- Messages d'erreur locaux / globaux -->
+            {#if importFileError}
+              <div class="bg-error/10 text-error text-xs font-bold px-4 py-3 rounded-2xl border border-error/20 flex items-center gap-2">
+                ✕ {importFileError}
+              </div>
+            {/if}
+
+            <InlineFeedback state={importActionState} />
+
+            <!-- Boutons de validation -->
+            <div class="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onclick={() => { importRawJson = ''; importFileError = null; importResults = null; }}
+                class="px-6 py-3.5 bg-surface-container-high/50 text-on-surface-variant font-black uppercase tracking-widest text-xs rounded-2xl hover:bg-surface-container-high transition-all"
+              >
+                Vider
+              </button>
+              <button
+                type="button"
+                onclick={handleImportSubmit}
+                disabled={!importRawJson.trim()}
+                class="px-8 py-3.5 bg-secondary text-on-secondary font-black uppercase tracking-widest text-xs rounded-2xl hover:scale-105 transition-all disabled:opacity-50"
+              >
+                Lancer l'importation
+              </button>
+            </div>
+          </section>
+
+          <!-- Liste des erreurs d'import (si présentes) -->
+          {#if importResults && importResults.failedCount > 0}
+            <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-4">
+              <div class="flex items-center gap-3 text-error">
+                <div class="w-8 h-8 rounded-xl bg-error/15 flex items-center justify-center">
+                  ✕
+                </div>
+                <div>
+                  <h3 class="text-base font-black">Membres non importés ({importResults.failedCount})</h3>
+                  <p class="text-[10px] text-on-surface-variant/60 font-semibold uppercase tracking-wider">Ces membres n'ont pas pu être fait correspondre à un utilisateur Discord</p>
+                </div>
+              </div>
+
+              <div class="overflow-hidden rounded-2xl border border-outline-variant/10 bg-surface-container-low/10 max-h-72 overflow-y-auto">
+                <table class="w-full border-collapse text-left">
+                  <thead>
+                    <tr class="bg-surface-container-high/50 border-b border-outline-variant/10">
+                      <th class="px-5 py-3 text-xs font-black text-on-surface-variant/70 uppercase tracking-wider">Username</th>
+                      <th class="px-5 py-3 text-xs font-black text-on-surface-variant/70 uppercase tracking-wider">Display Name</th>
+                      <th class="px-5 py-3 text-xs font-black text-on-surface-variant/70 uppercase tracking-wider">Raison</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-outline-variant/5">
+                    {#each importResults.failedMembers as failed}
+                      <tr class="text-xs font-semibold hover:bg-surface-hover/20 transition-all">
+                        <td class="px-5 py-3 font-mono text-on-surface">{failed.username || '—'}</td>
+                        <td class="px-5 py-3 text-on-surface">{failed.display_name || '—'}</td>
+                        <td class="px-5 py-3 text-error font-medium">{failed.reason}</td>
+                      </tr>
+                    {/each}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          {/if}
+        </div>
+
+        <!-- Format Attendu & Résumé (1/3 de large) -->
+        <div class="space-y-6">
+          <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
+            <h3 class="text-lg font-black flex items-center gap-3">
+              <Papicon icon="Info" size={18} class="text-primary" />
+              Format Attendu
+            </h3>
+            
+            <p class="text-xs text-on-surface-variant/85 leading-relaxed font-medium">
+              Les données doivent être un tableau d'objets JSON contenant au minimum le <code>username</code> ou <code>display_name</code>, ainsi que le <code>level</code> ou les <code>xp</code>.
+            </p>
+
+            <div class="relative bg-surface-container-high/60 border border-outline-variant/5 p-4 rounded-2xl">
+              <pre class="text-[10px] font-mono text-on-surface-variant/90 overflow-x-auto leading-relaxed">{`[
+  {
+    "username": "@klaynight",
+    "display_name": "Klaynight",
+    "level": 48,
+    "xp": 119652
+  },
+  {
+    "username": "@nathan_nrg4",
+    "display_name": "SailingTeam4",
+    "level": 44,
+    "xp": 99301
+  }
+]`}</pre>
+            </div>
+
+            <div class="space-y-2.5 pt-2 border-t border-outline-variant/10">
+              <h4 class="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest">Règles de conversion :</h4>
+              <ul class="list-disc list-inside text-[11px] text-on-surface-variant/80 space-y-1 font-medium">
+                <li>Si seul l'<strong>XP</strong> est fourni, le niveau est déduit automatiquement.</li>
+                <li>Si seul le <strong>niveau</strong> est fourni, l'XP minimum pour ce niveau est attribué.</li>
+                <li>L'importation écrase les niveaux existants des membres correspondants.</li>
+              </ul>
+            </div>
+          </section>
+
+          <!-- Carte de résumé rapide des résultats d'importation -->
+          {#if importResults}
+            <section class="bg-linear-to-b from-secondary/15 to-transparent border border-secondary/20 p-8 rounded-[2.5rem] space-y-4">
+              <h3 class="text-base font-black flex items-center gap-2 text-secondary">
+                <Papicon icon="Check" size={18} />
+                Résultat de l'Import
+              </h3>
+              
+              <div class="grid grid-cols-2 gap-4">
+                <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-2xl p-4 text-center">
+                  <p class="text-2xl font-black text-green-400">{importResults.importedCount}</p>
+                  <p class="text-[9px] font-bold text-on-surface-variant/60 uppercase tracking-wider">Succès</p>
+                </div>
+                <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-2xl p-4 text-center">
+                  <p class="text-2xl font-black {importResults.failedCount > 0 ? 'text-error' : 'text-on-surface-variant/40'}">{importResults.failedCount}</p>
+                  <p class="text-[9px] font-bold text-on-surface-variant/60 uppercase tracking-wider">Échecs</p>
+                </div>
+              </div>
+            </section>
+          {/if}
+        </div>
+      </div>
     </div>
   {/if}
 </div>
