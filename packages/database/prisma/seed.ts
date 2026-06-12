@@ -350,6 +350,11 @@ const DEFAULT_BANNED_WORDS = [
   { word: 'sperm', category: 'sexual' },
   { word: 'masturbate', category: 'sexual' },
   { word: 'blowjob', category: 'sexual' },
+  { word: 'goon', category: 'sexual' },
+  { word: 'gooner', category: 'sexual' },
+  { word: 'gooners', category: 'sexual' },
+  { word: 'gooning', category: 'sexual' },
+  { word: 'goonette', category: 'sexual' },
 
   // LGBTPHOBIA
   { word: 'pédé', category: 'lgbtphobia' },
