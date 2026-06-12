@@ -273,6 +273,136 @@ const DEFAULT_CODE_POLICE_RULES = [
   { key: 'language.cpp', category: 'LANGUAGE_FEEDBACK', matchType: 'EXACT', language: 'cpp', pattern: 'cpp', label: 'Conseil C++', feedback: 'C++ : surveille les accès mémoire, les boucles infinies et les appels système.', severity: 'INFO' },
   { key: 'language.generic', category: 'LANGUAGE_FEEDBACK', matchType: 'EXACT', language: 'generic', pattern: 'generic', label: 'Conseil générique', feedback: 'Bonne pratique : ajoute un cas de sortie clair, borne les itérations et valide toutes les entrées.', severity: 'INFO' },
 ] as const;
+
+const DEFAULT_BANNED_WORDS = [
+  // RACISM
+  { word: 'nègre', category: 'racism' },
+  { word: 'négresse', category: 'racism' },
+  { word: 'nigger', category: 'racism' },
+  { word: 'nigga', category: 'racism' },
+  { word: 'bamboula', category: 'racism' },
+  { word: 'bougnoule', category: 'racism' },
+  { word: 'bicot', category: 'racism' },
+  { word: 'chinetoc', category: 'racism' },
+  { word: 'chinetoque', category: 'racism' },
+  { word: 'macaque', category: 'racism' },
+  { word: 'chink', category: 'racism' },
+  { word: 'gook', category: 'racism' },
+  { word: 'coon', category: 'racism' },
+
+  // THREAT
+  { word: 'tuer', category: 'threat' },
+  { word: 'assassiner', category: 'threat' },
+  { word: 'égorger', category: 'threat' },
+  { word: 'bombe', category: 'threat' },
+  { word: 'terroriste', category: 'threat' },
+  { word: 'suicide', category: 'threat' },
+  { word: 'pendre', category: 'threat' },
+  { word: 'décapiter', category: 'threat' },
+  { word: 'fusiller', category: 'threat' },
+  { word: 'massacrer', category: 'threat' },
+  { word: 'kill', category: 'threat' },
+  { word: 'murder', category: 'threat' },
+  { word: 'bomb', category: 'threat' },
+  { word: 'terrorist', category: 'threat' },
+  { word: 'explosif', category: 'threat' },
+
+  // SEXUAL
+  { word: 'bite', category: 'sexual' },
+  { word: 'chatte', category: 'sexual' },
+  { word: 'salope', category: 'sexual' },
+  { word: 'pute', category: 'sexual' },
+  { word: 'pouffiasse', category: 'sexual' },
+  { word: 'couille', category: 'sexual' },
+  { word: 'couilles', category: 'sexual' },
+  { word: 'pénis', category: 'sexual' },
+  { word: 'penis', category: 'sexual' },
+  { word: 'vagin', category: 'sexual' },
+  { word: 'clitoris', category: 'sexual' },
+  { word: 'sperme', category: 'sexual' },
+  { word: 'branler', category: 'sexual' },
+  { word: 'branlette', category: 'sexual' },
+  { word: 'fellation', category: 'sexual' },
+  { word: 'cunnilingus', category: 'sexual' },
+  { word: 'sodomie', category: 'sexual' },
+  { word: 'porno', category: 'sexual' },
+  { word: 'porn', category: 'sexual' },
+  { word: 'nude', category: 'sexual' },
+  { word: 'nudes', category: 'sexual' },
+  { word: 'hentai', category: 'sexual' },
+  { word: 'pédophile', category: 'sexual' },
+  { word: 'pedophile', category: 'sexual' },
+  { word: 'zoophile', category: 'sexual' },
+  { word: 'inceste', category: 'sexual' },
+  { word: 'dick', category: 'sexual' },
+  { word: 'pussy', category: 'sexual' },
+  { word: 'whore', category: 'sexual' },
+  { word: 'slut', category: 'sexual' },
+  { word: 'cock', category: 'sexual' },
+  { word: 'cunt', category: 'sexual' },
+  { word: 'vagina', category: 'sexual' },
+  { word: 'sperm', category: 'sexual' },
+  { word: 'masturbate', category: 'sexual' },
+  { word: 'blowjob', category: 'sexual' },
+
+  // LGBTPHOBIA
+  { word: 'pédé', category: 'lgbtphobia' },
+  { word: 'pedé', category: 'lgbtphobia' },
+  { word: 'tarlouze', category: 'lgbtphobia' },
+  { word: 'tapette', category: 'lgbtphobia' },
+  { word: 'goudou', category: 'lgbtphobia' },
+  { word: 'gouine', category: 'lgbtphobia' },
+  { word: 'faggot', category: 'lgbtphobia' },
+  { word: 'tranny', category: 'lgbtphobia' },
+  { word: 'homophobe', category: 'lgbtphobia' },
+  { word: 'transphobe', category: 'lgbtphobia' },
+  { word: 'fag', category: 'lgbtphobia' },
+  { word: 'dyke', category: 'lgbtphobia' },
+
+  // HATE
+  { word: 'nazi', category: 'hate' },
+  { word: 'hitler', category: 'hate' },
+  { word: 'swastika', category: 'hate' },
+  { word: 'fasciste', category: 'hate' },
+  { word: 'fachiste', category: 'hate' },
+  { word: 'antisémite', category: 'hate' },
+  { word: 'antisemitic', category: 'hate' },
+  { word: 'croix gammée', category: 'hate' },
+  { word: 'ku klux klan', category: 'hate' },
+  { word: 'kkk', category: 'hate' },
+  { word: 'suprématiste', category: 'hate' },
+  { word: 'supremacist', category: 'hate' },
+
+  // INSULT
+  { word: 'con', category: 'insult' },
+  { word: 'connard', category: 'insult' },
+  { word: 'connasse', category: 'insult' },
+  { word: 'salopard', category: 'insult' },
+  { word: 'fdp', category: 'insult' },
+  { word: 'fils de pute', category: 'insult' },
+  { word: 'merde', category: 'insult' },
+  { word: 'enculé', category: 'insult' },
+  { word: 'encule', category: 'insult' },
+  { word: 'abruti', category: 'insult' },
+  { word: 'débile', category: 'insult' },
+  { word: 'debile', category: 'insult' },
+  { word: 'mongol', category: 'insult' },
+  { word: 'tocard', category: 'insult' },
+  { word: 'crevard', category: 'insult' },
+  { word: 'bâtard', category: 'insult' },
+  { word: 'batard', category: 'insult' },
+  { word: 'gogol', category: 'insult' },
+  { word: 'bouffon', category: 'insult' },
+  { word: 'asshole', category: 'insult' },
+  { word: 'bastard', category: 'insult' },
+  { word: 'motherfucker', category: 'insult' },
+  { word: 'idiot', category: 'insult' },
+  { word: 'retard', category: 'insult' },
+  { word: 'dumbass', category: 'insult' },
+  { word: 'jerk', category: 'insult' },
+  { word: 'piece of shit', category: 'insult' },
+];
+
 async function main() {
   console.log(`🌱 Seeding ${DEFAULT_FEEDS.length} flux RSS pour le serveur ${guildId}...`);
 
@@ -386,7 +516,36 @@ async function main() {
     console.log(`  ✅ ${rule.label}`);
   }
 
-  console.log(`\n✨ Seed terminé : ${created} flux créés, ${skipped} ignorés, ${excusesCreated} excuses créées, ${excusesSkipped} excuses ignorées, ${algoCreated} problèmes d'algo créés, ${algoSkipped} problèmes ignorés, ${codePoliceCreated} règles de Police du code créées, ${codePoliceSkipped} ignorées`);
+  console.log(`\n🌱 Seeding ${DEFAULT_BANNED_WORDS.length} mots bannis globaux...`);
+
+  let bannedWordsCreated = 0;
+  let bannedWordsSkipped = 0;
+
+  for (const item of DEFAULT_BANNED_WORDS) {
+    const existing = await prisma.bannedWord.findFirst({
+      where: {
+        guildId: null,
+        word: item.word,
+      },
+    });
+    if (existing) {
+      bannedWordsSkipped++;
+      continue;
+    }
+
+    await prisma.bannedWord.create({
+      data: {
+        guildId: null,
+        word: item.word,
+        category: item.category,
+        enabled: true,
+      },
+    });
+    bannedWordsCreated++;
+    console.log(`  ✅ [${item.category.toUpperCase()}] ${item.word}`);
+  }
+
+  console.log(`\n✨ Seed terminé : ${created} flux créés, ${skipped} ignorés, ${excusesCreated} excuses créées, ${excusesSkipped} excuses ignorées, ${algoCreated} problèmes d'algo créés, ${algoSkipped} problèmes ignorés, ${codePoliceCreated} règles de Police du code créées, ${codePoliceSkipped} ignorées, ${bannedWordsCreated} mots bannis globaux créés, ${bannedWordsSkipped} ignorés`);
 }
 
 main()
