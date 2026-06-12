@@ -407,7 +407,6 @@ export async function handlePublicRoutes(
       const levels = await prisma.memberLevel.findMany({
         where: { guildId },
         orderBy: { xp: 'desc' },
-        take: 100, // Limiter au top 100
       });
 
       // Charger les profils de membres de la base de données
