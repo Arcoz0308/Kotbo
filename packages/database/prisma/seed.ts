@@ -306,6 +306,12 @@ const DEFAULT_BANNED_WORDS = [
   { word: 'bomb', category: 'threat' },
   { word: 'terrorist', category: 'threat' },
   { word: 'explosif', category: 'threat' },
+  { word: 'kamikaze', category: 'threat' },
+  { word: 'k4mikaze', category: 'threat' },
+  { word: 'kamikaz', category: 'threat' },
+  { word: 'k4mikaz', category: 'threat' },
+  { word: 'kamikase', category: 'threat' },
+  { word: 'k4mikase', category: 'threat' },
 
   // SEXUAL
   { word: 'bite', category: 'sexual' },
