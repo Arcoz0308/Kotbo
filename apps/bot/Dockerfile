@@ -38,5 +38,5 @@ COPY --from=builder /app/apps/bot ./apps/bot
 
 ENV NODE_ENV=production
 
-# Run migrations/deploy commands and start the bot
-CMD ["sh", "-c", "bun run --filter @kotbo/bot deploy-commands && bun run --filter @kotbo/bot start"]
+# Apply database migrations, deploy commands and start the bot
+CMD ["sh", "-c", "bun run db:migrate:deploy && bun run --filter @kotbo/bot deploy-commands && bun run --filter @kotbo/bot start"]
