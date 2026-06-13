@@ -6,6 +6,7 @@
     "generate": "prisma generate",
     "migrate": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
+    "migrate:repair-production": "prisma db execute --file prisma/repairs/20260404193000_add_code_police_rules.sql && (prisma migrate resolve --applied 20260404193000_add_code_police_rules || true)",
     "push": "prisma db push",
     "studio": "prisma studio",
     "seed": "bun run prisma/seed.ts"

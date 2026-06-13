@@ -22,6 +22,7 @@
     "db:setup": "bun run db:generate && bun run db:push",
     "db:migrate": "bun run --filter @kotbo/database migrate",
     "db:migrate:deploy": "bun run --filter @kotbo/database migrate:deploy",
+    "db:migrate:repair-production": "bun run --filter @kotbo/database migrate:repair-production",
     "db:push": "bun run --filter @kotbo/database push",
     "db:seed": "bun run --filter @kotbo/database seed",
     "db:backup": "powershell -ExecutionPolicy Bypass -File ./scripts/backup-database.ps1",
