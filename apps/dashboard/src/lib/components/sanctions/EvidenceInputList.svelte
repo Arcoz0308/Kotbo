@@ -1,5 +1,6 @@
 <script lang="ts">
   import Papicon from '../Papicon.svelte';
+  import { normalizeEvidenceLinks } from '../../sanctions/evidenceLinks';
 
   let { 
     links = $bindable([]),
@@ -15,24 +16,26 @@
     inputIdPrefix?: string;
   }>();
 
-  if (links.length === 0) {
-    links = [''];
+  const initialLinks = normalizeEvidenceLinks(links, true);
+  if (initialLinks.length !== links.length || initialLinks.some((link, index) => link !== links[index])) {
+    links = initialLinks;
   }
 
   function addLink() {
-    links = [...links, ''];
+    links = [...normalizeEvidenceLinks(links, true), ''];
   }
 
   function removeLink(index: number) {
-    if (links.length <= 1) {
+    const normalized = normalizeEvidenceLinks(links, true);
+    if (normalized.length <= 1) {
       links = [''];
       return;
     }
-    links = links.filter((_, i) => i !== index);
+    links = normalized.filter((_, i) => i !== index);
   }
 
   function handleInput(index: number, value: string) {
-    links[index] = value;
+    links = normalizeEvidenceLinks(links, true).map((link, i) => i === index ? value : link);
   }
 </script>
 

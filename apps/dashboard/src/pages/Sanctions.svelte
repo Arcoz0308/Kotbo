@@ -36,6 +36,7 @@
     getRulesFromBrokenRules,
   } from '../lib/sanctions/reportRules';
   import EvidenceInputList from '../lib/components/sanctions/EvidenceInputList.svelte';
+  import { normalizeEvidenceLinks, sanitizeEvidenceLinks } from '../lib/sanctions/evidenceLinks';
   import { durationLabel, statusLabel, toDateTimeLocal, typeLabel } from '../lib/sanctions/formatters';
   import { filterAndSortSanctions, type SanctionFilters, type SortField, type SortOption, type Sanction } from '../lib/sanctions/filterSort';
 
@@ -463,7 +464,7 @@
     sanctionDurationLabel = selectedReport.sanctionDurationLabel || '';
     selectedRuleIds = getRuleIdsFromBrokenRules(selectedReport.brokenRules);
     detailedReason = selectedReport.detailedReason;
-    evidenceLinks = selectedReport.evidenceLinks.length > 0 ? [...selectedReport.evidenceLinks] : [''];
+    evidenceLinks = normalizeEvidenceLinks(selectedReport.evidenceLinks, true);
     additionalNotes = selectedReport.additionalNotes || '';
     isEditing = true;
   }
@@ -480,12 +481,6 @@
     isEditing = false;
     reportMessage = '';
     reportMessageIsError = false;
-  }
-
-  function sanitizeLinks(linksArr: string[]): string[] {
-    return linksArr
-      .map((value) => value.trim())
-      .filter((value) => /^https?:\/\//i.test(value));
   }
 
   async function submitReport() {
@@ -528,7 +523,7 @@
       return;
     }
 
-    const sanitizedLinks = sanitizeLinks(evidenceLinks);
+    const sanitizedLinks = sanitizeEvidenceLinks(evidenceLinks);
     if (sanitizedLinks.length === 0) {
       reportMessage = 'Ajoute au moins un lien de preuve valide (http/https).';
       reportMessageIsError = true;
@@ -573,7 +568,7 @@
   async function handleUpdateReport() {
     if (!selectedReport) return;
     
-    const sanitizedLinks = sanitizeLinks(evidenceLinks);
+    const sanitizedLinks = sanitizeEvidenceLinks(evidenceLinks);
     if (sanitizedLinks.length === 0) {
       reportMessage = 'Ajoute au moins un lien de preuve valide (http/https).';
       reportMessageIsError = true;

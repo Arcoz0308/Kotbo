@@ -231,12 +231,12 @@ export async function registerCrons(client: Client): Promise<void> {
     await runCronJob('staff-blacklist-expiration', expireStaffBlacklist, 1000);
   });
 
-  // 🛡️ Sanctions: Rapports manquants (tous les 3 jours à 12:00)
-  cron.schedule('* 12 */3 * *', async () => {
+  // 🛡️ Sanctions: Rapports manquants (tous les jours à 12:00, heure de Paris)
+  cron.schedule('0 12 * * *', async () => {
     await runCronJob('missing-reports-check', async () => {
       await checkMissingReports();
     }, 2000);
-  });
+  }, { timezone: 'Europe/Paris' });
 
   // 📅 Réunions: Notifications (toutes les minutes)
   cron.schedule('* * * * *', async () => {

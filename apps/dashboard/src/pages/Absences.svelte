@@ -107,7 +107,7 @@
       
       allStaff = membersData.members || [];
       allRoles = rolesData.roles || [];
-      absenceConfig = configData?.config || null;
+      applyAbsenceConfig(configData?.config || null);
 
       // Default selection: just me
       if (myStaffRecord) {
@@ -129,21 +129,27 @@
   let savedNotifyViaDiscordChannel = $state(true);
   let savedManagerRoleLevels = $state<number[]>([]);
 
-  $effect(() => {
-    if (absenceConfig) {
-      webhookUrl = absenceConfig.metadata?.webhookUrl || '';
-      channelId = absenceConfig.channelId || '';
-      notificationRoleId = absenceConfig.notificationRoleId || '';
-      notifyViaDiscordChannel = absenceConfig.notifyViaDiscordChannel !== false;
-      managerRoleLevels = absenceConfig.roleAccess?.map((ra: any) => ra.staffRoleLevel) || [];
+  function applyAbsenceConfig(config: any) {
+    absenceConfig = config;
 
-      savedWebhookUrl = webhookUrl;
-      savedChannelId = channelId;
-      savedNotificationRoleId = notificationRoleId;
-      savedNotifyViaDiscordChannel = notifyViaDiscordChannel;
-      savedManagerRoleLevels = [...managerRoleLevels];
-    }
-  });
+    const nextWebhookUrl = config?.metadata?.webhookUrl || '';
+    const nextChannelId = config?.channelId || '';
+    const nextNotificationRoleId = config?.notificationRoleId || '';
+    const nextNotifyViaDiscordChannel = config?.notifyViaDiscordChannel !== false;
+    const nextManagerRoleLevels = config?.roleAccess?.map((ra: any) => ra.staffRoleLevel) || [];
+
+    webhookUrl = nextWebhookUrl;
+    channelId = nextChannelId;
+    notificationRoleId = nextNotificationRoleId;
+    notifyViaDiscordChannel = nextNotifyViaDiscordChannel;
+    managerRoleLevels = [...nextManagerRoleLevels];
+
+    savedWebhookUrl = nextWebhookUrl;
+    savedChannelId = nextChannelId;
+    savedNotificationRoleId = nextNotificationRoleId;
+    savedNotifyViaDiscordChannel = nextNotifyViaDiscordChannel;
+    savedManagerRoleLevels = [...nextManagerRoleLevels];
+  }
 
   const currentConfig = $derived({
     webhookUrl,
@@ -194,7 +200,7 @@
         const ok = await updateAbsenceConfig(payload);
         if (ok) {
           const configData = await fetchAbsenceConfig().catch(() => null);
-          absenceConfig = configData?.config || null;
+          applyAbsenceConfig(configData?.config || null);
           success = true;
         }
         return ok;

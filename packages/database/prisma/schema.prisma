@@ -513,6 +513,8 @@ model Sanction {
 
   resolvedAt DateTime?
   resolutionNote String?
+  lastReportReminderAt DateTime?
+  managerReportEscalatedAt DateTime?
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
   reports SanctionReport[]

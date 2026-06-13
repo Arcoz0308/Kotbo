@@ -271,8 +271,8 @@
     "Tasks", "TextBubble", "Trash", "Underline", "Unlock", "UserCross", "User", "Walk"
   ]);
 
-  function toPapiconsName(value: string) {
-    const normalized = (value || "").trim();
+  function toPapiconsName(value: unknown) {
+    const normalized = typeof value === "string" ? value.trim() : "";
     if (!normalized) return fallbackIconName;
 
     const lower = normalized.toLowerCase();
@@ -316,14 +316,22 @@
     return flattened;
   }
 
-  const iconName = $derived(toPapiconsName(icon));
+  const safeIcon = $derived(typeof icon === "string" ? icon : "");
+  const iconName = $derived(toPapiconsName(safeIcon));
   const isPapiconAvailable = $derived(availablePapicons.has(iconName));
   
   // Lucide fallback logic
   const lucideIconName = $derived(iconName); // Already PascalCase
-  const LucideComponent = $derived((LucideIcons as any)[lucideIconName] || (LucideIcons as any)[icon] || LucideIcons.HelpCircle);
+  const LucideComponent = $derived((LucideIcons as any)[lucideIconName] || (LucideIcons as any)[safeIcon] || LucideIcons.HelpCircle);
 
-  const reactIcon = $derived(isPapiconAvailable ? unwrapReactComponent(Papicons({ name: iconName, size, className })) : null);
+  const reactIcon = $derived.by(() => {
+    if (!isPapiconAvailable || !iconName) return null;
+    try {
+      return unwrapReactComponent(Papicons({ name: iconName, size, className }));
+    } catch {
+      return null;
+    }
+  });
   const svgProps = $derived(reactIcon?.props || {});
   const svgChildren = $derived(flattenChildren(svgProps.children));
 
@@ -358,5 +366,3 @@
 {:else}
   <LucideComponent size={size} class={className} stroke-width={2.5} />
 {/if}
-
-
