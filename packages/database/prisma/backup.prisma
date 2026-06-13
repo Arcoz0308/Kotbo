@@ -1,0 +1,51 @@
+// ============================================================================
+// SERVER BACKUP SYSTEM - SYSTÈME DE SAUVEGARDE DE SERVEUR
+// ============================================================================
+
+model ServerBackup {
+  id String @id @default(cuid())
+
+  guildId String
+  name String // Nom personnalisé ou auto-généré
+  description String? // Description optionnelle
+
+  // Données du backup (JSON)
+  data Json // Contient: roles, channels, permissions, emojis, stickers, members, etc.
+
+  // Options de backup
+  includeMessages Boolean @default(false)
+  includeMembers Boolean @default(true)
+  includeRoles Boolean @default(true)
+  includeChannels Boolean @default(true)
+  includeEmojis Boolean @default(true)
+  includeStickers Boolean @default(true)
+
+  // Métadonnées
+  createdByUserId String
+  createdByUsername String
+  createdByTag String?
+  serverName String // Nom du serveur au moment du backup
+  serverIcon String? // URL de l'icône du serveur
+
+  sizeBytes Int @default(0) // Taille du backup en octets
+
+  // Statistiques
+  rolesCount Int @default(0)
+  channelsCount Int @default(0)
+  membersCount Int @default(0)
+  messagesCount Int @default(0)
+  emojisCount Int @default(0)
+  stickersCount Int @default(0)
+
+  isPreset Boolean @default(false) // Si c'est un preset importable
+  presetTags String[] @default([]) // Tags pour les presets (ex: "gaming", "community")
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, createdAt])
+  @@index([guildId, isPreset])
+  @@map("server_backups")
+}

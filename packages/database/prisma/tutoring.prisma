@@ -1,0 +1,72 @@
+enum TutoringItemState {
+  UNCHECKED
+  KNOWN
+  ACQUIRED
+}
+
+model TutoringConfig {
+  guildId String @id
+  reportIntervalDays Int @default(14) // Par défaut toutes les 2 semaines
+  reminderDaysBefore Int @default(2) // Rappel 2 jours avant
+  minTestDays Int @default(14) // Temps minimum en test avant validation
+  showVocalActivity Boolean @default(true)
+  showAbsences Boolean @default(true)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("tutoring_configs")
+}
+
+model TutoringItem {
+  id String @id @default(cuid())
+  guildId String
+  category String // e.g., "Outils", "Savoir", "Accès"
+  title String
+  description String?
+  sortOrder Int @default(0)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  progress TutoringChecklistProgress[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, sortOrder])
+  @@map("tutoring_items")
+}
+
+model TutoringChecklistProgress {
+  id String @id @default(cuid())
+  testingPeriodId String
+  itemId String
+  state TutoringItemState @default(UNCHECKED)
+  completedAt DateTime?
+  completedByUserId String? // Tutor who checked it
+
+  testingPeriod TestingPeriod @relation(fields: [testingPeriodId], references: [id], onDelete: Cascade)
+  item TutoringItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([testingPeriodId, itemId])
+  @@map("tutoring_checklist_progress")
+}
+
+model TutoringLog {
+  id String @id @default(cuid())
+  testingPeriodId String
+  content String
+  date DateTime @default(now())
+
+  testingPeriod TestingPeriod @relation(fields: [testingPeriodId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([testingPeriodId, date])
+  @@map("tutoring_logs")
+}

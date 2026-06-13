@@ -1,0 +1,219 @@
+// ============================================================================
+// OUTILS DE GESTION STAFF (Absences, Réunions, Notes, Polls, Procédures)
+// ============================================================================
+
+enum AbsenceStatus {
+  PENDING
+  ACKNOWLEDGED
+  APPROVED
+  REJECTED
+  CANCELED
+  ENDED
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELED
+}
+
+enum PresenceStatus {
+  PRESENT
+  EXCUSED
+  ABSENT
+}
+
+enum PollStatus {
+  OPEN
+  CLOSED
+}
+
+model StaffAbsence {
+  id String @id @default(cuid())
+
+  guildId String
+  staffUserId String
+
+  startDate DateTime
+  endDate DateTime?
+  reason String
+  type String @default("Autre")
+  message String?
+  isIndefinite Boolean @default(false)
+  status AbsenceStatus @default(PENDING)
+  isVoid Boolean @default(false)
+  superiorUserId String?
+  superiorNotifiedAt DateTime?
+
+  decisionByUserId String?
+  decisionNote String?
+  decidedAt DateTime?
+  endedByUserId String?
+  endedAt DateTime?
+
+  staffMember StaffMember @relation(fields: [staffUserId], references: [id], onDelete: Cascade)
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, staffUserId])
+  @@index([guildId, status])
+  @@map("staff_absences")
+}
+
+model StaffMeeting {
+  id String @id @default(cuid())
+
+  guildId String
+  title String
+  description String?
+  scheduledAt DateTime
+  endedAt     DateTime?
+  status MeetingStatus @default(SCHEDULED)
+  createdByUserId String
+
+  discordMessageId String?
+  discordEventId   String?
+
+  // Champs pour les notifications de réunion
+  notificationSentAt DateTime?      // Quand la notification de début a été envoyée
+  notificationEndSentAt DateTime?  // Quand la notification de fin a été envoyée
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  presences StaffMeetingPresence[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, scheduledAt])
+  @@map("staff_meetings")
+}
+
+model StaffMeetingPresence {
+  id String @id @default(cuid())
+
+  meetingId String
+  staffUserId String
+  status PresenceStatus @default(ABSENT)
+  checkInAt DateTime?
+  note String?
+
+  meeting StaffMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  staffMember StaffMember @relation(fields: [staffUserId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([meetingId, staffUserId])
+  @@map("staff_meeting_presences")
+}
+
+
+model StaffManagerNote {
+  id String @id @default(cuid())
+
+  guildId String
+  staffUserId String
+  authorUserId String // StaffMember author
+  content String
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  staffMember StaffMember @relation("ManagerNotesAbout", fields: [staffUserId], references: [id], onDelete: Cascade)
+  author StaffMember @relation("ManagerNotesWritten", fields: [authorUserId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([staffUserId])
+  @@index([guildId])
+  @@map("staff_manager_notes")
+}
+
+
+model StaffPoll {
+  id String @id @default(cuid())
+
+  guildId String
+  authorUserId String
+  title String
+  description String?
+  isAnonymous Boolean @default(true)
+  closesAt DateTime?
+  status PollStatus @default(OPEN)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  author StaffMember @relation(fields: [authorUserId], references: [id], onDelete: Cascade)
+  options StaffPollOption[]
+  votes StaffPollVote[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, status])
+  @@map("staff_polls")
+}
+
+model StaffPollOption {
+  id String @id @default(cuid())
+
+  pollId String
+  text String
+  sortOrder Int @default(0)
+
+  poll StaffPoll @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes StaffPollVote[]
+
+  @@map("staff_poll_options")
+}
+
+model StaffPollVote {
+  id String @id @default(cuid())
+
+  pollId String
+  optionId String
+  staffUserId String
+  weight Float @default(1.0)
+
+  poll StaffPoll @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  option StaffPollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  staffMember StaffMember @relation(fields: [staffUserId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([pollId, staffUserId])
+  @@map("staff_poll_votes")
+}
+
+model StaffProcedure {
+  id String @id @default(cuid())
+
+  guildId String
+  title String
+  content String
+  sortOrder Int @default(0)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  reads StaffProcedureRead[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, sortOrder])
+  @@map("staff_procedures")
+}
+
+model StaffProcedureRead {
+  id String @id @default(cuid())
+
+  procedureId String
+  staffUserId String
+  readAt DateTime @default(now())
+
+  procedure StaffProcedure @relation(fields: [procedureId], references: [id], onDelete: Cascade)
+  staffMember StaffMember @relation(fields: [staffUserId], references: [id], onDelete: Cascade)
+
+  @@unique([procedureId, staffUserId])
+  @@map("staff_procedure_reads")
+}

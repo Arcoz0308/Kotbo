@@ -1,0 +1,218 @@
+enum SanctionType {
+  WARN
+  KICK
+  TIMEOUT
+  TEMP_BAN
+  BAN
+  SOFTBAN
+}
+
+enum SanctionStatus {
+  ACTIVE
+  RESOLVED
+  FAILED
+}
+
+enum CodePoliceRuleCategory {
+  SIGNAL
+  DANGER
+  LANGUAGE_FEEDBACK
+}
+
+enum CodePoliceMatchType {
+  EXACT
+  REGEX
+}
+
+enum CodePoliceSeverity {
+  INFO
+  WARNING
+  DANGER
+}
+
+
+enum LinkedAccountType {
+  MANUAL
+  AUTOMATIC
+}
+
+enum LinkedAccountStatus {
+  PENDING
+  VALIDATED
+  REJECTED
+}
+
+model BannedWord {
+  id       String  @id @default(cuid())
+  guildId  String? // null = global (visible par tous les serveurs, read-only dashboard)
+  word     String
+  category String  @default("custom") // custom | racism | threat | sexual | lgbtphobia | etc.
+  enabled  Boolean @default(true)
+
+  guild Guild? @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, word])
+  @@index([guildId, enabled])
+  @@map("banned_words")
+}
+
+model CodePoliceRule {
+  id String @id @default(cuid())
+
+  key String @unique
+  guildId String?
+
+  category CodePoliceRuleCategory
+  matchType CodePoliceMatchType @default(EXACT)
+  language String?
+  pattern String
+  label String
+  feedback String
+  severity CodePoliceSeverity @default(WARNING)
+  enabled Boolean @default(true)
+
+  guild Guild? @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("code_police_rules")
+  @@index([guildId, category])
+  @@index([category, enabled])
+  @@index([language])
+}
+
+
+model LinkedAccount {
+  id String @id @default(cuid())
+  guildId String
+
+  user1Id String
+  user2Id String
+
+  type LinkedAccountType @default(MANUAL)
+  status LinkedAccountStatus @default(VALIDATED)
+
+  reason String?
+  metadata Json? // Pour stocker les preuves de détection
+
+  linkedByUserId String? // Si manuel, qui l'a fait
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, user1Id, user2Id])
+  @@index([guildId, user1Id])
+  @@index([guildId, user2Id])
+  @@map("linked_accounts")
+}
+
+
+
+
+model Sanction {
+  id String @id @default(cuid())
+
+  guildId String
+  type SanctionType
+  status SanctionStatus @default(ACTIVE)
+
+  targetUserId String
+  targetTag String?
+  moderatorUserId String
+  moderatorTag String?
+
+  reason String
+  durationSeconds Int?
+  expiresAt DateTime?
+  nextActionAt DateTime?
+
+  resolvedAt DateTime?
+  resolutionNote String?
+  lastReportReminderAt DateTime?
+  managerReportEscalatedAt DateTime?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  reports SanctionReport[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, createdAt])
+  @@index([guildId, status, type])
+  @@index([status, nextActionAt])
+  @@map("sanctions")
+}
+
+model SanctionReport {
+  id String @id @default(cuid())
+
+  guildId String
+  sanctionId String?
+
+  staffPseudo String
+  incidentAt DateTime
+  memberPseudo String
+  memberReference String
+
+  sanctionType SanctionType
+  sanctionDurationLabel String?
+  brokenRules String
+  detailedReason String
+  evidenceLinks String[] @default([])
+  additionalNotes String?
+
+  createdByUserId String
+  createdByTag String?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  sanction Sanction? @relation(fields: [sanctionId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, createdAt])
+  @@index([guildId, sanctionType])
+  @@index([sanctionId])
+  @@map("sanction_reports")
+}
+
+model AutoModConfig {
+  guildId              String   @id
+  spamEnabled          Boolean  @default(false)
+  spamLimit            Int      @default(5)     // Max messages in interval
+  spamIntervalSeconds  Int      @default(5)
+  spamAction           String   @default("TIMEOUT") // WARN, TIMEOUT
+
+  linksEnabled         Boolean  @default(false)
+  linksAction          String   @default("DELETE_AND_WARN")
+  linksWhitelist       String[] @default([]) // Whitelisted domains
+
+  capsEnabled          Boolean  @default(false)
+  capsThresholdPercent Int      @default(80)
+  capsMinLength        Int      @default(10)
+
+  emojisEnabled        Boolean  @default(false)
+  emojisLimit          Int      @default(10)
+
+  mentionsEnabled      Boolean  @default(false)
+  mentionsLimit        Int      @default(5)
+
+  ghostPingEnabled     Boolean  @default(false)
+  ghostPingAction      String   @default("ALERT")   // ALERT, WARN
+
+  antiEveryoneEnabled  Boolean  @default(false)
+  antiEveryoneAction   String   @default("DELETE_AND_WARN")
+
+  bypassRoles          String[] @default([])
+  bypassChannels       String[] @default([])
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("automod_configs")
+}

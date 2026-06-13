@@ -1,0 +1,45 @@
+model MemberLevel {
+  id        String   @id @default(cuid())
+  guildId   String
+  userId    String
+  xp        Int      @default(0)
+  level     Int      @default(0)
+  lastXpGain DateTime @default(now())
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, userId])
+  @@index([guildId, xp])
+  @@map("member_levels")
+}
+
+model LevelRoleReward {
+  id       String @id @default(cuid())
+  guildId  String
+  level    Int
+  roleId   String
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, level])
+  @@map("level_role_rewards")
+}
+
+model LevelConfig {
+  guildId         String   @id
+  enabled         Boolean  @default(false)
+  xpMin           Int      @default(15)
+  xpMax           Int      @default(25)
+  cooldownSeconds Int      @default(60)
+  vocalXpPerMin   Int      @default(5)
+  levelUpChannelId String?  // null = same channel, "DM" = DM, or specific channel ID
+  levelUpMessage  String   @default("Félicitations {user} ! Tu passes au niveau **{level}** ! 🎉")
+  stackRewards    Boolean  @default(false)
+  ignoredChannels String[] @default([])
+  ignoredRoles    String[] @default([])
+  xpMultipliers   Json?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("level_configs")
+}

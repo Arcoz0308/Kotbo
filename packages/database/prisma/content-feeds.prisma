@@ -1,0 +1,150 @@
+enum InterestDecision {
+  ALLOWED
+  FILTERED_OUT
+}
+
+enum ItemStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model NewsArticle {
+  id String @id @default(cuid())
+
+  guildId String
+  title String
+  content String
+  summary String?
+  imageUrl String?
+
+  authorId String
+  authorName String
+  authorAvatar String?
+
+  isGlobal Boolean @default(true)
+  category String @default("Mise à jour")
+  subcategory String @default("")
+  published Boolean @default(true)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  publishedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, publishedAt])
+  @@index([isGlobal, publishedAt])
+  @@map("news_articles")
+}
+
+model NewsCategoryConfig {
+  id String @id @default(cuid())
+
+  guildId String
+  category String
+  subcategory String @default("")
+  channelId String
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, category, subcategory])
+  @@map("news_category_configs")
+}
+
+
+model YoutubeChannelFollow {
+  id String @id @default(cuid())
+  guildId String
+  channelId String
+  channelName String
+  liveChannelId String?
+  shortChannelId String?
+  videoChannelId String?
+  lastVideoId String?
+  lastShortId String?
+  lastLiveId String?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, channelId])
+  @@map("youtube_channel_follows")
+}
+
+model TwitchChannelFollow {
+  id String @id @default(cuid())
+  guildId String
+  streamerName String
+  streamerId String?
+  liveChannelId String?
+  otherChannelId String?
+  isLive Boolean @default(false)
+  lastStreamId String?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, streamerName])
+  @@map("twitch_channel_follows")
+}
+
+model Feed {
+  id String @id @default(cuid())
+  guildId String
+  name String
+  url String
+  category String
+  language String?
+  enabled Boolean @default(true)
+  autoPublish Boolean @default(false)
+  includeKeywords String[] @default([])
+  excludeKeywords String[] @default([])
+  ignoredKeywords String[] @default([])
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  items FeedItem[]
+  subscribers FeedSubscriber[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("feeds")
+}
+
+model FeedItem {
+  id String @id @default(cuid())
+  feedId String
+  title String
+  titleTranslated String?
+  interestScore Float?
+  interestDecision InterestDecision @default(ALLOWED)
+  interestReason String?
+  topics String[] @default([])
+  status ItemStatus @default(PENDING)
+
+  feed Feed @relation(fields: [feedId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("feed_items")
+}
+
+model FeedSubscriber {
+  id String @id @default(cuid())
+  feedId String
+  userId String
+
+  feed Feed @relation(fields: [feedId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([feedId, userId])
+  @@map("feed_subscribers")
+}

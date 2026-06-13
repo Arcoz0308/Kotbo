@@ -1,0 +1,140 @@
+// ============================================================================
+// SYSTÈME D'ÉVÉNEMENTS
+// ============================================================================
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+enum EventType {
+  QUIZ
+  CTF
+}
+
+model Event {
+  id String @id @default(cuid())
+  guildId String
+  title String
+  description String?
+  type EventType
+  status EventStatus @default(DRAFT)
+  channelId String?
+  messageId String?
+
+  triggerType   String?   // "MEMBER_COUNT", "SCHEDULED"
+  triggerValue  String?   // "1000", "2026-06-05T20:00:00Z"
+  triggerStatus String    @default("PENDING") // "PENDING", "TRIGGERED", "FAILED"
+
+  config Json? // { themeColor, etc. }
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  questions EventQuizQuestion[]
+  ctfChallenges EventCtfChallenge[]
+  participants EventParticipant[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("events")
+}
+
+model EventQuizQuestion {
+  id String @id @default(cuid())
+  eventId String
+  text String
+  imageUrl String?
+  options Json // Array of strings or objects { text, emoji }
+  correctOptionIndex Int
+
+  sortOrder Int @default(0)
+  status EventStatus @default(DRAFT)
+
+  startTime DateTime?
+  endTime DateTime?
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  responses EventQuizResponse[]
+
+  @@map("event_quiz_questions")
+}
+
+model EventParticipant {
+  id String @id @default(cuid())
+  eventId String
+  userId String
+  guildId String
+
+  userTag String?
+  username String?
+
+  score Int @default(0)
+  lastSolveAt DateTime?
+  metadata Json?
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  profile MemberProfile @relation(fields: [guildId, userId], references: [guildId, userId], onDelete: Cascade)
+  responses EventQuizResponse[]
+  ctfSolves EventCtfSolve[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([eventId, userId])
+  @@map("event_participants")
+}
+
+model EventQuizResponse {
+  id String @id @default(cuid())
+  questionId String
+  participantId String
+
+  optionIndex Int
+  isCorrect Boolean
+  responseTimeMs Int?
+
+  question EventQuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  participant EventParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([questionId, participantId])
+  @@map("event_quiz_responses")
+}
+
+model EventCtfChallenge {
+  id           String   @id @default(cuid())
+  eventId      String
+  title        String
+  description  String
+  flag         String   // Le flag attendu
+  points       Int      @default(100)
+  roleIdReward String?  // Rôle Discord attribué à la résolution
+  xpReward     Int      @default(0)    // XP Kotbo attribuée
+  imageUrl     String?
+  sortOrder    Int      @default(0)
+
+  event        Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  solves       EventCtfSolve[]
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("event_ctf_challenges")
+}
+
+model EventCtfSolve {
+  id            String            @id @default(cuid())
+  challengeId   String
+  participantId String
+  solvedAt      DateTime          @default(now())
+
+  challenge     EventCtfChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  participant   EventParticipant  @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@unique([challengeId, participantId])
+  @@map("event_ctf_solves")
+}
