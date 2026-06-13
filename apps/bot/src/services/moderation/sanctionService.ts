@@ -6,6 +6,7 @@ import { COLORS } from '../../utils/embeds.js';
 import { notifyDashboardSanctionReportRequired } from '../../api/dashboardApi.js';
 import { createNotification } from '../staff/staffLeadershipService.js';
 import * as altAccountService from './altAccountService.js';
+import { getMissingReportReminderActions } from './sanctionReportReminderPolicy.js';
 
 const MAX_DISCORD_TIMEOUT_MS = 27 * 24 * 60 * 60 * 1000;
 const RENEWAL_BUFFER_MS = 60 * 1000;
@@ -1153,57 +1154,105 @@ export async function runGuildBan(guild: Guild, userId: string, reason: string):
 }
 
 export async function checkMissingReports() {
-  const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
-  
-  // Trouver les sanctions sans rapport (SanctionReport) créées il y a plus de 3 jours
-  // On filtre les sanctions qui nécessitent un rapport (BAN, KICK, TIMEOUT)
+  const now = new Date();
+  const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
   const sanctions = await prisma.sanction.findMany({
     where: {
       createdAt: { lte: threeDaysAgo },
       type: { in: [SanctionType.BAN, SanctionType.TEMP_BAN, SanctionType.KICK, SanctionType.TIMEOUT] },
-      reports: { none: {} }
+      reports: { none: {} },
+      OR: [
+        { lastReportReminderAt: null },
+        { lastReportReminderAt: { lte: oneDayAgo } },
+        { createdAt: { lte: sevenDaysAgo }, managerReportEscalatedAt: null },
+      ],
     },
-    include: {
-      reports: true
-    }
+    select: {
+      id: true,
+      guildId: true,
+      targetUserId: true,
+      targetTag: true,
+      moderatorUserId: true,
+      moderatorTag: true,
+      createdAt: true,
+      lastReportReminderAt: true,
+      managerReportEscalatedAt: true,
+    },
   });
 
   for (const sanction of sanctions) {
-    // Notifier le modérateur à nouveau
-    await createNotification(
-      sanction.guildId,
-      sanction.moderatorUserId,
-      'RAPPEL : Rapport manquant (3 jours+)',
-      `Le rapport pour la sanction sur ${sanction.targetTag} est toujours manquant après 3 jours.`,
-      'ERROR',
-      '/sanctions'
-    ).catch(() => null);
+    const actions = getMissingReportReminderActions(sanction, now);
+    if (actions.remindModerator) {
+      const claim = await prisma.sanction.updateMany({
+        where: {
+          id: sanction.id,
+          reports: { none: {} },
+          OR: [
+            { lastReportReminderAt: null },
+            { lastReportReminderAt: { lte: oneDayAgo } },
+          ],
+        },
+        data: { lastReportReminderAt: now },
+      });
 
-    // Notifier le supérieur du modérateur
-    const moderator = await prisma.staffMember.findUnique({
-      where: { guildId_userId: { guildId: sanction.guildId, userId: sanction.moderatorUserId } }
-    });
+      if (claim.count === 1) {
+        try {
+          await createNotification(
+            sanction.guildId,
+            sanction.moderatorUserId,
+            'RAPPEL : Rapport manquant (3 jours+)',
+            `Le rapport pour la sanction sur ${sanction.targetTag ?? sanction.targetUserId} est toujours manquant.`,
+            'ERROR',
+            '/sanctions'
+          );
+        } catch (error) {
+          await prisma.sanction.updateMany({
+            where: { id: sanction.id, lastReportReminderAt: now },
+            data: { lastReportReminderAt: sanction.lastReportReminderAt },
+          });
+          logger.error('Sanctions', `Échec du rappel de rapport pour la sanction ${sanction.id}:`, error);
+        }
+      }
+    }
 
-    if (moderator && moderator.grade !== 'Staff') {
-      // On cherche les managers/admins pour les alerter
+    if (actions.escalateManagers) {
+      const claim = await prisma.sanction.updateMany({
+        where: {
+          id: sanction.id,
+          reports: { none: {} },
+          managerReportEscalatedAt: null,
+        },
+        data: { managerReportEscalatedAt: now },
+      });
+      if (claim.count !== 1) continue;
+
       const managers = await prisma.staffMember.findMany({
         where: {
           guildId: sanction.guildId,
-          grade: { in: ['Manager', 'Admin', 'Administrateur', 'Direction', 'Fondateur'] }
-        }
+          userId: { not: sanction.moderatorUserId },
+          grade: { in: ['Manager', 'Admin', 'Administrateur', 'Direction', 'Fondateur'] },
+        },
       });
 
-      for (const manager of managers) {
-        if (manager.userId === sanction.moderatorUserId) continue;
-
-        await createNotification(
+      const results = await Promise.allSettled(managers.map((manager) =>
+        createNotification(
           sanction.guildId,
           manager.userId,
           'Alerte : Rapport non rempli par un staff',
-          `Le modérateur ${sanction.moderatorTag} n'a pas rempli le rapport pour sa sanction sur ${sanction.targetTag} depuis 3 jours.`,
+          `Le modérateur ${sanction.moderatorTag ?? sanction.moderatorUserId} n'a pas rempli le rapport pour sa sanction sur ${sanction.targetTag ?? sanction.targetUserId} depuis 7 jours.`,
           'ERROR',
           `/members/${sanction.targetUserId}`
-        ).catch(() => null);
+        )
+      ));
+
+      if (managers.length === 0 || results.every((result) => result.status === 'rejected')) {
+        await prisma.sanction.updateMany({
+          where: { id: sanction.id, managerReportEscalatedAt: now },
+          data: { managerReportEscalatedAt: null },
+        });
       }
     }
   }

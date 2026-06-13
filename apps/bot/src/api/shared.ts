@@ -2235,7 +2235,7 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
         sanctionDurationLabel: entry.sanctionDurationLabel ?? null,
         brokenRules: entry.brokenRules,
         detailedReason: entry.detailedReason,
-        evidenceLinks: entry.evidenceLinks,
+        evidenceLinks: parseEvidenceLinks(entry.evidenceLinks),
         additionalNotes: entry.additionalNotes ?? null,
         createdByUserId: entry.createdByUserId,
         createdByTag: entry.createdByTag ?? null,
@@ -2478,7 +2478,7 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     sanctionDurationLabel: entry.sanctionDurationLabel ?? null,
     brokenRules: entry.brokenRules,
     detailedReason: entry.detailedReason,
-    evidenceLinks: entry.evidenceLinks,
+    evidenceLinks: parseEvidenceLinks(entry.evidenceLinks),
     additionalNotes: entry.additionalNotes ?? null,
     createdByUserId: entry.createdByUserId,
     createdByTag: entry.createdByTag ?? null,
@@ -3137,4 +3137,3 @@ export function extractMediaUrls(content: string): { type: 'image' | 'video' | '
   }
   return urls;
 }
-

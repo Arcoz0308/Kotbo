@@ -13,6 +13,7 @@
   import SelectedRuleChips from './sanctions/SelectedRuleChips.svelte';
   import EvidenceInputList from './sanctions/EvidenceInputList.svelte';
   import ReportRuleSelector from './sanctions/ReportRuleSelector.svelte';
+  import { normalizeEvidenceLinks, sanitizeEvidenceLinks } from '../sanctions/evidenceLinks';
   import InteractionTree from './charts/InteractionTree.svelte';
   import Modal from './Modal.svelte';
 
@@ -311,7 +312,7 @@
       sanctionDurationLabel: report.sanctionDurationLabel || '',
       selectedRuleIds: getRuleIdsFromBrokenRules(report.brokenRules),
       detailedReason: report.detailedReason,
-      evidenceLinks: report.evidenceLinks && report.evidenceLinks.length > 0 ? [...report.evidenceLinks] : [''],
+      evidenceLinks: normalizeEvidenceLinks(report.evidenceLinks, true),
       additionalNotes: report.additionalNotes || ''
     };
     isEditingReport = true;
@@ -327,7 +328,7 @@
         sanctionDurationLabel: editReportData.sanctionDurationLabel.trim(),
         brokenRules: buildBrokenRulesPayload(editReportData.selectedRuleIds, reportRuleOptions),
         detailedReason: editReportData.detailedReason,
-        evidenceLinks: editReportData.evidenceLinks.map(l => l.trim()).filter(l => /^https?:\/\//i.test(l)),
+        evidenceLinks: sanitizeEvidenceLinks(editReportData.evidenceLinks),
         additionalNotes: editReportData.additionalNotes.trim() || null
       });
 
@@ -345,7 +346,7 @@
               sanctionDurationLabel: editReportData.sanctionDurationLabel.trim(),
               brokenRules: buildBrokenRulesPayload(editReportData.selectedRuleIds, reportRuleOptions),
               detailedReason: editReportData.detailedReason,
-              evidenceLinks: editReportData.evidenceLinks.map(l => l.trim()).filter(l => /^https?:\/\//i.test(l)),
+              evidenceLinks: sanitizeEvidenceLinks(editReportData.evidenceLinks),
               additionalNotes: editReportData.additionalNotes.trim() || null
             };
           }
@@ -1946,4 +1947,3 @@
     {/if}
 
 </Modal>
-
