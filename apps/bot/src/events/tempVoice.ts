@@ -11,7 +11,8 @@ import {
   ModalBuilder, 
   TextInputBuilder, 
   TextInputStyle,
-  PermissionFlagsBits
+  PermissionFlagsBits,
+  MessageFlags
 } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
@@ -123,7 +124,7 @@ export function registerTempVoiceListener(client: Client): void {
 
       const cache = tempChannels.get(channel.id);
       if (!cache) {
-        await interaction.reply({ content: '❌ Ce salon n\'est plus enregistré comme temporaire.', ephemeral: true }).catch(() => null);
+        await interaction.reply({ content: '❌ Ce salon n\'est plus enregistré comme temporaire.', flags: [MessageFlags.Ephemeral] }).catch(() => null);
         return;
       }
 
@@ -131,7 +132,7 @@ export function registerTempVoiceListener(client: Client): void {
 
       // Verify creator (all actions except claim require being the creator)
       if (action !== 'claim' && cache.creatorId !== user.id) {
-        await interaction.reply({ content: '❌ Seul le propriétaire du salon peut effectuer cette action.', ephemeral: true }).catch(() => null);
+        await interaction.reply({ content: '❌ Seul le propriétaire du salon peut effectuer cette action.', flags: [MessageFlags.Ephemeral] }).catch(() => null);
         return;
       }
 
@@ -139,14 +140,14 @@ export function registerTempVoiceListener(client: Client): void {
         await channel.permissionOverwrites.edit(interaction.guildId, {
           Connect: false
         }).catch(() => null);
-        await interaction.reply({ content: '🔒 Le salon a été verrouillé. Plus personne ne peut le rejoindre.', ephemeral: true }).catch(() => null);
+        await interaction.reply({ content: '🔒 Le salon a été verrouillé. Plus personne ne peut le rejoindre.', flags: [MessageFlags.Ephemeral] }).catch(() => null);
       } 
       
       else if (action === 'unlock') {
         await channel.permissionOverwrites.edit(interaction.guildId, {
           Connect: true
         }).catch(() => null);
-        await interaction.reply({ content: '🔓 Le salon a été déverrouillé. Tout le monde peut le rejoindre.', ephemeral: true }).catch(() => null);
+        await interaction.reply({ content: '🔓 Le salon a été déverrouillé. Tout le monde peut le rejoindre.', flags: [MessageFlags.Ephemeral] }).catch(() => null);
       } 
       
       else if (action === 'limit') {
@@ -262,7 +263,7 @@ export function registerTempVoiceListener(client: Client): void {
       else if (action === 'claim') {
         const ownerIsPresent = channel.members.has(cache.creatorId);
         if (ownerIsPresent) {
-          await interaction.reply({ content: '❌ Le propriétaire actuel du salon vocal est toujours présent.', ephemeral: true }).catch(() => null);
+          await interaction.reply({ content: '❌ Le propriétaire actuel du salon vocal est toujours présent.', flags: [MessageFlags.Ephemeral] }).catch(() => null);
           return;
         }
 
@@ -288,7 +289,7 @@ export function registerTempVoiceListener(client: Client): void {
 
       const cache = tempChannels.get(channel.id);
       if (!cache) {
-        await interaction.reply({ content: '❌ Ce salon n\'est plus enregistré comme temporaire.', ephemeral: true }).catch(() => null);
+        await interaction.reply({ content: '❌ Ce salon n\'est plus enregistré comme temporaire.', flags: [MessageFlags.Ephemeral] }).catch(() => null);
         return;
       }
 
@@ -296,7 +297,7 @@ export function registerTempVoiceListener(client: Client): void {
 
       // Verification of creator for submissions
       if (modalId !== 'claim' && cache.creatorId !== user.id) {
-        await interaction.reply({ content: '❌ Action non autorisée.', ephemeral: true }).catch(() => null);
+        await interaction.reply({ content: '❌ Action non autorisée.', flags: [MessageFlags.Ephemeral] }).catch(() => null);
         return;
       }
 
@@ -305,33 +306,33 @@ export function registerTempVoiceListener(client: Client): void {
         const limit = parseInt(limitStr, 10);
 
         if (isNaN(limit) || limit < 0 || limit > 99) {
-          await interaction.reply({ content: '❌ Nombre invalide (doit être entre 0 et 99).', ephemeral: true }).catch(() => null);
+          await interaction.reply({ content: '❌ Nombre invalide (doit être entre 0 et 99).', flags: [MessageFlags.Ephemeral] }).catch(() => null);
           return;
         }
 
         await channel.setUserLimit(limit).catch(() => null);
-        await interaction.reply({ content: `👥 Limite fixée à ${limit === 0 ? 'illimité' : limit} membres.`, ephemeral: true }).catch(() => null);
+        await interaction.reply({ content: `👥 Limite fixée à ${limit === 0 ? 'illimité' : limit} membres.`, flags: [MessageFlags.Ephemeral] }).catch(() => null);
       } 
       
       else if (modalId === 'rename_modal') {
         const newName = interaction.fields.getTextInputValue('name_input');
         if (!newName.trim()) {
-          await interaction.reply({ content: '❌ Le nom ne peut pas être vide.', ephemeral: true }).catch(() => null);
+          await interaction.reply({ content: '❌ Le nom ne peut pas être vide.', flags: [MessageFlags.Ephemeral] }).catch(() => null);
           return;
         }
 
         await channel.setName(newName.trim()).catch(() => null);
-        await interaction.reply({ content: `✏️ Salon renommé en : **${newName.trim()}**`, ephemeral: true }).catch(() => null);
+        await interaction.reply({ content: `✏️ Salon renommé en : **${newName.trim()}**`, flags: [MessageFlags.Ephemeral] }).catch(() => null);
       }
 
       else if (modalId === 'kick_modal' || modalId === 'ban_modal' || modalId === 'trust_modal' || modalId === 'transfer_modal') {
         const input = interaction.fields.getTextInputValue('user_input').trim();
         if (!input) {
-          await interaction.reply({ content: '❌ Entrée invalide.', ephemeral: true }).catch(() => null);
+          await interaction.reply({ content: '❌ Entrée invalide.', flags: [MessageFlags.Ephemeral] }).catch(() => null);
           return;
         }
 
-        await interaction.deferReply({ ephemeral: true });
+        await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
         const userId = input.replace(/[^0-9]/g, '');
         let targetMember = userId ? await guild.members.fetch(userId).catch(() => null) : null;
