@@ -562,7 +562,7 @@ export async function handlePublicRoutes(
           discordId: body.discordId || null,
           email: body.email || null,
           username: body.username || null,
-          data: body.data as Record<string, unknown>,
+          data: body.data as Prisma.JsonObject,
           status: 'PENDING',
         },
       });
@@ -586,8 +586,8 @@ export async function handlePublicRoutes(
           if (notifChannel?.value) {
             const discordGuild = client.guilds.cache.get(form.guildId) || await client.guilds.fetch(form.guildId).catch(() => null);
             const channel = discordGuild?.channels.cache.get(notifChannel.value as string);
-            if (channel?.isTextBased()) {
-              await (channel as import('discord.js').TextChannel).send({
+            if (channel?.isSendable()) {
+              await channel.send({
                 embeds: [{
                   title: '📋 Nouvelle candidature reçue',
                   description: `Formulaire: **${form.name}**\n\nDiscord: ${body.discordId ? `<@${body.discordId}>` : 'Non renseigné'}\nEmail: ${body.email || 'Non renseigné'}`,

@@ -150,7 +150,7 @@ async function handleCreate(
   const includeStickers = interaction.options.getBoolean('inclure_stickers') ?? true;
 
   // Vérifier le nombre de backups existants
-  const existingBackups = await (prisma as any).serverBackup.count({
+  const existingBackups = await prisma.serverBackup.count({
     where: { guildId, isPreset: false },
   });
 
@@ -207,7 +207,7 @@ async function handleCreate(
 async function handleList(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
   await interaction.deferReply({ ephemeral: true });
 
-  const backups = await (prisma as any).serverBackup.findMany({
+  const backups = await prisma.serverBackup.findMany({
     where: { guildId, isPreset: false },
     orderBy: { createdAt: 'desc' },
   });
@@ -244,7 +244,7 @@ async function handleRestore(interaction: ChatInputCommandInteraction, guildId: 
   const backupId = interaction.options.getString('id', true);
   const fullRestore = interaction.options.getBoolean('mode_complet') ?? false;
 
-  const backup = await (prisma as any).serverBackup.findUnique({
+  const backup = await prisma.serverBackup.findUnique({
     where: { id: backupId },
   });
 
@@ -320,7 +320,7 @@ async function handleDelete(interaction: ChatInputCommandInteraction, guildId: s
 
   const backupId = interaction.options.getString('id', true);
 
-  const backup = await (prisma as any).serverBackup.findUnique({
+  const backup = await prisma.serverBackup.findUnique({
     where: { id: backupId },
   });
 
@@ -338,7 +338,7 @@ async function handleDelete(interaction: ChatInputCommandInteraction, guildId: s
     return;
   }
 
-  await (prisma as any).serverBackup.delete({
+  await prisma.serverBackup.delete({
     where: { id: backupId },
   });
 
@@ -352,7 +352,7 @@ async function handleExport(interaction: ChatInputCommandInteraction, guildId: s
 
   const backupId = interaction.options.getString('id', true);
 
-  const backup = await (prisma as any).serverBackup.findUnique({
+  const backup = await prisma.serverBackup.findUnique({
     where: { id: backupId },
   });
 
@@ -476,7 +476,7 @@ async function handleImport(interaction: ChatInputCommandInteraction, guildId: s
   const backupData = importData.backup;
 
   // Vérifier le nombre de backups existants
-  const existingBackups = await (prisma as any).serverBackup.count({
+  const existingBackups = await prisma.serverBackup.count({
     where: { guildId, isPreset: false },
   });
 
@@ -496,7 +496,7 @@ async function handleImport(interaction: ChatInputCommandInteraction, guildId: s
 
   try {
     // Créer le backup dans la base de données
-    const newBackup = await (prisma as any).serverBackup.create({
+    const newBackup = await prisma.serverBackup.create({
       data: {
         guildId,
         name: backupName,

@@ -107,6 +107,9 @@ export async function handleCountingMessage(message: Message, guildId: string) {
   if (nextNumber % 100 === 0) {
     await message.react('🎉').catch(() => null);
     await message.react('💯').catch(() => null);
+    if (!message.channel.isSendable()) {
+      return;
+    }
     await message.channel.send(`🎉 **Palier exceptionnel !** Nous avons atteint **${nextNumber}** ! Bravo à tous ! 👑`).catch(() => null);
   } else if (nextNumber % 10 === 0) {
     await message.react('⭐').catch(() => null);
@@ -129,6 +132,9 @@ export async function handleOneWordStoryMessage(message: Message, guildId: strin
 
   if (isInvalid) {
     await message.delete().catch(() => null);
+    if (!message.channel.isSendable()) {
+      return;
+    }
     const warnMsg = await message.channel.send(`❌ ${message.author}, un seul mot à la fois et vous ne pouvez pas jouer deux fois de suite !`).catch(() => null);
     if (warnMsg) {
       setTimeout(() => {
