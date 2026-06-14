@@ -1,0 +1,138 @@
+enum TestingPeriodStatus {
+  ONGOING
+  PASSED
+  FAILED
+}
+
+enum MentorReportType {
+  POSITIVE
+  NEGATIVE
+  NEUTRAL
+}
+
+enum ResignationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model StaffWarning {
+  id String @id @default(cuid())
+
+  guildId String
+  staffUserId String
+  issuedByUserId String
+
+  reason String
+  type String @default("staff_warning") // Type de warn staff
+  expiresAt DateTime? // null = permanent
+  isActive Boolean @default(true)
+
+  notes String?
+
+  staffMember StaffMember @relation(fields: [staffUserId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, staffUserId, isActive])
+  @@index([guildId, expiresAt])
+  @@map("staff_warnings")
+}
+
+model StaffBlacklist {
+  id String @id @default(cuid())
+
+  guildId String
+  staffUserId String
+  issuedByUserId String
+
+  reason String
+  startDate DateTime @default(now())
+  endDate DateTime? // null = indéterminé/permanent
+  isActive Boolean @default(true)
+
+  notes String?
+
+  staffMember StaffMember @relation(fields: [staffUserId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, staffUserId, isActive])
+  @@index([guildId, isActive, endDate])
+  @@map("staff_blacklist")
+}
+
+model TestingPeriod {
+  id String @id @default(cuid())
+
+  guildId String
+  staffUserId String
+  mentorId String?
+
+  startDate DateTime @default(now())
+  endDate DateTime?
+  status TestingPeriodStatus @default(ONGOING) // ONGOING, PASSED, FAILED
+
+  plannedDurationDays Int @default(14)
+  targetGrade String?
+
+  notes String?
+
+  staffMember StaffMember @relation("StaffMemberTestingPeriods", fields: [staffUserId], references: [id], onDelete: Cascade)
+  mentor StaffMember? @relation("StaffMemberMentor", fields: [mentorId], references: [id], onDelete: SetNull)
+  reports MentorReport[]
+
+  lastReportAt DateTime?
+  checklistProgress TutoringChecklistProgress[]
+  logs TutoringLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, staffUserId, status])
+  @@index([mentorId, status])
+  @@map("testing_periods")
+}
+
+model MentorReport {
+  id String @id @default(cuid())
+
+  testingPeriodId String
+  authorId String
+
+  type MentorReportType // POSITIVE, NEGATIVE, NEUTRAL
+  content String
+  createdAt DateTime @default(now())
+
+  testingPeriod TestingPeriod @relation(fields: [testingPeriodId], references: [id], onDelete: Cascade)
+  author StaffMember @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([testingPeriodId])
+  @@map("mentor_reports")
+}
+
+model StaffResignation {
+  id               String            @id @default(cuid())
+  guildId          String
+  staffUserId      String            // ID du StaffMember (clé primaire cuid)
+  reason           String
+  status           ResignationStatus @default(PENDING)
+
+  decisionByUserId String?           // ID Discord du manager
+  decisionNote     String?
+  decidedAt        DateTime?
+
+  discordMpMessageId String?         // ID du message MP Discord envoyé au membre lors de la soumission
+  ticketChannelId    String?         // ID du salon ticket Discord ouvert pour la discussion
+
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  guild            Guild             @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  staffMember      StaffMember       @relation(fields: [staffUserId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, status])
+  @@map("staff_resignations")
+}

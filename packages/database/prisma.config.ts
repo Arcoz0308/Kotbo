@@ -20,7 +20,7 @@ if (!process.env.DATABASE_URL && existsSync(envPath)) {
 }
 
 export default {
-  schema: './prisma/schema.prisma',
+  schema: './prisma',
   migrations: {
     path: './prisma/migrations',
     seed: 'bun run prisma/seed.ts',

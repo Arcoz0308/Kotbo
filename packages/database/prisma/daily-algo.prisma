@@ -1,0 +1,87 @@
+enum DailyAlgoSubmissionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model DailyAlgoProblem {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  solution    String
+  difficulty  String   @default("moyen") // facile, moyen, difficile
+  language    String   @default("fr")
+  functionName String?
+  functionArgs Json?
+  unitTests Json?
+  allowedLanguages String[] @default(["javascript"])
+  usedAt      DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  runs DailyAlgoRun[]
+
+  @@map("daily_algo_problems")
+  @@index([language])
+  @@index([language, usedAt])
+}
+
+model DailyAlgoRun {
+  id String @id @default(cuid())
+
+  guildId String
+  dateKey String?
+  problemId String
+
+  challengeChannelId String
+  validationChannelId String?
+  challengeMessageId String?
+  leaderboardMessageId String?
+  summarySentAt DateTime?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  problem DailyAlgoProblem @relation(fields: [problemId], references: [id])
+  submissions DailyAlgoSubmission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("daily_algo_runs")
+  @@index([guildId, createdAt])
+  @@unique([guildId, dateKey])
+}
+
+model DailyAlgoSubmission {
+  id String @id @default(cuid())
+
+  runId String
+  authorId String
+  authorName String
+  solution String
+
+  status DailyAlgoSubmissionStatus @default(PENDING)
+  validationMessageId String?
+  validatedById String?
+  validatedAt DateTime?
+
+  submittedAt DateTime @default(now())
+  speedRank Int?
+  speedBonusPoints Float?
+
+  scoreCorrectness Int?
+  scoreComments Int?
+  scoreCompactness Int?
+  scoreOptimization Int?
+  scoreReadability Int?
+  scoreFinal Float?
+  reviewFeedback String?
+
+  run DailyAlgoRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("daily_algo_submissions")
+  @@index([runId, status])
+  @@index([authorId])
+}

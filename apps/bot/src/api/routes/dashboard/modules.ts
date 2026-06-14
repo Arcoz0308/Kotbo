@@ -1872,6 +1872,7 @@ export async function handleModulesRoutes(
         regulationVerificationEnabled?: boolean;
         regulationRoleId?: string | null;
         regulationLockEnabled?: boolean;
+        sanctionReportEnabled?: boolean;
       }>(req);
 
       if (!body) {

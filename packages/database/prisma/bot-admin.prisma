@@ -1,0 +1,50 @@
+// ============================================================================
+// SYSTEME D'ADMINISTRATION GLOBALE
+// ============================================================================
+
+model GlobalAdmin {
+  userId String @id
+  addedBy String
+  createdAt DateTime @default(now())
+
+  @@map("global_admins")
+}
+
+model ActivationCode {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  createdAt     DateTime  @default(now())
+  createdById   String
+  usedAt        DateTime?
+  usedByGuildId String?   @unique
+  isActive      Boolean   @default(true)
+
+  @@map("activation_codes")
+}
+
+model GlobalBlacklist {
+  userId String @id
+  reason String?
+  addedBy String
+  createdAt DateTime @default(now())
+
+  @@map("global_blacklist")
+}
+
+model BotErrorLog {
+  id String @id @default(cuid())
+  message String
+  stack String?
+  source String? // ex: "Command /algo", "Event messageCreate"
+  createdAt DateTime @default(now())
+
+  @@map("bot_error_logs")
+}
+
+model BotGlobalConfig {
+  key String @id // ex: "MAINTENANCE_MODE"
+  value String // JSON stringified value
+  updatedAt DateTime @updatedAt
+
+  @@map("bot_global_config")
+}

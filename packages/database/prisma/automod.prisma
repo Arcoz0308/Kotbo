@@ -1,0 +1,52 @@
+model BannedWord {
+  id       String  @id @default(cuid())
+  guildId  String? // null = global (visible par tous les serveurs, read-only dashboard)
+  word     String
+  category String  @default("custom") // custom | racism | threat | sexual | lgbtphobia | etc.
+  enabled  Boolean @default(true)
+
+  guild Guild? @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, word])
+  @@index([guildId, enabled])
+  @@map("banned_words")
+}
+
+
+model AutoModConfig {
+  guildId              String   @id
+  spamEnabled          Boolean  @default(false)
+  spamLimit            Int      @default(5)     // Max messages in interval
+  spamIntervalSeconds  Int      @default(5)
+  spamAction           String   @default("TIMEOUT") // WARN, TIMEOUT
+
+  linksEnabled         Boolean  @default(false)
+  linksAction          String   @default("DELETE_AND_WARN")
+  linksWhitelist       String[] @default([]) // Whitelisted domains
+
+  capsEnabled          Boolean  @default(false)
+  capsThresholdPercent Int      @default(80)
+  capsMinLength        Int      @default(10)
+
+  emojisEnabled        Boolean  @default(false)
+  emojisLimit          Int      @default(10)
+
+  mentionsEnabled      Boolean  @default(false)
+  mentionsLimit        Int      @default(5)
+
+  ghostPingEnabled     Boolean  @default(false)
+  ghostPingAction      String   @default("ALERT")   // ALERT, WARN
+
+  antiEveryoneEnabled  Boolean  @default(false)
+  antiEveryoneAction   String   @default("DELETE_AND_WARN")
+
+  bypassRoles          String[] @default([])
+  bypassChannels       String[] @default([])
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("automod_configs")
+}

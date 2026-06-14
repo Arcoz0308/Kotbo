@@ -1,0 +1,320 @@
+enum DigestFrequency {
+  DAILY
+  WEEKLY
+}
+
+
+model Guild {
+  id String @id
+  propagateSanctions Boolean @default(false)
+
+
+  configChannelId String?
+  regulationChannelId String?
+  regulationMessageId String?
+  regulationVerificationEnabled Boolean @default(false)
+  regulationRoleId             String?
+  regulationLockEnabled        Boolean @default(false)
+  publicChannelId String?
+  digestChannelId String?
+  meetingAnnouncementChannelId String?
+  meetingVoiceChannelId String?
+
+
+
+  moderatorRoleId   String?
+  baseStaffRoleId   String?
+  testStaffRoleId   String?
+
+  recruitmentCategoryId  String?
+  recruitmentLogChannelId String?
+
+  digestEnabled    Boolean         @default(false)
+  digestFrequency  DigestFrequency @default(DAILY)
+  digestTime       String          @default("08:00") // HH:MM
+  digestCount      Int             @default(10)
+  digestRoleId     String?
+  digestCustomText String?
+
+  translationEnabled Boolean @default(false)
+  defaultTranslateTo String  @default("FR")
+
+  globalIncludeKeywords String[] @default([])
+  globalExcludeKeywords String[] @default([])
+  globalIgnoredKeywords String[] @default([])
+  preferencesMigrated Boolean @default(false)
+
+  codePoliceEnabled        Boolean @default(false)
+  codePoliceRules          CodePoliceRule[]
+
+  autoNicknameModerationEnabled Boolean   @default(false)
+  nicknameModerationWhitelist  String[]  @default([])
+  nicknameModerationBypass     String[]  @default([])
+  nickModOnJoin                Boolean   @default(true)
+  nickModOnUpdate              Boolean   @default(true)
+  nickModCheckInvisible        Boolean   @default(true)
+  nickModCheckGlobal           Boolean   @default(true)
+  nickModCheckCustom           Boolean   @default(true)
+  bannedWords              BannedWord[]
+
+  dailyAlgoEnabled         Boolean @default(false)
+  dailyAlgoChannelId       String?
+  dailyAlgoValidationChannelId String?
+  dailyAlgoTime            String  @default("09:00") // HH:MM
+
+  githubReleasesEnabled    Boolean @default(false)
+  githubReleasesChannelId  String?
+  githubRepositories       String[] @default(["facebook/react", "docker/compose", "microsoft/typescript", "vercel/next.js", "sveltejs/svelte"])
+
+  statusCheckChannelId     String?
+  logChannelId             String?
+
+  youtubeEnabled           Boolean @default(false)
+  youtubeChannelId         String?
+  nathanChannelId          String?
+  youtubeShortRoleId       String?
+  youtubeVideoRoleId       String?
+
+  // Configuration de la modération du personnel
+  warnsToDemote               Int      @default(3)
+  warnsToBlacklist            Int      @default(5)
+  blacklistPermanentByDefault Boolean  @default(false)
+  actionMode                  String   @default("MANUAL") // AUTO, MANUAL
+  demoteRemoveAllRoles        Boolean  @default(false)
+
+  sanctionSyncEnabled      Boolean @default(false)
+  sanctionReportEnabled    Boolean @default(true)
+  sanctionAlertChannelId   String?
+  newsChannelId            String?
+
+  activated                Boolean   @default(false)
+  activatedAt              DateTime?
+  activationCode           String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberLevels MemberLevel[]
+  levelRoleRewards LevelRoleReward[]
+  levelConfig LevelConfig?
+  giveaways Giveaway[]
+  welcomeConfig WelcomeConfig?
+  reactionRoleMenus ReactionRoleMenu[]
+  autoResponses AutoResponse[]
+  autoModConfig AutoModConfig?
+  suggestions Suggestion[]
+
+  newsArticles NewsArticle[]
+  newsCategoryConfigs NewsCategoryConfig[]
+  dailyAlgoRuns DailyAlgoRun[]
+  dashboardSettings DashboardSettings?
+  dashboardAuditLogs DashboardAuditLog[]
+  sanctions Sanction[]
+  sanctionReports SanctionReport[]
+  regulationArticles GuildRegulationArticle[]
+  memberProfiles MemberProfile[]
+  staffMembers StaffMember[] @relation("GuildStaffMembers")
+  staffRoles StaffRole[] @relation("GuildStaffRoles")
+  staffHierarchies StaffHierarchy[] @relation("GuildStaffHierarchies")
+  chiefStaffRoleId String?   // Rôle Discord du Resp Staff global
+  chiefStaffUserId String?   // UserId Discord du Resp Staff actuel
+  staffAbsences StaffAbsence[]
+  staffMeetings StaffMeeting[]
+  staffManagerNotes StaffManagerNote[]
+  staffPolls StaffPoll[]
+  staffResignations StaffResignation[]
+  staffProcedures StaffProcedure[]
+  candidatures RecruitmentCandidature[]
+  recruitmentForms RecruitmentForm[]
+  notifications Notification[]
+  guildDailyStats GuildDailyStat[]
+  guildHourlyStats GuildHourlyStat[]
+  channelDailyStats ChannelDailyStat[]
+  memberDailyStats MemberDailyStat[]
+  memberInvites MemberInvite[]
+  guildInvites  GuildInvite[]
+  suspendedInviters SuspendedInviter[]
+  linkedAccounts LinkedAccount[]
+  youtubeFollows YoutubeChannelFollow[]
+  twitchFollows TwitchChannelFollow[]
+  feeds Feed[]
+
+  tutoringConfig TutoringConfig?
+  tutoringItems TutoringItem[]
+  dashboardFeatureConfigs DashboardFeatureConfig[]
+  logEventConfigs GuildLogEventConfig[]
+  events Event[]
+  moduleActivationStats ModuleActivationStat[]
+  moduleUsageStats ModuleUsageStat[]
+  modulePerformanceStats ModulePerformanceStat[]
+
+  ticketCategoryId       String?
+  ticketLogChannelId     String?
+  ticketStaffRoleId      String?
+  ticketChannelId        String?
+  ticketEmbedTitle       String   @default("Support Technique")
+  ticketEmbedDesc        String   @default("Cliquez sur le bouton ci-dessous pour ouvrir un ticket d'assistance.")
+  ticketEmbedButtonText  String   @default("Ouvrir un ticket")
+  ticketEmbedColor       String   @default("#5865F2")
+  ticketEmbedType        String   @default("BUTTONS") // "BUTTONS" or "DROPDOWN"
+  ticketTypes             Json?
+  ticketAllowOverclaim        Boolean  @default(true)
+  ticketOverclaimPermission   String   @default("ANY") // "ANY", "SUPERIOR_OR_EQUAL", "NONE"
+  ticketInactivityEnabled     Boolean  @default(false)
+  ticketInactivityHours       Int      @default(24)
+  ticketInactivityMessage     String   @default("Bonjour {user}, votre ticket est inactif depuis un moment. N'hésitez pas à y répondre si vous avez toujours besoin d'aide !")
+  tickets                Ticket[]
+
+  autoThreadEnabled  Boolean   @default(false)
+  autoThreadChannels String[]  @default([])
+  autoThreadBotsEnabled Boolean @default(false)
+
+  // Statistics Channels
+  statsEnabled            Boolean  @default(false)
+  statsConfig             Json?
+
+  // Temporary Voice Channels
+  tempVoiceEnabled        Boolean  @default(false)
+  tempVoiceChannelId      String?
+  tempVoiceCategoryId     String?
+  tempVoiceNameTemplate   String   @default("🔊 Salon de {user}")
+
+  // Honeypot trap channel
+  honeypotEnabled         Boolean  @default(false)
+  honeypotChannelId       String?
+  honeypotSanction        SanctionType @default(TIMEOUT)
+  honeypotReinvite        Boolean  @default(false)
+
+  // Backup system
+  backups ServerBackup[]
+  scheduledTasks ScheduledTask[]
+
+  // Fun Channels configuration
+  funEnabled               Boolean  @default(false)
+  funCountingChannelId     String?
+  funOneWordStoryChannelId String?
+  funGuessNumberChannelId  String?
+  funGameState             FunGameState?
+
+  @@map("guilds")
+}
+
+model GuildRegulationArticle {
+  id String @id @default(cuid())
+
+  guildId String
+  title String
+  description String
+  emoji String?
+  sortOrder Int @default(0)
+  enabled Boolean @default(true)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("guild_regulation_articles")
+  @@index([guildId, enabled, sortOrder])
+}
+
+
+
+model MemberProfile {
+  id String @id @default(cuid())
+
+  guildId String
+  userId String
+
+  userTag String?
+  username String?
+  globalName String?
+  displayName String?
+  avatarUrl String?
+  bannerUrl String?
+  accentColor Int?
+  locale String?
+  isBot Boolean @default(false)
+  bio String?
+  isProfilePrivate Boolean @default(false)
+
+  accountCreatedAt DateTime?
+  guildJoinedAt DateTime?
+  guildLeftAt DateTime?
+  firstSeenAt DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  lastMessageAt DateTime?
+  lastMessageChannelId String?
+  messageCount Int @default(0)
+
+  voiceSessionCount Int @default(0)
+  voiceTimeSeconds Int @default(0)
+  voiceLastChannelId String?
+  voiceLastJoinedAt DateTime?
+  voiceLastLeftAt DateTime?
+
+  rolesSnapshot String[] @default([])
+
+  isSuspectedDC Boolean @default(false)
+
+  moderatorNote String?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  eventParticipations EventParticipant[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, userId])
+  @@index([guildId, lastSeenAt])
+  @@index([guildId, guildJoinedAt])
+  @@map("member_profiles")
+}
+
+
+model WelcomeConfig {
+  guildId        String  @id
+  welcomeEnabled Boolean @default(false)
+  welcomeChannelId String?
+  welcomeMessage String  @default("Bienvenue {user} sur notre serveur ! 🎉")
+  welcomeImageEnabled Boolean @default(false)
+  welcomeImageUrl String?
+
+  leaveEnabled   Boolean @default(false)
+  leaveChannelId String?
+  leaveMessage   String  @default("Au revoir {user}... 😢")
+
+  // Custom Boost Announcement
+  boostEnabled      Boolean @default(false)
+  boostChannelId    String?
+  boostMessage      String  @default("Merci pour ton boost {user} ! 🚀")
+  boostImageEnabled Boolean @default(false)
+  boostImageUrl     String?
+
+  // Auto Role
+  joinRoleId         String?
+  tagAutoRoleEnabled Boolean @default(false)
+  tagAutoRoleWord    String  @default("")
+  tagAutoRoleId      String?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("welcome_configs")
+}
+
+model GuildLogEventConfig {
+  id        String   @id @default(cuid())
+  guildId   String
+  eventType String   // ex: "message_delete", "voice_activity", etc.
+  enabled   Boolean  @default(true)
+  channelId String?  // Salon Discord spécifique (null = salon par défaut)
+
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, eventType])
+  @@map("guild_log_event_configs")
+}

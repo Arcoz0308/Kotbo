@@ -1,0 +1,180 @@
+model StaffMember {
+  id String @id @default(cuid())
+
+  guildId String
+  userId String
+
+  grade String @default("Staff")
+  joinedStaffAt DateTime @default(now())
+  currentRoleStartedAt DateTime @default(now())
+
+  userTag String?
+  username String?
+  displayName String?
+  avatarUrl String?
+
+  guild Guild @relation("GuildStaffMembers", fields: [guildId], references: [id], onDelete: Cascade)
+  warnings StaffWarning[]
+  blacklistEntries StaffBlacklist[]
+  testingPeriods TestingPeriod[] @relation("StaffMemberTestingPeriods")
+  mentoredMembers TestingPeriod[] @relation("StaffMemberMentor")
+  mentorReports MentorReport[]
+  apiKeys APIKey[]
+  activities StaffActivity[]
+  absences StaffAbsence[]
+  meetingPresences StaffMeetingPresence[]
+  managerNotesAbout StaffManagerNote[] @relation("ManagerNotesAbout")
+  managerNotesWritten StaffManagerNote[] @relation("ManagerNotesWritten")
+  pollsCreated StaffPoll[]
+  pollVotes StaffPollVote[]
+  procedureReads StaffProcedureRead[]
+  voiceSessions StaffVoiceSession[]
+  resignations StaffResignation[]
+  hierarchyGrades StaffMemberHierarchyGrade[]
+
+  isTutor Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, userId])
+  @@index([guildId, grade])
+  @@index([guildId, joinedStaffAt])
+  @@map("staff_members")
+}
+
+
+model StaffRole {
+  id String @id @default(cuid())
+
+  guildId String
+  name String
+  level Int @default(0) // 0 = Helper, 1 = Mod, etc.
+  discordRoleId String?
+  color String? // Couleur optionnelle
+  sortOrder Int @default(0)
+  enabled Boolean @default(true)
+  hierarchyId String? // null = hiérarchie par défaut (rétrocompat)
+  isResponsable Boolean @default(false) // Ce rôle est au sommet de sa hiérarchie
+
+  guild Guild @relation("GuildStaffRoles", fields: [guildId], references: [id], onDelete: Cascade)
+  hierarchy StaffHierarchy? @relation("HierarchyRoles", fields: [hierarchyId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, name])
+  @@index([guildId, level])
+  @@index([guildId, hierarchyId])
+  @@map("staff_roles")
+}
+
+// ============================================================================
+// HIÉRARCHIES MULTIPLES STAFF
+// ============================================================================
+
+model StaffHierarchy {
+  id          String  @id @default(cuid())
+  guildId     String
+  name        String  // ex: "Modération", "Animation"
+  description String?
+  color       String? // Couleur hex pour le schéma visuel
+  icon        String? // Emoji ou icône
+  sortOrder   Int     @default(0)
+  parentHierarchyId String? // Hiérarchie supérieure (null = racine)
+  responsableUserId String? // Discord userId du responsable de cette hiérarchie
+  discordRoleId String?     // Rôle Discord du responsable (optionnel)
+  enabled     Boolean @default(true)
+
+  guild  Guild       @relation("GuildStaffHierarchies", fields: [guildId], references: [id], onDelete: Cascade)
+  parentHierarchy StaffHierarchy? @relation("HierarchyParent", fields: [parentHierarchyId], references: [id], onDelete: SetNull)
+  childrenHierarchies StaffHierarchy[] @relation("HierarchyParent")
+  roles  StaffRole[] @relation("HierarchyRoles")
+  memberGrades StaffMemberHierarchyGrade[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, name])
+  @@index([guildId, sortOrder])
+  @@index([guildId, parentHierarchyId])
+  @@map("staff_hierarchies")
+}
+
+model StaffMemberHierarchyGrade {
+  id            String   @id @default(cuid())
+  staffMemberId String
+  hierarchyId   String
+  grade         String   // Nom du grade dans cette hiérarchie
+  joinedAt      DateTime @default(now())
+
+  staffMember StaffMember    @relation(fields: [staffMemberId], references: [id], onDelete: Cascade)
+  hierarchy   StaffHierarchy @relation(fields: [hierarchyId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([staffMemberId, hierarchyId])
+  @@index([hierarchyId])
+  @@map("staff_member_hierarchy_grades")
+}
+
+
+model APIKey {
+  id String @id @default(cuid())
+
+  guildId String
+  createdByUserId String
+  keyHash String @unique // SHA256 du vrai clé
+  displayKey String @unique // Les premiers/derniers 8 chars pour affichage (format: aab...xyz)
+
+  name String @default("Mon clé API")
+  permissions String[] @default(["daily_algo:create_exercise"]) // permissions supportées
+  isActive Boolean @default(true)
+  lastUsedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdBy StaffMember @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, createdByUserId])
+  @@map("api_keys")
+}
+
+model StaffActivity {
+  id String @id @default(cuid())
+
+  guildId String
+  staffUserId String
+
+  activityDate DateTime // Date de l'activité (format: YYYY-MM-DD)
+  messageCount Int @default(0)
+  voiceMinutes Int @default(0)
+
+  staffMember StaffMember @relation(fields: [staffUserId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, staffUserId, activityDate])
+  @@index([guildId, activityDate])
+  @@map("staff_activities")
+}
+
+model StaffVoiceSession {
+  id String @id @default(cuid())
+  guildId String
+  staffUserId String
+  channelId String
+  channelName String?
+  joinedAt DateTime
+  leftAt DateTime?
+  durationSeconds Int?
+
+  staffMember StaffMember @relation(fields: [staffUserId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, staffUserId])
+  @@index([joinedAt])
+  @@map("staff_voice_sessions")
+}
