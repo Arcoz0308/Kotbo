@@ -2,7 +2,7 @@ import { type Client, PermissionFlagsBits } from 'discord.js';
 import { logger } from '../utils/logger.js';
 import { getCachedGuild } from '../utils/cache.js';
 
-export function invalidateAutoThreadCache(guildId?: string): void {
+export function invalidateAutoThreadCache(_guildId?: string): void {
   // Handled by the central cache invalidation
 }
 
@@ -32,7 +32,9 @@ export function registerAutoThreadListener(client: Client): void {
         return;
       }
 
-      if (message.author.bot && !config.botsEnabled) {
+      // Si c'est un bot autre que Kotbo lui-même, on vérifie si la création automatique est activée pour les bots.
+      // Kotbo lui-même doit pouvoir créer des fils sur ses propres messages (comme les suggestions ou annonces).
+      if (message.author.bot && message.author.id !== client.user?.id && !config.botsEnabled) {
         return;
       }
 
@@ -48,9 +50,24 @@ export function registerAutoThreadListener(client: Client): void {
       }
 
       // Build thread name
-      const rawName = message.content ? message.content.replace(/[\n\r]+/g, ' ').trim() : '';
+      let rawName = message.content ? message.content.replace(/[\n\r]+/g, ' ').trim() : '';
+      let authorName = message.member?.displayName || message.author.displayName || message.author.username;
+
+      // Si le message est vide mais contient un embed (ex: suggestion ou annonce de Kotbo), on extrait le titre/description et l'auteur de l'embed
+      if (!rawName && message.embeds && message.embeds.length > 0) {
+        const embed = message.embeds[0];
+        if (embed.description) {
+          rawName = embed.description.replace(/[\n\r]+/g, ' ').trim();
+        } else if (embed.title) {
+          rawName = embed.title.replace(/[\n\r]+/g, ' ').trim();
+        }
+
+        if (embed.author?.name) {
+          authorName = embed.author.name;
+        }
+      }
+
       const cleanContent = rawName.substring(0, 40);
-      const authorName = message.member?.displayName || message.author.displayName || message.author.username;
       const threadName = cleanContent 
         ? `Fil de ${authorName} - ${cleanContent}...` 
         : `Fil de ${authorName}`;
