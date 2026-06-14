@@ -21,6 +21,7 @@
   import RolePermissionSettings from '../lib/components/RolePermissionSettings.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
+import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
 
   type RegulationRule = {
@@ -834,7 +835,10 @@
         </div>
         <div class="space-y-2">
           <label for="regulation-emoji" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60 ml-1">Emoji (Optionnel)</label>
-          <FormInput id="regulation-emoji" type="text" bind:value={draftEmoji} className="w-full rounded-2xl px-5 py-4 bg-surface-container-high/60 border border-outline-variant/10 font-bold text-on-surface focus:ring-2 focus:ring-primary/40 transition-all" placeholder="📌 ou <:custom:123>" />
+          <div class="flex gap-2">
+            <FormInput id="regulation-emoji" type="text" bind:value={draftEmoji} className="w-full rounded-2xl px-5 py-4 bg-surface-container-high/60 border border-outline-variant/10 font-bold text-on-surface focus:ring-2 focus:ring-primary/40 transition-all" placeholder="📌 ou <:custom:123>" />
+            <EmojiPicker bind:value={draftEmoji} />
+          </div>
         </div>
         <div class="md:col-span-2">
           <label class="group flex items-center gap-4 rounded-4xl border border-outline-variant/10 bg-surface-container-high/40 p-6 cursor-pointer hover:bg-surface-container-high/60 transition-all">

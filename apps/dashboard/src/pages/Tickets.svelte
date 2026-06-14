@@ -20,6 +20,7 @@
   import FormColorPicker from '../lib/components/FormColorPicker.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
+  import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
   // Navigation & Tabs
   let activeTab = $state<'tickets' | 'transcripts' | 'config'>('tickets');
@@ -1238,7 +1239,10 @@
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <label class="block">
                   <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Emoji du bouton</span>
-                  <FormInput type="text" bind:value={ticketType.emoji} placeholder="📩" className="w-full" />
+                  <div class="flex gap-2">
+                    <FormInput type="text" bind:value={ticketType.emoji} placeholder="📩" className="w-full" />
+                    <EmojiPicker bind:value={ticketType.emoji} />
+                  </div>
                 </label>
 
                 <label class="block">

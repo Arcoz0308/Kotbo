@@ -37,6 +37,7 @@
   import Chart from '../lib/components/charts/Chart.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import OrgChart from '../lib/components/OrgChart.svelte';
+import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
 
   let guildId = $state<string | null>(null);
@@ -2877,7 +2878,10 @@
           </div>
           <div>
             <label for="hierarchy-icon" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Emoji / Icone</label>
-            <input id="hierarchy-icon" type="text" bind:value={newHierarchyIcon} placeholder="🔵, 🛡️, 🎭..." class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
+            <div class="flex gap-2">
+              <input id="hierarchy-icon" type="text" bind:value={newHierarchyIcon} placeholder="🔵, 🛡️, 🎭..." class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
+              <EmojiPicker bind:value={newHierarchyIcon} />
+            </div>
           </div>
         </div>
 

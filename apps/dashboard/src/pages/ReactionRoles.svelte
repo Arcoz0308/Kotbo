@@ -8,6 +8,7 @@
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
   import { fetchReactionRoleMenus, createReactionRoleMenu, deleteReactionRoleMenu } from '../lib/api';
+import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
   const actionState = createAsyncActionState();
   let loading = $state(false);
@@ -336,7 +337,7 @@
             </button>
           </div>
 
-          <div class="grid grid-cols-[64px_1.2fr_1.8fr_48px] gap-3 px-3 text-[9px] font-black uppercase text-on-surface-variant/50 tracking-wider select-none">
+          <div class="grid grid-cols-[110px_1.2fr_1.8fr_48px] gap-3 px-3 text-[9px] font-black uppercase text-on-surface-variant/50 tracking-wider select-none">
             <div>Émoji</div>
             <div>Libellé bouton</div>
             <div>Rôle associé</div>
@@ -345,16 +346,19 @@
 
           <div class="space-y-2.5 max-h-[220px] overflow-y-auto pr-1 scrollbar-thin">
             {#each formOptions as opt, idx}
-              <div class="grid grid-cols-[64px_1.2fr_1.8fr_48px] gap-3 items-center p-2.5 rounded-2xl bg-surface-container-high/20 border border-outline-variant/5 hover:bg-surface-container-high/40 transition-colors duration-150">
+              <div class="grid grid-cols-[110px_1.2fr_1.8fr_48px] gap-3 items-center p-2.5 rounded-2xl bg-surface-container-high/20 border border-outline-variant/5 hover:bg-surface-container-high/40 transition-colors duration-150">
                 <!-- Emoji input -->
-                <input
-                  id={`modal-emoji-${idx}`}
-                  type="text"
-                  bind:value={opt.emoji}
-                  placeholder="📢"
-                  class="w-full text-center bg-surface-container-high/45 border border-outline-variant/10 rounded-xl px-1.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all text-on-surface"
-                  disabled={!canManageSettings}
-                />
+                <div class="flex gap-1 items-center">
+                  <input
+                    id={`modal-emoji-${idx}`}
+                    type="text"
+                    bind:value={opt.emoji}
+                    placeholder="📢"
+                    class="w-12 text-center bg-surface-container-high/45 border border-outline-variant/10 rounded-xl py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all text-on-surface"
+                    disabled={!canManageSettings}
+                  />
+                  <EmojiPicker bind:value={opt.emoji} disabled={!canManageSettings} />
+                </div>
 
                 <!-- Label input -->
                 <input

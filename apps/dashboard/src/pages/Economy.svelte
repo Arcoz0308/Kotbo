@@ -7,6 +7,7 @@
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
+import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   import {
     fetchEconomyConfig,
     updateEconomyConfig,
@@ -371,7 +372,10 @@
 
             <div class="space-y-1.5">
               <label for="curEmoji" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Emoji de la monnaie</label>
-              <input id="curEmoji" type="text" bind:value={config.currencyEmoji} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:outline-none" disabled={!canManageSettings} />
+              <div class="flex gap-2">
+                <input id="curEmoji" type="text" bind:value={config.currencyEmoji} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:outline-none" disabled={!canManageSettings} />
+                <EmojiPicker bind:value={config.currencyEmoji} disabled={!canManageSettings} />
+              </div>
             </div>
 
             <!-- Currency Image Upload -->
@@ -731,7 +735,10 @@
           </div>
           <div class="space-y-1">
             <label for="itemEmoji" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">Emoji</label>
-            <input id="itemEmoji" type="text" bind:value={editingItem.emoji} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-2.5 text-xs focus:outline-none" />
+            <div class="flex gap-2">
+              <input id="itemEmoji" type="text" bind:value={editingItem.emoji} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-2.5 text-xs focus:outline-none" />
+              <EmojiPicker bind:value={editingItem.emoji} />
+            </div>
           </div>
         </div>
 
