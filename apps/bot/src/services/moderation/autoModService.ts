@@ -26,11 +26,11 @@ export async function getOrCreateAutoModConfig(guildId: string) {
       where: { guildId },
     });
 
-    if (!config) {
+if (!config) {
       config = await prisma.autoModConfig.create({
         data: {
           guildId,
-          discordAutoModEnabled: false,
+          discordAutoModEnabled: true,
           spamEnabled: false,
           spamLimit: 5,
           spamIntervalSeconds: 5,
