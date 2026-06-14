@@ -224,7 +224,7 @@
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {#each filteredModules as module}
           <div 
-            class="group relative bg-surface-container-low/30 rounded-[2.5rem] border border-outline-variant/10 p-7 hover:bg-surface-container-low transition-all duration-500 hover:shadow-2xl hover:shadow-surface/20"
+            class="group relative bg-surface-container-low/30 rounded-[2.5rem] border border-outline-variant/10 p-7 hover:bg-surface-container-low transition-all duration-500 hover:shadow-2xl hover:shadow-surface/20 {module.status === 'inactive' ? 'opacity-65 grayscale' : ''}"
             in:fly={{ y: 20, duration: 400 }}
           >
             <!-- Status Badge -->

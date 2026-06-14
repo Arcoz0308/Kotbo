@@ -21,12 +21,12 @@
       track: 'w-14 h-7',
       knob: 'after:top-[4px] after:left-[4px] after:h-5 after:w-5'
     }
-  };
+  } as Record<string, { track: string; knob: string }>;
 
   const selectedSize = $derived(sizeClasses[size] || sizeClasses.md);
 </script>
 
-<label class="relative inline-flex items-center cursor-pointer">
+<label class="relative inline-flex items-center {disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}">
   <input
     {id}
     type="checkbox"

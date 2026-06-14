@@ -33,6 +33,7 @@ class DashboardStore {
     autoThreadEnabled: false,
     autoThreadChannels: [] as string[],
     funEnabled: false,
+    economyEnabled: false,
     funCountingChannelId: '',
     funOneWordStoryChannelId: '',
     funGuessNumberChannelId: '',
@@ -147,6 +148,7 @@ class DashboardStore {
         this.state.autoThreadEnabled = data.autoThreadEnabled || false;
         this.state.autoThreadChannels = data.autoThreadChannels || [];
         this.state.funEnabled = data.funEnabled || false;
+        this.state.economyEnabled = data.economyEnabled || false;
         this.state.funCountingChannelId = data.funCountingChannelId || '';
         this.state.funOneWordStoryChannelId = data.funOneWordStoryChannelId || '';
         this.state.funGuessNumberChannelId = data.funGuessNumberChannelId || '';

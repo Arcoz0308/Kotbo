@@ -77,6 +77,17 @@
     return currentGuild?.accessLevel !== 'none';
   };
 
+  const isModuleDisabled = (featureKey?: string): boolean => {
+    if (!featureKey) return false;
+    if (featureKey === 'economy') return !dashboardStore.state.economyEnabled;
+    if (featureKey === 'fun') return !dashboardStore.state.funEnabled;
+    if (featureKey === 'daily_algo') return !dashboardStore.state.dailyAlgoEnabled;
+    if (featureKey === 'auto_thread') return !dashboardStore.state.autoThreadEnabled;
+    if (featureKey === 'translation') return !dashboardStore.state.translationEnabled;
+    if (featureKey === 'codepolice') return !dashboardStore.state.codePoliceEnabled;
+    return false;
+  };
+
   const isAdmin      = $derived(currentGuild?.accessLevel === 'admin');
   const isModerator  = $derived(currentGuild?.accessLevel === 'moderator');
   const isTutor      = $derived(dashboardStore.state.isTutor);
@@ -413,6 +424,7 @@
               {isActiveNavItem(item.href)
                 ? 'text-primary bg-primary/8'
                 : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container/60'}
+              {isModuleDisabled(item.featureKey) ? 'opacity-50 grayscale' : ''}
             "
           >
             {#if isActiveNavItem(item.href)}
@@ -482,6 +494,7 @@
                   {isActiveNavItem(item.href)
                     ? 'text-primary bg-primary/7 font-semibold'
                     : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container/50'}
+                  {isModuleDisabled(item.featureKey) ? 'opacity-50' : ''}
                 "
               >
                 {#if isActiveNavItem(item.href)}
