@@ -22,6 +22,7 @@
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
 
   let config = $state({
+    discordAutoModEnabled: false,
     spamEnabled: false,
     spamLimit: 5,
     spamIntervalSeconds: 5,
@@ -53,6 +54,7 @@
 
   // Snapshot of last-saved state
   let savedConfig = $state(JSON.parse(JSON.stringify({
+    discordAutoModEnabled: false,
     spamEnabled: false, spamLimit: 5, spamIntervalSeconds: 5, spamAction: 'TIMEOUT',
     linksEnabled: false, linksAction: 'DELETE_AND_WARN', linksWhitelist: [],
     capsEnabled: false, capsThresholdPercent: 80, capsMinLength: 10,
@@ -189,6 +191,26 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <!-- Left Column: Filters -->
       <div class="space-y-8">
+        <!-- Intégration AutoMod Discord Native -->
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
+          <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
+            <h3 class="text-lg font-black flex items-center gap-3">
+              <Papicon icon="ShieldAlert" size={20} class="text-primary" />
+              Intégration AutoMod Discord (Natif)
+            </h3>
+            <ToggleSwitch 
+              checked={config.discordAutoModEnabled} 
+              onToggle={(v: boolean) => config.discordAutoModEnabled = v} 
+              disabled={!canManageSettings}
+            />
+          </div>
+          <p class="text-xs text-on-surface-variant/70 leading-relaxed">
+            Synchronise automatiquement vos filtres de sécurité (Spam, Mentions et Liens) directement avec le système de modération natif de Discord.
+            <br />
+            <span class="text-primary font-semibold">✨ Indispensable pour qualifier Kotbo pour le badge Discord "Utilise AutoMod".</span>
+          </p>
+        </section>
+
         <!-- Anti-Spam -->
         <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
           <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">

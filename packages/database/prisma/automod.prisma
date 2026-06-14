@@ -18,6 +18,7 @@ model BannedWord {
 
 model AutoModConfig {
   guildId              String   @id
+  discordAutoModEnabled Boolean  @default(false)
   spamEnabled          Boolean  @default(false)
   spamLimit            Int      @default(5)     // Max messages in interval
   spamIntervalSeconds  Int      @default(5)

@@ -1,4 +1,4 @@
-import { Message, MessageFlags, PermissionFlagsBits, ChannelType, EmbedBuilder, Client, PartialMessage, User, Role, Collection, AuditLogEvent } from 'discord.js';
+import { Message, PermissionFlagsBits, EmbedBuilder, Client, PartialMessage, User, Role, Collection, AuditLogEvent, AutoModerationRuleTriggerType, AutoModerationRuleEventType, AutoModerationActionType } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { registerWarnSanction, registerTimeoutSanction } from './sanctionService.js';
@@ -30,6 +30,7 @@ export async function getOrCreateAutoModConfig(guildId: string) {
       config = await prisma.autoModConfig.create({
         data: {
           guildId,
+          discordAutoModEnabled: false,
           spamEnabled: false,
           spamLimit: 5,
           spamIntervalSeconds: 5,
@@ -53,6 +54,216 @@ export async function getOrCreateAutoModConfig(guildId: string) {
     autoModConfigsCache.set(guildId, config);
   }
   return config;
+}
+
+/**
+ * Synchronise les configurations AutoMod avec les règles natives de Discord
+ */
+export async function syncDiscordAutoModRules(client: Client, guildId: string, config: any) {
+  try {
+    const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+    if (!guild) {
+      logger.warn('AutoModService', `Impossible de synchroniser les règles AutoMod : Serveur ${guildId} introuvable ou inaccessible par le bot.`);
+      return;
+    }
+
+    const existingRules = await guild.autoModerationRules.fetch().catch((err) => {
+      logger.warn('AutoModService', `Impossible de récupérer les règles AutoMod pour ${guild.name} (${guildId}) :`, err);
+      return null;
+    });
+
+    if (!existingRules) return;
+
+    // Récupérer le logChannelId de la guilde depuis la base de données
+    const guildDb = await prisma.guild.findUnique({
+      where: { id: guildId },
+      select: { logChannelId: true }
+    });
+    const logChannelId = guildDb?.logChannelId || null;
+
+    // Définir les rôles et salons exemptés (limités par Discord : max 20 rôles, max 50 salons)
+    const exemptRoles = (config.bypassRoles || []).slice(0, 20);
+    const exemptChannels = (config.bypassChannels || []).slice(0, 50);
+
+    const ruleNames = {
+      spam: 'Kotbo AutoMod - Spam',
+      mentions: 'Kotbo AutoMod - Mentions',
+      links: 'Kotbo AutoMod - Liens',
+    };
+
+    const deleteRuleIfExists = async (ruleName: string) => {
+      const existing = existingRules.find(r => r.name === ruleName);
+      if (existing) {
+        logger.info('AutoModService', `Suppression de la règle native Discord "${ruleName}" pour ${guild.name}`);
+        await existing.delete('Configuration modifiée dans le dashboard').catch(e => {
+          logger.error('AutoModService', `Erreur lors de la suppression de la règle "${ruleName}" :`, e);
+        });
+      }
+    };
+
+    if (!config.discordAutoModEnabled) {
+      // Si la synchro native est désactivée, on nettoie toutes nos règles existantes
+      await deleteRuleIfExists(ruleNames.spam);
+      await deleteRuleIfExists(ruleNames.mentions);
+      await deleteRuleIfExists(ruleNames.links);
+      return;
+    }
+
+    // 1. Règle Anti-Spam
+    if (config.spamEnabled) {
+      const existingSpam = existingRules.find(r => r.name === ruleNames.spam);
+      const actions: any[] = [
+        {
+          type: AutoModerationActionType.BlockMessage,
+          metadata: {
+            customMessage: 'Message bloqué par l\'AutoMod Kotbo (Spam détecté).'
+          }
+        }
+      ];
+      if (logChannelId) {
+        actions.push({
+          type: AutoModerationActionType.SendAlertMessage,
+          metadata: {
+            channelId: logChannelId
+          }
+        });
+      }
+
+      const ruleData = {
+        name: ruleNames.spam,
+        eventType: AutoModerationRuleEventType.MessageSend,
+        triggerType: AutoModerationRuleTriggerType.Spam,
+        triggerMetadata: {},
+        actions,
+        enabled: true,
+        exemptRoles,
+        exemptChannels
+      };
+
+      try {
+        if (existingSpam) {
+          logger.info('AutoModService', `Mise à jour de la règle native Discord "${ruleNames.spam}" pour ${guild.name}`);
+          await existingSpam.edit(ruleData);
+        } else {
+          logger.info('AutoModService', `Création de la règle native Discord "${ruleNames.spam}" pour ${guild.name}`);
+          await guild.autoModerationRules.create(ruleData);
+        }
+      } catch (err) {
+        logger.error('AutoModService', `Erreur lors de la création/modification de la règle "${ruleNames.spam}" :`, err);
+      }
+    } else {
+      await deleteRuleIfExists(ruleNames.spam);
+    }
+
+    // 2. Règle Anti-Mentions
+    if (config.mentionsEnabled) {
+      const existingMentions = existingRules.find(r => r.name === ruleNames.mentions);
+      const actions: any[] = [
+        {
+          type: AutoModerationActionType.BlockMessage,
+          metadata: {
+            customMessage: 'Message bloqué par l\'AutoMod Kotbo (Excès de mentions).'
+          }
+        }
+      ];
+      if (logChannelId) {
+        actions.push({
+          type: AutoModerationActionType.SendAlertMessage,
+          metadata: {
+            channelId: logChannelId
+          }
+        });
+      }
+
+      // mentionTotalLimit doit être compris entre 1 et 50
+      const limit = Math.max(1, Math.min(50, config.mentionsLimit || 5));
+
+      const ruleData = {
+        name: ruleNames.mentions,
+        eventType: AutoModerationRuleEventType.MessageSend,
+        triggerType: AutoModerationRuleTriggerType.MentionSpam,
+        triggerMetadata: {
+          mentionTotalLimit: limit
+        },
+        actions,
+        enabled: true,
+        exemptRoles,
+        exemptChannels
+      };
+
+      try {
+        if (existingMentions) {
+          logger.info('AutoModService', `Mise à jour de la règle native Discord "${ruleNames.mentions}" pour ${guild.name}`);
+          await existingMentions.edit(ruleData);
+        } else {
+          logger.info('AutoModService', `Création de la règle native Discord "${ruleNames.mentions}" pour ${guild.name}`);
+          await guild.autoModerationRules.create(ruleData);
+        }
+      } catch (err) {
+        logger.error('AutoModService', `Erreur lors de la création/modification de la règle "${ruleNames.mentions}" :`, err);
+      }
+    } else {
+      await deleteRuleIfExists(ruleNames.mentions);
+    }
+
+    // 3. Règle Anti-Liens & Invitations
+    if (config.linksEnabled) {
+      const existingLinks = existingRules.find(r => r.name === ruleNames.links);
+      const actions: any[] = [
+        {
+          type: AutoModerationActionType.BlockMessage,
+          metadata: {
+            customMessage: 'Message bloqué par l\'AutoMod Kotbo (Lien ou invitation non autorisé).'
+          }
+        }
+      ];
+      if (logChannelId) {
+        actions.push({
+          type: AutoModerationActionType.SendAlertMessage,
+          metadata: {
+            channelId: logChannelId
+          }
+        });
+      }
+
+      // Préparer les filtres de mots-clés pour les liens et invitations
+      const keywordFilter = ['*discord.gg/*', '*discord.com/invite/*', '*http://*', '*https://*'];
+      
+      // La whitelist des domaines autorisés
+      const allowList = (config.linksWhitelist || []).map((domain: string) => `*${domain}*`).slice(0, 100);
+
+      const ruleData = {
+        name: ruleNames.links,
+        eventType: AutoModerationRuleEventType.MessageSend,
+        triggerType: AutoModerationRuleTriggerType.Keyword,
+        triggerMetadata: {
+          keywordFilter,
+          allowList: allowList.length > 0 ? allowList : undefined
+        },
+        actions,
+        enabled: true,
+        exemptRoles,
+        exemptChannels
+      };
+
+      try {
+        if (existingLinks) {
+          logger.info('AutoModService', `Mise à jour de la règle native Discord "${ruleNames.links}" pour ${guild.name}`);
+          await existingLinks.edit(ruleData);
+        } else {
+          logger.info('AutoModService', `Création de la règle native Discord "${ruleNames.links}" pour ${guild.name}`);
+          await guild.autoModerationRules.create(ruleData);
+        }
+      } catch (err) {
+        logger.error('AutoModService', `Erreur lors de la création/modification de la règle "${ruleNames.links}" :`, err);
+      }
+    } else {
+      await deleteRuleIfExists(ruleNames.links);
+    }
+
+  } catch (err) {
+    logger.error('AutoModService', 'Erreur globale lors de la synchronisation des règles AutoMod Discord Native :', err);
+  }
 }
 
 /**

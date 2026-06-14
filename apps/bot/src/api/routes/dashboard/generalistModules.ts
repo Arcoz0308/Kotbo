@@ -4,7 +4,7 @@ import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel } from '../../../services/progression/levelingService.js';
 import { getOrCreateWelcomeConfig } from '../../../services/features/welcomeGoodbyeService.js';
-import { getOrCreateAutoModConfig, invalidateAutoModCache } from '../../../services/moderation/autoModService.js';
+import { getOrCreateAutoModConfig, invalidateAutoModCache, syncDiscordAutoModRules } from '../../../services/moderation/autoModService.js';
 import { createGiveaway, endGiveaway, rerollGiveaway } from '../../../services/features/giveawayService.js';
 import { createReactionRoleMenu } from '../../../services/features/reactionRoleService.js';
 import { invalidateAutoResponseCache } from '../../../services/features/autoResponseService.js';
@@ -23,7 +23,7 @@ export async function handleGeneralistModulesRoutes(
 ): Promise<boolean> {
   const method = req.method;
   const moduleKey = parts[4];
-  const auditUser = user.username ?? `User${user.userId}`;
+  const auditUser = `${user.username}#${user.discriminator || '0000'} (${user.userId})`;
 
   // 1. LEVELING MODULE ROUTES
   if (moduleKey === 'leveling') {
@@ -781,6 +781,7 @@ export async function handleGeneralistModulesRoutes(
     if (parts.length === 5 && method === 'PATCH') {
       try {
         const body = await readJsonBody<{
+          discordAutoModEnabled?: boolean;
           spamEnabled?: boolean;
           spamLimit?: number;
           spamIntervalSeconds?: number;
@@ -811,6 +812,7 @@ export async function handleGeneralistModulesRoutes(
         const config = await prisma.autoModConfig.update({
           where: { guildId },
           data: {
+            discordAutoModEnabled: body.discordAutoModEnabled,
             spamEnabled: body.spamEnabled,
             spamLimit: body.spamLimit,
             spamIntervalSeconds: body.spamIntervalSeconds,
@@ -836,13 +838,16 @@ export async function handleGeneralistModulesRoutes(
 
         invalidateAutoModCache(guildId);
 
+        // Synchroniser les règles avec Discord
+        await syncDiscordAutoModRules(client, guildId, config);
+
         await pushAudit(guildId, {
           user: auditUser,
           action: 'Mise à jour AutoMod',
           context: getGuildName(client, guildId),
           module: 'AutoMod',
           eventType: 'Manuel',
-          details: `Verrous de sécurité mis à jour. Anti-spam: ${config.spamEnabled}, Anti-liens: ${config.linksEnabled}`,
+          details: `Verrous de sécurité mis à jour. Anti-spam: ${config.spamEnabled}, Anti-liens: ${config.linksEnabled}, Synchro native: ${config.discordAutoModEnabled}`,
           channelId: null
         });
 
