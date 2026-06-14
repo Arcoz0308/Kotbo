@@ -313,12 +313,7 @@ async function emitSanctionReportReminder(params: {
 async function notifyStaffOfSanction(guildId: string, sanction: any) {
   const userIdsToNotify = new Set<string>();
 
-  // 1. Le staff qui a sanctionné (le modérateur)
-  if (sanction.moderatorUserId) {
-    userIdsToNotify.add(sanction.moderatorUserId);
-  }
 
-  // 2. Le responsable de la hiérarchie du membre ciblé (si la cible est un staff)
   if (sanction.targetUserId) {
     const targetStaff = await prisma.staffMember.findUnique({
       where: { guildId_userId: { guildId, userId: sanction.targetUserId } }
@@ -344,6 +339,11 @@ async function notifyStaffOfSanction(guildId: string, sanction: any) {
   // Éviter de notifier la cible elle-même (elle reçoit déjà un message d'avertissement séparé)
   if (sanction.targetUserId) {
     userIdsToNotify.delete(sanction.targetUserId);
+  }
+
+  // Éviter de notifier le modérateur lui-même de sa propre sanction (doublon avec le rappel de rapport)
+  if (sanction.moderatorUserId) {
+    userIdsToNotify.delete(sanction.moderatorUserId);
   }
 
   const typeLabel = {
