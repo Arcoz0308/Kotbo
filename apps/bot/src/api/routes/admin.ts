@@ -9,7 +9,7 @@ import { activateGuild, deactivateGuild } from '../../utils/activation.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const servicePath = path.resolve(__dirname, '../../services/messageScraperService.js');
+const servicePath = path.resolve(__dirname, '../../services/analytics/messageScraperService.js');
 import {
   json,
   verifyAuth,

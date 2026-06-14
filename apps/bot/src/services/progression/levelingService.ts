@@ -1,4 +1,4 @@
-import { Client, GuildMember, AttachmentBuilder } from 'discord.js';
+import { Client, GuildMember } from 'discord.js';
 import { createCanvas, loadImage } from '@napi-rs/canvas';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
@@ -342,28 +342,45 @@ export async function generateRankCard(member: GuildMember, level: number, xp: n
   // Pseudo et Tag
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 32px sans-serif';
-  ctx.fillText(member.displayName, 210, 85);
+  const truncatedName = member.displayName.length > 18 ? member.displayName.slice(0, 15) + '…' : member.displayName;
+  ctx.fillText(truncatedName, 210, 85);
+
+  const isLegacy = member.user.discriminator && member.user.discriminator !== '0';
+  const tagText = isLegacy ? `#${member.user.discriminator}` : `@${member.user.username}`;
 
   ctx.fillStyle = '#8b949e';
   ctx.font = '20px sans-serif';
-  ctx.fillText(`#${member.user.discriminator !== '0' ? member.user.discriminator : member.user.username}`, 210, 120);
+  ctx.fillText(tagText, 210, 120);
 
-  // Niveau et Rang
+  // Niveau et Rang avec mesure dynamique pour éviter le chevauchement
   ctx.textAlign = 'right';
+  
+  // Valeur du rang
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 40px sans-serif';
+  const rankVal = `#${rank}`;
+  ctx.fillText(rankVal, W - 45, 75);
+  const rankValWidth = ctx.measureText(rankVal).width;
+
+  // Label du rang
   ctx.fillStyle = '#5865f2';
-  ctx.font = 'bold 22px sans-serif';
-  ctx.fillText('RANG', W - 150, 70);
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 44px sans-serif';
-  ctx.fillText(`#${rank}`, W - 45, 70);
+  ctx.font = 'bold 16px sans-serif';
+  ctx.fillText('RANG ', W - 45 - rankValWidth, 75);
+  const rankLabelWidth = ctx.measureText('RANG ').width;
 
-  ctx.textAlign = 'right';
-  ctx.fillStyle = '#57f287';
-  ctx.font = 'bold 22px sans-serif';
-  ctx.fillText('NIVEAU', W - 320, 70);
+  // Valeur du niveau
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 44px sans-serif';
-  ctx.fillText(`${level}`, W - 230, 70);
+  ctx.font = 'bold 40px sans-serif';
+  const levelVal = `${level}`;
+  const levelX = W - 45 - rankValWidth - rankLabelWidth - 30; // Spécifier 30px d'espace
+  ctx.fillText(levelVal, levelX, 75);
+  const levelValWidth = ctx.measureText(levelVal).width;
+
+  // Label du niveau
+  ctx.fillStyle = '#57f287';
+  ctx.font = 'bold 16px sans-serif';
+  ctx.fillText('NIVEAU ', levelX - levelValWidth, 75);
+  
   ctx.textAlign = 'left';
 
   // XP progression
@@ -381,7 +398,7 @@ export async function generateRankCard(member: GuildMember, level: number, xp: n
 
   // Barre de progression
   const barX = 210, barY = 175, barW = W - 210 - 45, barH = 24, barR = 12;
-  roundRect(ctx, barX, barY, barW, barH, barR, '#2f3136');
+  roundRect(ctx, barX, barY, barW, barH, barR, 'rgba(255, 255, 255, 0.08)');
   
   if (progressPercent > 0) {
     const filledW = Math.max(barH, barW * progressPercent);

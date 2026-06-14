@@ -8,6 +8,7 @@ import {
   json,
   readJsonBody,
   resolveDashboardAccess,
+  pushAudit,
   type AuthClaims,
 } from '../../shared.js';
 
@@ -119,6 +120,16 @@ export async function handleBackupRoutes(
         createdByTag: '0000',
       });
 
+      await pushAudit(guildId, {
+        channelId: null,
+        user: user.username || `User${user.userId}`,
+        action: 'Création sauvegarde',
+        context: body.name || 'Sans nom',
+        module: 'Sauvegardes',
+        eventType: 'Settings',
+        details: `Nom: ${body.name || 'Sans nom'} | Description: ${body.description || 'Aucune'} | Messages: ${body.includeMessages ?? false} | Membres: ${body.includeMembers ?? true} | Rôles: ${body.includeRoles ?? true} | Salons: ${body.includeChannels ?? true} | Émojis: ${body.includeEmojis ?? true} | Stickers: ${body.includeStickers ?? true}`,
+      });
+
       json(res, 200, backup);
     } catch (error) {
       logger.error('BackupAPI', 'Error creating backup:', error);
@@ -147,6 +158,16 @@ export async function handleBackupRoutes(
 
       await prisma.serverBackup.delete({
         where: { id: backupId },
+      });
+
+      await pushAudit(guildId, {
+        channelId: null,
+        user: user.username || `User${user.userId}`,
+        action: 'Suppression sauvegarde',
+        context: backup.name,
+        module: 'Sauvegardes',
+        eventType: 'Settings',
+        details: `Nom: ${backup.name} | Créé par: ${backup.createdByUsername} | Date création: ${backup.createdAt.toISOString()}`,
       });
 
       json(res, 200, { success: true });
@@ -211,6 +232,16 @@ export async function handleBackupRoutes(
 
       const jsonString = JSON.stringify(exportData, null, 2);
       const buffer = Buffer.from(jsonString, 'utf-8');
+
+      await pushAudit(guildId, {
+        channelId: null,
+        user: user.username || `User${user.userId}`,
+        action: 'Export sauvegarde',
+        context: backup.name,
+        module: 'Sauvegardes',
+        eventType: 'Settings',
+        details: `Nom: ${backup.name} | Taille: ${backup.sizeBytes || 0} bytes | Rôles: ${backup.rolesCount} | Salons: ${backup.channelsCount} | Membres: ${backup.membersCount}`,
+      });
 
       res.setHeader('Content-Type', 'application/json');
       res.setHeader('Content-Disposition', `attachment; filename="${backup.name.replace(/[^a-zA-Z0-9]/g, '_')}_backup.json"`);
@@ -298,6 +329,16 @@ export async function handleBackupRoutes(
           stickersCount: backupData.stats?.stickersCount || 0,
           isPreset: false,
         },
+      });
+
+      await pushAudit(guildId, {
+        channelId: null,
+        user: user.username || `User${user.userId}`,
+        action: 'Import sauvegarde',
+        context: backupName,
+        module: 'Sauvegardes',
+        eventType: 'Settings',
+        details: `Nom: ${backupName} | Taille: ${backupData.stats?.sizeBytes || 0} bytes | Rôles: ${backupData.stats?.rolesCount || 0} | Salons: ${backupData.stats?.channelsCount || 0} | Membres: ${backupData.stats?.membersCount || 0}`,
       });
 
       json(res, 200, newBackup);

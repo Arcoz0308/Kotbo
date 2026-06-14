@@ -2403,7 +2403,8 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
   const [
     dailyAlgoSubmissionCount,
     runtime,
-    persistedAudit,
+    persistedDashboardAudit,
+    persistedDiscordAudit,
     sanctions,
     sanctionReports,
     regulationRules,
@@ -2412,9 +2413,14 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     prisma.dailyAlgoSubmission.count({ where: { run: { guildId } } }),
     getOrCreateRuntime(guildId),
     prisma.dashboardAuditLog.findMany({
-      where: { guildId },
+      where: { guildId, eventType: { not: 'Discord' } },
       orderBy: { dateIso: 'desc' },
-      take: 160
+      take: 300
+    }),
+    prisma.dashboardAuditLog.findMany({
+      where: { guildId, eventType: 'Discord' },
+      orderBy: { dateIso: 'desc' },
+      take: 500
     }),
     prisma.sanction.findMany({
       where: { guildId },
@@ -2437,6 +2443,10 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
       }
     }),
   ]);
+
+  const persistedAudit = [...persistedDashboardAudit, ...persistedDiscordAudit].sort(
+    (a, b) => b.dateIso.getTime() - a.dateIso.getTime()
+  );
 
   const auditTrailFromDb: AuditEntry[] = persistedAudit.map((entry) => ({
     id: entry.id,
@@ -2863,7 +2873,7 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
       killSwitchEnabled: runtime.killSwitchEnabled,
       severityByModule: runtime.severityByModule
     },
-    auditTrail: auditTrailFromDb.slice(0, 180),
+    auditTrail: auditTrailFromDb,
     sanctions: mappedSanctions,
     sanctionReports: mappedSanctionReports,
     regulationRules: mappedRegulationRules,

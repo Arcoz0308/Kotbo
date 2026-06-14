@@ -3,7 +3,7 @@ import { Client } from 'discord.js';
 import cron from 'node-cron';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
-import { json, readJsonBody, resolveDashboardAccess, type AuthClaims } from '../../shared.js';
+import { json, readJsonBody, resolveDashboardAccess, pushAudit, type AuthClaims } from '../../shared.js';
 import { reloadSchedule, stopSchedule, executeSchedule } from '../../../services/system/scheduleService.js';
 
 export async function handleScheduleRoutes(
@@ -91,6 +91,16 @@ export async function handleScheduleRoutes(
         },
       });
 
+      await pushAudit(guildId, {
+        channelId: null,
+        user: user.username ?? `User${user.userId}`,
+        action: 'Création planification',
+        context: body.name,
+        module: 'Planificateur',
+        eventType: 'Settings',
+        details: `Nom: ${body.name} | Type: ${body.type} | Cron: ${body.cron}${body.targetId ? ` | Cible: ${body.targetId}` : ''} | Actif: ${body.enabled ?? true}`,
+      });
+
       // Register the cron job in scheduleService
       if (schedule.enabled) {
         await reloadSchedule(client, schedule.id);
@@ -151,6 +161,16 @@ export async function handleScheduleRoutes(
         },
       });
 
+      await pushAudit(guildId, {
+        channelId: null,
+        user: user.username ?? `User${user.userId}`,
+        action: 'Modification planification',
+        context: updated.name,
+        module: 'Planificateur',
+        eventType: 'Settings',
+        details: `Nom: ${updated.name} | Type: ${updated.type} | Cron: ${updated.cron}${updated.targetId ? ` | Cible: ${updated.targetId}` : ''} | Actif: ${updated.enabled}`,
+      });
+
       // Reload or stop the cron job
       if (updated.enabled) {
         await reloadSchedule(client, updated.id);
@@ -186,6 +206,16 @@ export async function handleScheduleRoutes(
         where: { id: scheduleId },
       });
 
+      await pushAudit(guildId, {
+        channelId: null,
+        user: user.username ?? `User${user.userId}`,
+        action: 'Suppression planification',
+        context: existing.name,
+        module: 'Planificateur',
+        eventType: 'Settings',
+        details: `Nom: ${existing.name} | Type: ${existing.type} | Cron: ${existing.cron}`,
+      });
+
       json(res, 200, { success: true });
     } catch (error) {
       logger.error('SchedulesAPI', 'Error deleting schedule:', error);
@@ -210,6 +240,16 @@ export async function handleScheduleRoutes(
       // Execute asynchronously to not block API response
       executeSchedule(client, scheduleId).catch((err) => {
         logger.error('SchedulesAPI', `Error during manual execution of task ${scheduleId}:`, err);
+      });
+
+      await pushAudit(guildId, {
+        channelId: null,
+        user: user.username ?? `User${user.userId}`,
+        action: 'Exécution planification',
+        context: existing.name,
+        module: 'Planificateur',
+        eventType: 'Settings',
+        details: `Nom: ${existing.name} | Type: ${existing.type} | Exécution manuelle déclenchée par le staff`,
       });
 
       json(res, 200, { success: true });

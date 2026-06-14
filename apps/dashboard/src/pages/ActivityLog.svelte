@@ -1,5 +1,6 @@
 <script lang="ts">
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
+  import { authStore } from '../lib/stores/auth.svelte';
   import { refreshDashboardOnMount } from '../lib/dashboardLifecycle';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import FormInput from '../lib/components/FormInput.svelte';
@@ -124,6 +125,82 @@
     { label: 'Modules', val: new Set(dashboardLogs.map(l => l.module)).size, sub: 'Sources', subClass: 'text-green-600' },
     { label: 'Utilisateurs', val: new Set(dashboardLogs.map(l => l.user)).size, sub: 'Unique', subClass: 'text-purple-600' }
   ]);
+
+  function extractUserIdFromText(value: string | null | undefined) {
+    if (!value) return null;
+
+    const mentionMatch = value.match(/<@!?(\d{15,25})>/);
+    if (mentionMatch?.[1]) return mentionMatch[1];
+
+    const parenthesizedIdMatch = value.match(/\((\d{15,25})\)/);
+    if (parenthesizedIdMatch?.[1]) return parenthesizedIdMatch[1];
+
+    return null;
+  }
+
+  function hideUserIds(value: string) {
+    return value
+      .replace(/\(<@!?\d{15,25}>\)/g, '')
+      .replace(/<@!?\d{15,25}>/g, '@utilisateur')
+      .replace(/\((\d{15,25})\)/g, '');
+  }
+
+  function replaceEntityMentions(value: string) {
+    return value
+      .replace(/<#(\d{15,25})>/g, (_, channelId: string) => {
+        const channel = dashboardStore.state.discordChannels.find((entry) => entry.id === channelId);
+        const name = channel ? channel.name : 'salon-inconnu';
+        return `<a href="https://discord.com/channels/${authStore.selectedGuildId}/${channelId}" target="_blank" class="mention-link">#${name}</a>`;
+      })
+      .replace(/<@&(\d{15,25})>/g, (_, roleId: string) => {
+        const role = dashboardStore.state.discordRoles.find((entry) => entry.id === roleId);
+        const name = role ? role.name : 'role-inconnu';
+        return `<span class="mention">@${name}</span>`;
+      });
+  }
+
+  function parseDetailsStructure(details: string) {
+    if (!details) return { badges: [], blocks: [] };
+    
+    let clean = details;
+    const userMatch = clean.match(/^([^|]+?\(<@!?\d{15,25}>\))/);
+    if (userMatch) {
+      clean = clean.replace(userMatch[0], '').trim();
+    }
+    clean = clean.replace(/\|?\s*Salon:\s*<#\d+>\s*/gi, '');
+    clean = clean.replace(/^\|\s*/, '').trim();
+
+    const parts = clean.split(/\s*\|\s*/);
+    const badges: Array<{ key: string | null; value: string }> = [];
+    const blocks: Array<{ key: string; value: string }> = [];
+
+    for (const part of parts) {
+      const colIndex = part.indexOf(':');
+      if (colIndex > -1) {
+        const key = part.slice(0, colIndex).trim();
+        const value = part.slice(colIndex + 1).trim();
+        const cleanKey = replaceEntityMentions(hideUserIds(key));
+        const cleanVal = replaceEntityMentions(hideUserIds(value));
+        
+        if (['contenu', 'raison', 'description', 'reason', 'contenu d\'origine', 'nouveau contenu', 'arguments'].includes(key.toLowerCase()) || value.length > 50) {
+          blocks.push({ key: cleanKey, value: cleanVal });
+        } else {
+          badges.push({ key: cleanKey, value: cleanVal });
+        }
+      } else {
+        const cleanVal = replaceEntityMentions(hideUserIds(part));
+        if (cleanVal) {
+          if (cleanVal.length > 50) {
+            blocks.push({ key: 'Détails', value: cleanVal });
+          } else {
+            badges.push({ key: null, value: cleanVal });
+          }
+        }
+      }
+    }
+    
+    return { badges, blocks };
+  }
 </script>
 
 
@@ -237,6 +314,7 @@
       </thead>
       <tbody class="divide-y divide-slate-50 dark:divide-slate-800">
         {#each filteredLogs as entry}
+          {@const parsed = parseDetailsStructure(entry.details)}
           <tr class="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
             <td class="px-6 py-6">
               <div class="text-xs">
@@ -255,10 +333,31 @@
             <td class="px-6 py-6 font-medium text-sm text-slate-600 dark:text-slate-200">
               {entry.action}
             </td>
-            <td class="px-6 py-6 max-w-xs">
-              <p class="text-xs text-on-surface-variant line-clamp-2 leading-relaxed">
-                {@html entry.details}
-              </p>
+            <td class="px-6 py-6 max-w-md">
+              <div class="space-y-2">
+                {#if parsed.badges.length > 0}
+                  <div class="flex flex-wrap gap-1.5">
+                    {#each parsed.badges as item}
+                      {#if item.key}
+                        <div class="inline-flex items-center gap-1 bg-surface-container-high border border-outline-variant/10 rounded-lg px-2 py-0.5 text-[10px] text-on-surface-variant font-medium">
+                          <span class="text-on-surface-variant/70 font-semibold">{item.key}:</span>
+                          <span class="text-on-surface break-all">{@html item.value}</span>
+                        </div>
+                      {:else}
+                        <div class="inline-flex items-center bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-2 py-0.5 text-[10px] text-on-surface-variant break-all">
+                          {@html item.value}
+                        </div>
+                      {/if}
+                    {/each}
+                  </div>
+                {/if}
+                {#each parsed.blocks as block}
+                  <div class="bg-surface-container-low border-l-2 border-primary/50 rounded-r-lg px-3 py-1.5 text-xs text-on-surface-variant space-y-0.5 max-w-full overflow-hidden">
+                    <p class="text-[9px] font-black uppercase tracking-wider text-primary/80">{block.key}</p>
+                    <p class="break-all whitespace-pre-wrap leading-relaxed text-on-surface">{@html block.value}</p>
+                  </div>
+                {/each}
+              </div>
             </td>
             <td class="px-6 py-6 text-center">
               <span class="inline-flex items-center justify-center w-24 px-3 py-1 rounded-full text-[10px] font-bold 

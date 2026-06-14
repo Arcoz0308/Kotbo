@@ -103,6 +103,16 @@ export async function handleMembersRoutes(
           data: { status: body.status }
         });
 
+        await pushAudit(guildId, {
+          channelId: null,
+          user: auditUser,
+          action: body.status === 'VALIDATED' ? 'Validation Compte Lié' : 'Rejet Compte Lié',
+          context: `Comptes: ${link.user1Id} et ${link.user2Id}`,
+          module: 'Membres',
+          eventType: 'Settings',
+          details: `Statut: ${body.status} | Compte 1: ${link.user1Id} | Compte 2: ${link.user2Id}`,
+        });
+
         if (body.status === 'VALIDATED') {
           const discordGuild = client.guilds.cache.get(guildId);
           const dmEmbed = new EmbedBuilder()
@@ -145,6 +155,16 @@ export async function handleMembersRoutes(
 
         await prisma.linkedAccount.delete({
           where: { id }
+        });
+
+        await pushAudit(guildId, {
+          channelId: null,
+          user: auditUser,
+          action: 'Suppression Compte Lié',
+          context: `Comptes: ${link.user1Id} et ${link.user2Id}`,
+          module: 'Membres',
+          eventType: 'Settings',
+          details: `Compte 1: ${link.user1Id} | Compte 2: ${link.user2Id}`,
         });
 
         const discordGuild = client.guilds.cache.get(guildId);

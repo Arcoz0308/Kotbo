@@ -467,6 +467,7 @@ async function sendLogEmbed(
   embed: EmbedBuilder,
   eventType: string,
   components?: Array<ActionRowBuilder<ButtonBuilder>>,
+  executorTag?: string | null,
 ): Promise<void> {
   const summary = embedSummary(embed);
   
@@ -499,7 +500,7 @@ async function sendLogEmbed(
   queueAuditLog({
     guildId: guild.id,
     channelId,
-    user: 'Système',
+    user: executorTag ?? 'Système',
     action: summary.action,
     context: guild.name,
     module: 'Logs avancés',
@@ -1478,6 +1479,11 @@ export function registerAdvancedLogsListener(client: Client): void {
     const targetId = typeof entry.targetId === 'string' ? entry.targetId : null;
     if (!executorId || !targetId) return;
 
+    // Skip bot-initiated moderation actions to prevent duplicate logs (as the bot logs its own actions directly in sanctionService)
+    if (executorId === client.user?.id) {
+      return;
+    }
+
     if (
       entry.action !== AuditLogEvent.MemberKick
       && entry.action !== AuditLogEvent.MemberBanAdd
@@ -1504,7 +1510,7 @@ export function registerAdvancedLogsListener(client: Client): void {
         moderatorTag,
         reason,
       );
-      await sendLogEmbed(guild, embed, 'moderation_kick', [buildMemberCaseActionRow(targetId), buildMemberCaseActionRow(executorId)]);
+      await sendLogEmbed(guild, embed, 'moderation_kick', [buildMemberCaseActionRow(targetId), buildMemberCaseActionRow(executorId)], moderatorTag);
       return;
     }
 
@@ -1518,7 +1524,7 @@ export function registerAdvancedLogsListener(client: Client): void {
         moderatorTag,
         reason,
       );
-      await sendLogEmbed(guild, embed, 'moderation_ban', [buildMemberCaseActionRow(targetId), buildMemberCaseActionRow(executorId)]);
+      await sendLogEmbed(guild, embed, 'moderation_ban', [buildMemberCaseActionRow(targetId), buildMemberCaseActionRow(executorId)], moderatorTag);
       return;
     }
 
@@ -1532,7 +1538,7 @@ export function registerAdvancedLogsListener(client: Client): void {
         moderatorTag,
         reason,
       );
-      await sendLogEmbed(guild, embed, 'moderation_unban', [buildMemberCaseActionRow(targetId), buildMemberCaseActionRow(executorId)]);
+      await sendLogEmbed(guild, embed, 'moderation_unban', [buildMemberCaseActionRow(targetId), buildMemberCaseActionRow(executorId)], moderatorTag);
       return;
     }
 
@@ -1561,7 +1567,7 @@ export function registerAdvancedLogsListener(client: Client): void {
         ],
       );
 
-      await sendLogEmbed(guild, embed, 'moderation_timeout', [buildMemberCaseActionRow(targetId), buildMemberCaseActionRow(executorId)]);
+      await sendLogEmbed(guild, embed, 'moderation_timeout', [buildMemberCaseActionRow(targetId), buildMemberCaseActionRow(executorId)], moderatorTag);
     }
   });
 

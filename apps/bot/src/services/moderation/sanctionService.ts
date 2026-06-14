@@ -2,11 +2,12 @@ import { EmbedBuilder, Guild, GuildMember, type Client } from 'discord.js';
 import { Prisma, SanctionStatus, SanctionType } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
+import { queueAuditLog } from '../../utils/auditLogger.js';
 import { COLORS } from '../../utils/embeds.js';
 import { notifyDashboardSanctionReportRequired } from '../../api/dashboardApi.js';
 import { createNotification } from '../staff/staffLeadershipService.js';
 import * as altAccountService from './altAccountService.js';
-import { getMissingReportReminderActions } from './sanctionReportReminderPolicy.js';
+import { getMissingReportReminderActions, type MissingReportReminderState } from './sanctionReportReminderPolicy.js';
 
 const MAX_DISCORD_TIMEOUT_MS = 27 * 24 * 60 * 60 * 1000;
 const RENEWAL_BUFFER_MS = 60 * 1000;
@@ -450,6 +451,16 @@ export async function registerWarnSanction(params: {
     }
   });
 
+  queueAuditLog({
+    guildId: params.guildId,
+    user: `${params.moderator.tag} (${params.moderator.id})`,
+    action: 'Sanction - Avertissement',
+    context: `${params.target.tag} (${params.target.id})`,
+    module: 'Modération',
+    eventType: 'Discord',
+    details: `Type: Avertissement | Cible: ${params.target.tag} (${params.target.id}) | Modérateur: ${params.moderator.tag} | Raison: ${params.reason}`,
+  });
+
   void incrementModerationStats(params.guildId, SanctionType.WARN).catch(() => null);
 
   void touchSanctionTargetIdentity({
@@ -515,6 +526,16 @@ export async function registerKickSanction(params: {
       resolvedAt: new Date(),
       resolutionNote: 'Exclusion exécutée.'
     }
+  });
+
+  queueAuditLog({
+    guildId: params.guildId,
+    user: `${params.moderator.tag} (${params.moderator.id})`,
+    action: 'Sanction - Expulsion',
+    context: `${params.target.tag} (${params.target.id})`,
+    module: 'Modération',
+    eventType: 'Discord',
+    details: `Type: Expulsion | Cible: ${params.target.tag} (${params.target.id}) | Modérateur: ${params.moderator.tag} | Raison: ${params.reason}`,
   });
 
   void incrementModerationStats(params.guildId, SanctionType.KICK).catch(() => null);
@@ -595,6 +616,16 @@ export async function registerBanSanction(params: {
     }
   });
 
+  queueAuditLog({
+    guildId: params.guildId,
+    user: `${params.moderator.tag} (${params.moderator.id})`,
+    action: isTemporary ? 'Sanction - Bannissement temporaire' : 'Sanction - Bannissement définitif',
+    context: `${params.target.tag} (${params.target.id})`,
+    module: 'Modération',
+    eventType: 'Discord',
+    details: `Type: ${isTemporary ? 'Bannissement temporaire' : 'Bannissement définitif'}${isTemporary ? ` | Durée: ${Math.floor(params.temporaryDurationMs! / 1000)}s` : ''} | Cible: ${params.target.tag} (${params.target.id}) | Modérateur: ${params.moderator.tag} | Raison: ${params.reason}`,
+  });
+
   void incrementModerationStats(params.guildId, sanctionType).catch(() => null);
 
   void touchSanctionTargetIdentity({
@@ -663,6 +694,16 @@ export async function registerSoftbanSanction(params: {
       resolvedAt: new Date(),
       resolutionNote: 'Softban exécuté (ban puis déban immédiat).'
     }
+  });
+
+  queueAuditLog({
+    guildId: params.guildId,
+    user: `${params.moderator.tag} (${params.moderator.id})`,
+    action: 'Sanction - Softban',
+    context: `${params.target.tag} (${params.target.id})`,
+    module: 'Modération',
+    eventType: 'Discord',
+    details: `Type: Softban | Cible: ${params.target.tag} (${params.target.id}) | Modérateur: ${params.moderator.tag} | Raison: ${params.reason}`,
   });
 
   void incrementModerationStats(params.guildId, SanctionType.SOFTBAN).catch(() => null);
@@ -742,6 +783,16 @@ export async function registerTimeoutSanction(params: {
       nextActionAt: nextRenewalAt(now, chunkMs),
       resolutionNote: 'Timeout actif.'
     }
+  });
+
+  queueAuditLog({
+    guildId: params.guildId,
+    user: `${params.moderator.tag} (${params.moderator.id})`,
+    action: 'Sanction - Exclusion temporaire',
+    context: `${params.target.tag} (${params.target.id})`,
+    module: 'Modération',
+    eventType: 'Discord',
+    details: `Type: Exclusion temporaire | Durée: ${Math.floor(params.durationMs / 1000)}s | Cible: ${params.target.tag} (${params.target.id}) | Modérateur: ${params.moderator.tag} | Raison: ${params.reason}`,
   });
 
   void incrementModerationStats(params.guildId, SanctionType.TIMEOUT).catch(() => null);
@@ -1184,7 +1235,7 @@ export async function checkMissingReports() {
   });
 
   for (const sanction of sanctions) {
-    const actions = getMissingReportReminderActions(sanction, now);
+    const actions = getMissingReportReminderActions(sanction as unknown as MissingReportReminderState, now);
     if (actions.remindModerator) {
       const claim = await prisma.sanction.updateMany({
         where: {
@@ -1211,7 +1262,7 @@ export async function checkMissingReports() {
         } catch (error) {
           await prisma.sanction.updateMany({
             where: { id: sanction.id, lastReportReminderAt: now },
-            data: { lastReportReminderAt: sanction.lastReportReminderAt },
+            data: { lastReportReminderAt: (sanction as unknown as MissingReportReminderState).lastReportReminderAt },
           });
           logger.error('Sanctions', `Échec du rappel de rapport pour la sanction ${sanction.id}:`, error);
         }

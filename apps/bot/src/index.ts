@@ -13,6 +13,7 @@ import {
   type ChatInputCommandInteraction,
 } from 'discord.js';
 import { logger } from './utils/logger.js';
+import { queueAuditLog } from './utils/auditLogger.js';
 import { replyOrFollowUp } from './utils/interactionResponses.js';
 import { registerCrons } from './events/crons.js';
 import {
@@ -377,6 +378,30 @@ client.on(Events.InteractionCreate, async (interaction) => {
         });
         return;
       }
+
+      if (interaction.guildId) {
+        const optionsString = interaction.options.data.map(opt => {
+          if (opt.value !== undefined) {
+            return `${opt.name}: ${opt.value}`;
+          }
+          if (opt.options) {
+            return `${opt.name} (${opt.options.map(subOpt => `${subOpt.name}: ${subOpt.value}`).join(', ')})`;
+          }
+          return opt.name;
+        }).join(' | ');
+
+        queueAuditLog({
+          guildId: interaction.guildId,
+          channelId: interaction.channelId,
+          user: `${interaction.user.tag} (<@${interaction.user.id}>)`,
+          action: `Commande /${interaction.commandName}`,
+          context: interaction.guild?.name || 'Discord',
+          module: 'Commandes',
+          eventType: 'Discord',
+          details: `Commande slash /${interaction.commandName} exécutée.${optionsString ? ` Arguments: ${optionsString}` : ''}`,
+        });
+      }
+
       await cmd.execute(interaction);
       if (interaction.guildId && (interaction.commandName === 'admin' || interaction.commandName === 'config' || interaction.commandName === 'setup')) {
         await cache.invalidateGuild(interaction.guildId);
@@ -398,7 +423,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     else if (interaction.isUserContextMenuCommand()) {
       const cmd = userContextCommands.get(interaction.commandName);
-      if (cmd) await cmd.execute(interaction);
+      if (cmd) {
+        if (interaction.guildId) {
+          queueAuditLog({
+            guildId: interaction.guildId,
+            channelId: interaction.channelId,
+            user: `${interaction.user.tag} (<@${interaction.user.id}>)`,
+            action: `Menu contextuel: ${interaction.commandName}`,
+            context: interaction.guild?.name || 'Discord',
+            module: 'Commandes',
+            eventType: 'Discord',
+            details: `Commande de menu contextuel "${interaction.commandName}" exécutée sur l'utilisateur <@${interaction.targetId}> (${interaction.targetId}).`,
+          });
+        }
+        await cmd.execute(interaction);
+      }
     }
 
     else if (interaction.isButton()) {

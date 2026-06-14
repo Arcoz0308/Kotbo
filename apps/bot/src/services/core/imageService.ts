@@ -1,4 +1,4 @@
-import { createCanvas } from '@napi-rs/canvas';
+import { createCanvas, loadImage } from '@napi-rs/canvas';
 import prisma from '../../utils/db.js';
 
 export async function generateStatsImage(guildId: string): Promise<Buffer> {
@@ -481,11 +481,11 @@ export async function generateMemberStatsImage(
 }
 
 export async function generateLeaderboardImage(
-  topMembers: { name: string; score: number }[],
-  type: 'messages' | 'voice' | 'mixed',
+  topMembers: { name: string; score: number; avatarUrl?: string | null; level?: number }[],
+  type: 'messages' | 'voice' | 'mixed' | 'xp',
   periodDays: number
 ): Promise<Buffer> {
-  const W = 600, H = 800;
+  const W = 680, H = 760;
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
 
@@ -496,8 +496,15 @@ export async function generateLeaderboardImage(
   ctx.fillStyle = bg;
   roundRect(ctx, 0, 0, W, H, 0, bg);
 
+  // Subtle background glow behind the title
+  const glow = ctx.createRadialGradient(W / 2, 60, 0, W / 2, 60, 300);
+  glow.addColorStop(0, 'rgba(88, 101, 242, 0.08)');
+  glow.addColorStop(1, 'rgba(88, 101, 242, 0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, W, H);
+
   // Theme color based on type
-  const themeColor = type === 'messages' ? '#5865f2' : type === 'voice' ? '#57f287' : '#fee75c';
+  const themeColor = type === 'messages' ? '#5865f2' : type === 'voice' ? '#57f287' : type === 'xp' ? '#eb459e' : '#fee75c';
 
   // Top Bar
   ctx.fillStyle = themeColor;
@@ -506,50 +513,114 @@ export async function generateLeaderboardImage(
   // Title
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 32px sans-serif';
-  const typeLabel = type === 'messages' ? 'Messages' : type === 'voice' ? 'Vocal' : 'Activité Mixte';
+  const typeLabel = type === 'messages' ? 'Messages' : type === 'voice' ? 'Vocal' : type === 'xp' ? 'XP / Niveaux' : 'Activité Mixte';
   ctx.fillText(`🏆 Top 10 ${typeLabel}`, 40, 60);
 
   ctx.fillStyle = '#8b949e';
   ctx.font = '16px sans-serif';
-  ctx.fillText(`Les ${periodDays} derniers jours`, 40, 85);
+  const subTitle = type === 'xp' ? 'Classement global d\'expérience' : `Les ${periodDays} derniers jours`;
+  ctx.fillText(subTitle, 40, 85);
 
   const startY = 130;
-  const rowH = 55;
+  const rowH = 60;
   const maxScore = Math.max(...topMembers.map(m => m.score), 1);
 
   for (let i = 0; i < topMembers.length; i++) {
     const member = topMembers[i];
     const y = startY + i * rowH;
 
+    // Card background for row
+    roundRect(ctx, 40, y, 600, 48, 8, 'rgba(22, 27, 37, 0.5)');
+
     // Rank badge
     const rankColor = i === 0 ? '#fee75c' : i === 1 ? '#c9d1d9' : i === 2 ? '#cd7f32' : '#2f3136';
     const rankTextColor = i < 3 ? '#000000' : '#ffffff';
-    roundRect(ctx, 40, y, 40, 40, 8, rankColor);
+    roundRect(ctx, 52, y + 8, 32, 32, 6, rankColor);
     
     ctx.fillStyle = rankTextColor;
-    ctx.font = 'bold 18px sans-serif';
+    ctx.font = 'bold 16px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(`#${i + 1}`, 60, y + 26);
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`#${i + 1}`, 68, y + 24);
     ctx.textAlign = 'left';
+
+    // Avatar
+    const avatarX = 116;
+    const avatarY = y + 24;
+    const avatarRadius = 16;
+
+    if (member.avatarUrl) {
+      try {
+        const avatarImg = await loadImage(member.avatarUrl);
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(avatarX, avatarY, avatarRadius, 0, Math.PI * 2);
+        ctx.closePath();
+        ctx.clip();
+        ctx.drawImage(avatarImg, avatarX - avatarRadius, avatarY - avatarRadius, avatarRadius * 2, avatarRadius * 2);
+        ctx.restore();
+      } catch {
+        drawDefaultAvatar(ctx, member.name, avatarX, avatarY);
+      }
+    } else {
+      drawDefaultAvatar(ctx, member.name, avatarX, avatarY);
+    }
 
     // Name
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 18px sans-serif';
-    ctx.fillText(truncate(member.name, 20), 100, y + 26);
+    ctx.font = 'bold 16px sans-serif';
+    ctx.textBaseline = 'middle';
+    const displayName = member.level !== undefined ? `[Niv. ${member.level}] ${member.name}` : member.name;
+    ctx.fillText(truncate(displayName, 18), 148, y + 24);
 
     // Bar
-    const barMaxW = 280;
-    const barW = Math.max(5, (member.score / maxScore) * barMaxW);
-    roundRect(ctx, 320, y + 10, barW, 20, 10, themeColor);
+    const barX = 320;
+    const barMaxW = 180;
+    const barW = Math.max(6, (member.score / maxScore) * barMaxW);
+    
+    // Bar Background
+    roundRect(ctx, barX, y + 19, barMaxW, 10, 5, 'rgba(255, 255, 255, 0.05)');
 
-    // Score
+    // Bar Fill Gradient
+    const grad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+    grad.addColorStop(0, themeColor);
+    grad.addColorStop(1, '#57f287');
+    roundRect(ctx, barX, y + 19, barW, 10, 5, grad);
+
+    // Score (right aligned)
     ctx.fillStyle = '#c9d1d9';
-    ctx.font = '16px sans-serif';
-    const scoreFmt = type === 'voice' ? `${Math.floor(member.score / 60)}h ${member.score % 60}m` : member.score.toLocaleString('fr-FR');
-    ctx.fillText(scoreFmt, 320 + barW + 10, y + 25);
+    ctx.font = 'bold 15px sans-serif';
+    ctx.textAlign = 'right';
+    let scoreFmt = '';
+    if (type === 'voice') {
+      scoreFmt = `${Math.floor(member.score / 60)}h ${member.score % 60}m`;
+    } else if (type === 'xp') {
+      scoreFmt = `${member.score.toLocaleString('fr-FR')} XP`;
+    } else {
+      scoreFmt = member.score.toLocaleString('fr-FR');
+    }
+    ctx.fillText(scoreFmt, 620, y + 24);
+    ctx.textAlign = 'left'; // reset text alignment
   }
 
   return canvas.toBuffer('image/png');
+}
+
+function drawDefaultAvatar(
+  ctx: ReturnType<ReturnType<typeof createCanvas>['getContext']>,
+  name: string,
+  x: number,
+  y: number
+) {
+  ctx.beginPath();
+  ctx.arc(x, y, 16, 0, Math.PI * 2);
+  ctx.fillStyle = '#5865f2';
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 13px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(name.charAt(0).toUpperCase(), x, y);
 }
 
 export async function generateServerStatsImage(
