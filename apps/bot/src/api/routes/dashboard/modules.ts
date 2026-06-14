@@ -4626,12 +4626,14 @@ export async function handleModulesRoutes(
           if (ticket.closedById) usersToDm.add(ticket.closedById);
           if (user.userId) usersToDm.add(user.userId);
           
-          const dmEmbed = new EmbedBuilder()
+           const serverName = getGuildName(client, guildId);
+           const dmEmbed = new EmbedBuilder()
             .setTitle('📄 Transcription de ticket')
-            .setDescription(`Le ticket d'assistance **${ticket.reason}** du serveur **${getGuildName(client, guildId)}** a été supprimé.\n\nVoici le lien pour consulter la transcription complète :`)
+            .setDescription(`Le ticket d'assistance **${ticket.reason}** du serveur **${serverName}** a été supprimé.\n\nVoici le lien pour consulter la transcription complète :`)
             .addFields([{ name: 'Lien d\'accès', value: `🌐 [Consulter le transcript](${publicLink})` }])
             .setColor('#5865F2')
-            .setTimestamp();
+            .setTimestamp()
+            .setFooter({ text: `Serveur : ${serverName}` });
             
           for (const dmUserId of usersToDm) {
             try {

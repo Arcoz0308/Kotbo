@@ -1347,6 +1347,9 @@ export async function reviewDailyAlgoSubmission(params: {
   const author = await params.client.users.fetch(submission.authorId).catch(() => null);
 
   if (author) {
+    const guild = params.client.guilds.cache.get(submission.run.guildId) || await params.client.guilds.fetch(submission.run.guildId).catch(() => null);
+    const serverName = guild ? guild.name : '';
+
     const dmEmbed = new EmbedBuilder()
       .setColor(params.action === 'approve' ? COLORS.success : COLORS.danger)
       .setTitle(`📬 Retour Daily Algo · ${submission.run.problem.title}`)
@@ -1366,7 +1369,7 @@ export async function reviewDailyAlgoSubmission(params: {
         },
       )
       .setTimestamp()
-      .setFooter({ text: 'Kotbo · Daily Algo' });
+      .setFooter({ text: serverName ? `Kotbo · Daily Algo · ${serverName}` : 'Kotbo · Daily Algo' });
 
     if (params.action === 'approve' && params.scores) {
       const rawAvg = (params.scores.correctness + params.scores.comments + params.scores.compactness + params.scores.optimization + params.scores.readability) / 5;

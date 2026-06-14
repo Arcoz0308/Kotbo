@@ -852,6 +852,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
       // MP Discord de confirmation au membre
       let dmMessageId: string | null = null;
       try {
+        const serverName = interaction.guild?.name || '';
         const confirmEmbed = new EmbedBuilder()
           .setTitle('📨 Demande de démission reçue')
           .setDescription(
@@ -861,7 +862,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
           )
           .setColor(COLORS.info)
           .setTimestamp()
-          .setFooter({ text: `Référence : ${resignation.id}` });
+          .setFooter({ text: `Référence : ${resignation.id}${serverName ? ` · Serveur : ${serverName}` : ''}` });
         const dm = await interaction.user.send({ embeds: [confirmEmbed] }).catch(() => null);
         dmMessageId = dm?.id ?? null;
       } catch {
@@ -900,6 +901,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
           try {
             const managerDiscordUser = await client.users.fetch(m.userId).catch(() => null);
             if (managerDiscordUser) {
+              const serverName = interaction.guild?.name || '';
               const managerEmbed = new EmbedBuilder()
                 .setTitle('🔔 Nouvelle demande de démission')
                 .setDescription(
@@ -909,7 +911,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
                 )
                 .setColor(COLORS.warning)
                 .setTimestamp()
-                .setFooter({ text: `Référence : ${resignation.id}` });
+                .setFooter({ text: `Référence : ${resignation.id}${serverName ? ` · Serveur : ${serverName}` : ''}` });
               await managerDiscordUser.send({ embeds: [managerEmbed] }).catch(() => null);
             }
           } catch {

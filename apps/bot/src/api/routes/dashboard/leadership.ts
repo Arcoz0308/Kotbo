@@ -2123,6 +2123,8 @@ export async function handleGuildLeadershipRoutes(
             try {
               const managerUser = await client.users.fetch(m.userId).catch(() => null);
               if (managerUser) {
+                const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
+                const serverName = discordGuild ? discordGuild.name : '';
                 const embed = new EmbedBuilder()
                   .setTitle('🔔 Nouvelle demande de démission')
                   .setDescription(
@@ -2132,7 +2134,7 @@ export async function handleGuildLeadershipRoutes(
                   )
                   .setColor(COLORS.warning)
                   .setTimestamp()
-                  .setFooter({ text: `Référence : ${resignation.id}` });
+                  .setFooter({ text: `Référence : ${resignation.id}${serverName ? ` · Serveur : ${serverName}` : ''}` });
                 await managerUser.send({ embeds: [embed] }).catch(() => null);
               }
             } catch {}
@@ -2203,6 +2205,8 @@ export async function handleGuildLeadershipRoutes(
         try {
           const discordUser = await client.users.fetch(resignation.staffMember.userId).catch(() => null);
           if (discordUser) {
+            const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
+            const serverName = discordGuild ? discordGuild.name : '';
             const dmEmbed = new EmbedBuilder()
               .setTitle(body.action === 'APPROVED' ? '✅ Démission approuvée' : '❌ Démission refusée')
               .setDescription(
@@ -2212,6 +2216,9 @@ export async function handleGuildLeadershipRoutes(
               )
               .setColor(body.action === 'APPROVED' ? COLORS.success : COLORS.warning)
               .setTimestamp();
+            if (serverName) {
+              dmEmbed.setFooter({ text: `Serveur : ${serverName}` });
+            }
             await discordUser.send({ embeds: [dmEmbed] }).catch(() => null);
           }
         } catch {}

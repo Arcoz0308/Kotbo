@@ -404,7 +404,7 @@ export async function rejectCandidature(
               ? `Votre candidature sur **${discordGuild.name}** a été refusée.\n\n**Raison :** ${reason}`
               : `Votre candidature sur **${discordGuild.name}** a été refusée. Aucune raison spécifique n'a été communiquée.`
           )
-          .setFooter({ text: 'Kotbo · Recrutement' })
+          .setFooter({ text: `Kotbo · Recrutement · ${discordGuild.name}` })
           .setTimestamp();
 
         await member.send({ embeds: [embed] }).catch(err => {
@@ -461,7 +461,7 @@ export async function sendAutoRejectDM(
         .setColor(0xed4245)
         .setTitle('❌ Candidature Automatiquement Refusée')
         .setDescription(`Votre candidature sur **${discordGuild.name}** a été automatiquement refusée.\n\n**Raison :** ${reason}`)
-        .setFooter({ text: 'Kotbo · Recrutement Automatique' })
+        .setFooter({ text: `Kotbo · Recrutement Automatique · ${discordGuild.name}` })
         .setTimestamp();
 
       await member.send({ embeds: [embed] }).catch(err => {
@@ -511,7 +511,7 @@ export async function completeOral(
               (reason ? `**Raison :** ${reason}\n\n` : '') +
               `Vous pourrez re-candidater à partir du <t:${reapplyTimestamp}:f> (<t:${reapplyTimestamp}:R>).`
             )
-            .setFooter({ text: 'Kotbo · Recrutement' })
+            .setFooter({ text: `Kotbo · Recrutement · ${discordGuild.name}` })
             .setTimestamp();
 
           await member.send({ embeds: [embed] }).catch(err => {

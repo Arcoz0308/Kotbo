@@ -223,7 +223,8 @@ async function execute(interaction: ChatInputCommandInteraction) {
       .setTitle('🔗 Comptes liés officiellement')
       .setDescription(`Vos comptes **<@${u1.id}>** et **<@${u2.id}>** ont été reliés sur **${guild.name}**.`)
       .addFields({ name: 'Raison / Notes', value: reason || 'Liaison validée par le staff.', inline: false })
-      .setTimestamp();
+      .setTimestamp()
+      .setFooter({ text: `Serveur : ${guild.name}` });
 
     try {
       await u1.send({ embeds: [dmEmbed] }).catch(() => null);
@@ -333,7 +334,8 @@ async function execute(interaction: ChatInputCommandInteraction) {
       .setColor(COLORS.warning)
       .setTitle('🔗 Comptes déliés')
       .setDescription(`Vos comptes **<@${u1.id}>** et **<@${u2.id}>** ont été séparés sur **${interaction.guild?.name || 'le serveur'}**.`)
-      .setTimestamp();
+      .setTimestamp()
+      .setFooter({ text: `Serveur : ${interaction.guild?.name || 'Kotbo'}` });
 
     try {
       await u1.send({ embeds: [dmEmbed] }).catch(() => null);

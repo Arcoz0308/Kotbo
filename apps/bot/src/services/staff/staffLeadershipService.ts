@@ -1209,11 +1209,18 @@ export const createNotification = async (
           'CRITICAL': '🚨'
         }[type] || '🔔';
 
+        const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+        const serverName = guild ? guild.name : '';
+
         const embed = new EmbedBuilder()
           .setTitle(`${typeEmoji} ${title}`)
           .setDescription(message)
           .setColor(type === 'ERROR' || type === 'CRITICAL' ? '#ED4245' : (type === 'WARNING' ? '#FEE75C' : (type === 'SUCCESS' ? '#57F287' : '#5865F2')))
           .setTimestamp();
+
+        if (serverName) {
+          embed.setFooter({ text: `Serveur : ${serverName}` });
+        }
 
         if (link && staff) { // Le lien vers le dashboard n'est utile que pour le staff
           const dashboardUrl = process.env.DASHBOARD_URL || 'http://localhost:5173';
