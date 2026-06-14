@@ -232,9 +232,9 @@ async function execute(interaction: ChatInputCommandInteraction) {
       } catch {
         // Le DM peut échouer selon les préférences utilisateur, ce n'est pas bloquant.
       }
-    } catch (err: any) {
+    } catch (err) {
       await replyInteraction.editReply({
-        content: `❌ ${err.message || 'Une erreur est survenue lors de la création de l\'absence.'}`,
+        content: `❌ ${err instanceof Error ? err.message : 'Une erreur est survenue lors de la création de l\'absence.'}`,
       });
     }
     return;

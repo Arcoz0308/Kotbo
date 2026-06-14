@@ -1,0 +1,94 @@
+enum CandidatureStatus {
+  PENDING
+  ORAL
+  APPROVED
+  REJECTED
+  AUTO_REJECTED
+}
+
+enum OralResult {
+  PENDING
+  PASSED
+  FAILED
+}
+
+model RecruitmentCandidature {
+  id String @id @default(cuid())
+  guildId String
+  
+  // Identifying fields (can be submitted or parsed)
+  discordId String?
+  username String?
+  email String?
+  
+  status CandidatureStatus @default(PENDING)
+  
+  // The raw submission from Google Forms / Webhook
+  data Json
+  
+  // Internal notes from staff
+  notes String?
+  
+  // Rejection
+  rejectionReason String?
+  autoRejected    Boolean @default(false)
+  autoRejectReason String?
+  
+  // Oral interview
+  oralResult    OralResult?
+  oralNotes     String?
+  
+  // Ticket Discord
+  ticketChannelId String?
+  
+  // Staff linkage (after acceptance)
+  assignedTutorId  String?
+  staffMemberId    String?
+  
+  // Reapply cooldown
+  reapplyAfter DateTime?
+  
+  // Who processed this candidature
+  processedByUserId String?
+  
+  // Link to custom form if using custom form builder
+  formId String?
+  
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  form RecruitmentForm? @relation(fields: [formId], references: [id], onDelete: SetNull)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, status])
+  @@index([guildId, discordId])
+  @@map("recruitment_candidatures")
+}
+
+// Custom form builder for recruitment
+model RecruitmentForm {
+  id String @id @default(cuid())
+  guildId String
+  
+  name String
+  description String?
+  isActive Boolean @default(true)
+  
+  // Form structure (JSON with questions, types, options, validation)
+  structure Json
+  
+  // API key for this form (for webhook authentication)
+  apiKeyId String?
+  
+  // Statistics
+  submissionsCount Int @default(0)
+  
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  candidatures RecruitmentCandidature[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guildId, isActive])
+  @@map("recruitment_forms")
+}

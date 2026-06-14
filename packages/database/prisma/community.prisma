@@ -1,0 +1,82 @@
+model FunGameState {
+  guildId            String   @id
+  countingCurrent    Int      @default(0)
+  countingLastUserId String?
+  oneWordStoryLastUserId String?
+  guessNumberTarget  Int      @default(0)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("fun_game_states")
+}
+
+model DeveloperExcuse {
+  id        String   @id @default(cuid())
+  text      String
+  language  String   @default("fr")
+  createdAt DateTime @default(now())
+
+  @@map("developer_excuses")
+  @@index([language])
+}
+
+model Giveaway {
+  id             String   @id @default(cuid())
+  guildId        String
+  channelId      String
+  messageId      String?
+  prize          String
+  description    String?
+  winnerCount    Int      @default(1)
+  endsAt         DateTime
+  ended          Boolean  @default(false)
+
+  participants   String[] @default([]) // Array of User IDs
+  winners        String[] @default([]) // Array of User IDs
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("giveaways")
+}
+
+
+model Suggestion {
+  id             String   @id @default(cuid())
+  guildId        String
+  userId         String
+  username       String
+  content        String
+  status         String   @default("PENDING") // PENDING, APPROVED, REJECTED, IMPLEMENTED
+  channelId      String?
+  messageId      String?
+  responseText   String?
+  respondedById  String?
+  respondedAt    DateTime?
+
+  upvoters       String[] @default([]) // Array of User IDs
+  downvoters     String[] @default([]) // Array of User IDs
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("suggestions")
+}
+
+model ReactionRoleMenu {
+  id        String   @id @default(cuid())
+  guildId   String
+  channelId String
+  messageId String?
+  title     String
+  options   Json     // List of { emoji: string, label: string, roleId: string }
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  @@map("reaction_role_menus")
+}

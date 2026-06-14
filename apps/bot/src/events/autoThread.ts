@@ -16,7 +16,7 @@ async function getAutoThreadConfig(guildId: string): Promise<{ enabled: boolean;
     };
   } catch (error) {
     logger.error('AutoThread', `Erreur lors de la récupération de la config pour la guilde ${guildId} :`, error);
-    return { enabled: false, channels: [] };
+    return { enabled: false, channels: [], botsEnabled: false };
   }
 }
 

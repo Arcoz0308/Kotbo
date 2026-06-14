@@ -101,6 +101,10 @@ export async function executeSchedule(client: Client, scheduleId: string): Promi
       if (!schedule.targetId) throw new Error("ID du salon cible manquant pour la réinitialisation");
       const channel = await guild.channels.fetch(schedule.targetId).catch(() => null);
       if (!channel) throw new Error(`Salon cible ${schedule.targetId} non trouvé`);
+
+      if (channel.isThread()) {
+        throw new Error(`La réinitialisation de salons de type thread n'est pas supportée (salon ${channel.id})`);
+      }
       
       const newChannel = await channel.clone({
         reason: `Réinitialisation planifiée : ${schedule.name}`

@@ -1,0 +1,52 @@
+// ============================================================================
+// TICKET SYSTEM
+// ============================================================================
+
+enum TicketStatus {
+  OPEN
+  CLAIMED
+  CLOSED
+}
+
+model Ticket {
+  id            String       @id @default(cuid())
+  guildId       String
+  channelId     String?      @unique
+  ticketTypeId  String?
+  ticketTypeLabel String?
+  staffRoleId   String?
+  categoryId    String?
+  userId        String       // Discord User ID of the opener
+  username      String       // Username of the opener
+  reason        String       // Reason requested in modal
+  description   String       // Description requested in modal
+  status        TicketStatus @default(OPEN)
+  claimedById   String?      // Discord User ID of claiming staff
+  claimedByName String?      // Username of claiming staff
+  closedById    String?      // Discord User ID of closing staff
+  closedByName  String?      // Username of closing staff
+  transcriptId  String?      // Linked Transcript ID
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  closedAt      DateTime?
+  inactivityAlertSent Boolean  @default(false)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("tickets")
+}
+
+model Transcript {
+  id             String    @id @default(cuid())
+  guildId        String
+  channelId      String
+  channelName    String
+  html           String
+  startMessageId String?
+  endMessageId   String?
+  startTime      DateTime?
+  endTime        DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@map("transcripts")
+}

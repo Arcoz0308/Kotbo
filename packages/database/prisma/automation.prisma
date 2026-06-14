@@ -1,0 +1,44 @@
+model ScheduledTask {
+  id              String   @id @default(cuid())
+  guildId         String
+  name            String
+  type            String   // "CHANNEL_RESET", "SERVER_BACKUP", "DATA_EXPORT"
+  cron            String   // Expression Cron (ex: "0 0 * * *")
+  enabled         Boolean  @default(true)
+  targetId        String?  // ID Discord cible (ex. ID du salon)
+  lastRun         DateTime?
+
+  guild           Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([guildId])
+  @@map("scheduled_tasks")
+}
+
+
+model AutoResponse {
+  id             String   @id @default(cuid())
+  guildId        String
+  trigger        String
+  response       String?   // Text or JSON embed
+  matchType      String   @default("CONTAINS") // EXACT, CONTAINS, REGEX
+  enabled        Boolean  @default(true)
+  roleIdToAdd    String?
+  roleIdToRemove String?
+  deleteTrigger  Boolean  @default(false)
+
+  // Filtres de déclenchement
+  allowedRoleIds    String[] @default([]) // Rôles autorisés (vide = tous)
+  bannedRoleIds     String[] @default([]) // Rôles interdits
+  allowedChannelIds String[] @default([]) // Salons autorisés (vide = tous)
+  bannedChannelIds  String[] @default([]) // Salons interdits
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([guildId, trigger])
+  @@map("auto_responses")
+}

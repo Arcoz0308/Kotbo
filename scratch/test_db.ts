@@ -1,5 +1,5 @@
+import { updateRoleAccess } from '../apps/bot/src/services/core/dashboardManagementService.js';
 import prisma from '../apps/bot/src/utils/db.js';
-import { updateRoleAccess } from '../apps/bot/src/services/dashboardManagementService.js';
 
 async function main() {
   console.log('Fetching all guilds...');

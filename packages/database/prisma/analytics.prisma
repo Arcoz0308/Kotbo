@@ -1,0 +1,288 @@
+// ============================================================================
+// ANALYTICS — STATISTIQUES SERVEUR
+// ============================================================================
+
+model GuildDailyStat {
+  id String @id @default(cuid())
+
+  guildId String
+  dateKey String // YYYY-MM-DD
+
+  totalMembers     Int @default(0)
+  onlineMembers    Int @default(0)
+  idleMembers      Int @default(0)
+  dndMembers       Int @default(0)
+  offlineMembers   Int @default(0)
+  totalBots        Int @default(0)
+  totalHumans      Int @default(0)
+
+  messagesCount    Int @default(0)
+  voiceMinutes     Int @default(0)
+  voiceSessionsCount Int @default(0)
+
+  membersJoined    Int @default(0)
+  membersLeft      Int @default(0)
+
+  sanctionsCount   Int @default(0)
+  warnsCount       Int @default(0)
+  kicksCount       Int @default(0)
+  timeoutsCount    Int @default(0)
+  bansCount        Int @default(0)
+
+  activeMembers    Int @default(0) // Membres ayant envoyé >= 1 message
+  activeVoiceMembers Int @default(0) // Membres ayant rejoint >= 1 vocal
+
+  peakOnline       Int @default(0) // Pic de membres en ligne dans la journée
+  peakVoice        Int @default(0) // Pic de membres en vocal simultanément
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, dateKey])
+  @@index([guildId, dateKey])
+  @@map("guild_daily_stats")
+}
+
+
+model ChannelDailyStat {
+  id String @id @default(cuid())
+
+  guildId   String
+  channelId String
+  dateKey   String // YYYY-MM-DD
+
+  messagesCount Int @default(0)
+  uniqueAuthors Int @default(0)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, channelId, dateKey])
+  @@index([guildId, dateKey])
+  @@index([guildId, channelId])
+  @@map("channel_daily_stats")
+}
+
+
+model MemberInvite {
+  id String @id @default(cuid())
+
+  guildId String
+  userId  String // L'utilisateur qui a rejoint
+
+  inviteCode  String?
+  inviterId   String? // L'utilisateur qui a invité
+  inviterTag  String?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  joinedAt DateTime @default(now())
+  leftAt   DateTime? // Quand l'utilisateur est parti
+
+  @@index([guildId, inviterId])
+  @@index([guildId, joinedAt])
+  @@map("member_invites")
+}
+
+model GuildInvite {
+  id String @id @default(cuid())
+
+  guildId String
+  code    String @unique
+
+  inviterId   String?
+  inviterTag  String?
+
+  uses        Int @default(0)
+  maxUses     Int?
+  expiresAt   DateTime?
+
+  isTemporary Boolean @default(false)
+  isDeleted   Boolean @default(false)
+  isSuspended Boolean @default(false)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, inviterId])
+  @@map("guild_invites")
+}
+
+model SuspendedInviter {
+  id        String   @id @default(cuid())
+  guildId   String
+  userId    String   // ID Discord du créateur
+  userTag   String?  // Tag de l'utilisateur
+  reason    String?  // Raison de la suspension
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, userId])
+  @@map("suspended_inviters")
+}
+
+model GuildHourlyStat {
+  id       String @id @default(cuid())
+
+  guildId  String
+  dateKey  String // YYYY-MM-DD
+  hour     Int    // 0-23
+
+  messagesCount Int @default(0)
+  voiceMinutes  Int @default(0)
+  joinsCount    Int @default(0)
+  leavesCount   Int @default(0)
+  reactionsCount Int @default(0)
+  threadsCount  Int @default(0)
+
+  onlineMembers Int @default(0)
+  voiceMembers  Int @default(0)
+  activeMembers Int @default(0)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, dateKey, hour])
+  @@index([guildId, dateKey])
+  @@map("guild_hourly_stats")
+}
+
+model MemberDailyStat {
+  id       String @id @default(cuid())
+
+  guildId  String
+  userId   String
+  dateKey  String // YYYY-MM-DD
+
+  messagesCount    Int @default(0)
+  voiceMinutes     Int @default(0)
+  reactionsCount   Int @default(0)
+  threadsCreated   Int @default(0)
+  repliesCount     Int @default(0)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, userId, dateKey])
+  @@index([guildId, dateKey])
+  @@index([guildId, userId])
+  @@map("member_daily_stats")
+}
+
+
+model DashboardCommandUsage {
+  id String @id @default(cuid())
+  guildId String
+  commandName String
+  userId String?
+  count Int @default(1)
+  lastUsedAt DateTime @default(now())
+
+  @@unique([guildId, commandName, userId])
+  @@index([guildId, commandName])
+  @@map("dashboard_command_usages")
+}
+
+// ============================================================================
+// MODULE STATISTICS - STATISTIQUES GLOBALES DES MODULES KOTBO
+// ============================================================================
+
+model ModuleActivationStat {
+  id String @id @default(cuid())
+
+  guildId String? // null = global (tous serveurs)
+  moduleName String // ex: "dailyAlgo", "sanction", "ticket", etc.
+  enabled Boolean @default(false)
+
+  // Configuration spécifique au module
+  config Json? // Pour stocker des configs spécifiques
+
+  guild Guild? @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  activatedAt DateTime?
+  deactivatedAt DateTime?
+  lastUsedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, moduleName])
+  @@index([guildId, enabled])
+  @@index([moduleName, enabled])
+  @@map("module_activation_stats")
+}
+
+model ModuleUsageStat {
+  id String @id @default(cuid())
+
+  guildId String? // null = global
+  moduleName String
+  dateKey String // YYYY-MM-DD
+
+  // Compteurs d'utilisation
+  commandExecutions Int @default(0)
+  apiCalls Int @default(0)
+  eventTriggers Int @default(0)
+
+  // Détails par type d'action
+  actionBreakdown Json? // { "create": 10, "update": 5, "delete": 2 }
+
+  // Utilisateurs uniques
+  uniqueUsers Int @default(0)
+  topUsers Json? // Array of { userId, count }
+
+  guild Guild? @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, moduleName, dateKey])
+  @@index([guildId, dateKey])
+  @@index([moduleName, dateKey])
+  @@map("module_usage_stats")
+}
+
+model ModulePerformanceStat {
+  id String @id @default(cuid())
+
+  guildId String? // null = global
+  moduleName String
+  dateKey String // YYYY-MM-DD
+
+  // Performance
+  avgExecutionTimeMs Float @default(0)
+  maxExecutionTimeMs Float @default(0)
+  minExecutionTimeMs Float @default(0)
+  totalExecutions Int @default(0)
+
+  // Erreurs
+  errorCount Int @default(0)
+  errorRate Float @default(0) // percentage
+  errorTypes Json? // { "timeout": 5, "permission": 2, etc. }
+
+  // Succès
+  successCount Int @default(0)
+  successRate Float @default(0) // percentage
+
+  guild Guild? @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, moduleName, dateKey])
+  @@index([guildId, dateKey])
+  @@index([moduleName, dateKey])
+  @@map("module_performance_stats")
+}

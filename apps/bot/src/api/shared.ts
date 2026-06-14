@@ -711,6 +711,7 @@ export type DashboardState = {
   auditTrail: AuditEntry[];
   sanctions: SanctionItem[];
   sanctionReports: SanctionReportItem[];
+  sanctionReportEnabled: boolean;
   regulationRules: RegulationRuleItem[];
   messageTemplate: string;
   analytics: AnalyticsData;
