@@ -34,6 +34,14 @@ model Giveaway {
   participants   String[] @default([]) // Array of User IDs
   winners        String[] @default([]) // Array of User IDs
 
+  // RPG / Économie additionnels
+  rpgXp          Int      @default(0)
+  rpgCoins       Int      @default(0)
+  rpgItemId      String?
+  needValidation Boolean  @default(false)
+  validationStatus String @default("APPROVED") // PENDING, APPROVED, REJECTED
+  pendingWinners String[] @default([]) // Gagnants potentiels en attente de validation
+
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())

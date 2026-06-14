@@ -196,6 +196,16 @@ model Guild {
   funGuessNumberChannelId  String?
   funGameState             FunGameState?
 
+  // Economy & RPG Module
+  economyEnabled           Boolean  @default(false)
+  economyChannelId         String?
+  economyConfig            EconomyConfig?
+  rpgProfiles              RpgProfile[]
+  rpgGuilds                RpgGuild[]
+  rpgItems                 RpgItem[]
+  rpgAdventureEvents       RpgAdventureEvent[]
+  rpgDrops                 RpgDrop[]
+
   @@map("guilds")
 }
 

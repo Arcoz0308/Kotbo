@@ -212,12 +212,42 @@ async function processLevelUp(guildId: string, userId: string, newLevel: number,
       }
     }
 
+    // 1.5. Attribution des pièces d'économie pour la montée de niveau
+    let coinRewardText = '';
+    try {
+      const { getOrCreateEconomyConfig } = await import('../features/economyService.js');
+      const econConfig = await getOrCreateEconomyConfig(guildId).catch(() => null);
+      if (econConfig && econConfig.enabled) {
+        const rewardAmount = newLevel * 20;
+        await prisma.rpgProfile.upsert({
+          where: { guildId_userId: { guildId, userId } },
+          update: { balance: { increment: rewardAmount } },
+          create: {
+            guildId,
+            userId,
+            balance: rewardAmount,
+            level: 1,
+            xp: 0,
+            health: 100,
+            maxHealth: 100,
+            energy: 100,
+            attack: 10,
+            defense: 10,
+            speed: 10
+          }
+        });
+        coinRewardText = ` Tu as également gagné **${rewardAmount}** ${econConfig.currencyEmoji} **${econConfig.currencyName}** !`;
+      }
+    } catch (econErr) {
+      logger.error('LevelingService', 'Erreur lors de l\'attribution du bonus d\'économie pour le level up :', econErr);
+    }
+
     // 2. Envoi du message de félicitations
     const msgTemplate = config.levelUpMessage;
     const msg = msgTemplate
       .replace(/{user}/g, `<@${userId}>`)
       .replace(/{username}/g, member.user.username)
-      .replace(/{level}/g, String(newLevel));
+      .replace(/{level}/g, String(newLevel)) + coinRewardText;
 
     if (config.levelUpChannelId === 'DM') {
       const dmChannel = await member.createDM().catch(() => null);

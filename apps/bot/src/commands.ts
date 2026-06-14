@@ -27,6 +27,25 @@ import { rankCommand } from './commands/profile/rank.js';
 import { rescanCommand } from './commands/moderation/rescan.js';
 import { sanctionCommand, sanctionContextCommand } from './commands/moderation/sanction.js';
 import { sayCommand } from './commands/fun/say.js';
+import { buyCommand } from './commands/economy/buy.js';
+import { dailyCommand } from './commands/economy/daily.js';
+import { coinsCommand } from './commands/economy/coins.js';
+import { diceCommand } from './commands/economy/dice.js';
+import { economyInfoCommand } from './commands/economy/economyInfo.js';
+import { gamesCommand } from './commands/economy/games.js';
+import { giveCoinsCommand } from './commands/economy/giveCoins.js';
+import { giveItemCommand } from './commands/economy/giveItem.js';
+import { guessCommand } from './commands/economy/guess.js';
+import { itemsCommand } from './commands/economy/items.js';
+import { removeCoinsCommand } from './commands/economy/removeCoins.js';
+import { removeItemCommand } from './commands/economy/removeItem.js';
+import { richestCommand } from './commands/economy/richest.js';
+import { rpsCommand } from './commands/economy/rps.js';
+import { rouletteCommand } from './commands/economy/roulette.js';
+import { shopCommand } from './commands/economy/shop.js';
+import { spawnItemCommand } from './commands/economy/spawnItem.js';
+import { useCommand } from './commands/economy/use.js';
+import { workCommand } from './commands/economy/work.js';
 import { serverstatsCommand } from './commands/utility/serverstats.js';
 import { setupCommand } from './commands/admin/setup.js';
 import { statsCommand } from './commands/utility/stats.js';
@@ -41,7 +60,7 @@ import { signalCommand, signalContextCommand } from './commands/moderation/signa
 import { dashboardCommand } from './commands/utility/dashboard.js';
 
 export type SlashCommandDefinition = {
-  data: { name: string; toJSON: () => unknown };
+  data: { name: string; description: string; toJSON: () => unknown };
   execute: (interaction: ChatInputCommandInteraction) => Promise<unknown>;
   autocomplete?: (interaction: AutocompleteInteraction) => Promise<unknown>;
 };
@@ -95,6 +114,25 @@ export const commands: SlashCommandDefinition[] = [
   channelCommand,
   signalCommand,
   dashboardCommand,
+  buyCommand,
+  dailyCommand,
+  coinsCommand,
+  diceCommand,
+  economyInfoCommand,
+  gamesCommand,
+  giveCoinsCommand,
+  giveItemCommand,
+  guessCommand,
+  itemsCommand,
+  removeCoinsCommand,
+  removeItemCommand,
+  richestCommand,
+  rpsCommand,
+  rouletteCommand,
+  shopCommand,
+  spawnItemCommand,
+  useCommand,
+  workCommand,
 ];
 
 export const contextCommands: ContextCommandDefinition[] = [

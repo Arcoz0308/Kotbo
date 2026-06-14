@@ -71,6 +71,7 @@
 
   import Leveling from "./pages/Leveling.svelte";
   import LevelingPublic from "./pages/LevelingPublic.svelte";
+  import Economy from "./pages/Economy.svelte";
   import Giveaways from "./pages/Giveaways.svelte";
   import Announcement from "./pages/Announcement.svelte";
   import ReactionRoles from "./pages/ReactionRoles.svelte";
@@ -126,6 +127,7 @@
     if (path.startsWith("/meetings")) return "meetings";
     if (path.startsWith("/absences")) return "absences";
     if (path.startsWith("/leveling")) return "leveling";
+    if (path.startsWith("/economy")) return "economy";
     if (path.startsWith("/giveaways")) return "giveaways";
     if (path.startsWith("/welcome") || path.startsWith("/announcement")) return "welcome_goodbye";
     if (path.startsWith("/reaction-roles")) return "reaction_roles";
@@ -703,6 +705,9 @@
 
             <Route path="/leveling">
               <Leveling />
+            </Route>
+            <Route path="/economy">
+              <Economy />
             </Route>
             <Route path="/giveaways">
               <Giveaways />

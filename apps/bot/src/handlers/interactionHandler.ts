@@ -107,6 +107,155 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
   const { customId, guildId, user } = interaction;
 
+  if (customId.startsWith('help_')) {
+    const { handleHelpInteraction } = await import('../commands/utility/help.js');
+    await handleHelpInteraction(interaction);
+    return;
+  }
+
+  // ── RPG Drop Claim button ───────────────────────────────────────────
+  if (customId.startsWith('rpg_drop_claim:')) {
+    const dropId = customId.split(':')[1];
+    if (!dropId) return;
+
+    await interaction.deferUpdate().catch(() => null);
+
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const drop = await tx.rpgDrop.findUnique({
+          where: { id: dropId }
+        });
+        if (!drop) throw new Error('Ce drop n\'existe plus.');
+        if (drop.claimed) throw new Error('Ce drop a déjà été réclamé.');
+
+        await tx.rpgDrop.update({
+          where: { id: dropId },
+          data: {
+            claimed: true,
+            claimedBy: user.id
+          }
+        });
+
+        // Find or create profile:
+        let userProfile = await tx.rpgProfile.findUnique({
+          where: { guildId_userId: { guildId: guildId!, userId: user.id } }
+        });
+        if (!userProfile) {
+          userProfile = await tx.rpgProfile.create({
+            data: { guildId: guildId!, userId: user.id }
+          });
+        }
+
+        const isCoins = drop.type === 'COINS';
+        await tx.rpgProfile.update({
+          where: { id: userProfile.id },
+          data: isCoins
+            ? { balance: { increment: drop.amount } }
+            : { xp: { increment: drop.amount } }
+        });
+
+        return { drop };
+      });
+
+      const resourceName = result.drop.type === 'COINS' ? 'KotboCoins 🪙' : 'XP RPG ⭐';
+      const originalEmbed = interaction.message.embeds[0];
+      const updatedEmbed = EmbedBuilder.from(originalEmbed)
+        .setDescription(`🎁 **Réclamé !**\n\nCe drop de **${result.drop.amount}** **${resourceName}** a été ramassé par <@${user.id}> !`)
+        .setColor(COLORS.success);
+
+      const disabledRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`rpg_drop_claim:${dropId}`)
+          .setLabel('Réclamé 🎁')
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(true)
+      );
+
+      await interaction.message.edit({
+        embeds: [updatedEmbed],
+        components: [disabledRow]
+      }).catch(() => null);
+
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : 'Impossible de réclamer le drop.';
+      await interaction.followUp({
+        content: `❌ ${errMsg}`,
+        flags: [MessageFlags.Ephemeral]
+      }).catch(() => null);
+    }
+    return;
+  }
+
+  // ── RPG Admin Reset Confirm/Cancel buttons ─────────────────────────
+  if (customId.startsWith('rpg_reset_confirm:')) {
+    const component = customId.split(':')[1] as 'all' | 'profiles' | 'items' | 'config' | 'guilds';
+    const member = await resolveGuildMemberByUserId(interaction, user.id);
+    if (!member || !member.permissions.has(PermissionFlagsBits.Administrator)) {
+      await interaction.reply({ content: '❌ Seuls les administrateurs peuvent confirmer un reset.', flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    await interaction.deferUpdate();
+    
+    const { adminResetGuildEconomy } = await import('../services/features/economyService.js');
+    await adminResetGuildEconomy(guildId!, component);
+
+    const componentLabels: Record<string, string> = {
+      all: 'l\'Économie & RPG (Global)',
+      profiles: 'les Profils des joueurs',
+      items: 'les Objets de la boutique',
+      config: 'la Configuration',
+      guilds: 'les Guildes RPG'
+    };
+
+    await interaction.editReply({
+      embeds: [successEmbed('Réinitialisation terminée', `Le composant **${componentLabels[component] || component}** a été réinitialisé avec succès !`)],
+      components: []
+    });
+    return;
+  }
+
+  if (customId === 'rpg_reset_cancel') {
+    await interaction.update({
+      embeds: [errorEmbed('Annulé', 'La réinitialisation a été annulée.')],
+      components: []
+    });
+    return;
+  }
+
+  // ── Giveaway validation admin approval buttons ─────────────────────
+  if (customId.startsWith('giveaway_val_approve:')) {
+    const giveawayId = customId.split(':')[1];
+    const member = await resolveGuildMemberByUserId(interaction, user.id);
+    if (!(await canModerate(member, guildId!))) {
+      await interaction.reply({ content: '❌ Vous n\'avez pas les permissions pour valider ce giveaway.', flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    await interaction.deferUpdate();
+
+    const { approveGiveawayWinners } = await import('../services/features/giveawayService.js');
+    await approveGiveawayWinners(client, giveawayId);
+    return;
+  }
+
+  if (customId.startsWith('giveaway_val_reroll:')) {
+    const giveawayId = customId.split(':')[1];
+    const member = await resolveGuildMemberByUserId(interaction, user.id);
+    if (!(await canModerate(member, guildId!))) {
+      await interaction.reply({ content: '❌ Vous n\'avez pas les permissions pour relancer ce giveaway.', flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+    const { rerollGiveaway } = await import('../services/features/giveawayService.js');
+    await rerollGiveaway(client, giveawayId);
+    
+    await interaction.editReply({ content: '✅ Le giveaway a été relancé (reroll).' });
+    return;
+  }
+
   // ── Giveaway buttons ────────────────────────────────────────────────
   if (customId.startsWith('giveaway_join:')) {
     const { handleGiveawayJoin } = await import('../services/features/giveawayService.js');
@@ -656,6 +805,13 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
 export async function handleSelectMenu(interaction: AnySelectMenuInteraction, client: Client): Promise<void> {
   const { customId, guildId, values } = interaction;
+
+  if (customId.startsWith('help_')) {
+    const { handleHelpInteraction } = await import('../commands/utility/help.js');
+    await handleHelpInteraction(interaction);
+    return;
+  }
+
   if (!guildId) return;
 
   // Ticket system select menu
@@ -799,6 +955,13 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
 
 export async function handleModalSubmit(interaction: ModalSubmitInteraction, client: Client): Promise<void> {
   const { customId, guildId } = interaction;
+
+  if (customId.startsWith('help_')) {
+    const { handleHelpInteraction } = await import('../commands/utility/help.js');
+    await handleHelpInteraction(interaction);
+    return;
+  }
+
   if (!guildId) return;
 
   // ── Suggestion form modal ─────────────────────────────────────────────

@@ -685,6 +685,7 @@ export type DashboardState = {
   autoThreadChannels: string[];
   autoThreadBotsEnabled: boolean;
   funEnabled: boolean;
+  economyEnabled: boolean;
   funCountingChannelId: string;
   funOneWordStoryChannelId: string;
   funGuessNumberChannelId: string;
@@ -766,6 +767,7 @@ export const MODULE_DESCRIPTIONS: Record<string, string> = {
   absences: 'Gestion des congés et disponibilités du personnel.',
   double_accounts: 'Détection et gestion des comptes multiples pour la sécurité.',
   events: 'Organisation et gestion d\'événements communautaires et quiz.',
+  economy: 'Système complet d\'économie et d\'aventures RPG textuelles.',
 };
 
 export const DEFAULT_SEVERITY_BY_MODULE: Array<{ module: string; level: SeverityLevel }> = [
@@ -2740,6 +2742,15 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
       uptime: 100,
       interactions: 0,
       lastSync: guild.updatedAt.toISOString()
+    },
+    {
+      id: 'economy',
+      name: 'Économie & RPG',
+      description: MODULE_DESCRIPTIONS.economy,
+      status: getFeatureStatus('economy', guild.economyEnabled),
+      uptime: guild.economyEnabled ? 99.9 : 100,
+      interactions: 0,
+      lastSync: guild.updatedAt.toISOString()
     }
   ];
 
@@ -2840,6 +2851,7 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     autoThreadChannels: guild.autoThreadChannels,
     autoThreadBotsEnabled: guild.autoThreadBotsEnabled,
     funEnabled: guild.funEnabled,
+    economyEnabled: guild.economyEnabled,
     funCountingChannelId: guild.funCountingChannelId ?? '',
     funOneWordStoryChannelId: guild.funOneWordStoryChannelId ?? '',
     funGuessNumberChannelId: guild.funGuessNumberChannelId ?? '',

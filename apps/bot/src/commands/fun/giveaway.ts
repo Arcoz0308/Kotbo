@@ -17,6 +17,10 @@ const data = new SlashCommandBuilder()
       .addIntegerOption((o) => o.setName('duree').setDescription('Durée en minutes').setRequired(true))
       .addStringOption((o) => o.setName('description').setDescription('Description additionnelle').setRequired(false))
       .addChannelOption((o) => o.setName('salon').setDescription('Salon de publication (défaut: salon actuel)').setRequired(false))
+      .addIntegerOption((o) => o.setName('xp').setDescription('XP RPG bonus à faire gagner').setRequired(false))
+      .addIntegerOption((o) => o.setName('pieces').setDescription('KotboCoins bonus à faire gagner').setRequired(false))
+      .addStringOption((o) => o.setName('objet').setDescription('ID de l\'objet RPG bonus à faire gagner').setRequired(false))
+      .addBooleanOption((o) => o.setName('validation').setDescription('Requérir la validation du staff avant de donner le gain').setRequired(false))
   )
   .addSubcommand((sub) =>
     sub
@@ -68,6 +72,10 @@ async function executeInternal(interaction: ChatInputCommandInteraction): Promis
     const duration = interaction.options.getInteger('duree', true);
     const description = interaction.options.getString('description') || undefined;
     const channel = interaction.options.getChannel('salon') || interaction.channel;
+    const rpgXp = interaction.options.getInteger('xp') || 0;
+    const rpgCoins = interaction.options.getInteger('pieces') || 0;
+    const rpgItemId = interaction.options.getString('objet') || null;
+    const needValidation = interaction.options.getBoolean('validation') || false;
 
     if (!channel || !('send' in channel)) {
       await interaction.reply({ content: '❌ Salon invalide.', flags: [MessageFlags.Ephemeral] });
@@ -82,7 +90,11 @@ async function executeInternal(interaction: ChatInputCommandInteraction): Promis
       prize,
       winners,
       duration,
-      description
+      description,
+      rpgXp,
+      rpgCoins,
+      rpgItemId,
+      needValidation
     );
     await interaction.editReply(`🎉 Giveaway créé avec succès ! (ID : \`${giveaway.id}\`)`);
   } 

@@ -25,6 +25,12 @@ export async function handleGeneralistModulesRoutes(
   const moduleKey = parts[4];
   const auditUser = `${user.username}#${user.discriminator || '0000'} (${user.userId})`;
 
+  // Economy & RPG module routes
+  if (moduleKey === 'economy') {
+    const { handleEconomyRoutes } = await import('./economy.js');
+    return handleEconomyRoutes(req, res, parts, client, user, guildId, _access);
+  }
+
   // 1. LEVELING MODULE ROUTES
   if (moduleKey === 'leveling') {
     // GET /api/dashboard/guilds/:guildId/leveling

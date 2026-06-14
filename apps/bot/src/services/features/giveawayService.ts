@@ -15,7 +15,11 @@ export async function createGiveaway(
   prize: string,
   winnerCount: number,
   durationMinutes: number,
-  description?: string
+  description?: string,
+  rpgXp = 0,
+  rpgCoins = 0,
+  rpgItemId: string | null = null,
+  needValidation = false
 ) {
   const endsAt = new Date(Date.now() + durationMinutes * 60 * 1000);
   
@@ -28,6 +32,11 @@ export async function createGiveaway(
       winnerCount,
       endsAt,
       description,
+      rpgXp,
+      rpgCoins,
+      rpgItemId,
+      needValidation,
+      validationStatus: needValidation ? 'PENDING' : 'APPROVED'
     },
   });
 
@@ -38,9 +47,22 @@ export async function createGiveaway(
   const channel = discordGuild.channels.cache.get(channelId);
   if (!channel?.isTextBased()) return giveaway;
 
+  let extraPrizeInfo = '';
+  if (rpgCoins > 0) extraPrizeInfo += `\n🪙 **Pièces :** +${rpgCoins}`;
+  if (rpgXp > 0) extraPrizeInfo += `\n✨ **XP RPG :** +${rpgXp}`;
+  if (rpgItemId) extraPrizeInfo += `\n📦 **Objet :** ${rpgItemId}`;
+  if (needValidation) extraPrizeInfo += `\n⚠️ *Validation du staff requise*`;
+
+  const embedDescription = `${description ? `${description}\n\n` : ''}` +
+    `Cliquez sur le bouton ci-dessous pour participer !\n` +
+    (extraPrizeInfo ? `\n**Récompenses bonus :**${extraPrizeInfo}\n` : '') +
+    `\n**Fin :** <t:${Math.floor(endsAt.getTime() / 1000)}:R> (<t:${Math.floor(endsAt.getTime() / 1000)}:f>)\n` +
+    `**Nombre de gagnants :** ${winnerCount}\n` +
+    `**Participants :** 0`;
+
   const embed = new EmbedBuilder()
     .setTitle(`🎉 GIVEAWAY : ${prize} 🎉`)
-    .setDescription(`${description ? `${description}\n\n` : ''}Cliquez sur le bouton ci-dessous pour participer !\n\n**Fin :** <t:${Math.floor(endsAt.getTime() / 1000)}:R> (<t:${Math.floor(endsAt.getTime() / 1000)}:f>)\n**Nombre de gagnants :** ${winnerCount}\n**Participants :** 0`)
+    .setDescription(embedDescription)
     .setColor('#5865F2')
     .setFooter({ text: `ID : ${giveaway.id}` })
     .setTimestamp();
@@ -200,15 +222,6 @@ export async function endGiveaway(client: Client, giveawayId: string) {
     }
   }
 
-  // Mettre à jour en BDD
-  await prisma.giveaway.update({
-    where: { id: giveawayId },
-    data: {
-      ended: true,
-      winners,
-    },
-  });
-
   // Mettre à jour le message d'origine
   if (giveaway.messageId) {
     const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
@@ -216,26 +229,73 @@ export async function endGiveaway(client: Client, giveawayId: string) {
       const originalEmbed = message.embeds[0];
       if (originalEmbed) {
         const winnersMentions = winners.length > 0 ? winners.map(w => `<@${w}>`).join(', ') : 'Aucun participant.';
-        const endedEmbed = EmbedBuilder.from(originalEmbed)
-          .setDescription(`${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants :** ${winnersMentions}\n**Participants :** ${participants.length}`)
-          .setColor('#ED4245')
-          .setTimestamp();
-        
-        // Désactiver le bouton
-        const disabledButton = new ButtonBuilder()
-          .setCustomId(`giveaway_ended:${giveaway.id}`)
-          .setEmoji('🎉')
-          .setLabel('Terminé')
-          .setStyle(ButtonStyle.Secondary)
-          .setDisabled(true);
-        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(disabledButton);
 
-        await message.edit({ embeds: [endedEmbed], components: [row] }).catch(() => null);
+        if (giveaway.needValidation) {
+          // Mettre à jour avec validationStatus = PENDING et pendingWinners
+          await prisma.giveaway.update({
+            where: { id: giveawayId },
+            data: {
+              ended: true,
+              validationStatus: 'PENDING',
+              pendingWinners: winners,
+            },
+          });
+
+          const endedEmbed = EmbedBuilder.from(originalEmbed)
+            .setDescription(`${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants Tirés (En attente de validation) :** ${winnersMentions}\n**Participants :** ${participants.length}`)
+            .setColor('#FAA81A')
+            .setTimestamp();
+
+          const approveBtn = new ButtonBuilder()
+            .setCustomId(`giveaway_val_approve:${giveaway.id}`)
+            .setLabel('Valider les gagnants ✅')
+            .setStyle(ButtonStyle.Success);
+
+          const rerollBtn = new ButtonBuilder()
+            .setCustomId(`giveaway_val_reroll:${giveaway.id}`)
+            .setLabel('Relancer (Reroll) 🎲')
+            .setStyle(ButtonStyle.Danger);
+
+          const row = new ActionRowBuilder<ButtonBuilder>().addComponents(approveBtn, rerollBtn);
+          await message.edit({ embeds: [endedEmbed], components: [row] }).catch(() => null);
+
+          await channel.send(`⏳ **Le giveaway pour **${giveaway.prize}** (ID: \`${giveaway.id}\`) s'est terminé !** Gagnants tirés : ${winnersMentions}. En attente de validation par un administrateur.`).catch(() => null);
+          return;
+        } else {
+          // Pas de validation requise, gain direct
+          await prisma.giveaway.update({
+            where: { id: giveawayId },
+            data: {
+              ended: true,
+              validationStatus: 'APPROVED',
+              winners,
+            },
+          });
+
+          await distributeGiveawayPrizes(giveaway, winners).catch((err) => {
+            logger.error('GiveawayService', 'Error distributing prizes in endGiveaway:', err);
+          });
+
+          const endedEmbed = EmbedBuilder.from(originalEmbed)
+            .setDescription(`${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants :** ${winnersMentions}\n**Participants :** ${participants.length}`)
+            .setColor('#ED4245')
+            .setTimestamp();
+
+          const disabledButton = new ButtonBuilder()
+            .setCustomId(`giveaway_ended:${giveaway.id}`)
+            .setEmoji('🎉')
+            .setLabel('Terminé')
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(true);
+          const row = new ActionRowBuilder<ButtonBuilder>().addComponents(disabledButton);
+
+          await message.edit({ embeds: [endedEmbed], components: [row] }).catch(() => null);
+        }
       }
     }
   }
 
-  // Annoncer le résultat dans le salon
+  // Annoncer le résultat direct
   if (winners.length > 0) {
     const mentions = winners.map(w => `<@${w}>`).join(', ');
     await channel.send(`🎉 Félicitations à ${mentions} qui gagne(nt) **${giveaway.prize}** ! 🏆`).catch(() => null);
@@ -260,7 +320,7 @@ export async function rerollGiveaway(client: Client, giveawayId: string) {
   const channel = discordGuild.channels.cache.get(giveaway.channelId);
   if (!channel?.isTextBased()) return;
 
-  // Filtrer les participants qui ne sont pas déjà gagnants
+  // Filtrer les participants qui ne sont pas déjà gagnants validés
   const candidates = giveaway.participants.filter(id => !giveaway.winners.includes(id));
   if (candidates.length === 0) {
     await channel.send(`❌ Aucun autre participant disponible pour un reroll de **${giveaway.prize}**.`).catch(() => null);
@@ -268,30 +328,257 @@ export async function rerollGiveaway(client: Client, giveawayId: string) {
   }
 
   const newWinner = candidates[Math.floor(Math.random() * candidates.length)];
-  const updatedWinners = [...giveaway.winners, newWinner];
+
+  if (giveaway.needValidation) {
+    // Si validation requise, on met à jour en tant que gagnant en attente
+    await prisma.giveaway.update({
+      where: { id: giveawayId },
+      data: {
+        validationStatus: 'PENDING',
+        pendingWinners: [newWinner],
+      },
+    });
+
+    if (giveaway.messageId) {
+      const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
+      if (message) {
+        const originalEmbed = message.embeds[0];
+        if (originalEmbed) {
+          const endedEmbed = EmbedBuilder.from(originalEmbed)
+            .setDescription(`${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnant Tiré après Reroll (En attente de validation) :** <@${newWinner}>\n**Participants :** ${giveaway.participants.length}`)
+            .setColor('#FAA81A')
+            .setTimestamp();
+
+          const approveBtn = new ButtonBuilder()
+            .setCustomId(`giveaway_val_approve:${giveaway.id}`)
+            .setLabel('Valider le gagnant ✅')
+            .setStyle(ButtonStyle.Success);
+
+          const rerollBtn = new ButtonBuilder()
+            .setCustomId(`giveaway_val_reroll:${giveaway.id}`)
+            .setLabel('Relancer (Reroll) 🎲')
+            .setStyle(ButtonStyle.Danger);
+
+          const row = new ActionRowBuilder<ButtonBuilder>().addComponents(approveBtn, rerollBtn);
+          await message.edit({ embeds: [endedEmbed], components: [row] }).catch(() => null);
+        }
+      }
+    }
+
+    await channel.send(`🎲 Reroll effectué ! Nouveau gagnant tiré au sort (En attente de validation) : <@${newWinner}>.`).catch(() => null);
+  } else {
+    // Pas de validation requise, gain immédiat
+    const updatedWinners = [...giveaway.winners, newWinner];
+
+    await prisma.giveaway.update({
+      where: { id: giveawayId },
+      data: {
+        winners: updatedWinners,
+        validationStatus: 'APPROVED'
+      },
+    });
+
+    await distributeGiveawayPrizes(giveaway, [newWinner]).catch((err) => {
+      logger.error('GiveawayService', 'Error distributing reroll prizes:', err);
+    });
+
+    if (giveaway.messageId) {
+      const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
+      if (message) {
+        const originalEmbed = message.embeds[0];
+        if (originalEmbed) {
+          const winnersMentions = updatedWinners.map(w => `<@${w}>`).join(', ');
+          const endedEmbed = EmbedBuilder.from(originalEmbed)
+            .setDescription(`${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants (après reroll) :** ${winnersMentions}\n**Participants :** ${giveaway.participants.length}`)
+            .setColor('#ED4245')
+            .setTimestamp();
+
+          const disabledButton = new ButtonBuilder()
+            .setCustomId(`giveaway_ended:${giveaway.id}`)
+            .setEmoji('🎉')
+            .setLabel('Terminé')
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(true);
+          const row = new ActionRowBuilder<ButtonBuilder>().addComponents(disabledButton);
+
+          await message.edit({ embeds: [endedEmbed], components: [row] }).catch(() => null);
+        }
+      }
+    }
+
+    await channel.send(`🎉 Nouveau tirage ! Félicitations à <@${newWinner}> qui gagne également **${giveaway.prize}** ! 🏆`).catch(() => null);
+  }
+}
+
+/**
+ * Valide les gagnants en attente et distribue les prix.
+ */
+export async function approveGiveawayWinners(client: Client, giveawayId: string) {
+  const giveaway = await prisma.giveaway.findUnique({
+    where: { id: giveawayId },
+  });
+
+  if (!giveaway || !giveaway.ended || giveaway.validationStatus !== 'PENDING') return;
+
+  const winners = giveaway.pendingWinners;
 
   // Mettre à jour en BDD
   await prisma.giveaway.update({
     where: { id: giveawayId },
-    data: { winners: updatedWinners },
+    data: {
+      validationStatus: 'APPROVED',
+      winners,
+      pendingWinners: [],
+    },
+  });
+
+  // Distribuer les prix
+  await distributeGiveawayPrizes(giveaway, winners).catch((err) => {
+    logger.error('GiveawayService', 'Error distributing prizes on approval:', err);
   });
 
   // Mettre à jour le message d'origine
+  const discordGuild = client.guilds.cache.get(giveaway.guildId) || await client.guilds.fetch(giveaway.guildId).catch(() => null);
+  if (!discordGuild) return;
+  const channel = discordGuild.channels.cache.get(giveaway.channelId);
+  if (!channel?.isTextBased()) return;
+
   if (giveaway.messageId) {
     const message = await channel.messages.fetch(giveaway.messageId).catch(() => null);
     if (message) {
       const originalEmbed = message.embeds[0];
       if (originalEmbed) {
-        const winnersMentions = updatedWinners.map(w => `<@${w}>`).join(', ');
+        const winnersMentions = winners.length > 0 ? winners.map((w: string) => `<@${w}>`).join(', ') : 'Aucun.';
         const endedEmbed = EmbedBuilder.from(originalEmbed)
-          .setDescription(`${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants (après reroll) :** ${winnersMentions}\n**Participants :** ${giveaway.participants.length}`);
-        
-        await message.edit({ embeds: [endedEmbed] }).catch(() => null);
+          .setDescription(`${giveaway.description ? `${giveaway.description}\n\n` : ''}**Gagnants Validés :** ${winnersMentions}\n**Participants :** ${giveaway.participants.length}`)
+          .setColor('#57F287') // Vert
+          .setTimestamp();
+
+        const disabledButton = new ButtonBuilder()
+          .setCustomId(`giveaway_ended:${giveaway.id}`)
+          .setEmoji('🎉')
+          .setLabel('Terminé & Validé')
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(true);
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(disabledButton);
+
+        await message.edit({ embeds: [endedEmbed], components: [row] }).catch(() => null);
       }
     }
   }
 
-  await channel.send(`🎉 Nouveau tirage ! Félicitations à <@${newWinner}> qui gagne également **${giveaway.prize}** ! 🏆`).catch(() => null);
+  // Annoncer le résultat final
+  if (winners.length > 0) {
+    const mentions = winners.map((w: string) => `<@${w}>`).join(', ');
+    await channel.send(`🎉 **Félicitations validées !** ${mentions} gagne(nt) officiellement **${giveaway.prize}** ! 🏆`).catch(() => null);
+  } else {
+    await channel.send(`😢 Le giveaway pour **${giveaway.prize}** n'a aucun gagnant validé.`).catch(() => null);
+  }
+}
+
+/**
+ * Distribue les récompenses d'un giveaway aux profils des gagnants.
+ */
+async function distributeGiveawayPrizes(giveaway: {
+  guildId: string;
+  prize: string;
+  rpgXp?: unknown;
+  rpgCoins?: unknown;
+  rpgItemId?: unknown;
+}, winners: string[]) {
+  if (winners.length === 0) return;
+
+  const rpgXp = (giveaway.rpgXp as number) || 0;
+  const rpgCoins = (giveaway.rpgCoins as number) || 0;
+  const rpgItemId = (giveaway.rpgItemId as string | null) || null;
+
+  const { checkLevelUp } = await import('./economyService.js');
+
+  for (const userId of winners) {
+    // 1. KotboCoins
+    if (rpgCoins > 0) {
+      await prisma.rpgProfile.upsert({
+        where: { guildId_userId: { guildId: giveaway.guildId, userId } },
+        update: { balance: { increment: rpgCoins } },
+        create: {
+          guildId: giveaway.guildId,
+          userId,
+          balance: rpgCoins,
+          level: 1,
+          xp: 0,
+          health: 100,
+          maxHealth: 100,
+          energy: 100,
+          attack: 10,
+          defense: 10,
+          speed: 10
+        }
+      });
+    }
+
+    // 2. XP RPG
+    if (rpgXp > 0) {
+      await prisma.rpgProfile.upsert({
+        where: { guildId_userId: { guildId: giveaway.guildId, userId } },
+        update: { xp: { increment: rpgXp } },
+        create: {
+          guildId: giveaway.guildId,
+          userId,
+          balance: 0,
+          level: 1,
+          xp: rpgXp,
+          health: 100,
+          maxHealth: 100,
+          energy: 100,
+          attack: 10,
+          defense: 10,
+          speed: 10
+        }
+      });
+      await checkLevelUp(giveaway.guildId, userId).catch(() => null);
+    }
+
+    // 3. Objet RPG
+    if (rpgItemId) {
+      const item = await prisma.rpgItem.findUnique({
+        where: { id: rpgItemId }
+      });
+      if (item) {
+        const profile = await prisma.rpgProfile.upsert({
+          where: { guildId_userId: { guildId: giveaway.guildId, userId } },
+          update: {},
+          create: {
+            guildId: giveaway.guildId,
+            userId,
+            balance: 0,
+            level: 1,
+            xp: 0,
+            health: 100,
+            maxHealth: 100,
+            energy: 100,
+            attack: 10,
+            defense: 10,
+            speed: 10
+          }
+        });
+
+        await prisma.rpgInventoryItem.upsert({
+          where: {
+            rpgProfileId_itemId: {
+              rpgProfileId: profile.id,
+              itemId: item.id
+            }
+          },
+          update: { quantity: { increment: 1 } },
+          create: {
+            rpgProfileId: profile.id,
+            itemId: item.id,
+            quantity: 1
+          }
+        });
+      }
+    }
+  }
 }
 
 /**

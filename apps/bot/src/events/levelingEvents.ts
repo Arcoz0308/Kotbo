@@ -1,5 +1,6 @@
 import { Client, Events, Message } from 'discord.js';
 import { handleTextXp, addXp, getOrCreateLevelConfig } from '../services/progression/levelingService.js';
+import { handleUserActivity } from '../services/features/economyService.js';
 import { logger } from '../utils/logger.js';
 import prisma from '../utils/db.js';
 
@@ -11,6 +12,7 @@ export function registerLevelingListener(client: Client) {
     if (!message.guild || message.author.bot || message.content.startsWith('/')) return;
     
     await handleTextXp(message.guild.id, message.author.id, client, message.channel.id);
+    await handleUserActivity(message.guild.id, message.author.id, 'text').catch(() => null);
   });
 
   // 2. Vocal XP Loop (every 60 seconds)
@@ -64,6 +66,9 @@ export function registerLevelingListener(client: Client) {
               addXp(guildId, member.id, voiceXp, client).catch(err =>
                 logger.error('LevelingService', `Erreur lors de l'attribution XP vocal à ${member.id}:`, err)
               )
+            );
+            xpPromises.push(
+              handleUserActivity(guildId, member.id, 'voice').catch(() => {})
             );
 
             if (xpPromises.length >= 50) {

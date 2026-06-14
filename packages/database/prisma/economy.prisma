@@ -1,0 +1,161 @@
+model EconomyConfig {
+  guildId           String   @id
+  enabled           Boolean  @default(false)
+  rpgEnabled        Boolean  @default(false)
+  guildsEnabled     Boolean  @default(false)
+  shopEnabled       Boolean  @default(false)
+  
+  currencyName      String   @default("KotboCoins")
+  currencyEmoji     String   @default("🪙")
+  currencyIcon      String?
+  dailyRewardMin    Int      @default(50)
+  dailyRewardMax    Int      @default(150)
+  dailyCooldownHour Int      @default(20) // Heures de recharge du /daily
+  
+  adventureCooldownMin Int   @default(30)  // Temps entre chaque aventure (en minutes)
+  maxEnergy            Int   @default(100)
+  energyRecoveryPerHour Int  @default(10)
+  
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("economy_configs")
+}
+
+model RpgProfile {
+  id        String   @id @default(cuid())
+  guildId   String
+  userId    String
+
+  // Économie de base
+  balance   Int      @default(0)
+  lastDaily DateTime?
+  lastWork  DateTime?
+
+  // Statistiques RPG
+  level     Int      @default(1)
+  xp        Int      @default(0)
+  health    Int      @default(100)
+  maxHealth Int      @default(100)
+  energy    Int      @default(100)
+  attack    Int      @default(10)
+  defense   Int      @default(10)
+  speed     Int      @default(10)
+
+  // Équipement équipé
+  weaponId  String?
+  armorId   String?
+  potionId  String?
+
+  // État de voyage
+  isTraveling    Boolean   @default(false)
+  travelDestination String?
+  travelDurationMin  Int      @default(0)
+  travelStartedAt DateTime?
+  lastEventAt     DateTime?
+
+  // Relations
+  rpgGuildId String?
+  rpgGuild   RpgGuild? @relation(fields: [rpgGuildId], references: [id], onDelete: SetNull)
+  inventory  RpgInventoryItem[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, userId])
+  @@index([guildId, balance])
+  @@index([guildId, level, xp])
+  @@map("rpg_profiles")
+}
+
+model RpgItem {
+  id          String   @id @default(cuid())
+  guildId     String?  // null = global (item par défaut du bot)
+  name        String
+  description String
+  emoji       String   @default("📦")
+  type        String   // WEAPON | ARMOR | POTION | QUEST
+  
+  // Statistiques d'équipement/utilisation
+  atkBonus    Int      @default(0)
+  defBonus    Int      @default(0)
+  spdBonus    Int      @default(0)
+  hpRestore   Int      @default(0)
+  energyRestore Int    @default(0)
+  
+  // Prix d'achat en boutique
+  price       Int      @default(0)
+  purchasable Boolean  @default(true)
+
+  inventoryEntries RpgInventoryItem[]
+  guild Guild? @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("rpg_items")
+}
+
+model RpgInventoryItem {
+  id           String   @id @default(cuid())
+  rpgProfileId String
+  itemId       String
+  quantity     Int      @default(1)
+
+  profile RpgProfile @relation(fields: [rpgProfileId], references: [id], onDelete: Cascade)
+  item    RpgItem    @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([rpgProfileId, itemId])
+  @@map("rpg_inventory_items")
+}
+
+model RpgGuild {
+  id        String   @id @default(cuid())
+  guildId   String
+  name      String
+  description String?
+  emoji     String   @default("🛡️")
+  ownerId   String   // Discord UserId du créateur
+  
+  level     Int      @default(1)
+  xp        Int      @default(0)
+  treasury  Int      @default(0)
+
+  members   RpgProfile[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, name])
+  @@map("rpg_guilds")
+}
+
+model RpgAdventureEvent {
+  id          String   @id @default(cuid())
+  guildId     String?  // null = global (évènements fournis de base)
+  title       String
+  description String   // Le texte de l'événement (ex: "Vous croisez un marchand suspect...")
+  emoji       String   @default("🌲")
+
+  // Choix possibles sous forme de JSON pour flexibilité (options, requis, effets)
+  // Format : Array<{ text: string, hpEffect: number, coinEffect: number, xpEffect: number, minLevel: number }>
+  choices     Json
+
+  guild Guild? @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("rpg_adventure_events")
+}
+
+model RpgDrop {
+  id        String   @id @default(cuid())
+  guildId   String
+  amount    Int
+  type      String   // COINS | XP
+  claimed   Boolean  @default(false)
+  claimedBy String?
+  createdAt DateTime @default(now())
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("rpg_drops")
+}
