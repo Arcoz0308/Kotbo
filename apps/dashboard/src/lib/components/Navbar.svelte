@@ -10,6 +10,7 @@
   import { sidebarStore } from '../stores/sidebar.svelte';
   import { resolveGuildIconSrc, resolveUserAvatarSrc } from '../discordMedia';
   import { serverSwitcherStore } from '../stores/serverSwitcher.svelte';
+  import { isMobile } from '../stores/media.svelte';
 
   const collapsed = $derived(sidebarStore.collapsed);
 
@@ -17,7 +18,6 @@
   let userMenuOpen = $state(false);
 
   onMount(() => {
-    // Fire async fetch without making the onMount callback async
     (async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/api/config`);
@@ -29,7 +29,6 @@
       }
     })();
 
-    // Close dropdown on outside click
     const handleClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       if (!target.closest('.user-menu-container')) {
@@ -89,10 +88,18 @@
 
 <svelte:window />
 
-<header class="flex items-center justify-between px-10 bg-surface/40 backdrop-blur-3xl h-20 fixed top-0 right-0 z-40 border-b border-outline-variant/30 transition-all duration-300 {collapsed ? 'w-[calc(100%-4.5rem)]' : 'w-[calc(100%-16rem)]'}">
+<header class="flex items-center justify-between px-10 bg-surface/40 backdrop-blur-3xl h-20 fixed top-0 right-0 z-40 border-b border-outline-variant/30 transition-all duration-300 {$isMobile ? 'w-full' : collapsed ? 'w-[calc(100%-4.5rem)]' : 'w-[calc(100%-16rem)]'}">
   <div class="flex items-center gap-6 server-selector-container relative">
+    {#if $isMobile}
+      <button
+        onclick={sidebarStore.toggleMobile}
+        class="flex items-center gap-3 bg-surface-container-low hover:bg-surface-container-high/80 px-5 py-2.5 rounded-2xl text-xs font-bold text-on-surface border border-outline-variant/30 hover:border-primary/30 transition-all duration-300 shadow-sm hover:shadow-md cursor-pointer disabled:cursor-default disabled:hover:bg-surface-container-low disabled:border-outline-variant/30 group select-none"
+      >
+        <Papicon icon="menu" size={18} class="text-gray-400 transition-all duration-500 group-hover/theme:-rotate-20 group-hover/theme:scale-110" />
+      </button>
+    {/if}
     <button 
-      onclick={() => serverSwitcherStore.show()}
+      onclick={serverSwitcherStore.show}
       disabled={authStore.guilds.length <= 1}
       class="flex items-center gap-3 bg-surface-container-low hover:bg-surface-container-high/80 px-5 py-2.5 rounded-2xl text-xs font-bold text-on-surface border border-outline-variant/30 hover:border-primary/30 transition-all duration-300 shadow-sm hover:shadow-md cursor-pointer disabled:cursor-default disabled:hover:bg-surface-container-low disabled:border-outline-variant/30 group select-none"
     >
@@ -137,19 +144,19 @@
       </div>
     {/if}
 
-        <button
-      onclick={() => themeStore.toggle()}
-      class="relative w-10 h-10 rounded-2xl border border-outline-variant/30 bg-surface-container-low flex items-center justify-center transition-all duration-500 hover:scale-110 hover:shadow-lg hover:shadow-primary/10 group/theme overflow-hidden"
-      aria-label="Changer de th\u00e8me"
-      id="theme-toggle"
-    >
+      <button
+        onclick={themeStore.toggle}
+        class="relative w-10 h-10 rounded-2xl border border-outline-variant/30 bg-surface-container-low flex items-center justify-center transition-all duration-500 hover:scale-110 hover:shadow-lg hover:shadow-primary/10 group/theme overflow-hidden"
+        aria-label="Changer de th\u00e8me"
+        id="theme-toggle"
+      >
       <div class="absolute inset-0 bg-linear-to-tr from-amber-400/0 to-indigo-500/0 group-hover/theme:from-amber-400/10 group-hover/theme:to-indigo-500/10 transition-all duration-500"></div>
-      {#if themeStore.dark}
-        <Papicon icon="sun" size={18} class="text-amber-400 transition-all duration-500 group-hover/theme:rotate-360 group-hover/theme:scale-110" />
-      {:else}
-        <Papicon icon="moon" size={18} class="text-indigo-400 transition-all duration-500 group-hover/theme:-rotate-20 group-hover/theme:scale-110" />
-      {/if}
-    </button>
+        {#if themeStore.dark}
+          <Papicon icon="sun" size={18} class="text-amber-400 transition-all duration-500 group-hover/theme:rotate-360 group-hover/theme:scale-110" />
+        {:else}
+          <Papicon icon="moon" size={18} class="text-indigo-400 transition-all duration-500 group-hover/theme:-rotate-20 group-hover/theme:scale-110" />
+        {/if}
+      </button>
 
     <NotificationBell />
 
@@ -217,7 +224,11 @@
             <button 
               type="button"
               class="flex items-center gap-3 px-4 py-2.5 w-full text-left text-sm font-bold text-on-surface-variant transition-all hover:bg-primary/8 hover:text-primary cursor-pointer"
-              onclick={() => { userMenuOpen = false; feedbackModal.show(); }}
+              onclick={() => { 
+                    userMenuOpen = false; 
+                    feedbackModal.show(); 
+                  }
+                }
             >
               <Papicon icon="bug_report" size={18} />
               Retour / Suggestion

@@ -1,12 +1,13 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import type { Snippet } from 'svelte';
-  import { router } from 'tinro';
   import Sidebar from './Sidebar.svelte';
   import Navbar from './Navbar.svelte';
   import Breadcrumbs from './Breadcrumbs.svelte';
   import ServerSwitcherModal from './ServerSwitcherModal.svelte';
   import UnsavedChangesBar from './UnsavedChangesBar.svelte';
+
+  import { onMount } from 'svelte';
+  import type { Snippet } from 'svelte';
+  import { router } from 'tinro';
   import { dashboardLifecycle } from '../dashboardLifecycle';
   import { sidebarStore } from '../stores/sidebar.svelte';
   import { feedbackModal } from '../stores/feedbackModal.svelte';
@@ -15,6 +16,7 @@
   import { serverSwitcherStore } from '../stores/serverSwitcher.svelte';
   import { searchStore } from '../stores/search.svelte';
   import { unsavedChanges } from '../stores/unsavedChanges.svelte';
+  import { isMobile } from '../stores/media.svelte';
 
   let { children }: { children?: Snippet } = $props();
 
@@ -46,7 +48,7 @@
   });
 
   const collapsed = $derived(sidebarStore.collapsed);
-  
+
   // Reactively calculate the status of the current page
   const pageStatus = $derived(getPageStatus($router.path, $router.url));
 
@@ -123,7 +125,7 @@
 
   <Sidebar />
   
-  <div class="flex-1 flex flex-col transition-all duration-300 {collapsed ? 'ml-18' : 'ml-64'}">
+  <div class="flex-1 flex flex-col transition-all duration-300 {$isMobile ? 'ml-0' : (collapsed ? 'ml-18' : 'ml-64')}">
     <Navbar />
     
     <main class="p-12 pb-24 max-w-[1600px] w-full mx-auto relative">
@@ -199,6 +201,5 @@
     </main>
   </div>
   <ServerSwitcherModal />
-  <!-- Discord-style unsaved changes overlay -->
   <UnsavedChangesBar />
 </div>
