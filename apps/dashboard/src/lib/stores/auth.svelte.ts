@@ -65,7 +65,7 @@ class AuthStore {
         }
     }
 
-    setGuild(guildId) {
+    setGuild(guildId: string) {
         this.selectedGuildId = guildId;
         localStorage.setItem('kotbo_guild_id', guildId);
 
