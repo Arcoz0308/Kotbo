@@ -37,6 +37,14 @@ import {
   deleteManagerNote,
   getManagerNotes,
   createManagerNote,
+  getCalls,
+  createCall,
+  updateCall,
+  deleteCall,
+  getTasks,
+  createTask,
+  updateTask,
+  deleteTask,
 } from '../../../services/staff/staffLeadershipService.js';
 import {
   getStaffMember,
@@ -707,6 +715,269 @@ export async function handleGuildLeadershipRoutes(
       } catch (err) {
         logger.error('StaffAPI', 'Error deleting meeting:', err);
         json(res, 500, { error: 'Erreur lors de la suppression de la réunion' });
+      }
+      return true;
+    }
+  }
+
+  // Tasks routes
+  if (parts[4] === 'tasks') {
+    // GET /api/dashboard/guilds/:guildId/tasks
+    if (parts.length === 5 && method === 'GET') {
+      try {
+        const assigneeId = url.searchParams.get('assigneeId') || undefined;
+        const tasks = await getTasks(guildId, assigneeId);
+        json(res, 200, { tasks });
+      } catch (err) {
+        logger.error('StaffAPI', 'Error getting tasks:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération des tâches' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/tasks
+    if (parts.length === 5 && method === 'POST') {
+      try {
+        const body = await readJsonBody<{
+          title: string;
+          description?: string | null;
+          priority: 'LOW' | 'MEDIUM' | 'HIGH';
+          dueDate?: string | null;
+          assigneeId: string;
+        }>(req);
+
+        if (!body?.title || !body?.assigneeId) {
+          json(res, 400, { error: 'title et assigneeId sont obligatoires' });
+          return true;
+        }
+
+        const dueDate = body.dueDate ? new Date(body.dueDate) : null;
+        const task = await createTask(
+          guildId,
+          user.userId,
+          body.title,
+          body.description || null,
+          body.priority || 'MEDIUM',
+          dueDate,
+          body.assigneeId
+        );
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Création tâche',
+          context: getGuildName(client, guildId),
+          module: 'Staff Management',
+          eventType: 'Manuel',
+          details: `Tâche "${body.title}" créée pour ${body.assigneeId}`,
+          channelId: null,
+        });
+
+        json(res, 201, { task });
+      } catch (err: any) {
+        logger.error('StaffAPI', 'Error creating task:', err);
+        json(res, 500, { error: err.message || 'Erreur lors de la création de la tâche' });
+      }
+      return true;
+    }
+
+    // PATCH /api/dashboard/guilds/:guildId/tasks/:taskId
+    if (parts.length === 6 && method === 'PATCH') {
+      const taskId = parts[5];
+      try {
+        const body = await readJsonBody<{
+          title?: string;
+          description?: string | null;
+          status?: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
+          priority?: 'LOW' | 'MEDIUM' | 'HIGH';
+          dueDate?: string | null;
+          assigneeId?: string;
+        }>(req);
+
+        const updateData: any = {};
+        if (body?.title) updateData.title = body.title;
+        if (body?.description !== undefined) updateData.description = body.description;
+        if (body?.status) updateData.status = body.status;
+        if (body?.priority) updateData.priority = body.priority;
+        if (body?.dueDate !== undefined) updateData.dueDate = body.dueDate ? new Date(body.dueDate) : null;
+        if (body?.assigneeId) updateData.assigneeId = body.assigneeId;
+
+        const task = await updateTask(taskId, updateData);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Mise à jour tâche',
+          context: getGuildName(client, guildId),
+          module: 'Staff Management',
+          eventType: 'Manuel',
+          details: `Tâche ${taskId} mise à jour. Statut: ${task.status}`,
+          channelId: null,
+        });
+
+        json(res, 200, { task });
+      } catch (err: any) {
+        logger.error('StaffAPI', 'Error updating task:', err);
+        json(res, 500, { error: err.message || 'Erreur lors de la mise à jour de la tâche' });
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/tasks/:taskId
+    if (parts.length === 6 && method === 'DELETE') {
+      const taskId = parts[5];
+      try {
+        await deleteTask(taskId);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Suppression tâche',
+          context: getGuildName(client, guildId),
+          module: 'Staff Management',
+          eventType: 'Manuel',
+          details: `Tâche ${taskId} supprimée`,
+          channelId: null,
+        });
+
+        json(res, 200, { ok: true });
+      } catch (err) {
+        logger.error('StaffAPI', 'Error deleting task:', err);
+        json(res, 500, { error: 'Erreur lors de la suppression de la tâche' });
+      }
+      return true;
+    }
+  }
+
+  // Calls routes
+  if (parts[4] === 'calls') {
+    // GET /api/dashboard/guilds/:guildId/calls
+    if (parts.length === 5 && method === 'GET') {
+      try {
+        const calls = await getCalls(guildId);
+        json(res, 200, { calls });
+      } catch (err) {
+        logger.error('StaffAPI', 'Error getting calls:', err);
+        json(res, 500, { error: 'Erreur lors de la récupération des appels' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/calls
+    if (parts.length === 5 && method === 'POST') {
+      try {
+        const body = await readJsonBody<{
+          title: string;
+          description?: string | null;
+          scheduledAt: string;
+          channelMode: string;
+          channelType?: string | null;
+          discordChannelId?: string | null;
+          isTempChannel?: boolean;
+          inviteeUserIds?: string[];
+        }>(req);
+
+        if (!body?.title || !body?.scheduledAt || !body?.channelMode) {
+          json(res, 400, { error: 'title, scheduledAt et channelMode sont obligatoires' });
+          return true;
+        }
+
+        const scheduledAt = new Date(body.scheduledAt);
+        if (Number.isNaN(scheduledAt.getTime())) {
+          json(res, 400, { error: 'Date d\'appel invalide' });
+          return true;
+        }
+
+        const call = await createCall(
+          client,
+          guildId,
+          user.userId,
+          body.title,
+          body.description || null,
+          scheduledAt,
+          body.channelMode,
+          body.channelType || null,
+          body.discordChannelId || null,
+          body.isTempChannel !== false,
+          body.inviteeUserIds || []
+        );
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Création appel',
+          context: getGuildName(client, guildId),
+          module: 'Staff Management',
+          eventType: 'Manuel',
+          details: `Appel "${body.title}" planifié pour le ${scheduledAt.toLocaleString('fr-FR')}`,
+          channelId: null,
+        });
+
+        json(res, 201, { call });
+      } catch (err: any) {
+        logger.error('StaffAPI', 'Error creating call:', err);
+        json(res, 500, { error: err.message || 'Erreur lors de la planification de l\'appel' });
+      }
+      return true;
+    }
+
+    // PATCH /api/dashboard/guilds/:guildId/calls/:callId
+    if (parts.length === 6 && method === 'PATCH') {
+      const callId = parts[5];
+      try {
+        const body = await readJsonBody<{
+          title?: string;
+          description?: string | null;
+          scheduledAt?: string;
+          endedAt?: string;
+          status?: 'SCHEDULED' | 'ACTIVE' | 'COMPLETED' | 'CANCELED';
+          invitees?: string[];
+        }>(req);
+
+        const updateData: any = {};
+        if (body?.title) updateData.title = body.title;
+        if (body?.description !== undefined) updateData.description = body.description;
+        if (body?.scheduledAt) updateData.scheduledAt = new Date(body.scheduledAt);
+        if (body?.endedAt) updateData.endedAt = new Date(body.endedAt);
+        if (body?.status) updateData.status = body.status;
+        if (body?.invitees) updateData.invitees = body.invitees;
+
+        const call = await updateCall(client, guildId, callId, updateData);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Mise à jour appel',
+          context: getGuildName(client, guildId),
+          module: 'Staff Management',
+          eventType: 'Manuel',
+          details: `Appel ${callId} mis à jour. Statut: ${call.status}`,
+          channelId: null,
+        });
+
+        json(res, 200, { call });
+      } catch (err: any) {
+        logger.error('StaffAPI', 'Error updating call:', err);
+        json(res, 500, { error: err.message || 'Erreur lors de la mise à jour de l\'appel' });
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/calls/:callId
+    if (parts.length === 6 && method === 'DELETE') {
+      const callId = parts[5];
+      try {
+        await deleteCall(client, guildId, callId);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: 'Suppression appel',
+          context: getGuildName(client, guildId),
+          module: 'Staff Management',
+          eventType: 'Manuel',
+          details: `Appel ${callId} supprimé`,
+          channelId: null,
+        });
+
+        json(res, 200, { ok: true });
+      } catch (err) {
+        logger.error('StaffAPI', 'Error deleting call:', err);
+        json(res, 500, { error: 'Erreur lors de la suppression de l\'appel' });
       }
       return true;
     }

@@ -110,7 +110,7 @@
     return staffItems
       .filter(({ href }) => {
         if (href === '/tutoring') return isTutor || isApprentice || isModerator;
-        if (['/absences', '/meetings', '/tickets', '/recruitment'].includes(href)) {
+        if (['/planning', '/absences', '/meetings', '/tickets', '/recruitment'].includes(href)) {
           return isStaff || isModerator;
         }
         return false;

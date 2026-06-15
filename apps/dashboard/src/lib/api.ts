@@ -689,6 +689,39 @@ export async function createAbsence(data, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/absences', { method: 'POST', payload: data, guildId });
 }
 
+export async function fetchCalls(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/calls', { method: 'GET', guildId });
+}
+
+export async function createCall(payload: { title: string; description?: string | null; scheduledAt: string; channelMode: string; channelType?: string | null; discordChannelId?: string | null; isTempChannel?: boolean; inviteeUserIds?: string[] }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/calls', { method: 'POST', payload, guildId });
+}
+
+export async function updateCall(callId: string, payload: { title?: string; description?: string | null; scheduledAt?: string; endedAt?: string; status?: string; invitees?: string[] }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/calls/${callId}`, { method: 'PATCH', payload, guildId });
+}
+
+export async function deleteCall(callId: string, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/calls/${callId}`, { method: 'DELETE', guildId });
+}
+
+export async function fetchTasks(assigneeId?: string, guildId = authStore.selectedGuildId) {
+  const path = assigneeId ? `/tasks?assigneeId=${assigneeId}` : '/tasks';
+  return dashboardRequest(path, { method: 'GET', guildId });
+}
+
+export async function createTask(payload: { title: string; description?: string | null; priority: 'LOW' | 'MEDIUM' | 'HIGH'; dueDate?: string | null; assigneeId: string }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/tasks', { method: 'POST', payload, guildId });
+}
+
+export async function updateTask(taskId: string, payload: { title?: string; description?: string | null; status?: string; priority?: string; dueDate?: string | null; assigneeId?: string }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/tasks/${taskId}`, { method: 'PATCH', payload, guildId });
+}
+
+export async function deleteTask(taskId: string, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/tasks/${taskId}`, { method: 'DELETE', guildId });
+}
+
 export async function fetchPolls(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/staff/polls', { method: 'GET', guildId });
 }

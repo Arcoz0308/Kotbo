@@ -129,9 +129,11 @@
     if (event.color) return event.color;
     
     switch (event.type) {
-      case 'absence': return 'bg-amber-500/10 text-amber-700 border border-amber-500/20';
-      case 'vocal': return 'bg-primary/10 text-primary border border-primary/20';
-      case 'meeting': return 'bg-emerald-500/10 text-emerald-700 border border-emerald-500/20';
+      case 'absence': return 'bg-amber-500/10 text-amber-700 border border-amber-500/20 dark:text-amber-300 dark:border-amber-500/30';
+      case 'vocal': return 'bg-primary/10 text-primary border border-primary/20 dark:text-primary-300 dark:border-primary-500/30';
+      case 'meeting': return 'bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30';
+      case 'call': return 'bg-green-500/10 text-green-700 border border-green-500/20 dark:bg-green-950/20 dark:text-green-300 dark:border-green-500/30';
+      case 'task': return 'bg-purple-500/10 text-purple-700 border border-purple-500/20 dark:bg-purple-950/20 dark:text-purple-300 dark:border-purple-500/30';
       default: return 'bg-surface-container-high text-on-surface-variant border border-outline-variant/30';
     }
   }
@@ -392,6 +394,10 @@
                       <span class="opacity-75"><Papicon icon="sun" size={10} /></span>
                     {:else if event.type === 'meeting'}
                       <span class="opacity-75"><Papicon icon="calendar" size={10} /></span>
+                    {:else if event.type === 'call'}
+                      <span class="opacity-75"><Papicon icon="phone" size={10} /></span>
+                    {:else if event.type === 'task'}
+                      <span class="opacity-75"><Papicon icon="check-square" size={10} /></span>
                     {/if}
                     <span>{event.staffName ? `${event.staffName.split(' ')[0]}: ` : ''}{event.title}</span>
                   </span>
@@ -442,6 +448,10 @@
                       <span class="opacity-75"><Papicon icon="sun" size={10} /></span>
                     {:else if event.type === 'meeting'}
                       <span class="opacity-75"><Papicon icon="calendar" size={10} /></span>
+                    {:else if event.type === 'call'}
+                      <span class="opacity-75"><Papicon icon="phone" size={10} /></span>
+                    {:else if event.type === 'task'}
+                      <span class="opacity-75"><Papicon icon="check-square" size={10} /></span>
                     {/if}
                     <span>{event.staffName ? `${event.staffName}: ` : ''}{event.title}</span>
                   </span>
@@ -535,6 +545,10 @@
                         <Papicon icon="sun" size={10} />
                       {:else if event.type === 'meeting'}
                         <Papicon icon="calendar" size={10} />
+                      {:else if event.type === 'call'}
+                        <Papicon icon="phone" size={10} />
+                      {:else if event.type === 'task'}
+                        <Papicon icon="check-square" size={10} />
                       {/if}
                       <span>{event.title}</span>
                     </span>

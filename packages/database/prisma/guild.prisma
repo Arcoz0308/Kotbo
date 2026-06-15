@@ -206,6 +206,9 @@ model Guild {
   rpgAdventureEvents       RpgAdventureEvent[]
   rpgDrops                 RpgDrop[]
 
+  staffTasks StaffTask[]
+  staffCalls StaffCall[]
+
   @@map("guilds")
 }
 

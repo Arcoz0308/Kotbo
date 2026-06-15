@@ -70,7 +70,7 @@
     if (isAdmin) return staffItems.filter((i) => canViewFeature(i.featureKey));
     return staffItems.filter((item) => {
       if (item.href === '/tutoring') return isTutor || isApprentice || isModerator;
-      if (['/absences', '/meetings', '/tickets', '/recruitment'].includes(item.href)) return isStaff || isModerator;
+      if (['/planning', '/absences', '/meetings', '/tickets', '/recruitment'].includes(item.href)) return isStaff || isModerator;
       return false;
     }).filter((i) => canViewFeature(i.featureKey));
   });

@@ -182,11 +182,11 @@
   <!-- Barre d'Actions Rapides -->
   <div class="flex flex-wrap gap-3 items-center">
     <span class="text-[9px] font-black text-on-surface-variant/30 uppercase tracking-[0.2em] mr-2">Raccourcis :</span>
-    <button onclick={() => router.goto('/absences')} class="quick-action-btn group">
+    <button onclick={() => router.goto('/planning')} class="quick-action-btn group">
        <Papicon icon="calendar-plus" size={14} class="text-primary" />
        <span>Absence</span>
     </button>
-    <button onclick={() => router.goto('/meetings')} class="quick-action-btn group">
+    <button onclick={() => router.goto('/planning')} class="quick-action-btn group">
        <Papicon icon="video" size={14} class="text-secondary" />
        <span>Réunion</span>
     </button>

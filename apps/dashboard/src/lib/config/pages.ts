@@ -59,8 +59,7 @@ export const staffItems: PageConfig[] = [
   { name: "Formulaires",         icon: "description",   href: "/recruitment-forms", featureKey: "recruitment", beta: false, wip: false },
   { name: "Tickets",             icon: "message-square",href: "/tickets",          featureKey: "tickets", beta: false, wip: false },
   { name: "Tutorat",             icon: "book-open",     href: "/tutoring",         featureKey: "tutoring", beta: false, wip: false },
-  { name: "Réunions",            icon: "calendar",      href: "/meetings",         featureKey: "meetings", beta: false, wip: false },
-  { name: "Planning",            icon: "sun",           href: "/absences",         featureKey: "absences", beta: false, wip: false },
+  { name: "Planning",            icon: "calendar",      href: "/planning",         featureKey: "absences", beta: false, wip: false },
   { name: "Sondages",            icon: "bar-chart",     href: "/staff-management?tab=polls",    featureKey: "polls", beta: false, wip: false },
   { name: "Discipline",          icon: "alert-circle",  href: "/staff-management?tab=warnings", featureKey: "discipline", beta: false, wip: false },
 ];

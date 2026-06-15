@@ -14,27 +14,27 @@
   let loading = $state(false);
 
   const welcomePresets = [
-    { label: '👋 Accueil classique',   text: 'Bienvenue {user} sur **{server}** ! 🎉 Tu es notre **{memberCount}**ème membre !' },
-    { label: '🌟 Accueil festif',      text: '🎊 Hourra ! {user} vient de rejoindre **{server}** ! Bienvenue parmi nous, tu es le membre **#{memberCount}** !' },
-    { label: '🏰 Accueil immersif',    text: '⚔️ Un nouveau guerrier débarque ! Bienvenue {user} sur **{server}** ! Prépare-toi à rejoindre l\'aventure !' },
-    { label: '🤝 Accueil chaleureux', text: 'Hey {user} ! 👋 Toute l\'équipe de **{server}** est ravie de t\'accueillir. N\'hésite pas à te présenter !' },
-    { label: '🎮 Accueil gaming',      text: 'GG {user} ! Tu viens de rejoindre **{server}** 🎮 – le serveur ultime. Amuse-toi bien et bonne chance !' },
+    { label: 'Accueil classique',   icon: 'DoorOpen', text: 'Bienvenue {user} sur **{server}** ! 🎉 Tu es notre **{memberCount}**ème membre !' },
+    { label: 'Accueil festif',      icon: 'Sparkles', text: '🎊 Hourra ! {user} vient de rejoindre **{server}** ! Bienvenue parmi nous, tu es le membre **#{memberCount}** !' },
+    { label: 'Accueil immersif',    icon: 'Shield',   text: '⚔️ Un nouveau guerrier débarque ! Bienvenue {user} sur **{server}** ! Prépare-toi à rejoindre l\'aventure !' },
+    { label: 'Accueil chaleureux',  icon: 'Users',    text: 'Hey {user} ! 👋 Toute l\'équipe de **{server}** est ravie de t\'accueillir. N\'hésite pas à te présenter !' },
+    { label: 'Accueil gaming',      icon: 'Gamepad2', text: 'GG {user} ! Tu viens de rejoindre **{server}** 🎮 – le serveur ultime. Amuse-toi bien et bonne chance !' },
   ];
 
   const leavePresets = [
-    { label: '🚪 Départ simple',      text: '{username} vient de quitter **{server}**. 👋 On espère te revoir bientôt !' },
-    { label: '😢 Départ triste',       text: 'Oh non... {username} a quitté le navire. 😢 Nous sommes maintenant **{memberCount}** membres.' },
-    { label: '✌️ Départ neutre',      text: '{username} a quitté **{server}**. Il nous reste **{memberCount}** membres.' },
-    { label: '🌊 Départ poétique',    text: 'Et comme une vague, {username} s\'en est allé... ✨ On ne l\'oubliera pas.' },
-    { label: '🎭 Départ dramatique',  text: '🎬 Rideau. {username} a quitté **{server}** pour de nouvelles aventures. Bon courage !' },
+    { label: 'Départ simple',       icon: 'Logout',   text: '{username} vient de quitter **{server}**. 👋 On espère te revoir bientôt !' },
+    { label: 'Départ triste',       icon: 'Frown',    text: 'Oh non... {username} a quitté le navire. 😢 Nous sommes maintenant **{memberCount}** membres.' },
+    { label: 'Départ neutre',       icon: 'Smile',    text: '{username} a quitté **{server}**. Il nous reste **{memberCount}** membres.' },
+    { label: 'Départ poétique',     icon: 'Cloud',    text: 'Et comme une vague, {username} s\'en est allé... ✨ On ne l\'oubliera pas.' },
+    { label: 'Départ dramatique',   icon: 'Play',     text: '🎬 Rideau. {username} a quitté **{server}** pour de nouvelles aventures. Bon courage !' },
   ];
 
   const boostPresets = [
-    { label: '🚀 Boost standard',      text: 'Merci {user} pour ton boost ! 🚀 Grâce à toi, **{server}** compte maintenant **{boostCount}** boosts !' },
-    { label: '💎 Boost premium',        text: '💎 WOW ! {user} vient de booster **{server}** ! Tu es incroyable, merci énormément ! 🙏' },
-    { label: '⚡ Boost épique',         text: '⚡ BOOST ACTIVÉ ! {user} propulse **{server}** vers de nouveaux sommets ! On est à **{boostCount}** boosts !' },
-    { label: '🌟 Boost festif',         text: '🎉 {user} a boosté le serveur ! Merci pour ton soutien, tu es une star ! ✨ ({boostCount} boosts au total)' },
-    { label: '🏆 Boost héroïque',      text: '🏆 Héros du jour : {user} ! Son boost porte **{server}** à **{boostCount}** boosts. Respect total !' },
+    { label: 'Boost standard',      icon: 'Zap',      text: 'Merci {user} pour ton boost ! 🚀 Grâce à toi, **{server}** compte maintenant **{boostCount}** boosts !' },
+    { label: 'Boost premium',       icon: 'Gem',      text: '💎 WOW ! {user} vient de booster **{server}** ! Tu es incroyable, merci énormément ! 🙏' },
+    { label: 'Boost épique',        icon: 'Zap',      text: '⚡ BOOST ACTIVÉ ! {user} propulse **{server}** vers de nouveaux sommets ! On est à **{boostCount}** boosts !' },
+    { label: 'Boost festif',        icon: 'Sparkles', text: '🎉 {user} a boosté le serveur ! Merci pour ton soutien, tu es une star ! ✨ ({boostCount} boosts au total)' },
+    { label: 'Boost héroïque',      icon: 'Trophy',   text: '🏆 Héros du jour : {user} ! Son boost porte **{server}** à **{boostCount}** boosts. Respect total !' },
   ];
 
   let showWelcomePresets = $state(false);
@@ -219,25 +219,29 @@
         onclick={() => activeTab = 'welcome'}
         class="px-6 py-3 text-xs font-black uppercase tracking-wider transition-all duration-300 flex items-center gap-2 rounded-xl {activeTab === 'welcome' ? 'bg-primary/10 text-primary scale-[1.02]' : 'text-on-surface-variant/70 hover:text-on-surface'}"
       >
-        👋 Accueil
+        <Papicon icon="DoorOpen" size={14} />
+        Accueil
       </button>
       <button 
         onclick={() => activeTab = 'leave'}
         class="px-6 py-3 text-xs font-black uppercase tracking-wider transition-all duration-300 flex items-center gap-2 rounded-xl {activeTab === 'leave' ? 'bg-primary/10 text-primary scale-[1.02]' : 'text-on-surface-variant/70 hover:text-on-surface'}"
       >
-        🚪 Départ
+        <Papicon icon="Logout" size={14} />
+        Départ
       </button>
       <button 
         onclick={() => activeTab = 'boost'}
         class="px-6 py-3 text-xs font-black uppercase tracking-wider transition-all duration-300 flex items-center gap-2 rounded-xl {activeTab === 'boost' ? 'bg-primary/10 text-primary scale-[1.02]' : 'text-on-surface-variant/70 hover:text-on-surface'}"
       >
-        🚀 Boosts
+        <Papicon icon="Zap" size={14} />
+        Boosts
       </button>
       <button 
         onclick={() => activeTab = 'autoroles'}
         class="px-6 py-3 text-xs font-black uppercase tracking-wider transition-all duration-300 flex items-center gap-2 rounded-xl {activeTab === 'autoroles' ? 'bg-primary/10 text-primary scale-[1.02]' : 'text-on-surface-variant/70 hover:text-on-surface'}"
       >
-        🛡️ Auto-Rôles
+        <Papicon icon="Shield" size={14} />
+        Auto-Rôles
       </button>
     </div>
 
@@ -284,7 +288,7 @@
             </h3>
             <ToggleSwitch 
               checked={config.welcomeEnabled} 
-              onToggle={(v) => config.welcomeEnabled = v} 
+              onToggle={(v: boolean) => config.welcomeEnabled = v} 
               disabled={!canManageSettings}
             />
           </div>
@@ -310,10 +314,11 @@
                   <label for="wMsg" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Contenu du message</label>
                   <button
                     onclick={() => showWelcomePresets = !showWelcomePresets}
-                    class="text-[10px] font-bold text-primary/70 hover:text-primary flex items-center gap-1 transition-colors"
+                    class="text-[10px] font-bold text-primary/70 hover:text-primary flex items-center gap-1.5 transition-colors"
                     disabled={!canManageSettings}
                   >
-                    <span>✨ Presets</span>
+                    <Papicon icon="Sparkles" size={12} />
+                    <span>Presets</span>
                     <span class="transition-transform duration-200 {showWelcomePresets ? 'rotate-180' : ''}">▾</span>
                   </button>
                 </div>
@@ -322,9 +327,12 @@
                     {#each welcomePresets as preset}
                       <button
                         onclick={() => { config.welcomeMessage = preset.text; showWelcomePresets = false; }}
-                        class="text-[10px] font-bold px-3 py-1.5 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/15 text-primary transition-all hover:scale-[1.02]"
+                        class="text-[10px] font-bold px-3 py-1.5 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/15 text-primary transition-all hover:scale-[1.02] flex items-center gap-1.5"
                         disabled={!canManageSettings}
-                      >{preset.label}</button>
+                      >
+                        <Papicon icon={preset.icon} size={12} />
+                        {preset.label}
+                      </button>
                     {/each}
                   </div>
                 {/if}
@@ -345,7 +353,7 @@
                   </div>
                   <ToggleSwitch 
                     checked={config.welcomeImageEnabled} 
-                    onToggle={(v) => config.welcomeImageEnabled = v} 
+                    onToggle={(v: boolean) => config.welcomeImageEnabled = v} 
                     disabled={!canManageSettings}
                   />
                 </div>
@@ -413,7 +421,7 @@
             </h3>
             <ToggleSwitch 
               checked={config.leaveEnabled} 
-              onToggle={(v) => config.leaveEnabled = v} 
+              onToggle={(v: boolean) => config.leaveEnabled = v} 
               disabled={!canManageSettings}
             />
           </div>
@@ -439,10 +447,11 @@
                   <label for="lMsg" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Contenu du message</label>
                   <button
                     onclick={() => showLeavePresets = !showLeavePresets}
-                    class="text-[10px] font-bold text-primary/70 hover:text-primary flex items-center gap-1 transition-colors"
+                    class="text-[10px] font-bold text-primary/70 hover:text-primary flex items-center gap-1.5 transition-colors"
                     disabled={!canManageSettings}
                   >
-                    <span>✨ Presets</span>
+                    <Papicon icon="Sparkles" size={12} />
+                    <span>Presets</span>
                     <span class="transition-transform duration-200 {showLeavePresets ? 'rotate-180' : ''}">▾</span>
                   </button>
                 </div>
@@ -451,9 +460,12 @@
                     {#each leavePresets as preset}
                       <button
                         onclick={() => { config.leaveMessage = preset.text; showLeavePresets = false; }}
-                        class="text-[10px] font-bold px-3 py-1.5 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/15 text-primary transition-all hover:scale-[1.02]"
+                        class="text-[10px] font-bold px-3 py-1.5 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/15 text-primary transition-all hover:scale-[1.02] flex items-center gap-1.5"
                         disabled={!canManageSettings}
-                      >{preset.label}</button>
+                      >
+                        <Papicon icon={preset.icon} size={12} />
+                        {preset.label}
+                      </button>
                     {/each}
                   </div>
                 {/if}
@@ -501,7 +513,7 @@
             </h3>
             <ToggleSwitch 
               checked={config.boostEnabled} 
-              onToggle={(v) => config.boostEnabled = v} 
+              onToggle={(v: boolean) => config.boostEnabled = v} 
               disabled={!canManageSettings}
             />
           </div>
@@ -527,10 +539,11 @@
                   <label for="bMsg" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Contenu du message de Boost</label>
                   <button
                     onclick={() => showBoostPresets = !showBoostPresets}
-                    class="text-[10px] font-bold text-primary/70 hover:text-primary flex items-center gap-1 transition-colors"
+                    class="text-[10px] font-bold text-primary/70 hover:text-primary flex items-center gap-1.5 transition-colors"
                     disabled={!canManageSettings}
                   >
-                    <span>✨ Presets</span>
+                    <Papicon icon="Sparkles" size={12} />
+                    <span>Presets</span>
                     <span class="transition-transform duration-200 {showBoostPresets ? 'rotate-180' : ''}">▾</span>
                   </button>
                 </div>
@@ -539,9 +552,12 @@
                     {#each boostPresets as preset}
                       <button
                         onclick={() => { config.boostMessage = preset.text; showBoostPresets = false; }}
-                        class="text-[10px] font-bold px-3 py-1.5 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/15 text-primary transition-all hover:scale-[1.02]"
+                        class="text-[10px] font-bold px-3 py-1.5 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/15 text-primary transition-all hover:scale-[1.02] flex items-center gap-1.5"
                         disabled={!canManageSettings}
-                      >{preset.label}</button>
+                      >
+                        <Papicon icon={preset.icon} size={12} />
+                        {preset.label}
+                      </button>
                     {/each}
                   </div>
                 {/if}
@@ -562,7 +578,7 @@
                   </div>
                   <ToggleSwitch 
                     checked={config.boostImageEnabled} 
-                    onToggle={(v) => config.boostImageEnabled = v} 
+                    onToggle={(v: boolean) => config.boostImageEnabled = v} 
                     disabled={!canManageSettings}
                   />
                 </div>
@@ -658,7 +674,7 @@
               </h3>
               <ToggleSwitch 
                 checked={config.tagAutoRoleEnabled} 
-                onToggle={(v) => config.tagAutoRoleEnabled = v} 
+                onToggle={(v: boolean) => config.tagAutoRoleEnabled = v} 
                 disabled={!canManageSettings}
               />
             </div>

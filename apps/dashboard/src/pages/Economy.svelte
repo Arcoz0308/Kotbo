@@ -302,21 +302,24 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   <div class="flex gap-1.5 bg-surface-container-low/40 p-1.5 rounded-2xl border border-outline-variant/10 w-fit">
     <button 
       onclick={() => activeTab = 'config'}
-      class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 {activeTab === 'config' ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant hover:text-on-surface'}"
+      class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 {activeTab === 'config' ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant hover:text-on-surface'}"
     >
-      ⚙️ Configuration
+      <Papicon icon="settings" size={14} />
+      Configuration
     </button>
     <button 
       onclick={() => activeTab = 'items'}
-      class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 {activeTab === 'items' ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant hover:text-on-surface'}"
+      class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 {activeTab === 'items' ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant hover:text-on-surface'}"
     >
-      🛒 Objets Boutique
+      <Papicon icon="package" size={14} />
+      Objets Boutique
     </button>
     <button 
       onclick={() => activeTab = 'players'}
-      class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 {activeTab === 'players' ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant hover:text-on-surface'}"
+      class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 {activeTab === 'players' ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant hover:text-on-surface'}"
     >
-      👥 Joueurs & Classement
+      <Papicon icon="users" size={14} />
+      Joueurs & Classement
     </button>
   </div>
 
@@ -476,7 +479,10 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         {#if canManageSettings}
           <div class="col-span-1 lg:col-span-2 bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6 transition-opacity duration-300 {!config.enabled ? 'opacity-60' : ''}">
             <div class="border-b border-outline-variant/15 pb-4">
-              <h3 class="text-lg font-black text-error flex items-center gap-2">⚠️ Réinitialisation de l'Économie / RPG</h3>
+              <h3 class="text-lg font-black text-error flex items-center gap-2.5">
+                <Papicon icon="alert-triangle" size={20} class="text-error" />
+                Réinitialisation de l'Économie / RPG
+              </h3>
               <p class="text-xs text-on-surface-variant/60 mt-1">Actions irréversibles. Permet de réinitialiser tout ou partie de l'économie du serveur.</p>
             </div>
 
@@ -487,7 +493,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 disabled={!config.enabled}
                 class="px-5 py-4 bg-error/10 hover:bg-error/20 text-error text-xs font-bold rounded-2xl transition-all border border-error/20 flex flex-col items-center justify-center text-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span class="font-black">👥 Joueurs</span>
+                <span class="font-black flex items-center gap-1.5"><Papicon icon="users" size={14} /> Joueurs</span>
                 <span class="text-[10px] text-on-surface-variant/60 font-normal">Efface les comptes, inventaires, soldes</span>
               </button>
 
@@ -497,7 +503,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 disabled={!config.enabled}
                 class="px-5 py-4 bg-error/10 hover:bg-error/20 text-error text-xs font-bold rounded-2xl transition-all border border-error/20 flex flex-col items-center justify-center text-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span class="font-black">🛒 Boutique</span>
+                <span class="font-black flex items-center gap-1.5"><Papicon icon="package" size={14} /> Boutique</span>
                 <span class="text-[10px] text-on-surface-variant/60 font-normal">Efface les objets créés</span>
               </button>
 
@@ -507,7 +513,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 disabled={!config.enabled}
                 class="px-5 py-4 bg-error/10 hover:bg-error/20 text-error text-xs font-bold rounded-2xl transition-all border border-error/20 flex flex-col items-center justify-center text-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span class="font-black">🛡️ Guildes</span>
+                <span class="font-black flex items-center gap-1.5"><Papicon icon="shield" size={14} /> Guildes</span>
                 <span class="text-[10px] text-on-surface-variant/60 font-normal">Efface les guildes RPG</span>
               </button>
 
@@ -517,7 +523,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 disabled={!config.enabled}
                 class="px-5 py-4 bg-error/10 hover:bg-error/20 text-error text-xs font-bold rounded-2xl transition-all border border-error/20 flex flex-col items-center justify-center text-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span class="font-black">⚙️ Configuration</span>
+                <span class="font-black flex items-center gap-1.5"><Papicon icon="settings" size={14} /> Configuration</span>
                 <span class="text-[10px] text-on-surface-variant/60 font-normal">Remet à zéro les multiplicateurs, cooldowns</span>
               </button>
 
@@ -527,7 +533,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 disabled={!config.enabled}
                 class="px-5 py-4 bg-error text-on-error hover:bg-error-hover text-xs font-bold rounded-2xl shadow-lg transition-all flex flex-col items-center justify-center text-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span class="font-black">⚠️ Reset Global</span>
+                <span class="font-black flex items-center gap-1.5"><Papicon icon="alert-triangle" size={14} /> Reset Global</span>
                 <span class="text-[10px] text-on-error/80 font-normal">Tout supprimer (irréversible)</span>
               </button>
             </div>
@@ -546,9 +552,10 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               type="button" 
               onclick={openNewItem}
               disabled={!config.enabled}
-              class="px-5 py-2.5 bg-primary hover:bg-primary-hover text-on-primary text-xs font-bold rounded-xl shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              class="px-5 py-2.5 bg-primary hover:bg-primary-hover text-on-primary text-xs font-bold rounded-xl shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
             >
-              ➕ Créer un objet
+              <Papicon icon="plus" size={14} />
+              Créer un objet
             </button>
           {/if}
         </div>
@@ -573,11 +580,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                   
                   <!-- Stat bonuses summary -->
                   <div class="flex flex-wrap gap-1.5 text-[10px] font-bold">
-                    {#if item.atkBonus} <span class="bg-red-500/10 text-red-400 px-2 py-0.5 rounded-lg">💥 ATK +{item.atkBonus}</span> {/if}
-                    {#if item.defBonus} <span class="bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-lg">🛡️ DEF +{item.defBonus}</span> {/if}
-                    {#if item.spdBonus} <span class="bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-lg">👟 SPD +{item.spdBonus}</span> {/if}
-                    {#if item.hpRestore} <span class="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-lg">❤️ HP +{item.hpRestore}</span> {/if}
-                    {#if item.energyRestore} <span class="bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded-lg">⚡ ÉNERGIE +{item.energyRestore}</span> {/if}
+                    {#if item.atkBonus} <span class="bg-red-500/10 text-red-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="zap" size={10} /> ATK +{item.atkBonus}</span> {/if}
+                    {#if item.defBonus} <span class="bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="shield" size={10} /> DEF +{item.defBonus}</span> {/if}
+                    {#if item.spdBonus} <span class="bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="activity" size={10} /> SPD +{item.spdBonus}</span> {/if}
+                    {#if item.hpRestore} <span class="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="heart" size={10} /> HP +{item.hpRestore}</span> {/if}
+                    {#if item.energyRestore} <span class="bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded-lg flex items-center gap-1"><Papicon icon="zap" size={10} /> ÉNERGIE +{item.energyRestore}</span> {/if}
                   </div>
                 </div>
 
@@ -597,19 +604,19 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                         type="button" 
                         onclick={() => openEditItem(item)}
                         disabled={!config.enabled}
-                        class="p-2 bg-outline-variant/10 hover:bg-outline-variant/20 rounded-lg text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                        class="p-2 bg-outline-variant/10 hover:bg-outline-variant/20 rounded-lg text-xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                         title="Modifier"
                       >
-                        ✏️
+                        <Papicon icon="edit" size={14} />
                       </button>
                       <button 
                         type="button" 
                         onclick={() => handleDeleteItem(item.id)}
                         disabled={!config.enabled}
-                        class="p-2 bg-red-500/10 hover:bg-red-500/25 rounded-lg text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                        class="p-2 bg-red-500/10 hover:bg-red-500/25 rounded-lg text-xs disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                         title="Supprimer"
                       >
-                        🗑️
+                        <Papicon icon="trash" size={14} />
                       </button>
                     </div>
                   {:else}
@@ -711,9 +718,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                           type="button" 
                           onclick={() => openEditPlayer(player)}
                           disabled={!config.enabled}
-                          class="px-3 py-1.5 bg-outline-variant/10 hover:bg-outline-variant/25 text-xs font-bold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          class="px-3 py-1.5 bg-outline-variant/10 hover:bg-outline-variant/25 text-xs font-bold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 ml-auto w-fit"
                         >
-                          ✏️ Modifier
+                          <Papicon icon="edit" size={12} /> Modifier
                         </button>
                       </td>
                     {/if}
@@ -896,10 +903,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 {#if resetComponent}
   <div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="bg-surface-container rounded-[2.5rem] border border-outline-variant/30 p-8 w-full max-w-md space-y-6 animate-in zoom-in-95 duration-200">
-      <div class="text-center space-y-3">
-        <span class="text-5xl block">⚠️</span>
+      <div class="text-center space-y-3 flex flex-col items-center">
+        <div class="w-16 h-16 bg-error/10 text-error rounded-full flex items-center justify-center mb-2">
+          <Papicon icon="alert-triangle" size={32} />
+        </div>
         <h3 class="text-xl font-black text-error">Confirmer la réinitialisation</h3>
-        <p class="text-xs text-on-surface-variant/80 leading-relaxed">
+        <p class="text-xs text-on-surface-variant/80 leading-relaxed text-center">
           Êtes-vous sûr de vouloir réinitialiser le composant <strong>{resetComponent}</strong> ?
           Cette opération supprimera définitivement les données associées et est <strong>totalement irréversible</strong> !
         </p>

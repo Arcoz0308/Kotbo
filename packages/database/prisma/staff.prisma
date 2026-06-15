@@ -32,6 +32,11 @@ model StaffMember {
   resignations StaffResignation[]
   hierarchyGrades StaffMemberHierarchyGrade[]
 
+  assignedTasks StaffTask[] @relation("AssignedTasks")
+  createdTasks StaffTask[] @relation("CreatedTasks")
+  createdCalls StaffCall[] @relation("CreatedCalls")
+  callParticipations StaffCallInvitee[]
+
   isTutor Boolean @default(false)
 
   createdAt DateTime @default(now())

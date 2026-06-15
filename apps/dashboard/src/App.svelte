@@ -51,8 +51,7 @@
   import FormBuilder from "./pages/FormBuilder.svelte";
   import FormResponses from "./pages/FormResponses.svelte";
   import PublicForm from "./pages/PublicForm.svelte";
-  import Meetings from "./pages/Meetings.svelte";
-  import Absences from "./pages/Absences.svelte";
+  import Planning from "./pages/Planning.svelte";
   import Inbox from "./pages/Inbox.svelte";
   import Tutoring from "./pages/Tutoring.svelte";
   import DoubleAccounts from "./pages/DoubleAccounts.svelte";
@@ -124,8 +123,9 @@
     if (path.startsWith("/recruitment-forms")) return "recruitment";
     if (path.startsWith("/tickets")) return "tickets";
     if (path.startsWith("/tutoring")) return "tutoring";
-    if (path.startsWith("/meetings")) return "meetings";
+    if (path.startsWith("/meetings")) return "absences";
     if (path.startsWith("/absences")) return "absences";
+    if (path.startsWith("/planning")) return "absences";
     if (path.startsWith("/leveling")) return "leveling";
     if (path.startsWith("/economy")) return "economy";
     if (path.startsWith("/giveaways")) return "giveaways";
@@ -384,7 +384,7 @@
     'logs': '/logs',
     'recruitment': '/recruitment',
     'tickets': '/tickets',
-    'meetings': '/meetings',
+    'meetings': '/planning',
     'fun': '/fun',
     'dailyalgo': $router.query.submissionId ? `/dailyalgo/ide?submissionId=${$router.query.submissionId}` : '/dailyalgo'
   }}
@@ -504,10 +504,13 @@
         <Tickets />
       </Route>
       <Route path="/meetings">
-        <Meetings />
+        <div use:navigate={"/planning"}></div>
       </Route>
       <Route path="/absences">
-        <Absences />
+        <div use:navigate={"/planning"}></div>
+      </Route>
+      <Route path="/planning">
+        <Planning />
       </Route>
       <Route path="/inbox">
         <Inbox />
@@ -688,10 +691,13 @@
               <Tickets />
             </Route>
             <Route path="/meetings">
-              <Meetings />
+              <div use:navigate={"/planning"}></div>
             </Route>
             <Route path="/absences">
-              <Absences />
+              <div use:navigate={"/planning"}></div>
+            </Route>
+            <Route path="/planning">
+              <Planning />
             </Route>
             <Route path="/inbox">
               <Inbox />

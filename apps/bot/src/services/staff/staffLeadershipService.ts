@@ -14,7 +14,8 @@ import { getOrCreateFeatureConfigs } from '../core/dashboardManagementService.js
 import type { 
   StaffAbsence, StaffMeeting, StaffMeetingPresence, 
   StaffManagerNote, StaffPoll, StaffPollOption, StaffPollVote,
-  StaffProcedure, StaffProcedureRead
+  StaffProcedure, StaffProcedureRead,
+  StaffTask, StaffCall, StaffCallInvitee
 } from '@prisma/client';
 import { getClient } from '../../utils/client.js';
 
@@ -276,7 +277,7 @@ export const createAbsence = async (
       'Validation d\'absence en attente',
       `Une absence a été soumise par un de vos subordonnés. Type: ${params.type}. Durée: ${formatAbsenceDuration(params.startDate, params.endDate)}. Motif: ${params.reason}.`,
       'WARNING',
-      '/absences',
+      '/planning',
       featureConfig?.notifyViaDM ?? true
     ).catch(() => null);
   }
@@ -298,7 +299,7 @@ export const createAbsence = async (
         'Nouvelle absence demandée',
         `Une absence a été soumise. Staff: ${getAbsenceDisplayName(requester, params.staffMemberId)}. Type: ${params.type}. Durée: ${formatAbsenceDuration(params.startDate, params.endDate)}. Motif: ${params.reason}.`,
         'INFO',
-        '/absences',
+        '/planning',
         featureConfig?.notifyViaDM ?? true
       ).catch(() => null))
     );
@@ -395,7 +396,7 @@ export const updateAbsenceStatus = async (
       'Mise à jour de votre absence',
       `Votre absence a été marquée comme: ${status}.`,
       status === 'APPROVED' ? 'SUCCESS' : (status === 'REJECTED' ? 'ERROR' : 'INFO'),
-      '/absences'
+      '/planning'
     ).catch(() => null);
   }
 
@@ -562,7 +563,7 @@ export const createMeeting = async (
         'Nouvelle réunion planifiée',
         `La réunion "${title}" a été planifiée pour le ${scheduledAt.toLocaleString('fr-FR')}.`,
         'INFO',
-        '/meetings'
+        '/planning'
       ).catch(() => null)));
     }
 
@@ -722,7 +723,7 @@ export const deleteMeeting = async (
           guildId,
           title: 'Nouvelle réunion planifiée',
           message: { contains: `"${meeting.title}"` },
-          link: '/meetings'
+          link: '/planning'
         }
       });
     } catch (err) {
@@ -1288,7 +1289,7 @@ export const processMeetingNotifications = async () => {
             '📅 Réunion en cours',
             `La réunion ${meeting.title} commence maintenant!`,
             'INFO',
-            `/meetings?id=${meeting.id}`,
+            `/planning?id=${meeting.id}`,
             true
           )
         );
@@ -1338,7 +1339,7 @@ export const processMeetingNotifications = async () => {
             '📅 Réunion terminée',
             `La réunion ${meeting.title} est terminée.`,
             'INFO',
-            `/meetings?id=${meeting.id}`,
+            `/planning?id=${meeting.id}`,
             true
           )
         );
@@ -1453,7 +1454,6 @@ export const getStaffCalendarData = async (guildId: string, start: Date, end: Da
     });
   } catch (err: any) {
     logger.error('StaffLeadership', `Error fetching absences: ${err.message}`);
-    // Non-fatal, just return empty absences
   }
 
   try {
@@ -1504,5 +1504,349 @@ export const getStaffCalendarData = async (guildId: string, start: Date, end: Da
     logger.error('StaffLeadership', `Error fetching meetings: ${err.message}`);
   }
 
-  return { absences, voiceSessions, meetings };
+  let calls: any[] = [];
+  try {
+    calls = await prisma.staffCall.findMany({
+      where: {
+        guildId,
+        scheduledAt: { gte: start, lte: end }
+      },
+      include: {
+        creator: true,
+        invitees: {
+          include: {
+            staffMember: true
+          }
+        }
+      }
+    });
+  } catch (err: any) {
+    logger.error('StaffLeadership', `Error fetching calls: ${err.message}`);
+  }
+
+  let tasks: any[] = [];
+  try {
+    tasks = await prisma.staffTask.findMany({
+      where: {
+        guildId,
+        OR: [
+          { dueDate: { gte: start, lte: end } },
+          { dueDate: null }
+        ],
+        assignee: {
+          blacklistEntries: {
+            none: {
+              isActive: true
+            }
+          }
+        },
+        ...(staffUserIds ? { assignee: { id: { in: staffUserIds } } } : {})
+      },
+      include: {
+        assignee: true,
+        creator: true
+      }
+    });
+  } catch (err: any) {
+    logger.error('StaffLeadership', `Error fetching tasks: ${err.message}`);
+  }
+
+  return { absences, voiceSessions, meetings, calls, tasks };
+};
+
+// ==========================================
+// CALLS SERVICES
+// ==========================================
+
+export const getCalls = async (guildId: string) => {
+  return prisma.staffCall.findMany({
+    where: { guildId },
+    include: {
+      creator: true,
+      invitees: { include: { staffMember: true } }
+    },
+    orderBy: { scheduledAt: 'desc' }
+  });
+};
+
+export const createCall = async (
+  client: Client,
+  guildId: string,
+  createdByUserId: string,
+  title: string,
+  description: string | null,
+  scheduledAt: Date,
+  channelMode: string,
+  channelType?: string | null,
+  discordChannelId?: string | null,
+  isTempChannel: boolean = true,
+  inviteeUserIds: string[] = [] // StaffMember IDs (CUIDs)
+) => {
+  try {
+    const creator = await prisma.staffMember.findUnique({
+      where: { guildId_userId: { guildId, userId: createdByUserId } }
+    });
+    if (!creator) throw new Error("Le créateur n'est pas un membre du staff.");
+
+    const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
+    if (!discordGuild) throw new Error("Impossible d'accéder au serveur Discord.");
+
+    let finalChannelId = discordChannelId;
+
+    if (channelMode === 'CREATE_NEW' && channelType) {
+      let categoryId = undefined;
+      const voiceConfig = await prisma.guild.findUnique({
+        where: { id: guildId },
+        select: { meetingVoiceChannelId: true }
+      });
+      if (voiceConfig?.meetingVoiceChannelId) {
+        const configChan = await discordGuild.channels.fetch(voiceConfig.meetingVoiceChannelId).catch(() => null);
+        if (configChan) categoryId = configChan.parentId ?? undefined;
+      }
+
+      const permissionOverwrites: any[] = [
+        {
+          id: discordGuild.id,
+          deny: channelType === 'THREAD' ? [] : ['Connect', 'ViewChannel']
+        },
+        {
+          id: createdByUserId,
+          allow: channelType === 'THREAD' 
+            ? ['ViewChannel', 'SendMessages'] 
+            : ['ViewChannel', 'Connect', 'Speak', 'MuteMembers', 'MoveMembers']
+        }
+      ];
+
+      const inviteeStaff = await prisma.staffMember.findMany({
+        where: { id: { in: inviteeUserIds } }
+      });
+
+      for (const invitee of inviteeStaff) {
+        permissionOverwrites.push({
+          id: invitee.userId,
+          allow: channelType === 'THREAD' ? ['ViewChannel', 'SendMessages'] : ['ViewChannel', 'Connect', 'Speak']
+        });
+      }
+
+      let type = ChannelType.GuildVoice;
+      if (channelType === 'STAGE') type = ChannelType.GuildStageVoice;
+      
+      const newChannel = await discordGuild.channels.create({
+        name: `call-${title.toLowerCase().replace(/\s+/g, '-')}`.slice(0, 100),
+        type,
+        parent: categoryId,
+        permissionOverwrites,
+        reason: `Appel staff planifié par ${createdByUserId}`
+      });
+
+      finalChannelId = newChannel.id;
+    }
+
+    const call = await prisma.staffCall.create({
+      data: {
+        guildId,
+        title,
+        description,
+        scheduledAt,
+        status: 'SCHEDULED',
+        creatorId: creator.id,
+        channelMode,
+        channelType: channelType ?? null,
+        discordChannelId: finalChannelId ?? null,
+        isTempChannel,
+        invitees: {
+          create: inviteeUserIds.map(id => ({ staffUserId: id }))
+        }
+      },
+      include: {
+        creator: true,
+        invitees: { include: { staffMember: true } }
+      }
+    });
+
+    const inviteeStaff = await prisma.staffMember.findMany({
+      where: { id: { in: inviteeUserIds } }
+    });
+
+    const timeLabel = scheduledAt.toLocaleString('fr-FR');
+    await Promise.all(inviteeStaff.map(m => 
+      createNotification(
+        guildId,
+        m.userId,
+        `Nouvel appel planifié`,
+        `Vous êtes invité à l'appel "${title}" planifié pour le ${timeLabel}.`,
+        'INFO',
+        '/planning'
+      ).catch(() => null)
+    ));
+
+    return call;
+  } catch (error) {
+    logger.error('StaffLeadership', `Erreur lors de la création de l'appel: ${error instanceof Error ? error.message : error}`);
+    throw error;
+  }
+};
+
+export const updateCall = async (
+  client: Client,
+  guildId: string,
+  id: string,
+  data: {
+    title?: string;
+    description?: string | null;
+    scheduledAt?: Date;
+    endedAt?: Date;
+    status?: 'SCHEDULED' | 'ACTIVE' | 'COMPLETED' | 'CANCELED';
+    invitees?: string[];
+  }
+) => {
+  const existingCall = await prisma.staffCall.findUnique({
+    where: { id },
+    include: { invitees: true }
+  });
+  if (!existingCall) throw new Error("Appel introuvable.");
+
+  const updatePayload: any = {};
+  if (data.title) updatePayload.title = data.title;
+  if (data.description !== undefined) updatePayload.description = data.description;
+  if (data.scheduledAt) updatePayload.scheduledAt = data.scheduledAt;
+  if (data.endedAt) updatePayload.endedAt = data.endedAt;
+  if (data.status) updatePayload.status = data.status;
+
+  if (data.status === 'COMPLETED' && !existingCall.endedAt) {
+    updatePayload.endedAt = new Date();
+  }
+
+  if (data.invitees) {
+    await prisma.staffCallInvitee.deleteMany({ where: { callId: id } });
+    updatePayload.invitees = {
+      create: data.invitees.map(uid => ({ staffUserId: uid }))
+    };
+  }
+
+  const updatedCall = await prisma.staffCall.update({
+    where: { id },
+    data: updatePayload,
+    include: {
+      creator: true,
+      invitees: { include: { staffMember: true } }
+    }
+  });
+
+  if (data.status === 'COMPLETED' && updatedCall.isTempChannel && updatedCall.discordChannelId) {
+    const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
+    if (discordGuild) {
+      const channel = await discordGuild.channels.fetch(updatedCall.discordChannelId).catch(() => null);
+      if (channel) {
+        await channel.delete('Appel terminé. Nettoyage du salon temporaire.').catch(() => null);
+      }
+    }
+  }
+
+  return updatedCall;
+};
+
+export const deleteCall = async (client: Client, guildId: string, id: string) => {
+  const call = await prisma.staffCall.findUnique({ where: { id } });
+  if (!call) return;
+
+  if (call.discordChannelId && call.isTempChannel && call.channelMode === 'CREATE_NEW') {
+    const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
+    if (discordGuild) {
+      const channel = await discordGuild.channels.fetch(call.discordChannelId).catch(() => null);
+      if (channel) {
+        await channel.delete('Appel supprimé.').catch(() => null);
+      }
+    }
+  }
+
+  return prisma.staffCall.delete({ where: { id } });
+};
+
+// ==========================================
+// TASKS SERVICES
+// ==========================================
+
+export const getTasks = async (guildId: string, assigneeId?: string) => {
+  return prisma.staffTask.findMany({
+    where: {
+      guildId,
+      ...(assigneeId ? { assigneeId } : {})
+    },
+    include: {
+      assignee: true,
+      creator: true
+    },
+    orderBy: { dueDate: 'asc' }
+  });
+};
+
+export const createTask = async (
+  guildId: string,
+  createdByUserId: string,
+  title: string,
+  description: string | null,
+  priority: 'LOW' | 'MEDIUM' | 'HIGH',
+  dueDate: Date | null,
+  assigneeStaffId: string
+) => {
+  const creator = await prisma.staffMember.findUnique({
+    where: { guildId_userId: { guildId, userId: createdByUserId } }
+  });
+  if (!creator) throw new Error("Le créateur n'est pas un membre du staff.");
+
+  const task = await prisma.staffTask.create({
+    data: {
+      guildId,
+      title,
+      description,
+      priority,
+      dueDate,
+      assigneeId: assigneeStaffId,
+      creatorId: creator.id,
+      status: 'PENDING'
+    },
+    include: {
+      assignee: true,
+      creator: true
+    }
+  });
+
+  if (task.assignee.userId !== createdByUserId) {
+    await createNotification(
+      guildId,
+      task.assignee.userId,
+      `Nouvelle tâche assignée`,
+      `Vous avez reçu une nouvelle tâche : "${title}" (Priorité: ${priority}).`,
+      'INFO',
+      '/planning'
+    ).catch(() => null);
+  }
+
+  return task;
+};
+
+export const updateTask = async (
+  id: string,
+  data: {
+    title?: string;
+    description?: string | null;
+    status?: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
+    priority?: 'LOW' | 'MEDIUM' | 'HIGH';
+    dueDate?: Date | null;
+    assigneeId?: string;
+  }
+) => {
+  return prisma.staffTask.update({
+    where: { id },
+    data,
+    include: {
+      assignee: true,
+      creator: true
+    }
+  });
+};
+
+export const deleteTask = async (id: string) => {
+  return prisma.staffTask.delete({ where: { id } });
 };
