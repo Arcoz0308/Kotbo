@@ -4,6 +4,7 @@
   import Breadcrumbs from './Breadcrumbs.svelte';
   import ServerSwitcherModal from './ServerSwitcherModal.svelte';
   import UnsavedChangesBar from './UnsavedChangesBar.svelte';
+  import TutorialOverlay from './TutorialOverlay.svelte';
 
   import { onMount } from 'svelte';
   import type { Snippet } from 'svelte';
@@ -17,11 +18,18 @@
   import { searchStore } from '../stores/search.svelte';
   import { unsavedChanges } from '../stores/unsavedChanges.svelte';
   import { isMobile } from '../stores/media.svelte';
+  import { authStore } from '../stores/auth.svelte';
+  import { tutorialStore, shouldShowTutorialForNewUser } from '../stores/tutorial.svelte';
 
   let { children }: { children?: Snippet } = $props();
 
   onMount(() => {
     dashboardLifecycle.init();
+
+    // Check if tutorial should be shown for new users
+    if (authStore.selectedGuildId && shouldShowTutorialForNewUser(authStore.selectedGuildId)) {
+      tutorialStore.start();
+    }
 
     // Block browser tab/window close when there are unsaved changes
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -202,4 +210,5 @@
   </div>
   <ServerSwitcherModal />
   <UnsavedChangesBar />
+  <TutorialOverlay />
 </div>

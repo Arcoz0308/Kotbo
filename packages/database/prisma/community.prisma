@@ -14,10 +14,12 @@ model DeveloperExcuse {
   id        String   @id @default(cuid())
   text      String
   language  String   @default("fr")
+  category  String?
   createdAt DateTime @default(now())
 
   @@map("developer_excuses")
   @@index([language])
+  @@index([category])
 }
 
 model Giveaway {

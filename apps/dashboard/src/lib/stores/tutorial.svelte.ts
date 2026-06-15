@@ -1,0 +1,220 @@
+export interface TutorialStep {
+  id: string;
+  title: string;
+  description: string;
+  target?: string; // CSS selector or route path
+  action?: string;
+  position?: 'top' | 'bottom' | 'left' | 'right' | 'center';
+  image?: string;
+  icon?: string; // Lucide icon name
+}
+
+export interface TutorialProgress {
+  currentStep: number;
+  completed: boolean;
+  dismissed: boolean;
+  startedAt?: number;
+  completedAt?: number;
+}
+
+export const tutorialSteps: TutorialStep[] = [
+  {
+    id: 'welcome',
+    title: 'Bienvenue sur Kotbo Dashboard !',
+    description: 'Ce tutoriel va vous guider à travers les fonctionnalités essentielles du dashboard. Vous apprendrez à configurer votre serveur, gérer les membres, et utiliser tous les outils disponibles.',
+    position: 'center',
+    icon: 'sparkles',
+  },
+  {
+    id: 'navigation',
+    title: 'Navigation',
+    description: 'La sidebar à gauche est organisée en catégories : Général, Modération, Communauté, Staff, et Configuration. Utilisez-la pour naviguer rapidement.',
+    target: '.sidebar',
+    position: 'right',
+    icon: 'layout',
+  },
+  {
+    id: 'overview',
+    title: 'Vue d\'ensemble',
+    description: 'La page d\'accueil vous donne une vue globale de votre serveur avec les statistiques principales et l\'activité récente.',
+    target: '/',
+    action: 'Cliquez sur "Vue d\'ensemble" dans la sidebar',
+    icon: 'layout-grid',
+  },
+  {
+    id: 'modules',
+    title: 'Modules',
+    description: 'Kotbo est modulaire. Activez uniquement les fonctionnalités dont vous avez besoin : Leveling, Économie, Tickets, Daily Algo, etc.',
+    target: '/modules',
+    action: 'Allez dans Configuration > Modules',
+    icon: 'package',
+  },
+  {
+    id: 'members',
+    title: 'Membres',
+    description: 'Gérez votre communauté : consultez les profils, les statistiques, et les informations détaillées de chaque membre.',
+    target: '/members',
+    action: 'Allez dans Modération > Membres',
+    icon: 'users',
+  },
+  {
+    id: 'staff',
+    title: 'Staff Management',
+    description: 'Organisez votre équipe avec l\'annuaire, les hiérarchies, le recrutement, les tickets, et le tutorat.',
+    target: '/staff-management?tab=members',
+    action: 'Allez dans Staff > Annuaire',
+    icon: 'shield',
+  },
+  {
+    id: 'sanctions',
+    title: 'Sanctions',
+    description: 'Outils de modération complets : avertissements, bannissements, kicks, et historique des sanctions.',
+    target: '/sanctions',
+    action: 'Allez dans Modération > Sanctions',
+    icon: 'gavel',
+  },
+  {
+    id: 'leveling',
+    title: 'Leveling & XP',
+    description: 'Système de niveaux et d\'XP avec récompenses, classements, et configuration des rôles de niveaux.',
+    target: '/leveling',
+    action: 'Allez dans Communauté > Leveling & XP',
+    icon: 'trophy',
+  },
+  {
+    id: 'economy',
+    title: 'Économie & RPG',
+    description: 'Système économique complet avec boutique, mini-jeux, et profils RPG pour vos membres.',
+    target: '/economy',
+    action: 'Allez dans Communauté > Économie & RPG',
+    icon: 'coins',
+  },
+  {
+    id: 'settings',
+    title: 'Paramètres',
+    description: 'Configurez les salons, les commandes, et les paramètres globaux de votre serveur.',
+    target: '/settings',
+    action: 'Allez dans Configuration > Paramètres',
+    icon: 'settings',
+  },
+  {
+    id: 'shortcuts',
+    title: 'Raccourcis clavier',
+    description: 'Gagnez du temps avec les raccourcis : Ctrl+G pour changer de serveur, et CTRL+K pour utiliser la recherche rapide.',
+    position: 'center',
+    icon: 'keyboard',
+  },
+  {
+    id: 'complete',
+    title: 'Tutoriel terminé !',
+    description: 'Vous avez terminé le tutoriel de base. Explorez toutes les fonctionnalités du dashboard et n\'hésitez pas à consulter l\'aide.',
+    position: 'center',
+    icon: 'check-circle',
+  },
+];
+
+// Load from localStorage
+const STORAGE_KEY = 'tutorial-progress';
+const loadProgress = (): TutorialProgress => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {
+    console.error('Failed to load tutorial progress:', e);
+  }
+  return {
+    currentStep: 0,
+    completed: false,
+    dismissed: false,
+  };
+};
+
+// Save to localStorage
+const saveProgress = (progress: TutorialProgress) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+  } catch (e) {
+    console.error('Failed to save tutorial progress:', e);
+  }
+};
+
+let progress = $state<TutorialProgress>(loadProgress());
+
+export const tutorialStore = {
+  get currentStep() { return progress.currentStep; },
+  get completed() { return progress.completed; },
+  get dismissed() { return progress.dismissed; },
+
+  nextStep: () => {
+    const nextStep = Math.min(progress.currentStep + 1, tutorialSteps.length - 1);
+    const completed = nextStep === tutorialSteps.length - 1;
+    progress = {
+      ...progress,
+      currentStep: nextStep,
+      completed,
+      completedAt: completed ? Date.now() : progress.completedAt,
+    };
+    saveProgress(progress);
+  },
+
+  prevStep: () => {
+    progress = {
+      ...progress,
+      currentStep: Math.max(progress.currentStep - 1, 0),
+    };
+    saveProgress(progress);
+  },
+
+  goToStep: (step: number) => {
+    progress = {
+      ...progress,
+      currentStep: Math.max(0, Math.min(step, tutorialSteps.length - 1)),
+    };
+    saveProgress(progress);
+  },
+
+  dismiss: () => {
+    progress = {
+      ...progress,
+      dismissed: true,
+    };
+    saveProgress(progress);
+  },
+
+  reset: () => {
+    progress = {
+      currentStep: 0,
+      completed: false,
+      dismissed: false,
+      startedAt: Date.now(),
+    };
+    saveProgress(progress);
+  },
+
+  start: () => {
+    progress = {
+      currentStep: 0,
+      completed: false,
+      dismissed: false,
+      startedAt: Date.now(),
+    };
+    saveProgress(progress);
+  },
+};
+
+// Fonction pour vérifier si l'utilisateur est nouveau et devrait voir le tutoriel
+export function shouldShowTutorialForNewUser(guildId: string): boolean {
+  const stored = localStorage.getItem(`tutorial-${guildId}`);
+  if (!stored) {
+    return true; // Nouvel utilisateur
+  }
+  const data = JSON.parse(stored);
+  return !data.completed && !data.dismissed;
+}
+
+// Marquer le tutoriel comme vu pour ce serveur
+export function markTutorialSeen(guildId: string) {
+  localStorage.setItem(`tutorial-${guildId}`, JSON.stringify({ seen: true, timestamp: Date.now() }));
+}

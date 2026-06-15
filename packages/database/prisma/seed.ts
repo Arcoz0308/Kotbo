@@ -24,255 +24,308 @@ if (!GUILD_ID) {
 
 const guildId: string = GUILD_ID;
 
-const DEFAULT_FEEDS = [
-  // 🇫🇷 Actualité Tech Générale (France)
-  { name: 'Presse-Citron', url: 'https://www.presse-citron.net/feed/', category: 'Actualité Tech Générale (France)', language: 'fr' },
-  { name: 'Le Journal du Geek', url: 'https://www.journaldugeek.com/feed/', category: 'Actualité Tech Générale (France)', language: 'fr' },
-  { name: 'Numerama', url: 'https://www.numerama.com/feed/', category: 'Actualité Tech Générale (France)', language: 'fr' },
-  { name: 'Next (ex-Next INpact)', url: 'https://next.ink/feed/', category: 'Actualité Tech Générale (France)', language: 'fr' },
-  { name: "L'Usine Digitale", url: 'https://www.usine-digitale.fr/rss', category: 'Actualité Tech Générale (France)', language: 'fr' },
+const DEFAULT_DEVELOPER_EXCUSES: Array<{ text: string; category: string }> = [
+  // ==========================================
+  // 1. LES CLASSIQUES INCONTOURNABLES (0-20)
+  // ==========================================
+  { text: 'Ça fonctionnait sur ma machine.', category: 'classiques' },
+  { text: "C'est un problème de cache.", category: 'classiques' },
+  { text: "C'est une fonctionnalité, pas un bug.", category: 'classiques' },
+  { text: "L'API externe était indisponible.", category: 'classiques' },
+  { text: "Je pense que c'est un souci de localStorage.", category: 'classiques' },
+  { text: 'Tout dépend du timing.', category: 'classiques' },
+  { text: 'Il faut vider le cache du navigateur.', category: 'classiques' },
+  { text: 'Il manque un point-virgule quelque part.', category: 'classiques' },
+  { text: 'C'est une classique condition de course.', category: 'classiques' },
+  { text: 'Le serveur n'était pas prêt.', category: 'classiques' },
+  { text: 'Ça marche en production, je ne sais pas pourquoi.', category: 'classiques' },
+  { text: 'Le client n'a pas donné assez de détails.', category: 'classiques' },
+  { text: "C'est un problème en aval.", category: 'classiques' },
+  { text: 'Je l'avais corrigé localement, mais j'ai oublié de commit.', category: 'classiques' },
+  { text: 'C'est une incompatibilité de navigateur.', category: 'classiques' },
+  { text: 'La base de données était lente ce jour-là.', category: 'classiques' },
+  { text: "C'est un problème de DNS. C'est TOUJOURS un problème de DNS.", category: 'classiques' },
+  { text: "Pourtant, tous les tests unitaires passaient au vert sur la CI.", category: 'classiques' },
+  { text: "Quelqu'un a dû push en force sur la branche principale sans me le dire.", category: 'classiques' },
+  { text: "C'est à cause de la dernière mise à jour de Node.", category: 'classiques' },
 
-  // 🌍 Références Internationales (Anglais)
-  { name: 'The Verge', url: 'https://www.theverge.com/rss/index.xml', category: 'Références Internationales (Anglais)', language: 'en' },
-  { name: 'TechCrunch', url: 'https://techcrunch.com/feed/', category: 'Références Internationales (Anglais)', language: 'en' },
-  { name: 'Ars Technica', url: 'http://feeds.arstechnica.com/arstechnica/index', category: 'Références Internationales (Anglais)', language: 'en' },
-  { name: 'Wired', url: 'https://www.wired.com/feed/rss', category: 'Références Internationales (Anglais)', language: 'en' },
-  { name: 'Hacker News (Top)', url: 'https://hnrss.org/frontpage', category: 'Références Internationales (Anglais)', language: 'en' },
+  // ==========================================
+  // 2. GIT, CI/CD & REVISIONS (20-70)
+  // ==========================================
+  { text: "J'ai un conflit de fusion (merge conflict) que je n'ai pas vu passer.", category: 'git_cicd' },
+  { text: "C'est la faute du rebase, ça a écrasé mes modifications.", category: 'git_cicd' },
+  { text: "Le webhook de GitHub n'a pas déclenché le build.", category: 'git_cicd' },
+  { text: "La CI est tombée en panne au milieu de l'étape de peluchage (linting).", category: 'git_cicd' },
+  { text: "Quelqu'un a modifié le fichier .gitignore et mon code n'est pas monté.", category: 'git_cicd' },
+  { text: "Le pre-commit hook a bloqué mon push, j'ai dû bypasser.", category: 'git_cicd' },
+  { text: "J'ai confondu ma branche de dev et la branche de prod.", category: 'git_cicd' },
+  { text: "Le commit est parti sur un dépôt détaché (detached HEAD).", category: 'git_cicd' },
+  { text: "Le serveur de intégration continue n'a pas les mêmes variables d'environnement.", category: 'git_cicd' },
+  { text: "C'est un problème de droits d'accès sur le token personnel de GitHub.", category: 'git_cicd' },
+  { text: "J'ai fait un git push --force par habitude, désolé.", category: 'git_cicd' },
+  { text: "Le runner GitLab n'avait plus d'espace disque disponible.", category: 'git_cicd' },
+  { text: "Le build a expiré (timeout) parce que la file d'attente était trop longue.", category: 'git_cicd' },
+  { text: "Les modules de test n'ont pas été installés sur l'agent de build.", category: 'git_cicd' },
+  { text: "Le fichier lock n'était pas synchronisé avec le package.json.", category: 'git_cicd' },
+  { text: "Mon commit a été écrasé par un commit automatique du bot de dépendances.", category: 'git_cicd' },
+  { text: "Le tag de version n'a pas été poussé sur le registre.", category: 'git_cicd' },
+  { text: "La clé SSH de la CI a expiré ce matin.", category: 'git_cicd' },
+  { text: "Le dépôt distant a renvoyé une erreur 503 pendant le fetch.", category: 'git_cicd' },
+  { text: "J'ai annulé le mauvais pipeline.", category: 'git_cicd' },
 
-  // 🛡️ Cybersécurité & Open Source
-  { name: 'Korben', url: 'https://korben.info/feed', category: 'Cybersécurité & Open Source', language: 'fr' },
-  { name: 'CERT-FR (ANSSI)', url: 'https://www.cert.ssi.gouv.fr/feed/', category: 'Cybersécurité & Open Source', language: 'fr' },
-  { name: 'CNIL (Actus)', url: 'https://www.cnil.fr/fr/rss.xml', category: 'Cybersécurité & Open Source', language: 'fr' },
-  { name: 'The Hacker News', url: 'https://feeds.feedburner.com/TheHackersNews', category: 'Cybersécurité & Open Source', language: 'en' },
+  // ==========================================
+  // 3. INFRASTRUCTURE, DOCKER & CLOUD (70-120)
+  // ==========================================
+  { text: "Docker n'a pas vidé ses volumes, l'ancien code tournait encore.", category: 'infra_cloud' },
+  { text: "Le pod Kubernetes est entré dans une boucle de crash infernale (CrashLoopBackOff).", category: 'infra_cloud' },
+  { text: "L'équilibreur de charge (Load Balancer) redirige vers une ancienne instance.", category: 'infra_cloud' },
+  { text: "Le certificat SSL/TLS a expiré à minuit.", category: 'infra_cloud' },
+  { text: "La passerelle API (API Gateway) a jeté la requête à cause d'un timeout.", category: 'infra_cloud' },
+  { text: "Le serveur n'avait plus d'inodes disponibles.", category: 'infra_cloud' },
+  { text: "AWS a restreint nos quotas d'instances ce mois-ci.", category: 'infra_cloud' },
+  { text: "C'est le proxy de l'entreprise qui intercepte et modifie les en-têtes HTTP.", category: 'infra_cloud' },
+  { text: "Le script d'initialisation de la base de données ne s'est pas lancé.", category: 'infra_cloud' },
+  { text: "La configuration du reverse proxy Nginx est corrompue.", category: 'infra_cloud' },
+  { text: "Le conteneur est à court de mémoire (OOM Killer).", category: 'infra_cloud' },
+  { text: "La zone de disponibilité d'AWS est actuellement en panne.", category: 'infra_cloud' },
+  { text: "Les variables d'environnement de Vercel n'ont pas été propagées.", category: 'infra_cloud' },
+  { text: "Le groupe de sécurité bloque le port requis.", category: 'infra_cloud' },
+  { text: "Le montage réseau NFS a sauté.", category: 'infra_cloud' },
+  { text: "Les logs ont saturé le disque dur du serveur applicatif.", category: 'infra_cloud' },
+  { text: "Le serveur de base de données a changé d'adresse IP privée.", category: 'infra_cloud' },
+  { text: "Le cron job ne s'est pas exécuté à l'heure prévue.", category: 'infra_cloud' },
+  { text: "La configuration CORS du bucket S3 rejette l'origine.", category: 'infra_cloud' },
+  { text: "C'est un problème de réplication de base de données à cause de la latence.", category: 'infra_cloud' },
 
-  // 🤖 Intelligence Artificielle & Dev
-  { name: 'OpenAI Blog', url: 'https://openai.com/blog/rss.xml', category: 'Intelligence Artificielle & Dev', language: 'en' },
-  { name: 'Google News (AI)', url: 'https://news.google.com/rss/search?q=Artificial+Intelligence', category: 'Intelligence Artificielle & Dev', language: 'en' },
-  { name: 'Baeldung (Dev)', url: 'https://www.baeldung.com/feed', category: 'Intelligence Artificielle & Dev', language: 'en' },
-  { name: 'GitHub Blog', url: 'https://github.blog/feed/', category: 'Intelligence Artificielle & Dev', language: 'en' },
+  // ==========================================
+  // 4. FRONT-END, CSS & BROWSERS (120-170)
+  // ==========================================
+  { text: "Sur Chrome ça passe, c'est encore un coup de Safari mobile.", category: 'frontend' },
+  { text: "Le CSS s'est chargé après le JS, ça crée un décalage de mise en page.", category: 'frontend' },
+  { text: "C'est le bloqueur de pub (AdBlock) de l'utilisateur qui casse le script.", category: 'frontend' },
+  { text: "Le service worker a mis en cache une version cassée de l'application.", category: 'frontend' },
+  { text: "La police d'écriture personnalisée bloque le rendu du texte.", category: 'frontend' },
+  { text: "C'est une erreur d'hydratation du framework SSR.", category: 'frontend' },
+  { text: "L'utilisateur utilise encore Internet Explorer en mode compatibilité.", category: 'frontend' },
+  { text: "Le mode sombre applique des styles non gérés sur ce composant.", category: 'frontend' },
+  { text: "C'est un problème de densité de pixels sur les écrans Retina.", category: 'frontend' },
+  { text: "Le z-index de ce composant est inférieur à celui de la modale.", category: 'frontend' },
+  { text: "La détection tactile entre en conflit avec l'événement de clic.", category: 'frontend' },
+  { text: "Le redimensionnement de la fenêtre casse le layout Grid.", category: 'frontend' },
+  { text: "L'API d'animation n'est pas supportée sur ce modèle de smartphone.", category: 'frontend' },
+  { text: "Le navigateur a bloqué la lecture automatique du contenu multimédia.", category: 'frontend' },
+  { text: "Une extension Chrome injecte du code HTML qui détruit mon DOM.", category: 'frontend' },
+  { text: "La session a expiré dans le cookie, mais l'UI ne le sait pas encore.", category: 'frontend' },
+  { text: "L'intersection observer n'a pas détecté le défilement.", category: 'frontend' },
+  { text: "Les variables CSS ne sont pas interpolées correctement par ce compilateur.", category: 'frontend' },
+  { text: "Le rendu est cassé uniquement en mode paysage sur les tablettes.", category: 'frontend' },
+  { text: "L'attribut 'secure' du cookie empêche sa lecture en HTTP local.", category: 'frontend' },
 
-  // 💻 Hardware & Gaming
-  { name: "Tom's Hardware France", url: 'https://www.tomshardware.fr/feed/', category: 'Hardware & Gaming', language: 'fr' },
-  { name: 'Comptoir du Hardware', url: 'http://www.comptoir-hardware.com/home.xml', category: 'Hardware & Gaming', language: 'fr' },
-  { name: 'Frandroid', url: 'https://www.frandroid.com/feed', category: 'Hardware & Gaming', language: 'fr' },
-  { name: 'Eurogamer', url: 'https://www.eurogamer.net/feed/news', category: 'Hardware & Gaming', language: 'en' },
+  // ==========================================
+  // 5. BACK-END, APIS & DATA (170-220)
+  // ==========================================
+  { text: "L'ORM a généré une requête SQL d'une lenteur absolue.", category: 'backend' },
+  { text: "Le jeton JWT a expiré dix secondes trop tôt.", category: 'backend' },
+  { text: "La base de données a atteint son nombre maximal de connexions simultanées.", category: 'backend' },
+  { text: "C'est une erreur de sérialisation JSON sur un champ de date.", category: 'backend' },
+  { text: "Le webhook a renvoyé un statut 200 mais le corps était vide.", category: 'backend' },
+  { text: "Le type de données dans PostgreSQL ne correspond pas au modèle Prisma.", category: 'backend' },
+  { text: "C'est un problème d'encodage de caractères (UTF-8 vs ISO-8859-1).", category: 'backend' },
+  { text: "La requête a dépassé la taille maximale autorisée par le serveur.", category: 'backend' },
+  { text: "L'indexation de la base de données n'est pas encore terminée.", category: 'backend' },
+  { text: "Le serveur de cache Redis a été vidé inopinément.", category: 'backend' },
+  { text: "C'est une faille de contrainte de clé étrangère.", category: 'backend' },
+  { text: "La pagination renvoie une page vide si on va trop vite.", category: 'backend' },
+  { text: "L'API tierce a changé son schéma de réponse sans prévenir.", category: 'backend' },
+  { text: "Le chiffrement des données utilise un sel qui a été modifié.", category: 'backend' },
+  { text: "Une fuite de mémoire dans le thread principal paralyse le routeur.", category: 'backend' },
+  { text: "Le parseur de requêtes ne gère pas le format FormData.", category: 'backend' },
+  { text: "La géolocalisation par IP renvoie des coordonnées erronées.", category: 'backend' },
+  { text: "Le système de fichiers est en lecture seule suite à une alerte de sécurité.", category: 'backend' },
+  { text: "Les identifiants de la base de données de test ont fuité, elle a été bloquée.", category: 'backend' },
+  { text: "La file d'attente des messages (RabbitMQ) est saturée.", category: 'backend' },
+
+  // ==========================================
+  // 6. ENFER DES DEPENDANCES & RUNTIMES (220-270)
+  // ==========================================
+  { text: "La mise à jour mineure d'un sous-package a tout cassé (breaking change).", category: 'dependencies' },
+  { text: "Le gestionnaire de paquets a installé une version obsolète depuis son cache.", category: 'dependencies' },
+  { text: "Il y a un conflit entre l'architecture x86 et ARM de ma puce.", category: 'dependencies' },
+  { text: "Le compilateur TypeScript refuse de build à cause d'un type 'any' caché.", category: 'dependencies' },
+  { text: "La version globale de Node ne correspond pas à celle spécifiée dans le projet.", category: 'dependencies' },
+  { text: "C'est une vulnérabilité de sécurité critique qui bloque l'installation.", category: 'dependencies' },
+  { text: "Le package n'est plus maintenu depuis trois ans.", category: 'dependencies' },
+  { text: "Le bundler (Vite/Webpack) n'arrive pas à résoudre le module ES.", category: 'dependencies' },
+  { text: "Le moteur d'exécution (runtime) manque de permissions système.", category: 'dependencies' },
+  { text: "Le fichier lock est corrompu, il faut supprimer node_modules et recommencer.", category: 'dependencies' },
+  { text: "Cette bibliothèque nécessite une version de Python obsolète pour compiler.", category: 'dependencies' },
+  { text: "Le ramasse-miettes (garbage collector) s'est déclenché au pire moment.", category: 'dependencies' },
+  { text: "Le package a été retiré du registre npm par son auteur.", category: 'dependencies' },
+  { text: "La compilation native du module C++ a échoué.", category: 'dependencies' },
+  { text: "Le linter refuse le déploiement pour un espace en trop en fin de ligne.", category: 'dependencies' },
+  { text: "La configuration Babel ne transpile pas cette syntaxe moderne.", category: 'dependencies' },
+  { text: "Le framework utilise une version expérimentale non documentée.", category: 'dependencies' },
+  { text: "Le SDK refuse de s'initialiser sans une variable d'environnement optionnelle.", category: 'dependencies' },
+  { text: "La dépendance a une dépendance circulaire invisible.", category: 'dependencies' },
+  { text: "Le compilateur a optimisé le code en supprimant la fonction essentielle.", category: 'dependencies' },
+
+  // ==========================================
+  // 7. GESTION DE PROJET & SPECIFICATIONS (270-320)
+  // ==========================================
+  { text: "Ce cas d'usage n'était pas mentionné dans le cahier des charges.", category: 'management' },
+  { text: "Les spécifications ont changé pendant que je développais la fonctionnalité.", category: 'management' },
+  { text: "Le designer n'a pas fourni les maquettes pour la version mobile.", category: 'management' },
+  { text: "Le chef de projet m'a dit que ce n'était pas prioritaire.", category: 'management' },
+  { text: "Le client teste l'application avec des données totalement irréalistes.", category: 'management' },
+  { text: "J'attendais les retours de l'équipe produit avant de valider le ticket.", category: 'management' },
+  { text: "Ce n'est pas un bug, c'est exactement ce que le client a demandé à l'oral.", category: 'management' },
+  { text: "La réunion de cadrage a été annulée, j'ai codé à l'instinct.", category: 'management' },
+  { text: "Le ticket Jira était assigné à la mauvaise personne.", category: 'management' },
+  { text: "Les critères d'acceptation étaient beaucoup trop vagues.", category: 'management' },
+  { text: "Le flux d'utilisateurs décrit dans la spécification est impossible à réaliser.", category: 'management' },
+  { text: "Le client utilise un environnement de test qui n'a jamais été configuré.", category: 'management' },
+  { text: "On m'a pressé pour finir avant le week-end, le code n'est pas parfait.", category: 'management' },
+  { text: "La démo a été faite sur un jeu de données tronqué.", category: 'management' },
+  { text: "Le délai était trop court pour inclure la gestion des erreurs.", category: 'management' },
+  { text: "Le Product Owner a validé la fonctionnalité lors de la revue de sprint.", category: 'management' },
+  { text: "Les utilisateurs finaux ne font jamais ce genre de manipulation.", category: 'management' },
+  { text: "Le contenu fourni par l'équipe marketing dépasse la taille des blocs.", category: 'management' },
+  { text: "C'est une fonctionnalité de la phase 2, on est seulement en phase 1.", category: 'management' },
+  { text: "Le changement d'architecture a été décidé sans m'en informer.", category: 'management' },
+
+  // ==========================================
+  // 8. L'ÈRE DE L'IA & GENERATION DE CODE (320-370)
+  // ==========================================
+  { text: "L'IA de complétion de code m'a induit en erreur.", category: 'ai' },
+  { text: "Copilot a généré une fonction obsolète et je ne l'ai pas relue.", category: 'ai' },
+  { text: "Le modèle de langage a halluciné une méthode qui n'existe pas.", category: 'ai' },
+  { text: "L'invite (prompt) de départ manquait de contexte technique.", category: 'ai' },
+  { text: "Le code généré par l'IA passait tous les tests locaux.", category: 'ai' },
+  { text: "Les serveurs d'IA étaient surchargés, j'ai dû écrire le code à la main.", category: 'ai' },
+  { text: "L'IA a utilisé une structure algorithmique trop complexe pour notre projet.", category: 'ai' },
+  { text: "Le contexte de la discussion avec l'assistant s'est réinitialisé au milieu.", category: 'ai' },
+  { text: "Le code d'exemple de la documentation de l'IA était truffé d'erreurs.", category: 'ai' },
+  { text: "Le générateur automatique a oublié d'importer le module de sécurité.", category: 'ai' },
+  { text: "J'ai appliqué le correctif suggéré par l'IA sans comprendre l'effet de bord.", category: 'ai' },
+  { text: "Le filtre de sécurité de l'IA a bloqué le morceau de code dont j'avais besoin.", category: 'ai' },
+  { text: "L'IA a confondu la syntaxe de deux frameworks différents.", category: 'ai' },
+  { text: "Le code semblait propre mais la logique interne était inversée.", category: 'ai' },
+  { text: "J'ai fait confiance aux commentaires générés automatiquement.", category: 'ai' },
+  { text: "L'IA a écrit une fonction récursive sans condition de sortie.", category: 'ai' },
+  { text: "La mise à jour du modèle d'IA a changé sa manière de structurer le code.", category: 'ai' },
+  { text: "Le bot de révision de code (Code Review Bot) a validé le bug.", category: 'ai' },
+  { text: "L'algorithme de génération a halluciné une faille de sécurité imaginaire.", category: 'ai' },
+  { text: "Le copier-coller du prompt a inclus des caractères invisibles.", category: 'ai' },
+
+  // ==========================================
+  // 9. PHYSIQUE, RESEAU & HARDWARE (370-420)
+  // ==========================================
+  { text: "La connexion Wi-Fi du bureau a sauté pendant le déploiement.", category: 'hardware' },
+  { text: "Le processeur de ma machine surchauffe et bride les performances.", category: 'hardware' },
+  { text: "Le câble Ethernet de la baie de serveurs a été débranché par erreur.", category: 'hardware' },
+  { text: "La foudre est tombée sur le centre de données (datacenter).", category: 'hardware' },
+  { text: "Ma mémoire vive (RAM) est saturée par les onglets du navigateur.", category: 'hardware' },
+  { text: "Le disque SSD externe s'est déconnecté pendant l'écriture.", category: 'hardware' },
+  { text: "Le clavier a un problème de faux contact sur la touche Échap.", category: 'hardware' },
+  { text: "La bande passante réseau est saturée par une autre application.", category: 'hardware' },
+  { text: "L'alimentation du serveur de secours a lâché.", category: 'hardware' },
+  { text: "Les ventilateurs font trop de bruit, je n'arrive pas à me concentrer.", category: 'hardware' },
+  { text: "Le signal GPS est trop faible pour tester la fonctionnalité de suivi.", category: 'hardware' },
+  { text: "La mise à jour du système d'exploitation de ma machine bloque le terminal.", category: 'hardware' },
+  { text: "Le routeur applique des règles de pare-feu trop restrictives.", category: 'hardware' },
+  { text: "La souris n'a plus de batterie, je ne peux pas cliquer au bon endroit.", category: 'hardware' },
+  { text: "Le deuxième écran est en panne, je n'ai plus de place pour les outils de dev.", category: 'hardware' },
+  { text: "Le réseau mobile capte mal en sous-sol pour tester l'application.", category: 'hardware' },
+  { text: "La passerelle par défaut n'est pas configurée sur cette machine.", category: 'hardware' },
+  { text: "Une coupure de courant générale a corrompu mes fichiers locaux.", category: 'hardware' },
+  { text: "Le chiffrement matériel du disque ralentit les opérations d'E/S.", category: 'hardware' },
+  { text: "La carte réseau surchauffe lors des transferts de gros fichiers.", category: 'hardware' },
+
+  // ==========================================
+  // 10. MAUVAISE FOI PURE & FACTEUR HUMAIN (420-500)
+  // ==========================================
+  { text: "Je n'étais pas réveillé quand j'ai écrit cette ligne de code.", category: 'bad_faith' },
+  { text: "Le café était tiède ce matin, mon efficacité s'en est ressentie.", category: 'bad_faith' },
+  { text: "C'est la faute de mon binôme, il a validé la Pull Request sans regarder.", category: 'bad_faith' },
+  { text: "Je pensais que quelqu'un d'autre s'occupait de cette partie.", category: 'bad_faith' },
+  { text: "Ce bug existait déjà avant que j'arrive dans l'entreprise.", category: 'bad_faith' },
+  { text: "J'ai contracté une dette technique volontaire pour tenir les délais.", category: 'bad_faith' },
+  { text: "Mon code est parfait, c'est l'utilisateur qui l'utilise mal.", category: 'bad_faith' },
+  { text: "Je ne peux pas corriger ça sans casser l'intégralité du système.", category: 'bad_faith' },
+  { text: "C'est une erreur humaine, et l'erreur est humaine.", category: 'bad_faith' },
+  { text: "Le bug ne se produit que les jours impairs après 18 heures.", category: 'bad_faith' },
+  { text: "J'ai été interrompu par trois réunions pendant que je codais cette fonction.", category: 'bad_faith' },
+  { text: "Le code est tellement élégant que le bug en devient artistique.", category: 'bad_faith' },
+  { text: "J'ai laissé ce bug exprès pour tester la vigilance de l'équipe de QA.", category: 'bad_faith' },
+  { text: "Je suis développeur, pas magicien.", category: 'bad_faith' },
+  { text: "Le code fait exactement ce qu'on lui dit de faire, pas ce que tu veux qu'il fasse.", category: 'bad_faith' },
+  { text: "C'est un problème d'interprétation philosophique de la consigne.", category: 'bad_faith' },
+  { text: "Je vais enquêter dessus dès que j'aurai fini ma tâche actuelle (dans trois semaines).", category: 'bad_faith' },
+  { text: "Le bug s'est auto-corrigé lors du dernier redémarrage, ne touchons à rien.", category: 'bad_faith' },
+  { text: "C'est le comportement standard défini par l'industrie informatique.", category: 'bad_faith' },
+  { text: "De toute façon, ce projet va bientôt être réécrit de zéro.", category: 'bad_faith' },
+  { text: "Le code source a été altéré par des rayons cosmiques sur la mémoire non ECC.", category: 'bad_faith' },
+  { text: "C'est une anomalie temporelle provoquée par le changement d'heure.", category: 'bad_faith' },
+  { text: "Mon chat a sauté sur le clavier juste avant le commit.", category: 'bad_faith' },
+  { text: "Je n'ai pas écrit ce code, c'est mon alter-ego de fin de projet.", category: 'bad_faith' },
+  { text: "La documentation disait que c'était simple, ils ont menti.", category: 'bad_faith' },
+  { text: "Le bug est mineur par rapport à l'immensité de l'univers.", category: 'bad_faith' },
+  { text: "Si on corrige ça, le reste du système s'effondre comme un château de cartes.", category: 'bad_faith' },
+  { text: "J'ai suivi le tutoriel officiel point par point, plaignez-vous à eux.", category: 'bad_faith' },
+  { text: "Le code fonctionne mentalement, c'est l'ordinateur qui rejette ma logique.", category: 'bad_faith' },
+  { text: "C'est à cause de la fatigue accumulée lors du dernier hackathon.", category: 'bad_faith' },
+  { text: "Le bug est inclus dans le prix de la licence gratuite.", category: 'bad_faith' },
+  { text: "Le problème vient de la chaise située entre le clavier et l'écran.", category: 'bad_faith' },
+  { text: "J'étais en train de penser à autre chose, le code s'est écrit tout seul.", category: 'bad_faith' },
+  { text: "C'est un easter egg caché qui s'est activé trop tôt.", category: 'bad_faith' },
+  { text: "Le système refuse de fonctionner parce qu'il sent ton stress.", category: 'bad_faith' },
+  { text: "Le code n'est pas cassé, il est juste en phase d'apprentissage.", category: 'bad_faith' },
+  { text: "C'est une limitation technique due aux lois de la physique moderne.", category: 'bad_faith' },
+  { text: "Le bug est indépendant de ma volonté et de mes compétences.", category: 'bad_faith' },
+  { text: "Je l'ai testé à voix haute et ça sonnait très bien.", category: 'bad_faith' },
+  { text: "Le code souffre du syndrome de la page blanche.", category: 'bad_faith' },
+  { text: "C'est un problème d'alignement des planètes avec le serveur de prod.", category: 'bad_faith' },
+  { text: "J'ai délégué cette tâche à mon subconscient, il a dû faire une erreur.", category: 'bad_faith' },
+  { text: "Le bug disparaîtra dès que l'application passera de mode.", category: 'bad_faith' },
+  { text: "C'est une erreur poétique pour casser la monotonie de l'interface.", category: 'bad_faith' },
+  { text: "Le code est trop en avance sur son temps pour être compris par cette machine.", category: 'bad_faith' },
+  { text: "J'ai appliqué le principe de moindre surprise, mais la surprise est là.", category: 'bad_faith' },
+  { text: "Le bug est une illusion d'optique provoquée par la couleur de fond.", category: 'bad_faith' },
+  { text: "J'ai écrit ça un vendredi après-midi, ça compte pas.", category: 'bad_faith' },
+  { text: "Le code est en grève solidaire avec l'équipe de modération.", category: 'bad_faith' },
+  { text: "C'est une erreur de traduction entre le binaire et le français.", category: 'bad_faith' },
+  { text: "Le compilateur a développé une conscience et refuse de m'obéir.", category: 'bad_faith' },
+  { text: "J'ai optimisé le code pour la vitesse, pas pour la précision.", category: 'bad_faith' },
+  { text: "Le bug est une composante essentielle de notre identité de marque.", category: 'bad_faith' },
+  { text: "C'est l'exception qui confirme la règle de la stabilité du système.", category: 'bad_faith' },
+  { text: "Le code a été écrit sous l'influence d'une trop forte dose de sucre.", category: 'bad_faith' },
+  { text: "C'est un secret de fabrication bien gardé.", category: 'bad_faith' },
+  { text: "Le bug est temporaire, comme notre passage sur cette Terre.", category: 'bad_faith' },
+  { text: "J'attendais qu'on me demande de le corriger pour prouver mon utilité.", category: 'bad_faith' },
+  { text: "C'est un hommage discret aux premiers bugs de l'histoire de l'informatique.", category: 'bad_faith' },
+  { text: "Le code fonctionne parfaitement dans un univers parallèle.", category: 'bad_faith' },
+  { text: "Je refuse de répondre en présence de mon avocat ou de mon CTO.", category: 'bad_faith' },
+  { text: "Le bug a été introduit pour équilibrer la charge de travail du support.", category: 'bad_faith' },
+  { text: "C'est une feature demandée par la concurrence pour nous ralentir.", category: 'bad_faith' },
+  { text: "Le code est parfait, c'est la réalité qui est mal configurée.", category: 'bad_faith' },
+  { text: "J'ai fait une mise à jour de mon estime de soi, le code suivra plus tard.", category: 'bad_faith' },
+  { text: "Le bug est une métaphore de la complexité de notre société moderne.", category: 'bad_faith' },
+  { text: "J'ai codé ça les yeux fermés pour pimenter mon quotidien.", category: 'bad_faith' },
+  { text: "C'est le destin, on ne peut pas lutter contre le destin du code.", category: 'bad_faith' },
+  { text: "Le code a été victime d'un tri sélectif un peu trop agressif.", category: 'bad_faith' },
+  { text: "C'est un problème d'interprétation textuelle du compilateur.", category: 'bad_faith' },
+  { text: "Le bug s'autodétruira dans les prochaines vingt-quatre heures.", category: 'bad_faith' },
+  { text: "J'ai confondu le bouton de sauvegarde et le bouton d'autodestruction.", category: 'bad_faith' },
+  { text: "C'est une erreur de jeunesse du projet, il faut lui laisser le temps.", category: 'bad_faith' },
+  { text: "Le code est en train de faire sa crise d'adolescence.", category: 'bad_faith' },
+  { text: "J'ai écrit ce code pour le futur moi, le présent moi ne le comprend pas.", category: 'bad_faith' },
+  { text: "Le bug est une invitation à la réflexion et au dialogue d'équipe.", category: 'bad_faith' },
+  { text: "C'est le résultat d'un consensus mou lors de la dernière réunion.", category: 'bad_faith' },
+  { text: "Le code est lassé de toujours faire la même chose, il innove.", category: 'bad_faith' },
+  { text: "J'ai mis le bug en production pour voir si les alertes Datadog fonctionnaient.", category: 'bad_faith' },
+  { text: "Le code est en mode économie d'énergie, certaines fonctions sont désactivées.", category: 'bad_faith' },
+  { text: "C'est une erreur de parallélisme entre mes deux mains sur le clavier.", category: 'bad_faith' }
 ];
-
-const DEFAULT_DEVELOPER_EXCUSES = [
-  'Ça fonctionnait sur ma machine.',
-  "C'est un problème de cache.",
-  "C'est une fonctionnalité, pas un bug.",
-  "L'API externe était indisponible.",
-  "Je pense que c'est un souci de localStorage.",
-  'Tout dépend du timing.',
-  'Il faut vider le cache du navigateur.',
-  'Il manque un point-virgule quelque part.',
-  'C’est une classique condition de course.',
-  'Le serveur n’était pas prêt.',
-  'Ça marche en production, je ne sais pas pourquoi.',
-  'Le client n’a pas donné assez de détails.',
-  "C'est un problème en aval.",
-  'Je l’avais corrigé localement, mais j’ai oublié de commit.',
-  'C’est une incompatibilité de navigateur.',
-  'La base de données était lente ce jour-là.',
-];
-const DEFAULT_DAILY_ALGO_PROBLEMS = [
-  {
-    title: 'Inverser une chaîne',
-    description: 'Écris une fonction qui inverse une chaîne de caractères sans utiliser les méthodes built-in.',
-    solution: 'Utilise une boucle ou la récursion pour parcourir la chaîne à l\'envers.',
-    difficulty: 'facile',
-    functionName: 'reverseString',
-    functionArgs: [{ name: 'input', type: 'string' }],
-    allowedLanguages: ['javascript', 'typescript', 'python'],
-    unitTests: [
-      { name: 'mot simple', args: ['hello'], expected: 'olleh' },
-      { name: 'palindrome', args: ['racecar'], expected: 'racecar' },
-      { name: 'chaine vide', args: [''], expected: '' },
-    ],
-  },
-  {
-    title: 'Fibonacci',
-    description: 'Implémente une fonction qui retourne le Nième nombre de Fibonacci de manière efficace.',
-    solution: 'Utilise la programmation dynamique ou la récursion avec mémoïsation pour éviter les recalculs.',
-    difficulty: 'moyen',
-    functionName: 'fibonacci',
-    functionArgs: [{ name: 'n', type: 'number' }],
-    allowedLanguages: ['javascript', 'typescript', 'python'],
-    unitTests: [
-      { name: 'fibo 0', args: [0], expected: 0 },
-      { name: 'fibo 1', args: [1], expected: 1 },
-      { name: 'fibo 7', args: [7], expected: 13 },
-      { name: 'fibo 10', args: [10], expected: 55 },
-    ],
-  },
-  {
-    title: 'Vérifier un palindrome',
-    description: 'Écris une fonction pour vérifier si une chaîne est un palindrome (ignore les espaces et la casse).',
-    solution: 'Compare la chaîne avec sa version inversée après normalisation.',
-    difficulty: 'facile',
-    functionName: 'isPalindrome',
-    functionArgs: [{ name: 'input', type: 'string' }],
-    allowedLanguages: ['javascript', 'typescript', 'python'],
-    unitTests: [
-      { name: 'palindrome simple', args: ['kayak'], expected: true },
-      { name: 'palindrome avec espaces', args: ['Never odd or even'], expected: true },
-      { name: 'pas palindrome', args: ['hello'], expected: false },
-    ],
-  },
-  {
-    title: 'Deux sommes',
-    description: 'Trouve deux nombres dans un tableau qui s\'additionnent pour égaler une cible.',
-    solution: 'Utilise une Map/Set pour stocker les nombres vus et trouve le complément en O(n).',
-    difficulty: 'moyen',
-    functionName: 'twoSum',
-    functionArgs: [
-      { name: 'nums', type: 'number[]' },
-      { name: 'target', type: 'number' },
-    ],
-    allowedLanguages: ['javascript', 'typescript', 'python'],
-    unitTests: [
-      { name: 'cas classique', args: [[2, 7, 11, 15], 9], expected: [0, 1] },
-      { name: 'valeurs dupliquees', args: [[3, 3], 6], expected: [0, 1] },
-      { name: 'autre tableau', args: [[3, 2, 4], 6], expected: [1, 2] },
-    ],
-  },
-  {
-    title: 'Parenthèses valides',
-    description: 'Vérifie si une chaîne de parenthèses/crochets/accolades est correctement équilibrée.',
-    solution: 'Utilise une pile (stack) pour tracker les ouvertures et vérifier les fermetures.',
-    difficulty: 'moyen',
-    functionName: 'isValidParentheses',
-    functionArgs: [{ name: 'input', type: 'string' }],
-    allowedLanguages: ['javascript', 'typescript', 'python'],
-    unitTests: [
-      { name: 'valide simple', args: ['()[]{}'], expected: true },
-      { name: 'ordre invalide', args: ['([)]'], expected: false },
-      { name: 'imbrique valide', args: ['{[()]}'], expected: true },
-    ],
-  },
-  {
-    title: 'Nombre premier',
-    description: 'Crée une fonction pour vérifier si un nombre donné est un nombre premier.',
-    solution: 'Vérifie les diviseurs jusqu\'à la racine carrée du nombre.',
-    difficulty: 'facile',
-    functionName: 'isPrime',
-    functionArgs: [{ name: 'n', type: 'number' }],
-    allowedLanguages: ['javascript', 'typescript', 'python'],
-    unitTests: [
-      { name: '2 est premier', args: [2], expected: true },
-      { name: '9 n est pas premier', args: [9], expected: false },
-      { name: '17 est premier', args: [17], expected: true },
-      { name: '1 n est pas premier', args: [1], expected: false },
-    ],
-  },
-  {
-    title: 'Maximum de tableau',
-    description: 'Trouve l\'élément maximum dans un tableau sans utiliser Math.max().',
-    solution: 'Parcours le tableau en gardant trace du maximum rencontré.',
-    difficulty: 'facile',
-    functionName: 'maxInArray',
-    functionArgs: [{ name: 'values', type: 'number[]' }],
-    allowedLanguages: ['javascript', 'typescript', 'python'],
-    unitTests: [
-      { name: 'valeurs positives', args: [[1, 4, 2, 9, 3]], expected: 9 },
-      { name: 'valeurs negatives', args: [[-5, -1, -9]], expected: -1 },
-      { name: 'singleton', args: [[42]], expected: 42 },
-    ],
-  },
-  {
-    title: 'Fusionner deux tableaux triés',
-    description: 'Fusionne deux tableaux triés en un seul tableau trié en O(n + m).',
-    solution: 'Utilise deux pointeurs pour comparer et ajouter le plus petit élément en priorité.',
-    difficulty: 'moyen',
-    functionName: 'mergeSortedArrays',
-    functionArgs: [
-      { name: 'left', type: 'number[]' },
-      { name: 'right', type: 'number[]' },
-    ],
-    allowedLanguages: ['javascript', 'typescript', 'python'],
-    unitTests: [
-      { name: 'fusion classique', args: [[1, 3, 5], [2, 4, 6]], expected: [1, 2, 3, 4, 5, 6] },
-      { name: 'tableau vide gauche', args: [[], [1, 2]], expected: [1, 2] },
-      { name: 'tableau vide droite', args: [[1, 2], []], expected: [1, 2] },
-    ],
-  },
-  {
-    title: 'Anagrammes',
-    description: 'Détermine si deux chaînes sont des anagrammes (même lettres, ordre différent).',
-    solution: 'Compare les fréquences de caractères ou les chaînes triées.',
-    difficulty: 'facile',
-    functionName: 'areAnagrams',
-    functionArgs: [
-      { name: 'a', type: 'string' },
-      { name: 'b', type: 'string' },
-    ],
-    allowedLanguages: ['javascript', 'typescript', 'python'],
-    unitTests: [
-      { name: 'anagramme simple', args: ['chien', 'niche'], expected: true },
-      { name: 'pas anagramme', args: ['chat', 'chien'], expected: false },
-      { name: 'casse et espaces', args: ['Dormitory', 'Dirty room'], expected: true },
-    ],
-  },
-  {
-    title: 'Sous-tableau avec somme max',
-    description: 'Trouve la somme maximale d\'un sous-tableau contigu (Kadane\'s algorithm).',
-    solution: 'Utilise la programmation dynamique pour tracker la somme locale et globale.',
-    difficulty: 'difficile',
-    functionName: 'maxSubarraySum',
-    functionArgs: [{ name: 'values', type: 'number[]' }],
-    allowedLanguages: ['javascript', 'typescript', 'python'],
-    unitTests: [
-      { name: 'kadane classique', args: [[-2, 1, -3, 4, -1, 2, 1, -5, 4]], expected: 6 },
-      { name: 'tout negatif', args: [[-8, -3, -6, -2, -5, -4]], expected: -2 },
-      { name: 'tout positif', args: [[1, 2, 3, 4]], expected: 10 },
-    ],
-  },
-];
-
-const DEFAULT_CODE_POLICE_RULES = [
-  { key: 'signal.js.function', category: 'SIGNAL', matchType: 'EXACT', language: 'javascript', pattern: 'function', label: 'Fonction JavaScript', feedback: 'Repère une définition de fonction JavaScript.' , severity: 'INFO' },
-  { key: 'signal.js.const', category: 'SIGNAL', matchType: 'EXACT', language: 'javascript', pattern: 'const', label: 'Constante JavaScript', feedback: 'Repère une constante ou une variable en JavaScript.', severity: 'INFO' },
-  { key: 'signal.js.let', category: 'SIGNAL', matchType: 'EXACT', language: 'javascript', pattern: 'let', label: 'Variable JavaScript', feedback: 'Repère une variable mutable en JavaScript.', severity: 'INFO' },
-  { key: 'signal.js.var', category: 'SIGNAL', matchType: 'EXACT', language: 'javascript', pattern: 'var', label: 'Variable historique JavaScript', feedback: 'Repère une déclaration historique en JavaScript.', severity: 'INFO' },
-  { key: 'signal.js.async', category: 'SIGNAL', matchType: 'EXACT', language: 'javascript', pattern: 'async', label: 'Asynchrone JavaScript', feedback: 'Repère un bloc ou une fonction asynchrone.', severity: 'INFO' },
-  { key: 'signal.js.await', category: 'SIGNAL', matchType: 'EXACT', language: 'javascript', pattern: 'await', label: 'Attente JavaScript', feedback: 'Repère un appel en attente.', severity: 'INFO' },
-  { key: 'signal.js.class', category: 'SIGNAL', matchType: 'EXACT', language: 'javascript', pattern: 'class', label: 'Classe JavaScript', feedback: 'Repère une classe.', severity: 'INFO' },
-  { key: 'signal.js.import', category: 'SIGNAL', matchType: 'EXACT', language: 'javascript', pattern: 'import', label: 'Import JavaScript', feedback: 'Repère un import ES module.', severity: 'INFO' },
-  { key: 'signal.js.export', category: 'SIGNAL', matchType: 'EXACT', language: 'javascript', pattern: 'export', label: 'Export JavaScript', feedback: 'Repère un export ES module.', severity: 'INFO' },
-  { key: 'signal.js.console.log', category: 'SIGNAL', matchType: 'EXACT', language: 'javascript', pattern: 'console.log', label: 'Console JavaScript', feedback: 'Repère une sortie console.', severity: 'INFO' },
-  { key: 'signal.python.def', category: 'SIGNAL', matchType: 'REGEX', language: 'python', pattern: '\\bdef\\s+[A-Za-z_][\\w]*\\s*\\(', label: 'Fonction Python', feedback: 'Repère une fonction Python.', severity: 'INFO' },
-  { key: 'signal.python.import', category: 'SIGNAL', matchType: 'REGEX', language: 'python', pattern: '\\bimport\\s+[A-Za-z_][\\w.]*\\b', label: 'Import Python', feedback: 'Repère un import Python.', severity: 'INFO' },
-  { key: 'signal.python.print', category: 'SIGNAL', matchType: 'REGEX', language: 'python', pattern: '\\bprint\\s*\\(', label: 'Print Python', feedback: 'Repère une impression Python.', severity: 'INFO' },
-  { key: 'signal.sql.select', category: 'SIGNAL', matchType: 'EXACT', language: 'sql', pattern: 'SELECT', label: 'SELECT SQL', feedback: 'Repère une requête SQL.', severity: 'INFO' },
-  { key: 'signal.sql.from', category: 'SIGNAL', matchType: 'EXACT', language: 'sql', pattern: 'FROM', label: 'FROM SQL', feedback: 'Repère une clause SQL.', severity: 'INFO' },
-  { key: 'signal.sql.where', category: 'SIGNAL', matchType: 'EXACT', language: 'sql', pattern: 'WHERE', label: 'WHERE SQL', feedback: 'Repère un filtre SQL.', severity: 'INFO' },
-  { key: 'signal.shell.sudo', category: 'SIGNAL', matchType: 'EXACT', language: 'shell', pattern: 'sudo', label: 'Commande shell', feedback: 'Repère une commande shell sensible.', severity: 'INFO' },
-  { key: 'signal.shell.git', category: 'SIGNAL', matchType: 'EXACT', language: 'shell', pattern: 'git', label: 'Commande git', feedback: 'Repère une commande Git.', severity: 'INFO' },
-  { key: 'signal.java.public-class', category: 'SIGNAL', matchType: 'REGEX', language: 'java', pattern: '\\bpublic\\s+(?:class|interface|enum)\\b', label: 'Classe Java', feedback: 'Repère une structure Java.', severity: 'INFO' },
-  { key: 'signal.java.system-out', category: 'SIGNAL', matchType: 'EXACT', language: 'java', pattern: 'System.out.println', label: 'Console Java', feedback: 'Repère une sortie console Java.', severity: 'INFO' },
-  { key: 'signal.cpp.include', category: 'SIGNAL', matchType: 'REGEX', language: 'cpp', pattern: '\\b#include\\b', label: 'Include C++', feedback: 'Repère un include C++.', severity: 'INFO' },
-  { key: 'signal.html.tag', category: 'SIGNAL', matchType: 'REGEX', language: 'html', pattern: '<\\/?[a-z][\\w-]*(?:\\s+[^<>]*)?>', label: 'Balise HTML', feedback: 'Repère une balise HTML.', severity: 'INFO' },
-  { key: 'signal.syntax.block', category: 'SIGNAL', matchType: 'REGEX', language: 'generic', pattern: '[{}\\[\\]();=>]', label: 'Syntaxe de bloc', feedback: 'Repère une syntaxe de bloc typique du code.', severity: 'INFO' },
-  { key: 'signal.control.flow', category: 'SIGNAL', matchType: 'REGEX', language: 'generic', pattern: '(?:^|\\n)\\s*(?:if|for|while|switch|try|catch|else)\\s*\\(', label: 'Contrôle de flux', feedback: 'Repère une structure de contrôle.', severity: 'INFO' },
-  { key: 'signal.indentation.block', category: 'SIGNAL', matchType: 'REGEX', language: 'generic', pattern: '(?:^|\\n)\\s{2,}\\S', label: 'Indentation de bloc', feedback: 'Repère une indentation typique de code.', severity: 'INFO' },
-  { key: 'signal.shell.pipeline', category: 'SIGNAL', matchType: 'REGEX', language: 'shell', pattern: '\\b(?:curl|wget|npm|pip|docker|kubectl|rm|chmod|cat|echo|grep|sed|awk)\\b', label: 'Commande shell', feedback: 'Repère une commande shell courante.', severity: 'INFO' },
-  { key: 'danger.eval', category: 'DANGER', matchType: 'REGEX', language: 'javascript', pattern: '\\b(?:eval|Function)\\s*\\(', label: 'Évaluation dynamique', feedback: 'Évite l\'évaluation dynamique de code quand ce n\'est pas strictement nécessaire.', severity: 'DANGER' },
-  { key: 'danger.timer', category: 'DANGER', matchType: 'REGEX', language: 'javascript', pattern: '\\b(?:setTimeout|setInterval)\\s*\\(', label: 'Timer dynamique', feedback: 'Vérifie que le délai est borné et que la donnée exécutée n\'est pas injectée par un utilisateur.', severity: 'WARNING' },
-  { key: 'danger.child-process', category: 'DANGER', matchType: 'REGEX', language: 'generic', pattern: '\\b(?:child_process\\.(?:exec|execSync|spawn|spawnSync)|os\\.system|subprocess\\.(?:run|Popen|call|check_output)|Runtime\\.getRuntime\\(\\)\\.exec|ProcessBuilder)\\b', label: 'Appel système', feedback: 'Les appels système directs doivent être verrouillés et validés avant exécution.', severity: 'DANGER' },
-  { key: 'danger.rm-rf', category: 'DANGER', matchType: 'REGEX', language: 'shell', pattern: '(?:rm\\s+-rf\\s+\\/|del\\s+\\/f\\s+\\/q|Remove-Item\\s+-Recurse\\s+-Force|format\\s+[a-z]:|mkfs\\.|dd\\s+if=\\/dev\\/zero)', label: 'Destruction de fichiers', feedback: 'Cette commande peut supprimer ou écraser des données critiques.', severity: 'DANGER' },
-  { key: 'danger.curl-bash', category: 'DANGER', matchType: 'REGEX', language: 'shell', pattern: '(?:curl|wget).*(?:\\||;).*(?:sh|bash|powershell|pwsh)', label: 'Téléchargement puis exécution', feedback: 'Télécharger puis exécuter une commande directement est très risqué.', severity: 'DANGER' },
-  { key: 'danger.payload', category: 'DANGER', matchType: 'REGEX', language: 'generic', pattern: '(?:base64\\s+-d|atob\\(|btoa\\(|Buffer\\.from\\().*(?:\\||;).*(?:sh|bash|python|node|pwsh)', label: 'Charge utile masquée', feedback: 'Le décodage suivi d\'une exécution peut masquer un payload malveillant.', severity: 'DANGER' },
-  { key: 'danger.fork-bomb', category: 'DANGER', matchType: 'REGEX', language: 'shell', pattern: ':\\(\\)\\s*\\{\\s*:\\|:&\\s*\\};:', label: 'Fork bomb', feedback: 'Cette charge utile peut saturer la machine en quelques secondes.', severity: 'DANGER' },
-  { key: 'language.javascript', category: 'LANGUAGE_FEEDBACK', matchType: 'EXACT', language: 'javascript', pattern: 'javascript', label: 'Conseil JavaScript', feedback: 'JS/TS : évite eval, borne les boucles et préfère des gardes explicites avant toute récursion.', severity: 'INFO' },
-  { key: 'language.python', category: 'LANGUAGE_FEEDBACK', matchType: 'EXACT', language: 'python', pattern: 'python', label: 'Conseil Python', feedback: 'Python : ajoute un cas de base aux fonctions récursives et évite les appels système non filtrés.', severity: 'INFO' },
-  { key: 'language.sql', category: 'LANGUAGE_FEEDBACK', matchType: 'EXACT', language: 'sql', pattern: 'sql', label: 'Conseil SQL', feedback: 'SQL : privilégie les requêtes paramétrées et évite la concaténation directe de chaînes.', severity: 'INFO' },
-  { key: 'language.shell', category: 'LANGUAGE_FEEDBACK', matchType: 'EXACT', language: 'shell', pattern: 'shell', label: 'Conseil Shell', feedback: 'Shell : vérifie chaque commande avant exécution, surtout si elle vient d\'une entrée utilisateur.', severity: 'INFO' },
-  { key: 'language.html', category: 'LANGUAGE_FEEDBACK', matchType: 'EXACT', language: 'html', pattern: 'html', label: 'Conseil HTML', feedback: 'HTML/CSS : si du script est injecté, vérifie l\'assainissement des données avant rendu.', severity: 'INFO' },
-  { key: 'language.java', category: 'LANGUAGE_FEEDBACK', matchType: 'EXACT', language: 'java', pattern: 'java', label: 'Conseil Java', feedback: 'Java : surveille les boucles sans sortie et les exécutions de commandes externes.', severity: 'INFO' },
-  { key: 'language.cpp', category: 'LANGUAGE_FEEDBACK', matchType: 'EXACT', language: 'cpp', pattern: 'cpp', label: 'Conseil C++', feedback: 'C++ : surveille les accès mémoire, les boucles infinies et les appels système.', severity: 'INFO' },
-  { key: 'language.generic', category: 'LANGUAGE_FEEDBACK', matchType: 'EXACT', language: 'generic', pattern: 'generic', label: 'Conseil générique', feedback: 'Bonne pratique : ajoute un cas de sortie clair, borne les itérations et valide toutes les entrées.', severity: 'INFO' },
-] as const;
 
 const DEFAULT_BANNED_WORDS = [
   // RACISM
@@ -1333,7 +1386,6 @@ const DEFAULT_BANNED_WORDS = [
 ];
 
 async function main() {
-  console.log(`🌱 Seeding ${DEFAULT_FEEDS.length} flux RSS pour le serveur ${guildId}...`);
 
   // Ensure guild exists
   await prisma.guild.upsert({
@@ -1342,34 +1394,13 @@ async function main() {
     create: { id: guildId },
   });
 
-  let created = 0;
-  let skipped = 0;
-
-  for (const feed of DEFAULT_FEEDS) {
-    const existing = await prisma.feed.findFirst({ where: { guildId, url: feed.url } });
-    if (existing) { skipped++; continue; }
-
-    await prisma.feed.create({
-      data: {
-        guildId,
-        name: feed.name,
-        url: feed.url,
-        category: feed.category,
-        language: feed.language,
-        enabled: true,
-      },
-    });
-    created++;
-    console.log(`  ✅ ${feed.name}`);
-  }
-
   console.log(`\n🌱 Seeding ${DEFAULT_DEVELOPER_EXCUSES.length} excuses développeur...`);
 
   let excusesCreated = 0;
   let excusesSkipped = 0;
 
   for (const excuse of DEFAULT_DEVELOPER_EXCUSES) {
-    const existing = await prisma.developerExcuse.findFirst({ where: { text: excuse, language: 'fr' } });
+    const existing = await prisma.developerExcuse.findFirst({ where: { text: excuse.text, language: 'fr' } });
     if (existing) {
       excusesSkipped++;
       continue;
@@ -1377,73 +1408,15 @@ async function main() {
 
     await prisma.developerExcuse.create({
       data: {
-        text: excuse,
+        text: excuse.text,
         language: 'fr',
+        category: excuse.category,
       },
     });
     excusesCreated++;
-    console.log(`  ✅ ${excuse}`);
+    console.log(`  ✅ ${excuse.text}`);
   }
 
-  console.log(`\n🌱 Seeding ${DEFAULT_DAILY_ALGO_PROBLEMS.length} problèmes de Daily Algo...`);
-
-  let algoCreated = 0;
-  let algoSkipped = 0;
-
-  for (const problem of DEFAULT_DAILY_ALGO_PROBLEMS) {
-    const existing = await prisma.dailyAlgoProblem.findFirst({ where: { title: problem.title, language: 'fr' } });
-    if (existing) {
-      algoSkipped++;
-      continue;
-    }
-
-    await prisma.dailyAlgoProblem.create({
-      data: {
-        title: problem.title,
-        description: problem.description,
-        solution: problem.solution,
-        difficulty: problem.difficulty,
-        language: 'fr',
-        functionName: problem.functionName,
-        functionArgs: problem.functionArgs,
-        unitTests: problem.unitTests,
-        allowedLanguages: problem.allowedLanguages,
-      },
-    });
-    algoCreated++;
-    console.log(`  ✅ ${problem.title}`);
-  }
-
-  console.log(`\n🌱 Seeding ${DEFAULT_CODE_POLICE_RULES.length} règles de Police du code...`);
-
-  let codePoliceCreated = 0;
-  let codePoliceSkipped = 0;
-
-  for (const rule of DEFAULT_CODE_POLICE_RULES) {
-    const existing = await prisma.codePoliceRule.findUnique({ where: { key: rule.key } });
-    if (existing) {
-      codePoliceSkipped++;
-      continue;
-    }
-
-    await prisma.codePoliceRule.create({
-      data: {
-        key: rule.key,
-        guildId: null,
-        category: rule.category,
-        matchType: rule.matchType,
-        language: rule.language,
-        pattern: rule.pattern,
-        label: rule.label,
-        feedback: rule.feedback,
-        severity: rule.severity,
-        enabled: true,
-      },
-    });
-
-    codePoliceCreated++;
-    console.log(`  ✅ ${rule.label}`);
-  }
 
   console.log(`\n🌱 Seeding ${DEFAULT_BANNED_WORDS.length} mots bannis globaux...`);
 
@@ -1474,7 +1447,7 @@ async function main() {
     console.log(`  ✅ [${item.category.toUpperCase()}] ${item.word}`);
   }
 
-  console.log(`\n✨ Seed terminé : ${created} flux créés, ${skipped} ignorés, ${excusesCreated} excuses créées, ${excusesSkipped} excuses ignorées, ${algoCreated} problèmes d'algo créés, ${algoSkipped} problèmes ignorés, ${codePoliceCreated} règles de Police du code créées, ${codePoliceSkipped} ignorées, ${bannedWordsCreated} mots bannis globaux créés, ${bannedWordsSkipped} ignorés`);
+  console.log(`\n✨ Seed terminé : ${excusesCreated} excuses créées, ${excusesSkipped} excuses ignorées, ${bannedWordsCreated} mots bannis globaux créés, ${bannedWordsSkipped} ignorés`);
 }
 
 main()

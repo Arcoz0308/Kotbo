@@ -4,6 +4,7 @@
   import { dashboardStore } from '../stores/dashboard.svelte';
   import { themeStore } from '../stores/theme.svelte';
   import { feedbackModal } from '../stores/feedbackModal.svelte';
+  import { tutorialStore } from '../stores/tutorial.svelte';
   import { API_BASE_URL } from '../api';
   import NotificationBell from './NotificationBell.svelte';
   import Papicon from './Papicon.svelte';
@@ -16,6 +17,7 @@
 
   let config = $state({ discordClientId: '' });
   let userMenuOpen = $state(false);
+  let searchQuery = $state('');
 
   onMount(() => {
     (async () => {
@@ -83,6 +85,11 @@
   function toggleUserMenu(e: MouseEvent) {
     e.stopPropagation();
     userMenuOpen = !userMenuOpen;
+  }
+
+  function startTutorial() {
+    tutorialStore.start();
+    userMenuOpen = false;
   }
 </script>
 
@@ -195,6 +202,14 @@
             <p class="text-[10px] text-on-surface-variant/60 mt-0.5">ID: {authStore.user?.id?.slice(0, 10)}...</p>
           </div>
           <div class="py-1.5">
+            <button 
+              type="button"
+              class="flex items-center gap-3 px-4 py-2.5 w-full text-left text-sm font-bold text-primary transition-all hover:bg-primary/8 cursor-pointer"
+              onclick={startTutorial}
+            >
+              <Papicon icon="school" size={18} />
+              Tutoriel
+            </button>
             <a 
               href={authStore.user?.id ? `/profile/${authStore.user.id}` : '/profile'} 
               class="flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-on-surface-variant transition-all hover:bg-primary/8 hover:text-primary"
