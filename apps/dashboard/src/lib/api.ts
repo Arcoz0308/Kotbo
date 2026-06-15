@@ -685,7 +685,17 @@ export async function updateMeeting(meetingId, data, guildId = authStore.selecte
   return dashboardMutation(`/meetings/${meetingId}`, { method: 'PATCH', payload: data, guildId });
 }
 
-export async function createAbsence(data, guildId = authStore.selectedGuildId) {
+export async function createAbsence(data: {
+  staffUserId?: string;
+  type: string;
+  startDate: string | Date;
+  endDate?: string | Date | null;
+  reason: string;
+  superiorUserId: string;
+  message?: string;
+  confirmIndefinite?: boolean;
+  isIndefinite?: boolean;
+}, guildId = authStore.selectedGuildId) {
   return dashboardRequest('/absences', { method: 'POST', payload: data, guildId });
 }
 
@@ -2094,5 +2104,4 @@ export async function updateRpgPlayer(userId: string, payload: any, guildId = au
 export async function resetEconomy(component: 'all' | 'profiles' | 'items' | 'config' | 'guilds', guildId = authStore.selectedGuildId) {
   return dashboardRequest('/economy/reset', { method: 'POST', payload: { component }, guildId, errorContext: 'API Error (Reset Economy):' });
 }
-
 

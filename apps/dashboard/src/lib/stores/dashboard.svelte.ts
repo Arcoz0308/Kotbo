@@ -108,6 +108,10 @@ class DashboardStore {
 
   async refresh() {
     if (this.isRefreshing) return;
+    if (!authStore.token || !authStore.selectedGuildId) {
+      this.state.loading = false;
+      return;
+    }
     this.isRefreshing = true;
     this.state.loading = true;
 

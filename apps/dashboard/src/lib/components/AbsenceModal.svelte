@@ -67,7 +67,8 @@
   ];
 
   async function handleSave() {
-    if (!startDate || (!isIndefinite && !endDate) || !reason || !superiorUserId) {
+    const requiresSuperior = type !== 'RÉUNION';
+    if (!startDate || (!isIndefinite && !endDate) || !reason.trim() || (requiresSuperior && !superiorUserId)) {
       errorMsg = 'Veuillez remplir tous les champs obligatoires.';
       return;
     }
@@ -84,7 +85,7 @@
       await onSave({
         startDate: isAllDay ? new Date(`${startDate}T00:00:00`) : new Date(`${startDate}T${startTime}`),
         endDate: isIndefinite ? null : (isAllDay ? new Date(`${endDate}T23:59:59`) : new Date(`${endDate}T${endTime}`)),
-        reason,
+        reason: reason.trim(),
         type,
         superiorUserId,
         isIndefinite,
@@ -215,4 +216,3 @@
     </footer>
   </div>
 </Modal>
-

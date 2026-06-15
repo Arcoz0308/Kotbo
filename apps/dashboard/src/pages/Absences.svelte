@@ -319,6 +319,7 @@
         await createAbsence({
           ...data,
           staffUserId: myStaffRecord.userId,
+          reason: data.reason.trim(),
         });
       }
       modalOpen = false;

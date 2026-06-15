@@ -333,6 +333,11 @@ export async function handleGuildLeadershipRoutes(
         const end = new Date(endStr);
         const staffIds = staffIdsStr ? staffIdsStr.split(',') : undefined;
 
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+          json(res, 400, { error: 'La période du calendrier est invalide' });
+          return true;
+        }
+
         const data = await getStaffCalendarData(guildId, start, end, staffIds);
         json(res, 200, data);
       } catch (err) {
@@ -431,7 +436,7 @@ export async function handleGuildLeadershipRoutes(
     if (parts.length === 5 && method === 'POST') {
       try {
         const body = await readJsonBody<{
-          staffUserId: string;
+          staffUserId?: string;
           type: string;
           startDate: string;
           endDate?: string;
@@ -441,23 +446,33 @@ export async function handleGuildLeadershipRoutes(
           confirmIndefinite?: boolean;
         }>(req);
 
-        if (!body?.staffUserId || !body?.type || !body?.startDate || !body?.reason || !body?.superiorUserId) {
-          json(res, 400, { error: 'staffUserId, type, startDate, reason et superiorUserId sont obligatoires' });
+        const staffUserId = body?.staffUserId?.trim() || user.userId;
+        const type = body?.type?.trim();
+        const reason = body?.reason?.trim();
+        const superiorUserId = body?.superiorUserId?.trim();
+
+        if (!type || !body?.startDate || !reason || !superiorUserId) {
+          json(res, 400, { error: 'type, startDate, reason et superiorUserId sont obligatoires' });
           return true;
         }
 
-        if (!access.canManageSettings && body.staffUserId !== user.userId) {
+        if (!access.canManageSettings && staffUserId !== user.userId) {
           json(res, 403, { error: 'Vous ne pouvez créer des absences que pour vous-même.' });
           return true;
         }
 
-        const staffMember = await getStaffMember(guildId, body.staffUserId);
+        if (staffUserId === superiorUserId) {
+          json(res, 400, { error: 'Vous devez sélectionner un supérieur différent du membre absent' });
+          return true;
+        }
+
+        const staffMember = await getStaffMember(guildId, staffUserId);
         if (!staffMember) {
           json(res, 404, { error: 'Le staff ciblé est introuvable' });
           return true;
         }
 
-        const superiorStaff = await getStaffMember(guildId, body.superiorUserId);
+        const superiorStaff = await getStaffMember(guildId, superiorUserId);
         if (!superiorStaff) {
           json(res, 400, { error: 'Le supérieur indiqué ne fait pas partie du staff' });
           return true;
@@ -486,10 +501,10 @@ export async function handleGuildLeadershipRoutes(
           staffMemberId: staffMember.id,
           startDate,
           endDate,
-          reason: body.reason,
-          type: body.type,
+          reason,
+          type,
           message: body.message,
-          superiorUserId: body.superiorUserId,
+          superiorUserId,
         });
 
         await pushAudit(guildId, {
@@ -498,7 +513,7 @@ export async function handleGuildLeadershipRoutes(
           context: getGuildName(client, guildId),
           module: 'Staff Management',
           eventType: 'Manuel',
-          details: `Absence ${absence.id} créée pour ${body.staffUserId} (${body.type})`,
+          details: `Absence ${absence.id} créée pour ${staffUserId} (${type})`,
           channelId: null,
         });
 
@@ -530,7 +545,16 @@ export async function handleGuildLeadershipRoutes(
           return true;
         }
 
-        const absence = await updateAbsenceStatus(absenceId, body.status, user.userId, body.note);
+        const existingAbsence = await prisma.staffAbsence.findFirst({
+          where: { id: absenceId, guildId },
+          select: { id: true }
+        });
+        if (!existingAbsence) {
+          json(res, 404, { error: 'Absence introuvable' });
+          return true;
+        }
+
+        const absence = await updateAbsenceStatus(guildId, absenceId, body.status, user.userId, body.note);
 
         await pushAudit(guildId, {
           user: auditUser,
@@ -554,8 +578,8 @@ export async function handleGuildLeadershipRoutes(
     if (parts.length === 6 && method === 'DELETE') {
       const absenceId = parts[5];
       try {
-        const absence = await prisma.staffAbsence.findUnique({
-          where: { id: absenceId },
+        const absence = await prisma.staffAbsence.findFirst({
+          where: { id: absenceId, guildId },
           include: { staffMember: true }
         });
 

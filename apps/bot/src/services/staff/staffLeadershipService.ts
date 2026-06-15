@@ -369,6 +369,7 @@ export const getLatestOpenAbsenceForMember = async (guildId: string, staffMember
 };
 
 export const updateAbsenceStatus = async (
+  guildId: string,
   id: string,
   status: AbsenceMutableStatus,
   decisionByUserId: string,
@@ -376,7 +377,7 @@ export const updateAbsenceStatus = async (
 ) => {
   const now = new Date();
   const result = await prisma.staffAbsence.update({
-    where: { id },
+    where: { id, guildId },
     data: {
       status,
       decisionByUserId,
@@ -388,11 +389,14 @@ export const updateAbsenceStatus = async (
   });
 
   // Notifier le demandeur
-  const absence = await prisma.staffAbsence.findUnique({ where: { id } });
-  if (absence && absence.staffUserId !== decisionByUserId) {
+  const absence = await prisma.staffAbsence.findUnique({
+    where: { id, guildId },
+    include: { staffMember: true }
+  });
+  if (absence && absence.staffMember.userId !== decisionByUserId) {
     await createNotification(
       absence.guildId,
-      absence.staffUserId,
+      absence.staffMember.userId,
       'Mise à jour de votre absence',
       `Votre absence a été marquée comme: ${status}.`,
       status === 'APPROVED' ? 'SUCCESS' : (status === 'REJECTED' ? 'ERROR' : 'INFO'),
@@ -1436,10 +1440,10 @@ export const getStaffCalendarData = async (guildId: string, start: Date, end: Da
       where: {
         guildId,
         status: { in: ['APPROVED', 'ACKNOWLEDGED', 'PENDING'] },
+        startDate: { lte: end },
         OR: [
-          { startDate: { gte: start, lte: end } },
-          { endDate: { gte: start, lte: end } },
-          { isIndefinite: true, startDate: { lte: end } }
+          { endDate: { gte: start } },
+          { isIndefinite: true }
         ],
         staffMember: {
           blacklistEntries: {

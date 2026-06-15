@@ -44,7 +44,7 @@ class DashboardLifecycleManager {
     this.initialized = true;
 
     // Refresh initially
-    if (authStore.guilds.length > 0 || authStore.token) {
+    if (authStore.token && authStore.selectedGuildId) {
       dashboardStore.refresh();
     }
 

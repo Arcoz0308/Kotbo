@@ -276,15 +276,31 @@
       } 
       
       else if (currentTab === 'absence') {
+        if (!myStaffRecord) {
+          formError = "Votre compte n'est pas enregistré comme membre du staff.";
+          saving = false;
+          return;
+        }
+        if (!formDescription.trim()) {
+          formError = "Le motif de l'absence est obligatoire.";
+          saving = false;
+          return;
+        }
         if (!formSuperiorId) {
           formError = 'Veuillez sélectionner un supérieur à notifier.';
           saving = false;
           return;
         }
+        if (selectedEndDate && selectedEndDate < selectedStartDate) {
+          formError = 'La date de fin doit être postérieure ou égale à la date de début.';
+          saving = false;
+          return;
+        }
         await createAbsence({
+          staffUserId: myStaffRecord.userId,
           startDate: selectedStartDate.toISOString(),
           endDate: selectedEndDate ? selectedEndDate.toISOString() : undefined,
-          reason: formDescription,
+          reason: formDescription.trim(),
           type: formAbsenceType,
           superiorUserId: formSuperiorId,
           confirmIndefinite: !selectedEndDate
@@ -675,7 +691,9 @@
 
           <!-- Meeting/Call/Event details -->
           <div>
-            <label for="form-desc" class="block text-[10px] font-black text-on-surface uppercase tracking-widest mb-1.5">Description / Ordre du jour</label>
+            <label for="form-desc" class="block text-[10px] font-black text-on-surface uppercase tracking-widest mb-1.5">
+              {currentTab === 'absence' ? "Motif de l'absence *" : 'Description / Ordre du jour'}
+            </label>
             <FormTextarea id="form-desc" bind:value={formDescription} placeholder="Détails, points à aborder..." rows={3} className="w-full resize-none" />
           </div>
 
