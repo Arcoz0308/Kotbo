@@ -88,6 +88,9 @@
   }
 
   function startTutorial() {
+    if (authStore.selectedGuildId) {
+      tutorialStore.initialize(authStore.selectedGuildId);
+    }
     tutorialStore.start();
     userMenuOpen = false;
   }

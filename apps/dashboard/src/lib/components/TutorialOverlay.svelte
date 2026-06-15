@@ -1,35 +1,16 @@
 <script lang="ts">
-  import { tutorialStore, tutorialSteps, type TutorialStep } from '../stores/tutorial.svelte';
+  import { tutorialStore, tutorialSteps } from '../stores/tutorial.svelte';
   import { router } from 'tinro';
   import { onMount } from 'svelte';
-  import { ArrowLeft, ArrowRight, X, Check, RotateCcw, Sparkles, ChevronRight, Layout, LayoutGrid, Package, Users, Shield, Gavel, Trophy, Coins, Settings, Keyboard, CheckCircle } from 'lucide-svelte';
-  import Papicon from './Papicon.svelte';
+  import { ArrowLeft, ArrowRight, X, Sparkles, ChevronRight, Layout, LayoutGrid, Package, Users, Shield, Gavel, Trophy, Coins, Settings, Keyboard, CheckCircle } from 'lucide-svelte';
 
   let currentStep = $derived(tutorialStore.currentStep);
-  let completed = $derived(tutorialStore.completed);
   let dismissed = $derived(tutorialStore.dismissed);
   let step = $derived(tutorialSteps[currentStep]);
 
-  let show = $derived(!dismissed && !completed);
+  let show = $derived(tutorialStore.initialized && !dismissed && !tutorialStore.completed);
   let targetElement: HTMLElement | null = null;
   let highlightPosition = $state<{ top: number; left: number; width: number; height: number } | null>(null);
-
-  const iconMap: Record<string, any> = {
-    sparkles: Sparkles,
-    layout: Layout,
-    'layout-grid': LayoutGrid,
-    package: Package,
-    users: Users,
-    shield: Shield,
-    gavel: Gavel,
-    trophy: Trophy,
-    coins: Coins,
-    settings: Settings,
-    keyboard: Keyboard,
-    'check-circle': CheckCircle,
-  };
-
-  const currentIcon = $derived(step?.icon ? iconMap[step.icon] : Sparkles);
 
   onMount(() => {
     if (step?.target && !step.target.startsWith('/')) {
@@ -87,17 +68,10 @@
 
   function dismiss() {
     tutorialStore.dismiss();
-    show = false;
-  }
-
-  function restart() {
-    tutorialStore.reset();
-    show = true;
   }
 
   function skip() {
     tutorialStore.dismiss();
-    show = false;
   }
 </script>
 
@@ -156,12 +130,6 @@
                     <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-primary/20 text-primary border border-primary/30">
                       Étape {currentStep + 1} / {tutorialSteps.length}
                     </span>
-                    {#if completed}
-                      <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-green-500/20 text-green-500 border border-green-500/30 flex items-center gap-1">
-                        <Check class="w-3 h-3" />
-                        Terminé
-                      </span>
-                    {/if}
                   </div>
                 </div>
               </div>
@@ -217,15 +185,6 @@
             </div>
 
             <div class="flex items-center gap-3">
-              {#if completed}
-                <button
-                  onclick={restart}
-                  class="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-primary to-secondary text-on-primary hover:opacity-90 transition-all duration-200 font-medium shadow-lg shadow-primary/25"
-                >
-                  <RotateCcw class="w-4 h-4" />
-                  Recommencer
-                </button>
-              {:else}
               <button
                 onclick={nextStep}
                 class="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-primary to-secondary text-on-primary hover:opacity-90 transition-all duration-200 font-medium shadow-lg shadow-primary/25"
@@ -233,7 +192,6 @@
                 {currentStep === tutorialSteps.length - 1 ? 'Terminer' : 'Suivant'}
                 <ArrowRight class="w-4 h-4" />
               </button>
-            {/if}
             </div>
           </div>
         </div>

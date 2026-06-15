@@ -113,50 +113,87 @@ export const tutorialSteps: TutorialStep[] = [
   },
 ];
 
-// Load from localStorage
-const STORAGE_KEY = 'tutorial-progress';
-const loadProgress = (): TutorialProgress => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      return JSON.parse(stored);
-    }
-  } catch (e) {
-    console.error('Failed to load tutorial progress:', e);
-  }
-  return {
-    currentStep: 0,
-    completed: false,
-    dismissed: false,
-  };
+const LEGACY_STORAGE_KEY = 'tutorial-progress';
+const DEFAULT_PROGRESS: TutorialProgress = {
+  currentStep: 0,
+  completed: false,
+  dismissed: false,
 };
 
-// Save to localStorage
-const saveProgress = (progress: TutorialProgress) => {
+const getStorageKey = (guildId: string) => `tutorial-${guildId}`;
+
+const normalizeProgress = (value: Partial<TutorialProgress> | null | undefined): TutorialProgress => ({
+  currentStep: Math.max(0, Math.min(value?.currentStep ?? 0, tutorialSteps.length - 1)),
+  completed: value?.completed === true,
+  dismissed: value?.dismissed === true || (value as any)?.seen === true,
+  startedAt: value?.startedAt,
+  completedAt: value?.completedAt,
+});
+
+const readStoredProgress = (key: string): TutorialProgress | null => {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+    const stored = localStorage.getItem(key);
+    return stored ? normalizeProgress(JSON.parse(stored)) : null;
+  } catch (e) {
+    console.error('Failed to load tutorial progress:', e);
+    return null;
+  }
+};
+
+const loadProgress = (guildId: string): TutorialProgress => {
+  const guildProgress = readStoredProgress(getStorageKey(guildId));
+  if (guildProgress) return guildProgress;
+
+  const legacyProgress = readStoredProgress(LEGACY_STORAGE_KEY);
+  if (legacyProgress?.completed || legacyProgress?.dismissed) {
+    saveProgress(guildId, legacyProgress);
+    return legacyProgress;
+  }
+
+  return { ...DEFAULT_PROGRESS };
+};
+
+const saveProgress = (guildId: string | null, progress: TutorialProgress) => {
+  if (!guildId) return;
+  try {
+    localStorage.setItem(getStorageKey(guildId), JSON.stringify(progress));
   } catch (e) {
     console.error('Failed to save tutorial progress:', e);
   }
 };
 
-let progress = $state<TutorialProgress>(loadProgress());
+let activeGuildId = $state<string | null>(null);
+let progress = $state<TutorialProgress>({ ...DEFAULT_PROGRESS });
 
 export const tutorialStore = {
+  get initialized() { return activeGuildId !== null; },
   get currentStep() { return progress.currentStep; },
   get completed() { return progress.completed; },
   get dismissed() { return progress.dismissed; },
 
+  initialize: (guildId: string) => {
+    if (activeGuildId === guildId) return;
+    activeGuildId = guildId;
+    progress = loadProgress(guildId);
+  },
+
   nextStep: () => {
+    if (progress.currentStep === tutorialSteps.length - 1) {
+      progress = {
+        ...progress,
+        completed: true,
+        completedAt: Date.now(),
+      };
+      saveProgress(activeGuildId, progress);
+      return;
+    }
+
     const nextStep = Math.min(progress.currentStep + 1, tutorialSteps.length - 1);
-    const completed = nextStep === tutorialSteps.length - 1;
     progress = {
       ...progress,
       currentStep: nextStep,
-      completed,
-      completedAt: completed ? Date.now() : progress.completedAt,
     };
-    saveProgress(progress);
+    saveProgress(activeGuildId, progress);
   },
 
   prevStep: () => {
@@ -164,7 +201,7 @@ export const tutorialStore = {
       ...progress,
       currentStep: Math.max(progress.currentStep - 1, 0),
     };
-    saveProgress(progress);
+    saveProgress(activeGuildId, progress);
   },
 
   goToStep: (step: number) => {
@@ -172,7 +209,7 @@ export const tutorialStore = {
       ...progress,
       currentStep: Math.max(0, Math.min(step, tutorialSteps.length - 1)),
     };
-    saveProgress(progress);
+    saveProgress(activeGuildId, progress);
   },
 
   dismiss: () => {
@@ -180,7 +217,7 @@ export const tutorialStore = {
       ...progress,
       dismissed: true,
     };
-    saveProgress(progress);
+    saveProgress(activeGuildId, progress);
   },
 
   reset: () => {
@@ -190,7 +227,7 @@ export const tutorialStore = {
       dismissed: false,
       startedAt: Date.now(),
     };
-    saveProgress(progress);
+    saveProgress(activeGuildId, progress);
   },
 
   start: () => {
@@ -200,21 +237,12 @@ export const tutorialStore = {
       dismissed: false,
       startedAt: Date.now(),
     };
-    saveProgress(progress);
+    saveProgress(activeGuildId, progress);
   },
 };
 
 // Fonction pour vérifier si l'utilisateur est nouveau et devrait voir le tutoriel
 export function shouldShowTutorialForNewUser(guildId: string): boolean {
-  const stored = localStorage.getItem(`tutorial-${guildId}`);
-  if (!stored) {
-    return true; // Nouvel utilisateur
-  }
-  const data = JSON.parse(stored);
-  return !data.completed && !data.dismissed;
-}
-
-// Marquer le tutoriel comme vu pour ce serveur
-export function markTutorialSeen(guildId: string) {
-  localStorage.setItem(`tutorial-${guildId}`, JSON.stringify({ seen: true, timestamp: Date.now() }));
+  const data = loadProgress(guildId);
+  return !data.completed && !data.dismissed && !data.startedAt;
 }

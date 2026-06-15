@@ -26,11 +26,6 @@
   onMount(() => {
     dashboardLifecycle.init();
 
-    // Check if tutorial should be shown for new users
-    if (authStore.selectedGuildId && shouldShowTutorialForNewUser(authStore.selectedGuildId)) {
-      tutorialStore.start();
-    }
-
     // Block browser tab/window close when there are unsaved changes
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (unsavedChanges.isDirty) {
@@ -44,6 +39,16 @@
       dashboardLifecycle.destroy();
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
+  });
+
+  $effect(() => {
+    const guildId = authStore.selectedGuildId;
+    if (!guildId) return;
+
+    tutorialStore.initialize(guildId);
+    if (shouldShowTutorialForNewUser(guildId)) {
+      tutorialStore.start();
+    }
   });
 
   // Intercept tinro SPA navigation when there are unsaved changes
