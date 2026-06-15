@@ -35,7 +35,9 @@
   let loading = $state(true);
   let allStaff = $state<any[]>([]);
   let allRoles = $state<any[]>([]);
-  let calendarData = $state<{ absences: any[], voiceSessions: any[], meetings?: any[], calls?: any[], tasks?: any[] }>({ absences: [], voiceSessions: [], meetings: [], calls: [], tasks: [] });
+  type CalendarData = { absences: any[], voiceSessions: any[], meetings: any[], calls: any[], tasks: any[] };
+  const emptyCalendarData = (): CalendarData => ({ absences: [], voiceSessions: [], meetings: [], calls: [], tasks: [] });
+  let calendarData = $state<CalendarData>(emptyCalendarData());
   let userTasks = $state<any[]>([]);
 
   // Filtering
@@ -182,8 +184,8 @@
         fetchStaffMembers(),
         fetchStaffRoles()
       ]);
-      allStaff = membersData.members || [];
-      allRoles = rolesData.roles || [];
+      allStaff = membersData?.members || [];
+      allRoles = rolesData?.roles || [];
 
       // Default filter selection: just current user
       if (myStaffRecord) {
@@ -203,7 +205,13 @@
   async function refreshCalendar() {
     try {
       const data = await fetchStaffCalendarData(currentRangeStart, currentRangeEnd, selectedStaffIds);
-      calendarData = data;
+      calendarData = {
+        absences: data?.absences || [],
+        voiceSessions: data?.voiceSessions || [],
+        meetings: data?.meetings || [],
+        calls: data?.calls || [],
+        tasks: data?.tasks || []
+      };
     } catch (e) {
       console.error('Failed to load calendar data:', e);
     }
@@ -375,7 +383,13 @@
     refreshCalendar();
   }
 
-  onMount(loadData);
+  onMount(() => {
+    const handleDashboardRefresh = () => loadData();
+    window.addEventListener('kotbo-dashboard-refresh-request', handleDashboardRefresh);
+    loadData();
+
+    return () => window.removeEventListener('kotbo-dashboard-refresh-request', handleDashboardRefresh);
+  });
 </script>
 
 <ModulePage 
