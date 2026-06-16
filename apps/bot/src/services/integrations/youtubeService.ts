@@ -595,75 +595,73 @@ async function checkAndNotifyVideos(
 ): Promise<void> {
   const videos = await fetchRecentVideos(channelId, key);
   
-  for (const video of videos) {
-    if (video.videoId === follow.lastVideoId || video.videoId === follow.lastShortId) {
-      continue;
+  // Only process the latest video (first one after sorting by publishedAt)
+  const latestVideo = videos[0];
+  if (!latestVideo) return;
+
+  if (latestVideo.videoId === follow.lastVideoId || latestVideo.videoId === follow.lastShortId) {
+    return;
+  }
+
+  if (latestVideo.isShort) {
+    const targetChannelId = follow.shortChannelId || follow.videoChannelId || follow.guild.publicChannelId;
+    
+    if (targetChannelId) {
+      // Use custom message if provided, otherwise use default
+      const message = follow.shortMessage || `⚡ Nouveau Short de **${follow.channelName}** !`;
+      
+      // Use custom embed title if message contains {title}, otherwise use default
+      const embedTitle = follow.shortMessage?.includes('{title}') 
+        ? follow.shortMessage.replace('{title}', latestVideo.title)
+        : `⚡ Short : ${latestVideo.title}`;
+      
+      const embed = buildYouTubeEmbed({
+        title: embedTitle,
+        videoId: latestVideo.videoId,
+        channelName: follow.channelName,
+        publishedAt: latestVideo.publishedAt,
+      });
+
+      await sendNotification(
+        client,
+        follow.guildId,
+        targetChannelId,
+        message.replace('{title}', latestVideo.title).replace('{channel}', follow.channelName),
+        embed,
+        follow.shortMention
+      );
     }
 
-    if (video.isShort) {
-      if (video.videoId !== follow.lastShortId) {
-        const targetChannelId = follow.shortChannelId || follow.videoChannelId || follow.guild.publicChannelId;
-        
-        if (targetChannelId) {
-          // Use custom message if provided, otherwise use default
-          const message = follow.shortMessage || `⚡ Nouveau Short de **${follow.channelName}** !`;
-          
-          // Use custom embed title if message contains {title}, otherwise use default
-          const embedTitle = follow.shortMessage?.includes('{title}') 
-            ? follow.shortMessage.replace('{title}', video.title)
-            : `⚡ Short : ${video.title}`;
-          
-          const embed = buildYouTubeEmbed({
-            title: embedTitle,
-            videoId: video.videoId,
-            channelName: follow.channelName,
-            publishedAt: video.publishedAt,
-          });
+    await updateFollowRecord(follow.id, { lastShortId: latestVideo.videoId });
+  } else {
+    const targetChannelId = follow.videoChannelId || follow.guild.publicChannelId;
+    
+    if (targetChannelId) {
+      // Use custom message if provided, otherwise use default
+      const message = follow.videoMessage || `🎥 Nouvelle vidéo de **${follow.channelName}** !`;
+      
+      // Use custom embed title if message contains {title}, otherwise use default
+      const embedTitle = follow.videoMessage?.includes('{title}') 
+        ? follow.videoMessage.replace('{title}', latestVideo.title)
+        : latestVideo.title;
+      
+      const embed = buildYouTubeEmbed({
+        title: embedTitle,
+        videoId: latestVideo.videoId,
+        channelName: follow.channelName,
+        publishedAt: latestVideo.publishedAt,
+      });
 
-          await sendNotification(
-            client,
-            follow.guildId,
-            targetChannelId,
-            message.replace('{title}', video.title).replace('{channel}', follow.channelName),
-            embed,
-            follow.shortMention
-          );
-        }
-
-        await updateFollowRecord(follow.id, { lastShortId: video.videoId });
-      }
-    } else {
-      if (video.videoId !== follow.lastVideoId) {
-        const targetChannelId = follow.videoChannelId || follow.guild.publicChannelId;
-        
-        if (targetChannelId) {
-          // Use custom message if provided, otherwise use default
-          const message = follow.videoMessage || `🎥 Nouvelle vidéo de **${follow.channelName}** !`;
-          
-          // Use custom embed title if message contains {title}, otherwise use default
-          const embedTitle = follow.videoMessage?.includes('{title}') 
-            ? follow.videoMessage.replace('{title}', video.title)
-            : video.title;
-          
-          const embed = buildYouTubeEmbed({
-            title: embedTitle,
-            videoId: video.videoId,
-            channelName: follow.channelName,
-            publishedAt: video.publishedAt,
-          });
-
-          await sendNotification(
-            client,
-            follow.guildId,
-            targetChannelId,
-            message.replace('{title}', video.title).replace('{channel}', follow.channelName),
-            embed,
-            follow.videoMention
-          );
-        }
-
-        await updateFollowRecord(follow.id, { lastVideoId: video.videoId });
-      }
+      await sendNotification(
+        client,
+        follow.guildId,
+        targetChannelId,
+        message.replace('{title}', latestVideo.title).replace('{channel}', follow.channelName),
+        embed,
+        follow.videoMention
+      );
     }
+
+    await updateFollowRecord(follow.id, { lastVideoId: latestVideo.videoId });
   }
 }
