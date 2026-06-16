@@ -154,7 +154,11 @@ async function checkYoutubeLiveStatus(channelId: string): Promise<{ isLive: bool
  * Main function to verify all followed YouTube channels in all guilds.
  */
 export async function checkYoutubeFollows(client: Client) {
-  logger.debug('YouTubeService', 'Checking YouTube followed channels...');
+  // Temporarily disabled due to notification spam bug
+  logger.info('YouTubeService', `Checking YouTube followed channels (Temporarily Disabled for ${client.guilds.cache.size} guilds)`);
+  return;
+
+  /*
   const key = process.env.YOUTUBE_API_KEY;
   if (!key) {
     logger.warn('YouTubeService', 'YOUTUBE_API_KEY is not defined in .env.');
@@ -304,4 +308,5 @@ export async function checkYoutubeFollows(client: Client) {
   } catch (error) {
     logger.error('YouTubeService', 'Error checking YouTube follows:', error);
   }
+  */
 }
