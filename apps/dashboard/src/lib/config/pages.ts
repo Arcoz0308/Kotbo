@@ -49,7 +49,7 @@ export const communityItems: PageConfig[] = [
   { name: "Règlement",           icon: "book",          href: "/regulation",       featureKey: "regulation", beta: false, wip: false },
   { name: "Actualités & RSS",    icon: "rss",           href: "/news",             featureKey: "news", beta: false, wip: false },
   { name: "Salons Fun",          icon: "smile",         href: "/fun",              featureKey: "fun",  beta: true, wip: false },
-  { name: "Réseaux sociaux",     icon: "share-2",       href: "/social-networks",  featureKey: "social_networks", beta: false, wip: true },
+  { name: "Réseaux sociaux",     icon: "share-2",       href: "/social-networks",  featureKey: "social_networks", beta: true, wip: false },
 ];
 
 export const staffItems: PageConfig[] = [

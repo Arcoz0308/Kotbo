@@ -1,29 +1,36 @@
-class ThemeStore {
-    dark = $state(false);
+function createThemeStore() {
+    const STORAGE_KEY = 'kotbo_theme';
 
-    constructor() {
-        const saved = localStorage.getItem('kotbo_theme');
-        if (saved) {
-            this.dark = saved === 'dark';
-        } else {
-            this.dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        }
-        this.applyTheme();
-    }
+    const saved = localStorage.getItem(STORAGE_KEY);
+    let dark = $state(saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches);
 
-    toggle() {
-        this.dark = !this.dark;
-        localStorage.setItem('kotbo_theme', this.dark ? 'dark' : 'light');
-        this.applyTheme();
-    }
-
-    private applyTheme() {
-        if (this.dark) {
+    function applyTheme() {
+        if (dark) {
             document.documentElement.classList.add('dark');
         } else {
             document.documentElement.classList.remove('dark');
         }
     }
+
+    applyTheme();
+
+    return {
+        get dark() {
+            return dark;
+        },
+
+        set dark(value: boolean) {
+            dark = value;
+            localStorage.setItem(STORAGE_KEY, dark ? 'dark' : 'light');
+            applyTheme();
+        },
+
+        toggle() {
+            dark = !dark;
+            localStorage.setItem(STORAGE_KEY, dark ? 'dark' : 'light');
+            applyTheme();
+        }
+    };
 }
 
-export const themeStore = new ThemeStore();
+export const themeStore = createThemeStore();

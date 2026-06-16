@@ -170,6 +170,7 @@ export const tutorialStore = {
   get currentStep() { return progress.currentStep; },
   get completed() { return progress.completed; },
   get dismissed() { return progress.dismissed; },
+  get startedAt() { return progress.startedAt; },
 
   initialize: (guildId: string) => {
     if (activeGuildId === guildId) return;

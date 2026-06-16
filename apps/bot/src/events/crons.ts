@@ -97,13 +97,17 @@ async function expireStaffBlacklist(): Promise<void> {
 }
 
 export async function registerCrons(client: Client): Promise<void> {
+  logger.info('Cron', 'Début de l\'enregistrement des cron jobs...');
   // Initialiser le backup automatique de la base de données
   initializeDatabaseBackup();
+  logger.info('Cron', 'Backup automatique initialisé');
 
   // Initialiser les planifications dynamiques de la base de données
   try {
+    logger.info('Cron', 'Chargement du planificateur de tâches planifiées...');
     const { initializeScheduler } = await import('../services/system/scheduleService.js');
     await initializeScheduler(client);
+    logger.info('Cron', 'Planificateur de tâches planifiées initialisé');
   } catch (err) {
     logger.error('Cron', 'Erreur lors du démarrage du planificateur de tâches planifiées:', err);
   }
@@ -184,6 +188,8 @@ export async function registerCrons(client: Client): Promise<void> {
       }
     },
   });
+
+  logger.info('Cron', 'Handlers de jobs de fond enregistrés, début de l\'enregistrement des cron schedules...');
 
 
   // 📊 Daily Algo: Toutes les minutes (vérification de l'heure configurée)

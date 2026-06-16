@@ -20,7 +20,7 @@
   let activeTab = $state<'youtube' | 'twitch'>('youtube');
 
   // Cast type to prevent 'never' compiler errors
-  const availableChannels = $derived((dashboardStore.state.discordChannels || []) as Array<{ id: string; name: string }>);
+  let availableChannels = $state<Array<{ id: string; name: string }>>([]);
 
   // Form states
   let ytForm = $state({
@@ -28,6 +28,12 @@
     liveChannelId: '',
     shortChannelId: '',
     videoChannelId: '',
+    liveMessage: '',
+    videoMessage: '',
+    shortMessage: '',
+    liveMention: '',
+    videoMention: '',
+    shortMention: '',
   });
 
   let twitchForm = $state({
@@ -55,6 +61,7 @@
         youtubeFollows = res.youtube || [];
         twitchFollows = res.twitch || [];
       }
+      availableChannels = (dashboardStore.state.discordChannels || []) as Array<{ id: string; name: string }>;
     } catch (e) {
       console.error('Failed to load social follows:', e);
     } finally {
@@ -80,6 +87,12 @@
         liveChannelId: ytForm.liveChannelId || null,
         shortChannelId: ytForm.shortChannelId || null,
         videoChannelId: ytForm.videoChannelId || null,
+        liveMessage: ytForm.liveMessage || null,
+        videoMessage: ytForm.videoMessage || null,
+        shortMessage: ytForm.shortMessage || null,
+        liveMention: ytForm.liveMention || null,
+        videoMention: ytForm.videoMention || null,
+        shortMention: ytForm.shortMention || null,
       };
 
       const res = await addYoutubeFollow(payload);
@@ -91,6 +104,12 @@
         liveChannelId: '',
         shortChannelId: '',
         videoChannelId: '',
+        liveMessage: '',
+        videoMessage: '',
+        shortMessage: '',
+        liveMention: '',
+        videoMention: '',
+        shortMention: '',
       };
 
       // Reload
@@ -108,6 +127,12 @@
         liveChannelId: follow.liveChannelId || null,
         shortChannelId: follow.shortChannelId || null,
         videoChannelId: follow.videoChannelId || null,
+        liveMessage: follow.liveMessage || null,
+        videoMessage: follow.videoMessage || null,
+        shortMessage: follow.shortMessage || null,
+        liveMention: follow.liveMention || null,
+        videoMention: follow.videoMention || null,
+        shortMention: follow.shortMention || null,
       };
       const res = await addYoutubeFollow(payload);
       if (!res) throw new Error('Erreur API');
@@ -292,19 +317,100 @@
               <!-- Default Lives channel -->
               <div class="space-y-1.5">
                 <label for="yt-live-chan" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon des Lives (En direct)</label>
-                <SearchableSelect id="yt-live-chan" bind:value={ytForm.liveChannelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Par défaut (Salon Public) —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-red-600/30 transition-all" />
+                <SearchableSelect id="yt-live-chan" bind:value={ytForm.liveChannelId} options={availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder="— Par défaut (Salon Public) —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-red-600/30 transition-all" />
               </div>
 
               <!-- Default Shorts channel -->
               <div class="space-y-1.5">
                 <label for="yt-short-chan" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon des Shorts</label>
-                <SearchableSelect id="yt-short-chan" bind:value={ytForm.shortChannelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Par défaut (Même que vidéos) —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-red-600/30 transition-all" />
+                <SearchableSelect id="yt-short-chan" bind:value={ytForm.shortChannelId} options={availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder="— Par défaut (Même que vidéos) —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-red-600/30 transition-all" />
               </div>
 
               <!-- Default Videos channel -->
               <div class="space-y-1.5">
                 <label for="yt-video-chan" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon des Vidéos</label>
-                <SearchableSelect id="yt-video-chan" bind:value={ytForm.videoChannelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Par défaut (Salon Public) —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-red-600/30 transition-all" />
+                <SearchableSelect id="yt-video-chan" bind:value={ytForm.videoChannelId} options={availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder="— Par défaut (Salon Public) —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-red-600/30 transition-all" />
+              </div>
+
+              <!-- Custom Messages Section -->
+              <div class="pt-4 border-t border-outline-variant/10">
+                <p class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest mb-3">Messages personnalisés</p>
+                
+                <div class="space-y-3">
+                  <div class="space-y-1.5">
+                    <label for="yt-live-msg" class="text-[9px] font-bold text-on-surface-variant/50 ml-2">Message Live</label>
+                    <input
+                      id="yt-live-msg"
+                      type="text"
+                      placeholder="🔴 [channel] est en direct !"
+                      bind:value={ytForm.liveMessage}
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
+                    />
+                    <p class="text-[8px] text-on-surface-variant/40 ml-2">Variables: [title], [channel]</p>
+                  </div>
+
+                  <div class="space-y-1.5">
+                    <label for="yt-video-msg" class="text-[9px] font-bold text-on-surface-variant/50 ml-2">Message Vidéo</label>
+                    <input
+                      id="yt-video-msg"
+                      type="text"
+                      placeholder="🎥 Nouvelle vidéo de [channel] : [title]"
+                      bind:value={ytForm.videoMessage}
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
+                    />
+                  </div>
+
+                  <div class="space-y-1.5">
+                    <label for="yt-short-msg" class="text-[9px] font-bold text-on-surface-variant/50 ml-2">Message Short</label>
+                    <input
+                      id="yt-short-msg"
+                      type="text"
+                      placeholder="⚡ Nouveau Short de [channel] !"
+                      bind:value={ytForm.shortMessage}
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Mentions Section -->
+              <div class="pt-4 border-t border-outline-variant/10">
+                <p class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest mb-3">Mentions</p>
+                
+                <div class="space-y-3">
+                  <div class="space-y-1.5">
+                    <label for="yt-live-mention" class="text-[9px] font-bold text-on-surface-variant/50 ml-2">Mention Live</label>
+                    <input
+                      id="yt-live-mention"
+                      type="text"
+                      placeholder="@everyone ou <@&role_id>"
+                      bind:value={ytForm.liveMention}
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
+                    />
+                  </div>
+
+                  <div class="space-y-1.5">
+                    <label for="yt-video-mention" class="text-[9px] font-bold text-on-surface-variant/50 ml-2">Mention Vidéo</label>
+                    <input
+                      id="yt-video-mention"
+                      type="text"
+                      placeholder="<@&role_id>"
+                      bind:value={ytForm.videoMention}
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
+                    />
+                  </div>
+
+                  <div class="space-y-1.5">
+                    <label for="yt-short-mention" class="text-[9px] font-bold text-on-surface-variant/50 ml-2">Mention Short</label>
+                    <input
+                      id="yt-short-mention"
+                      type="text"
+                      placeholder="<@&role_id>"
+                      bind:value={ytForm.shortMention}
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
+                    />
+                  </div>
+                </div>
               </div>
 
               <!-- Submit button -->
@@ -342,13 +448,13 @@
               <!-- Live Channel Dropdown -->
               <div class="space-y-1.5">
                 <label for="twitch-live-chan" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon des Lives (En direct)</label>
-                <SearchableSelect id="twitch-live-chan" bind:value={twitchForm.liveChannelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Par défaut (Salon Public) —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#9146FF]/30 transition-all" />
+                <SearchableSelect id="twitch-live-chan" bind:value={twitchForm.liveChannelId} options={availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder="— Par défaut (Salon Public) —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#9146FF]/30 transition-all" />
               </div>
 
               <!-- Other Event Channel Dropdown -->
               <div class="space-y-1.5">
                 <label for="twitch-other-chan" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon des Fins de Stream (Optionnel)</label>
-                <SearchableSelect id="twitch-other-chan" bind:value={twitchForm.otherChannelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#9146FF]/30 transition-all" />
+                <SearchableSelect id="twitch-other-chan" bind:value={twitchForm.otherChannelId} options={availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#9146FF]/30 transition-all" />
               </div>
 
               <!-- Submit button -->
@@ -387,51 +493,122 @@
             {:else}
               <div class="divide-y divide-outline-variant/10 space-y-6 divide-none">
                 {#each youtubeFollows as follow (follow.id)}
-                  <div class="p-6 rounded-3xl bg-surface-container-high/15 border border-outline-variant/5 hover:border-outline-variant/10 transition-all flex flex-col md:flex-row md:items-center justify-between gap-6">
-                    <div class="space-y-1">
-                      <h4 class="font-bold text-base flex items-center gap-2">
-                        <span class="w-2.5 h-2.5 bg-red-600 rounded-full"></span>
-                        {follow.channelName}
-                      </h4>
-                      <p class="text-xs text-on-surface-variant/40 font-mono">ID: {follow.channelId}</p>
+                  <div class="p-6 rounded-3xl bg-surface-container-high/15 border border-outline-variant/5 hover:border-outline-variant/10 transition-all">
+                    <!-- Header -->
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                      <div class="space-y-1">
+                        <h4 class="font-bold text-base flex items-center gap-2">
+                          <span class="w-2.5 h-2.5 bg-red-600 rounded-full"></span>
+                          {follow.channelName}
+                        </h4>
+                        <p class="text-xs text-on-surface-variant/40 font-mono">ID: {follow.channelId}</p>
+                      </div>
+
+                      <!-- Actions buttons -->
+                      <div class="flex items-center gap-2">
+                        <button
+                          onclick={() => handleUpdateYoutube(follow)}
+                          disabled={!canManage}
+                          title="Sauvegarder la configuration"
+                          class="p-3 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl transition-all"
+                        >
+                          <Papicon icon="Gear" size={16} />
+                        </button>
+                        <button
+                          onclick={() => handleDeleteYoutube(follow.id)}
+                          disabled={!canManage}
+                          title="Ne plus suivre"
+                          class="p-3 bg-red-600/10 hover:bg-red-600/20 text-red-600 rounded-xl transition-all"
+                        >
+                          <Papicon icon="Trash" size={16} />
+                        </button>
+                      </div>
                     </div>
 
-                    <!-- Config channels inline -->
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1 max-w-xl">
+                    <!-- Channel Configuration -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                       <div class="space-y-1">
                         <span class="text-[9px] font-bold text-on-surface-variant/50 uppercase">Lives</span>
-                        <SearchableSelect bind:value={follow.liveChannelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Par défaut —" className="w-full bg-surface-container/60 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
+                        <SearchableSelect bind:value={follow.liveChannelId} options={availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder="— Par défaut —" className="w-full bg-surface-container/60 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
                       </div>
 
                       <div class="space-y-1">
                         <span class="text-[9px] font-bold text-on-surface-variant/50 uppercase">Shorts</span>
-                        <SearchableSelect bind:value={follow.shortChannelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Par défaut —" className="w-full bg-surface-container/60 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
+                        <SearchableSelect bind:value={follow.shortChannelId} options={availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder="— Par défaut —" className="w-full bg-surface-container/60 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
                       </div>
 
                       <div class="space-y-1">
                         <span class="text-[9px] font-bold text-on-surface-variant/50 uppercase">Vidéos</span>
-                        <SearchableSelect bind:value={follow.videoChannelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Par défaut —" className="w-full bg-surface-container/60 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
+                        <SearchableSelect bind:value={follow.videoChannelId} options={availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder="— Par défaut —" className="w-full bg-surface-container/60 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
                       </div>
                     </div>
 
-                    <!-- Actions buttons -->
-                    <div class="flex items-center gap-2 self-end md:self-center">
-                      <button
-                        onclick={() => handleUpdateYoutube(follow)}
-                        disabled={!canManage}
-                        title="Sauvegarder la configuration"
-                        class="p-3 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl transition-all"
-                      >
-                        <Papicon icon="Gear" size={16} />
-                      </button>
-                      <button
-                        onclick={() => handleDeleteYoutube(follow.id)}
-                        disabled={!canManage}
-                        title="Ne plus suivre"
-                        class="p-3 bg-red-600/10 hover:bg-red-600/20 text-red-600 rounded-xl transition-all"
-                      >
-                        <Papicon icon="Trash" size={16} />
-                      </button>
+                    <!-- Custom Messages -->
+                    <div class="mb-6 p-4 rounded-2xl bg-surface-container/30 border border-outline-variant/5">
+                      <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest mb-3">Messages personnalisés</p>
+                      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="space-y-1">
+                          <label class="text-[9px] font-bold text-on-surface-variant/50">Live</label>
+                          <input
+                            type="text"
+                            bind:value={follow.liveMessage}
+                            placeholder="Message par défaut"
+                            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
+                          />
+                        </div>
+                        <div class="space-y-1">
+                          <label class="text-[9px] font-bold text-on-surface-variant/50">Vidéo</label>
+                          <input
+                            type="text"
+                            bind:value={follow.videoMessage}
+                            placeholder="Message par défaut"
+                            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
+                          />
+                        </div>
+                        <div class="space-y-1">
+                          <label class="text-[9px] font-bold text-on-surface-variant/50">Short</label>
+                          <input
+                            type="text"
+                            bind:value={follow.shortMessage}
+                            placeholder="Message par défaut"
+                            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Mentions -->
+                    <div class="p-4 rounded-2xl bg-surface-container/30 border border-outline-variant/5">
+                      <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest mb-3">Mentions</p>
+                      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="space-y-1">
+                          <label class="text-[9px] font-bold text-on-surface-variant/50">Live</label>
+                          <input
+                            type="text"
+                            bind:value={follow.liveMention}
+                            placeholder="@everyone"
+                            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
+                          />
+                        </div>
+                        <div class="space-y-1">
+                          <label class="text-[9px] font-bold text-on-surface-variant/50">Vidéo</label>
+                          <input
+                            type="text"
+                            bind:value={follow.videoMention}
+                            placeholder="<@&role_id>"
+                            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
+                          />
+                        </div>
+                        <div class="space-y-1">
+                          <label class="text-[9px] font-bold text-on-surface-variant/50">Short</label>
+                          <input
+                            type="text"
+                            bind:value={follow.shortMention}
+                            placeholder="<@&role_id>"
+                            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 {/each}
@@ -479,12 +656,12 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 max-w-md">
                       <div class="space-y-1">
                         <span class="text-[9px] font-bold text-on-surface-variant/50 uppercase">Salon Lives</span>
-                        <SearchableSelect bind:value={follow.liveChannelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Par défaut —" className="w-full bg-surface-container/60 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
+                        <SearchableSelect bind:value={follow.liveChannelId} options={(availableChannels || []).map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder="— Par défaut —" className="w-full bg-surface-container/60 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
                       </div>
 
                       <div class="space-y-1">
                         <span class="text-[9px] font-bold text-on-surface-variant/50 uppercase">Salon Fin de Stream</span>
-                        <SearchableSelect bind:value={follow.otherChannelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Aucun —" className="w-full bg-surface-container/60 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
+                        <SearchableSelect bind:value={follow.otherChannelId} options={(availableChannels || []).map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder="— Aucun —" className="w-full bg-surface-container/60 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
                       </div>
                     </div>
 

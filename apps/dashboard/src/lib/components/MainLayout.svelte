@@ -46,7 +46,9 @@
     if (!guildId) return;
 
     tutorialStore.initialize(guildId);
-    if (shouldShowTutorialForNewUser(guildId)) {
+    // Only start tutorial if it's never been seen (not dismissed, not completed, not started)
+    const progress = tutorialStore;
+    if (!progress.dismissed && !progress.completed && !progress.startedAt) {
       tutorialStore.start();
     }
   });

@@ -248,13 +248,21 @@ client.once(Events.ClientReady, async (c) => {
   registerWelcomeGoodbyeListener(client);
   registerAutoModListener(client);
   registerAutoResponseListener(client);
+  
+  // Enregistrer les cron jobs AVANT les opérations potentiellement bloquantes
+  logger.info('System', 'Enregistrement des cron jobs...');
+  await registerCrons(client);
+  logger.info('System', 'Cron jobs enregistrés');
+  
+  logger.info('System', 'Début de la synchronisation des boutons DailyAlgo...');
   await syncOngoingDailyAlgoButtons(client).catch((error) =>
     logger.error('DailyAlgo', 'Impossible de synchroniser les boutons des runs en cours:', error),
   );
+  logger.info('System', 'Synchronisation DailyAlgo terminée, initialisation des backups automatiques...');
   await initializeAutoBackupForAllGuilds(c.guilds.cache.values()).catch((error) =>
     logger.error('AutoBackup', 'Impossible d\'initialiser les backups automatiques:', error)
   );
-  await registerCrons(client);
+  logger.info('System', 'Backups automatiques initialisés');
 
   // Trigger historical message scraping for any activated guild that hasn't started yet
   try {

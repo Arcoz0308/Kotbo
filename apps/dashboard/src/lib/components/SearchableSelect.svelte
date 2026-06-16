@@ -19,7 +19,7 @@
     return (text || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
   }
 
-  $: filtered = options.filter((o) => normalize(o.name).includes(normalize(query)) || (o.id ?? '').includes(query));
+  $: filtered = (options || []).filter((o) => normalize(o.name).includes(normalize(query)) || (o.id ?? '').includes(query));
   $: if (filtered) highlighted = 0; // reset highlight when list changes
 
   function select(opt: { id: string; name: string }) {

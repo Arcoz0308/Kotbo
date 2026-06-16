@@ -1235,6 +1235,21 @@ export async function checkMissingReports() {
   });
 
   for (const sanction of sanctions) {
+    // Vérifier si le module de sanctions et les rapports sont activés pour cette guilde
+    const { getOrCreateFeatureConfigs } = await import('../core/dashboardManagementService.js');
+    const featureConfigs = await getOrCreateFeatureConfigs(sanction.guildId);
+    const sanctionsFeature = featureConfigs.find((c) => c.featureKey === 'sanctions');
+    const isModuleEnabled = sanctionsFeature ? sanctionsFeature.enabled : true;
+
+    const guild = await prisma.guild.findUnique({
+      where: { id: sanction.guildId },
+      select: { sanctionReportEnabled: true }
+    });
+
+    if (!isModuleEnabled || !guild?.sanctionReportEnabled) {
+      // Rapports désactivés ou module inactif, ignorer cette sanction
+      continue;
+    }
     const actions = getMissingReportReminderActions(sanction as unknown as MissingReportReminderState, now);
     if (actions.remindModerator) {
       const claim = await prisma.sanction.updateMany({

@@ -66,6 +66,16 @@ model YoutubeChannelFollow {
   lastVideoId String?
   lastShortId String?
   lastLiveId String?
+  
+  // Custom notification messages
+  liveMessage String?
+  videoMessage String?
+  shortMessage String?
+  
+  // Mentions (roles or users to ping)
+  liveMention String?
+  videoMention String?
+  shortMention String?
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())

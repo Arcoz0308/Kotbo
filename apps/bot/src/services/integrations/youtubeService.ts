@@ -3,143 +3,416 @@ import prisma from '../../utils/db.js';
 import { buildYouTubeEmbed } from '../../utils/embeds.js';
 import { logger } from '../../utils/logger.js';
 
-/**
- * Resolves a YouTube channel ID and title from a URL, handle, ID, or search query.
- */
+// ==================== TYPES ====================
+
+interface YouTubeChannelSnippet {
+  title: string;
+  description?: string;
+  publishedAt?: string;
+  thumbnails?: {
+    default?: { url: string };
+    medium?: { url: string };
+    high?: { url: string };
+  };
+}
+
+interface YouTubeChannelResource {
+  id: string;
+  snippet: YouTubeChannelSnippet;
+}
+
+interface YouTubeChannelResponse {
+  items?: YouTubeChannelResource[];
+  error?: {
+    code: number;
+    message: string;
+    errors?: Array<{
+      reason: string;
+      message: string;
+    }>;
+  };
+}
+
+interface YouTubeSearchItem {
+  id: {
+    channelId?: string;
+    kind: string;
+  };
+  snippet: {
+    title: string;
+    channelId?: string;
+  };
+}
+
+interface YouTubeSearchResponse {
+  items?: YouTubeSearchItem[];
+  error?: any;
+}
+
+interface YouTubePlaylistItemSnippet {
+  title: string;
+  publishedAt: string;
+  channelId: string;
+  description?: string;
+}
+
+interface YouTubePlaylistItemContentDetails {
+  videoId: string;
+}
+
+interface YouTubePlaylistItem {
+  snippet: YouTubePlaylistItemSnippet;
+  contentDetails: YouTubePlaylistItemContentDetails;
+}
+
+interface YouTubePlaylistItemsResponse {
+  items?: YouTubePlaylistItem[];
+  nextPageToken?: string;
+  error?: any;
+}
+
+interface LiveStatus {
+  isLive: boolean;
+  videoId?: string;
+  title?: string;
+}
+
+interface VideoInfo {
+  videoId: string;
+  title: string;
+  publishedAt: Date;
+  isShort: boolean;
+}
+
+// ==================== CONFIGURATION ====================
+
+const YOUTUBE_CONFIG = {
+  API_BASE: 'https://www.googleapis.com/youtube/v3',
+  MAX_RETRIES: 3,
+  RETRY_DELAY_MS: 1000,
+  CACHE_TTL_MS: 5 * 60 * 1000,
+  MAX_CONCURRENT_REQUESTS: 5,
+  REQUEST_TIMEOUT_MS: 10000,
+  USER_AGENT: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+} as const;
+
+// ==================== CACHE ====================
+
+class YouTubeCache {
+  private cache = new Map<string, { data: any; timestamp: number }>();
+
+  set(key: string, data: any): void {
+    this.cache.set(key, { data, timestamp: Date.now() });
+  }
+
+  get(key: string): any | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+    
+    if (Date.now() - entry.timestamp > YOUTUBE_CONFIG.CACHE_TTL_MS) {
+      this.cache.delete(key);
+      return null;
+    }
+    
+    return entry.data;
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+
+  has(key: string): boolean {
+    return this.get(key) !== null;
+  }
+}
+
+const cache = new YouTubeCache();
+
+// ==================== RATE LIMITER ====================
+
+class RateLimiter {
+  private activeRequests = 0;
+
+  async execute<T>(fn: () => Promise<T>): Promise<T> {
+    while (this.activeRequests >= YOUTUBE_CONFIG.MAX_CONCURRENT_REQUESTS) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    this.activeRequests++;
+    try {
+      return await fn();
+    } finally {
+      this.activeRequests--;
+    }
+  }
+}
+
+const rateLimiter = new RateLimiter();
+
+// ==================== RETRY LOGIC ====================
+
+async function fetchWithRetry<T>(
+  url: string,
+  options: RequestInit = {},
+  retries = YOUTUBE_CONFIG.MAX_RETRIES
+): Promise<T | null> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), YOUTUBE_CONFIG.REQUEST_TIMEOUT_MS);
+      
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        return await response.json() as T;
+      }
+
+      if (response.status === 429) {
+        const delay = YOUTUBE_CONFIG.RETRY_DELAY_MS * Math.pow(2, i);
+        logger.warn('YouTubeService', `Rate limited, retrying in ${delay}ms (attempt ${i + 1}/${retries})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+
+      if (i === retries - 1) {
+        const text = await response.text().catch(() => '');
+        logger.error('YouTubeService', `Request failed with status ${response.status}: ${text}`);
+        return null;
+      }
+
+      const delay = YOUTUBE_CONFIG.RETRY_DELAY_MS * Math.pow(2, i);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    } catch (error) {
+      if (i === retries - 1) {
+        logger.error('YouTubeService', `Request failed after ${retries} retries:`, error);
+        return null;
+      }
+      
+      const delay = YOUTUBE_CONFIG.RETRY_DELAY_MS * Math.pow(2, i);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  
+  return null;
+}
+
+// ==================== CHANNEL RESOLUTION ====================
+
 export async function resolveYoutubeChannel(query: string): Promise<{ channelId: string; channelName: string } | null> {
   const key = process.env.YOUTUBE_API_KEY;
-  if (!key) return null;
-
-  const cleaned = query.trim();
-  
-  // 1. Check if it's already a channel ID
-  if (/^UC[a-zA-Z0-9_-]{22}$/.test(cleaned)) {
-    const res = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=snippet&id=${cleaned}&key=${key}`);
-    if (res.ok) {
-      const data = await res.json() as any;
-      if (data?.items?.length > 0) {
-        return {
-          channelId: data.items[0].id,
-          channelName: data.items[0].snippet.title,
-        };
-      }
-    }
+  if (!key) {
+    logger.warn('YouTubeService', 'YOUTUBE_API_KEY is not defined');
     return null;
   }
 
-  // 2. Check if it's a URL and extract handle or ID
+  const cleaned = query.trim();
+  const cacheKey = `channel:${cleaned}`;
+  
+  const cached = cache.get(cacheKey);
+  if (cached) return cached;
+
+  let result: { channelId: string; channelName: string } | null = null;
+
+  if (/^UC[a-zA-Z0-9_-]{22}$/.test(cleaned)) {
+    result = await fetchChannelById(cleaned, key);
+  }
+  
+  if (!result) {
+    const { handle, channelId } = extractFromUrl(cleaned);
+    
+    if (channelId) {
+      result = await fetchChannelById(channelId, key);
+    } else if (handle) {
+      result = await fetchChannelByHandle(handle, key);
+    }
+  }
+
+  if (!result) {
+    result = await searchChannel(cleaned, key);
+  }
+
+  if (result) {
+    cache.set(cacheKey, result);
+  }
+
+  return result;
+}
+
+function extractFromUrl(query: string): { handle: string | null; channelId: string | null } {
   let handle: string | null = null;
   let channelId: string | null = null;
 
-  if (cleaned.includes('youtube.com/') || cleaned.includes('youtu.be/')) {
-    const matchChannel = cleaned.match(/\/channel\/(UC[a-zA-Z0-9_-]{22})/);
+  if (query.includes('youtube.com/') || query.includes('youtu.be/')) {
+    const matchChannel = query.match(/\/channel\/(UC[a-zA-Z0-9_-]{22})/);
     if (matchChannel) {
       channelId = matchChannel[1];
     } else {
-      const matchHandle = cleaned.match(/\/@([^\/\?\s#]+)/);
+      const matchHandle = query.match(/\/@([^\/\?\s#]+)/);
       if (matchHandle) {
         handle = '@' + matchHandle[1];
       }
     }
-  } else if (cleaned.startsWith('@')) {
-    handle = cleaned;
+  } else if (query.startsWith('@')) {
+    handle = query;
   }
 
-  if (channelId) {
-    const res = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=snippet&id=${channelId}&key=${key}`);
-    if (res.ok) {
-      const data = await res.json() as any;
-      if (data?.items?.length > 0) {
-        return {
-          channelId: data.items[0].id,
-          channelName: data.items[0].snippet.title,
-        };
-      }
-    }
-  }
+  return { handle, channelId };
+}
 
-  if (handle) {
-    const handleUrl = `https://www.googleapis.com/youtube/v3/channels?part=snippet&forHandle=${encodeURIComponent(handle)}&key=${key}`;
-    const res = await fetch(handleUrl).catch(e => {
-      logger.error('YouTubeService', `Error fetching handle ${handle}:`, e);
-      return null;
-    });
-    if (res && res.ok) {
-      const data = await res.json() as any;
-      if (data?.items?.length > 0) {
-        return {
-          channelId: data.items[0].id,
-          channelName: data.items[0].snippet.title,
-        };
-      } else {
-        logger.warn('YouTubeService', `No channel found for handle "${handle}". Response: ${JSON.stringify(data)}`);
-      }
-    } else if (res) {
-      const text = await res.text().catch(() => '');
-      logger.error('YouTubeService', `Failed to fetch handle ${handle}. Status: ${res.status}. Body: ${text}`);
-    }
+async function fetchChannelById(channelId: string, key: string): Promise<{ channelId: string; channelName: string } | null> {
+  const url = `${YOUTUBE_CONFIG.API_BASE}/channels?part=snippet&id=${channelId}&key=${key}`;
+  const data = await fetchWithRetry<YouTubeChannelResponse>(url);
+  
+  if (data?.items?.[0]) {
+    return {
+      channelId: data.items[0].id,
+      channelName: data.items[0].snippet.title,
+    };
   }
-
-  // 3. Fallback: search term
-  const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(cleaned)}&type=channel&maxResults=1&key=${key}`;
-  const res = await fetch(searchUrl).catch(e => {
-    logger.error('YouTubeService', `Error searching for "${cleaned}":`, e);
-    return null;
-  });
-  if (res && res.ok) {
-    const data = await res.json() as any;
-    const items = data?.items || [];
-    if (items.length > 0) {
-      return {
-        channelId: items[0].id.channelId,
-        channelName: items[0].snippet.title,
-      };
-    } else {
-      logger.warn('YouTubeService', `No search result for query "${cleaned}"`);
-    }
-  } else if (res) {
-    const text = await res.text().catch(() => '');
-    logger.error('YouTubeService', `Failed search for "${cleaned}". Status: ${res.status}. Body: ${text}`);
-  }
-
+  
   return null;
 }
 
-/**
- * Checks if a YouTube video is a Short using a redirect test.
- * Shorts return 200, while regular videos redirect (302/301) to /watch?v=...
- */
+async function fetchChannelByHandle(handle: string, key: string): Promise<{ channelId: string; channelName: string } | null> {
+  const url = `${YOUTUBE_CONFIG.API_BASE}/channels?part=snippet&forHandle=${encodeURIComponent(handle)}&key=${key}`;
+  const data = await fetchWithRetry<YouTubeChannelResponse>(url);
+  
+  if (data?.items?.[0]) {
+    return {
+      channelId: data.items[0].id,
+      channelName: data.items[0].snippet.title,
+    };
+  } else if (data?.error) {
+    logger.warn('YouTubeService', `No channel found for handle "${handle}": ${data.error.message}`);
+  }
+  
+  return null;
+}
+
+async function searchChannel(query: string, key: string): Promise<{ channelId: string; channelName: string } | null> {
+  const url = `${YOUTUBE_CONFIG.API_BASE}/search?part=snippet&q=${encodeURIComponent(query)}&type=channel&maxResults=1&key=${key}`;
+  const data = await fetchWithRetry<YouTubeSearchResponse>(url);
+  
+  if (data?.items?.[0]?.id?.channelId) {
+    return {
+      channelId: data.items[0].id.channelId,
+      channelName: data.items[0].snippet.title,
+    };
+  } else if (data?.error) {
+    logger.warn('YouTubeService', `No search result for query "${query}": ${data.error.message}`);
+  }
+  
+  return null;
+}
+
+// ==================== SHORT DETECTION ====================
+
 async function isYoutubeShort(videoId: string): Promise<boolean> {
+  const cacheKey = `short:${videoId}`;
+  
+  if (cache.has(cacheKey)) {
+    return cache.get(cacheKey);
+  }
+
   try {
-    const res = await fetch(`https://www.youtube.com/shorts/${videoId}`, {
-      method: 'HEAD',
-      redirect: 'manual',
+    const response = await rateLimiter.execute(async () => {
+      const res = await fetch(`https://www.youtube.com/shorts/${videoId}`, {
+        method: 'HEAD',
+        redirect: 'manual',
+      });
+      return res;
     });
-    return res.status === 200;
+    
+    const isShort = response.status === 200;
+    cache.set(cacheKey, isShort);
+    return isShort;
   } catch (error) {
     logger.error('YouTubeService', `Error testing short redirect for ${videoId}:`, error);
     return false;
   }
 }
 
-/**
- * Scrapes the channel live page to check if it is active.
- * Uses no API quota.
- */
-async function checkYoutubeLiveStatus(channelId: string): Promise<{ isLive: boolean; videoId?: string; title?: string }> {
+// ==================== LIVE STATUS ====================
+
+async function checkYoutubeLiveStatus(channelId: string): Promise<LiveStatus> {
+  const cacheKey = `live:${channelId}`;
+  const cached = cache.get(cacheKey);
+  
+  if (cached && Date.now() - cached.timestamp < 60000) {
+    return cached.data;
+  }
+
+  const rssResult = await checkLiveViaRSS(channelId);
+  if (rssResult.isLive) {
+    cache.set(cacheKey, { data: rssResult, timestamp: Date.now() });
+    return rssResult;
+  }
+
+  const htmlResult = await checkLiveViaHTML(channelId);
+  cache.set(cacheKey, { data: htmlResult, timestamp: Date.now() });
+  return htmlResult;
+}
+
+async function checkLiveViaRSS(channelId: string): Promise<LiveStatus> {
   try {
-    const res = await fetch(`https://www.youtube.com/channel/${channelId}/live`, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      },
+    const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
+    const response = await rateLimiter.execute(async () => {
+      return await fetch(rssUrl, {
+        headers: { 'User-Agent': YOUTUBE_CONFIG.USER_AGENT },
+      });
     });
-    if (!res.ok) return { isLive: false };
-    const html = await res.text();
+
+    if (!response.ok) {
+      return { isLive: false };
+    }
+
+    const text = await response.text();
+    
+    if (text.includes('<yt:videoId>') && text.includes('live')) {
+      const videoIdMatch = text.match(/<yt:videoId>([^<]+)<\/yt:videoId>/);
+      const titleMatch = text.match(/<title>([^<]+)<\/title>/);
+      
+      if (videoIdMatch) {
+        return {
+          isLive: true,
+          videoId: videoIdMatch[1],
+          title: titleMatch?.[1] || 'En direct sur YouTube',
+        };
+      }
+    }
+  } catch (error) {
+    logger.debug('YouTubeService', `RSS live check failed for ${channelId}, falling back to HTML`);
+  }
+
+  return { isLive: false };
+}
+
+async function checkLiveViaHTML(channelId: string): Promise<LiveStatus> {
+  try {
+    const response = await rateLimiter.execute(async () => {
+      return await fetch(`https://www.youtube.com/channel/${channelId}/live`, {
+        headers: { 'User-Agent': YOUTUBE_CONFIG.USER_AGENT },
+      });
+    });
+
+    if (!response.ok) {
+      return { isLive: false };
+    }
+
+    const html = await response.text();
     
     const canonicalMatch = html.match(/canonical" href="https:\/\/www.youtube.com\/watch\?v=([^"]+)"/);
     const videoId = canonicalMatch ? canonicalMatch[1] : undefined;
 
-    if (videoId && (html.includes('isLive') || html.includes('liveStreamability') || html.includes('"style":"LIVE"') || html.includes('LIVE_STARTED'))) {
+    const liveIndicators = ['isLive', 'liveStreamability', '"style":"LIVE"', 'LIVE_STARTED'];
+    const isLive = videoId && liveIndicators.some(indicator => html.includes(indicator));
+
+    if (isLive && videoId) {
       const titleMatch = html.match(/"title":"([^"]+)"/) || html.match(/<title>([^<]+)<\/title>/);
       const title = titleMatch ? titleMatch[1].replace(' - YouTube', '') : 'En direct sur YouTube';
       return { isLive: true, videoId, title };
@@ -147,26 +420,87 @@ async function checkYoutubeLiveStatus(channelId: string): Promise<{ isLive: bool
   } catch (error) {
     logger.error('YouTubeService', `Error checking live status for channel ${channelId}:`, error);
   }
+
   return { isLive: false };
 }
 
-/**
- * Main function to verify all followed YouTube channels in all guilds.
- */
-export async function checkYoutubeFollows(client: Client) {
-  // Temporarily disabled due to notification spam bug
-  logger.info('YouTubeService', `Checking YouTube followed channels (Temporarily Disabled for ${client.guilds.cache.size} guilds)`);
-  return;
+// ==================== VIDEO FETCHING ====================
 
-  /*
+async function fetchRecentVideos(channelId: string, key: string): Promise<VideoInfo[]> {
+  const uploadsPlaylistId = 'UU' + channelId.substring(2);
+  const url = `${YOUTUBE_CONFIG.API_BASE}/playlistItems?part=snippet,contentDetails&playlistId=${uploadsPlaylistId}&maxResults=10&key=${key}`;
+  
+  const data = await fetchWithRetry<YouTubePlaylistItemsResponse>(url);
+  
+  if (!data?.items) {
+    return [];
+  }
+
+  const videos: VideoInfo[] = [];
+  
+  for (const item of data.items) {
+    const videoId = item.contentDetails?.videoId;
+    const title = item.snippet?.title;
+    const publishedAtStr = item.snippet?.publishedAt;
+    
+    if (!videoId || !title || !publishedAtStr) continue;
+    
+    const isShort = await isYoutubeShort(videoId);
+    
+    videos.push({
+      videoId,
+      title,
+      publishedAt: new Date(publishedAtStr),
+      isShort,
+    });
+  }
+
+  return videos.sort((a, b) => a.publishedAt.getTime() - b.publishedAt.getTime());
+}
+
+// ==================== NOTIFICATION HELPERS ====================
+
+async function sendNotification(
+  client: Client,
+  guildId: string,
+  targetChannelId: string,
+  content: string,
+  embed: any,
+  mention?: string
+): Promise<void> {
+  const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+  if (!discordGuild) return;
+
+  const channel = discordGuild.channels.cache.get(targetChannelId) || 
+                 await discordGuild.channels.fetch(targetChannelId).catch(() => null);
+  
+  if (!channel?.isTextBased()) return;
+
+  const finalContent = mention ? `${mention} ${content}` : content;
+  
+  await channel.send({ content: finalContent, embeds: [embed] })
+    .catch((e: Error) => logger.error('YouTubeService', 'Failed to send notification:', e));
+}
+
+async function updateFollowRecord(followId: string, updates: Record<string, string>): Promise<void> {
+  await (prisma as any).youtubeChannelFollow.update({
+    where: { id: followId },
+    data: updates,
+  }).catch((e: Error) => logger.error('YouTubeService', 'Failed to update follow record:', e));
+}
+
+// ==================== MAIN CHECK FUNCTION ====================
+
+export async function checkYoutubeFollows(client: Client) {
+  logger.debug('YouTubeService', 'Checking YouTube followed channels...');
   const key = process.env.YOUTUBE_API_KEY;
+  
   if (!key) {
     logger.warn('YouTubeService', 'YOUTUBE_API_KEY is not defined in .env.');
     return;
   }
 
   try {
-    // Get all channels followed
     const follows = await (prisma as any).youtubeChannelFollow.findMany({
       include: {
         guild: {
@@ -179,134 +513,157 @@ export async function checkYoutubeFollows(client: Client) {
       },
     });
 
-    for (const follow of follows) {
-      // Check if YouTube feature is enabled for the guild
-      const ytFeatureConfig = follow.guild.dashboardFeatureConfigs.find((c: any) => c.featureKey === 'youtube');
-      if (ytFeatureConfig && !ytFeatureConfig.enabled) {
-        continue; // Module disabled for this server
-      }
+    const processingPromises = follows.map((follow: any) => 
+      rateLimiter.execute(() => processFollow(client, follow, key))
+    );
 
-      const guildId = follow.guildId;
-      const channelId = follow.channelId;
-      const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
-      if (!discordGuild) continue;
-
-      // 1. Check for Active Lives
-      const liveStatus = await checkYoutubeLiveStatus(channelId);
-      if (liveStatus.isLive && liveStatus.videoId && liveStatus.videoId !== follow.lastLiveId) {
-        // Send live notification
-        const targetChannelId = follow.liveChannelId || follow.videoChannelId || follow.guild.publicChannelId;
-        if (targetChannelId) {
-          const channel = discordGuild.channels.cache.get(targetChannelId) || await discordGuild.channels.fetch(targetChannelId).catch(() => null);
-          if (channel?.isTextBased()) {
-            const embed = buildYouTubeEmbed({
-              title: `🔴 En Live : ${liveStatus.title}`,
-              videoId: liveStatus.videoId,
-              channelName: follow.channelName,
-              publishedAt: new Date(),
-            });
-            await channel.send({
-              content: `🔴 **${follow.channelName}** est en direct sur YouTube !`,
-              embeds: [embed],
-            }).catch(e => logger.error('YouTubeService', 'Failed to send YouTube live notification:', e));
-          }
-        }
-        // Update database
-        await (prisma as any).youtubeChannelFollow.update({
-          where: { id: follow.id },
-          data: { lastLiveId: liveStatus.videoId },
-        });
-      }
-
-      // 2. Check for Videos and Shorts (using Uploads Playlist)
-      // Uploads playlist ID starts with UU instead of UC
-      const uploadsPlaylistId = 'UU' + channelId.substring(2);
-      const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${uploadsPlaylistId}&maxResults=5&key=${key}`;
-      
-      const apiRes = await fetch(url).catch(() => null);
-      if (!apiRes || !apiRes.ok) {
-        logger.warn('YouTubeService', `Failed to fetch uploads playlist for channel ${follow.channelName} (${channelId})`);
-        continue;
-      }
-
-      const data = await apiRes.json() as any;
-      const items = data.items || [];
-
-      // Process items in reverse order (oldest first) so we notify chronologically
-      for (let i = items.length - 1; i >= 0; i--) {
-        const item = items[i];
-        const videoId = item.contentDetails?.videoId;
-        const title = item.snippet?.title;
-        const publishedAtStr = item.snippet?.publishedAt;
-        const publishedAt = publishedAtStr ? new Date(publishedAtStr) : new Date();
-
-        if (!videoId || !title) continue;
-
-        // Skip if we already saw this videoId as video or short
-        if (videoId === follow.lastVideoId || videoId === follow.lastShortId) {
-          continue;
-        }
-
-        // Test if Short or regular video
-        const isShort = await isYoutubeShort(videoId);
-
-        if (isShort) {
-          // If we haven't sent this Short
-          if (videoId !== follow.lastShortId) {
-            const targetChannelId = follow.shortChannelId || follow.videoChannelId || follow.guild.publicChannelId;
-            if (targetChannelId) {
-              const channel = discordGuild.channels.cache.get(targetChannelId) || await discordGuild.channels.fetch(targetChannelId).catch(() => null);
-              if (channel?.isTextBased()) {
-                const embed = buildYouTubeEmbed({
-                  title: `⚡ Short : ${title}`,
-                  videoId,
-                  channelName: follow.channelName,
-                  publishedAt,
-                });
-                await channel.send({
-                  content: `⚡ Nouveau Short de **${follow.channelName}** !`,
-                  embeds: [embed],
-                }).catch(e => logger.error('YouTubeService', 'Failed to send YouTube short notification:', e));
-              }
-            }
-            // Update lastShortId
-            await (prisma as any).youtubeChannelFollow.update({
-              where: { id: follow.id },
-              data: { lastShortId: videoId },
-            });
-            follow.lastShortId = videoId; // local update to prevent duplicate checking in loop
-          }
-        } else {
-          // Regular Video
-          if (videoId !== follow.lastVideoId) {
-            const targetChannelId = follow.videoChannelId || follow.guild.publicChannelId;
-            if (targetChannelId) {
-              const channel = discordGuild.channels.cache.get(targetChannelId) || await discordGuild.channels.fetch(targetChannelId).catch(() => null);
-              if (channel?.isTextBased()) {
-                const embed = buildYouTubeEmbed({
-                  title,
-                  videoId,
-                  channelName: follow.channelName,
-                  publishedAt,
-                });
-                await channel.send({
-                  content: `🎥 Nouvelle vidéo de **${follow.channelName}** !`,
-                  embeds: [embed],
-                }).catch(e => logger.error('YouTubeService', 'Failed to send YouTube video notification:', e));
-              }
-            }
-            // Update lastVideoId
-            await (prisma as any).youtubeChannelFollow.update({
-              where: { id: follow.id },
-              data: { lastVideoId: videoId },
-            });
-            follow.lastVideoId = videoId;
-          }
-        }
-      }
-    }
+    await Promise.allSettled(processingPromises);
+    
+    logger.debug('YouTubeService', `Checked ${follows.length} YouTube follows`);
   } catch (error) {
     logger.error('YouTubeService', 'Error checking YouTube follows:', error);
   }
-  */
+}
+
+async function processFollow(
+  client: Client,
+  follow: any,
+  key: string
+): Promise<void> {
+  const ytFeatureConfig = follow.guild.dashboardFeatureConfigs.find((c: any) => c.featureKey === 'youtube');
+  if (ytFeatureConfig && !ytFeatureConfig.enabled) {
+    return;
+  }
+
+  const guildId = follow.guildId;
+  const channelId = follow.channelId;
+  const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+  
+  if (!discordGuild) return;
+
+  await checkAndNotifyLive(client, follow, channelId, discordGuild);
+  await checkAndNotifyVideos(client, follow, channelId, key, discordGuild);
+}
+
+async function checkAndNotifyLive(
+  client: Client,
+  follow: any,
+  channelId: string,
+  discordGuild: any
+): Promise<void> {
+  const liveStatus = await checkYoutubeLiveStatus(channelId);
+  
+  if (liveStatus.isLive && liveStatus.videoId && liveStatus.videoId !== follow.lastLiveId) {
+    const targetChannelId = follow.liveChannelId || follow.videoChannelId || follow.guild.publicChannelId;
+    
+    if (targetChannelId) {
+      // Use custom message if provided, otherwise use default
+      const message = follow.liveMessage || `🔴 **${follow.channelName}** est en direct sur YouTube !`;
+      
+      // Use custom embed title if message contains {title}, otherwise use default
+      const embedTitle = follow.liveMessage?.includes('{title}') 
+        ? follow.liveMessage.replace('{title}', liveStatus.title)
+        : `🔴 En Live : ${liveStatus.title}`;
+      
+      const embed = buildYouTubeEmbed({
+        title: embedTitle,
+        videoId: liveStatus.videoId,
+        channelName: follow.channelName,
+        publishedAt: new Date(),
+      });
+
+      await sendNotification(
+        client,
+        follow.guildId,
+        targetChannelId,
+        message.replace('{title}', liveStatus.title).replace('{channel}', follow.channelName),
+        embed,
+        follow.liveMention
+      );
+    }
+
+    await updateFollowRecord(follow.id, { lastLiveId: liveStatus.videoId });
+  }
+}
+
+async function checkAndNotifyVideos(
+  client: Client,
+  follow: any,
+  channelId: string,
+  key: string,
+  discordGuild: any
+): Promise<void> {
+  const videos = await fetchRecentVideos(channelId, key);
+  
+  for (const video of videos) {
+    if (video.videoId === follow.lastVideoId || video.videoId === follow.lastShortId) {
+      continue;
+    }
+
+    if (video.isShort) {
+      if (video.videoId !== follow.lastShortId) {
+        const targetChannelId = follow.shortChannelId || follow.videoChannelId || follow.guild.publicChannelId;
+        
+        if (targetChannelId) {
+          // Use custom message if provided, otherwise use default
+          const message = follow.shortMessage || `⚡ Nouveau Short de **${follow.channelName}** !`;
+          
+          // Use custom embed title if message contains {title}, otherwise use default
+          const embedTitle = follow.shortMessage?.includes('{title}') 
+            ? follow.shortMessage.replace('{title}', video.title)
+            : `⚡ Short : ${video.title}`;
+          
+          const embed = buildYouTubeEmbed({
+            title: embedTitle,
+            videoId: video.videoId,
+            channelName: follow.channelName,
+            publishedAt: video.publishedAt,
+          });
+
+          await sendNotification(
+            client,
+            follow.guildId,
+            targetChannelId,
+            message.replace('{title}', video.title).replace('{channel}', follow.channelName),
+            embed,
+            follow.shortMention
+          );
+        }
+
+        await updateFollowRecord(follow.id, { lastShortId: video.videoId });
+      }
+    } else {
+      if (video.videoId !== follow.lastVideoId) {
+        const targetChannelId = follow.videoChannelId || follow.guild.publicChannelId;
+        
+        if (targetChannelId) {
+          // Use custom message if provided, otherwise use default
+          const message = follow.videoMessage || `🎥 Nouvelle vidéo de **${follow.channelName}** !`;
+          
+          // Use custom embed title if message contains {title}, otherwise use default
+          const embedTitle = follow.videoMessage?.includes('{title}') 
+            ? follow.videoMessage.replace('{title}', video.title)
+            : video.title;
+          
+          const embed = buildYouTubeEmbed({
+            title: embedTitle,
+            videoId: video.videoId,
+            channelName: follow.channelName,
+            publishedAt: video.publishedAt,
+          });
+
+          await sendNotification(
+            client,
+            follow.guildId,
+            targetChannelId,
+            message.replace('{title}', video.title).replace('{channel}', follow.channelName),
+            embed,
+            follow.videoMention
+          );
+        }
+
+        await updateFollowRecord(follow.id, { lastVideoId: video.videoId });
+      }
+    }
+  }
 }

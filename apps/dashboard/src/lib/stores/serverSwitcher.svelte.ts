@@ -1,17 +1,17 @@
 class ServerSwitcherStore {
   open = $state(false);
 
-  show() {
+  show = () => {
     this.open = true;
-  }
+  };
 
-  close() {
+  close = () => {
     this.open = false;
-  }
+  };
 
-  toggle() {
+  toggle = () => {
     this.open = !this.open;
-  }
+  };
 }
 
 export const serverSwitcherStore = new ServerSwitcherStore();
