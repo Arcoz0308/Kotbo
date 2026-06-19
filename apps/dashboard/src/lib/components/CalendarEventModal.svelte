@@ -45,9 +45,19 @@
     }
   }
 
+  function escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   function interpretMarkdown(text: string) {
     if (!text) return '';
-    return text
+    let escaped = escapeHtml(text);
+    return escaped
       .replace(/### (.*)/g, '<h5 class="text-xs font-black uppercase tracking-wider text-primary mt-4 mb-2">$1</h5>')
       .replace(/## (.*)/g, '<h4 class="text-sm font-black text-on-surface mt-6 mb-3 border-b border-outline-variant/20 pb-1">$1</h4>')
       .replace(/# (.*)/g, '<h3 class="text-lg font-black text-on-surface mt-8 mb-4">$1</h3>')

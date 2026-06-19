@@ -83,14 +83,17 @@ export async function handleReportErrorRoute(
 
       const ownerId = process.env.DISCORD_CLIENT_OWNER_ID;
       const adminsFromDb = await prisma.globalAdmin.findMany({
-        select: { userId: true }
+        select: { userId: true, expiresAt: true }
       });
+      const now = new Date();
       const adminIds = new Set<string>();
       if (ownerId) {
         adminIds.add(ownerId);
       }
       for (const a of adminsFromDb) {
-        adminIds.add(a.userId);
+        if (!a.expiresAt || a.expiresAt > now) {
+          adminIds.add(a.userId);
+        }
       }
 
       if (adminIds.size === 0) {

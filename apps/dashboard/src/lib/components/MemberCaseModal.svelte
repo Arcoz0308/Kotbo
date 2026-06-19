@@ -506,8 +506,17 @@
     return 'Hors ligne';
   }
 
+  function escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   function sanitizeLogSnippet(value: string) {
-    return value.replace(/^Contenu:\s*/i, '').replace(/^\s+|\s+$/g, '');
+    return escapeHtml(value.replace(/^Contenu:\s*/i, '').replace(/^\s+|\s+$/g, ''));
   }
 
   function getConnectionIcon(type: string) {

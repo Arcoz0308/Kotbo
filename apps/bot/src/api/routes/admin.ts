@@ -363,12 +363,38 @@ export async function handleAdminRoutes(
         const admins = await prisma.globalAdmin.findMany({
           orderBy: { createdAt: 'desc' }
         });
-        const enrichedAdmins = await Promise.all(admins.map(async (admin) => {
+
+        const now = Date.now();
+        const activeAdmins = admins.filter(admin => !admin.expiresAt || admin.expiresAt.getTime() > now);
+
+        const expiredIds = admins
+          .filter(admin => admin.expiresAt && admin.expiresAt.getTime() <= now)
+          .map(admin => admin.userId);
+        if (expiredIds.length > 0) {
+          await prisma.globalAdmin.deleteMany({ where: { userId: { in: expiredIds } } }).catch(() => {});
+        }
+
+        const enrichedAdmins = await Promise.all(activeAdmins.map(async (admin) => {
+          const remainingMs = admin.expiresAt ? admin.expiresAt.getTime() - now : null;
           try {
             const discordUser = await client.users.fetch(admin.userId);
-            return { ...admin, username: discordUser.username, avatarUrl: discordUser.displayAvatarURL() };
+            return {
+              ...admin,
+              username: discordUser.username,
+              avatarUrl: discordUser.displayAvatarURL(),
+              expiresAt: admin.expiresAt?.toISOString() ?? null,
+              remainingMinutes: remainingMs !== null ? Math.max(0, Math.ceil(remainingMs / 60000)) : null,
+              isTemporary: !!admin.expiresAt,
+            };
           } catch {
-            return { ...admin, username: 'Inconnu', avatarUrl: null };
+            return {
+              ...admin,
+              username: 'Inconnu',
+              avatarUrl: null,
+              expiresAt: admin.expiresAt?.toISOString() ?? null,
+              remainingMinutes: remainingMs !== null ? Math.max(0, Math.ceil(remainingMs / 60000)) : null,
+              isTemporary: !!admin.expiresAt,
+            };
           }
         }));
         json(res, 200, { admins: enrichedAdmins });
@@ -381,20 +407,34 @@ export async function handleAdminRoutes(
     // POST /api/admin/admins
     if (method === 'POST' && parts.length === 3) {
       try {
-         const body = await readJsonBody<{userId: string}>(req);
+         const body = await readJsonBody<{userId: string; durationMinutes?: number; reason?: string}>(req);
          if (!body || !body.userId) {
-           json(res, 400, { error: 'ID Discord requis' }); 
+           json(res, 400, { error: 'ID Discord requis' });
            return true;
          }
+
+         if (!body.durationMinutes || typeof body.durationMinutes !== 'number' || body.durationMinutes <= 0) {
+           json(res, 400, { error: 'Une durée en minutes (durationMinutes) est requise pour les accès temporaires' });
+           return true;
+         }
+
+         const MAX_DURATION_MINUTES = 43200; // 30 jours max
+         if (body.durationMinutes > MAX_DURATION_MINUTES) {
+           json(res, 400, { error: `La durée maximale est de ${MAX_DURATION_MINUTES} minutes (30 jours)` });
+           return true;
+         }
+
+         const expiresAt = new Date(Date.now() + body.durationMinutes * 60 * 1000);
+
          try {
             const discordUser = await client.users.fetch(body.userId);
             if (!discordUser) throw new Error();
             await prisma.globalAdmin.upsert({
               where: { userId: body.userId },
-              update: {},
-              create: { userId: body.userId, addedBy: user.userId }
+              update: { expiresAt, reason: body.reason || null },
+              create: { userId: body.userId, addedBy: user.userId, expiresAt, reason: body.reason || null }
             });
-            json(res, 201, { success: true });
+            json(res, 201, { success: true, expiresAt: expiresAt.toISOString(), durationMinutes: body.durationMinutes });
          } catch {
             json(res, 400, { error: 'Utilisateur Discord introuvable' });
          }

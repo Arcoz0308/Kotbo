@@ -11,6 +11,7 @@ import {
   hasDashboardAdminPermission,
   DashboardAccessLevel,
   AuthClaims,
+  getDiscordToken,
 } from '../shared.js';
 
 interface DiscordGuild {
@@ -65,13 +66,19 @@ export async function handleUserRoutes(
       }
 
       const decoded = jwt.decode(token) as AuthClaims | null;
-      if (!decoded || !decoded.discordToken) {
-        json(res, 400, { error: 'Token Discord manquant dans le JWT' });
+      if (!decoded || !decoded.userId) {
+        json(res, 400, { error: 'Token JWT invalide' });
+        return true;
+      }
+
+      const discordToken = getDiscordToken(decoded.userId);
+      if (!discordToken) {
+        json(res, 401, { error: 'Session Discord expirée, veuillez vous reconnecter' });
         return true;
       }
 
       const guildsResponse = await fetch('https://discord.com/api/users/@me/guilds', {
-        headers: { Authorization: `Bearer ${decoded.discordToken}` },
+        headers: { Authorization: `Bearer ${discordToken}` },
       });
 
       if (!guildsResponse.ok) {

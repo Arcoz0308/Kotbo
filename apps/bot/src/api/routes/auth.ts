@@ -11,6 +11,9 @@ import {
   DISCORD_REDIRECT_URI,
   DASHBOARD_URL,
   JWT_SECRET,
+  storeDiscordToken,
+  createAuthCode,
+  exchangeAuthCode,
 } from '../shared.js';
 
 interface DiscordTokenResponse {
@@ -116,14 +119,16 @@ export async function handleAuthRoutes(
         });
         const userData = await userResponse.json() as DiscordUserResponse;
 
+        storeDiscordToken(userData.id, tokenData.access_token);
+
         const token = jwt.sign({
           userId: userData.id,
           username: userData.username,
           avatar: userData.avatar,
-          discordToken: tokenData.access_token
         }, JWT_SECRET, { expiresIn: '7d' });
 
-        res.writeHead(302, { Location: `${DASHBOARD_URL}#token=${token}` });
+        const authCode = createAuthCode(token);
+        res.writeHead(302, { Location: `${DASHBOARD_URL}?auth_code=${authCode}` });
         res.end();
       } catch (err) {
         logger.error('Auth', 'Discord callback error:', err);
@@ -133,6 +138,24 @@ export async function handleAuthRoutes(
         res.writeHead(302, { Location: `${DASHBOARD_URL}/login?error=auth_failed` });
         res.end();
       }
+      return true;
+    }
+
+    // POST /api/auth/exchange
+    if (parts[3] === 'exchange' && method === 'POST') {
+      const code = url.searchParams.get('code');
+      if (!code) {
+        json(res, 400, { error: 'Code manquant' });
+        return true;
+      }
+
+      const jwtToken = exchangeAuthCode(code);
+      if (!jwtToken) {
+        json(res, 401, { error: 'Code invalide ou expiré' });
+        return true;
+      }
+
+      json(res, 200, { token: jwtToken });
       return true;
     }
   }

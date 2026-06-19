@@ -3,9 +3,11 @@
 // ============================================================================
 
 model GlobalAdmin {
-  userId String @id
-  addedBy String
-  createdAt DateTime @default(now())
+  userId    String    @id
+  addedBy   String
+  createdAt DateTime  @default(now())
+  expiresAt DateTime?
+  reason    String?
 
   @@map("global_admins")
 }

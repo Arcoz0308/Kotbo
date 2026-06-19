@@ -1,11 +1,9 @@
 import { createServer, type IncomingMessage, ServerResponse } from 'node:http';
 import { Socket } from 'node:net';
-import { appendFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const debugLogFile = path.resolve(__dirname, '../../scratch/debug_api.log');
 
 import {
   ActionRowBuilder,
@@ -1098,8 +1096,39 @@ export type AuthClaims = {
   userId: string;
   username?: string;
   avatar?: string;
-  discordToken?: string;
 };
+
+const discordTokenStore = new Map<string, { token: string; expiresAt: number }>();
+
+export function storeDiscordToken(userId: string, token: string): void {
+  discordTokenStore.set(userId, { token, expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 });
+}
+
+export function getDiscordToken(userId: string): string | null {
+  const entry = discordTokenStore.get(userId);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    discordTokenStore.delete(userId);
+    return null;
+  }
+  return entry.token;
+}
+
+const authCodeStore = new Map<string, { jwt: string; expiresAt: number }>();
+
+export function createAuthCode(jwtToken: string): string {
+  const code = crypto.randomBytes(32).toString('hex');
+  authCodeStore.set(code, { jwt: jwtToken, expiresAt: Date.now() + 60_000 });
+  return code;
+}
+
+export function exchangeAuthCode(code: string): string | null {
+  const entry = authCodeStore.get(code);
+  authCodeStore.delete(code);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) return null;
+  return entry.jwt;
+}
 
 export const verifyAuth = (req: IncomingMessage): AuthClaims | null => {
   const authHeader = req.headers.authorization;
@@ -1281,8 +1310,15 @@ export async function resolveAdminAccess(client: Client, userId: string): Promis
   const admin = await prisma.globalAdmin.findUnique({
     where: { userId }
   });
-  
-  return !!admin;
+
+  if (!admin) return false;
+
+  if (admin.expiresAt && admin.expiresAt.getTime() < Date.now()) {
+    await prisma.globalAdmin.delete({ where: { userId } }).catch(() => {});
+    return false;
+  }
+
+  return true;
 }
 
 export class HttpError extends Error {
@@ -1371,36 +1407,20 @@ export class BunServerResponse extends ServerResponse {
 
 export const readJsonBody = async <T>(req: IncomingMessage): Promise<T | null> => {
   const contentType = req.headers['content-type'];
-  const logFile = '/mnt/c/Users/Elouan/Documents/GitHub/Kotbo/apps/bot/scratch/debug_api.log';
-  const logMsg = (msg: string) => {
-    try {
-      appendFileSync(logFile, `[${new Date().toISOString()}] [readJsonBody] ${msg}\n`, 'utf8');
-    } catch {}
-  };
-
-  logMsg(`URL: ${req.url}, contentType: ${contentType}`);
 
   if (!contentType || !contentType.includes('application/json')) {
-    logMsg(`Invalid content type: ${contentType}`);
     throw new HttpError(415, 'Content-Type doit être application/json');
   }
 
   if (req.bodyText !== undefined) {
     const text = req.bodyText.trim();
-    logMsg(`Using pre-read bodyText: length=${text.length}, content="${text}"`);
     if (!text) {
-      logMsg(`Empty bodyText, returning null`);
-      logger.info('readJsonBody', `Empty body for URL: ${req.url}`);
       return null;
     }
     try {
-      const parsed = JSON.parse(text) as T;
-      logMsg(`JSON parse success`);
-      return parsed;
+      return JSON.parse(text) as T;
     } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      logMsg(`JSON parse error: ${errMsg}`);
-      logger.error('readJsonBody', `JSON parse error for URL ${req.url}, text="${text}":`, err);
+      logger.error('readJsonBody', `JSON parse error for URL ${req.url}:`, err);
       throw new HttpError(400, 'Format JSON invalide');
     }
   }
@@ -1887,7 +1907,7 @@ export async function buildMemberCaseData(client: Client, guildId: string, userI
         orderBy: { dateIso: 'desc' },
         take: 500,
       }).catch(() => []),
-      fetchMemberConnections(auth.userId === actualUserId ? auth.discordToken : null).catch(() => ({ connections: [], note: "Erreur lors de la récupération des connexions." })),
+      fetchMemberConnections(auth.userId === actualUserId ? getDiscordToken(auth.userId) : null).catch(() => ({ connections: [], note: "Erreur lors de la récupération des connexions." })),
       getStaffMember(guildId, actualUserId).catch(() => null),
       getCandidatureHistory(guildId, actualUserId).catch(() => []),
       prisma.sanctionReport.findMany({

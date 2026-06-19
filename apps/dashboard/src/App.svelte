@@ -4,6 +4,7 @@
   const Route = RouteLegacy as any;
   import MainLayout from "./lib/components/MainLayout.svelte";
   import { authStore } from "./lib/stores/auth.svelte";
+  import { API_BASE_URL } from "./lib/api";
   import { dashboardStore } from "./lib/stores/dashboard.svelte";
   import { themeStore } from "./lib/stores/theme.svelte";
   import { toast } from "./lib/stores/toast.svelte";
@@ -171,20 +172,24 @@
     selectedGuildAccessLevel() !== "moderator",
   );
 
-  onMount(() => {
+  onMount(async () => {
     const urlParams = new URLSearchParams(window.location.search);
-    let token = urlParams.get("token");
+    const authCode = urlParams.get("auth_code");
 
-    if (!token && window.location.hash) {
-      const hashParams = new URLSearchParams(window.location.hash.substring(1));
-      token = hashParams.get("token");
-    }
-
-    if (token) {
-      authStore.setToken(token);
-
+    if (authCode) {
       window.history.replaceState({}, document.title, window.location.pathname);
-      router.goto("/");
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/auth/discord/exchange?code=${encodeURIComponent(authCode)}`, { method: 'POST' });
+        if (res.ok) {
+          const data = await res.json();
+          authStore.setToken(data.token);
+          router.goto("/");
+        } else {
+          router.goto("/login?error=auth_failed");
+        }
+      } catch {
+        router.goto("/login?error=auth_failed");
+      }
     }
 
     if (

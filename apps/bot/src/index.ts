@@ -360,9 +360,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     // 2. Vérification du mode maintenance (sauf pour créateur et admins globaux)
     if ((global as any).KOTBO_MAINTENANCE_MODE && interaction.user.id !== process.env.DISCORD_CLIENT_OWNER_ID) {
-      // Allow global admins bypass
+      // Allow global admins bypass (only if access hasn't expired)
       const admin = await prisma.globalAdmin.findUnique({ where: { userId: interaction.user.id } });
-      if (!admin) {
+      const isAdminValid = admin && (!admin.expiresAt || admin.expiresAt.getTime() > Date.now());
+      if (!isAdminValid) {
         if (interaction.isRepliable()) {
           await interaction.reply({
             content: '⚠️ **Mode Maintenance**\nKotbo est actuellement en cours de maintenance globale. Réessayez plus tard.',

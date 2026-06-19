@@ -1133,11 +1133,11 @@ export async function fetchGlobalAdmins() {
   return response.json();
 }
 
-export async function addGlobalAdmin(userId: string) {
+export async function addGlobalAdmin(userId: string, durationMinutes: number, reason?: string) {
   const response = await authorizedFetch(`${API_BASE_URL}/api/admin/admins`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId })
+    body: JSON.stringify({ userId, durationMinutes, reason })
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
