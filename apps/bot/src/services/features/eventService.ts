@@ -4,6 +4,8 @@ import {
   ButtonStyle,
   EmbedBuilder,
   StringSelectMenuBuilder,
+  GuildScheduledEventEntityType,
+  GuildScheduledEventPrivacyLevel,
   type Client,
   type TextChannel,
   type ButtonInteraction,
@@ -74,31 +76,38 @@ export async function publishEvent(client: Client, eventId: string) {
     include: { questions: true, ctfChallenges: true },
   });
 
-  if (!event || !event.channelId) throw new Error('Événement ou salon introuvable');
+  if (!event) throw new Error('Événement introuvable');
+
+  // @ts-expect-error - CUSTOM type not yet in generated Prisma client
+  if (event.type === 'CUSTOM') {
+    return publishCustomEventAnnouncement(client, eventId);
+  }
+
+  if (!event.channelId) throw new Error('Salon introuvable');
 
   const channel = (await client.channels.fetch(event.channelId).catch(() => null)) as TextChannel | null;
   if (!channel) throw new Error('Salon Discord introuvable');
 
   if (event.type === 'CTF') {
     const embed = new EmbedBuilder()
-      .setTitle(`🚩 Capture The Flag : ${event.title}`)
-      .setDescription(event.description || 'Le CTF a commencé ! Trouvez les flags et soumettez-les.')
+      .setTitle(`ðŸš© Capture The Flag : ${event.title}`)
+      .setDescription(event.description || 'Le CTF a commencÃ© ! Trouvez les flags et soumettez-les.')
       .setColor(COLORS.info)
       .setTimestamp();
 
     const submitBtn = new ButtonBuilder()
       .setCustomId(`event-ctf-submit-flag-btn:${event.id}`)
-      .setLabel('🚩 Soumettre un Flag')
+      .setLabel('ðŸš© Soumettre un Flag')
       .setStyle(ButtonStyle.Primary);
 
     const progressBtn = new ButtonBuilder()
       .setCustomId(`event-ctf-progress-btn:${event.id}`)
-      .setLabel('🎯 Ma Progression')
+      .setLabel('ðŸŽ¯ Ma Progression')
       .setStyle(ButtonStyle.Secondary);
 
     const lbBtn = new ButtonBuilder()
       .setCustomId(`event-ctf-leaderboard-btn:${event.id}`)
-      .setLabel('📊 Classement')
+      .setLabel('ðŸ“Š Classement')
       .setStyle(ButtonStyle.Success);
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(submitBtn, progressBtn, lbBtn);
@@ -114,10 +123,10 @@ export async function publishEvent(client: Client, eventId: string) {
   }
 
   const embed = new EmbedBuilder()
-    .setTitle(`🎉 Événement : ${event.title}`)
-    .setDescription(event.description || 'Un nouvel événement commence ! Préparez-vous.')
+    .setTitle(`ðŸŽ‰ Ã‰vÃ©nement : ${event.title}`)
+    .setDescription(event.description || 'Un nouvel Ã©vÃ©nement commence ! PrÃ©parez-vous.')
     .setColor(COLORS.info)
-    .addFields({ name: 'Statut', value: '⌛ En attente du lancement...', inline: true })
+    .addFields({ name: 'Statut', value: 'âŒ› En attente du lancement...', inline: true })
     .setTimestamp();
 
   const message = await channel.send({ embeds: [embed] });
@@ -141,14 +150,14 @@ export async function nextQuestion(client: Client, eventId: string) {
     },
   });
 
-  if (!event || !event.messageId || !event.channelId) throw new Error('Événement non publié');
+  if (!event || !event.messageId || !event.channelId) throw new Error('Ã‰vÃ©nement non publiÃ©');
 
   // Trouver la question en cours ou la suivante
   const currentQuestion = event.questions.find((q) => q.status === 'ONGOING');
   const nextQuestion = event.questions.find((q) => q.status === 'DRAFT');
 
   if (currentQuestion) {
-    // Clôturer la question actuelle
+    // ClÃ´turer la question actuelle
     await prisma.eventQuizQuestion.update({
       where: { id: currentQuestion.id },
       data: { status: 'COMPLETED', endTime: new Date() },
@@ -156,7 +165,7 @@ export async function nextQuestion(client: Client, eventId: string) {
   }
 
   if (!nextQuestion) {
-    // Plus de questions, terminer l'évent
+    // Plus de questions, terminer l'Ã©vent
     return finishEvent(client, eventId);
   }
 
@@ -181,16 +190,16 @@ export async function nextQuestion(client: Client, eventId: string) {
   const currentIdx = event.questions.findIndex(q => q.id === nextQuestion.id) + 1;
 
   const embed = new EmbedBuilder()
-    .setTitle(`❓ Question ${currentIdx}/${totalQuestions} : ${nextQuestion.text}`)
-    .setDescription('Choisissez la bonne réponse ci-dessous !')
+    .setTitle(`â�“ Question ${currentIdx}/${totalQuestions} : ${nextQuestion.text}`)
+    .setDescription('Choisissez la bonne rÃ©ponse ci-dessous !')
     .setColor(COLORS.info)
     .setTimestamp();
 
   if (currentQuestion) {
     const prevAnswer = (currentQuestion.options as string[])[currentQuestion.correctOptionIndex];
     embed.addFields({ 
-      name: '✅ Dernière réponse', 
-      value: `La bonne réponse à la question précédente était : **${prevAnswer}**` 
+      name: 'âœ… DerniÃ¨re rÃ©ponse', 
+      value: `La bonne rÃ©ponse Ã  la question prÃ©cÃ©dente Ã©tait : **${prevAnswer}**` 
     });
   }
 
@@ -214,7 +223,7 @@ export async function nextQuestion(client: Client, eventId: string) {
     const row = new ActionRowBuilder<StringSelectMenuBuilder>();
     const select = new StringSelectMenuBuilder()
       .setCustomId(`event-quiz-select:${nextQuestion.id}`)
-      .setPlaceholder('Choisissez votre réponse...');
+      .setPlaceholder('Choisissez votre rÃ©ponse...');
 
     options.forEach((opt, idx) => {
       select.addOptions({
@@ -241,13 +250,13 @@ export async function prevQuestion(client: Client, eventId: string) {
     },
   });
 
-  if (!event || !event.messageId || !event.channelId) throw new Error('Événement non publié');
+  if (!event || !event.messageId || !event.channelId) throw new Error('Ã‰vÃ©nement non publiÃ©');
 
   const currentQuestion = event.questions.find((q) => q.status === 'ONGOING');
   const completedQuestions = event.questions.filter((q) => q.status === 'COMPLETED');
   const prevQuestion = completedQuestions[completedQuestions.length - 1];
 
-  if (!prevQuestion) throw new Error('Pas de question précédente');
+  if (!prevQuestion) throw new Error('Pas de question prÃ©cÃ©dente');
 
   // Reset current ONGOING to DRAFT
   if (currentQuestion) {
@@ -273,8 +282,8 @@ export async function prevQuestion(client: Client, eventId: string) {
   const currentIdx = event.questions.findIndex(q => q.id === prevQuestion.id) + 1;
 
   const embed = new EmbedBuilder()
-    .setTitle(`❓ Question ${currentIdx}/${totalQuestions} : ${prevQuestion.text}`)
-    .setDescription('Choisissez la bonne réponse ci-dessous !')
+    .setTitle(`â�“ Question ${currentIdx}/${totalQuestions} : ${prevQuestion.text}`)
+    .setDescription('Choisissez la bonne rÃ©ponse ci-dessous !')
     .setColor(COLORS.info)
     .setTimestamp();
 
@@ -282,8 +291,8 @@ export async function prevQuestion(client: Client, eventId: string) {
   if (questionBeforePrev) {
     const prevAnswer = (questionBeforePrev.options as string[])[questionBeforePrev.correctOptionIndex];
     embed.addFields({ 
-      name: '✅ Dernière réponse', 
-      value: `La bonne réponse à la question précédente était : **${prevAnswer}**` 
+      name: 'âœ… DerniÃ¨re rÃ©ponse', 
+      value: `La bonne rÃ©ponse Ã  la question prÃ©cÃ©dente Ã©tait : **${prevAnswer}**` 
     });
   }
 
@@ -306,7 +315,7 @@ export async function prevQuestion(client: Client, eventId: string) {
   } else {
     const select = new StringSelectMenuBuilder()
       .setCustomId(`event-quiz-select:${prevQuestion.id}`)
-      .setPlaceholder('Choisissez votre réponse...')
+      .setPlaceholder('Choisissez votre rÃ©ponse...')
       .addOptions(
         options.map((opt, idx) => ({
           label: truncate(opt, 100),
@@ -331,10 +340,10 @@ export async function handleQuizInteraction(
   });
 
   if (!question || question.status !== 'ONGOING') {
-    return interaction.reply({ content: 'Cette question est terminée ou invalide.', ephemeral: true });
+    return interaction.reply({ content: 'Cette question est terminÃ©e ou invalide.', ephemeral: true });
   }
 
-  // S'assurer que le profil membre existe (nécessaire pour la relation EventParticipant -> MemberProfile)
+  // S'assurer que le profil membre existe (nÃ©cessaire pour la relation EventParticipant -> MemberProfile)
   await prisma.memberProfile.upsert({
     where: {
       guildId_userId: {
@@ -358,7 +367,7 @@ export async function handleQuizInteraction(
     },
   });
 
-  // Créer ou récupérer le participant
+  // CrÃ©er ou rÃ©cupÃ©rer le participant
   const participant = await prisma.eventParticipant.upsert({
     where: {
       eventId_userId: {
@@ -403,7 +412,7 @@ export async function handleQuizInteraction(
     },
   });
 
-  // Mettre à jour le score global du participant
+  // Mettre Ã  jour le score global du participant
   const allResponses = await prisma.eventQuizResponse.findMany({
     where: { participantId: participant.id },
   });
@@ -416,7 +425,7 @@ export async function handleQuizInteraction(
   });
 
   return interaction.reply({
-    content: `Ta réponse a été enregistrée : **${(question.options as string[])[optionIndex]}**`,
+    content: `Ta rÃ©ponse a Ã©tÃ© enregistrÃ©e : **${(question.options as string[])[optionIndex]}**`,
     ephemeral: true,
   });
 }
@@ -471,7 +480,7 @@ export async function getEventStats(eventId: string) {
 
   let currentQuestion = event.questions.find((q) => q.status === 'ONGOING');
   
-  // Si la question en cours n'a pas encore de réponses, on affiche les stats de la dernière question terminée
+  // Si la question en cours n'a pas encore de rÃ©ponses, on affiche les stats de la derniÃ¨re question terminÃ©e
   if (currentQuestion && currentQuestion.responses.length === 0) {
     const lastCompleted = [...event.questions]
       .reverse()
@@ -553,7 +562,7 @@ export async function finishEvent(client: Client, eventId: string) {
     },
   });
 
-  if (!event || !event.messageId || !event.channelId) throw new Error('Événement introuvable');
+  if (!event || !event.messageId || !event.channelId) throw new Error('Ã‰vÃ©nement introuvable');
 
   const channel = (await client.channels.fetch(event.channelId).catch(() => null)) as TextChannel | null;
   if (!channel) throw new Error('Salon Discord introuvable');
@@ -562,14 +571,14 @@ export async function finishEvent(client: Client, eventId: string) {
 
   const leaderboard = event.participants
     .slice(0, 10)
-    .map((p: any, i: number) => `${i + 1}. **${p.userTag || p.userId}** — ${p.score} pts`)
+    .map((p: any, i: number) => `${i + 1}. **${p.userTag || p.userId}** â€” ${p.score} pts`)
     .join('\n') || 'Aucun participant.';
 
-  let description = `Bravo à tous les participants !\n\n**Classement Final :**\n${leaderboard}`;
+  let description = `Bravo Ã  tous les participants !\n\n**Classement Final :**\n${leaderboard}`;
 
   if (event.type === 'CTF') {
     const embed = new EmbedBuilder()
-      .setTitle(`🏁 Capture The Flag terminé : ${event.title}`)
+      .setTitle(`ðŸ�� Capture The Flag terminÃ© : ${event.title}`)
       .setDescription(description)
       .setColor(COLORS.success)
       .setTimestamp();
@@ -595,11 +604,11 @@ export async function finishEvent(client: Client, eventId: string) {
 
   if (lastQuestion) {
     const lastAnswer = (lastQuestion.options as string[])[lastQuestion.correctOptionIndex];
-    description = `✅ La bonne réponse à la dernière question était : **${lastAnswer}**\n\n` + description;
+    description = `âœ… La bonne rÃ©ponse Ã  la derniÃ¨re question Ã©tait : **${lastAnswer}**\n\n` + description;
   }
 
   const embed = new EmbedBuilder()
-    .setTitle(`🏁 Événement terminé : ${event.title}`)
+    .setTitle(`ðŸ�� Ã‰vÃ©nement terminÃ© : ${event.title}`)
     .setDescription(description)
     .setColor(COLORS.success)
     .setTimestamp();
@@ -607,12 +616,12 @@ export async function finishEvent(client: Client, eventId: string) {
   if (message) {
     const statsButton = new ButtonBuilder()
       .setCustomId(`event-stats:${eventId}`)
-      .setLabel('📊 Stats/Analytics')
+      .setLabel('ðŸ“Š Stats/Analytics')
       .setStyle(ButtonStyle.Secondary);
 
     const detailsButton = new ButtonBuilder()
       .setCustomId(`event-result-page:${eventId}:0`)
-      .setLabel('🔍 Détails')
+      .setLabel('ðŸ”� DÃ©tails')
       .setStyle(ButtonStyle.Primary);
 
     const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://localhost:5173';
@@ -628,12 +637,12 @@ export async function finishEvent(client: Client, eventId: string) {
   } else {
     const statsButton = new ButtonBuilder()
       .setCustomId(`event-stats:${eventId}`)
-      .setLabel('📊 Stats/Analytics')
+      .setLabel('ðŸ“Š Stats/Analytics')
       .setStyle(ButtonStyle.Secondary);
 
     const detailsButton = new ButtonBuilder()
       .setCustomId(`event-result-page:${eventId}:0`)
-      .setLabel('🔍 Détails')
+      .setLabel('ðŸ”� DÃ©tails')
       .setStyle(ButtonStyle.Primary);
 
     const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://localhost:5173';
@@ -668,17 +677,17 @@ export async function buildEventResultsView(interaction: any, eventId: string, p
     });
 
     if (participations.length === 0) {
-      return { content: "❌ Tu n'as participé à aucun quiz pour le moment.", embeds: [], components: [] };
+      return { content: "â�Œ Tu n'as participÃ© Ã  aucun quiz pour le moment.", embeds: [], components: [] };
     }
 
     const embed = new EmbedBuilder()
-      .setTitle('📈 Tes Résultats Quiz')
-      .setDescription('Sélectionne un événement pour voir le détail de tes réponses.')
+      .setTitle('ðŸ“ˆ Tes RÃ©sultats Quiz')
+      .setDescription('SÃ©lectionne un Ã©vÃ©nement pour voir le dÃ©tail de tes rÃ©ponses.')
       .setColor(COLORS.info);
 
     const select = new StringSelectMenuBuilder()
       .setCustomId('event-result-select')
-      .setPlaceholder('Choisir un événement...')
+      .setPlaceholder('Choisir un Ã©vÃ©nement...')
       .addOptions(
         participations.slice(0, 25).map(p => ({
           label: truncate(p.event.title, 100),
@@ -706,7 +715,7 @@ export async function buildEventResultsView(interaction: any, eventId: string, p
     }
   });
 
-  if (!event) return { content: '❌ Événement introuvable.', embeds: [], components: [] };
+  if (!event) return { content: 'â�Œ Ã‰vÃ©nement introuvable.', embeds: [], components: [] };
 
   const pageSize = 10;
   const totalPages = Math.ceil(event.questions.length / pageSize) || 1;
@@ -715,32 +724,32 @@ export async function buildEventResultsView(interaction: any, eventId: string, p
   const visibleQuestions = event.questions.slice(start, end);
 
   const embed = new EmbedBuilder()
-    .setTitle(`📈 Résultats : ${event.title}`)
-    .setDescription(`Voici le détail de tes réponses (Page ${page + 1}/${totalPages}).`)
+    .setTitle(`ðŸ“ˆ RÃ©sultats : ${event.title}`)
+    .setDescription(`Voici le dÃ©tail de tes rÃ©ponses (Page ${page + 1}/${totalPages}).`)
     .setColor(COLORS.info)
     .setTimestamp();
 
   visibleQuestions.forEach((q, i) => {
-    // Chercher la réponse correspondant à l'utilisateur parmi les réponses disponibles.
-    // On ne se fie pas uniquement à la relation WHERE côté Prisma car il arrive
-    // que les données aient été enregistrées avec une relation incorrecte (bug question 39, etc.).
+    // Chercher la rÃ©ponse correspondant Ã  l'utilisateur parmi les rÃ©ponses disponibles.
+    // On ne se fie pas uniquement Ã  la relation WHERE cÃ´tÃ© Prisma car il arrive
+    // que les donnÃ©es aient Ã©tÃ© enregistrÃ©es avec une relation incorrecte (bug question 39, etc.).
     const userResponse = Array.isArray(q.responses)
       ? q.responses.find((r: any) => r.participant && r.participant.userId === userId)
       : undefined;
     const options = q.options as string[];
     const correctLabel = options[q.correctOptionIndex];
     
-    let userLabel = '*Pas de réponse*';
-    let icon = '⚪';
+    let userLabel = '*Pas de rÃ©ponse*';
+    let icon = 'âšª';
 
     if (userResponse) {
       userLabel = options[userResponse.optionIndex];
-      icon = userResponse.isCorrect ? '✅' : '❌';
+      icon = userResponse.isCorrect ? 'âœ…' : 'â�Œ';
     }
 
     embed.addFields({
       name: `${start + i + 1}. ${truncate(q.text, 200)}`,
-      value: `Ta réponse : ${icon} **${truncate(userLabel, 100)}**\nBonne réponse : **${truncate(correctLabel, 100)}**`
+      value: `Ta rÃ©ponse : ${icon} **${truncate(userLabel, 100)}**\nBonne rÃ©ponse : **${truncate(correctLabel, 100)}**`
     });
   });
 
@@ -749,7 +758,7 @@ export async function buildEventResultsView(interaction: any, eventId: string, p
     row.addComponents(
       new ButtonBuilder()
         .setCustomId(`event-result-page:${eventId}:${page - 1}`)
-        .setLabel('Précédent')
+        .setLabel('PrÃ©cÃ©dent')
         .setStyle(ButtonStyle.Secondary)
     );
   }
@@ -765,7 +774,7 @@ export async function buildEventResultsView(interaction: any, eventId: string, p
   row.addComponents(
     new ButtonBuilder()
       .setCustomId('event-result-back')
-      .setLabel('Retour à la liste')
+      .setLabel('Retour Ã  la liste')
       .setStyle(ButtonStyle.Danger)
   );
 
@@ -804,12 +813,12 @@ export async function handleCtfFlagSubmission(interaction: any, eventId: string,
   });
 
   if (!event || event.status !== 'ONGOING') {
-    return interaction.reply({ content: '❌ Ce CTF n\'est pas actif.', ephemeral: true });
+    return interaction.reply({ content: 'â�Œ Ce CTF n\'est pas actif.', ephemeral: true });
   }
 
   const challenge = (event as any).ctfChallenges.find((c: any) => c.flag.trim().toLowerCase() === flag.trim().toLowerCase());
   if (!challenge) {
-    return interaction.reply({ content: '❌ Flag incorrect. Essayez encore !', ephemeral: true });
+    return interaction.reply({ content: 'â�Œ Flag incorrect. Essayez encore !', ephemeral: true });
   }
 
   await prisma.memberProfile.upsert({
@@ -865,7 +874,7 @@ export async function handleCtfFlagSubmission(interaction: any, eventId: string,
   });
 
   if (existingSolve) {
-    return interaction.reply({ content: '⚠️ Vous avez déjà résolu ce challenge !', ephemeral: true });
+    return interaction.reply({ content: 'âš ï¸� Vous avez dÃ©jÃ  rÃ©solu ce challenge !', ephemeral: true });
   }
 
   const previousSolvesCount = await (prisma as any).eventCtfSolve.count({
@@ -929,6 +938,7 @@ export async function handleCtfFlagSubmission(interaction: any, eventId: string,
     ephemeral: true,
   });
 }
+
 
 export async function buildCtfLeaderboard(interaction: any, eventId: string) {
   const participants = await prisma.eventParticipant.findMany({
@@ -1032,3 +1042,221 @@ export async function checkScheduledEvents(client: Client) {
   }
 }
 
+
+// ============================================================================
+// ÉVÉNEMENTS CUSTOM (Discord Scheduled Event + Annonce)
+// ============================================================================
+
+export async function createCustomEvent(
+  client: Client,
+  guildId: string,
+  data: {
+    title: string;
+    description?: string;
+    announcementChannelId?: string;
+    formId?: string;
+    startTime?: string;
+    endTime?: string;
+    createDiscordEvent?: boolean;
+    location?: string;
+  }
+) {
+  // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.announcementChannelId
+  const event = await prisma.event.create({
+    data: {
+      guildId,
+      title: data.title,
+      description: data.description,
+      type: 'CUSTOM',
+      status: 'DRAFT',
+      announcementChannelId: data.announcementChannelId,
+      formId: data.formId || null,
+      triggerType: data.startTime ? 'SCHEDULED' : null,
+      triggerValue: data.startTime || null,
+      triggerStatus: data.startTime ? 'PENDING' : 'TRIGGERED',
+    },
+  });
+
+  if (data.createDiscordEvent && data.startTime) {
+    try {
+      const discordGuild = await client.guilds.fetch(guildId).catch(() => null);
+      if (discordGuild) {
+        const startTime = new Date(data.startTime);
+        const endTime = data.endTime ? new Date(data.endTime) : new Date(startTime.getTime() + 2 * 60 * 60 * 1000);
+        const scheduledEvent = await discordGuild.scheduledEvents.create({
+          name: data.title,
+          description: data.description,
+          scheduledStartTime: startTime,
+          scheduledEndTime: endTime,
+          privacyLevel: GuildScheduledEventPrivacyLevel.GuildOnly,
+          entityType: GuildScheduledEventEntityType.External,
+          entityMetadata: { location: data.location || 'Discord' },
+        });
+        // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.discordEventId
+        await prisma.event.update({ where: { id: event.id }, data: { discordEventId: scheduledEvent.id } });
+        logger.info('EventService', `GuildScheduledEvent cree: ${scheduledEvent.id} pour l evenement ${event.id}`);
+      }
+    } catch (err) {
+      logger.warn('EventService', `Impossible de creer le GuildScheduledEvent: ${err}`);
+    }
+  }
+
+  return prisma.event.findUnique({ where: { id: event.id } });
+}
+
+export async function publishCustomEventAnnouncement(client: Client, eventId: string) {
+  // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.customForm
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    include: { customForm: true },
+  });
+
+  if (!event) throw new Error('Evenement introuvable');
+  if (event.type !== 'CUSTOM') throw new Error("Cet evenement n'est pas de type CUSTOM");
+
+  const config = (event.config as any) || {};
+  const createDiscordEvent = config.createDiscordEvent !== false;
+  const sendEmbed = config.sendEmbed !== false;
+  const location = config.location || 'Discord';
+  const endTime = config.endTime;
+
+  let discordEventId = event.discordEventId;
+
+  // 1. Create scheduled event on Discord if enabled
+  if (createDiscordEvent && event.triggerValue && !discordEventId) {
+    try {
+      const discordGuild = await client.guilds.fetch(event.guildId).catch(() => null);
+      if (discordGuild) {
+        const startTime = new Date(event.triggerValue);
+        const end = endTime ? new Date(endTime) : new Date(startTime.getTime() + 2 * 60 * 60 * 1000);
+        const scheduledEvent = await discordGuild.scheduledEvents.create({
+          name: event.title,
+          description: event.description || '',
+          scheduledStartTime: startTime,
+          scheduledEndTime: end,
+          privacyLevel: GuildScheduledEventPrivacyLevel.GuildOnly,
+          entityType: GuildScheduledEventEntityType.External,
+          entityMetadata: { location },
+        });
+        discordEventId = scheduledEvent.id;
+        // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.discordEventId
+        await prisma.event.update({ where: { id: event.id }, data: { discordEventId } });
+        logger.info('EventService', `GuildScheduledEvent cree lors de la publication: ${scheduledEvent.id}`);
+      }
+    } catch (err) {
+      logger.warn('EventService', `Impossible de creer le GuildScheduledEvent lors de la publication: ${err}`);
+    }
+  }
+
+  let announcementMessageId = null;
+
+  // 2. Send announcement embed if enabled
+  if (sendEmbed) {
+    // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.announcementChannelId
+    const channelId = event.announcementChannelId;
+    if (!channelId) throw new Error("Aucun salon d'annonce configure pour cet evenement");
+
+    const channel = await client.channels.fetch(channelId).catch(() => null);
+    if (!channel) throw new Error('Salon Discord introuvable');
+
+    const embed = new EmbedBuilder()
+      .setTitle(`📅 ${event.title}`)
+      .setColor(COLORS.info)
+      .setTimestamp();
+
+    if (event.description) embed.setDescription(event.description);
+
+    if (event.triggerValue) {
+      const date = new Date(event.triggerValue);
+      embed.addFields({ name: '🕒 Date', value: `<t:${Math.floor(date.getTime() / 1000)}:F>`, inline: true });
+    }
+
+    // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.formId
+    if (event.formId) {
+      embed.addFields({ name: '📝 Inscription', value: "Cliquez sur S'inscrire pour remplir le formulaire.", inline: false });
+    } else {
+      embed.addFields({ name: '📝 Inscription', value: "Cliquez sur S'inscrire pour vous enregistrer.", inline: false });
+    }
+
+    const registerBtn = new ButtonBuilder()
+      .setCustomId(`event-custom-register:${eventId}`)
+      .setLabel("📝 S'inscrire")
+      .setStyle(ButtonStyle.Primary);
+
+    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(registerBtn);
+
+    if (discordEventId) {
+      try {
+        const discordGuild = (channel as TextChannel).guild;
+        const discordEvent = await discordGuild.scheduledEvents.fetch(discordEventId).catch(() => null);
+        if (discordEvent) {
+          const eventLinkBtn = new ButtonBuilder()
+            .setLabel("📅 Voir l'evenement Discord")
+            .setStyle(ButtonStyle.Link)
+            .setURL(`https://discord.com/events/${discordGuild.id}/${discordEvent.id}`);
+          row.addComponents(eventLinkBtn);
+          embed.addFields({ name: '📅 Evenement Discord', value: `[Cliquez ici](https://discord.com/events/${discordGuild.id}/${discordEvent.id})`, inline: true });
+        }
+      } catch {}
+    }
+
+    const message = await (channel as TextChannel).send({ embeds: [embed], components: [row] });
+    announcementMessageId = message.id;
+  }
+
+  // Update event status
+  await prisma.event.update({
+    where: { id: eventId },
+    data: {
+      status: 'PUBLISHED',
+      // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.announcementMessageId
+      announcementMessageId
+    }
+  });
+
+  logger.info('EventService', `Annonce publiee pour l evenement CUSTOM ${eventId}`);
+  return { event: await prisma.event.findUnique({ where: { id: eventId } }), messageId: announcementMessageId };
+}
+
+export async function handleCustomEventRegisterButton(interaction: ButtonInteraction, eventId: string) {
+  // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.customForm
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    include: { customForm: true },
+  });
+
+  if (!event || event.type !== 'CUSTOM') {
+    return interaction.reply({ content: '❌ Evenement introuvable.', ephemeral: true });
+  }
+  if (event.status === 'COMPLETED' || event.status === 'CANCELLED') {
+    return interaction.reply({ content: '❌ Les inscriptions sont fermees pour cet evenement.', ephemeral: true });
+  }
+
+  // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.formId
+  if (event.formId && (event as any).customForm) {
+    const { buildFormModal } = await import('./customFormService.js');
+    // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.formId
+    const modal = buildFormModal(event.formId, eventId, (event as any).customForm.structure);
+    return interaction.showModal(modal);
+  }
+
+  const { handleDirectRegistration } = await import('./customFormService.js');
+  return handleDirectRegistration(interaction, eventId);
+}
+
+export async function deleteCustomEventDiscordEvent(client: Client, eventId: string) {
+  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.discordEventId
+  if (!event?.discordEventId || !event.guildId) return;
+  try {
+    const discordGuild = await client.guilds.fetch(event.guildId).catch(() => null);
+    if (!discordGuild) return;
+    // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.discordEventId
+    const scheduledEvent = await discordGuild.scheduledEvents.fetch(event.discordEventId).catch(() => null);
+    if (scheduledEvent) await scheduledEvent.delete();
+    // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.discordEventId
+    logger.info('EventService', `GuildScheduledEvent ${event.discordEventId} supprime`);
+  } catch (err) {
+    logger.warn('EventService', `Impossible de supprimer le GuildScheduledEvent: ${err}`);
+  }
+}

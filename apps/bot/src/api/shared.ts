@@ -39,6 +39,7 @@ export {
   runGuildBan,
   formatDurationFr,
 } from '../services/moderation/sanctionService.js';
+import { getOrCreateDefaultTables } from '../services/moderation/sanctionTableService.js';
 import {
   COMMAND_CATALOG,
   normalizeCommandRestrictions,
@@ -712,6 +713,17 @@ export type DashboardState = {
   auditTrail: AuditEntry[];
   sanctions: SanctionItem[];
   sanctionReports: SanctionReportItem[];
+  sanctionTables: {
+    id: string;
+    name: string;
+    tiers: {
+      id: string;
+      level: number;
+      action: string;
+      durationSeconds: number | null;
+      customReason: string | null;
+    }[];
+  }[];
   sanctionReportEnabled: boolean;
   regulationRules: RegulationRuleItem[];
   messageTemplate: string;
@@ -2403,6 +2415,11 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     last7Days.push(dateKey);
   }
 
+  // Enforce default tables first
+  await getOrCreateDefaultTables(guildId).catch((err) => {
+    logger.error('DashboardAPI', `Failed to seed default sanction tables for guild ${guildId}:`, err);
+  });
+
   const [
     dailyAlgoSubmissionCount,
     runtime,
@@ -2412,6 +2429,7 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     sanctionReports,
     regulationRules,
     dailyStatsTrend,
+    sanctionTables,
   ] = await Promise.all([
     prisma.dailyAlgoSubmission.count({ where: { run: { guildId } } }),
     getOrCreateRuntime(guildId),
@@ -2443,6 +2461,14 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
       where: {
         guildId,
         dateKey: { in: last7Days }
+      }
+    }),
+    prisma.sanctionTable.findMany({
+      where: { guildId },
+      include: {
+        tiers: {
+          orderBy: { level: 'asc' }
+        }
       }
     }),
   ]);
@@ -2889,6 +2915,17 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     auditTrail: auditTrailFromDb,
     sanctions: mappedSanctions,
     sanctionReports: mappedSanctionReports,
+    sanctionTables: (sanctionTables || []).map((table) => ({
+      id: table.id,
+      name: table.name,
+      tiers: (table.tiers || []).map((tier) => ({
+        id: tier.id,
+        level: tier.level,
+        action: tier.action,
+        durationSeconds: tier.durationSeconds,
+        customReason: tier.customReason,
+      })),
+    })),
     regulationRules: mappedRegulationRules,
     messageTemplate: runtime.messageTemplate,
     analytics: {

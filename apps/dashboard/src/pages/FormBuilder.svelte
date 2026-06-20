@@ -83,6 +83,7 @@
   ];
 
   // ── Derived ────────────────────────────────────────────────────────────────
+  const isCustomFormMode = $derived(window.location.pathname.startsWith('/forms'));
   const activeField = $derived(fields.find(f => f.id === activeFieldId) ?? null);
   const sectionFields = $derived((sIdx: number) => fields.filter(f => f.sectionIndex === sIdx));
   const publicUrl = $derived(formId ? `${window.location.origin}/form/${formId}` : null);
@@ -91,7 +92,10 @@
   onMount(async () => {
     if (formId && formId !== 'new') {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms/${formId}`, {
+        const endpoint = isCustomFormMode
+          ? `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms/${formId}`
+          : `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms/${formId}`;
+        const res = await fetch(endpoint, {
           headers: { Authorization: `Bearer ${authStore.token}` },
         });
         if (res.ok) {
@@ -243,7 +247,10 @@
     try {
       if (formId && formId !== 'new') {
         // Update existing
-        await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms/${formId}`, {
+        const endpoint = isCustomFormMode
+          ? `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms/${formId}`
+          : `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms/${formId}`;
+        await fetch(endpoint, {
           method: 'PATCH',
           headers: { Authorization: `Bearer ${authStore.token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: formName, description: formDescription, structure }),
@@ -251,14 +258,20 @@
         if (!silent) toast.success('Formulaire enregistré !');
       } else {
         // Create new → navigate to edit URL
-        const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms`, {
+        const endpoint = isCustomFormMode
+          ? `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms`
+          : `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/recruitment/forms`;
+        const res = await fetch(endpoint, {
           method: 'POST',
           headers: { Authorization: `Bearer ${authStore.token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: formName, description: formDescription, structure, template: 'custom' }),
         });
         if (res.ok) {
           const data = await res.json();
-          router.goto(`/recruitment-forms/builder/${data.form.id}`);
+          const targetUrl = isCustomFormMode
+            ? `/forms/builder/${data.form.id}`
+            : `/recruitment-forms/builder/${data.form.id}`;
+          router.goto(targetUrl);
           toast.success('Formulaire créé !');
         }
       }
@@ -416,7 +429,7 @@
 
     <!-- Top bar -->
     <div class="sticky top-0 z-50 bg-surface/95 backdrop-blur border-b border-outline-variant/20 px-4 py-2 flex items-center gap-3">
-      <button onclick={() => router.goto('/recruitment-forms')}
+      <button onclick={() => router.goto(isCustomFormMode ? '/forms' : '/recruitment-forms')}
         class="p-2 rounded-xl hover:bg-surface-container transition-colors">
         <Papicon icon="arrow_back" size={20} />
       </button>

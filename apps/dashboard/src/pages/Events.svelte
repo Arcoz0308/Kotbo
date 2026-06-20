@@ -37,6 +37,17 @@
       tag: 'Hacking & Sécurité',
       tagColor: 'bg-emerald-500/15 text-emerald-400',
     },
+    {
+      type: 'CUSTOM',
+      label: 'Événement Personnalisé',
+      icon: 'Calendar',
+      description: 'Création d\'un événement sur Discord, envoi d\'une annonce premium et possibilité d\'inscription via formulaire autonome.',
+      color: 'from-purple-500/20 to-pink-500/20',
+      border: 'border-purple-500/30 hover:border-purple-400/60',
+      iconBg: 'bg-purple-500/10 text-purple-400',
+      tag: 'Inscription & Annonce',
+      tagColor: 'bg-purple-500/15 text-purple-400',
+    },
   ] as const;
 
   const canManageEvents = $derived(
@@ -88,7 +99,7 @@
     }
   }
 
-  async function createEventWithType(type: 'QUIZ' | 'CTF') {
+  async function createEventWithType(type: 'QUIZ' | 'CTF' | 'CUSTOM') {
     const guildId = authStore.selectedGuildId;
     if (!guildId) return;
     isCreating = true;
@@ -100,7 +111,7 @@
           'Authorization': `Bearer ${authStore.token}`
         },
         body: JSON.stringify({
-          title: `Nouveau ${type === 'CTF' ? 'CTF' : 'Quiz'}`,
+          title: `Nouveau ${type === 'CTF' ? 'CTF' : type === 'CUSTOM' ? 'Événement' : 'Quiz'}`,
           type,
           description: 'Description de l\'événement...'
         })
@@ -273,8 +284,8 @@
           <div class="bg-surface-container-low/30 rounded-[2.5rem] border border-outline-variant/10 p-8 flex flex-col md:flex-row justify-between items-center gap-6 group hover:bg-surface-container-low/50 transition-colors">
             <div class="flex items-center gap-6">
               <div class="w-16 h-16 rounded-[1.5rem] flex items-center justify-center group-hover:scale-110 transition-transform
-                {event.type === 'CTF' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'}">
-                <Papicon icon={event.type === 'CTF' ? 'Flag' : 'HelpCircle'} size={24} />
+                {event.type === 'CTF' ? 'bg-emerald-500/10 text-emerald-400' : event.type === 'CUSTOM' ? 'bg-purple-500/10 text-purple-400' : 'bg-blue-500/10 text-blue-400'}">
+                <Papicon icon={event.type === 'CTF' ? 'Flag' : event.type === 'CUSTOM' ? 'Calendar' : 'HelpCircle'} size={24} />
               </div>
               <div>
                 <div class="flex items-center gap-3">
@@ -283,19 +294,21 @@
                     {getStatusLabel(event.status)}
                   </span>
                   <span class="px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest
-                    {event.type === 'CTF' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-blue-500/15 text-blue-400'}">
-                    {event.type === 'CTF' ? 'CTF' : 'Quiz'}
+                    {event.type === 'CTF' ? 'bg-emerald-500/15 text-emerald-400' : event.type === 'CUSTOM' ? 'bg-purple-500/15 text-purple-400' : 'bg-blue-500/15 text-blue-400'}">
+                    {event.type === 'CTF' ? 'CTF' : event.type === 'CUSTOM' ? 'Custom' : 'Quiz'}
                   </span>
                 </div>
                 <p class="text-on-surface-variant/60 mt-1 line-clamp-1">{event.description || 'Aucune description.'}</p>
                 <div class="flex items-center gap-4 mt-3">
-                  <span class="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1.5">
-                    {#if event.type === 'CTF'}
+                  {#if event.type === 'CTF'}
+                    <span class="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1.5">
                       <Papicon icon="Flag" size={12} /> {event._count?.ctfChallenges || 0} défis
-                    {:else}
+                    </span>
+                  {:else if event.type === 'QUIZ'}
+                    <span class="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1.5">
                       <Papicon icon="HelpCircle" size={12} /> {event._count?.questions || 0} questions
-                    {/if}
-                  </span>
+                    </span>
+                  {/if}
                   <span class="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1.5">
                     <Papicon icon="Users" size={12} /> {event._count?.participants || 0} participants
                   </span>
@@ -304,7 +317,7 @@
             </div>
 
             <div class="flex items-center gap-3">
-              {#if event.status === 'ONGOING' || event.status === 'PUBLISHED'}
+              {#if (event.status === 'ONGOING' || event.status === 'PUBLISHED') && event.type !== 'CUSTOM'}
                 <button 
                   onclick={() => router.goto(`/events/control/${event.id}`)}
                   class="px-6 py-3 bg-emerald-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2"
@@ -312,7 +325,7 @@
                   <Papicon icon="Play" size={12} /> Piloter
                 </button>
               {/if}
-              {#if event.status === 'COMPLETED'}
+              {#if event.status === 'COMPLETED' && event.type !== 'CUSTOM'}
                 <button 
                   onclick={() => router.goto(`/events/control/${event.id}`)}
                   class="px-6 py-3 bg-primary/10 text-primary rounded-2xl text-[10px] font-black uppercase tracking-widest border border-primary/20 hover:bg-primary/20 transition-colors flex items-center gap-2"

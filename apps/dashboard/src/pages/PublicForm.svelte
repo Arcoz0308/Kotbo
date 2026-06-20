@@ -29,6 +29,7 @@
   let submitted = $state(false);
   let submitting = $state(false);
   let submitError = $state('');
+  let isCustomForm = $state(false);
 
   // Current section index
   let currentSection = $state(0);
@@ -50,11 +51,18 @@
   // ── Load form ──────────────────────────────────────────────────────────────
   onMount(async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/public/forms/${formId}`);
-      if (!res.ok) { notFound = true; return; }
+      let res = await fetch(`${API_BASE_URL}/api/public/forms/${formId}`);
+      if (!res.ok) {
+        res = await fetch(`${API_BASE_URL}/api/public/custom-forms/${formId}`);
+        if (!res.ok) { notFound = true; return; }
+        isCustomForm = true;
+      }
       form = await res.json() as FormData;
-    } catch { notFound = true; }
-    finally { loading = false; }
+    } catch {
+      notFound = true;
+    } finally {
+      loading = false;
+    }
   });
 
   // ── Validation ─────────────────────────────────────────────────────────────
@@ -127,7 +135,11 @@
       const email = (answers['email'] as string) || undefined;
       const username = (answers['discord_username'] as string) || undefined;
 
-      const res = await fetch(`${API_BASE_URL}/api/public/forms/${formId}/submit`, {
+      const endpoint = isCustomForm
+        ? `${API_BASE_URL}/api/public/custom-forms/${formId}/submit`
+        : `${API_BASE_URL}/api/public/forms/${formId}/submit`;
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ data: answers, discordId, email, username }),

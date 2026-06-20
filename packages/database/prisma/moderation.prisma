@@ -120,6 +120,9 @@ model Sanction {
   lastReportReminderAt DateTime?
   managerReportEscalatedAt DateTime?
 
+  sanctionTableId String?
+  sanctionTable   SanctionTable? @relation(fields: [sanctionTableId], references: [id], onDelete: SetNull)
+
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
   reports SanctionReport[]
 
@@ -129,7 +132,41 @@ model Sanction {
   @@index([guildId, createdAt])
   @@index([guildId, status, type])
   @@index([status, nextActionAt])
+  @@index([sanctionTableId])
   @@map("sanctions")
+}
+
+model SanctionTable {
+  id        String   @id @default(cuid())
+  guildId   String
+  name      String   // Unique per guild, e.g. "Spam", "Insultes"
+  
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  tiers     SanctionTier[]
+  sanctions Sanction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, name])
+  @@map("sanction_tables")
+}
+
+model SanctionTier {
+  id              String       @id @default(cuid())
+  tableId         String
+  level           Int          // 1, 2, 3...
+  action          SanctionType
+  durationSeconds Int?
+  customReason    String?
+  
+  table           SanctionTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tableId, level])
+  @@map("sanction_tiers")
 }
 
 model SanctionReport {

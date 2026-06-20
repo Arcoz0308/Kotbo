@@ -83,9 +83,14 @@ function parseBrokenRulesPayload(rawBrokenRules: string): Array<Record<string, u
   }
 }
 
-export function buildBrokenRulesPayload(ruleIds: string[], options: ReportRuleOption[]): string {
+export function buildBrokenRulesPayload(ruleIds: string[], options: ReportRuleOption[], existingRules?: ReportRuleOption[]): string {
   const selectedRules = [...new Set(ruleIds)]
-    .map((ruleId) => options.find((entry) => entry.id === ruleId))
+    .map((ruleId) => {
+      const optionMatch = options.find((entry) => entry.id === ruleId);
+      if (optionMatch) return optionMatch;
+      const existingMatch = existingRules?.find((entry) => entry.id === ruleId);
+      return existingMatch || null;
+    })
     .filter((entry): entry is ReportRuleOption => Boolean(entry));
 
   return JSON.stringify(selectedRules.map((rule) => ({

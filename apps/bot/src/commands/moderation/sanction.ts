@@ -15,8 +15,10 @@ import {
   type ChatInputCommandInteraction,
   type UserContextMenuCommandInteraction,
   type User,
+  type AutocompleteInteraction,
 } from 'discord.js';
 import { SanctionStatus, SanctionType } from '@prisma/client';
+import prisma from '../../utils/db.js';
 import { errorEmbed, infoEmbed, successEmbed } from '../../utils/embeds.js';
 import {
   countWarns,
@@ -31,6 +33,7 @@ import {
   registerSoftbanSanction,
   runGuildBan,
 } from '../../services/moderation/sanctionService.js';
+import { applyProgressiveSanction, getOrCreateDefaultTables } from '../../services/moderation/sanctionTableService.js';
 import * as altAccountService from '../../services/moderation/altAccountService.js';
 import { buildMemberCaseActionRow } from '../../services/moderation/memberCaseService.js';
 import { extractTrackingInfo, resolveModuleFromCommand, wrapModuleTracking } from '../../utils/moduleTracking.js';
@@ -93,6 +96,32 @@ const data = new SlashCommandBuilder()
       .setName('list')
       .setDescription('Affiche la liste des sanctions d\'un membre')
       .addUserOption((option) => option.setName('membre').setDescription('Membre à afficher').setRequired(true)),
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('tableau')
+      .setDescription('Applique une sanction progressive via un tableau de sanction')
+      .addUserOption((option) => option.setName('membre').setDescription('Membre à sanctionner').setRequired(true))
+      .addStringOption((option) =>
+        option
+          .setName('nom')
+          .setDescription('Nom du tableau de sanction')
+          .setRequired(true)
+          .setAutocomplete(true)
+      )
+      .addStringOption((option) =>
+        option
+          .setName('raison')
+          .setDescription('Raison de la sanction')
+          .setRequired(true)
+      )
+      .addIntegerOption((option) =>
+        option
+          .setName('bypass')
+          .setDescription('Forcer un palier spécifique (ex: 3 pour T3) (optionnel)')
+          .setRequired(false)
+          .setMinValue(1)
+      ),
   );
 
 const contextData = new ContextMenuCommandBuilder()
@@ -613,6 +642,61 @@ async function executeInternal(interaction: ChatInputCommandInteraction | UserCo
       return;
     }
 
+    if (subcommand === 'tableau') {
+      const reason = interaction.options.getString('raison', true).trim();
+      const tableName = interaction.options.getString('nom', true).trim();
+      const bypassLevel = interaction.options.getInteger('bypass');
+
+      if (targetUser.bot) {
+        await replyError(interaction, 'Action refusée', 'Impossible de sanctionner un bot.');
+        return;
+      }
+
+      await interaction.deferReply();
+
+      try {
+        const result = await applyProgressiveSanction({
+          guildId: interaction.guildId!,
+          target,
+          moderator,
+          tableName,
+          bypassLevel,
+          reason,
+          guild: interaction.guild!,
+          member: targetMember,
+          client: interaction.client,
+        });
+
+        const actionLabel = sanctionTypeLabel(result.action);
+        const actionEmoji = sanctionTypeEmoji(result.action);
+        const bypassText = bypassLevel ? ` (Tier T${bypassLevel} forcé via bypass)` : '';
+
+        const embed = successEmbed(
+          'Sanction progressive appliquée',
+          `${targetUser} a reçu une sanction progressive via le tableau **${result.table.name}**.`
+        ).addFields(
+          { name: 'Sanction appliquée', value: `${actionEmoji} ${actionLabel}${bypassText}`, inline: true },
+          { name: 'Palier atteint', value: `T${result.level}`, inline: true },
+          { name: 'Raison', value: result.sanction.reason, inline: false },
+          { name: 'ID sanction', value: result.sanction.id, inline: false }
+        );
+
+        await interaction.editReply({
+          embeds: [embed],
+          components: [buildMemberCaseActionRow(targetUser.id)],
+        });
+
+        await notifyModeratorDashboardReportReminder(interaction, {
+          sanctionId: result.sanction.id,
+          targetLabel: targetUser.tag,
+        });
+      } catch (err: any) {
+        const embed = errorEmbed('Erreur de sanction progressive', err.message || 'Impossible d\'appliquer la sanction progressive.');
+        await interaction.editReply({ embeds: [embed] });
+      }
+      return;
+    }
+
     await interaction.reply({
       embeds: [infoEmbed('Sous-commande inconnue', 'Cette sous-commande n\'est pas encore supportée.')],
       flags: [MessageFlags.Ephemeral],
@@ -625,5 +709,31 @@ async function executeInternal(interaction: ChatInputCommandInteraction | UserCo
   }
 }
 
-export const sanctionCommand = { data, execute } satisfies SlashCommandDefinition;
+async function autocomplete(interaction: AutocompleteInteraction) {
+  const focusedValue = interaction.options.getFocused().toLowerCase();
+  const guildId = interaction.guildId!;
+
+  try {
+    await getOrCreateDefaultTables(guildId);
+
+    const tables = await prisma.sanctionTable.findMany({
+      where: {
+        guildId,
+        name: { contains: focusedValue, mode: 'insensitive' },
+      },
+      take: 25,
+    });
+
+    await interaction.respond(
+      tables.map((table) => ({
+        name: table.name,
+        value: table.name,
+      }))
+    );
+  } catch {
+    await interaction.respond([]);
+  }
+}
+
+export const sanctionCommand = { data, execute, autocomplete } satisfies SlashCommandDefinition;
 export const sanctionContextCommand = { data: contextData, execute } satisfies ContextCommandDefinition;

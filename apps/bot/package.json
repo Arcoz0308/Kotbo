@@ -1,6 +1,6 @@
 {
   "name": "@kotbo/bot",
-  "version": "7.23",
+  "version": "7.24",
   "private": true,
   "scripts": {
     "migrate:deploy": "cd ../.. && bun run db:migrate:deploy",
@@ -24,7 +24,7 @@
     "@napi-rs/canvas": "^0.1.100",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
-    "@prisma/client-runtime-utils": "7.6.0",
+    "@prisma/client-runtime-utils": "^7.8.0",
     "@sentry/bun": "^10.53.1",
     "@types/jsonwebtoken": "^9.0.10",
     "bullmq": "^5.76.11",

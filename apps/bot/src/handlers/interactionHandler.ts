@@ -561,6 +561,15 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     return;
   }
 
+  if (customId.startsWith('event-custom-register:')) {
+    const eventId = customId.split(':')[1];
+    if (eventId) {
+      const { handleCustomEventRegisterButton } = await import('../services/features/eventService.js');
+      await handleCustomEventRegisterButton(interaction, eventId);
+    }
+    return;
+  }
+
   if (customId.startsWith('event-ctf-submit-flag-btn:')) {
     const eventId = customId.split(':')[1];
     if (!eventId) return;
@@ -963,6 +972,17 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
   }
 
   if (!guildId) return;
+
+  if (customId.startsWith('custom-form-modal:')) {
+    const parts = customId.split(':');
+    const formId = parts[1];
+    const eventId = parts[2];
+    if (formId) {
+      const { handleFormModalSubmit } = await import('../services/features/customFormService.js');
+      await handleFormModalSubmit(interaction, formId, eventId || 'none');
+    }
+    return;
+  }
 
   // ── Suggestion form modal ─────────────────────────────────────────────
   if (customId === 'suggest_form_modal') {

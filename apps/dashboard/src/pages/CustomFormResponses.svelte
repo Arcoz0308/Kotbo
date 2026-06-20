@@ -1,0 +1,251 @@
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import { router } from 'tinro';
+  import { authStore } from '../lib/stores/auth.svelte';
+  import { API_BASE_URL } from '../lib/api';
+  import Papicon from '../lib/components/Papicon.svelte';
+  import ModulePage from '../lib/components/ModulePage.svelte';
+  import { toast } from '../lib/stores/toast.svelte';
+
+  let { formId }: { formId: string } = $props();
+
+  interface Submission {
+    id: string;
+    userId: string | null;
+    username: string | null;
+    userTag: string | null;
+    data: Record<string, unknown>;
+    createdAt: string;
+  }
+
+  interface FormInfo { id: string; name: string; _count?: { submissions?: number } };
+
+  let form = $state<FormInfo | null>(null);
+  let responses = $state<Submission[]>([]);
+  let loading = $state(true);
+  let error = $state('');
+  let selectedResponse = $state<Submission | null>(null);
+  let searchQuery = $state('');
+
+  const filtered = $derived(responses.filter(r => {
+    const q = searchQuery.toLowerCase();
+    const matchesSearch = !q ||
+      r.userId?.includes(q) ||
+      r.username?.toLowerCase().includes(q) ||
+      r.userTag?.toLowerCase().includes(q) ||
+      r.id.toLowerCase().includes(q);
+    return matchesSearch;
+  }));
+
+  onMount(async () => {
+    if (!authStore.selectedGuildId) return;
+    try {
+      // Load form info
+      const fRes = await fetch(
+        `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms/${formId}`,
+        { headers: { Authorization: `Bearer ${authStore.token}` } }
+      );
+      if (fRes.ok) {
+        const data = await fRes.json();
+        form = data.form;
+      }
+
+      // Load submissions
+      const rRes = await fetch(
+        `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/custom-forms/${formId}/submissions`,
+        { headers: { Authorization: `Bearer ${authStore.token}` } }
+      );
+      if (!rRes.ok) throw new Error('Impossible de charger les réponses');
+      const rData = await rRes.json();
+      responses = rData.submissions || [];
+    } catch (e: unknown) {
+      error = e instanceof Error ? e.message : 'Erreur inconnue';
+    } finally {
+      loading = false;
+    }
+  });
+
+  function exportCsv() {
+    if (!responses.length) return;
+    // Collect all field keys
+    const allKeys = new Set<string>();
+    responses.forEach(r => Object.keys(r.data || {}).forEach(k => allKeys.add(k)));
+    const keys = ['id', 'userId', 'username', 'userTag', 'createdAt', ...allKeys];
+
+    const header = keys.join(',');
+    const rows = filtered.map(r =>
+      keys.map(k => {
+        const val = k in r ? (r as any)[k] : (r.data || {})[k];
+        const str = Array.isArray(val) ? val.join('; ') : (val ?? '');
+        return `"${String(str).replace(/"/g, '""')}"`;
+      }).join(',')
+    );
+
+    const csv = [header, ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `responses-${formId}.csv`; a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Export CSV téléchargé !');
+  }
+
+  function formatDate(iso: string) {
+    return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+</script>
+
+<ModulePage
+  title={form ? `Réponses — ${form.name}` : 'Réponses au formulaire'}
+  description="Consultez et exportez toutes les réponses soumises."
+  icon="assignment"
+  featureKey="recruitment"
+>
+  <div class="space-y-5">
+
+    <!-- Top bar -->
+    <div class="flex flex-wrap items-center gap-3">
+      <button onclick={() => router.goto('/forms')}
+        class="flex items-center gap-2 text-sm font-semibold text-on-surface-variant/60 hover:text-primary transition-colors">
+        <Papicon icon="arrow_back" size={16} />
+        Retour aux formulaires
+      </button>
+      <div class="flex-1"></div>
+      {#if form}
+        <span class="text-xs font-semibold text-on-surface-variant/50 bg-surface-container px-3 py-1.5 rounded-full">
+          {responses.length} soumission{responses.length !== 1 ? 's' : ''}
+        </span>
+      {/if}
+      <button onclick={exportCsv}
+        class="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface-container hover:bg-surface-container-high text-sm font-bold transition-colors">
+        <Papicon icon="download" size={16} />
+        Export CSV
+      </button>
+    </div>
+
+    <!-- Filters -->
+    <div class="flex flex-wrap gap-3">
+      <div class="relative flex-1 min-w-48">
+        <Papicon icon="search" size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/40" />
+        <input bind:value={searchQuery} placeholder="Rechercher par ID, utilisateur, tag…"
+          class="w-full bg-surface-container rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none focus:ring-2 ring-primary/20 transition-all" />
+      </div>
+    </div>
+
+    <!-- Table -->
+    {#if loading}
+      <div class="flex items-center justify-center py-20">
+        <div class="w-10 h-10 border-3 border-primary/20 border-t-primary rounded-full animate-spin"></div>
+      </div>
+    {:else if error}
+      <div class="rounded-2xl bg-rose-500/10 border border-rose-500/20 p-5 text-rose-600 text-sm">{error}</div>
+    {:else if filtered.length === 0}
+      <div class="rounded-2xl border-2 border-dashed border-outline-variant/20 p-16 text-center text-on-surface-variant/40">
+        <Papicon icon="inbox" size={48} class="mb-3" />
+        <p class="text-sm font-sans">Aucune réponse trouvée</p>
+      </div>
+    {:else}
+      <div class="rounded-2xl border border-outline-variant/20 overflow-hidden shadow-sm">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-surface-container-low/60 border-b border-outline-variant/10">
+              <th class="text-left px-5 py-3 font-bold text-on-surface-variant/60 text-xs uppercase tracking-wide">ID</th>
+              <th class="text-left px-5 py-3 font-bold text-on-surface-variant/60 text-xs uppercase tracking-wide">Utilisateur Discord</th>
+              <th class="text-left px-5 py-3 font-bold text-on-surface-variant/60 text-xs uppercase tracking-wide">Date de Soumission</th>
+              <th class="text-left px-5 py-3 font-bold text-on-surface-variant/60 text-xs uppercase tracking-wide"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each filtered as r}
+              <tr class="border-b border-outline-variant/5 hover:bg-surface-container-low/40 transition-colors cursor-pointer"
+                onclick={() => selectedResponse = r}>
+                <td class="px-5 py-3 font-mono text-xs text-on-surface-variant/50">{r.id.slice(0,8)}…</td>
+                <td class="px-5 py-3">
+                  {#if r.username}
+                    <span class="font-semibold text-on-surface font-sans">{r.username}</span>
+                    {#if r.userTag}<span class="text-xs text-on-surface-variant/40 ml-1 font-mono">({r.userTag})</span>{/if}
+                  {:else if r.userId}
+                    <span class="font-mono text-xs text-on-surface">{r.userId}</span>
+                  {:else}
+                    <span class="text-on-surface-variant/30 italic font-sans">Anonyme</span>
+                  {/if}
+                </td>
+                <td class="px-5 py-3 text-xs text-on-surface-variant/50 font-sans">{formatDate(r.createdAt)}</td>
+                <td class="px-5 py-3 text-right">
+                  <Papicon icon="chevron_right" size={16} class="text-on-surface-variant/30 inline-block" />
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+
+      <p class="text-xs text-on-surface-variant/40 text-right font-sans">{filtered.length} résultat{filtered.length !== 1 ? 's' : ''}</p>
+    {/if}
+  </div>
+</ModulePage>
+
+<!-- Detail modal -->
+{#if selectedResponse}
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4"
+    role="dialog" aria-modal="true" tabindex="-1" onkeydown={(e) => { if (e.key === 'Escape') selectedResponse = null; }}>
+    <!-- Backdrop -->
+    <button
+      type="button"
+      class="absolute inset-0 bg-black/40 backdrop-blur-sm border-none cursor-default w-full h-full text-left p-0"
+      onclick={() => selectedResponse = null}
+      aria-label="Fermer"
+    ></button>
+
+    <!-- Detail panel -->
+    <div class="relative z-10 bg-surface rounded-3xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto">
+      <div class="sticky top-0 bg-surface border-b border-outline-variant/10 px-6 py-4 flex items-start justify-between rounded-t-3xl">
+        <div>
+          <h2 class="font-black text-on-surface text-lg font-sans">Réponse détaillée</h2>
+          <p class="text-xs font-mono text-on-surface-variant/40 mt-0.5">{selectedResponse.id}</p>
+        </div>
+        <button onclick={() => selectedResponse = null}
+          class="p-2 rounded-xl hover:bg-surface-container transition-colors">
+          <Papicon icon="close" size={18} />
+        </button>
+      </div>
+
+      <div class="p-6 space-y-4">
+        <!-- Metadata -->
+        <div class="grid grid-cols-2 gap-3 text-sm">
+          {#if selectedResponse.userId}
+            <div class="bg-surface-container rounded-xl p-3">
+              <p class="text-xs text-on-surface-variant/50 font-semibold mb-1 font-sans">Discord ID</p>
+              <p class="font-mono text-xs text-on-surface">{selectedResponse.userId}</p>
+            </div>
+          {/if}
+          {#if selectedResponse.username}
+            <div class="bg-surface-container rounded-xl p-3">
+              <p class="text-xs text-on-surface-variant/50 font-semibold mb-1 font-sans">Pseudo / Tag</p>
+              <p class="text-on-surface font-sans">{selectedResponse.username}{selectedResponse.userTag ? ` (${selectedResponse.userTag})` : ''}</p>
+            </div>
+          {/if}
+          <div class="bg-surface-container rounded-xl p-3 col-span-2">
+            <p class="text-xs text-on-surface-variant/50 font-semibold mb-1 font-sans">Date de soumission</p>
+            <p class="text-xs text-on-surface font-sans">{formatDate(selectedResponse.createdAt)}</p>
+          </div>
+        </div>
+
+        <!-- Answers -->
+        <div>
+          <h3 class="text-sm font-black text-on-surface-variant/60 uppercase tracking-wide mb-3 font-sans">Réponses aux questions</h3>
+          <div class="space-y-3">
+            {#each Object.entries(selectedResponse.data || {}) as [key, value]}
+              <div class="bg-surface-container/60 rounded-xl p-3">
+                <p class="text-xs font-bold text-on-surface-variant/50 mb-1 font-sans">{key}</p>
+                <p class="text-sm text-on-surface font-sans">
+                  {Array.isArray(value) ? value.join(', ') : typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value ?? '—')}
+                </p>
+              </div>
+            {/each}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}

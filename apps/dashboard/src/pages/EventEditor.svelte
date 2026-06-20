@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
+  import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { router } from 'tinro';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -8,15 +9,21 @@
   import FormTextarea from '../lib/components/FormTextarea.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import { API_BASE_URL } from '../lib/api';
+  import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
 
   const { eventId } = $props<{ eventId: string }>();
 
   let event = $state<any>(null);
   let isFetching = $state(false);
   let isSaving = $state(false);
+  let customForms = $state<any[]>([]);
+  const availableChannels = $derived(dashboardStore.state.discordChannels || []);
 
   onMount(async () => {
-    await loadEvent();
+    await Promise.all([
+      loadEvent(),
+      dashboardStore.refresh()
+    ]);
   });
 
   async function loadEvent() {
@@ -28,11 +35,35 @@
       });
       const data = await res.json();
       event = data.event;
+      if (event) {
+        if (!event.config || typeof event.config !== 'object') {
+          event.config = {
+            createDiscordEvent: true,
+            sendEmbed: true,
+            location: 'Discord',
+            endTime: ''
+          };
+        }
+        if (event.type === 'CUSTOM') {
+          await loadCustomForms();
+        }
+      }
     } catch (err) {
       toast.error('Erreur chargement événement');
     } finally {
       isFetching = false;
     }
+  }
+
+  async function loadCustomForms() {
+    try {
+      const guildId = authStore.selectedGuildId;
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${guildId}/custom-forms`, {
+        headers: { 'Authorization': `Bearer ${authStore.token}` }
+      });
+      const data = await res.json();
+      customForms = data.forms || [];
+    } catch {}
   }
 
   function addQuestion() {
@@ -214,102 +245,224 @@
 
   {#if event}
     <div class="space-y-10 pb-20">
-      <section class="bg-surface-container-low/30 rounded-[3rem] p-10 border border-outline-variant/10 space-y-8">
-        <div class="flex items-center gap-4 mb-2">
-          <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-            <Papicon icon="Settings" size={20} />
-          </div>
-          <h3 class="text-xl font-black text-on-surface">Configuration Générale</h3>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div class="space-y-2">
-            <label for="event-title" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">Titre de l'événement</label>
-            <FormInput 
-              id="event-title"
-              bind:value={event.title} 
-              placeholder="Quiz Culture G" 
-              className="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/30 transition-all text-on-surface"
-            />
-          </div>
-          <div class="space-y-2">
-            <label for="event-channel-id" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">ID du Salon Discord</label>
-            <FormInput 
-              id="event-channel-id"
-              bind:value={event.channelId} 
-              placeholder="1234567890..." 
-              className="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/30 transition-all text-on-surface"
-            />
-          </div>
-        </div>
-
-        <div class="space-y-2">
-          <label for="event-description" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">Description</label>
-          <FormTextarea 
-            id="event-description"
-            bind:value={event.description} 
-            placeholder="Participez à notre événement !" 
-            className="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/30 transition-all text-on-surface resize-none"
-            rows={4}
-          />
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 pt-4">
-          <div class="space-y-2">
-            <label for="event-trigger-type" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4 font-bold">Déclencheur automatique (Trigger)</label>
-            <select
-              id="event-trigger-type"
-              bind:value={event.triggerType}
-              class="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/50 transition-all text-on-surface"
-            >
-              <option value={null}>Manuel (Pas de déclencheur)</option>
-              <option value="MEMBER_COUNT">Nombre de membres atteint</option>
-              <option value="SCHEDULED">Planifié (Date & Heure)</option>
-            </select>
+      {#if event.type === 'CUSTOM'}
+        <!-- CUSTOM EVENT SPECIFIC CONFIGURATION -->
+        <section class="bg-surface-container-low/30 rounded-[3rem] p-10 border border-outline-variant/10 space-y-8 animate-in fade-in duration-300">
+          <div class="flex items-center gap-4 mb-2">
+            <div class="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center">
+              <Papicon icon="Settings" size={20} />
+            </div>
+            <h3 class="text-xl font-black text-on-surface">Configuration de l'Événement</h3>
           </div>
 
-          {#if event.triggerType === 'MEMBER_COUNT'}
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div class="space-y-2">
-              <label for="event-trigger-value-members" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4 font-bold">Nombre de membres cible</label>
+              <label for="event-title" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">Titre de l'événement</label>
               <FormInput 
-                id="event-trigger-value-members"
-                bind:value={event.triggerValue} 
-                placeholder="Ex: 1000" 
-                className="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/35 transition-all text-on-surface"
+                id="event-title"
+                bind:value={event.title} 
+                placeholder="Titre de l'événement" 
+                className="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/30 transition-all text-on-surface"
               />
             </div>
-          {/if}
-
-          {#if event.triggerType === 'SCHEDULED'}
             <div class="space-y-2">
-              <label for="event-trigger-value-date" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4 font-bold">Date et Heure de lancement (Locale)</label>
-              <FormInput 
-                id="event-trigger-value-date"
+              <label for="announcement-channel" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4 font-bold">Salon d'Annonce</label>
+              <select
+                id="announcement-channel"
+                bind:value={event.announcementChannelId}
+                class="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/50 transition-all text-on-surface"
+              >
+                <option value={null}>Aucun (Pas d'annonce)</option>
+                {#each availableChannels.filter(c => c.type === 0 || c.type === 5) as c}
+                  <option value={c.id}>#{c.name}</option>
+                {/each}
+              </select>
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <label for="event-description" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">Description</label>
+            <FormTextarea 
+              id="event-description"
+              bind:value={event.description} 
+              placeholder="Participez à notre événement !" 
+              className="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/30 transition-all text-on-surface resize-none"
+              rows={4}
+            />
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="space-y-2">
+              <label for="linked-form" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4 font-bold">Formulaire d'Inscription (optionnel)</label>
+              <select
+                id="linked-form"
+                bind:value={event.formId}
+                class="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/50 transition-all text-on-surface"
+              >
+                <option value={null}>Aucun (Inscription directe par bouton)</option>
+                {#each customForms as form}
+                  <option value={form.id}>{form.name}</option>
+                {/each}
+              </select>
+            </div>
+
+            <div class="space-y-2">
+              <label for="start-date" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4 font-bold">Date de début (Locale)</label>
+              <input
+                id="start-date"
                 type="datetime-local"
-                bind:value={event.triggerValue} 
-                className="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/35 transition-all text-on-surface"
+                bind:value={event.triggerValue}
+                class="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/35 transition-all text-on-surface font-sans"
+                onchange={() => { event.triggerType = event.triggerValue ? 'SCHEDULED' : null; }}
               />
             </div>
-          {/if}
+          </div>
 
-          {#if event.triggerType}
-            <div class="space-y-2 flex flex-col justify-end pb-3">
-              <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4 font-bold">Statut du Déclencheur</span>
-              <span class="text-sm font-bold ml-4 text-primary">
-                {#if event.triggerStatus === 'PENDING'}
-                  ⌛ En attente
-                {:else if event.triggerStatus === 'TRIGGERED'}
-                  ✅ Déclenché
-                {:else if event.triggerStatus === 'FAILED'}
-                  ❌ Échoué
-                {:else}
-                  {event.triggerStatus || 'En attente'}
-                {/if}
-              </span>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="space-y-2">
+              <label for="location" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">Lieu (Location)</label>
+              <FormInput
+                id="location"
+                bind:value={event.config.location}
+                placeholder="Ex: Discord, Présentiel..."
+                className="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/30 transition-all text-on-surface"
+              />
             </div>
-          {/if}
-        </div>
-      </section>
+
+            <div class="space-y-2">
+              <label for="end-date" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4 font-bold">Date de fin (Locale, optionnelle)</label>
+              <input
+                id="end-date"
+                type="datetime-local"
+                bind:value={event.config.endTime}
+                class="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/35 transition-all text-on-surface font-sans"
+              />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-8 pt-4">
+            <div class="flex items-center justify-between bg-surface-container-high/20 border border-outline-variant/10 rounded-2xl p-5">
+              <div>
+                <span class="text-sm font-bold text-on-surface font-sans">Créer l'événement sur Discord</span>
+                <p class="text-xs text-on-surface-variant/60 font-sans">Ajoute l'événement aux événements planifiés du serveur.</p>
+              </div>
+              <ToggleSwitch
+                checked={event.config.createDiscordEvent}
+                onToggle={(v: boolean) => event.config.createDiscordEvent = v}
+              />
+            </div>
+
+            <div class="flex items-center justify-between bg-surface-container-high/20 border border-outline-variant/10 rounded-2xl p-5">
+              <div>
+                <span class="text-sm font-bold text-on-surface font-sans">Envoyer un embed d'annonce</span>
+                <p class="text-xs text-on-surface-variant/60 font-sans">Publie un message avec embed d'annonce et bouton d'inscription.</p>
+              </div>
+              <ToggleSwitch
+                checked={event.config.sendEmbed}
+                onToggle={(v: boolean) => event.config.sendEmbed = v}
+              />
+            </div>
+          </div>
+        </section>
+      {:else}
+        <!-- STANDARD EVENT CONFIGURATION (Quiz / CTF) -->
+        <section class="bg-surface-container-low/30 rounded-[3rem] p-10 border border-outline-variant/10 space-y-8">
+          <div class="flex items-center gap-4 mb-2">
+            <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+              <Papicon icon="Settings" size={20} />
+            </div>
+            <h3 class="text-xl font-black text-on-surface">Configuration Générale</h3>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="space-y-2">
+              <label for="event-title" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">Titre de l'événement</label>
+              <FormInput 
+                id="event-title"
+                bind:value={event.title} 
+                placeholder="Quiz Culture G" 
+                className="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/30 transition-all text-on-surface"
+              />
+            </div>
+            <div class="space-y-2">
+              <label for="event-channel-id" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">ID du Salon Discord</label>
+              <FormInput 
+                id="event-channel-id"
+                bind:value={event.channelId} 
+                placeholder="1234567890..." 
+                className="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/30 transition-all text-on-surface"
+              />
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <label for="event-description" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">Description</label>
+            <FormTextarea 
+              id="event-description"
+              bind:value={event.description} 
+              placeholder="Participez à notre événement !" 
+              className="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/30 transition-all text-on-surface resize-none"
+              rows={4}
+            />
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-8 pt-4">
+            <div class="space-y-2">
+              <label for="event-trigger-type" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4 font-bold">Déclencheur automatique (Trigger)</label>
+              <select
+                id="event-trigger-type"
+                bind:value={event.triggerType}
+                class="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/50 transition-all text-on-surface"
+              >
+                <option value={null}>Manuel (Pas de déclencheur)</option>
+                <option value="MEMBER_COUNT">Nombre de membres atteint</option>
+                <option value="SCHEDULED">Planifié (Date & Heure)</option>
+              </select>
+            </div>
+
+            {#if event.triggerType === 'MEMBER_COUNT'}
+              <div class="space-y-2">
+                <label for="event-trigger-value-members" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4 font-bold">Nombre de membres cible</label>
+                <FormInput 
+                  id="event-trigger-value-members"
+                  bind:value={event.triggerValue} 
+                  placeholder="Ex: 1000" 
+                  className="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/35 transition-all text-on-surface"
+                />
+              </div>
+            {/if}
+
+            {#if event.triggerType === 'SCHEDULED'}
+              <div class="space-y-2">
+                <label for="event-trigger-value-date" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4 font-bold">Date et Heure de lancement (Locale)</label>
+                <FormInput 
+                  id="event-trigger-value-date"
+                  type="datetime-local"
+                  bind:value={event.triggerValue} 
+                  className="w-full bg-surface-container-high/50 border border-outline-variant/10 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-primary/35 transition-all text-on-surface font-sans"
+                />
+              </div>
+            {/if}
+
+            {#if event.triggerType}
+              <div class="space-y-2 flex flex-col justify-end pb-3">
+                <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4 font-bold">Statut du Déclencheur</span>
+                <span class="text-sm font-bold ml-4 text-primary">
+                  {#if event.triggerStatus === 'PENDING'}
+                    ⌛ En attente
+                  {:else if event.triggerStatus === 'TRIGGERED'}
+                    ✅ Déclenché
+                  {:else if event.triggerStatus === 'FAILED'}
+                    ❌ Échoué
+                  {:else}
+                    {event.triggerStatus || 'En attente'}
+                  {/if}
+                </span>
+              </div>
+            {/if}
+          </div>
+        </section>
+      {/if}
 
       {#if event.type === 'CTF'}
         <section class="space-y-8">
@@ -420,7 +573,7 @@
             {/each}
           </div>
         </section>
-      {:else}
+      {:else if event.type === 'QUIZ'}
         <section class="space-y-8">
           <div class="flex items-center justify-between px-2">
             <h3 class="text-xl font-black text-on-surface font-bold">Questions du Quiz ({event.questions?.length || 0})</h3>

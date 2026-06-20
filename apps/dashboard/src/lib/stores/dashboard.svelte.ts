@@ -60,6 +60,7 @@ class DashboardStore {
     auditTrail: [] as any[],
     sanctions: [] as any[],
     sanctionReports: [] as any[],
+    sanctionTables: [] as any[],
     statusCheckChannelId: '',
     regulationRules: [] as any[],
     messageTemplate: '',
@@ -171,6 +172,7 @@ class DashboardStore {
         this.state.auditTrail = this.mergeAuditTrail(this.state.auditTrail, data.auditTrail);
         this.state.sanctions = data.sanctions || [];
         this.state.sanctionReports = data.sanctionReports || [];
+        this.state.sanctionTables = data.sanctionTables || [];
         this.state.regulationRules = data.regulationRules || [];
         this.state.messageTemplate = data.messageTemplate;
         this.state.analytics = data.analytics;

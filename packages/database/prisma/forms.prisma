@@ -1,0 +1,47 @@
+// ============================================================================
+// FORMULAIRES AUTONOMES
+// ============================================================================
+
+model CustomForm {
+  id          String   @id @default(cuid())
+  guildId     String
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  isRecruitment Boolean @default(false)
+
+  // Structure du formulaire (même format que RecruitmentForm)
+  structure   Json
+
+  // Relation optionnelle vers un Event (événement d'inscription)
+  events      Event[]
+  candidatures RecruitmentCandidature[]
+
+  guild       Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  submissions CustomFormSubmission[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([guildId])
+  @@map("custom_forms")
+}
+
+model CustomFormSubmission {
+  id        String     @id @default(cuid())
+  formId    String
+  guildId   String
+  userId    String?    // Discord user ID (si soumis via bouton Discord)
+  username  String?
+  userTag   String?
+  data      Json       // Réponses au formulaire
+
+  form      CustomForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+  guild     Guild      @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime   @default(now())
+
+  @@index([formId])
+  @@index([guildId, userId])
+  @@map("custom_form_submissions")
+}

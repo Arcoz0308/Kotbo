@@ -18,6 +18,7 @@ import {
   prevQuestion,
   finishEvent,
   deleteEvent,
+  createCustomEvent,
 } from '../../../services/features/eventService.js';
 
 export async function handleEventsRoutes(
@@ -52,7 +53,12 @@ export async function handleEventsRoutes(
   if (method === 'POST' && !parts[5]) {
     try {
       const body = await readJsonBody<any>(req);
-      const event = await createEvent(guildId, body);
+      let event;
+      if (body.type === 'CUSTOM') {
+        event = await createCustomEvent(client, guildId, body);
+      } else {
+        event = await createEvent(guildId, body);
+      }
       json(res, 201, { event });
     } catch (err) {
       logger.error('EventsAPI', err);
@@ -150,8 +156,11 @@ export async function handleEventsRoutes(
             title: body.title,
             description: body.description,
             channelId: body.channelId,
+            announcementChannelId: body.announcementChannelId,
+            formId: body.formId,
             triggerType: body.triggerType,
             triggerValue: body.triggerValue,
+            config: body.config,
             triggerStatus: (body.triggerType !== (currentEvent as any)?.triggerType || body.triggerValue !== (currentEvent as any)?.triggerValue) ? 'PENDING' : undefined,
             questions: (body.questions && !isLive && (currentEvent as any)?.type === 'QUIZ') ? {
               deleteMany: {},

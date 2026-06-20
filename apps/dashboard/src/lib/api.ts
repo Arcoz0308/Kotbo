@@ -2105,3 +2105,12 @@ export async function resetEconomy(component: 'all' | 'profiles' | 'items' | 'co
   return dashboardRequest('/economy/reset', { method: 'POST', payload: { component }, guildId, errorContext: 'API Error (Reset Economy):' });
 }
 
+export async function updateSanctionTables(tables, guildId = authStore.selectedGuildId) {
+  return dashboardMutation('/sanctions/tables', {
+    method: 'PUT',
+    payload: tables,
+    guildId,
+    errorContext: 'API Error (Update Sanction Tables):'
+  });
+}
+

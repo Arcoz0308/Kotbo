@@ -284,6 +284,86 @@ async function emitSanctionReportReminder(params: {
       return;
     }
 
+    // Prefill draft report with matched rules and empty evidence links
+    const sanction = await prisma.sanction.findUnique({
+      where: { id: params.sanctionId },
+      include: { sanctionTable: true } as any
+    });
+    const tableName = (sanction as any)?.sanctionTable?.name;
+
+    const regulationRules = await prisma.guildRegulationArticle.findMany({
+      where: { guildId: params.guildId }
+    });
+
+    const matchedRules: any[] = [];
+    if (tableName) {
+      const matchedRule = regulationRules.find(r => 
+        r.title.toLowerCase().includes(tableName.toLowerCase()) ||
+        tableName.toLowerCase().includes(r.title.toLowerCase())
+      );
+      if (matchedRule) {
+        matchedRules.push({
+          id: matchedRule.id,
+          title: matchedRule.title,
+          description: matchedRule.description || matchedRule.title
+        });
+      }
+    }
+    
+    if (matchedRules.length === 0 && params.reason) {
+      const matchedRule = regulationRules.find(r => 
+        params.reason!.toLowerCase().includes(r.title.toLowerCase())
+      );
+      if (matchedRule) {
+        matchedRules.push({
+          id: matchedRule.id,
+          title: matchedRule.title,
+          description: matchedRule.description || matchedRule.title
+        });
+      }
+    }
+
+    if (matchedRules.length === 0) {
+      matchedRules.push({
+        id: 'auto_command',
+        title: tableName || 'Infraction',
+        description: params.reason || 'Sanction appliquée via la commande'
+      });
+    }
+
+    const brokenRulesPayload = JSON.stringify(matchedRules);
+
+    const existingReport = await prisma.sanctionReport.findFirst({
+      where: { sanctionId: params.sanctionId }
+    });
+
+    if (!existingReport) {
+      const staffPseudo = params.moderatorTag?.trim() || `Modérateur ${params.moderatorUserId}`;
+      const memberPseudo = params.targetTag?.trim() || `Utilisateur ${params.targetUserId}`;
+      const memberReference = params.targetUserId;
+      const sanctionDurationLabel = formatSanctionDurationLabel(params.durationSeconds ?? null);
+      const incidentAt = new Date();
+      const detailedReason = params.reason || 'Rapport pré-rempli via la commande.';
+
+      await prisma.sanctionReport.create({
+        data: {
+          guildId: params.guildId,
+          sanctionId: params.sanctionId,
+          staffPseudo,
+          incidentAt,
+          memberPseudo,
+          memberReference,
+          sanctionType: params.sanctionType,
+          sanctionDurationLabel,
+          brokenRules: brokenRulesPayload,
+          detailedReason,
+          evidenceLinks: [], // Empty links = needs proof!
+          createdByUserId: params.moderatorUserId,
+          createdByTag: params.moderatorTag,
+        }
+      });
+    }
+
     // Notification temps réel (WS)
     await notifyDashboardSanctionReportRequired({
       guildId: params.guildId,
@@ -306,7 +386,7 @@ async function emitSanctionReportReminder(params: {
   } catch (error) {
     logger.warn(
       'Sanctions',
-      `Notification dashboard impossible pour la sanction ${params.sanctionId}: ${error instanceof Error ? error.message : 'erreur inconnue'}`,
+      `Notification dashboard/création brouillon impossible pour la sanction ${params.sanctionId}: ${error instanceof Error ? error.message : 'erreur inconnue'}`,
     );
   }
 }

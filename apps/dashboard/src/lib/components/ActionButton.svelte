@@ -1,5 +1,5 @@
 <script lang="ts">
-  type ButtonVariant = 'primary' | 'success' | 'muted' | 'danger' | 'neutral';
+  type ButtonVariant = 'primary' | 'success' | 'muted' | 'danger' | 'neutral' | 'warning';
   type ButtonSize = 'sm' | 'md' | 'lg';
 
   let {
@@ -47,6 +47,8 @@
       'bg-error/10 text-error border border-error/20 hover:bg-error/15',
     neutral:
       'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-container-high',
+    warning:
+      'bg-amber-500/10 text-amber-700 border border-amber-500/20 hover:bg-amber-500/15 dark:text-amber-300',
   };
 
   import Papicon from './Papicon.svelte';

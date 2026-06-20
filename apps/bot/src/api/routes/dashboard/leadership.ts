@@ -1854,6 +1854,7 @@ export async function handleGuildLeadershipRoutes(
               chiefStaffUserId: true,
               meetingAnnouncementChannelId: true,
               meetingVoiceChannelId: true,
+              staffAnnouncementChannelId: true,
               warnsToDemote: true,
               warnsToBlacklist: true,
               blacklistPermanentByDefault: true,
@@ -1885,6 +1886,7 @@ export async function handleGuildLeadershipRoutes(
             chiefStaffUserId?: string | null;
             meetingAnnouncementChannelId?: string | null;
             meetingVoiceChannelId?: string | null;
+            staffAnnouncementChannelId?: string | null;
             warnsToDemote?: number;
             warnsToBlacklist?: number;
             blacklistPermanentByDefault?: boolean;
@@ -1910,6 +1912,9 @@ export async function handleGuildLeadershipRoutes(
           }
           if (Object.prototype.hasOwnProperty.call(body ?? {}, 'meetingVoiceChannelId')) {
             data.meetingVoiceChannelId = extractDiscordSnowflake(body?.meetingVoiceChannelId ?? null);
+          }
+          if (Object.prototype.hasOwnProperty.call(body ?? {}, 'staffAnnouncementChannelId')) {
+            data.staffAnnouncementChannelId = extractDiscordSnowflake(body?.staffAnnouncementChannelId ?? null);
           }
 
           if (Object.prototype.hasOwnProperty.call(body ?? {}, 'warnsToDemote')) {
@@ -1938,6 +1943,7 @@ export async function handleGuildLeadershipRoutes(
               chiefStaffUserId: true,
               meetingAnnouncementChannelId: true,
               meetingVoiceChannelId: true,
+              staffAnnouncementChannelId: true,
               warnsToDemote: true,
               warnsToBlacklist: true,
               blacklistPermanentByDefault: true,

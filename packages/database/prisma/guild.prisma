@@ -19,6 +19,10 @@ model Guild {
   digestChannelId String?
   meetingAnnouncementChannelId String?
   meetingVoiceChannelId String?
+  staffAnnouncementChannelId String?
+
+  // Salon d'annonce des événements personnalisés
+  eventAnnouncementChannelId String?
 
 
 
@@ -110,6 +114,7 @@ model Guild {
   dashboardSettings DashboardSettings?
   dashboardAuditLogs DashboardAuditLog[]
   sanctions Sanction[]
+  sanctionTables SanctionTable[]
   sanctionReports SanctionReport[]
   regulationArticles GuildRegulationArticle[]
   memberProfiles MemberProfile[]
@@ -144,6 +149,8 @@ model Guild {
   dashboardFeatureConfigs DashboardFeatureConfig[]
   logEventConfigs GuildLogEventConfig[]
   events Event[]
+  customForms CustomForm[]
+  customFormSubmissions CustomFormSubmission[]
   moduleActivationStats ModuleActivationStat[]
   moduleUsageStats ModuleUsageStat[]
   modulePerformanceStats ModulePerformanceStat[]

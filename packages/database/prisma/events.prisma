@@ -13,6 +13,7 @@ enum EventStatus {
 enum EventType {
   QUIZ
   CTF
+  CUSTOM
 }
 
 model Event {
@@ -25,6 +26,12 @@ model Event {
   channelId String?
   messageId String?
 
+  // Custom event fields
+  discordEventId         String?  // ID du GuildScheduledEvent Discord natif
+  announcementChannelId  String?  // Salon où envoyer l'embed d'annonce
+  announcementMessageId  String?  // ID du message d'annonce
+  formId                 String?  // Formulaire d'inscription lié (optionnel)
+
   triggerType   String?   // "MEMBER_COUNT", "SCHEDULED"
   triggerValue  String?   // "1000", "2026-06-05T20:00:00Z"
   triggerStatus String    @default("PENDING") // "PENDING", "TRIGGERED", "FAILED"
@@ -35,11 +42,34 @@ model Event {
   questions EventQuizQuestion[]
   ctfChallenges EventCtfChallenge[]
   participants EventParticipant[]
+  registrations CustomEventRegistration[]
+  customForm CustomForm? @relation(fields: [formId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("events")
+}
+
+model CustomEventRegistration {
+  id        String   @id @default(cuid())
+  eventId   String
+  guildId   String
+  userId    String
+  username  String?
+  userTag   String?
+
+  // Réponses au formulaire si un formulaire était lié
+  formData  Json?
+
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([guildId, userId])
+  @@map("custom_event_registrations")
 }
 
 model EventQuizQuestion {

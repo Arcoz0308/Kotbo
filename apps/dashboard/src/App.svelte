@@ -50,6 +50,8 @@
   import RecruitmentForms from "./pages/RecruitmentForms.svelte";
   import FormBuilder from "./pages/FormBuilder.svelte";
   import FormResponses from "./pages/FormResponses.svelte";
+  import CustomForms from "./pages/CustomForms.svelte";
+  import CustomFormResponses from "./pages/CustomFormResponses.svelte";
   import PublicForm from "./pages/PublicForm.svelte";
   import Planning from "./pages/Planning.svelte";
   import Inbox from "./pages/Inbox.svelte";
@@ -686,6 +688,18 @@
             </Route>
             <Route path="/recruitment-forms/:formId/responses" let:meta>
               <FormResponses formId={meta.params.formId} />
+            </Route>
+            <Route path="/forms">
+              <CustomForms />
+            </Route>
+            <Route path="/forms/builder/new">
+              <FormBuilder formId={null} />
+            </Route>
+            <Route path="/forms/builder/:formId" let:meta>
+              <FormBuilder formId={meta.params.formId} />
+            </Route>
+            <Route path="/forms/:formId/responses" let:meta>
+              <CustomFormResponses formId={meta.params.formId} />
             </Route>
             <Route path="/tickets">
               <Tickets />

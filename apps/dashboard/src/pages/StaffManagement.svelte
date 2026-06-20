@@ -216,6 +216,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   let testStaffRoleId = $state<string | null>(null);
   let meetingAnnouncementChannelId = $state<string | null>(null);
   let meetingVoiceChannelId = $state<string | null>(null);
+  let staffAnnouncementChannelId = $state<string | null>(null);
   
   let warnsToDemote = $state<number>(3);
   let warnsToBlacklist = $state<number>(5);
@@ -756,6 +757,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         testStaffRoleId = cfg.testStaffRoleId ?? null;
         meetingAnnouncementChannelId = cfg.meetingAnnouncementChannelId ?? null;
         meetingVoiceChannelId = cfg.meetingVoiceChannelId ?? null;
+        staffAnnouncementChannelId = cfg.staffAnnouncementChannelId ?? null;
 
 
         warnsToDemote = Number.isFinite(Number(cfg.warnsToDemote)) ? Number(cfg.warnsToDemote) : warnsToDemote;
@@ -790,6 +792,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         testStaffRoleId,
         meetingAnnouncementChannelId,
         meetingVoiceChannelId,
+        staffAnnouncementChannelId,
         warnsToDemote,
         warnsToBlacklist,
         blacklistPermanentByDefault,
@@ -1753,6 +1756,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               <label>
                 <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">Salon vocal / conférence des réunions</span>
                 <SearchableSelect bind:value={meetingVoiceChannelId} options={availableDiscordVoiceChannels.map(vc => ({ id: vc.id, name: vc.name }))} placeholder="-- Aucun --" className="w-full" />
+              </label>
+            </div>
+            <div>
+              <label>
+                <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">Salon d'annonces Staff <span class="text-on-surface-variant/50 normal-case tracking-normal">(Optionnel)</span></span>
+                <SearchableSelect bind:value={staffAnnouncementChannelId} options={availableDiscordChannels.map(dc => ({ id: dc.id, name: `#${dc.name}` }))} placeholder="-- Aucun --" className="w-full" />
               </label>
             </div>
           </div>

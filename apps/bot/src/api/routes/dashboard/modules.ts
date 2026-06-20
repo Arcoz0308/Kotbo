@@ -599,6 +599,122 @@ export async function handleModulesRoutes(
     return true;
   }
 
+  // PUT /api/dashboard/guilds/:guildId/sanctions/tables
+  if (moduleKey === 'sanctions' && parts.length === 6 && parts[5] === 'tables' && method === 'PUT') {
+    try {
+      const tables = await readJsonBody<any[]>(req);
+      if (!Array.isArray(tables)) {
+        json(res, 400, { error: 'Payload invalide. Doit être un tableau.' });
+        return true;
+      }
+
+      if (!access.canManageSettings) {
+        json(res, 403, { error: 'Permissions insuffisantes pour modifier la configuration.' });
+        return true;
+      }
+
+      for (const table of tables) {
+        if (typeof table.name !== 'string' || !table.name.trim()) {
+          json(res, 400, { error: 'Chaque tableau doit avoir un nom valide.' });
+          return true;
+        }
+        if (!Array.isArray(table.tiers)) {
+          json(res, 400, { error: `Le tableau "${table.name}" doit avoir une liste de paliers.` });
+          return true;
+        }
+        const levels = table.tiers.map((t: any) => t.level);
+        levels.sort((a: number, b: number) => a - b);
+        for (let i = 0; i < levels.length; i++) {
+          if (levels[i] !== i + 1) {
+            json(res, 400, { error: `Les paliers du tableau "${table.name}" doivent être séquentiels et commencer par le niveau 1.` });
+            return true;
+          }
+        }
+        for (const tier of table.tiers) {
+          if (!['WARN', 'KICK', 'TIMEOUT', 'TEMP_BAN', 'BAN', 'SOFTBAN'].includes(tier.action)) {
+            json(res, 400, { error: `Action invalide "${tier.action}" dans le tableau "${table.name}".` });
+            return true;
+          }
+          if (['TIMEOUT', 'TEMP_BAN'].includes(tier.action)) {
+            const secs = Number(tier.durationSeconds);
+            if (Number.isNaN(secs) || secs <= 0) {
+              json(res, 400, { error: `Le palier de niveau ${tier.level} (${tier.action}) du tableau "${table.name}" requiert une durée positive valide.` });
+              return true;
+            }
+          }
+        }
+      }
+
+      await prisma.$transaction(async (tx) => {
+        const existingTables = await tx.sanctionTable.findMany({
+          where: { guildId },
+          include: { tiers: true },
+        });
+
+        const inputIds = new Set(tables.map((t) => t.id).filter(Boolean));
+        const tablesToDelete = existingTables.filter((t) => !inputIds.has(t.id));
+        if (tablesToDelete.length > 0) {
+          await tx.sanctionTable.deleteMany({
+            where: { id: { in: tablesToDelete.map((t) => t.id) } },
+          });
+        }
+
+        for (const table of tables) {
+          let tableId = table.id;
+          const matched = existingTables.find((t) => t.id === tableId);
+
+          if (matched) {
+            if (matched.name !== table.name) {
+              await tx.sanctionTable.update({
+                where: { id: tableId },
+                data: { name: table.name.trim() },
+              });
+            }
+            await tx.sanctionTier.deleteMany({
+              where: { tableId },
+            });
+          } else {
+            const newTable = await tx.sanctionTable.create({
+              data: {
+                guildId,
+                name: table.name.trim(),
+              },
+            });
+            tableId = newTable.id;
+          }
+
+          if (table.tiers.length > 0) {
+            await tx.sanctionTier.createMany({
+              data: table.tiers.map((tier: any) => ({
+                tableId,
+                level: tier.level,
+                action: tier.action,
+                durationSeconds: ['TIMEOUT', 'TEMP_BAN'].includes(tier.action) ? Number(tier.durationSeconds) : null,
+                customReason: tier.customReason?.trim() || null,
+              })),
+            });
+          }
+        }
+      });
+
+      await pushAudit(guildId, {
+        user: auditUser,
+        action: 'Mise à jour tableaux de sanction',
+        context: getGuildName(client, guildId),
+        module: 'Sanctions',
+        eventType: 'Manuel',
+        details: `Les tableaux de sanction ont été reconfigurés.`,
+        channelId: null,
+      });
+
+      json(res, 200, { ok: true });
+    } catch (err) {
+      logger.error('SanctionsAPI', 'Error updating sanction tables:', err);
+      json(res, 500, { error: 'Erreur lors de la mise à jour des tableaux de sanction' });
+    }
+    return true;
+  }
+
   // DELETE /api/dashboard/guilds/:guildId/sanctions/:sanctionId
   if (moduleKey === 'sanctions' && parts.length === 6 && method === 'DELETE' && parts[5] !== 'reports') {
     if (access.level !== 'admin') {

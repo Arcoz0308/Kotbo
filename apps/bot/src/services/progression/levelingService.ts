@@ -27,6 +27,13 @@ export async function getOrCreateLevelConfig(guildId: string) {
   });
 
   if (!config) {
+    // Ensure the Guild row exists before creating the FK-dependent LevelConfig
+    await prisma.guild.upsert({
+      where: { id: guildId },
+      update: {},
+      create: { id: guildId },
+    });
+
     config = await prisma.levelConfig.create({
       data: {
         guildId,

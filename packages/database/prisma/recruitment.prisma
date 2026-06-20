@@ -53,9 +53,11 @@ model RecruitmentCandidature {
   
   // Link to custom form if using custom form builder
   formId String?
+  customFormId String?
   
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
   form RecruitmentForm? @relation(fields: [formId], references: [id], onDelete: SetNull)
+  customForm CustomForm? @relation(fields: [customFormId], references: [id], onDelete: SetNull)
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -25,6 +25,12 @@ export const prisma =
     log: process.env.LOG_LEVEL === 'debug' ? ['error', 'warn'] : ['error'],
   });
 
+// Diagnostic log to see what models are actually loaded at runtime
+if (process.env.NODE_ENV !== 'production') {
+  const models = Object.keys(prisma).filter(k => !k.startsWith('_') && !k.startsWith('$'));
+  console.log("[Prisma Startup Diagnostics] Loaded Models:", models);
+}
+
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
 export default prisma;

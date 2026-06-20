@@ -21,7 +21,8 @@
     runMemberCaseAction,
     updateGlobalSettings,
     fetchFeatureConfigurations,
-    updateFeatureConfiguration
+    updateFeatureConfiguration,
+    updateSanctionTables
   } from '../lib/api';
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
   import FormSelect from '../lib/components/FormSelect.svelte';
@@ -39,10 +40,327 @@
   import { normalizeEvidenceLinks, sanitizeEvidenceLinks } from '../lib/sanctions/evidenceLinks';
   import { durationLabel, statusLabel, toDateTimeLocal, typeLabel } from '../lib/sanctions/formatters';
   import { filterAndSortSanctions, type SanctionFilters, type SortField, type SortOption, type Sanction } from '../lib/sanctions/filterSort';
-
+  import { toast } from '../lib/stores/toast.svelte';
+  import * as XLSX from 'xlsx';
 
   let activeTab = $state('sanctions');
   const saveAction = createAsyncActionState();
+
+  let selectedTableIndex = $state(0);
+  let newTableName = $state('');
+  let showAddTableField = $state(false);
+
+  function addSanctionTable() {
+    const name = newTableName.trim();
+    if (!name) return;
+    if (guildSettings.sanctionTables.some((t: any) => t.name.toLowerCase() === name.toLowerCase())) {
+      toast.error('Une échelle avec ce nom existe déjà.');
+      return;
+    }
+
+    guildSettings.sanctionTables.push({
+      id: '',
+      name,
+      tiers: [
+        {
+          id: '',
+          level: 1,
+          action: 'WARN',
+          durationSeconds: null,
+          customReason: `Avertissement automatique pour ${name}`
+        }
+      ]
+    });
+    newTableName = '';
+    showAddTableField = false;
+    selectedTableIndex = guildSettings.sanctionTables.length - 1;
+  }
+
+  function deleteSanctionTable(index: number) {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce tableau de sanction ? Toutes les sanctions liées perdront leur référence.')) {
+      return;
+    }
+    guildSettings.sanctionTables.splice(index, 1);
+    if (selectedTableIndex >= guildSettings.sanctionTables.length) {
+      selectedTableIndex = Math.max(0, guildSettings.sanctionTables.length - 1);
+    }
+  }
+
+  function addTier(tableIndex: number) {
+    const table = guildSettings.sanctionTables[tableIndex];
+    if (!table) return;
+    const nextLevel = table.tiers.length + 1;
+    
+    let defaultAction = 'WARN';
+    let defaultDuration = null;
+    if (table.tiers.length > 0) {
+      const prevTier = table.tiers[table.tiers.length - 1];
+      defaultAction = prevTier.action === 'WARN' ? 'TIMEOUT' : prevTier.action === 'TIMEOUT' ? 'KICK' : 'BAN';
+      defaultDuration = defaultAction === 'TIMEOUT' ? 3600 : null;
+    }
+
+    table.tiers.push({
+      id: '',
+      level: nextLevel,
+      action: defaultAction,
+      durationSeconds: defaultDuration,
+      customReason: `Récidive ${table.name} (Tier T${nextLevel})`
+    });
+  }
+
+  function removeTier(tableIndex: number, tierIndex: number) {
+    const table = guildSettings.sanctionTables[tableIndex];
+    if (!table) return;
+    table.tiers.splice(tierIndex, 1);
+    table.tiers.forEach((tier: any, i: number) => {
+      tier.level = i + 1;
+    });
+  }
+
+  function getDurationValue(seconds: number | null): number {
+    if (!seconds) return 1;
+    if (seconds % 86400 === 0) return seconds / 86400;
+    if (seconds % 3600 === 0) return seconds / 3600;
+    if (seconds % 60 === 0) return seconds / 60;
+    return seconds;
+  }
+
+  function getDurationUnit(seconds: number | null): 'm' | 'h' | 'd' {
+    if (!seconds) return 'h';
+    if (seconds % 86400 === 0) return 'd';
+    if (seconds % 3600 === 0) return 'h';
+    return 'm';
+  }
+
+  function updateTierDuration(tableIndex: number, tierIndex: number, value: number, unit: 'm' | 'h' | 'd') {
+    const table = guildSettings.sanctionTables[tableIndex];
+    const tier = table?.tiers[tierIndex];
+    if (!tier) return;
+
+    let multiplier = 60;
+    if (unit === 'h') multiplier = 3600;
+    if (unit === 'd') multiplier = 86400;
+
+    tier.durationSeconds = value * multiplier;
+  }
+
+  function exportTableToImage(table: any) {
+    if (!table) return;
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const width = 600;
+    const headerHeight = 140;
+    const tierHeight = 110;
+    const footerHeight = 60;
+    const height = headerHeight + (table.tiers.length * tierHeight) + footerHeight;
+
+    const scale = window.devicePixelRatio || 2;
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+    ctx.scale(scale, scale);
+
+    const bgGrad = ctx.createLinearGradient(0, 0, width, height);
+    bgGrad.addColorStop(0, '#0a192f');
+    bgGrad.addColorStop(0.5, '#020c1b');
+    bgGrad.addColorStop(1, '#001a33');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, width, height);
+
+    const glow1 = ctx.createRadialGradient(100, 100, 50, 200, 200, 500);
+    glow1.addColorStop(0, 'rgba(79, 70, 229, 0.25)');
+    glow1.addColorStop(1, 'rgba(79, 70, 229, 0)');
+    ctx.fillStyle = glow1;
+    ctx.fillRect(0, 0, width, height);
+
+    const glow2 = ctx.createRadialGradient(width - 100, height - 100, 50, width - 200, height - 200, 400);
+    glow2.addColorStop(0, 'rgba(0, 229, 255, 0.2)');
+    glow2.addColorStop(1, 'rgba(0, 229, 255, 0)');
+    ctx.fillStyle = glow2;
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.font = 'bold 32px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(table.name, 40, 65);
+
+    ctx.font = '900 10px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = '#00E5FF';
+    ctx.fillText('ÉCHELLE DE SANCTION PROGRESSIVE', 40, 95);
+    
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(40, 115);
+    ctx.lineTo(width - 40, 115);
+    ctx.stroke();
+
+    let y = 140;
+    table.tiers.forEach((tier: any, index: number) => {
+      const cardX = 40;
+      const cardY = y;
+      const cardW = width - 80;
+      const cardH = 80;
+      const radius = 16;
+
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.6)';
+      ctx.beginPath();
+      ctx.roundRect(cardX, cardY, cardW, cardH, radius);
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      const badgeX = cardX + 20;
+      const badgeY = cardY + 20;
+      const badgeW = 40;
+      const badgeH = 40;
+      const badgeRadius = 10;
+
+      let badgeColor = 'rgba(79, 70, 229, 0.2)';
+      let badgeTextColor = '#818cf8';
+      let badgeStroke = 'rgba(79, 70, 229, 0.4)';
+
+      if (tier.action === 'WARN') {
+        badgeColor = 'rgba(245, 158, 11, 0.1)';
+        badgeTextColor = '#fbbf24';
+        badgeStroke = 'rgba(245, 158, 11, 0.3)';
+      } else if (tier.action === 'TIMEOUT') {
+        badgeColor = 'rgba(59, 130, 246, 0.1)';
+        badgeTextColor = '#60a5fa';
+        badgeStroke = 'rgba(59, 130, 246, 0.3)';
+      } else if (['KICK', 'BAN', 'TEMP_BAN', 'SOFTBAN'].includes(tier.action)) {
+        badgeColor = 'rgba(239, 68, 68, 0.1)';
+        badgeTextColor = '#f87171';
+        badgeStroke = 'rgba(239, 68, 68, 0.3)';
+      }
+
+      ctx.fillStyle = badgeColor;
+      ctx.beginPath();
+      ctx.roundRect(badgeX, badgeY, badgeW, badgeH, badgeRadius);
+      ctx.fill();
+      ctx.strokeStyle = badgeStroke;
+      ctx.stroke();
+
+      ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
+      ctx.fillStyle = badgeTextColor;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`T${tier.level}`, badgeX + badgeW / 2, badgeY + badgeH / 2);
+
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
+      ctx.fillStyle = '#ffffff';
+      
+      let actionLabel = tier.action;
+      if (tier.action === 'WARN') actionLabel = 'AVERTISSEMENT';
+      else if (tier.action === 'TIMEOUT') actionLabel = `TIMEOUT (${formatSeconds(tier.durationSeconds)})`;
+      else if (tier.action === 'TEMP_BAN') actionLabel = `BAN TEMPORAIRE (${formatSeconds(tier.durationSeconds)})`;
+      else if (tier.action === 'KICK') actionLabel = 'EXCLUSION (KICK)';
+      else if (tier.action === 'BAN') actionLabel = 'BANNISSEMENT DÉFINITIF';
+      else if (tier.action === 'SOFTBAN') actionLabel = 'SOFTBAN';
+
+      ctx.fillText(actionLabel, cardX + 80, cardY + 20);
+
+      ctx.font = '13px system-ui, -apple-system, sans-serif';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+      const reason = tier.customReason || 'Raison par défaut';
+      ctx.fillText(reason, cardX + 80, cardY + 45);
+
+      if (index < table.tiers.length - 1) {
+        ctx.strokeStyle = 'rgba(0, 229, 255, 0.3)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.setLineDash([4, 4]);
+        ctx.moveTo(width / 2, cardY + cardH);
+        ctx.lineTo(width / 2, cardY + cardH + 30);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = 'rgba(0, 229, 255, 0.6)';
+        ctx.beginPath();
+        ctx.moveTo(width / 2 - 5, cardY + cardH + 25);
+        ctx.lineTo(width / 2 + 5, cardY + cardH + 25);
+        ctx.lineTo(width / 2, cardY + cardH + 30);
+        ctx.fill();
+      }
+
+      y += tierHeight;
+    });
+
+    ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.textAlign = 'center';
+    ctx.fillText('GÉNÉRÉ PAR KOTBO — LE CENTRE DE CONTRÔLE DISCORD', width / 2, height - 35);
+
+    const link = document.createElement('a');
+    link.download = `kotbo_tableau_${table.name.toLowerCase()}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  }
+
+  function formatSeconds(secs: number | null): string {
+    if (!secs) return 'N/A';
+    if (secs < 60) return `${secs}s`;
+    const mins = Math.floor(secs / 60);
+    if (mins < 60) return `${mins}m`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h`;
+    const days = Math.floor(hrs / 24);
+    return `${days}j`;
+  }
+
+  function exportTableToXlsx(table: any) {
+    if (!table) return;
+    const data = table.tiers.map((tier: any) => ({
+      "Tableau": table.name,
+      "Niveau (Tier)": `T${tier.level}`,
+      "Action": tier.action,
+      "Durée (Secondes)": tier.durationSeconds || 'N/A',
+      "Raison personnalisée": tier.customReason || ''
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, `Tableau ${table.name}`);
+    XLSX.writeFile(workbook, `kotbo_tableau_${table.name.toLowerCase()}.xlsx`);
+  }
+
+  function exportTableToCsv(table: any) {
+    if (!table) return;
+    const headers = ["Tableau", "Niveau", "Action", "Duree_Secondes", "Raison"];
+    const rows = [headers.join(",")];
+    for (const tier of table.tiers) {
+      const row = [
+        `"${table.name.replace(/"/g, '""')}"`,
+        `"T${tier.level}"`,
+        `"${tier.action}"`,
+        `"${tier.durationSeconds || ''}"`,
+        `"${(tier.customReason || '').replace(/"/g, '""')}"`
+      ];
+      rows.push(row.join(","));
+    }
+    const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `kotbo_tableau_${table.name.toLowerCase()}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  function exportTableToJson(table: any) {
+    if (!table) return;
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(table, null, 2));
+    const link = document.createElement("a");
+    link.href = dataStr;
+    link.download = `kotbo_tableau_${table.name.toLowerCase()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
 
   let creatingReport = $state(false);
   let reportMessage = $state('');
@@ -130,13 +448,15 @@
   let guildSettings = $state({
     moderatorRoleId: '',
     propagateSanctions: false,
-    sanctionReportEnabled: true
+    sanctionReportEnabled: true,
+    sanctionTables: [] as any[]
   });
 
   let savedSettings = $state({
     moderatorRoleId: '',
     propagateSanctions: false,
-    sanctionReportEnabled: true
+    sanctionReportEnabled: true,
+    sanctionTables: [] as any[]
   });
 
   onMount(async () => {
@@ -156,10 +476,11 @@
       const loaded = {
         moderatorRoleId: dashboardStore.state.moderatorRoleId || '',
         propagateSanctions: (dashboardStore.state as any).propagateSanctions || false,
-        sanctionReportEnabled: (dashboardStore.state as any).sanctionReportEnabled ?? true
+        sanctionReportEnabled: (dashboardStore.state as any).sanctionReportEnabled ?? true,
+        sanctionTables: JSON.parse(JSON.stringify(dashboardStore.state.sanctionTables || []))
       };
       guildSettings = { ...loaded };
-      savedSettings = { ...loaded };
+      savedSettings = JSON.parse(JSON.stringify(loaded));
     }
   });
 
@@ -171,7 +492,7 @@
           label: 'Sanctions (Configuration)',
           onSave: () => handleSaveSettings(),
           onReset: () => {
-            guildSettings = { ...savedSettings };
+            guildSettings = JSON.parse(JSON.stringify(savedSettings));
           }
         });
       });
@@ -207,15 +528,18 @@
   async function handleSaveSettings(): Promise<boolean> {
     let success = false;
     await saveAction.run(async () => {
-      const ok = await updateGlobalSettings({
+      const ok1 = await updateGlobalSettings({
         moderatorRoleId: guildSettings.moderatorRoleId,
         propagateSanctions: guildSettings.propagateSanctions,
         sanctionReportEnabled: guildSettings.sanctionReportEnabled
       });
-      if (!ok) throw new Error('Erreur API');
+      if (!ok1) throw new Error('Erreur API (Paramètres généraux)');
+
+      const ok2 = await updateSanctionTables(guildSettings.sanctionTables);
+      if (!ok2) throw new Error('Erreur API (Tableaux de sanction)');
 
       await dashboardStore.refresh();
-      savedSettings = { ...guildSettings };
+      savedSettings = JSON.parse(JSON.stringify(guildSettings));
       success = true;
       return true;
     }, { successMessage: 'Paramètres enregistrés.' });
@@ -406,14 +730,24 @@
     label: string;
     icon: string;
     disabled: boolean;
-    variant: 'primary' | 'success' | 'muted';
+    variant: 'primary' | 'success' | 'muted' | 'warning';
     hint: string;
   };
 
-  function getReportActionState(entry: SanctionListItem, linkedReport: SanctionReportListItem | undefined): ReportActionState {
+  function getReportActionState(entry: SanctionListItem, linkedReport: SanctionReportListItem | any): ReportActionState {
     const canCreate = entry.moderatorUserId === authStore.user?.id;
 
     if (linkedReport) {
+      const isMissingProof = !linkedReport.evidenceLinks || linkedReport.evidenceLinks.length === 0;
+      if (isMissingProof) {
+        return {
+          label: 'Ajouter la preuve',
+          icon: 'alert-triangle',
+          disabled: false,
+          variant: 'warning',
+          hint: 'Ce rapport est pré-rempli mais nécessite un lien de preuve (capture d’écran, etc.).',
+        };
+      }
       return {
         label: 'Voir le rapport',
         icon: 'paper',
@@ -469,11 +803,21 @@
     isEditing = true;
   }
 
-  function openReportModal(sanction: { id: string; createdAt: string; reason: string; durationSeconds: number | null }) {
+  function openReportModal(sanction: any) {
     prepareDraftFromSanction(sanction);
     const linkedReport = sanctionReports.find((entry) => entry.sanctionId === sanction.id);
-    modalMode = linkedReport ? 'view' : 'create';
     modalOpen = true;
+    if (linkedReport) {
+      const isMissingProof = !linkedReport.evidenceLinks || linkedReport.evidenceLinks.length === 0;
+      if (isMissingProof && (sanction.moderatorUserId === authStore.user?.id || canManageSettings)) {
+        modalMode = 'view';
+        startEditing();
+      } else {
+        modalMode = 'view';
+      }
+    } else {
+      modalMode = 'create';
+    }
   }
 
   function closeModal() {
@@ -530,7 +874,7 @@
       return;
     }
 
-    brokenRules = buildBrokenRulesPayload(selectedRuleIds, reportRuleOptions);
+    brokenRules = buildBrokenRulesPayload(selectedRuleIds, reportRuleOptions, selectedReportRules);
 
     if (!brokenRules.trim() || !detailedReason.trim()) {
       reportMessage = 'Merci de remplir tous les champs obligatoires du rapport.';
@@ -589,7 +933,7 @@
       const ok = await updateSanctionReport(selectedReport.id, {
         incidentAt: new Date(incidentAt).toISOString(),
         sanctionDurationLabel: sanctionDurationLabel.trim(),
-        brokenRules: buildBrokenRulesPayload(selectedRuleIds, reportRuleOptions),
+        brokenRules: buildBrokenRulesPayload(selectedRuleIds, reportRuleOptions, selectedReportRules),
         detailedReason: detailedReason.trim(),
         evidenceLinks: sanitizedLinks,
         additionalNotes: additionalNotes || null,
@@ -954,6 +1298,246 @@
           {#if saveAction.state.error}
             <p class="text-xs font-bold text-red-600 text-center">{saveAction.state.error}</p>
           {/if}
+        </div>
+      </section>
+
+      <!-- Échelles de Sanctions Progressives -->
+      <section class="section-card-flush font-inter mt-8">
+        <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-800">
+          <h3 class="text-lg font-black">Échelles de Sanctions Progressives</h3>
+          <p class="text-xs text-on-surface-variant/70 mt-1">Configurez des échelles de sanctions qui s'alourdissent automatiquement à chaque récidive d'une infraction.</p>
+        </div>
+
+        <div class="premium-card p-10 rounded-[3rem]">
+          <div class="flex flex-col lg:flex-row gap-10">
+            <!-- Left panel: scales list -->
+            <div class="w-full lg:w-1/3 space-y-4 border-r border-outline-variant/10 lg:pr-8">
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] font-black uppercase tracking-wider text-on-surface-variant/60">Mes Échelles</span>
+                {#if !showAddTableField}
+                  <button 
+                    onclick={() => showAddTableField = true}
+                    class="text-xs font-black text-primary hover:text-primary/80 transition uppercase tracking-wider"
+                  >
+                    + Ajouter
+                  </button>
+                {/if}
+              </div>
+
+              {#if showAddTableField}
+                <div class="flex gap-2 p-2 bg-surface-container-high/40 rounded-2xl border border-outline-variant/10">
+                  <FormInput 
+                    bind:value={newTableName} 
+                    placeholder="Nom (ex: Spam, Pub)" 
+                    className="flex-1 text-xs px-3 py-2 bg-transparent outline-none border-none text-on-surface"
+                  />
+                  <button 
+                    onclick={addSanctionTable}
+                    class="px-3 py-1 bg-primary text-on-primary rounded-xl text-[10px] font-black uppercase tracking-wider"
+                  >
+                    Ok
+                  </button>
+                  <button 
+                    onclick={() => { showAddTableField = false; newTableName = ''; }}
+                    class="px-2 text-on-surface-variant/70 text-xs"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              {/if}
+
+              <div class="space-y-2 max-h-[300px] overflow-y-auto pr-2">
+                {#each guildSettings.sanctionTables as table, i}
+                  <div 
+                    class="flex items-center justify-between p-4 rounded-2xl transition-all cursor-pointer {selectedTableIndex === i ? 'bg-primary/10 border border-primary/20 text-primary' : 'bg-surface-container-high/30 border border-transparent text-on-surface hover:bg-surface-container-high/60'}"
+                    onclick={() => selectedTableIndex = i}
+                  >
+                    <span class="text-sm font-bold truncate">{table.name}</span>
+                    <div class="flex items-center gap-3">
+                      <span class="text-[10px] font-black bg-on-surface/5 px-2 py-0.5 rounded-md text-on-surface-variant/80">{table.tiers.length} palier(s)</span>
+                      <button 
+                        onclick={(e) => { e.stopPropagation(); deleteSanctionTable(i); }}
+                        class="text-on-surface-variant/40 hover:text-red-500 transition-colors"
+                      >
+                        <Papicon icon="trash" size={14} />
+                      </button>
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            </div>
+
+            <!-- Right panel: scale editor -->
+            <div class="flex-1 space-y-6">
+              {#if guildSettings.sanctionTables.length === 0}
+                <div class="h-full min-h-[200px] flex flex-col items-center justify-center text-center space-y-2">
+                  <Papicon icon="alert-triangle" size={32} class="text-on-surface-variant/40 animate-pulse" />
+                  <p class="text-sm font-bold text-on-surface-variant">Aucune échelle de sanction progressive n'est configurée.</p>
+                  <p class="text-xs text-on-surface-variant/60">Ajoutez une échelle de sanction pour commencer (ex: Spam, Insultes).</p>
+                </div>
+              {:else}
+                {@const currentTable = guildSettings.sanctionTables[selectedTableIndex]}
+                {#if currentTable}
+                  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-outline-variant/10 pb-4">
+                    <div class="flex items-center gap-4">
+                      <FormInput 
+                        bind:value={currentTable.name} 
+                        className="text-lg font-black bg-transparent border-none text-on-surface focus:ring-0 px-0 py-0 w-60"
+                      />
+                      <span class="text-xs text-on-surface-variant/60 italic font-medium">(Cliquez pour renommer)</span>
+                    </div>
+
+                    <!-- Exporter -->
+                    <div class="flex items-center gap-2">
+                      <span class="text-[10px] font-black uppercase tracking-wider text-on-surface-variant/60 mr-2">Exporter l'échelle :</span>
+                      <button 
+                        onclick={() => exportTableToImage(currentTable)}
+                        class="p-2 rounded-xl bg-surface-container-high/40 hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant flex items-center justify-center cursor-pointer"
+                        title="Exporter en Image (Style Kotbo Landing)"
+                      >
+                        <Papicon icon="image" size={16} />
+                      </button>
+                      <button 
+                        onclick={() => exportTableToXlsx(currentTable)}
+                        class="p-2 rounded-xl bg-surface-container-high/40 hover:bg-emerald-500/10 hover:text-emerald-500 transition-all text-on-surface-variant flex items-center justify-center cursor-pointer"
+                        title="Exporter en Excel (.xlsx)"
+                      >
+                        <Papicon icon="file-spreadsheet" size={16} />
+                      </button>
+                      <button 
+                        onclick={() => exportTableToCsv(currentTable)}
+                        class="p-2 rounded-xl bg-surface-container-high/40 hover:bg-amber-500/10 hover:text-amber-500 transition-all text-on-surface-variant flex items-center justify-center cursor-pointer"
+                        title="Exporter en CSV"
+                      >
+                        <Papicon icon="file-text" size={16} />
+                      </button>
+                      <button 
+                        onclick={() => exportTableToJson(currentTable)}
+                        class="p-2 rounded-xl bg-surface-container-high/40 hover:bg-indigo-500/10 hover:text-indigo-500 transition-all text-on-surface-variant flex items-center justify-center cursor-pointer"
+                        title="Exporter en JSON"
+                      >
+                        <Papicon icon="code" size={16} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Grille éditable de Tiers (Style Google Sheets) -->
+                  <div class="max-h-[500px] overflow-y-auto pr-2">
+                    <div class="overflow-x-auto rounded-2xl border border-outline-variant/10 bg-surface-container-low/20">
+                      <table class="w-full text-left border-collapse font-inter text-xs">
+                        <thead>
+                          <tr class="bg-surface-container-high/40 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/70 border-b border-outline-variant/15 select-none">
+                            <th class="py-3 px-4 w-20 text-center border-r border-outline-variant/10">Palier</th>
+                            <th class="py-3 px-4 w-48 border-r border-outline-variant/10">Action</th>
+                            <th class="py-3 px-4 w-48 border-r border-outline-variant/10">Durée</th>
+                            <th class="py-3 px-4 border-r border-outline-variant/10">Raison Personnalisée</th>
+                            <th class="py-3 px-2 w-12 text-center"></th>
+                          </tr>
+                        </thead>
+                        <tbody class="divide-y divide-outline-variant/10">
+                          {#each currentTable.tiers as tier, tierIdx}
+                            <tr class="group hover:bg-surface-hover/10 transition-colors">
+                              <!-- Palier -->
+                              <td class="py-2.5 px-4 font-black text-center text-primary/80 select-none bg-surface-container-high/15 border-r border-outline-variant/10">
+                                T{tier.level}
+                              </td>
+                              
+                              <!-- Action -->
+                              <td class="py-2 px-3 border-r border-outline-variant/10">
+                                <select 
+                                  bind:value={tier.action}
+                                  class="w-full bg-transparent font-bold py-1.5 px-2 rounded-lg cursor-pointer outline-hidden focus:bg-surface-container-high/40 border border-transparent focus:border-primary/20 transition-all
+                                    {tier.action === 'WARN' ? 'text-amber-500 dark:text-amber-400' : ''}
+                                    {tier.action === 'TIMEOUT' ? 'text-blue-500 dark:text-blue-400' : ''}
+                                    {tier.action === 'KICK' ? 'text-rose-500 dark:text-rose-400' : ''}
+                                    {tier.action === 'TEMP_BAN' ? 'text-red-500 dark:text-red-400 font-extrabold' : ''}
+                                    {tier.action === 'BAN' ? 'text-red-600 dark:text-red-500 font-black' : ''}
+                                    {tier.action === 'SOFTBAN' ? 'text-purple-500 dark:text-purple-400' : ''}"
+                                >
+                                  <option value="WARN" class="text-on-surface bg-surface-container-lowest">Warn</option>
+                                  <option value="TIMEOUT" class="text-on-surface bg-surface-container-lowest">Timeout</option>
+                                  <option value="KICK" class="text-on-surface bg-surface-container-lowest">Kick</option>
+                                  <option value="TEMP_BAN" class="text-on-surface bg-surface-container-lowest">Ban Temp</option>
+                                  <option value="BAN" class="text-on-surface bg-surface-container-lowest font-bold">Ban Perm</option>
+                                  <option value="SOFTBAN" class="text-on-surface bg-surface-container-lowest">Softban</option>
+                                </select>
+                              </td>
+
+                              <!-- Durée -->
+                              <td class="py-2 px-3 border-r border-outline-variant/10">
+                                {#if ['TIMEOUT', 'TEMP_BAN'].includes(tier.action)}
+                                  {@const initialVal = getDurationValue(tier.durationSeconds)}
+                                  {@const initialUnit = getDurationUnit(tier.durationSeconds)}
+                                  <div class="flex items-center gap-1.5 w-full">
+                                    <input 
+                                      type="number" 
+                                      value={initialVal} 
+                                      oninput={(e) => updateTierDuration(selectedTableIndex, tierIdx, Number((e.target as HTMLInputElement).value), initialUnit)}
+                                      class="w-16 text-center py-1 px-1.5 rounded-lg bg-surface-container-high/30 text-on-surface border border-outline-variant/10 focus:border-primary/40 focus:bg-surface-container-high/60 outline-hidden transition-all text-xs font-bold"
+                                      min="1"
+                                    />
+                                    <select 
+                                      value={initialUnit}
+                                      onchange={(e) => updateTierDuration(selectedTableIndex, tierIdx, initialVal, (e.target as HTMLSelectElement).value as any)}
+                                      class="flex-1 bg-transparent py-1 px-1.5 rounded-lg border border-transparent hover:border-outline-variant/10 focus:border-primary/30 outline-hidden transition-all text-xs font-semibold cursor-pointer"
+                                    >
+                                      <option value="m" class="text-on-surface bg-surface-container-lowest">min</option>
+                                      <option value="h" class="text-on-surface bg-surface-container-lowest">h</option>
+                                      <option value="d" class="text-on-surface bg-surface-container-lowest">j</option>
+                                    </select>
+                                  </div>
+                                {:else}
+                                  <div class="h-7 flex items-center justify-center text-[10px] font-black tracking-wider text-on-surface-variant/30 select-none bg-linear-to-br from-outline-variant/5 to-transparent rounded-lg">
+                                    N/A
+                                  </div>
+                                {/if}
+                              </td>
+
+                              <!-- Raison Personnalisée -->
+                              <td class="py-2 px-3 border-r border-outline-variant/10">
+                                <input 
+                                  type="text"
+                                  bind:value={tier.customReason}
+                                  placeholder="Raison par défaut ou personnalisée..."
+                                  class="w-full bg-transparent py-1.5 px-2 rounded-lg border border-transparent hover:border-outline-variant/10 focus:border-primary/30 focus:bg-surface-container-high/30 outline-hidden transition-all text-xs text-on-surface"
+                                />
+                              </td>
+
+                              <!-- Supprimer -->
+                              <td class="py-2 px-2 text-center">
+                                {#if currentTable.tiers.length > 1}
+                                  <button 
+                                    onclick={() => removeTier(selectedTableIndex, tierIdx)}
+                                    class="text-on-surface-variant/40 hover:text-red-500 active:scale-95 transition-all p-1.5 rounded-lg hover:bg-red-500/10 opacity-0 group-hover:opacity-100 cursor-pointer flex items-center justify-center mx-auto"
+                                    title="Supprimer ce palier"
+                                  >
+                                    <Papicon icon="trash" size={13} />
+                                  </button>
+                                {/if}
+                              </td>
+                            </tr>
+                          {/each}
+                          
+                          <!-- Insérer une ligne -->
+                          <tr class="bg-surface-container-low/10">
+                            <td colspan="5" class="p-0">
+                              <button 
+                                onclick={() => addTier(selectedTableIndex)}
+                                class="w-full py-2.5 text-center text-[10px] font-black uppercase tracking-wider text-primary hover:text-primary/80 hover:bg-primary/5 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                              >
+                                <Papicon icon="plus" size={12} />
+                                Insérer un nouveau palier (Row)
+                              </button>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                {/if}
+              {/if}
+            </div>
+          </div>
         </div>
       </section>
     {/if}
