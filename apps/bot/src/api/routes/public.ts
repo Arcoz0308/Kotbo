@@ -34,6 +34,21 @@ export async function handlePublicRoutes(
     return true;
   }
 
+  // GET /.well-known/oauth-authorization-server — MCP OAuth discovery (root-level)
+  if (url.pathname === '/.well-known/oauth-authorization-server' && method === 'GET') {
+    const base = `${url.protocol}//${url.host}`;
+    json(res, 200, {
+      issuer: base,
+      authorization_endpoint: `${base}/api/mcp/{guildId}/oauth/authorize`,
+      token_endpoint: `${base}/api/mcp/{guildId}/oauth/token`,
+      grant_types_supported: ['client_credentials'],
+      token_endpoint_auth_methods_supported: ['client_secret_post', 'client_secret_basic'],
+      response_types_supported: ['token'],
+      scopes_supported: ['mcp'],
+    });
+    return true;
+  }
+
   // GET /api/config
   if (url.pathname === '/api/config' && method === 'GET') {
     const ip = getClientIp(req);

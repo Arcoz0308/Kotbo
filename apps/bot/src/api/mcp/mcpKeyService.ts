@@ -71,3 +71,27 @@ export const verifyMcpKey = async (rawKey: string, guildId: string) => {
 
   return key;
 };
+
+// OAuth client_credentials flow: client_id = key.id, client_secret = full key
+export const verifyMcpKeyByClientCredentials = async (
+  clientId: string,
+  clientSecret: string,
+  guildId: string
+) => {
+  const key = await prisma.mcpApiKey.findFirst({
+    where: { id: clientId, guildId, isActive: true },
+  });
+
+  if (!key) return null;
+
+  // clientSecret is the full key — compare via hash
+  const secretHash = hashMcpKey(clientSecret);
+  if (secretHash !== key.keyHash) return null;
+
+  await prisma.mcpApiKey.update({
+    where: { id: key.id },
+    data: { lastUsedAt: new Date() },
+  });
+
+  return key;
+};
