@@ -28,31 +28,30 @@
   } = $props();
 
   const baseClass =
-    'group inline-flex items-center justify-center gap-2.5 font-black uppercase tracking-[0.12em] whitespace-nowrap transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60';
+    'inline-flex items-center justify-center gap-2 font-medium whitespace-nowrap transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50';
 
   const sizeClasses: Record<ButtonSize, string> = {
-    sm: 'px-3 py-1.5 text-[10px] rounded-xl',
-    md: 'px-4 py-2.5 text-xs rounded-xl',
-    lg: 'px-5 py-3 text-sm rounded-2xl',
+    sm: 'px-2.5 py-1.5 text-xs rounded-md',
+    md: 'px-3.5 py-2 text-sm rounded-lg',
+    lg: 'px-5 py-2.5 text-sm rounded-lg',
   };
 
   const variantClasses: Record<ButtonVariant, string> = {
     primary:
-      'bg-primary text-on-primary border border-primary shadow-lg shadow-primary/20 hover:bg-primary-container active:scale-95',
+      'bg-primary text-on-primary hover:opacity-90',
     success:
-      'bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 hover:bg-emerald-500/15 dark:text-emerald-300',
+      'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 hover:bg-emerald-100 dark:hover:bg-emerald-500/15',
     muted:
-      'bg-surface-container-low text-on-surface-variant border border-outline-variant/30 hover:bg-surface-container-high hover:text-on-surface',
+      'bg-surface-container text-on-surface-variant border border-outline-variant hover:bg-surface-container-high hover:text-on-surface',
     danger:
-      'bg-error/10 text-error border border-error/20 hover:bg-error/15',
+      'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-500/20 hover:bg-red-100 dark:hover:bg-red-500/15',
     neutral:
-      'bg-surface-container-low text-on-surface border border-outline-variant/30 hover:bg-surface-container-high',
+      'bg-surface-container text-on-surface border border-outline-variant hover:bg-surface-container-high',
     warning:
-      'bg-amber-500/10 text-amber-700 border border-amber-500/20 hover:bg-amber-500/15 dark:text-amber-300',
+      'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 hover:bg-amber-100 dark:hover:bg-amber-500/15',
   };
 
   import Papicon from './Papicon.svelte';
-  const iconBubbleClass = 'inline-flex h-5 w-5 items-center justify-center rounded-lg bg-black/5 transition-transform duration-200 group-hover:scale-105 dark:bg-white/10';
 </script>
 
 <button
@@ -63,7 +62,7 @@
   class="{baseClass} {sizeClasses[size]} {variantClasses[variant]} {fullWidth ? 'w-full' : ''} {className}"
 >
   {#if icon}
-    <Papicon {icon} size={14} class={iconBubbleClass} />
+    <Papicon {icon} size={size === 'sm' ? 13 : 15} />
   {/if}
   <span>{label}</span>
 </button>

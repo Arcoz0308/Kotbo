@@ -13,7 +13,7 @@
 
   function getBaseClass() {
     return iconOnly
-      ? 'p-3 rounded-2xl bg-surface-container-low border border-outline-variant/30 text-on-surface-variant hover:text-primary hover:border-primary transition-all active:scale-95'
+      ? 'p-3 rounded-lg bg-surface-container-low border border-outline-variant/30 text-on-surface-variant hover:text-primary hover:border-primary transition-all active:scale-95'
       : 'flex items-center gap-2 bg-primary text-white px-5 py-2 rounded-xl text-sm font-semibold hover:opacity-90 transition-all shadow-md';
   }
 </script>

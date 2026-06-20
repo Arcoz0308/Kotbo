@@ -58,48 +58,48 @@
 
 <div class="space-y-6">
   <!-- Invites Overview -->
-  <div class="premium-card p-8 rounded-[2.5rem] space-y-8">
+  <div class="premium-card p-8 rounded-xl space-y-8">
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-4">
-        <div class="bg-purple-500/10 p-3 rounded-2xl text-purple-500">
+        <div class="bg-purple-500/10 p-3 rounded-lg text-purple-500">
           <Papicon icon="MailOpen" size={24} />
         </div>
         <div>
-          <h3 class="text-xl font-black text-on-surface">Codes d'Invitation</h3>
+          <h3 class="text-xl font-semibold text-on-surface">Codes d'Invitation</h3>
           <p class="text-xs font-bold text-on-surface-variant/40">Analyse complète des invites</p>
         </div>
       </div>
     </div>
 
     <div class="grid grid-cols-4 gap-4">
-      <div class="bg-surface-container-high/30 p-6 rounded-2xl border border-outline-variant/5">
-        <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-2">Total Codes</p>
-        <p class="text-3xl font-black text-purple-500">{invites.length}</p>
+      <div class="bg-surface-container-high/30 p-6 rounded-lg border border-outline-variant/5">
+        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">Total Codes</p>
+        <p class="text-lg font-semibold text-purple-500">{invites.length}</p>
       </div>
-      <div class="bg-surface-container-high/30 p-6 rounded-2xl border border-outline-variant/5">
-        <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-2">Codes Actifs</p>
-        <p class="text-3xl font-black text-cyan-500">{activeInvites}</p>
+      <div class="bg-surface-container-high/30 p-6 rounded-lg border border-outline-variant/5">
+        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">Codes Actifs</p>
+        <p class="text-lg font-semibold text-cyan-500">{activeInvites}</p>
       </div>
-      <div class="bg-surface-container-high/30 p-6 rounded-2xl border border-outline-variant/5">
-        <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-2">Utilisations Totales</p>
-        <p class="text-3xl font-black text-emerald-500">{totalUses}</p>
+      <div class="bg-surface-container-high/30 p-6 rounded-lg border border-outline-variant/5">
+        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">Utilisations Totales</p>
+        <p class="text-lg font-semibold text-emerald-500">{totalUses}</p>
       </div>
-      <div class="bg-surface-container-high/30 p-6 rounded-2xl border border-outline-variant/5">
-        <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-2">Moy. par Code</p>
-        <p class="text-3xl font-black text-orange-500">{averageUses}</p>
+      <div class="bg-surface-container-high/30 p-6 rounded-lg border border-outline-variant/5">
+        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">Moy. par Code</p>
+        <p class="text-lg font-semibold text-orange-500">{averageUses}</p>
       </div>
     </div>
   </div>
 
   <!-- Top Invites -->
-  <div class="premium-card p-8 rounded-[2.5rem] space-y-6">
+  <div class="premium-card p-8 rounded-xl space-y-6">
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-4">
-        <div class="bg-emerald-500/10 p-3 rounded-2xl text-emerald-500">
+        <div class="bg-emerald-500/10 p-3 rounded-lg text-emerald-500">
           <Papicon icon="Fire" size={24} />
         </div>
         <div>
-          <h3 class="text-xl font-black text-on-surface">Codes Populaires</h3>
+          <h3 class="text-xl font-semibold text-on-surface">Codes Populaires</h3>
           <p class="text-xs font-bold text-on-surface-variant/40">Codes avec le plus d'utilisations</p>
         </div>
       </div>
@@ -115,12 +115,12 @@
     <div class="overflow-x-auto {showAllInvites ? 'max-h-125 overflow-y-auto custom-scrollbar pr-2' : ''}">
       <div class="space-y-2">
         {#each displayedInvites as invite}
-          <div class="p-4 rounded-2xl bg-surface-container-high/20 border border-outline-variant/5 hover:border-primary/20 transition-all">
+          <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 hover:border-primary/20 transition-all">
               <div class="flex items-center justify-between gap-4" role="button" tabindex="0" onclick={() => { selectedInvite = invite; inviteModalOpen = true }} onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && (selectedInvite = invite, inviteModalOpen = true)}>
               <div class="flex-1">
                 <div class="flex items-center gap-2 mb-2">
                   <button
-                    class="text-sm font-black text-primary bg-primary/10 px-3 py-1 rounded-lg hover:bg-primary/20 transition-colors"
+                    class="text-sm font-semibold text-primary bg-primary/10 px-3 py-1 rounded-lg hover:bg-primary/20 transition-colors"
                     onclick={(event) => {
                       event.stopPropagation();
                       inviteDetailsModal.show(invite.code);
@@ -130,7 +130,7 @@
                     {invite.code}
                   </button>
                   {#if invite.uses > 0}
-                    <span class="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-[9px] font-black">
+                    <span class="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-[11px] font-semibold">
                       {invite.uses} utilisations
                     </span>
                   {/if}
@@ -144,8 +144,8 @@
                   <Chart data={chartForInvite(invite).data} options={chartForInvite(invite).options} height={60} />
                 </div>
                 <div class="text-right">
-                  <p class="text-2xl font-black text-emerald-500">{invite.uses || 0}</p>
-                  <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40">utilisations</p>
+                  <p class="text-2xl font-semibold text-emerald-500">{invite.uses || 0}</p>
+                  <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">utilisations</p>
                 </div>
               </div>
             </div>
@@ -164,13 +164,13 @@
 
   <!-- Inactive Codes -->
   {#if invites.filter((inv: any) => !inv.uses).length > 0}
-    <div class="premium-card p-8 rounded-[2.5rem] space-y-6">
+    <div class="premium-card p-8 rounded-xl space-y-6">
       <div class="flex items-center gap-4">
-        <div class="bg-orange-500/10 p-3 rounded-2xl text-orange-500">
+        <div class="bg-orange-500/10 p-3 rounded-lg text-orange-500">
           <Papicon icon="Warning" size={24} />
         </div>
         <div>
-          <h3 class="text-xl font-black text-on-surface">Codes Inactifs</h3>
+          <h3 class="text-xl font-semibold text-on-surface">Codes Inactifs</h3>
           <p class="text-xs font-bold text-on-surface-variant/40">{invites.filter((inv: any) => !inv.uses).length} codes non utilisés</p>
         </div>
       </div>
@@ -179,7 +179,7 @@
         {#each invites.filter((inv: any) => !inv.uses) as invite}
           <div class="p-3 rounded-xl bg-surface-container-high/20 border border-outline-variant/5 flex items-center justify-between">
             <code class="text-xs font-bold text-on-surface-variant/60">{invite.code}</code>
-            <span class="text-[9px] text-on-surface-variant/40">Créé: {new Date(invite.createdAt).toLocaleDateString('fr-FR')}</span>
+            <span class="text-[11px] text-on-surface-variant/40">Créé: {new Date(invite.createdAt).toLocaleDateString('fr-FR')}</span>
           </div>
         {/each}
       </div>
@@ -189,7 +189,7 @@
   {#if inviteModalOpen && selectedInvite}
     <div class="fixed inset-0 z-100 flex items-center justify-center p-4">
       <div 
-        class="absolute inset-0 bg-black/60 backdrop-blur-sm" 
+        class="absolute inset-0 bg-black/40" 
         onclick={() => { inviteModalOpen = false; selectedInvite = null }}
         onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && (inviteModalOpen = false, selectedInvite = null)}
         role="button"
@@ -200,7 +200,7 @@
       <div class="relative w-full max-w-xl modal-panel modal-panel-lg">
         <div class="p-6 border-b border-outline-variant/30 flex items-center justify-between">
           <div>
-            <h3 class="text-2xl font-black">Détails du code: {selectedInvite.code}</h3>
+            <h3 class="text-2xl font-semibold">Détails du code: {selectedInvite.code}</h3>
             <p class="text-sm text-on-surface-variant">Créé par: {selectedInvite.createdBy || 'Inconnu'}</p>
           </div>
           <button onclick={() => { inviteModalOpen = false; selectedInvite = null }} class="px-3 py-2 rounded-xl text-sm font-bold">Fermer</button>
@@ -212,17 +212,17 @@
           </div>
 
           <div class="grid grid-cols-3 gap-4">
-            <div class="bg-surface-container-high/30 p-4 rounded-2xl border border-outline-variant/5 text-center">
-              <p class="text-xs text-on-surface-variant uppercase font-black">Total arrivées</p>
-              <p class="text-2xl font-black text-emerald-500">{selectedInvite.trend?.totalJoined ?? 0}</p>
+            <div class="bg-surface-container-high/30 p-4 rounded-lg border border-outline-variant/5 text-center">
+              <p class="text-xs text-on-surface-variant uppercase font-semibold">Total arrivées</p>
+              <p class="text-2xl font-semibold text-emerald-500">{selectedInvite.trend?.totalJoined ?? 0}</p>
             </div>
-            <div class="bg-surface-container-high/30 p-4 rounded-2xl border border-outline-variant/5 text-center">
-              <p class="text-xs text-on-surface-variant uppercase font-black">Utilisations</p>
-              <p class="text-2xl font-black text-primary">{selectedInvite.uses ?? 0}</p>
+            <div class="bg-surface-container-high/30 p-4 rounded-lg border border-outline-variant/5 text-center">
+              <p class="text-xs text-on-surface-variant uppercase font-semibold">Utilisations</p>
+              <p class="text-2xl font-semibold text-primary">{selectedInvite.uses ?? 0}</p>
             </div>
-            <div class="bg-surface-container-high/30 p-4 rounded-2xl border border-outline-variant/5 text-center">
-              <p class="text-xs text-on-surface-variant uppercase font-black">Max utilisations</p>
-              <p class="text-2xl font-black text-cyan-500">{selectedInvite.maxUses ?? '∞'}</p>
+            <div class="bg-surface-container-high/30 p-4 rounded-lg border border-outline-variant/5 text-center">
+              <p class="text-xs text-on-surface-variant uppercase font-semibold">Max utilisations</p>
+              <p class="text-2xl font-semibold text-cyan-500">{selectedInvite.maxUses ?? '∞'}</p>
             </div>
           </div>
         </div>

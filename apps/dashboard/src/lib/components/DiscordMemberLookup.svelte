@@ -191,7 +191,7 @@
   {/if}
 
   {#if suggestions.length > 0}
-    <div class="absolute z-50 w-full mt-2 bg-[#1e1e2e] border border-white/10 rounded-xl shadow-xl overflow-hidden backdrop-blur-xl">
+    <div class="absolute z-50 w-full mt-2 bg-[#1e1e2e] border border-white/10 rounded-xl shadow-sm overflow-hidden">
       <div class="max-h-60 overflow-y-auto p-2 space-y-1">
         {#each suggestions as suggestion (suggestion.id)}
           <button

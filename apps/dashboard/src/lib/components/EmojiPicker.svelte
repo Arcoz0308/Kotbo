@@ -90,7 +90,7 @@
     type="button"
     {disabled}
     onclick={() => isOpen = !isOpen}
-    class="flex h-11 w-11 items-center justify-center rounded-2xl bg-surface-container-high/60 border border-outline-variant/10 hover:bg-surface-container-high hover:border-outline-variant/35 text-xl transition-all cursor-pointer shadow-sm disabled:opacity-40 disabled:cursor-not-allowed select-none active:scale-95"
+    class="flex h-11 w-11 items-center justify-center rounded-lg bg-surface-container-high/60 border border-outline-variant/10 hover:bg-surface-container-high hover:border-outline-variant/35 text-xl transition-all cursor-pointer shadow-sm disabled:opacity-40 disabled:cursor-not-allowed select-none active:scale-95"
     title="Ouvrir le sélecteur d'émojis"
   >
     😀
@@ -98,7 +98,7 @@
 
   {#if isOpen}
     <div
-      class="absolute right-0 bottom-full mb-2 z-100 w-64 bg-surface border border-outline-variant/20 rounded-3xl p-4 shadow-2xl flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2 duration-150"
+      class="absolute right-0 bottom-full mb-2 z-100 w-64 bg-surface border border-outline-variant/20 rounded-xl p-4 shadow-sm flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-2 duration-150"
     >
       <input
         type="text"
@@ -128,7 +128,7 @@
             <button
               type="button"
               onclick={() => selectEmoji(emoji)}
-              class="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-primary/10 hover:scale-110 active:scale-95 transition-all cursor-pointer"
+              class="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-primary/10  active:scale-95 transition-all cursor-pointer"
             >
               {emoji}
             </button>

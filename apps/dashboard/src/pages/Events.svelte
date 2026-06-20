@@ -169,24 +169,24 @@
     <!-- Backdrop -->
     <button
       type="button"
-      class="absolute inset-0 bg-black/60 backdrop-blur-sm border-none cursor-default w-full h-full text-left p-0"
+      class="absolute inset-0 bg-black/40 border-none cursor-default w-full h-full text-left p-0"
       onclick={() => { if (!isCreating) showTypeModal = false; }}
       aria-label="Fermer"
     ></button>
 
     <!-- Panneau -->
     <div
-      class="relative z-10 bg-surface-container rounded-[2.5rem] border border-outline-variant/20 shadow-2xl w-full max-w-2xl p-10 flex flex-col gap-8"
+      class="relative z-10 bg-surface-container rounded-xl border border-outline-variant/20 shadow-sm w-full max-w-2xl p-10 flex flex-col gap-8"
     >
       <!-- Header -->
       <div class="flex items-start justify-between gap-4">
         <div>
-          <h2 id="modal-title" class="text-2xl font-black text-on-surface">Choisir un type d'événement</h2>
+          <h2 id="modal-title" class="text-2xl font-semibold text-on-surface">Choisir un type d'événement</h2>
           <p class="text-on-surface-variant/50 text-sm mt-1">Sélectionnez la nature de votre événement. Vous pourrez le configurer en détail ensuite.</p>
         </div>
         <button
           onclick={() => showTypeModal = false}
-          class="w-10 h-10 rounded-2xl bg-on-surface/5 hover:bg-on-surface/10 flex items-center justify-center text-on-surface-variant/60 hover:text-on-surface transition-colors shrink-0"
+          class="w-10 h-10 rounded-lg bg-on-surface/5 hover:bg-on-surface/10 flex items-center justify-center text-on-surface-variant/60 hover:text-on-surface transition-colors shrink-0"
           aria-label="Fermer la modale"
           disabled={isCreating}
         >
@@ -200,20 +200,20 @@
           <button
             onclick={() => createEventWithType(et.type)}
             disabled={isCreating}
-            class="group relative flex flex-col gap-5 p-7 rounded-[2rem] border bg-gradient-to-br text-left
-                   transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed
+            class="group relative flex flex-col gap-5 p-7 rounded-xl border bg-gradient-to-br text-left
+                   transition-all duration-200 hover: active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed
                    {et.color} {et.border}"
           >
             <!-- Icon -->
-            <div class="w-14 h-14 rounded-[1.2rem] {et.iconBg} flex items-center justify-center transition-transform group-hover:scale-110">
+            <div class="w-14 h-14 rounded-[1.2rem] {et.iconBg} flex items-center justify-center transition-transform group-">
               <Papicon icon={et.icon} size={26} />
             </div>
 
             <!-- Text -->
             <div class="flex flex-col gap-2">
               <div class="flex items-center gap-3">
-                <span class="text-lg font-black text-on-surface">{et.label}</span>
-                <span class="px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest {et.tagColor}">
+                <span class="text-lg font-semibold text-on-surface">{et.label}</span>
+                <span class="px-2.5 py-0.5 rounded-lg text-[11px] font-semibold uppercase tracking-widest {et.tagColor}">
                   {et.tag}
                 </span>
               </div>
@@ -252,7 +252,7 @@
       {#if canManageEvents}
         <button
           onclick={() => showTypeModal = true}
-          class="px-5 py-2.5 bg-primary text-on-primary rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-105 transition-transform"
+          class="px-5 py-2.5 bg-primary text-on-primary rounded-xl font-semibold text-[10px] uppercase tracking-widest  hover:scale-105 transition-transform"
         >
           Nouvel Événement
         </button>
@@ -262,38 +262,38 @@
 
   <div class="space-y-10 pb-20">
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <div class="bg-surface-container-low/40 rounded-[2.5rem] p-8 border border-outline-variant/10">
-        <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Total Événements</p>
-        <p class="text-4xl font-black text-on-surface mt-2">{events.length}</p>
+      <div class="bg-surface-container-low/40 rounded-xl p-8 border border-outline-variant/10">
+        <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Total Événements</p>
+        <p class="text-lg font-semibold text-on-surface mt-2">{events.length}</p>
       </div>
-      <div class="bg-surface-container-low/40 rounded-[2.5rem] p-8 border border-outline-variant/10">
-        <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">En cours</p>
-        <p class="text-4xl font-black text-emerald-500 mt-2">{events.filter(e => e.status === 'ONGOING').length}</p>
+      <div class="bg-surface-container-low/40 rounded-xl p-8 border border-outline-variant/10">
+        <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">En cours</p>
+        <p class="text-lg font-semibold text-emerald-500 mt-2">{events.filter(e => e.status === 'ONGOING').length}</p>
       </div>
-      <div class="bg-surface-container-low/40 rounded-[2.5rem] p-8 border border-outline-variant/10">
-        <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Participations</p>
-        <p class="text-4xl font-black text-on-surface mt-2">{events.reduce((acc, e) => acc + (e._count?.participants || 0), 0)}</p>
+      <div class="bg-surface-container-low/40 rounded-xl p-8 border border-outline-variant/10">
+        <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Participations</p>
+        <p class="text-lg font-semibold text-on-surface mt-2">{events.reduce((acc, e) => acc + (e._count?.participants || 0), 0)}</p>
       </div>
     </div>
 
     <section class="space-y-6">
-      <h3 class="text-xl font-black text-on-surface px-2">Liste des événements</h3>
+      <h3 class="text-xl font-semibold text-on-surface px-2">Liste des événements</h3>
 
       <div class="grid grid-cols-1 gap-4">
         {#each events as event}
-          <div class="bg-surface-container-low/30 rounded-[2.5rem] border border-outline-variant/10 p-8 flex flex-col md:flex-row justify-between items-center gap-6 group hover:bg-surface-container-low/50 transition-colors">
+          <div class="bg-surface-container-low/30 rounded-xl border border-outline-variant/10 p-8 flex flex-col md:flex-row justify-between items-center gap-6 group hover:bg-surface-container-low/50 transition-colors">
             <div class="flex items-center gap-6">
-              <div class="w-16 h-16 rounded-[1.5rem] flex items-center justify-center group-hover:scale-110 transition-transform
+              <div class="w-16 h-16 rounded-xl flex items-center justify-center group- transition-transform
                 {event.type === 'CTF' ? 'bg-emerald-500/10 text-emerald-400' : event.type === 'CUSTOM' ? 'bg-purple-500/10 text-purple-400' : 'bg-blue-500/10 text-blue-400'}">
                 <Papicon icon={event.type === 'CTF' ? 'Flag' : event.type === 'CUSTOM' ? 'Calendar' : 'HelpCircle'} size={24} />
               </div>
               <div>
                 <div class="flex items-center gap-3">
-                  <h4 class="text-xl font-black text-on-surface">{event.title}</h4>
-                  <span class="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest {getStatusColor(event.status)} border border-current/10">
+                  <h4 class="text-xl font-semibold text-on-surface">{event.title}</h4>
+                  <span class="px-3 py-1 rounded-lg text-[11px] font-semibold uppercase tracking-widest {getStatusColor(event.status)} border border-current/10">
                     {getStatusLabel(event.status)}
                   </span>
-                  <span class="px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest
+                  <span class="px-2.5 py-0.5 rounded-lg text-[11px] font-semibold uppercase tracking-widest
                     {event.type === 'CTF' ? 'bg-emerald-500/15 text-emerald-400' : event.type === 'CUSTOM' ? 'bg-purple-500/15 text-purple-400' : 'bg-blue-500/15 text-blue-400'}">
                     {event.type === 'CTF' ? 'CTF' : event.type === 'CUSTOM' ? 'Custom' : 'Quiz'}
                   </span>
@@ -320,7 +320,7 @@
               {#if (event.status === 'ONGOING' || event.status === 'PUBLISHED') && event.type !== 'CUSTOM'}
                 <button 
                   onclick={() => router.goto(`/events/control/${event.id}`)}
-                  class="px-6 py-3 bg-emerald-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2"
+                  class="px-6 py-3 bg-emerald-500 text-white rounded-lg text-[10px] font-semibold uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2"
                 >
                   <Papicon icon="Play" size={12} /> Piloter
                 </button>
@@ -328,21 +328,21 @@
               {#if event.status === 'COMPLETED' && event.type !== 'CUSTOM'}
                 <button 
                   onclick={() => router.goto(`/events/control/${event.id}`)}
-                  class="px-6 py-3 bg-primary/10 text-primary rounded-2xl text-[10px] font-black uppercase tracking-widest border border-primary/20 hover:bg-primary/20 transition-colors flex items-center gap-2"
+                  class="px-6 py-3 bg-primary/10 text-primary rounded-lg text-[10px] font-semibold uppercase tracking-widest border border-primary/20 hover:bg-primary/20 transition-colors flex items-center gap-2"
                 >
                   <Papicon icon="BarChart2" size={12} /> Stats
                 </button>
               {/if}
               <button 
                 onclick={() => router.goto(`/events/edit/${event.id}`)}
-                class="px-6 py-3 bg-surface-container-high rounded-2xl text-[10px] font-black uppercase tracking-widest border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2"
+                class="px-6 py-3 bg-surface-container-high rounded-lg text-[10px] font-semibold uppercase tracking-widest border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2"
               >
                 <Papicon icon="Edit3" size={12} /> Éditer
               </button>
               {#if canManageEvents}
                 <button 
                   onclick={() => deleteEvent(event.id, event.title)}
-                  class="px-6 py-3 bg-red-500/10 text-red-500 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-red-500/20 hover:bg-red-500/20 transition-colors flex items-center gap-2"
+                  class="px-6 py-3 bg-red-500/10 text-red-500 rounded-lg text-[10px] font-semibold uppercase tracking-widest border border-red-500/20 hover:bg-red-500/20 transition-colors flex items-center gap-2"
                 >
                   <Papicon icon="Trash" size={12} /> Supprimer
                 </button>
@@ -350,13 +350,13 @@
             </div>
           </div>
         {:else}
-          <div class="py-20 text-center bg-surface-container-low/20 rounded-[3rem] border border-dashed border-outline-variant/20">
+          <div class="py-20 text-center bg-surface-container-low/20 rounded-xl border border-dashed border-outline-variant/20">
             <div class="w-20 h-20 bg-on-surface/5 rounded-full flex items-center justify-center mx-auto mb-6 text-on-surface-variant/20">
               <Papicon icon="Zap" size={40} />
             </div>
-            <p class="text-on-surface-variant/60 font-black text-xl">Aucun événement pour le moment.</p>
+            <p class="text-on-surface-variant/60 font-semibold text-xl">Aucun événement pour le moment.</p>
             {#if canManageEvents}
-              <button onclick={() => showTypeModal = true} class="mt-6 text-primary font-black uppercase text-[10px] tracking-widest hover:underline">
+              <button onclick={() => showTypeModal = true} class="mt-6 text-primary font-semibold uppercase text-[10px] tracking-widest hover:underline">
                 Créer votre premier événement
               </button>
             {/if}

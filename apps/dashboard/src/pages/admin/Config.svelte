@@ -51,10 +51,10 @@
 <AdminLayout>
   <div class="space-y-6 pb-12 animate-in fade-in slide-in-from-bottom-3 duration-600">
   <!-- Header -->
-  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
     <div>
-      <h2 class="text-2xl font-black text-on-surface tracking-tight">Avancé</h2>
-      <p class="text-sm text-on-surface-variant/50 mt-0.5 font-medium">Configuration système et logs d'erreurs</p>
+      <h2 class="text-lg font-semibold text-on-surface tracking-tight">Avancé</h2>
+      <p class="text-sm text-on-surface-variant/50 font-medium">Configuration système et logs d'erreurs</p>
     </div>
   </div>
 
@@ -62,8 +62,8 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <div class="premium-card rounded-[2.25rem] p-8 space-y-6 h-full">
         <div class="animate-pulse space-y-4">
-          <div class="h-20 bg-surface/40 rounded-2xl"></div>
-          <div class="h-20 bg-surface/40 rounded-2xl"></div>
+          <div class="h-20 bg-surface/40 rounded-lg"></div>
+          <div class="h-20 bg-surface/40 rounded-lg"></div>
           <div class="h-12 bg-surface/40 rounded-xl"></div>
         </div>
       </div>
@@ -85,7 +85,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in">
       <!-- Kill Switch -->
       <div class="space-y-6">
-        <h2 class="text-xl font-black font-headline flex items-center gap-3 px-2">
+        <h2 class="text-xl font-semibold font-headline flex items-center gap-3 px-2">
           <Papicon icon="Power" size={24} class="text-amber-500" />
           Kill Switch
         </h2>
@@ -104,7 +104,7 @@
           </div>
           <button 
             onclick={handleToggleMaintenance}
-            class="px-8 py-4 rounded-xl font-black text-lg transition-all hover:scale-105 {maintenanceMode ? 'bg-success text-on-success shadow-success/20' : 'bg-amber-500 text-white shadow-amber-500/20'} shadow-lg"
+            class="px-8 py-4 rounded-xl font-semibold text-lg transition-all hover:scale-105 {maintenanceMode ? 'bg-success text-on-success shadow-success/20' : 'bg-amber-500 text-white shadow-amber-500/20'} shadow-lg"
           >
             {maintenanceMode ? "DÉSACTIVER (Retour Normal)" : "ACTIVER LA MAINTENANCE"}
           </button>
@@ -113,7 +113,7 @@
 
       <!-- Error Logs -->
       <div class="space-y-6">
-        <h2 class="text-xl font-black font-headline flex items-center gap-3 px-2">
+        <h2 class="text-xl font-semibold font-headline flex items-center gap-3 px-2">
           <Papicon icon="Terminal" size={24} class="text-red-400" />
           Flux d'Erreurs
         </h2>

@@ -300,7 +300,7 @@
 
 {#if open}
   <div
-    class="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh] px-4"
+    class="fixed inset-0 z-100 flex items-start justify-center pt-[15vh] px-4"
     role="dialog"
     aria-modal="true"
     aria-label="Palette de commandes"
@@ -310,19 +310,19 @@
     <!-- Backdrop -->
     <button
       type="button"
-      class="absolute inset-0 bg-black/70 backdrop-blur-md animate-in fade-in duration-150 border-none cursor-default w-full h-full text-left p-0"
+      class="absolute inset-0 bg-black/40 animate-in fade-in duration-100 border-none cursor-default w-full h-full text-left p-0"
       onclick={close}
       aria-label="Fermer"
     ></button>
 
     <!-- Palette panel -->
     <div
-      class="relative z-10 w-full max-w-xl bg-surface-container border border-outline-variant/20 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+      class="relative z-10 w-full max-w-xl bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg overflow-hidden animate-in fade-in slide-up duration-150"
       role="document"
     >
       <!-- Search input -->
-      <div class="flex items-center gap-3 px-4 py-3.5 border-b border-outline-variant/10">
-        <Papicon icon="Search" size={16} class="text-on-surface-variant/40 shrink-0" />
+      <div class="flex items-center gap-2.5 px-3 py-2.5 border-b border-outline-variant">
+        <Papicon icon="Search" size={15} class="text-on-surface-variant/40 shrink-0" />
         <input
           bind:this={inputEl}
           bind:value={query}
@@ -330,39 +330,39 @@
           onkeydown={handleKeydown}
           type="text"
           placeholder="Chercher une page, une action..."
-          class="flex-1 bg-transparent text-sm text-on-surface placeholder-on-surface-variant/30 focus:outline-none font-medium"
+          class="flex-1 bg-transparent text-sm text-on-surface placeholder-on-surface-variant/40 focus:outline-none"
         />
-        <kbd class="hidden sm:flex items-center gap-1 px-2 py-1 rounded-lg bg-on-surface/5 border border-outline-variant/10 text-[10px] font-black text-on-surface-variant/40 leading-none">
+        <kbd class="hidden sm:flex px-1.5 py-0.5 rounded bg-surface-container border border-outline-variant text-[10px] font-medium text-on-surface-variant/40 leading-none">
           ESC
         </kbd>
       </div>
 
       <!-- Results -->
-      <div class="max-h-[60vh] overflow-y-auto py-2">
+      <div class="max-h-[60vh] overflow-y-auto py-1">
         {#each Object.entries(filteredItems()) as [group, items]}
-          <div class="px-2 pb-1">
-            <p class="text-[9px] font-black uppercase tracking-[0.2em] text-on-surface-variant/30 px-3 py-2">{group}</p>
+          <div class="px-1 pb-0.5">
+            <p class="text-[10px] font-medium uppercase tracking-wider text-on-surface-variant px-2.5 py-1.5">{group}</p>
             {#each items as item}
               {@const globalIdx = flatItems().indexOf(item)}
               {@const isSelected = globalIdx === selectedIndex}
               <button
                 onclick={() => runItem(item)}
                 onmouseenter={() => selectedIndex = globalIdx}
-                class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all duration-100
-                  {isSelected ? 'bg-primary/10 text-primary' : 'text-on-surface-variant/70 hover:bg-on-surface/5 hover:text-on-surface'}"
+                class="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors duration-100
+                  {isSelected ? 'bg-primary/8 text-primary' : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'}"
               >
-                <div class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors
-                  {isSelected ? 'bg-primary/20 text-primary' : 'bg-on-surface/5 text-on-surface-variant/40'}">
-                  <Papicon icon={item.icon} size={14} />
+                <div class="w-6 h-6 rounded-md flex items-center justify-center shrink-0 transition-colors
+                  {isSelected ? 'bg-primary/15 text-primary' : 'bg-surface-container text-on-surface-variant/50'}">
+                  <Papicon icon={item.icon} size={13} />
                 </div>
                 <div class="flex-1 min-w-0">
-                  <p class="text-sm font-bold leading-none truncate">{item.label}</p>
+                  <p class="text-sm leading-none truncate">{item.label}</p>
                   {#if item.sublabel}
-                    <p class="text-[10px] text-on-surface-variant/40 mt-0.5 truncate">{item.sublabel}</p>
+                    <p class="text-[10px] text-on-surface-variant/50 mt-0.5 truncate">{item.sublabel}</p>
                   {/if}
                 </div>
                 {#if isSelected}
-                  <kbd class="text-[9px] font-black text-primary/50 leading-none">↵</kbd>
+                  <kbd class="text-[9px] text-primary/50 leading-none">↵</kbd>
                 {/if}
               </button>
             {/each}
@@ -370,25 +370,25 @@
         {/each}
 
         {#if flatItems().length === 0}
-          <div class="flex flex-col items-center py-10 gap-2 text-center">
-            <Papicon icon="SearchX" size={28} class="text-on-surface-variant/20" />
-            <p class="text-sm text-on-surface-variant/40 font-medium">Aucun résultat pour «{query}»</p>
+          <div class="flex flex-col items-center py-8 gap-1.5 text-center">
+            <Papicon icon="SearchX" size={24} class="text-on-surface-variant/30" />
+            <p class="text-sm text-on-surface-variant/50">Aucun résultat pour «{query}»</p>
           </div>
         {/if}
       </div>
 
       <!-- Footer hint -->
-      <div class="flex items-center gap-4 px-4 py-2.5 border-t border-outline-variant/10 bg-on-surface/2">
-        <div class="flex items-center gap-1.5 text-[10px] text-on-surface-variant/30 font-medium">
-          <kbd class="px-1.5 py-0.5 rounded bg-on-surface/8 border border-outline-variant/10 font-mono">↑↓</kbd>
+      <div class="flex items-center gap-3 px-3 py-2 border-t border-outline-variant bg-surface-container">
+        <div class="flex items-center gap-1 text-[10px] text-on-surface-variant/40">
+          <kbd class="px-1 py-0.5 rounded bg-surface-container-highest border border-outline-variant font-mono text-[9px]">↑↓</kbd>
           Naviguer
         </div>
-        <div class="flex items-center gap-1.5 text-[10px] text-on-surface-variant/30 font-medium">
-          <kbd class="px-1.5 py-0.5 rounded bg-on-surface/8 border border-outline-variant/10 font-mono">↵</kbd>
+        <div class="flex items-center gap-1 text-[10px] text-on-surface-variant/40">
+          <kbd class="px-1 py-0.5 rounded bg-surface-container-highest border border-outline-variant font-mono text-[9px]">↵</kbd>
           Ouvrir
         </div>
-        <div class="flex items-center gap-1.5 text-[10px] text-on-surface-variant/30 font-medium">
-          <kbd class="px-1.5 py-0.5 rounded bg-on-surface/8 border border-outline-variant/10 font-mono">Esc</kbd>
+        <div class="flex items-center gap-1 text-[10px] text-on-surface-variant/40">
+          <kbd class="px-1 py-0.5 rounded bg-surface-container-highest border border-outline-variant font-mono text-[9px]">Esc</kbd>
           Fermer
         </div>
       </div>

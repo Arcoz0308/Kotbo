@@ -262,14 +262,14 @@
       </div>
       <div class="h-8 w-px bg-outline-variant/20"></div>
       <div class="text-right">
-        <div class="text-lg font-black text-on-surface">{totalFound.toLocaleString('fr-FR')}</div>
-        <div class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40">Total membres</div>
+        <div class="text-lg font-semibold text-on-surface">{totalFound.toLocaleString('fr-FR')}</div>
+        <div class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Total membres</div>
       </div>
     </div>
   {/snippet}
 
   <!-- Barre d'Action Ergonomique -->
-  <section class="sticky top-0 z-10 -mx-4 space-y-4 rounded-b-4xl bg-surface/80 px-4 pb-6 pt-2 backdrop-blur-xl md:top-4 md:mx-0 md:rounded-4xl md:pt-4">
+  <section class="sticky top-0 z-10 -mx-4 space-y-4 rounded-b-4xl bg-surface/80 px-4 pb-6 pt-2 md:top-4 md:mx-0 md:rounded-xl md:pt-4">
     <div class="flex flex-col gap-3 lg:flex-row lg:items-center">
       <div class="relative flex-1">
         <span class="pointer-events-none absolute inset-y-0 left-4 flex items-center text-on-surface-variant/40">
@@ -280,7 +280,7 @@
           value={searchQuery}
           oninput={updateQuery}
           placeholder="Rechercher par nom, pseudo ou ID..."
-          class="w-full rounded-2xl border border-outline-variant/10 bg-surface-container-low/70 py-3.5 pl-12 pr-12 text-sm text-on-surface placeholder:text-on-surface-variant/30 outline-hidden transition-all focus:border-primary/30 focus:bg-surface-container focus:ring-4 focus:ring-primary/5"
+          class="w-full rounded-lg border border-outline-variant/10 bg-surface-container-low/70 py-3.5 pl-12 pr-12 text-sm text-on-surface placeholder:text-on-surface-variant/30 outline-hidden transition-all focus:border-primary/30 focus:bg-surface-container focus:ring-4 focus:ring-primary/5"
         />
         {#if loadingSearch}
           <span class="absolute inset-y-0 right-4 flex items-center text-primary/60">
@@ -294,7 +294,7 @@
           <select
             value={sortBy}
             onchange={(event) => changeFilter((value) => { sortBy = value; }, (event.currentTarget as HTMLSelectElement).value as typeof sortBy)}
-            class="appearance-none rounded-2xl border border-outline-variant/10 bg-surface-container-low/70 py-3.5 pl-4 pr-10 text-xs font-bold text-on-surface-variant transition-colors hover:bg-surface-container focus:border-primary/30"
+            class="appearance-none rounded-lg border border-outline-variant/10 bg-surface-container-low/70 py-3.5 pl-4 pr-10 text-xs font-bold text-on-surface-variant transition-colors hover:bg-surface-container focus:border-primary/30"
           >
             {#each sortOptions as option}
               <option value={option.value}>{option.label}</option>
@@ -307,7 +307,7 @@
 
         <button
           onclick={() => changeFilter((value) => { sortOrder = value; }, sortOrder === 'asc' ? 'desc' : 'asc')}
-          class="inline-flex h-11.5 w-11.5 items-center justify-center rounded-2xl border border-outline-variant/10 bg-surface-container-low/70 text-on-surface-variant transition-colors hover:bg-surface-container"
+          class="inline-flex h-11.5 w-11.5 items-center justify-center rounded-lg border border-outline-variant/10 bg-surface-container-low/70 text-on-surface-variant transition-colors hover:bg-surface-container"
           title={sortOrder === 'asc' ? 'Tri croissant' : 'Tri décroissant'}
         >
           <Papicon icon={sortOrder === 'asc' ? 'sort-asc' : 'sort-desc'} size={18} />
@@ -315,7 +315,7 @@
 
         <div class="h-8 w-px bg-outline-variant/20 mx-1 hidden sm:block"></div>
 
-        <div class="flex rounded-2xl border border-outline-variant/10 bg-surface-container-low/70 p-1">
+        <div class="flex rounded-lg border border-outline-variant/10 bg-surface-container-low/70 p-1">
           <button
             onclick={() => { botFilter = 'human'; void search(true); }}
             class={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${botFilter === 'human' ? 'bg-surface text-primary shadow-xs' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
@@ -336,7 +336,7 @@
           </button>
         </div>
 
-        <div class="flex rounded-2xl border border-outline-variant/10 bg-surface-container-low/70 p-1">
+        <div class="flex rounded-lg border border-outline-variant/10 bg-surface-container-low/70 p-1">
           <button
             onclick={() => { serverStatus = 'on_server'; void search(true); }}
             class={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${serverStatus === 'on_server' ? 'bg-surface text-primary shadow-xs' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
@@ -359,7 +359,7 @@
 
         <button
           onclick={resetSearch}
-          class="inline-flex h-11.5 w-11.5 items-center justify-center rounded-2xl border border-outline-variant/10 bg-surface-container-low/70 text-on-surface-variant transition-colors hover:bg-surface-container hover:text-rose-500"
+          class="inline-flex h-11.5 w-11.5 items-center justify-center rounded-lg border border-outline-variant/10 bg-surface-container-low/70 text-on-surface-variant transition-colors hover:bg-surface-container hover:text-rose-500"
           title="Réinitialiser les filtres"
         >
           <Papicon icon="rotate-ccw" size={18} />
@@ -369,20 +369,20 @@
 
     <!-- Quick Stats Bar -->
     <div class="flex flex-wrap items-center gap-4 px-2">
-      <div class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/40">
+      <div class="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/40">
         <div class="h-1.5 w-1.5 rounded-full bg-emerald-500"></div>
         {stats.onServer} en ligne
       </div>
-      <div class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/40">
+      <div class="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/40">
         <div class="h-1.5 w-1.5 rounded-full bg-amber-500"></div>
         {stats.left} partis
       </div>
-      <div class="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/40">
+      <div class="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/40">
         <div class="h-1.5 w-1.5 rounded-full bg-primary/50"></div>
         {stats.bots} bots
       </div>
       <div class="ml-auto flex items-center gap-2">
-        <span class="text-[10px] font-black uppercase tracking-wider text-on-surface-variant/40">Par page:</span>
+        <span class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/40">Par page:</span>
         <select
           value={limit}
           onchange={(event) => {
@@ -400,7 +400,7 @@
   </section>
 
   {#if searchError}
-    <div class="rounded-2xl border border-rose-500/20 bg-rose-500/5 px-4 py-3 text-sm font-medium text-rose-600 flex items-center gap-3">
+    <div class="rounded-lg border border-rose-500/20 bg-rose-500/5 px-4 py-3 text-sm font-medium text-rose-600 flex items-center gap-3">
       <Papicon icon="alert-circle" size={18} />
       {searchError}
     </div>
@@ -411,7 +411,7 @@
     {#if loadingSearch && members.length === 0}
       <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {#each Array(8) as _, index}
-          <div class="animate-pulse rounded-3xl border border-outline-variant/10 bg-surface-container-low/40 p-4" aria-hidden="true">
+          <div class="animate-pulse rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-4" aria-hidden="true">
             <div class="flex items-center gap-4">
               <div class="h-12 w-12 rounded-xl bg-on-surface/5"></div>
               <div class="flex-1 space-y-2">
@@ -428,14 +428,14 @@
       </div>
     {:else if members.length === 0}
       <div class="flex flex-col items-center justify-center py-24 text-center">
-        <div class="flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-container-low text-on-surface-variant/20">
+        <div class="flex h-16 w-16 items-center justify-center rounded-lg bg-surface-container-low text-on-surface-variant/20">
           <Papicon icon="users" size={32} />
         </div>
         <h3 class="mt-6 text-xl font-bold text-on-surface">Aucun résultat</h3>
         <p class="mt-2 text-sm text-on-surface-variant/50 max-w-xs">
           Nous n'avons trouvé aucun membre correspondant à vos critères de recherche.
         </p>
-        <button onclick={resetSearch} class="mt-6 text-xs font-black uppercase tracking-widest text-primary hover:underline">
+        <button onclick={resetSearch} class="mt-6 text-xs font-semibold uppercase tracking-widest text-primary hover:underline">
           Réinitialiser tout
         </button>
       </div>
@@ -444,7 +444,7 @@
         {#each members as member (member.id)}
           <button
             onclick={() => openMemberCase(member)}
-            class={`group flex flex-col rounded-3xl border ${member.isOnServer ? 'border-outline-variant/10 bg-surface-container-low/40' : 'border-rose-500/10 bg-rose-500/5'} p-4 text-left transition-all duration-300 hover:border-primary/20 hover:bg-surface-container-low hover:shadow-xl hover:shadow-primary/5`}
+            class={`group flex flex-col rounded-xl border ${member.isOnServer ? 'border-outline-variant/10 bg-surface-container-low/40' : 'border-rose-500/10 bg-rose-500/5'} p-4 text-left transition-all duration-300 hover:border-primary/20 hover:bg-surface-container-low hover:shadow-xl hover:shadow-primary/5`}
           >
             <div class="flex items-start gap-4">
               <div class="relative">
@@ -454,7 +454,7 @@
                   class="h-12 w-12 rounded-xl object-cover grayscale-[0.2] transition-all group-hover:grayscale-0"
                 />
                 {#if member.isBot}
-                  <div class="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[8px] text-white">
+                  <div class="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] text-white">
                     <Papicon icon="bot" size={10} />
                   </div>
                 {/if}
@@ -469,18 +469,18 @@
 
             <div class="mt-6 grid grid-cols-2 gap-3">
               <div class="space-y-0.5">
-                <div class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/30">Activité</div>
+                <div class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/30">Activité</div>
                 <div class="text-[11px] font-bold text-on-surface-variant/70">{formatRelative(member.lastSeenAt)}</div>
               </div>
               <div class="space-y-0.5">
-                <div class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/30">Messages</div>
+                <div class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/30">Messages</div>
                 <div class="text-[11px] font-bold text-on-surface-variant/70">{member.messageCount.toLocaleString('fr-FR')}</div>
               </div>
             </div>
 
             <div class="mt-4 flex items-center justify-between border-t border-outline-variant/5 pt-3">
-              <span class="text-[9px] font-bold text-on-surface-variant/30">{member.id.slice(0, 14)}…</span>
-              <span class="text-[9px] font-black uppercase tracking-widest text-primary/0 transition-all group-hover:text-primary">
+              <span class="text-[11px] font-bold text-on-surface-variant/30">{member.id.slice(0, 14)}…</span>
+              <span class="text-[11px] font-semibold uppercase tracking-widest text-primary/0 transition-all group-hover:text-primary">
                 Dossier <Papicon icon="arrow-right" size={10} />
               </span>
             </div>
@@ -506,7 +506,7 @@
           <Papicon icon="chevron-left" size={16} />
         </button>
 
-        <div class="px-4 text-xs font-black text-on-surface">
+        <div class="px-4 text-xs font-semibold text-on-surface">
           {page} <span class="mx-1 text-on-surface-variant/30">/</span> {totalPages}
         </div>
 

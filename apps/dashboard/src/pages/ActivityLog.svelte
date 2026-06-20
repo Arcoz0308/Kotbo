@@ -206,7 +206,7 @@
 
 <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10 font-inter">
   <div>
-    <h2 class="text-3xl font-extrabold text-primary tracking-tight font-headline">Journal d'Activité</h2>
+    <h2 class="text-lg font-extrabold text-primary tracking-tight font-headline">Journal d'Activité</h2>
     <p class="text-on-surface-variant mt-1 leading-relaxed">Historique des actions de configuration pour {dashboardStore.state.guildName}.</p>
   </div>
   <div class="flex items-center gap-3">
@@ -214,7 +214,7 @@
       onClick={() => dashboardStore.refresh()}
       loading={dashboardStore.state.loading}
       label="Actualiser"
-      className="px-5 py-2.5 font-bold shadow-lg shadow-primary/10"
+      className="px-5 py-2.5 font-bold "
       iconClass="text-lg"
     />
   </div>
@@ -353,7 +353,7 @@
                 {/if}
                 {#each parsed.blocks as block}
                   <div class="bg-surface-container-low border-l-2 border-primary/50 rounded-r-lg px-3 py-1.5 text-xs text-on-surface-variant space-y-0.5 max-w-full overflow-hidden">
-                    <p class="text-[9px] font-black uppercase tracking-wider text-primary/80">{block.key}</p>
+                    <p class="text-[11px] font-semibold uppercase tracking-wider text-primary/80">{block.key}</p>
                     <p class="break-all whitespace-pre-wrap leading-relaxed text-on-surface">{@html block.value}</p>
                   </div>
                 {/each}
@@ -384,10 +384,10 @@
 
 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12 font-inter">
   {#each stats as kpi}
-    <div class="bg-surface-container-low p-6 rounded-2xl border border-outline-variant/10">
+    <div class="bg-surface-container-low p-6 rounded-lg border border-outline-variant/10">
       <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{kpi.label}</p>
       <div class="flex items-end justify-between mt-2">
-        <p class="text-3xl font-extrabold text-on-surface">{kpi.val}</p>
+        <p class="text-lg font-extrabold text-on-surface">{kpi.val}</p>
         <span class="text-[10px] font-bold {kpi.subClass}">{kpi.sub}</span>
       </div>
     </div>

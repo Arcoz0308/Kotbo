@@ -131,28 +131,28 @@
     <div class="flex gap-3">
       <button 
         onclick={() => router.goto('/events')}
-        class="px-5 py-2.5 bg-surface-container-high rounded-xl font-black text-[10px] uppercase tracking-widest border border-outline-variant/10 hover:bg-surface-container-highest transition-colors"
+        class="px-5 py-2.5 bg-surface-container-high rounded-xl font-semibold text-[10px] uppercase tracking-widest border border-outline-variant/10 hover:bg-surface-container-highest transition-colors"
       >
         Retour
       </button>
       {#if event && event.type !== 'CTF'}
         <button
           onclick={prevQuestion}
-          class="px-5 py-2.5 bg-surface-container-high rounded-xl font-black text-[10px] uppercase tracking-widest border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2 disabled:opacity-30"
+          class="px-5 py-2.5 bg-surface-container-high rounded-xl font-semibold text-[10px] uppercase tracking-widest border border-outline-variant/10 hover:bg-surface-container-highest transition-colors flex items-center gap-2 disabled:opacity-30"
           disabled={currentQIdx <= 1}
         >
           <Papicon icon="SkipBack" size={12} /> Précédente
         </button>
         <button
           onclick={nextQuestion}
-          class="px-5 py-2.5 bg-emerald-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:scale-105 transition-transform flex items-center gap-2"
+          class="px-5 py-2.5 bg-emerald-500 text-white rounded-xl font-semibold text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:scale-105 transition-transform flex items-center gap-2"
         >
           <Papicon icon="SkipForward" size={12} /> {currentQIdx === totalQ ? 'Terminer Quiz' : 'Question Suivante'}
         </button>
       {/if}
       <button
         onclick={finishEvent}
-        class="px-5 py-2.5 bg-red-500/10 text-red-500 rounded-xl font-black text-[10px] uppercase tracking-widest border border-red-500/20 hover:bg-red-500/20 transition-colors"
+        class="px-5 py-2.5 bg-red-500/10 text-red-500 rounded-xl font-semibold text-[10px] uppercase tracking-widest border border-red-500/20 hover:bg-red-500/20 transition-colors"
       >
         Terminer
       </button>
@@ -161,48 +161,48 @@
 
   {#if event}
     <div class="space-y-10 pb-20">
-      <section class="bg-primary/5 rounded-[3rem] p-10 border border-primary/10">
+      <section class="bg-primary/5 rounded-xl p-10 border border-primary/10">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-8">
             <div>
-              <span class="text-[10px] font-black uppercase tracking-widest text-primary">Événement en cours</span>
-              <h3 class="text-3xl font-black text-on-surface mt-2">{event.title}</h3>
+              <span class="text-[10px] font-semibold uppercase tracking-widest text-primary">Événement en cours</span>
+              <h3 class="text-lg font-semibold text-on-surface mt-2">{event.title}</h3>
             </div>
             <div class="h-12 w-px bg-outline-variant/20 hidden md:block"></div>
             {#if event.type === 'CTF'}
               <div class="hidden md:block">
-                <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Type</span>
-                <p class="text-2xl font-black text-emerald-500 mt-1">Capture The Flag</p>
+                <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Type</span>
+                <p class="text-2xl font-semibold text-emerald-500 mt-1">Capture The Flag</p>
               </div>
               <div class="h-12 w-px bg-outline-variant/20 hidden md:block"></div>
               <div class="hidden md:block">
-                <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Défis</span>
-                <p class="text-2xl font-black text-on-surface mt-1">{event.ctfChallenges?.length || 0}</p>
+                <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Défis</span>
+                <p class="text-2xl font-semibold text-on-surface mt-1">{event.ctfChallenges?.length || 0}</p>
               </div>
             {:else}
               <div class="hidden md:block">
-                <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Progression</span>
-                <p class="text-2xl font-black text-on-surface mt-1">Question {currentQIdx || 1} / {totalQ}</p>
+                <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Progression</span>
+                <p class="text-2xl font-semibold text-on-surface mt-1">Question {currentQIdx || 1} / {totalQ}</p>
               </div>
             {/if}
           </div>
           <div class="text-right">
-            <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Participants</span>
-            <p class="text-3xl font-black text-on-surface mt-1">{event.participants?.length || 0}</p>
+            <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Participants</span>
+            <p class="text-lg font-semibold text-on-surface mt-1">{event.participants?.length || 0}</p>
           </div>
         </div>
       </section>
 
-      <div class="flex gap-2 bg-surface-container-low/50 p-1.5 rounded-2xl w-fit border border-outline-variant/10">
+      <div class="flex gap-2 bg-surface-container-low/50 p-1.5 rounded-lg w-fit border border-outline-variant/10">
         <button 
           onclick={() => activeTab = 'stats'}
-          class="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all {activeTab === 'stats' ? 'bg-surface-container-highest text-on-surface shadow-sm' : 'text-on-surface-variant/40 hover:text-on-surface-variant/60'}"
+          class="px-6 py-2.5 rounded-xl text-[10px] font-semibold uppercase tracking-widest transition-all {activeTab === 'stats' ? 'bg-surface-container-highest text-on-surface shadow-sm' : 'text-on-surface-variant/40 hover:text-on-surface-variant/60'}"
         >
           {event.type === 'CTF' ? 'Défis' : 'Graphique'}
         </button>
         <button 
           onclick={() => activeTab = 'participants'}
-          class="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all {activeTab === 'participants' ? 'bg-surface-container-highest text-on-surface shadow-sm' : 'text-on-surface-variant/40 hover:text-on-surface-variant/60'}"
+          class="px-6 py-2.5 rounded-xl text-[10px] font-semibold uppercase tracking-widest transition-all {activeTab === 'participants' ? 'bg-surface-container-highest text-on-surface shadow-sm' : 'text-on-surface-variant/40 hover:text-on-surface-variant/60'}"
         >
           Participants
         </button>
@@ -214,12 +214,12 @@
             {#if stats && stats.challenges}
               <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {#each stats.challenges as challenge}
-                  <div class="bg-surface-container-low/30 rounded-[2.5rem] border border-outline-variant/10 p-8 space-y-6 relative overflow-hidden group">
+                  <div class="bg-surface-container-low/30 rounded-xl border border-outline-variant/10 p-8 space-y-6 relative overflow-hidden group">
                     <div class="absolute top-0 left-0 w-2 h-full bg-emerald-500/30"></div>
                     
                     <div class="flex items-center justify-between">
                       <div>
-                        <h4 class="text-xl font-black text-on-surface">{challenge.title}</h4>
+                        <h4 class="text-xl font-semibold text-on-surface">{challenge.title}</h4>
                         <p class="text-[10px] font-bold text-on-surface-variant/40 mt-1 uppercase tracking-widest">
                           {challenge.points} pts | {challenge.xpReward} XP
                           {#if challenge.roleIdReward}
@@ -228,20 +228,20 @@
                         </p>
                       </div>
                       <div class="text-right">
-                        <span class="px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-lg text-[10px] font-black uppercase tracking-widest">
+                        <span class="px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-lg text-[10px] font-semibold uppercase tracking-widest">
                           {challenge.solveCount} résolutions
                         </span>
                       </div>
                     </div>
 
                     <div class="space-y-3">
-                      <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Dernières résolutions</span>
+                      <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Dernières résolutions</span>
                       {#if challenge.solves && challenge.solves.length > 0}
                         <div class="max-h-36 overflow-y-auto space-y-2 pr-2">
                           {#each challenge.solves as solve}
                             <div class="flex justify-between items-center bg-surface-container-high/30 rounded-xl px-4 py-2 border border-outline-variant/5">
                               <span class="text-xs font-bold text-on-surface">{solve.username}</span>
-                              <span class="text-[9px] text-on-surface-variant/40">{new Date(solve.solvedAt).toLocaleTimeString()}</span>
+                              <span class="text-[11px] text-on-surface-variant/40">{new Date(solve.solvedAt).toLocaleTimeString()}</span>
                             </div>
                           {/each}
                         </div>
@@ -253,7 +253,7 @@
                 {/each}
               </div>
             {:else}
-              <div class="py-20 text-center bg-surface-container-low/20 rounded-[3rem] border border-dashed border-outline-variant/20">
+              <div class="py-20 text-center bg-surface-container-low/20 rounded-xl border border-dashed border-outline-variant/20">
                 <div class="w-16 h-16 bg-on-surface/5 rounded-full flex items-center justify-center mx-auto mb-6 text-on-surface-variant/20">
                   <Papicon icon="Flag" size={32} />
                 </div>
@@ -262,7 +262,7 @@
             {/if}
           </div>
         {:else}
-          <div class="bg-surface-container-low/30 rounded-[3rem] border border-outline-variant/10 p-10 min-h-[500px] flex flex-col items-center justify-center relative overflow-hidden">
+          <div class="bg-surface-container-low/30 rounded-xl border border-outline-variant/10 p-10 min-h-[500px] flex flex-col items-center justify-center relative overflow-hidden">
             <div class="absolute top-0 right-0 p-8 opacity-10">
               <Papicon icon="PieChart" size={120} />
             </div>
@@ -284,9 +284,9 @@
 
               <div class="text-center mb-12">
                 <div class="flex items-center justify-center gap-3 mb-4">
-                  <span class="px-3 py-1 bg-primary/10 text-primary rounded-lg text-[9px] font-black uppercase tracking-widest">En direct</span>
+                  <span class="px-3 py-1 bg-primary/10 text-primary rounded-lg text-[11px] font-semibold uppercase tracking-widest">En direct</span>
                 </div>
-                <h4 class="text-2xl font-black text-on-surface">{stats.questionText}</h4>
+                <h4 class="text-2xl font-semibold text-on-surface">{stats.questionText}</h4>
               </div>
 
               <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 w-full max-w-5xl items-center">
@@ -317,8 +317,8 @@
                       {/each}
                     </svg>
                     <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                      <span class="text-3xl font-black text-on-surface">{total}</span>
-                      <span class="text-[8px] font-black uppercase tracking-widest text-on-surface-variant/40">Réponses</span>
+                      <span class="text-lg font-semibold text-on-surface">{total}</span>
+                      <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Réponses</span>
                     </div>
                   </div>
                 </div>
@@ -332,7 +332,7 @@
                     {@const isCorrect = i === currentQuestion?.correctOptionIndex}
                     
                     <div class="space-y-2">
-                      <div class="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
+                      <div class="flex justify-between items-center text-[10px] font-semibold uppercase tracking-widest">
                         <div class="flex items-center gap-2">
                           {#if isCorrect}
                             <div class="w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center">
@@ -355,7 +355,7 @@
               </div>
             {:else}
               <div class="text-center space-y-4">
-                <div class="w-16 h-16 bg-surface-container-high rounded-3xl flex items-center justify-center mx-auto mb-6 animate-pulse">
+                <div class="w-16 h-16 bg-surface-container-high rounded-xl flex items-center justify-center mx-auto mb-6 animate-pulse">
                   <Papicon icon="Activity" size={32} class="text-on-surface-variant/20" />
                 </div>
                 <p class="text-on-surface-variant/40 font-bold italic">En attente des premières réponses...</p>
@@ -364,13 +364,13 @@
           </div>
         {/if}
       {:else}
-        <div class="bg-surface-container-low/30 rounded-[2.5rem] border border-outline-variant/10 overflow-hidden">
+        <div class="bg-surface-container-low/30 rounded-xl border border-outline-variant/10 overflow-hidden">
           <table class="w-full text-left">
             <thead class="bg-surface-container-high/50 border-b border-outline-variant/10">
               <tr>
-                <th class="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Utilisateur</th>
-                <th class="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Score</th>
-                <th class="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">
+                <th class="px-8 py-5 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Utilisateur</th>
+                <th class="px-8 py-5 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Score</th>
+                <th class="px-8 py-5 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">
                   {event.type === 'CTF' ? 'Dernière résolution' : 'Dernière réponse'}
                 </th>
               </tr>
@@ -382,13 +382,13 @@
                   <td class="px-8 py-5">
                     <button 
                       onclick={() => router.goto(`/profile/${p.userId}`)}
-                      class="font-black text-on-surface hover:text-primary transition-colors text-left bg-transparent border-none p-0 cursor-pointer"
+                      class="font-semibold text-on-surface hover:text-primary transition-colors text-left bg-transparent border-none p-0 cursor-pointer"
                     >
                       {p.userTag || p.userId}
                     </button>
                   </td>
                   <td class="px-8 py-5">
-                    <span class="font-black text-primary">{p.score} pts</span>
+                    <span class="font-semibold text-primary">{p.score} pts</span>
                   </td>
                   <td class="px-8 py-5">
                     {#if event.type === 'CTF'}
@@ -402,7 +402,7 @@
                     {:else}
                       {#if lastResp}
                         {@const respText = lastResp.optionLabel || (currentQuestion?.options as string[])?.[lastResp.optionIndex] || `Option ${lastResp.optionIndex + 1}`}
-                        <span class="px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest {lastResp.isCorrect ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600'}">
+                        <span class="px-3 py-1 rounded-lg text-[11px] font-semibold uppercase tracking-widest {lastResp.isCorrect ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600'}">
                           {respText}
                         </span>
                       {:else}

@@ -8,7 +8,7 @@
     <Papicon name="warning" size={64} class="text-primary" />
   </div>
   
-  <h1 class="text-4xl font-bold mb-4">404 - Page Introuvable</h1>
+  <h1 class="text-lg font-bold mb-4">404 - Page Introuvable</h1>
   <p class="text-on-surface-variant mb-8 max-w-md">
     Désolé, la page que vous recherchez n'existe pas ou a été déplacée.
   </p>

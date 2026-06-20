@@ -716,11 +716,11 @@
   {#snippet actions()}
     <div class="flex items-center gap-3">
       <!-- Tabs Selector -->
-      <div class="inline-flex bg-surface-container-high/60 border border-outline-variant/10 rounded-2xl p-1 gap-1">
+      <div class="inline-flex bg-surface-container-high/60 border border-outline-variant/10 rounded-lg p-1 gap-1">
         <button
           type="button"
           onclick={() => activeTab = 'logs'}
-          class="px-4 py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all duration-300 {activeTab === 'logs' ? 'bg-primary text-on-primary shadow-lg shadow-primary/25' : 'text-on-surface-variant/80 hover:text-on-surface'}"
+          class="px-4 py-2 text-xs font-semibold uppercase tracking-wider rounded-xl transition-all duration-300 {activeTab === 'logs' ? 'bg-primary text-on-primary ' : 'text-on-surface-variant/80 hover:text-on-surface'}"
         >
           Journal
         </button>
@@ -728,7 +728,7 @@
           <button
             type="button"
             onclick={() => activeTab = 'config'}
-            class="px-4 py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all duration-300 {activeTab === 'config' ? 'bg-primary text-on-primary shadow-lg shadow-primary/25' : 'text-on-surface-variant/80 hover:text-on-surface'}"
+            class="px-4 py-2 text-xs font-semibold uppercase tracking-wider rounded-xl transition-all duration-300 {activeTab === 'config' ? 'bg-primary text-on-primary ' : 'text-on-surface-variant/80 hover:text-on-surface'}"
           >
             Configuration
           </button>
@@ -739,7 +739,7 @@
         onClick={() => dashboardStore.refresh()}
         loading={dashboardStore.state.loading}
         label="Actualiser"
-        className="px-5 py-2.5 font-bold shadow-lg shadow-primary/10"
+        className="px-5 py-2.5 font-bold "
         iconClass="text-lg"
       />
     </div>
@@ -748,27 +748,27 @@
 {#if activeTab === 'config' && canManageSettings}
 <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
   <!-- General Configuration -->
-  <div class="bg-surface-container-low/30 p-8 rounded-[2.5rem] border border-outline-variant/10 space-y-6">
+  <div class="bg-surface-container-low/30 p-8 rounded-xl border border-outline-variant/10 space-y-6">
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
       <div class="flex items-center gap-4">
-        <div class="bg-primary/10 p-3 rounded-2xl text-primary">
+        <div class="bg-primary/10 p-3 rounded-lg text-primary">
           <Papicon icon="Settings" size={24} />
         </div>
         <div>
-          <h3 class="text-sm font-black uppercase tracking-widest text-on-surface">Salon par défaut</h3>
+          <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface">Salon par défaut</h3>
           <p class="text-xs text-on-surface-variant/70 mt-1">Définissez le salon de logs général pour tous les événements sans salon spécifique.</p>
         </div>
       </div>
       <div class="w-full md:w-72">
-        <SearchableSelect bind:value={selectedLogChannelId} on:change={() => handleLogChannelChange()} options={(dashboardStore.state.discordChannels || []).map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="Sélectionner un salon" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
+        <SearchableSelect bind:value={selectedLogChannelId} on:change={() => handleLogChannelChange()} options={(dashboardStore.state.discordChannels || []).map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="Sélectionner un salon" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
       </div>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-6 border-t border-outline-variant/10">
-      <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container-low/50 border border-outline-variant/10">
+      <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-low/50 border border-outline-variant/10">
         <div>
-          <p class="text-[10px] font-black uppercase tracking-widest text-on-surface">Journalisation</p>
-          <p class="text-[9px] text-on-surface-variant/60 mt-0.5">Activer l'audit global</p>
+          <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface">Journalisation</p>
+          <p class="text-[11px] text-on-surface-variant/60 mt-0.5">Activer l'audit global</p>
         </div>
         <ToggleSwitch 
           checked={logsConfig?.loggingEnabled ?? true} 
@@ -777,10 +777,10 @@
         />
       </div>
 
-      <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container-low/50 border border-outline-variant/10">
+      <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-low/50 border border-outline-variant/10">
         <div>
-          <p class="text-[10px] font-black uppercase tracking-widest text-on-surface">Suivi d'activité</p>
-          <p class="text-[9px] text-on-surface-variant/60 mt-0.5">Tracking des actions</p>
+          <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface">Suivi d'activité</p>
+          <p class="text-[11px] text-on-surface-variant/60 mt-0.5">Tracking des actions</p>
         </div>
         <ToggleSwitch 
           checked={logsConfig?.userActivityTracking ?? true} 
@@ -789,10 +789,10 @@
         />
       </div>
 
-      <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container-low/50 border border-outline-variant/10">
+      <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-low/50 border border-outline-variant/10">
         <div>
-          <p class="text-[10px] font-black uppercase tracking-widest text-on-surface">Notifs Salon</p>
-          <p class="text-[9px] text-on-surface-variant/60 mt-0.5">Alertes dans le salon logs</p>
+          <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface">Notifs Salon</p>
+          <p class="text-[11px] text-on-surface-variant/60 mt-0.5">Alertes dans le salon logs</p>
         </div>
         <ToggleSwitch 
           checked={logsConfig?.notifyViaDiscordChannel ?? true} 
@@ -801,10 +801,10 @@
         />
       </div>
 
-      <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container-low/50 border border-outline-variant/10">
+      <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-low/50 border border-outline-variant/10">
         <div>
-          <p class="text-[10px] font-black uppercase tracking-widest text-on-surface">Notifs MP</p>
-          <p class="text-[9px] text-on-surface-variant/60 mt-0.5">Alertes staff par MP</p>
+          <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface">Notifs MP</p>
+          <p class="text-[11px] text-on-surface-variant/60 mt-0.5">Alertes staff par MP</p>
         </div>
         <ToggleSwitch 
           checked={logsConfig?.notifyViaDM ?? false} 
@@ -828,26 +828,26 @@
   <div class="space-y-6">
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
       <div>
-        <h4 class="text-sm font-black uppercase tracking-widest text-on-surface">Configuration par événement</h4>
+        <h4 class="text-sm font-semibold uppercase tracking-widest text-on-surface">Configuration par événement</h4>
         <p class="text-xs text-on-surface-variant/60 mt-1">Personnalisez précisément l'activation et le salon cible pour chaque événement, comme sur MEE6.</p>
       </div>
     </div>
 
     {#if saveAction.state.message}
-      <div class="p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold rounded-2xl animate-pulse">
+      <div class="p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold rounded-lg animate-pulse">
         {saveAction.state.message}
       </div>
     {/if}
 
     <div class="space-y-8">
       {#each logCategories as cat}
-        <div class="bg-surface-container-low/20 rounded-[2rem] p-6 md:p-8 border border-outline-variant/5 space-y-6">
+        <div class="bg-surface-container-low/20 rounded-xl p-6 md:p-8 border border-outline-variant/5 space-y-6">
           <div class="flex items-center gap-3 border-b border-outline-variant/10 pb-4">
-            <div class="text-primary bg-primary/10 p-2.5 rounded-2xl">
+            <div class="text-primary bg-primary/10 p-2.5 rounded-lg">
               <Papicon icon={cat.icon} size={20} />
             </div>
             <div>
-              <h5 class="text-xs font-black uppercase tracking-wider text-on-surface">{cat.label}</h5>
+              <h5 class="text-xs font-semibold uppercase tracking-wider text-on-surface">{cat.label}</h5>
               <p class="text-[10px] text-on-surface-variant/60">Gérer les alertes de cette catégorie</p>
             </div>
           </div>
@@ -856,7 +856,7 @@
             {#each cat.events as ev}
               {@const confIdx = eventConfigs.findIndex(c => c.eventType === ev.type)}
               {#if confIdx !== -1}
-                <div class="flex flex-col justify-between p-5 rounded-3xl bg-surface-container-high/10 border border-outline-variant/10 hover:border-primary/25 transition-all duration-300 space-y-4">
+                <div class="flex flex-col justify-between p-5 rounded-xl bg-surface-container-high/10 border border-outline-variant/10 hover:border-primary/25 transition-all duration-300 space-y-4">
                   <div class="flex justify-between items-start gap-4">
                     <div class="space-y-1">
                       <p class="text-xs font-bold text-on-surface">{ev.label}</p>
@@ -873,7 +873,7 @@
 
                   {#if eventConfigs[confIdx].enabled}
                     <div class="space-y-1.5 pt-3 border-t border-outline-variant/10">
-                      <label for="select-{ev.type}" class="text-[9px] font-bold text-on-surface-variant/60 uppercase tracking-wider">Salon de destination</label>
+                      <label for="select-{ev.type}" class="text-[11px] font-bold text-on-surface-variant/60 uppercase tracking-wider">Salon de destination</label>
                       <select
                         id="select-{ev.type}"
                         bind:value={eventConfigs[confIdx].channelId}
@@ -900,7 +900,7 @@
 {#if activeTab === 'logs'}
 <div class="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
   <!-- Search & Filter Options -->
-  <div class="bg-surface-container-low/20 p-6 rounded-3xl border border-outline-variant/5 space-y-4">
+  <div class="bg-surface-container-low/20 p-6 rounded-xl border border-outline-variant/5 space-y-4">
     <div class="flex flex-col lg:flex-row lg:items-center gap-4 justify-between">
       <div class="space-y-2 w-full lg:max-w-2xl">
         <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="search">Recherche rapide</label>
@@ -911,7 +911,7 @@
             type="text"
             bind:value={searchQuery}
             placeholder="Rechercher par action, détails, module ou utilisateur..."
-            className="w-full pl-11 pr-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-2xl text-sm focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+            className="w-full pl-11 pr-4 py-3 bg-surface-container-low border border-outline-variant/10 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 transition-all outline-none"
           />
         </div>
       </div>
@@ -922,7 +922,7 @@
           <button
             type="button"
             onclick={resetFiltersAndSort}
-            class="text-xs font-black text-primary hover:underline transition"
+            class="text-xs font-semibold text-primary hover:underline transition"
           >
             Réinitialiser
           </button>
@@ -932,7 +932,7 @@
   </div>
 
   <!-- Audit Table -->
-  <div class="section-card-flush rounded-[2rem] border border-outline-variant/10 overflow-hidden bg-surface-container-low/20">
+  <div class="section-card-flush rounded-xl border border-outline-variant/10 overflow-hidden bg-surface-container-low/20">
     <div class="overflow-x-auto">
       <table class="w-full text-left border-collapse">
         <thead>
@@ -985,7 +985,7 @@
                 searchable={true}
               />
             </th>
-            <th class="px-6 py-5 text-[10px] font-black text-on-surface-variant uppercase tracking-widest">Description des Détails</th>
+            <th class="px-6 py-5 text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">Description des Détails</th>
             <th class="px-6 py-5">
               <div class="flex justify-center">
                 <ColumnSortFilter
@@ -1051,14 +1051,14 @@
                   {/if}
                   {#each parsed.blocks as block}
                     <div class="bg-surface-container-low border-l-2 border-primary/50 rounded-r-lg px-3 py-1.5 text-xs text-on-surface-variant space-y-0.5 max-w-full overflow-hidden">
-                      <p class="text-[9px] font-black uppercase tracking-wider text-primary/80">{block.key}</p>
+                      <p class="text-[11px] font-semibold uppercase tracking-wider text-primary/80">{block.key}</p>
                       <p class="break-all whitespace-pre-wrap leading-relaxed text-on-surface">{@html block.value}</p>
                     </div>
                   {/each}
                 </div>
               </td>
               <td class="px-6 py-5 text-center">
-                <span class="inline-flex items-center justify-center w-24 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider
+                <span class="inline-flex items-center justify-center w-24 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider
                   {entry.eventType === 'Automatique' ? 'bg-blue-500/10 text-blue-500' : 'bg-amber-500/10 text-amber-500'}">
                   {entry.eventType}
                 </span>
@@ -1085,10 +1085,10 @@
   <!-- KPI summary -->
   <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
     {#each stats as kpi}
-      <div class="bg-surface-container-low/40 p-6 rounded-3xl border border-outline-variant/10 hover:shadow-lg transition-all duration-300">
+      <div class="bg-surface-container-low/40 p-6 rounded-xl border border-outline-variant/10 hover:shadow-lg transition-all duration-300">
         <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{kpi.label}</p>
         <div class="flex items-end justify-between mt-2">
-          <p class="text-3xl font-extrabold text-on-surface">{kpi.val}</p>
+          <p class="text-lg font-extrabold text-on-surface">{kpi.val}</p>
           <span class="text-[10px] font-bold {kpi.subClass}">{kpi.sub}</span>
         </div>
       </div>

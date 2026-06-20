@@ -262,7 +262,7 @@
       <RefreshButton onClick={fetchForms} loading={loading} label="Actualiser" />
       <button 
         onclick={() => showCreateModal = true}
-        class="px-6 py-3 rounded-xl bg-primary text-white font-black uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
+        class="px-6 py-3 rounded-xl bg-primary text-white font-semibold uppercase tracking-widest  hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
       >
         <Papicon icon="add" size={18} />
         Nouveau Formulaire
@@ -274,7 +274,7 @@
     {#if loading && forms.length === 0}
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {#each Array(3) as _}
-          <div class="bg-surface-container-low/40 border border-outline-variant/10 rounded-4xl p-6 animate-pulse">
+          <div class="bg-surface-container-low/40 border border-outline-variant/10 rounded-xl p-6 animate-pulse">
             <div class="h-6 bg-surface-container rounded-lg w-3/4 mb-4"></div>
             <div class="h-4 bg-surface-container rounded-lg w-1/2 mb-2"></div>
             <div class="h-20 bg-surface-container rounded-xl mt-4"></div>
@@ -282,16 +282,16 @@
         {/each}
       </div>
     {:else if error}
-      <div class="rounded-4xl border border-rose-500/20 bg-rose-500/10 px-8 py-10 text-center">
+      <div class="rounded-xl border border-rose-500/20 bg-rose-500/10 px-8 py-10 text-center">
         <Papicon icon="error" size={48} class="text-rose-500 mb-4" />
         <p class="text-xl font-bold text-rose-700">{error}</p>
       </div>
     {:else if forms.length === 0}
       <div class="flex flex-col items-center justify-center py-32 text-on-surface-variant/30 border-2 border-dashed border-outline-variant/10 rounded-[4rem] bg-surface-container-low/20">
-        <div class="w-24 h-24 rounded-[3rem] bg-surface-container flex items-center justify-center mb-6 shadow-inner">
+        <div class="w-24 h-24 rounded-xl bg-surface-container flex items-center justify-center mb-6 shadow-inner">
           <Papicon icon="description" size={48} />
         </div>
-        <h3 class="text-2xl font-black tracking-tight text-on-surface/50">Aucun formulaire</h3>
+        <h3 class="text-2xl font-semibold tracking-tight text-on-surface/50">Aucun formulaire</h3>
         <p class="mt-3 text-sm max-w-sm text-center opacity-60">
           Créez votre premier formulaire de recrutement pour commencer à recevoir des candidatures.
         </p>
@@ -299,16 +299,16 @@
     {:else}
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {#each forms as form (form.id)}
-          <div class="bg-surface-container-low/40 border border-outline-variant/10 rounded-4xl p-6 hover:bg-surface-container-low transition-all group">
+          <div class="bg-surface-container-low/40 border border-outline-variant/10 rounded-xl p-6 hover:bg-surface-container-low transition-all group">
             <div class="flex items-start justify-between mb-4">
               <div class="flex-1">
-                <h3 class="text-lg font-black text-on-surface">{form.name}</h3>
+                <h3 class="text-lg font-semibold text-on-surface">{form.name}</h3>
                 {#if form.description}
                   <p class="text-sm text-on-surface-variant/70 mt-1">{form.description}</p>
                 {/if}
               </div>
               <div class="flex items-center gap-2">
-                <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase {form.isActive ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border-rose-500/20'}">
+                <span class="px-3 py-1 rounded-full text-[10px] font-semibold uppercase {form.isActive ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-rose-500/10 text-rose-500 border-rose-500/20'}">
                   {form.isActive ? 'Actif' : 'Inactif'}
                 </span>
               </div>
@@ -348,7 +348,7 @@
             <div class="flex gap-2 flex-wrap">
               <button
                 onclick={() => router.goto(`/recruitment-forms/builder/${form.id}`)}
-                class="flex-1 px-3 py-2 rounded-xl bg-primary/10 text-primary text-xs font-black uppercase tracking-wider hover:bg-primary/20 transition-all flex items-center justify-center gap-1.5"
+                class="flex-1 px-3 py-2 rounded-xl bg-primary/10 text-primary text-xs font-semibold uppercase tracking-wider hover:bg-primary/20 transition-all flex items-center justify-center gap-1.5"
                 title="Modifier le formulaire"
               >
                 <Papicon icon="edit" size={13} />
@@ -356,7 +356,7 @@
               </button>
               <button
                 onclick={() => router.goto(`/recruitment-forms/${form.id}/responses`)}
-                class="flex-1 px-3 py-2 rounded-xl bg-surface-container text-on-surface-variant text-xs font-black uppercase tracking-wider hover:bg-surface-container-high transition-all flex items-center justify-center gap-1.5"
+                class="flex-1 px-3 py-2 rounded-xl bg-surface-container text-on-surface-variant text-xs font-semibold uppercase tracking-wider hover:bg-surface-container-high transition-all flex items-center justify-center gap-1.5"
                 title="Voir les réponses"
               >
                 <Papicon icon="assignment_turned_in" size={13} />
@@ -365,14 +365,14 @@
               {#if form.apiKey}
                 <button
                   onclick={() => showGoogleAppsScript(form)}
-                  class="px-3 py-2 rounded-xl bg-surface-container text-on-surface-variant text-xs font-black uppercase tracking-wider hover:bg-surface-container-high transition-all"
+                  class="px-3 py-2 rounded-xl bg-surface-container text-on-surface-variant text-xs font-semibold uppercase tracking-wider hover:bg-surface-container-high transition-all"
                   title="Générer le script Google Forms"
                 >
                   <Papicon icon="code" size={14} />
                 </button>
                 <button
                   onclick={() => regenerateAPIKey(form.id)}
-                  class="px-3 py-2 rounded-xl bg-surface-container text-on-surface-variant text-xs font-black uppercase tracking-wider hover:bg-surface-container-high transition-all"
+                  class="px-3 py-2 rounded-xl bg-surface-container text-on-surface-variant text-xs font-semibold uppercase tracking-wider hover:bg-surface-container-high transition-all"
                   title="Régénérer la clé API"
                 >
                   <Papicon icon="refresh" size={14} />
@@ -380,7 +380,7 @@
               {/if}
               <button
                 onclick={() => deleteForm(form.id)}
-                class="px-3 py-2 rounded-xl bg-rose-500/10 text-rose-500 text-xs font-black uppercase tracking-wider hover:bg-rose-500/20 transition-all"
+                class="px-3 py-2 rounded-xl bg-rose-500/10 text-rose-500 text-xs font-semibold uppercase tracking-wider hover:bg-rose-500/20 transition-all"
                 title="Supprimer"
               >
                 <Papicon icon="delete" size={14} />
@@ -396,11 +396,11 @@
 
 <!-- Create Form Modal -->
 {#if showCreateModal}
-  <div class="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-    <div class="bg-surface border border-outline-variant/30 rounded-[3rem] w-full max-w-4xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto">
+  <div class="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-black/60">
+    <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-4xl shadow-sm overflow-hidden animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto">
       <div class="p-8 border-b border-outline-variant/20 flex items-center justify-between bg-surface sticky top-0 z-10">
         <div>
-          <h3 class="text-2xl font-black text-on-surface">Créer un Formulaire</h3>
+          <h3 class="text-2xl font-semibold text-on-surface">Créer un Formulaire</h3>
           <p class="text-on-surface-variant text-sm">Configurez votre formulaire de recrutement</p>
         </div>
         <button onclick={() => showCreateModal = false} class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-hover transition-colors">
@@ -412,7 +412,7 @@
         <!-- Basic Info -->
         <div class="space-y-4">
           <div>
-            <label for="form-name" class="block text-xs font-black uppercase tracking-widest text-on-surface-variant/60 mb-2">Nom du formulaire</label>
+            <label for="form-name" class="block text-xs font-semibold uppercase tracking-widest text-on-surface-variant/60 mb-2">Nom du formulaire</label>
             <FormInput 
               id="form-name"
               type="text" 
@@ -422,12 +422,12 @@
             />
           </div>
           <div>
-            <label for="form-description" class="block text-xs font-black uppercase tracking-widest text-on-surface-variant/60 mb-2">Description (optionnel)</label>
+            <label for="form-description" class="block text-xs font-semibold uppercase tracking-widest text-on-surface-variant/60 mb-2">Description (optionnel)</label>
             <textarea 
               id="form-description"
               bind:value={newFormDescription}
               placeholder="Description du formulaire..."
-              class="w-full bg-surface-container rounded-2xl p-4 text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:outline-hidden border-2 border-transparent focus:border-primary/50 transition-all resize-none h-24"
+              class="w-full bg-surface-container rounded-lg p-4 text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:outline-hidden border-2 border-transparent focus:border-primary/50 transition-all resize-none h-24"
             ></textarea>
           </div>
         </div>
@@ -435,37 +435,37 @@
         <!-- Template Selection -->
         <div class="space-y-4">
           <fieldset>
-            <legend class="block text-xs font-black uppercase tracking-widest text-on-surface-variant/60 mb-2">Modèle de formulaire</legend>
+            <legend class="block text-xs font-semibold uppercase tracking-widest text-on-surface-variant/60 mb-2">Modèle de formulaire</legend>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <button 
               onclick={() => { selectedTemplate = 'default'; customStructure = null; }}
-              class="p-6 rounded-2xl border-2 transition-all {selectedTemplate === 'default' ? 'border-primary bg-primary/5' : 'border-outline-variant/20 hover:border-outline-variant/40'}"
+              class="p-6 rounded-lg border-2 transition-all {selectedTemplate === 'default' ? 'border-primary bg-primary/5' : 'border-outline-variant/20 hover:border-outline-variant/40'}"
             >
-              <div class="text-3xl mb-3">📋</div>
+              <div class="text-lg mb-3">📋</div>
               <h4 class="font-bold text-on-surface mb-1">Standard</h4>
               <p class="text-xs text-on-surface-variant/70">Formulaire complet avec toutes les questions standard</p>
             </button>
             <button 
               onclick={() => { selectedTemplate = 'simple'; customStructure = null; }}
-              class="p-6 rounded-2xl border-2 transition-all {selectedTemplate === 'simple' ? 'border-primary bg-primary/5' : 'border-outline-variant/20 hover:border-outline-variant/40'}"
+              class="p-6 rounded-lg border-2 transition-all {selectedTemplate === 'simple' ? 'border-primary bg-primary/5' : 'border-outline-variant/20 hover:border-outline-variant/40'}"
             >
-              <div class="text-3xl mb-3">⚡</div>
+              <div class="text-lg mb-3">⚡</div>
               <h4 class="font-bold text-on-surface mb-1">Simplifié</h4>
               <p class="text-xs text-on-surface-variant/70">Formulaire rapide avec les questions essentielles</p>
             </button>
             <button 
               onclick={() => { selectedTemplate = 'custom'; }}
-              class="p-6 rounded-2xl border-2 transition-all {selectedTemplate === 'custom' ? 'border-primary bg-primary/5' : 'border-outline-variant/20 hover:border-outline-variant/40'}"
+              class="p-6 rounded-lg border-2 transition-all {selectedTemplate === 'custom' ? 'border-primary bg-primary/5' : 'border-outline-variant/20 hover:border-outline-variant/40'}"
             >
-              <div class="text-3xl mb-3">🎨</div>
+              <div class="text-lg mb-3">🎨</div>
               <h4 class="font-bold text-on-surface mb-1">Personnalisé</h4>
               <p class="text-xs text-on-surface-variant/70">Créez votre propre formulaire</p>
             </button>
             <button 
               onclick={() => { selectedTemplate = 'google'; customStructure = null; }}
-              class="p-6 rounded-2xl border-2 transition-all {selectedTemplate === 'google' ? 'border-primary bg-primary/5' : 'border-outline-variant/20 hover:border-outline-variant/40'}"
+              class="p-6 rounded-lg border-2 transition-all {selectedTemplate === 'google' ? 'border-primary bg-primary/5' : 'border-outline-variant/20 hover:border-outline-variant/40'}"
             >
-              <div class="text-3xl mb-3">🔗</div>
+              <div class="text-lg mb-3">🔗</div>
               <h4 class="font-bold text-on-surface mb-1">Google Forms</h4>
               <p class="text-xs text-on-surface-variant/70">Intégration avec Google Forms</p>
             </button>
@@ -475,7 +475,7 @@
 
         <!-- Google Forms Instructions -->
         {#if selectedTemplate === 'google'}
-          <div class="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-6 space-y-4">
+          <div class="bg-amber-500/10 border border-amber-500/20 rounded-lg p-6 space-y-4">
             <div class="flex items-start gap-4">
               <div class="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0">
                 <Papicon icon="info" size={24} class="text-amber-500" />
@@ -500,29 +500,29 @@
         {#if selectedTemplate === 'custom'}
           <div class="space-y-6 pt-6 border-t border-outline-variant/10">
             <div class="flex items-center justify-between">
-              <h4 class="text-lg font-black text-on-surface">Constructeur de Formulaire</h4>
+              <h4 class="text-lg font-semibold text-on-surface">Constructeur de Formulaire</h4>
               <div class="flex gap-2">
                 <button 
                   onclick={() => addField('short_text')}
-                  class="px-4 py-2 rounded-xl bg-surface-container text-xs font-black uppercase tracking-wider hover:bg-surface-container-high transition-all"
+                  class="px-4 py-2 rounded-xl bg-surface-container text-xs font-semibold uppercase tracking-wider hover:bg-surface-container-high transition-all"
                 >
                   Texte court
                 </button>
                 <button 
                   onclick={() => addField('paragraph')}
-                  class="px-4 py-2 rounded-xl bg-surface-container text-xs font-black uppercase tracking-wider hover:bg-surface-container-high transition-all"
+                  class="px-4 py-2 rounded-xl bg-surface-container text-xs font-semibold uppercase tracking-wider hover:bg-surface-container-high transition-all"
                 >
                   Paragraphe
                 </button>
                 <button 
                   onclick={() => addField('multiple_choice')}
-                  class="px-4 py-2 rounded-xl bg-surface-container text-xs font-black uppercase tracking-wider hover:bg-surface-container-high transition-all"
+                  class="px-4 py-2 rounded-xl bg-surface-container text-xs font-semibold uppercase tracking-wider hover:bg-surface-container-high transition-all"
                 >
                   Choix multiple
                 </button>
                 <button 
                   onclick={() => addField('email')}
-                  class="px-4 py-2 rounded-xl bg-surface-container text-xs font-black uppercase tracking-wider hover:bg-surface-container-high transition-all"
+                  class="px-4 py-2 rounded-xl bg-surface-container text-xs font-semibold uppercase tracking-wider hover:bg-surface-container-high transition-all"
                 >
                   Email
                 </button>
@@ -532,7 +532,7 @@
             {#if formFields.length > 0}
               <div class="space-y-4">
                 {#each formFields as field, index (field.id)}
-                  <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-2xl p-4 {editingFieldIndex === index ? 'ring-2 ring-primary' : ''}">
+                  <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-lg p-4 {editingFieldIndex === index ? 'ring-2 ring-primary' : ''}">
                     <div class="flex items-start justify-between mb-3">
                       <div class="flex-1">
                         <span class="text-[10px] font-mono text-on-surface-variant/50">{field.type}</span>
@@ -597,7 +597,7 @@
                             {/each}
                             <button 
                               onclick={addOption}
-                              class="px-4 py-2 rounded-xl bg-primary/10 text-primary text-xs font-black uppercase tracking-wider hover:bg-primary/20 transition-all"
+                              class="px-4 py-2 rounded-xl bg-primary/10 text-primary text-xs font-semibold uppercase tracking-wider hover:bg-primary/20 transition-all"
                             >
                               + Ajouter option
                             </button>
@@ -606,7 +606,7 @@
 
                         <button 
                           onclick={saveCurrentField}
-                          class="px-6 py-2 rounded-xl bg-primary text-white text-xs font-black uppercase tracking-wider hover:bg-primary/90 transition-all"
+                          class="px-6 py-2 rounded-xl bg-primary text-white text-xs font-semibold uppercase tracking-wider hover:bg-primary/90 transition-all"
                         >
                           Enregistrer
                         </button>
@@ -618,12 +618,12 @@
 
               <button 
                 onclick={buildCustomStructure}
-                class="w-full px-6 py-4 rounded-xl bg-primary text-white font-black uppercase tracking-wider hover:bg-primary/90 transition-all"
+                class="w-full px-6 py-4 rounded-xl bg-primary text-white font-semibold uppercase tracking-wider hover:bg-primary/90 transition-all"
               >
                 Finaliser le formulaire
               </button>
             {:else}
-              <div class="text-center py-12 text-on-surface-variant/30 border-2 border-dashed border-outline-variant/10 rounded-2xl">
+              <div class="text-center py-12 text-on-surface-variant/30 border-2 border-dashed border-outline-variant/10 rounded-lg">
                 <Papicon icon="add_circle" size={48} class="mb-4" />
                 <p class="text-sm">Ajoutez votre première question pour commencer</p>
               </div>
@@ -637,7 +637,7 @@
         <button 
           onclick={createForm}
           disabled={createAction.state.loading || !newFormName.trim() || (selectedTemplate === 'custom' && !customStructure)}
-          class="flex-1 py-4 rounded-xl font-black bg-primary text-on-primary hover:scale-105 active:scale-95 transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
+          class="flex-1 py-4 rounded-xl font-semibold bg-primary text-on-primary hover:scale-105 active:scale-95 transition-all  disabled:opacity-50"
         >
           {createAction.state.loading ? 'Création...' : 'Créer le formulaire'}
         </button>
@@ -648,11 +648,11 @@
 
 <!-- Google Apps Script Modal -->
 {#if showScriptModal}
-  <div class="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-    <div class="bg-surface border border-outline-variant/30 rounded-[3rem] w-full max-w-4xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto">
+  <div class="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-black/60">
+    <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-4xl shadow-sm overflow-hidden animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto">
       <div class="p-8 border-b border-outline-variant/20 flex items-center justify-between bg-primary/5 sticky top-0 bg-surface z-10">
         <div>
-          <h3 class="text-2xl font-black text-on-surface">Script Google Apps Script</h3>
+          <h3 class="text-2xl font-semibold text-on-surface">Script Google Apps Script</h3>
           <p class="text-on-surface-variant text-sm">Formulaire: {selectedForm?.name}</p>
         </div>
         <button onclick={() => showScriptModal = false} class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-hover transition-colors">
@@ -661,7 +661,7 @@
       </div>
       
       <div class="p-8 space-y-6">
-        <div class="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 flex gap-4 text-amber-400">
+        <div class="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 flex gap-4 text-amber-400">
           <Papicon icon="info" size={20} class="shrink-0" />
           <div class="text-sm">
             <p class="font-bold mb-1">Instructions d'installation</p>
@@ -677,10 +677,10 @@
         </div>
 
         <div class="relative">
-          <pre class="bg-surface-container rounded-2xl p-6 text-xs font-mono overflow-x-auto whitespace-pre-wrap text-on-surface">{generatedScript}</pre>
+          <pre class="bg-surface-container rounded-lg p-6 text-xs font-mono overflow-x-auto whitespace-pre-wrap text-on-surface">{generatedScript}</pre>
           <button 
             onclick={() => navigator.clipboard.writeText(generatedScript)}
-            class="absolute top-4 right-4 px-4 py-2 rounded-xl bg-primary text-white text-xs font-black uppercase tracking-wider hover:bg-primary/90 transition-all"
+            class="absolute top-4 right-4 px-4 py-2 rounded-xl bg-primary text-white text-xs font-semibold uppercase tracking-wider hover:bg-primary/90 transition-all"
           >
             Copier
           </button>
@@ -696,11 +696,11 @@
 
 <!-- API Key Success Modal -->
 {#if showKeyModal}
-  <div class="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-    <div class="bg-surface border border-outline-variant/30 rounded-[3rem] w-full max-w-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 font-inter">
+  <div class="fixed inset-0 z-9999 flex items-center justify-center p-4 bg-black/60">
+    <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-xl shadow-sm overflow-hidden animate-in zoom-in-95 duration-300 font-inter">
       <div class="p-8 border-b border-outline-variant/20 flex items-center justify-between bg-emerald-500/5">
         <div>
-          <h3 class="text-2xl font-black text-emerald-500 flex items-center gap-2">
+          <h3 class="text-2xl font-semibold text-emerald-500 flex items-center gap-2">
             <Papicon icon="check_circle" size={24} />
             Clé API Générée
           </h3>
@@ -712,7 +712,7 @@
       </div>
       
       <div class="p-8 space-y-6">
-        <div class="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 flex gap-4 text-amber-400">
+        <div class="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 flex gap-4 text-amber-400">
           <Papicon icon="warning" size={20} class="shrink-0" />
           <div class="text-sm leading-relaxed font-medium">
             <p class="font-bold mb-1">Attention sécurité</p>
@@ -721,12 +721,12 @@
         </div>
 
         <div class="relative">
-          <div class="bg-surface-container rounded-2xl p-6 text-sm font-mono break-all pr-24 border border-outline-variant/20 select-all text-on-surface">
+          <div class="bg-surface-container rounded-lg p-6 text-sm font-mono break-all pr-24 border border-outline-variant/20 select-all text-on-surface">
             {newlyGeneratedKey}
           </div>
           <button 
             onclick={copyKeyToClipboard}
-            class="absolute top-1/2 -translate-y-1/2 right-4 px-4 py-2.5 rounded-xl {keyCopied ? 'bg-emerald-500 text-white' : 'bg-primary text-white'} text-xs font-black uppercase tracking-wider hover:bg-primary/90 transition-all shadow-md active:scale-95"
+            class="absolute top-1/2 -translate-y-1/2 right-4 px-4 py-2.5 rounded-xl {keyCopied ? 'bg-emerald-500 text-white' : 'bg-primary text-white'} text-xs font-semibold uppercase tracking-wider hover:bg-primary/90 transition-all shadow-md active:scale-95"
           >
             {keyCopied ? 'Copié !' : 'Copier'}
           </button>

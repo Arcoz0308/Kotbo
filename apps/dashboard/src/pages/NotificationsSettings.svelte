@@ -169,7 +169,7 @@
 
 
 <div class="mb-12 font-inter">
-  <h2 class="text-4xl font-extrabold text-primary tracking-tight font-headline">Paramètres & Notifications</h2>
+  <h2 class="text-lg font-extrabold text-primary tracking-tight font-headline">Paramètres & Notifications</h2>
   <p class="text-on-surface-variant mt-2 text-lg">Configurez les alertes système et les préférences globales pour {dashboardStore.state.guildName}.</p>
 </div>
 
@@ -180,7 +180,7 @@
     <div class="section-card p-8">
       <div class="flex items-center justify-between mb-8">
         <div class="flex items-center gap-4">
-          <div class="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shrink-0 transition-transform group-hover:scale-110">
+          <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center text-primary shrink-0 transition-transform group-">
             <Papicon icon="discord" size={24} />
           </div>
           <h3 class="text-xl font-bold font-headline">Configuration Discord</h3>
@@ -190,24 +190,24 @@
       <div class="space-y-6">
           <div class="space-y-2">
           <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="moderator-role">Rôle modérateur dashboard</label>
-          <SearchableSelect id="moderator-role" bind:value={notificationsDraft.moderatorRoleId} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Admin uniquement" className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold" />
+          <SearchableSelect id="moderator-role" bind:value={notificationsDraft.moderatorRoleId} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Admin uniquement" className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold" />
           
           <p class="text-xs text-on-surface-variant">Les membres de ce rôle peuvent accéder au dashboard avec des permissions limitées.</p>
         </div>
 
           <div class="space-y-2">
           <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="discord-channel">Salon d'alertes</label>
-          <SearchableSelect id="discord-channel" bind:value={notificationsDraft.discordChannel} options={availableChannels.map(c => ({ id: c.mention, name: `#${c.name}` }))} placeholder="Sélectionner un salon" className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold" />
+          <SearchableSelect id="discord-channel" bind:value={notificationsDraft.discordChannel} options={availableChannels.map(c => ({ id: c.mention, name: `#${c.name}` }))} placeholder="Sélectionner un salon" className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold" />
         </div>
 
           <div class="space-y-2">
           <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1" for="log-channel">Salon des embeds de logs (optionnel)</label>
-          <SearchableSelect id="log-channel" bind:value={notificationsDraft.logChannelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="Ne pas envoyer d'embed" className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold" />
+          <SearchableSelect id="log-channel" bind:value={notificationsDraft.logChannelId} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="Ne pas envoyer d'embed" className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 transition-all font-bold" />
           <p class="text-xs text-on-surface-variant">Les logs restent consultables dans le dashboard même si aucun salon n'est défini.</p>
         </div>
         
         
-        <div class="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">
+        <div class="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700">
           <div>
             <p class="font-bold text-slate-800 dark:text-slate-200">Kill-Switch de Sécurité</p>
             <p class="text-xs text-on-surface-variant">Désactive instantanément tous les modules en cas d'urgence.</p>
@@ -229,7 +229,7 @@
       </h3>
       
       <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div class="flex items-start gap-4 p-4 rounded-2xl hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
+        <div class="flex items-start gap-4 p-4 rounded-lg hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
           <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 group-hover:bg-primary/10 group-hover:text-primary transition-all">
             <Papicon icon="cloud_upload" size={24} />
           </div>
@@ -246,7 +246,7 @@
           </div>
         </div>
 
-        <div class="flex items-start gap-4 p-4 rounded-2xl hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
+        <div class="flex items-start gap-4 p-4 rounded-lg hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
           <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 group-hover:bg-primary/10 group-hover:text-primary transition-all">
             <Papicon icon="bug_report" size={24} />
           </div>
@@ -263,7 +263,7 @@
           </div>
         </div>
 
-        <div class="flex items-start gap-4 p-4 rounded-2xl hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
+        <div class="flex items-start gap-4 p-4 rounded-lg hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
           <div class="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 group-hover:bg-primary/10 group-hover:text-primary transition-all">
             <Papicon icon="mail" size={24} />
           </div>
@@ -304,11 +304,11 @@
 
   
   <div class="col-span-12 lg:col-span-4 space-y-8">
-    <div class="bg-primary p-8 rounded-4xl text-white overflow-hidden relative group">
+    <div class="bg-primary p-8 rounded-xl text-white overflow-hidden relative group">
       <div class="relative z-10">
-        <h4 class="text-xs font-black uppercase tracking-[0.2em] opacity-60 mb-6">Statut de Connexion</h4>
+        <h4 class="text-xs font-semibold uppercase tracking-wider opacity-60 mb-6">Statut de Connexion</h4>
         <div class="flex items-center gap-6 mb-8">
-          <div class="w-16 h-16 rounded-3xl bg-white/10 flex items-center justify-center backdrop-blur-md border border-white/20">
+          <div class="w-16 h-16 rounded-xl bg-white/10 flex items-center justify-center border border-white/20">
             <Papicon 
               icon={dashboardStore.state.error ? 'report_problem' : 'check_circle'} 
               size={36} 
@@ -316,7 +316,7 @@
             />
           </div>
           <div>
-            <div class="text-3xl font-black font-headline">{dashboardStore.state.error ? 'Erreur' : 'Connecté'}</div>
+            <div class="text-lg font-semibold font-headline">{dashboardStore.state.error ? 'Erreur' : 'Connecté'}</div>
             <div class="text-xs font-bold opacity-70">
               {dashboardStore.state.error ? 'API Bot inaccessible' : 'Communication API stable'}
             </div>
@@ -324,12 +324,12 @@
         </div>
       </div>
       
-      <div class="absolute -right-20 -bottom-20 w-64 h-64 bg-white/10 rounded-full blur-[80px] group-hover:scale-110 transition-transform duration-700"></div>
+      <div class="absolute -right-20 -bottom-20 w-64 h-64 bg-white/10 rounded-full blur-none hidden group- transition-transform duration-700"></div>
     </div>
 
     
     <div class="section-card p-8">
-      <h4 class="text-[10px] font-black text-on-surface-variant uppercase tracking-[0.2em] mb-6">Résumé Technique</h4>
+      <h4 class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider mb-6">Résumé Technique</h4>
       <div class="space-y-6">
         <div class="flex gap-4">
           <div class="w-8 h-8 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center shrink-0">
@@ -351,10 +351,10 @@
     </div>
 
     
-    <div class="bg-red-50 dark:bg-red-900/10 p-8 rounded-4xl border border-red-100 dark:border-red-900/20">
-      <h4 class="text-[10px] font-black text-red-600 dark:text-red-400 uppercase tracking-[0.2em] mb-4">Zone Critique</h4>
+    <div class="bg-red-50 dark:bg-red-900/10 p-8 rounded-xl border border-red-100 dark:border-red-900/20">
+      <h4 class="text-[10px] font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider mb-4">Zone Critique</h4>
       <p class="text-xs text-red-600/70 dark:text-red-400/70 mb-6 leading-relaxed font-medium">Réinitialiser les paramètres globaux désactivera tous les modules actifs et supprimera les flux.</p>
-      <button onclick={resetAndSaveFactory} class="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-red-600/20 active:scale-[0.98]">
+      <button onclick={resetAndSaveFactory} class="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold transition-all shadow-lg shadow-red-600/20 active:scale-[0.98]">
         Réinitialisation d'usine (UI)
       </button>
     </div>

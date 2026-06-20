@@ -91,7 +91,7 @@
   {/if}
 
   {#if open}
-    <div class="absolute left-0 right-0 mt-2 z-20 rounded-2xl border border-outline-variant/20 bg-surface-container-high p-2 shadow-2xl max-h-56 overflow-auto">
+    <div class="absolute left-0 right-0 mt-2 z-20 rounded-lg border border-outline-variant/20 bg-surface-container-high p-2 shadow-sm max-h-56 overflow-auto">
       {#if filtered.length === 0}
         <div class="px-4 py-2 text-xs text-on-surface-variant">Aucun résultat</div>
       {/if}
@@ -111,5 +111,5 @@
 </div>
 
 <style>
-  :global(.rounded-2xl) { border-radius: 1rem; }
+  :global(.rounded-lg) { border-radius: 1rem; }
 </style>

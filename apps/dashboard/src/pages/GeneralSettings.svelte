@@ -155,14 +155,14 @@
 </script>
 
 <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-  <header class="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-surface-container-low/40 backdrop-blur-3xl p-8 rounded-4xl border border-outline-variant/30">
-    <div class="flex items-center gap-6">
-      <div class="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shadow-inner">
-        <Papicon icon="Gear" size={32} />
+  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
+    <div class="flex items-center gap-4">
+      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+        <Papicon icon="Gear" size={20} />
       </div>
       <div>
-        <h1 class="text-3xl font-black tracking-tight leading-tight">Paramètres Généraux</h1>
-        <p class="text-on-surface-variant/80 font-medium">Configuration globale du serveur et des intégrations.</p>
+        <h1 class="text-lg font-semibold tracking-tight leading-tight">Paramètres Généraux</h1>
+        <p class="text-sm text-on-surface-variant/70 font-medium">Configuration globale du serveur et des intégrations.</p>
       </div>
     </div>
   </header>
@@ -172,7 +172,7 @@
   {#if loading}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
       {#each Array(2) as _}
-        <div class="p-8 rounded-[2.5rem] bg-surface-container-low/30 border border-outline-variant/10 space-y-6">
+        <div class="p-8 rounded-xl bg-surface-container-low/30 border border-outline-variant/10 space-y-6">
           <Skeleton width="40%" height="24px" />
           <div class="space-y-4">
             {#each Array(4) as _}
@@ -188,9 +188,9 @@
   {:else}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <!-- Discord Configuration -->
-      <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-8">
+      <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-8">
         <div class="space-y-6">
-          <h3 class="text-xl font-black flex items-center gap-3">
+          <h3 class="text-xl font-semibold flex items-center gap-3">
             <Papicon icon="Hash" size={20} class="text-primary" />
             Canaux Discord
           </h3>
@@ -199,11 +199,11 @@
               <div class="space-y-1.5">
                 <label for={field.key} class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{field.label}</label>
                 {#if field.isVoice}
-                  <SearchableSelect id={field.key} bind:value={guildSettings[field.key]} options={availableVoiceChannels.map(c => ({ id: c.id, name: `🔊 ${c.name}` }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
+                  <SearchableSelect id={field.key} bind:value={guildSettings[field.key]} options={availableVoiceChannels.map(c => ({ id: c.id, name: `🔊 ${c.name}` }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
                 {:else}
-                  <SearchableSelect id={field.key} bind:value={guildSettings[field.key]} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
+                  <SearchableSelect id={field.key} bind:value={guildSettings[field.key]} options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
                 {/if}
-                <p class="text-[9px] text-on-surface-variant/40 ml-2">{field.desc}</p>
+                <p class="text-[11px] text-on-surface-variant/40 ml-2">{field.desc}</p>
               </div>
             {/each}
           </div>
@@ -212,8 +212,8 @@
 
       <div class="space-y-8">
         <!-- Roles Configuration -->
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-8">
-          <h3 class="text-xl font-black flex items-center gap-3">
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-8">
+          <h3 class="text-xl font-semibold flex items-center gap-3">
             <Papicon icon="Shield" size={20} class="text-secondary" />
             Rôles Staff
           </h3>
@@ -221,22 +221,22 @@
             {#each roleFields as field}
               <div class="space-y-1.5">
                 <label for={field.key} class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">{field.label}</label>
-                <SearchableSelect id={field.key} bind:value={guildSettings[field.key]} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
-                <p class="text-[9px] text-on-surface-variant/40 ml-2">{field.desc}</p>
+                <SearchableSelect id={field.key} bind:value={guildSettings[field.key]} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all" />
+                <p class="text-[11px] text-on-surface-variant/40 ml-2">{field.desc}</p>
               </div>
             {/each}
           </div>
         </section>
 
         <!-- Integrations Toggles -->
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-8">
-          <h3 class="text-xl font-black flex items-center gap-3">
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-8">
+          <h3 class="text-xl font-semibold flex items-center gap-3">
             <Papicon icon="Link" size={20} class="text-tertiary" />
             Intégrations
           </h3>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {#each toggleFields as toggle}
-              <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container-high/20 border border-outline-variant/5 hover:bg-surface-container-high/40 transition-colors">
+              <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 hover:bg-surface-container-high/40 transition-colors">
                 <div>
                   <p class="text-sm font-bold">{toggle.label}</p>
                   <p class="text-[10px] text-on-surface-variant/50">{toggle.desc}</p>

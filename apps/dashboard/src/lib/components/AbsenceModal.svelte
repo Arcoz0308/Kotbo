@@ -112,7 +112,7 @@
     <!-- Icon and custom header -->
     <div class="p-8 pb-4">
       <div class="flex items-center gap-4">
-        <div class="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20">
+        <div class="w-12 h-12 bg-primary rounded-lg flex items-center justify-center ">
           <Papicon icon="calendar-plus" size={24} class="text-white" />
         </div>
       </div>
@@ -122,7 +122,7 @@
     <div class="flex-1 px-8 space-y-8 overflow-y-auto">
       <!-- Time Section -->
       <section class="space-y-4">
-        <h4 class="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Créneau Horaire</h4>
+        <h4 class="text-[10px] font-semibold uppercase tracking-wider text-primary">Créneau Horaire</h4>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div class="space-y-2">
             <label for="start-date" class="block text-xs font-bold text-on-surface-variant ml-1">Début</label>
@@ -153,7 +153,7 @@
 
       <!-- Details Section -->
       <section class="space-y-6">
-        <h4 class="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Détails de l'absence</h4>
+        <h4 class="text-[10px] font-semibold uppercase tracking-wider text-primary">Détails de l'absence</h4>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
            <div class="space-y-2">
             <label for="type" class="block text-xs font-bold text-on-surface-variant ml-1">Type d'absence</label>
@@ -188,7 +188,7 @@
       </section>
 
       {#if errorMsg}
-        <div class="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex gap-3 animate-shake">
+        <div class="p-4 bg-red-500/10 border border-red-500/20 rounded-lg flex gap-3 animate-shake">
           <Papicon icon="alert-circle" size={18} class="text-red-500" />
           <p class="text-xs text-red-700 font-bold">{errorMsg}</p>
         </div>
@@ -197,13 +197,13 @@
 
     <!-- Footer -->
     <footer class="p-8 border-t border-outline-variant/30 bg-surface-container-lowest flex items-center justify-end gap-4">
-      <button onclick={onClose} class="px-6 py-3 font-bold text-on-surface-variant hover:bg-surface-hover rounded-2xl transition-all">
+      <button onclick={onClose} class="px-6 py-3 font-bold text-on-surface-variant hover:bg-surface-hover rounded-lg transition-all">
         Annuler
       </button>
       <button
         onclick={handleSave}
         disabled={saving}
-        class="px-5 py-2.5 text-xs rounded-xl font-black uppercase tracking-[0.12em] bg-primary text-on-primary border border-primary shadow-lg shadow-primary/20 hover:bg-primary-container active:scale-95 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60 flex items-center gap-2"
+        class="px-5 py-2.5 text-xs rounded-xl font-semibold uppercase tracking-wide bg-primary text-on-primary border border-primary  hover:bg-primary-container active:scale-95 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60 flex items-center gap-2"
       >
         {#if saving}
           <div class="w-4 h-4 border-2 border-on-primary border-t-transparent rounded-full animate-spin"></div>

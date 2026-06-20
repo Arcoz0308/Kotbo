@@ -97,19 +97,19 @@
   <div class="space-y-6 pb-12 animate-in fade-in slide-in-from-bottom-3 duration-600">
 
     <!-- Page header -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
       <div>
-        <h2 class="text-2xl font-black text-on-surface tracking-tight">Sécurité</h2>
-        <p class="text-sm text-on-surface-variant/50 mt-0.5 font-medium">Administrateurs globaux et blacklist universelle</p>
+        <h2 class="text-lg font-semibold text-on-surface tracking-tight">Sécurité</h2>
+        <p class="text-sm text-on-surface-variant/50 font-medium">Administrateurs globaux et blacklist universelle</p>
       </div>
       <!-- Stats summary -->
       {#if !loading && !error}
         <div class="flex items-center gap-2 flex-wrap">
-          <div class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-black">
+          <div class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
             <Papicon icon="ShieldCheck" size={13} />
             {globalAdmins.length} admin{globalAdmins.length > 1 ? 's' : ''}
           </div>
-          <div class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-black">
+          <div class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold">
             <Papicon icon="UserX" size={13} />
             {globalBlacklist.length} blacklisté{globalBlacklist.length > 1 ? 's' : ''}
           </div>
@@ -121,7 +121,7 @@
     <div class="flex gap-1 p-1 bg-on-surface/5 rounded-xl w-fit border border-outline-variant/10">
       <button
         onclick={() => adminTab = 'admins'}
-        class="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black transition-all duration-200
+        class="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200
           {adminTab === 'admins' ? 'bg-surface-container text-on-surface shadow-sm' : 'text-on-surface-variant/50 hover:text-on-surface'}"
       >
         <Papicon icon="ShieldCheck" size={13} />
@@ -129,13 +129,13 @@
       </button>
       <button
         onclick={() => adminTab = 'blacklist'}
-        class="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black transition-all duration-200
+        class="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-200
           {adminTab === 'blacklist' ? 'bg-surface-container text-on-surface shadow-sm' : 'text-on-surface-variant/50 hover:text-on-surface'}"
       >
         <Papicon icon="UserX" size={13} />
         Blacklist
         {#if globalBlacklist.length > 0}
-          <span class="px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 text-[9px] font-black">{globalBlacklist.length}</span>
+          <span class="px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 text-[11px] font-semibold">{globalBlacklist.length}</span>
         {/if}
       </button>
     </div>
@@ -148,22 +148,22 @@
       </div>
 
     {:else if error}
-      <div class="flex flex-col items-center justify-center py-16 gap-4 text-center bg-error/5 border border-error/15 rounded-2xl">
-        <div class="w-12 h-12 rounded-2xl bg-error/10 border border-error/20 flex items-center justify-center text-error">
+      <div class="flex flex-col items-center justify-center py-16 gap-4 text-center bg-error/5 border border-error/15 rounded-lg">
+        <div class="w-12 h-12 rounded-lg bg-error/10 border border-error/20 flex items-center justify-center text-error">
           <Papicon icon="AlertTriangle" size={22} />
         </div>
         <div>
-          <p class="font-black text-on-surface">Erreur de chargement</p>
+          <p class="font-semibold text-on-surface">Erreur de chargement</p>
           <p class="text-sm text-on-surface-variant/60 mt-1">{error}</p>
         </div>
       </div>
 
     {:else if adminTab === 'admins'}
       <!-- Global Admins panel -->
-      <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-2xl p-6 space-y-5">
+      <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-lg p-6 space-y-5">
         <!-- Add form -->
         <div>
-          <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-2">Ajouter un administrateur</p>
+          <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-2">Ajouter un administrateur</p>
           <form onsubmit={handleAddAdmin} class="flex gap-2">
             <input
               type="text"
@@ -174,7 +174,7 @@
             />
             <button
               type="submit"
-              class="px-5 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-black uppercase tracking-widest hover:scale-[1.02] transition-all shadow-md shadow-primary/20"
+              class="px-5 py-2.5 rounded-xl bg-primary text-on-primary text-xs font-semibold uppercase tracking-widest hover: transition-all shadow-md shadow-primary/20"
             >
               Ajouter
             </button>
@@ -192,7 +192,7 @@
                   {#if admin.avatarUrl}
                     <img src={admin.avatarUrl} alt={admin.username} class="w-9 h-9 rounded-full border border-outline-variant/10 shadow-sm" />
                   {:else}
-                    <div class="w-9 h-9 rounded-full bg-primary/15 border border-primary/20 flex items-center justify-center text-primary font-black text-sm">
+                    <div class="w-9 h-9 rounded-full bg-primary/15 border border-primary/20 flex items-center justify-center text-primary font-semibold text-sm">
                       {admin.username.charAt(0).toUpperCase()}
                     </div>
                   {/if}
@@ -202,7 +202,7 @@
                   </div>
                 </div>
                 {#if admin.userId === OWNER_ID}
-                  <span class="text-[9px] uppercase font-black tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">Créateur</span>
+                  <span class="text-[11px] uppercase font-semibold tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">Créateur</span>
                 {:else}
                   <button
                     onclick={() => handleRemoveAdmin(admin.userId, admin.username)}
@@ -220,10 +220,10 @@
 
     {:else}
       <!-- Blacklist panel -->
-      <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-2xl p-6 space-y-5">
+      <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-lg p-6 space-y-5">
         <!-- Add form -->
         <div class="space-y-2">
-          <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Ajouter à la blacklist</p>
+          <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Ajouter à la blacklist</p>
           <form onsubmit={handleAddBlacklist} class="space-y-2">
             <input
               type="text"
@@ -241,7 +241,7 @@
               />
               <button
                 type="submit"
-                class="px-5 py-2.5 rounded-xl bg-red-500 text-white text-xs font-black uppercase tracking-widest hover:bg-red-600 transition-all shadow-md shadow-red-500/20"
+                class="px-5 py-2.5 rounded-xl bg-red-500 text-white text-xs font-semibold uppercase tracking-widest hover:bg-red-600 transition-all shadow-md shadow-red-500/20"
               >
                 Bannir
               </button>
@@ -265,7 +265,7 @@
                   {#if user.avatarUrl}
                     <img src={user.avatarUrl} alt={user.username} class="w-9 h-9 rounded-full border border-red-500/20 shadow-sm" />
                   {:else}
-                    <div class="w-9 h-9 rounded-full bg-red-500/15 border border-red-500/20 flex items-center justify-center text-red-400 font-black text-sm">
+                    <div class="w-9 h-9 rounded-full bg-red-500/15 border border-red-500/20 flex items-center justify-center text-red-400 font-semibold text-sm">
                       {user.username.charAt(0).toUpperCase()}
                     </div>
                   {/if}

@@ -132,10 +132,10 @@
 </script>
 
 <div class="space-y-6 animate-in fade-in duration-500">
-  <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
+  <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
     <div class="flex flex-col md:flex-row justify-between gap-6">
       <div>
-        <h3 class="text-2xl font-black">Matrice des Accès</h3>
+        <h3 class="text-2xl font-semibold">Matrice des Accès</h3>
         <p class="text-xs text-on-surface-variant/50 mt-1">
           Définissez les permissions par rôle Discord pour chaque page et fonctionnalité du dashboard.
           {#if availableRoles.length > 0}
@@ -145,11 +145,11 @@
       </div>
 
       <div class="flex items-center gap-3">
-        <span class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40">Réinitialiser via Preset :</span>
+        <span class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Réinitialiser via Preset :</span>
         {#each ['general', 'gaming', 'dev'] as p}
           <button 
             onclick={() => onApplyPreset(p)}
-            class="px-3 py-1.5 rounded-lg border border-outline-variant/10 hover:bg-surface-container-high transition-colors text-[9px] font-black uppercase tracking-widest"
+            class="px-3 py-1.5 rounded-lg border border-outline-variant/10 hover:bg-surface-container-high transition-colors text-[11px] font-semibold uppercase tracking-widest"
           >
             {p}
           </button>
@@ -162,7 +162,7 @@
       {#each roleEntries as role}
         <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl {role.bg}">
           <span class="w-2 h-2 rounded-full {role.dotColor}"></span>
-          <span class="text-[10px] font-black uppercase tracking-widest {role.color}">{role.name}</span>
+          <span class="text-[10px] font-semibold uppercase tracking-widest {role.color}">{role.name}</span>
         </div>
       {/each}
       <div class="flex items-center gap-3 ml-auto text-[10px] text-on-surface-variant/40">
@@ -183,14 +183,14 @@
           <!-- Category header -->
           <button
             onclick={() => expandedCategory = isCatExpanded ? null : group.category}
-            class="w-full flex items-center gap-3 px-5 py-3 rounded-2xl {catColor.bg} border {catColor.border} hover:opacity-90 transition-all cursor-pointer"
+            class="w-full flex items-center gap-3 px-5 py-3 rounded-lg {catColor.bg} border {catColor.border} hover:opacity-90 transition-all cursor-pointer"
           >
             <Papicon icon={catIcon} size={18} class={catColor.text} />
-            <span class="text-[11px] font-black uppercase tracking-widest {catColor.text}">{group.category}</span>
+            <span class="text-[11px] font-semibold uppercase tracking-widest {catColor.text}">{group.category}</span>
             <span class="text-[10px] text-on-surface-variant/40 ml-1">{group.items.length} module{group.items.length > 1 ? 's' : ''}</span>
             <div class="ml-auto flex items-center gap-2">
               <!-- Quick summary: nb of features with full permissions -->
-              <span class="text-[9px] text-on-surface-variant/30">{group.items.filter(i => i.feature.enabled).length} actif{group.items.filter(i => i.feature.enabled).length > 1 ? 's' : ''}</span>
+              <span class="text-[11px] text-on-surface-variant/30">{group.items.filter(i => i.feature.enabled).length} actif{group.items.filter(i => i.feature.enabled).length > 1 ? 's' : ''}</span>
               <div class="transform transition-transform {isCatExpanded ? 'rotate-180' : ''}">
                 <Papicon icon="CaretDown" size={14} class="text-on-surface-variant/40" />
               </div>
@@ -202,7 +202,7 @@
             <div class="space-y-2 pl-2 animate-in fade-in slide-in-from-top-1 duration-300">
               {#each group.items as { feature, idx }}
                 {@const isExpanded = expandedFeature === feature.featureKey}
-                <div class="bg-surface-container-high/20 border border-outline-variant/5 rounded-[1.5rem] overflow-hidden transition-all">
+                <div class="bg-surface-container-high/20 border border-outline-variant/5 rounded-xl overflow-hidden transition-all">
                   <!-- Feature header -->
                   <button
                     onclick={() => expandedFeature = isExpanded ? null : feature.featureKey}
@@ -221,7 +221,7 @@
                         {#each roleEntries as role}
                           {@const ra = getRoleAccess(feature, role.roleId)}
                           {@const activePerms = permissions.filter(p => ra[p.key]).length}
-                          <span class="px-1.5 py-0.5 rounded text-[8px] font-bold {role.bg} {role.color}">{activePerms}/{permissions.length}</span>
+                          <span class="px-1.5 py-0.5 rounded text-[10px] font-bold {role.bg} {role.color}">{activePerms}/{permissions.length}</span>
                         {/each}
                       </div>
                       <div class="transform transition-transform {isExpanded ? 'rotate-180' : ''}">
@@ -235,7 +235,7 @@
                     <div class="px-5 pb-5 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
                       <div class="overflow-hidden rounded-xl border border-outline-variant/5">
                         <table class="w-full text-left border-collapse">
-                          <thead class="bg-surface-container-high/40 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60">
+                          <thead class="bg-surface-container-high/40 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">
                             <tr>
                               <th class="px-4 py-3">Rôle</th>
                               {#each permissions as perm}
@@ -274,7 +274,7 @@
                       <div class="flex justify-end">
                         <button
                           onclick={() => onUpdateAccess(feature.featureKey, feature.roleAccessByRole || [])}
-                          class="px-5 py-2 bg-on-surface text-surface text-[9px] font-black uppercase tracking-widest rounded-xl hover:scale-105 transition-transform"
+                          class="px-5 py-2 bg-on-surface text-surface text-[11px] font-semibold uppercase tracking-widest rounded-xl hover:scale-105 transition-transform"
                         >
                           Sauvegarder
                         </button>

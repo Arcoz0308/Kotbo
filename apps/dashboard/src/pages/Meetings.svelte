@@ -302,11 +302,11 @@
   {#if canManageSettings && meetingsConfig}
     <div class="mb-10 space-y-6">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div class="bg-surface-container-low rounded-3xl p-6 border border-outline-variant/20 shadow-sm">
-          <h4 class="text-xs font-black text-on-surface-variant uppercase tracking-widest mb-4">Canaux de Réunion</h4>
+        <div class="bg-surface-container-low rounded-xl p-6 border border-outline-variant/20 shadow-sm">
+          <h4 class="text-xs font-semibold text-on-surface-variant uppercase tracking-widest mb-4">Canaux de Réunion</h4>
           <div class="space-y-4">
             <div>
-              <label for="meeting-announcement-channel" class="block text-[10px] font-black text-on-surface-variant uppercase mb-2 ml-1">Salon d'annonce</label>
+              <label for="meeting-announcement-channel" class="block text-[10px] font-semibold text-on-surface-variant uppercase mb-2 ml-1">Salon d'annonce</label>
               <select 
                 id="meeting-announcement-channel"
                 value={meetingAnnouncementChannelId} 
@@ -324,7 +324,7 @@
               </select>
             </div>
             <div>
-              <label for="meeting-voice-channel" class="block text-[10px] font-black text-on-surface-variant uppercase mb-2 ml-1">Salon vocal</label>
+              <label for="meeting-voice-channel" class="block text-[10px] font-semibold text-on-surface-variant uppercase mb-2 ml-1">Salon vocal</label>
               <select 
                 id="meeting-voice-channel"
                 value={meetingVoiceChannelId} 
@@ -344,8 +344,8 @@
           </div>
         </div>
 
-        <div class="bg-surface-container-low rounded-3xl p-6 border border-outline-variant/20 shadow-sm flex flex-col">
-          <h4 class="text-xs font-black text-on-surface-variant uppercase tracking-widest mb-4">Accès Rôles</h4>
+        <div class="bg-surface-container-low rounded-xl p-6 border border-outline-variant/20 shadow-sm flex flex-col">
+          <h4 class="text-xs font-semibold text-on-surface-variant uppercase tracking-widest mb-4">Accès Rôles</h4>
           <div class="flex-1 overflow-y-auto max-h-[300px]">
             <RolePermissionSettings 
               featureKey="meetings" 
@@ -363,12 +363,12 @@
 
   <div class="grid grid-cols-1 gap-6">
     {#if loading && meetings.length === 0}
-      <div class="flex flex-col items-center justify-center py-20 bg-surface-container-lowest rounded-3xl border border-outline-variant/30">
+      <div class="flex flex-col items-center justify-center py-20 bg-surface-container-lowest rounded-xl border border-outline-variant/30">
         <div class="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
         <p class="mt-4 text-on-surface-variant font-medium">Chargement des réunions...</p>
       </div>
     {:else if meetings.length === 0}
-      <div class="flex flex-col items-center justify-center py-20 bg-surface-container-lowest rounded-3xl border border-outline-variant/30">
+      <div class="flex flex-col items-center justify-center py-20 bg-surface-container-lowest rounded-xl border border-outline-variant/30">
         <Papicon icon="calendar" size={60} class="text-on-surface-variant/20 mb-4" />
         <h3 class="text-xl font-bold text-on-surface">Aucune réunion prévue</h3>
         <p class="text-on-surface-variant mt-1">Planifiez votre première réunion pour commencer le suivi.</p>
@@ -382,11 +382,11 @@
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {#each meetings as meeting}
           {@const stats = getAttendanceStats(meeting)}
-          <div class="bg-surface-container-lowest rounded-3xl border border-outline-variant/30 overflow-hidden hover:shadow-xl hover:shadow-primary/5 transition-all group">
+          <div class="bg-surface-container-lowest rounded-xl border border-outline-variant/30 overflow-hidden hover:shadow-xl hover:shadow-primary/5 transition-all group">
             <div class="p-6">
               <div class="flex justify-between items-start gap-4 mb-4">
                 <div>
-                  <span class="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider mb-2 {getStatusColor(meeting.status)}">
+                  <span class="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-wider mb-2 {getStatusColor(meeting.status)}">
                     {formatStatus(meeting.status)}
                   </span>
                   <h4 class="text-xl font-bold text-on-surface leading-tight">{meeting.title}</h4>
@@ -411,17 +411,17 @@
                 {meeting.description || 'Aucune description fournie.'}
               </p>
 
-              <div class="grid grid-cols-3 gap-2 p-3 bg-surface-container-low rounded-2xl">
+              <div class="grid grid-cols-3 gap-2 p-3 bg-surface-container-low rounded-lg">
                 <div class="text-center">
-                  <p class="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">Présents</p>
+                  <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">Présents</p>
                   <p class="text-xl font-bold text-emerald-500">{stats.present}</p>
                 </div>
                 <div class="text-center border-x border-outline-variant/30">
-                  <p class="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">Excusés</p>
+                  <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">Excusés</p>
                   <p class="text-xl font-bold text-amber-500">{stats.excused}</p>
                 </div>
                 <div class="text-center">
-                  <p class="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">Absents</p>
+                  <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">Absents</p>
                   <p class="text-xl font-bold text-red-500">{stats.absent}</p>
                 </div>
               </div>
@@ -432,7 +432,7 @@
                 {#each meeting.presences.filter(p => p.status === 'PRESENT').slice(0, 5) as p}
                   <button 
                     onclick={() => openMemberCase(p.staffUserId, p.staffMember?.displayName || p.staffMember?.username || 'Membre')}
-                    class="w-8 h-8 rounded-full border-2 border-surface-container-lowest bg-primary/10 flex items-center justify-center overflow-hidden transition-transform hover:scale-110 hover:z-10" 
+                    class="w-8 h-8 rounded-full border-2 border-surface-container-lowest bg-primary/10 flex items-center justify-center overflow-hidden transition-transform  hover:z-10" 
                     title={p.staffMember?.displayName || p.staffMember?.username || "Membre"}
                   >
                     {#if p.staffMember?.avatarUrl}
@@ -476,7 +476,7 @@
 {#if modalOpen}
   <div class="fixed inset-0 z-100 flex items-center justify-center p-4">
     <div 
-      class="absolute inset-0 bg-black/60 backdrop-blur-sm" 
+      class="absolute inset-0 bg-black/60" 
       onclick={() => modalOpen = false}
       onkeydown={(e) => e.key === 'Escape' && (modalOpen = false)}
       role="button"
@@ -484,10 +484,10 @@
       aria-label="Fermer la modale"
     ></div>
     
-    <div class="relative w-full max-w-xl bg-surface-container-lowest rounded-3xl shadow-2xl overflow-hidden border border-outline-variant/30 font-inter">
+    <div class="relative w-full max-w-xl bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-outline-variant/30 font-inter">
       <div class="p-8 border-b border-outline-variant/30 flex items-center justify-between bg-primary/5">
         <div>
-          <h3 class="text-2xl font-black text-on-surface">{editMode ? 'Modifier' : 'Planifier'} une Réunion</h3>
+          <h3 class="text-2xl font-semibold text-on-surface">{editMode ? 'Modifier' : 'Planifier'} une Réunion</h3>
           <p class="text-on-surface-variant text-sm">Remplissez les détails pour l'organisation.</p>
         </div>
         <button onclick={() => modalOpen = false} class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-hover transition-colors">
@@ -497,7 +497,7 @@
 
       <div class="p-8 space-y-6">
         <div>
-          <label for="meeting-title" class="block text-xs font-black text-on-surface-variant uppercase tracking-[0.2em] mb-2">Titre de la réunion</label>
+          <label for="meeting-title" class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Titre de la réunion</label>
           <FormInput 
             id="meeting-title"
             bind:value={meetingTitle}
@@ -507,7 +507,7 @@
         </div>
 
         <div>
-          <label for="meeting-date" class="block text-xs font-black text-on-surface-variant uppercase tracking-[0.2em] mb-2">Début prévu</label>
+          <label for="meeting-date" class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Début prévu</label>
           <FormInput 
             id="meeting-date"
             type="datetime-local"
@@ -517,7 +517,7 @@
         </div>
 
         <div>
-          <label for="meeting-end-date" class="block text-xs font-black text-on-surface-variant uppercase tracking-[0.2em] mb-2">Fin prévue</label>
+          <label for="meeting-end-date" class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Fin prévue</label>
           <FormInput 
             id="meeting-end-date"
             type="datetime-local"
@@ -527,7 +527,7 @@
         </div>
 
         <div>
-          <label for="meeting-desc" class="block text-xs font-black text-on-surface-variant uppercase tracking-[0.2em] mb-2">Ordre du jour / Description</label>
+          <label for="meeting-desc" class="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">Ordre du jour / Description</label>
           <FormTextarea 
             id="meeting-desc"
             bind:value={meetingDesc}
@@ -538,7 +538,7 @@
         </div>
 
         {#if !editMode}
-          <div class="bg-blue-500/5 border border-blue-500/20 rounded-2xl p-4 flex gap-3">
+          <div class="bg-blue-500/5 border border-blue-500/20 rounded-lg p-4 flex gap-3">
              <Papicon icon="info" size={24} class="text-blue-500" />
              <p class="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
                La création d'une réunion annoncera automatiquement l'événement dans le salon dédié sur Discord et activera les boutons de RSVP.
@@ -547,7 +547,7 @@
         {/if}
 
         {#if meetingError}
-          <div class="bg-red-500/10 border border-red-500/30 rounded-2xl p-3 mt-3">
+          <div class="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mt-3">
             <p class="text-sm text-red-700">{meetingError}</p>
           </div>
         {/if}
@@ -559,7 +559,7 @@
           <button 
             onclick={save}
             disabled={saving || !meetingTitle || !meetingDate}
-            class="px-8 py-2.5 bg-primary text-on-primary rounded-xl font-black shadow-lg shadow-primary/20 hover:shadow-primary/40 disabled:opacity-50 disabled:grayscale transition-all flex items-center gap-2"
+            class="px-8 py-2.5 bg-primary text-on-primary rounded-xl font-semibold  hover:shadow-primary/40 disabled:opacity-50 disabled:grayscale transition-all flex items-center gap-2"
           >
             {#if saving}
               <div class="w-4 h-4 border-2 border-on-primary/20 border-t-on-primary rounded-full animate-spin"></div>
@@ -575,7 +575,7 @@
 {#if detailModalOpen && selectedMeeting}
   <div class="fixed inset-0 z-100 flex items-center justify-center p-4">
     <div 
-      class="absolute inset-0 bg-black/60 backdrop-blur-sm" 
+      class="absolute inset-0 bg-black/60" 
       onclick={() => detailModalOpen = false}
       onkeydown={(e) => e.key === 'Escape' && (detailModalOpen = false)}
       role="button"
@@ -583,10 +583,10 @@
       aria-label="Fermer la modale"
     ></div>
     
-    <div class="relative w-full max-w-2xl bg-surface-container-lowest rounded-3xl shadow-2xl overflow-hidden border border-outline-variant/30 font-inter">
+    <div class="relative w-full max-w-2xl bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-outline-variant/30 font-inter">
       <div class="p-8 border-b border-outline-variant/30 bg-primary/5 flex items-center justify-between">
         <div>
-          <h3 class="text-2xl font-black text-on-surface">{selectedMeeting.title}</h3>
+          <h3 class="text-2xl font-semibold text-on-surface">{selectedMeeting.title}</h3>
           <p class="text-on-surface-variant text-sm flex items-center gap-1">
              <Papicon icon="calendar" size={12} />
              {new Date(selectedMeeting.scheduledAt).toLocaleString('fr-FR')}
@@ -599,20 +599,20 @@
 
       <div class="p-8 space-y-8 max-h-[70vh] overflow-y-auto">
         {#if selectedMeeting.description}
-           <div class="p-4 bg-surface-container-low rounded-2xl border border-outline-variant/30">
+           <div class="p-4 bg-surface-container-low rounded-lg border border-outline-variant/30">
               <p class="text-sm text-on-surface whitespace-pre-wrap">{selectedMeeting.description}</p>
            </div>
         {/if}
 
         <div class="space-y-4">
-           <h4 class="text-xs font-black text-on-surface-variant uppercase tracking-widest px-1">Liste des présences</h4>
+           <h4 class="text-xs font-semibold text-on-surface-variant uppercase tracking-widest px-1">Liste des présences</h4>
            <div class="grid grid-cols-1 gap-2">
               {#each selectedMeeting.presences as presence}
-                 <div class="flex items-center justify-between p-4 bg-surface-container-low/50 rounded-2xl border border-outline-variant/10 hover:bg-surface-container-low transition-colors group">
+                 <div class="flex items-center justify-between p-4 bg-surface-container-low/50 rounded-lg border border-outline-variant/10 hover:bg-surface-container-low transition-colors group">
                     <div class="flex items-center gap-3">
                        <button 
                           onclick={() => openMemberCase(presence.staffUserId, presence.staffMember?.displayName || presence.staffMember?.username || 'Membre')}
-                          class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-xs font-black text-primary overflow-hidden transition-transform hover:scale-110"
+                          class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary overflow-hidden transition-transform "
                        >
                           {#if presence.staffMember?.avatarUrl}
                             <img src={presence.staffMember.avatarUrl} alt="" class="w-full h-full object-cover" />
@@ -633,7 +633,7 @@
                        </div>
                     </div>
                     <div>
-                       <span class="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider {getStatusColor(presence.status)}">
+                       <span class="inline-flex items-center rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-wider {getStatusColor(presence.status)}">
                           {formatStatus(presence.status)}
                        </span>
                     </div>
@@ -649,7 +649,7 @@
 {#if deleteModalOpen}
   <div class="fixed inset-0 z-100 flex items-center justify-center p-4">
     <div 
-      class="absolute inset-0 bg-black/60 backdrop-blur-sm" 
+      class="absolute inset-0 bg-black/60" 
       onclick={() => deleteModalOpen = false}
       onkeydown={(e) => e.key === 'Escape' && (deleteModalOpen = false)}
       role="button"
@@ -657,10 +657,10 @@
       aria-label="Fermer la modale"
     ></div>
     
-    <div class="relative w-full max-w-md bg-surface-container-lowest rounded-3xl shadow-2xl overflow-hidden border border-outline-variant/30 font-inter">
+    <div class="relative w-full max-w-md bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-outline-variant/30 font-inter">
       <div class="p-8 border-b border-outline-variant/30 bg-red-500/5 flex items-center justify-between">
         <div>
-          <h3 class="text-xl font-black text-on-surface">Supprimer la réunion ?</h3>
+          <h3 class="text-xl font-semibold text-on-surface">Supprimer la réunion ?</h3>
           <p class="text-on-surface-variant text-sm">Cette action est irréversible en base de données.</p>
         </div>
         <button onclick={() => deleteModalOpen = false} class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-hover transition-colors">
@@ -674,7 +674,7 @@
         </p>
 
         <div class="space-y-4">
-          <label class="flex items-center gap-3 p-4 bg-surface-container-low rounded-2xl border border-outline-variant/10 cursor-pointer hover:bg-surface-container-low transition-colors">
+          <label class="flex items-center gap-3 p-4 bg-surface-container-low rounded-lg border border-outline-variant/10 cursor-pointer hover:bg-surface-container-low transition-colors">
             <input type="checkbox" bind:checked={deleteDiscordEvent} class="w-5 h-5 rounded-lg border-outline-variant text-primary focus:ring-primary" />
             <div>
               <p class="text-sm font-bold text-on-surface">Supprimer l'événement Discord</p>
@@ -682,7 +682,7 @@
             </div>
           </label>
 
-          <label class="flex items-center gap-3 p-4 bg-surface-container-low rounded-2xl border border-outline-variant/10 cursor-pointer hover:bg-surface-container-low transition-colors">
+          <label class="flex items-center gap-3 p-4 bg-surface-container-low rounded-lg border border-outline-variant/10 cursor-pointer hover:bg-surface-container-low transition-colors">
             <input type="checkbox" bind:checked={deleteDiscordMessage} class="w-5 h-5 rounded-lg border-outline-variant text-primary focus:ring-primary" />
             <div>
               <p class="text-sm font-bold text-on-surface">Supprimer le message d'annonce</p>
@@ -690,7 +690,7 @@
             </div>
           </label>
 
-          <label class="flex items-center gap-3 p-4 bg-surface-container-low rounded-2xl border border-outline-variant/10 cursor-pointer hover:bg-surface-container-low transition-colors">
+          <label class="flex items-center gap-3 p-4 bg-surface-container-low rounded-lg border border-outline-variant/10 cursor-pointer hover:bg-surface-container-low transition-colors">
             <input type="checkbox" bind:checked={deleteDiscordNotification} class="w-5 h-5 rounded-lg border-outline-variant text-primary focus:ring-primary" />
             <div>
               <p class="text-sm font-bold text-on-surface">Supprimer les notifications internes</p>
@@ -706,7 +706,7 @@
           <button 
             onclick={confirmDelete}
             disabled={deleting}
-            class="px-8 py-2.5 bg-red-500 text-white rounded-xl font-black shadow-lg shadow-red-500/20 hover:shadow-red-500/40 disabled:opacity-50 transition-all flex items-center gap-2"
+            class="px-8 py-2.5 bg-red-500 text-white rounded-xl font-semibold shadow-lg shadow-red-500/20 hover:shadow-red-500/40 disabled:opacity-50 transition-all flex items-center gap-2"
           >
             {#if deleting}
               <div class="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>

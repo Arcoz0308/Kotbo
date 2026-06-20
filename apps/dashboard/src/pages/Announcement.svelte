@@ -193,14 +193,14 @@
 </script>
 
 <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-  <header class="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-surface-container-low/40 backdrop-blur-3xl p-8 rounded-4xl border border-outline-variant/30">
-    <div class="flex items-center gap-6">
-      <div class="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shadow-inner">
-        <Papicon icon="Megaphone" size={32} />
+  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
+    <div class="flex items-center gap-4">
+      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+        <Papicon icon="Megaphone" size={20} />
       </div>
       <div>
-        <h1 class="text-3xl font-black tracking-tight leading-tight">Annonces & Auto-Rôle</h1>
-        <p class="text-on-surface-variant/80 font-medium">Gérez les messages de bienvenue, départ, boosts Discord et les attributions automatiques de rôles.</p>
+        <h1 class="text-lg font-semibold tracking-tight leading-tight">Annonces & Auto-Rôle</h1>
+        <p class="text-sm text-on-surface-variant/70 font-medium">Gérez les messages de bienvenue, départ, boosts Discord et les attributions automatiques de rôles.</p>
       </div>
     </div>
   </header>
@@ -217,28 +217,28 @@
     <div class="flex flex-wrap border-b border-outline-variant/15 gap-2 pb-2">
       <button 
         onclick={() => activeTab = 'welcome'}
-        class="px-6 py-3 text-xs font-black uppercase tracking-wider transition-all duration-300 flex items-center gap-2 rounded-xl {activeTab === 'welcome' ? 'bg-primary/10 text-primary scale-[1.02]' : 'text-on-surface-variant/70 hover:text-on-surface'}"
+        class="px-6 py-3 text-xs font-semibold uppercase tracking-wider transition-all duration-300 flex items-center gap-2 rounded-xl {activeTab === 'welcome' ? 'bg-primary/10 text-primary ' : 'text-on-surface-variant/70 hover:text-on-surface'}"
       >
         <Papicon icon="DoorOpen" size={14} />
         Accueil
       </button>
       <button 
         onclick={() => activeTab = 'leave'}
-        class="px-6 py-3 text-xs font-black uppercase tracking-wider transition-all duration-300 flex items-center gap-2 rounded-xl {activeTab === 'leave' ? 'bg-primary/10 text-primary scale-[1.02]' : 'text-on-surface-variant/70 hover:text-on-surface'}"
+        class="px-6 py-3 text-xs font-semibold uppercase tracking-wider transition-all duration-300 flex items-center gap-2 rounded-xl {activeTab === 'leave' ? 'bg-primary/10 text-primary ' : 'text-on-surface-variant/70 hover:text-on-surface'}"
       >
         <Papicon icon="Logout" size={14} />
         Départ
       </button>
       <button 
         onclick={() => activeTab = 'boost'}
-        class="px-6 py-3 text-xs font-black uppercase tracking-wider transition-all duration-300 flex items-center gap-2 rounded-xl {activeTab === 'boost' ? 'bg-primary/10 text-primary scale-[1.02]' : 'text-on-surface-variant/70 hover:text-on-surface'}"
+        class="px-6 py-3 text-xs font-semibold uppercase tracking-wider transition-all duration-300 flex items-center gap-2 rounded-xl {activeTab === 'boost' ? 'bg-primary/10 text-primary ' : 'text-on-surface-variant/70 hover:text-on-surface'}"
       >
         <Papicon icon="Zap" size={14} />
         Boosts
       </button>
       <button 
         onclick={() => activeTab = 'autoroles'}
-        class="px-6 py-3 text-xs font-black uppercase tracking-wider transition-all duration-300 flex items-center gap-2 rounded-xl {activeTab === 'autoroles' ? 'bg-primary/10 text-primary scale-[1.02]' : 'text-on-surface-variant/70 hover:text-on-surface'}"
+        class="px-6 py-3 text-xs font-semibold uppercase tracking-wider transition-all duration-300 flex items-center gap-2 rounded-xl {activeTab === 'autoroles' ? 'bg-primary/10 text-primary ' : 'text-on-surface-variant/70 hover:text-on-surface'}"
       >
         <Papicon icon="Shield" size={14} />
         Auto-Rôles
@@ -246,7 +246,7 @@
     </div>
 
     <!-- Guides Box (Contextual) -->
-    <section class="bg-surface-container-low/30 border border-outline-variant/10 p-6 rounded-3xl space-y-2">
+    <section class="bg-surface-container-low/30 border border-outline-variant/10 p-6 rounded-xl space-y-2">
       <h4 class="text-sm font-bold text-on-surface flex items-center gap-2">
         <Papicon icon="Info" size={16} class="text-primary" />
         {#if activeTab === 'autoroles'}
@@ -280,9 +280,9 @@
       
       <!-- Welcome Tab -->
       {#if activeTab === 'welcome'}
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6 max-w-4xl">
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 max-w-4xl">
           <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
-            <h3 class="text-xl font-black flex items-center gap-3">
+            <h3 class="text-xl font-semibold flex items-center gap-3">
               <Papicon icon="DoorOpen" size={20} class="text-primary" />
               Message de Bienvenue
             </h3>
@@ -303,7 +303,7 @@
                     bind:value={config.welcomeChannelId} 
                     options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} 
                     placeholder="Sélectionner le salon" 
-                    className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
+                    className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
                     disabled={!canManageSettings}
                   />
                 </div>
@@ -327,7 +327,7 @@
                     {#each welcomePresets as preset}
                       <button
                         onclick={() => { config.welcomeMessage = preset.text; showWelcomePresets = false; }}
-                        class="text-[10px] font-bold px-3 py-1.5 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/15 text-primary transition-all hover:scale-[1.02] flex items-center gap-1.5"
+                        class="text-[10px] font-bold px-3 py-1.5 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/15 text-primary transition-all hover: flex items-center gap-1.5"
                         disabled={!canManageSettings}
                       >
                         <Papicon icon={preset.icon} size={12} />
@@ -339,13 +339,13 @@
                 <textarea 
                   id="wMsg"
                   bind:value={config.welcomeMessage} 
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none h-28 resize-none"
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none h-28 resize-none"
                   placeholder="Écrivez le message de bienvenue..."
                   disabled={!canManageSettings}
                 ></textarea>
               </div>
 
-              <div class="p-4 rounded-2xl bg-surface-container-high/20 border border-outline-variant/5 space-y-3">
+              <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 space-y-3">
                 <div class="flex items-center justify-between">
                   <div>
                     <p class="text-sm font-bold">Activer l'image de bienvenue</p>
@@ -366,7 +366,7 @@
                       type="url" 
                       bind:value={config.welcomeImageUrl} 
                       placeholder="https://example.com/background.png"
-                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                       disabled={!canManageSettings}
                     />
                   </div>
@@ -375,14 +375,14 @@
 
               <div class="space-y-1.5">
                 <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Aperçu du rendu Discord</span>
-                <div class="p-5 rounded-2xl bg-surface-container-high/35 border border-outline-variant/15 text-sm text-on-surface font-semibold font-sans whitespace-pre-wrap select-none relative overflow-hidden">
+                <div class="p-5 rounded-lg bg-surface-container-high/35 border border-outline-variant/15 text-sm text-on-surface font-semibold font-sans whitespace-pre-wrap select-none relative overflow-hidden">
                   <div class="flex items-start gap-4">
-                    <div class="w-10 h-10 rounded-full bg-outline-variant/30 flex items-center justify-center text-xs font-black text-on-surface-variant/60">BOT</div>
+                    <div class="w-10 h-10 rounded-full bg-outline-variant/30 flex items-center justify-center text-xs font-semibold text-on-surface-variant/60">BOT</div>
                     <div>
                       <div class="flex items-center gap-2">
                         <span class="font-bold text-primary">Kotbo</span>
-                        <span class="bg-primary/20 text-primary text-[8px] font-black px-1.5 py-0.5 rounded uppercase leading-none">BOT</span>
-                        <span class="text-[9px] text-on-surface-variant/40">Aujourd'hui à 12:00</span>
+                        <span class="bg-primary/20 text-primary text-[10px] font-semibold px-1.5 py-0.5 rounded uppercase leading-none">BOT</span>
+                        <span class="text-[11px] text-on-surface-variant/40">Aujourd'hui à 12:00</span>
                       </div>
                       <div class="mt-1 text-on-surface-variant/90 leading-relaxed text-sm font-medium font-sans">
                         {previewText(config.welcomeMessage)}
@@ -393,10 +393,10 @@
                             <img src={config.welcomeImageUrl} alt="Background" class="absolute inset-0 w-full h-full object-cover opacity-50" />
                           {/if}
                           <div class="relative flex flex-col items-center gap-1.5 z-10 p-4 text-center">
-                            <div class="w-12 h-12 rounded-full border border-primary/20 bg-surface-container/85 flex items-center justify-center text-sm font-black text-primary">JD</div>
-                            <span class="text-xs font-black text-white leading-none drop-shadow-sm">BIENVENUE !</span>
+                            <div class="w-12 h-12 rounded-full border border-primary/20 bg-surface-container/85 flex items-center justify-center text-sm font-semibold text-primary">JD</div>
+                            <span class="text-xs font-semibold text-white leading-none drop-shadow-sm">BIENVENUE !</span>
                             <span class="text-[10px] font-bold text-[#57f287] leading-none font-sans">JEANDUPONT</span>
-                            <span class="text-[9px] text-[#b8bcc8] font-medium uppercase tracking-wider">Membre #1,234 sur KOTBO SERVER</span>
+                            <span class="text-[11px] text-[#b8bcc8] font-medium uppercase tracking-wider">Membre #1,234 sur KOTBO SERVER</span>
                           </div>
                         </div>
                       {/if}
@@ -413,9 +413,9 @@
 
       <!-- Leave Tab -->
       {#if activeTab === 'leave'}
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6 max-w-4xl">
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 max-w-4xl">
           <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
-            <h3 class="text-xl font-black flex items-center gap-3">
+            <h3 class="text-xl font-semibold flex items-center gap-3">
               <Papicon icon="Logout" size={20} class="text-secondary" />
               Message de Départ
             </h3>
@@ -436,7 +436,7 @@
                     bind:value={config.leaveChannelId} 
                     options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} 
                     placeholder="Sélectionner le salon" 
-                    className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
+                    className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
                     disabled={!canManageSettings}
                   />
                 </div>
@@ -460,7 +460,7 @@
                     {#each leavePresets as preset}
                       <button
                         onclick={() => { config.leaveMessage = preset.text; showLeavePresets = false; }}
-                        class="text-[10px] font-bold px-3 py-1.5 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/15 text-primary transition-all hover:scale-[1.02] flex items-center gap-1.5"
+                        class="text-[10px] font-bold px-3 py-1.5 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/15 text-primary transition-all hover: flex items-center gap-1.5"
                         disabled={!canManageSettings}
                       >
                         <Papicon icon={preset.icon} size={12} />
@@ -472,7 +472,7 @@
                 <textarea 
                   id="lMsg"
                   bind:value={config.leaveMessage} 
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none h-28 resize-none"
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none h-28 resize-none"
                   placeholder="Écrivez le message de départ..."
                   disabled={!canManageSettings}
                 ></textarea>
@@ -480,14 +480,14 @@
 
               <div class="space-y-1.5 pt-4">
                 <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Aperçu du rendu Discord</span>
-                <div class="p-5 rounded-2xl bg-surface-container-high/35 border border-outline-variant/15 text-sm text-on-surface font-semibold font-sans whitespace-pre-wrap select-none relative overflow-hidden">
+                <div class="p-5 rounded-lg bg-surface-container-high/35 border border-outline-variant/15 text-sm text-on-surface font-semibold font-sans whitespace-pre-wrap select-none relative overflow-hidden">
                   <div class="flex items-start gap-4">
-                    <div class="w-10 h-10 rounded-full bg-outline-variant/30 flex items-center justify-center text-xs font-black text-on-surface-variant/60">BOT</div>
+                    <div class="w-10 h-10 rounded-full bg-outline-variant/30 flex items-center justify-center text-xs font-semibold text-on-surface-variant/60">BOT</div>
                     <div>
                       <div class="flex items-center gap-2">
                         <span class="font-bold text-primary">Kotbo</span>
-                        <span class="bg-primary/20 text-primary text-[8px] font-black px-1.5 py-0.5 rounded uppercase leading-none">BOT</span>
-                        <span class="text-[9px] text-on-surface-variant/40">Aujourd'hui à 12:05</span>
+                        <span class="bg-primary/20 text-primary text-[10px] font-semibold px-1.5 py-0.5 rounded uppercase leading-none">BOT</span>
+                        <span class="text-[11px] text-on-surface-variant/40">Aujourd'hui à 12:05</span>
                       </div>
                       <div class="mt-1 text-on-surface-variant/90 leading-relaxed text-sm font-medium font-sans">
                         {previewText(config.leaveMessage)}
@@ -505,9 +505,9 @@
 
       <!-- Boost Tab -->
       {#if activeTab === 'boost'}
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6 max-w-4xl">
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 max-w-4xl">
           <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
-            <h3 class="text-xl font-black flex items-center gap-3">
+            <h3 class="text-xl font-semibold flex items-center gap-3">
               <Papicon icon="Zap" size={20} class="text-primary" />
               Annonces de Boost Custom
             </h3>
@@ -528,7 +528,7 @@
                     bind:value={config.boostChannelId} 
                     options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} 
                     placeholder="Sélectionner le salon" 
-                    className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
+                    className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
                     disabled={!canManageSettings}
                   />
                 </div>
@@ -552,7 +552,7 @@
                     {#each boostPresets as preset}
                       <button
                         onclick={() => { config.boostMessage = preset.text; showBoostPresets = false; }}
-                        class="text-[10px] font-bold px-3 py-1.5 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/15 text-primary transition-all hover:scale-[1.02] flex items-center gap-1.5"
+                        class="text-[10px] font-bold px-3 py-1.5 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/15 text-primary transition-all hover: flex items-center gap-1.5"
                         disabled={!canManageSettings}
                       >
                         <Papicon icon={preset.icon} size={12} />
@@ -564,13 +564,13 @@
                 <textarea 
                   id="bMsg"
                   bind:value={config.boostMessage} 
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none h-28 resize-none"
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none h-28 resize-none"
                   placeholder="Écrivez le message à envoyer lorsqu'un membre booste..."
                   disabled={!canManageSettings}
                 ></textarea>
               </div>
 
-              <div class="p-4 rounded-2xl bg-surface-container-high/20 border border-outline-variant/5 space-y-3">
+              <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 space-y-3">
                 <div class="flex items-center justify-between">
                   <div>
                     <p class="text-sm font-bold">Activer l'image de boost</p>
@@ -591,7 +591,7 @@
                       type="url" 
                       bind:value={config.boostImageUrl} 
                       placeholder="https://example.com/boost-background.png"
-                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                       disabled={!canManageSettings}
                     />
                   </div>
@@ -600,14 +600,14 @@
 
               <div class="space-y-1.5">
                 <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Aperçu du rendu Discord</span>
-                <div class="p-5 rounded-2xl bg-surface-container-high/35 border border-outline-variant/15 text-sm text-on-surface font-semibold font-sans whitespace-pre-wrap select-none relative overflow-hidden">
+                <div class="p-5 rounded-lg bg-surface-container-high/35 border border-outline-variant/15 text-sm text-on-surface font-semibold font-sans whitespace-pre-wrap select-none relative overflow-hidden">
                   <div class="flex items-start gap-4">
-                    <div class="w-10 h-10 rounded-full bg-outline-variant/30 flex items-center justify-center text-xs font-black text-on-surface-variant/60">BOT</div>
+                    <div class="w-10 h-10 rounded-full bg-outline-variant/30 flex items-center justify-center text-xs font-semibold text-on-surface-variant/60">BOT</div>
                     <div>
                       <div class="flex items-center gap-2">
                         <span class="font-bold text-primary">Kotbo</span>
-                        <span class="bg-primary/20 text-primary text-[8px] font-black px-1.5 py-0.5 rounded uppercase leading-none">BOT</span>
-                        <span class="text-[9px] text-on-surface-variant/40">Aujourd'hui à 12:10</span>
+                        <span class="bg-primary/20 text-primary text-[10px] font-semibold px-1.5 py-0.5 rounded uppercase leading-none">BOT</span>
+                        <span class="text-[11px] text-on-surface-variant/40">Aujourd'hui à 12:10</span>
                       </div>
                       <div class="mt-1 text-on-surface-variant/90 leading-relaxed text-sm font-medium font-sans">
                         {previewText(config.boostMessage)}
@@ -618,10 +618,10 @@
                             <img src={config.boostImageUrl} alt="Background" class="absolute inset-0 w-full h-full object-cover opacity-50" />
                           {/if}
                           <div class="relative flex flex-col items-center gap-1.5 z-10 p-4 text-center">
-                            <div class="w-12 h-12 rounded-full border border-primary/20 bg-surface-container/85 flex items-center justify-center text-sm font-black text-primary">JD</div>
-                            <span class="text-xs font-black text-white leading-none drop-shadow-sm">MERCI !</span>
+                            <div class="w-12 h-12 rounded-full border border-primary/20 bg-surface-container/85 flex items-center justify-center text-sm font-semibold text-primary">JD</div>
+                            <span class="text-xs font-semibold text-white leading-none drop-shadow-sm">MERCI !</span>
                             <span class="text-[10px] font-bold text-[#57f287] leading-none font-sans">JEANDUPONT</span>
-                            <span class="text-[9px] text-[#b8bcc8] font-medium uppercase tracking-wider">Membre #1,234 · 18 BOOSTS</span>
+                            <span class="text-[11px] text-[#b8bcc8] font-medium uppercase tracking-wider">Membre #1,234 · 18 BOOSTS</span>
                           </div>
                         </div>
                       {/if}
@@ -638,11 +638,11 @@
 
       <!-- Auto-Roles Tab -->
       {#if activeTab === 'autoroles'}
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-8 max-w-4xl">
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-8 max-w-4xl">
           
           <!-- Join Auto-role -->
           <div class="space-y-4 border-b border-outline-variant/15 pb-6">
-            <h3 class="text-lg font-black flex items-center gap-3">
+            <h3 class="text-lg font-semibold flex items-center gap-3">
               <Papicon icon="User" size={20} class="text-primary" />
               Auto-Rôle à l'arrivée (Join Auto-Role)
             </h3>
@@ -658,7 +658,7 @@
                     ...availableRoles.map(r => ({ id: r.id, name: r.name }))
                   ]} 
                   placeholder="Choisir le rôle" 
-                  className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
+                  className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
                   disabled={!canManageSettings}
                 />
               </div>
@@ -668,7 +668,7 @@
           <!-- Tag Auto-role -->
           <div class="space-y-4 pt-2">
             <div class="flex items-center justify-between">
-              <h3 class="text-lg font-black flex items-center gap-3">
+              <h3 class="text-lg font-semibold flex items-center gap-3">
                 <Papicon icon="Bookmark" size={20} class="text-primary" />
                 Auto-Rôle Tag Clan du Serveur
               </h3>
@@ -682,7 +682,7 @@
               Attribue automatiquement un rôle aux membres qui affichent le tag clan de ce serveur dans leur pseudo ou nom global Discord.
               Le rôle est également retiré automatiquement si le membre supprime le tag.
             </p>
-            <div class="flex items-start gap-2 p-3 rounded-2xl bg-surface-container-high/20 border border-outline-variant/10">
+            <div class="flex items-start gap-2 p-3 rounded-lg bg-surface-container-high/20 border border-outline-variant/10">
               <span class="text-primary mt-0.5 shrink-0"><Papicon icon="Info" size={14} /></span>
               <p class="text-[11px] text-on-surface-variant/70 font-medium leading-relaxed">
                 Le tag clan Discord s'affiche entre crochets à côté du pseudo d'un membre (ex : <code class="font-mono text-primary bg-primary/10 px-1 rounded">KOTBO</code> → membre affiché comme <code class="font-mono text-primary bg-primary/10 px-1 rounded">[KOTBO] JeanDupont</code>). Saisis ici le tag exact sans crochets.
@@ -698,7 +698,7 @@
                     type="text" 
                     bind:value={config.tagAutoRoleWord} 
                     placeholder="Ex : KOTBO (sans les crochets)"
-                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                     disabled={!canManageSettings}
                   />
                 </div>
@@ -710,7 +710,7 @@
                     bind:value={config.tagAutoRoleId} 
                     options={availableRoles.map(r => ({ id: r.id, name: r.name }))} 
                     placeholder="Sélectionner le rôle" 
-                    className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
+                    className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
                     disabled={!canManageSettings}
                   />
                 </div>

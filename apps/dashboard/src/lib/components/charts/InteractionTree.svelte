@@ -243,7 +243,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div 
   bind:this={container} 
-  class="relative h-full w-full bg-surface-container-low/20 rounded-[3rem] border border-outline-variant/10 overflow-hidden group select-none transition-all duration-300"
+  class="relative h-full w-full bg-surface-container-low/20 rounded-xl border border-outline-variant/10 overflow-hidden group select-none transition-all duration-300"
   class:cursor-grab={!isDragging}
   class:cursor-grabbing={isDragging}
   onmousedown={startDrag}
@@ -254,7 +254,7 @@
   {#if nodes.length === 0}
     <div class="absolute inset-0 flex flex-col items-center justify-center text-on-surface-variant/20">
       <Papicon icon="share-2" size={48} />
-      <p class="mt-4 text-xs font-black uppercase tracking-widest">Aucune interaction détectée</p>
+      <p class="mt-4 text-xs font-semibold uppercase tracking-widest">Aucune interaction détectée</p>
     </div>
   {:else}
     <!-- Active Info Hover Banner -->
@@ -262,8 +262,8 @@
       {#if hoveredNodeId}
         {@const hoveredNode = nodes.find(n => n.id === hoveredNodeId)}
         {#if hoveredNode}
-          <div class="backdrop-blur-md bg-primary/10 border border-primary/20 px-4 py-2 rounded-2xl animate-fade-in">
-            <span class="text-[9px] font-black uppercase tracking-widest text-primary">
+          <div class="bg-primary/10 border border-primary/20 px-4 py-2 rounded-lg animate-fade-in">
+            <span class="text-[11px] font-semibold uppercase tracking-widest text-primary">
               Ciblé : {hoveredNode.label}
             </span>
           </div>
@@ -326,7 +326,7 @@
             <text 
               text-anchor="middle" 
               dy="3.5" 
-              class="text-[8px] font-black tracking-wider"
+              class="text-[10px] font-semibold tracking-wider"
             >
               {#if edge.mentionCount > 0}
                 <tspan class="badge-tspan-mention">@{edge.mentionCount}</tspan>
@@ -374,7 +374,7 @@
           <!-- Main Core Circle -->
           <circle 
             r={node.type === 'user' ? 30 : 21} 
-            class="{node.type === 'user' ? 'fill-primary shadow-[0_0_12px_rgba(var(--color-primary),0.3)]' : 'fill-surface-container-highest'} stroke-outline-variant/10 shadow-xl"
+            class="{node.type === 'user' ? 'fill-primary shadow-[0_0_12px_rgba(var(--color-primary),0.3)]' : 'fill-surface-container-highest'} stroke-outline-variant/10 shadow-sm"
             stroke-width="1.5"
           />
           
@@ -395,7 +395,7 @@
             <text 
               text-anchor="middle" 
               dy="4" 
-              class="fill-on-surface text-[10px] font-black uppercase tracking-wider"
+              class="fill-on-surface text-[10px] font-semibold uppercase tracking-wider"
             >
               {node.label.slice(0, 1)}
             </text>
@@ -441,14 +441,14 @@
               x="-40" y="-8" 
               width="80" height="16" 
               rx="6" 
-              class="fill-surface-container-low/85 backdrop-blur-md stroke-outline-variant/10 shadow-md transition-colors" 
+              class="fill-surface-container-low/85 stroke-outline-variant/10 shadow-md transition-colors" 
               class:fill-primary-container={hoveredNodeId === node.id && node.type === 'user'}
               class:fill-secondary-container={hoveredNodeId === node.id && node.type !== 'user'}
             />
             <text 
               text-anchor="middle" 
               dy="3.5" 
-              class="fill-on-surface text-[7.5px] font-black truncate max-w-[72px]"
+              class="fill-on-surface text-[7.5px] font-semibold truncate max-w-[72px]"
             >
               {node.label}
             </text>
@@ -463,13 +463,13 @@
       {@const source = nodes.find(n => n.id === hoveredEdge.from)?.label || 'Utilisateur'}
       {@const target = nodes.find(n => n.id === hoveredEdge.to)?.label || 'Cible'}
       <div 
-        class="absolute bottom-6 left-6 right-6 backdrop-blur-md p-4 rounded-3xl flex flex-col gap-2 animate-fade-in z-10 details-card"
+        class="absolute bottom-6 left-6 right-6 p-4 rounded-xl flex flex-col gap-2 animate-fade-in z-10 details-card"
       >
         <div class="flex items-center justify-between border-b border-slate-500/10 pb-2">
-          <div class="text-[9px] font-black uppercase tracking-[0.2em] details-title">
+          <div class="text-[11px] font-semibold uppercase tracking-wider details-title">
             Détails des Interactions
           </div>
-          <div class="text-[10px] font-black truncate details-member-path">
+          <div class="text-[10px] font-semibold truncate details-member-path">
             {source} ➔ {target}
           </div>
         </div>
@@ -477,19 +477,19 @@
           {#if hoveredEdge.mentionCount > 0}
             <div class="flex items-center gap-1.5">
               <div class="h-2 w-2 rounded-full bg-blue-500 shadow-[0_0_6px_#3b82f6]"></div>
-              <span class="text-[8.5px] font-black uppercase tracking-widest details-count-text">＠ {hoveredEdge.mentionCount} Mentions</span>
+              <span class="text-[8.5px] font-semibold uppercase tracking-widest details-count-text">＠ {hoveredEdge.mentionCount} Mentions</span>
             </div>
           {/if}
           {#if hoveredEdge.replyCount > 0}
             <div class="flex items-center gap-1.5">
               <div class="h-2 w-2 rounded-full bg-violet-500 shadow-[0_0_6px_#8b5cf6]"></div>
-              <span class="text-[8.5px] font-black uppercase tracking-widest details-count-text">💬 {hoveredEdge.replyCount} Réponses</span>
+              <span class="text-[8.5px] font-semibold uppercase tracking-widest details-count-text">💬 {hoveredEdge.replyCount} Réponses</span>
             </div>
           {/if}
           {#if hoveredEdge.reactionCount > 0}
             <div class="flex items-center gap-1.5">
               <div class="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_6px_#10b981]"></div>
-              <span class="text-[8.5px] font-black uppercase tracking-widest details-count-text">😊 {hoveredEdge.reactionCount} Réactions</span>
+              <span class="text-[8.5px] font-semibold uppercase tracking-widest details-count-text">😊 {hoveredEdge.reactionCount} Réactions</span>
             </div>
           {/if}
         </div>

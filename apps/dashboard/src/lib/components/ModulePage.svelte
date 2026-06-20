@@ -38,32 +38,32 @@
   <InlineFeedback state={saveAction} />
   
   <!-- Header -->
-  <header class="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-surface-container-low/40 backdrop-blur-3xl p-8 rounded-4xl border border-outline-variant/30 relative overflow-hidden group">
-    <div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-[80px] group-hover:bg-primary/20 transition-all duration-700"></div>
-    
-    <div class="flex items-center gap-6 relative">
-      <div class="w-16 h-16 bg-linear-to-br from-primary to-primary-container rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20">
-        <Papicon {icon} size={32} class="text-white" />
+  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30 relative overflow-hidden group">
+    <div class="absolute -top-24 -right-24 w-48 h-48 bg-primary/8 rounded-full blur-[60px] group-hover:bg-primary/15 transition-all duration-700"></div>
+
+    <div class="flex items-center gap-4 relative">
+      <div class="w-11 h-11 bg-linear-to-br from-primary to-primary-container rounded-lg flex items-center justify-center shadow-md shadow-primary/15">
+        <Papicon {icon} size={22} class="text-white" />
       </div>
       <div>
-        <h1 class="text-3xl font-black tracking-tight text-on-surface font-headline leading-tight">{title}</h1>
-        <p class="text-on-surface-variant/80 font-medium tracking-wide">{description}</p>
+        <h1 class="text-lg font-semibold tracking-tight text-on-surface font-headline leading-tight">{title}</h1>
+        <p class="text-sm text-on-surface-variant/70 font-medium">{description}</p>
       </div>
     </div>
 
-    <div class="flex items-center gap-4 relative">
+    <div class="flex items-center gap-3 relative">
       {#if actions}
         {@render actions()}
       {/if}
 
       {#if module && !isFixed}
-        <div class="h-10 w-px bg-outline-variant/20 mx-2 hidden md:block"></div>
-        <div class="flex items-center gap-3 px-4 py-2 bg-surface-container-low/40 rounded-2xl border border-outline-variant/10">
-          <span class="text-[10px] font-black uppercase tracking-widest {isModuleEnabled ? 'text-primary' : 'text-on-surface-variant/40'}">
+        <div class="h-8 w-px bg-outline-variant/20 mx-1 hidden md:block"></div>
+        <div class="flex items-center gap-2.5 px-3 py-1.5 bg-surface-container-low/40 rounded-lg border border-outline-variant/10">
+          <span class="text-[10px] font-semibold uppercase tracking-widest {isModuleEnabled ? 'text-primary' : 'text-on-surface-variant/40'}">
             {isModuleEnabled ? 'Activé' : 'Désactivé'}
           </span>
-          <ToggleSwitch 
-            checked={isModuleEnabled} 
+          <ToggleSwitch
+            checked={isModuleEnabled}
             onToggle={toggleModule}
             disabled={saveAction.state.loading}
           />

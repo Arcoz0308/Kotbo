@@ -425,7 +425,7 @@
   {/snippet}
 
   {#if loading && allStaff.length === 0}
-    <div class="flex flex-col items-center justify-center py-20 bg-surface-container-lowest rounded-3xl border border-outline-variant/30">
+    <div class="flex flex-col items-center justify-center py-20 bg-surface-container-lowest rounded-xl border border-outline-variant/30">
       <div class="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
       <p class="mt-4 text-on-surface-variant font-medium">Chargement de l'agenda...</p>
     </div>
@@ -435,12 +435,12 @@
       <!-- LEFT SIDEBAR: FILTERS -->
       <aside class="w-full xl:w-72 flex flex-col gap-6 shrink-0">
         <!-- Types Filter -->
-        <div class="bg-surface-container-low p-6 rounded-4xl border border-outline-variant/30 flex flex-col gap-4 shadow-sm">
+        <div class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/30 flex flex-col gap-4 shadow-sm">
           <div class="flex items-center gap-3 mb-1">
             <div class="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center">
               <Papicon icon="filter" size={18} class="text-primary" />
             </div>
-            <span class="text-xs font-black text-on-surface uppercase tracking-widest">Affichage</span>
+            <span class="text-xs font-semibold text-on-surface uppercase tracking-widest">Affichage</span>
           </div>
 
           <div class="flex flex-col gap-2">
@@ -491,12 +491,12 @@
         </div>
 
         <!-- Team Filter -->
-        <div class="bg-surface-container-low p-6 rounded-4xl border border-outline-variant/30 flex flex-col gap-4 shadow-sm">
+        <div class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/30 flex flex-col gap-4 shadow-sm">
           <div class="flex items-center justify-between mb-2">
-            <h3 class="text-xs font-black uppercase tracking-widest text-on-surface">Membres</h3>
+            <h3 class="text-xs font-semibold uppercase tracking-widest text-on-surface">Membres</h3>
             <button 
               onclick={toggleEveryone}
-              class="text-[9px] font-black uppercase px-2 py-1 rounded-md transition-all {selectedStaffIds.length === activeStaff.length ? 'bg-primary text-white shadow-sm' : 'bg-surface-container-high text-on-surface-variant'}"
+              class="text-[11px] font-semibold uppercase px-2 py-1 rounded-md transition-all {selectedStaffIds.length === activeStaff.length ? 'bg-primary text-white shadow-sm' : 'bg-surface-container-high text-on-surface-variant'}"
             >
               {selectedStaffIds.length === activeStaff.length ? 'Tous déselectionner' : 'Tous sélectionner'}
             </button>
@@ -540,12 +540,12 @@
 
       <!-- RIGHT SIDEBAR: TO-DO / TASKS LIST -->
       <aside class="w-full xl:w-80 flex flex-col gap-6 shrink-0">
-        <div class="bg-surface-container-low p-6 rounded-4xl border border-outline-variant/30 flex flex-col gap-4 shadow-sm min-h-[500px]">
+        <div class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/30 flex flex-col gap-4 shadow-sm min-h-[500px]">
           <div class="flex items-center gap-3 mb-2">
             <div class="w-8 h-8 bg-purple-500/10 rounded-lg flex items-center justify-center">
               <Papicon icon="check-square" size={18} class="text-purple-600" />
             </div>
-            <span class="text-xs font-black text-on-surface uppercase tracking-widest">Mes Tâches (To-Do)</span>
+            <span class="text-xs font-semibold text-on-surface uppercase tracking-widest">Mes Tâches (To-Do)</span>
           </div>
 
           <div class="flex-1 flex flex-col gap-3 overflow-y-auto max-h-[400px] pr-1 custom-scrollbar">
@@ -556,7 +556,7 @@
               </div>
             {:else}
               {#each userTasks as task}
-                <div class="p-3 bg-surface-container-lowest rounded-2xl border border-outline-variant/20 flex gap-3 items-start hover:shadow-md hover:border-purple-500/25 transition-all {task.status === 'COMPLETED' ? 'opacity-60' : ''}">
+                <div class="p-3 bg-surface-container-lowest rounded-lg border border-outline-variant/20 flex gap-3 items-start hover:shadow-md hover:border-purple-500/25 transition-all {task.status === 'COMPLETED' ? 'opacity-60' : ''}">
                   <button 
                     onclick={() => toggleTaskCompletion(task)}
                     class="mt-0.5 w-5 h-5 rounded border border-outline-variant hover:border-purple-500 flex items-center justify-center text-purple-600 transition-colors shrink-0"
@@ -575,11 +575,11 @@
                       </p>
                     {/if}
                     <div class="flex items-center gap-2 mt-2">
-                      <span class="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded {task.priority === 'HIGH' ? 'bg-red-500/10 text-red-600' : (task.priority === 'MEDIUM' ? 'bg-amber-500/10 text-amber-600' : 'bg-blue-500/10 text-blue-600')}">
+                      <span class="text-[11px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded {task.priority === 'HIGH' ? 'bg-red-500/10 text-red-600' : (task.priority === 'MEDIUM' ? 'bg-amber-500/10 text-amber-600' : 'bg-blue-500/10 text-blue-600')}">
                         {task.priority}
                       </span>
                       {#if task.dueDate}
-                        <span class="text-[9px] text-on-surface-variant flex items-center gap-1 font-medium">
+                        <span class="text-[11px] text-on-surface-variant flex items-center gap-1 font-medium">
                           <Papicon icon="calendar" size={10} />
                           {new Date(task.dueDate).toLocaleDateString('fr-FR')}
                         </span>
@@ -609,21 +609,21 @@
   <!-- CREATION MODAL -->
   {#if creationModalOpen}
     <div class="fixed inset-0 z-100 flex items-center justify-center p-4">
-      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick={() => creationModalOpen = false}></div>
+      <div class="absolute inset-0 bg-black/40" onclick={() => creationModalOpen = false}></div>
       
-      <div class="relative w-full max-w-2xl bg-surface-container-lowest rounded-4xl shadow-2xl overflow-hidden border border-outline-variant/30 animate-in fade-in duration-200">
+      <div class="relative w-full max-w-2xl bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-outline-variant/30 animate-in fade-in duration-200">
         
         <!-- Header & Tabs -->
         <div class="p-6 border-b border-outline-variant/20 bg-surface-container-low flex flex-col gap-4">
           <div class="flex justify-between items-center">
-            <h3 class="text-xl font-black text-on-surface">Planifier un événement</h3>
+            <h3 class="text-xl font-semibold text-on-surface">Planifier un événement</h3>
             <button onclick={() => creationModalOpen = false} class="w-8 h-8 rounded-full hover:bg-surface-hover flex items-center justify-center transition-colors">
               <Papicon icon="x" size={20} />
             </button>
           </div>
 
           <!-- Outlook/Teams inspired tabs -->
-          <div class="flex bg-surface-container p-1 rounded-2xl border border-outline-variant/20 gap-1">
+          <div class="flex bg-surface-container p-1 rounded-lg border border-outline-variant/20 gap-1">
             <button 
               onclick={() => currentTab = 'meeting'}
               class="flex-1 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 {currentTab === 'meeting' ? 'bg-emerald-500 text-white shadow-sm' : 'text-on-surface-variant hover:text-on-surface'}"
@@ -658,7 +658,7 @@
         <div class="p-6 space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
           {#if currentTab !== 'absence'}
             <div>
-              <label for="form-title" class="block text-[10px] font-black text-on-surface uppercase tracking-widest mb-1.5">Titre</label>
+              <label for="form-title" class="block text-[10px] font-semibold text-on-surface uppercase tracking-widest mb-1.5">Titre</label>
               <FormInput id="form-title" bind:value={formTitle} placeholder="Ex: Réunion de coordination ou Synchro Hebdo" className="w-full font-bold" />
             </div>
           {/if}
@@ -666,7 +666,7 @@
           <!-- Date fields -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label for="form-start-date" class="block text-[10px] font-black text-on-surface uppercase tracking-widest mb-1.5">Date de début</label>
+              <label for="form-start-date" class="block text-[10px] font-semibold text-on-surface uppercase tracking-widest mb-1.5">Date de début</label>
               <input 
                 id="form-start-date"
                 type="datetime-local" 
@@ -677,7 +677,7 @@
             </div>
             {#if currentTab !== 'task'}
               <div>
-                <label for="form-end-date" class="block text-[10px] font-black text-on-surface uppercase tracking-widest mb-1.5">Date de fin</label>
+                <label for="form-end-date" class="block text-[10px] font-semibold text-on-surface uppercase tracking-widest mb-1.5">Date de fin</label>
                 <input 
                   id="form-end-date"
                   type="datetime-local" 
@@ -691,7 +691,7 @@
 
           <!-- Meeting/Call/Event details -->
           <div>
-            <label for="form-desc" class="block text-[10px] font-black text-on-surface uppercase tracking-widest mb-1.5">
+            <label for="form-desc" class="block text-[10px] font-semibold text-on-surface uppercase tracking-widest mb-1.5">
               {currentTab === 'absence' ? "Motif de l'absence *" : 'Description / Ordre du jour'}
             </label>
             <FormTextarea id="form-desc" bind:value={formDescription} placeholder="Détails, points à aborder..." rows={3} className="w-full resize-none" />
@@ -701,7 +701,7 @@
           {#if currentTab === 'absence'}
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label for="form-absence-type" class="block text-[10px] font-black text-on-surface uppercase tracking-widest mb-1.5">Type d'absence</label>
+                <label for="form-absence-type" class="block text-[10px] font-semibold text-on-surface uppercase tracking-widest mb-1.5">Type d'absence</label>
                 <FormSelect 
                   id="form-absence-type"
                   bind:value={formAbsenceType}
@@ -714,7 +714,7 @@
                 </FormSelect>
               </div>
               <div>
-                <label for="form-superior" class="block text-[10px] font-black text-on-surface uppercase tracking-widest mb-1.5">Supérieur à notifier</label>
+                <label for="form-superior" class="block text-[10px] font-semibold text-on-surface uppercase tracking-widest mb-1.5">Supérieur à notifier</label>
                 <SearchableSelect 
                   id="form-superior" 
                   bind:value={formSuperiorId} 
@@ -727,12 +727,12 @@
           {/if}
 
           {#if currentTab === 'call'}
-            <div class="border border-outline-variant/20 rounded-3xl p-4 bg-surface-container-low space-y-4">
-              <h4 class="text-xs font-black uppercase tracking-widest text-on-surface">Configuration Salon Discord</h4>
+            <div class="border border-outline-variant/20 rounded-xl p-4 bg-surface-container-low space-y-4">
+              <h4 class="text-xs font-semibold uppercase tracking-widest text-on-surface">Configuration Salon Discord</h4>
               
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label for="form-channel-mode" class="block text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-1.5">Mode de salon</label>
+                  <label for="form-channel-mode" class="block text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest mb-1.5">Mode de salon</label>
                   <FormSelect 
                     id="form-channel-mode"
                     bind:value={formChannelMode}
@@ -744,7 +744,7 @@
                 </div>
                 {#if formChannelMode === 'CREATE_NEW'}
                   <div>
-                    <label for="form-channel-type" class="block text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-1.5">Type de salon</label>
+                    <label for="form-channel-type" class="block text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest mb-1.5">Type de salon</label>
                     <FormSelect 
                       id="form-channel-type"
                       bind:value={formChannelType}
@@ -756,7 +756,7 @@
                   </div>
                 {:else}
                   <div>
-                    <label for="form-discord-chan" class="block text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-1.5">Salon existant</label>
+                    <label for="form-discord-chan" class="block text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest mb-1.5">Salon existant</label>
                     <SearchableSelect 
                       id="form-discord-chan" 
                       bind:value={formDiscordChannelId} 
@@ -772,7 +772,7 @@
               </div>
 
               {#if formChannelMode === 'CREATE_NEW'}
-                <div class="flex items-center justify-between p-3 rounded-2xl bg-surface-container-high/50 border border-outline-variant/10">
+                <div class="flex items-center justify-between p-3 rounded-lg bg-surface-container-high/50 border border-outline-variant/10">
                   <div>
                     <p class="text-xs font-bold">Suppression automatique</p>
                     <p class="text-[10px] text-on-surface-variant">Supprime le salon dès que le dernier membre s'en va.</p>
@@ -782,7 +782,7 @@
               {/if}
 
               <div>
-                <label class="block text-[10px] font-black text-on-surface-variant uppercase tracking-widest mb-1.5">Inviter des membres du staff</label>
+                <label class="block text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest mb-1.5">Inviter des membres du staff</label>
                 <div class="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto pr-1 custom-scrollbar">
                   {#each activeStaff.filter(s => s.id !== myStaffRecord?.id) as staff}
                     <label class="flex items-center gap-2 p-2 bg-surface-container-high/40 rounded-xl cursor-pointer hover:bg-surface-container-high transition-colors">
@@ -809,7 +809,7 @@
           {#if currentTab === 'task'}
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label for="form-priority" class="block text-[10px] font-black text-on-surface uppercase tracking-widest mb-1.5">Priorité</label>
+                <label for="form-priority" class="block text-[10px] font-semibold text-on-surface uppercase tracking-widest mb-1.5">Priorité</label>
                 <FormSelect 
                   id="form-priority"
                   bind:value={formPriority}
@@ -821,7 +821,7 @@
                 </FormSelect>
               </div>
               <div>
-                <label for="form-assignee" class="block text-[10px] font-black text-on-surface uppercase tracking-widest mb-1.5">Assigner à</label>
+                <label for="form-assignee" class="block text-[10px] font-semibold text-on-surface uppercase tracking-widest mb-1.5">Assigner à</label>
                 <SearchableSelect 
                   id="form-assignee" 
                   bind:value={formAssigneeId} 
@@ -834,7 +834,7 @@
           {/if}
 
           {#if formError}
-            <div class="p-3 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-600 text-xs font-semibold">
+            <div class="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-600 text-xs font-semibold">
               {formError}
             </div>
           {/if}
@@ -847,7 +847,7 @@
           <button 
             onclick={handleCreateItem} 
             disabled={saving}
-            class="px-6 py-2.5 rounded-xl text-xs font-black text-white bg-primary hover:bg-primary-hover disabled:opacity-50 transition-colors flex items-center gap-2 shadow-md"
+            class="px-6 py-2.5 rounded-xl text-xs font-semibold text-white bg-primary hover:bg-primary-hover disabled:opacity-50 transition-colors flex items-center gap-2 shadow-md"
           >
             {#if saving}
               <div class="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
@@ -864,16 +864,16 @@
   {#if detailModalOpen && currentItemDetail}
     {@const raw = currentItemDetail.raw}
     <div class="fixed inset-0 z-100 flex items-center justify-center p-4">
-      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick={() => detailModalOpen = false}></div>
+      <div class="absolute inset-0 bg-black/40" onclick={() => detailModalOpen = false}></div>
       
-      <div class="relative w-full max-w-lg bg-surface-container-lowest rounded-4xl shadow-2xl overflow-hidden border border-outline-variant/30 animate-in fade-in duration-200 text-on-surface">
+      <div class="relative w-full max-w-lg bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-outline-variant/30 animate-in fade-in duration-200 text-on-surface">
         
         <div class="p-6 border-b border-outline-variant/20 bg-surface-container-low flex justify-between items-center">
           <div>
-            <span class="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider {currentItemDetail.type === 'meeting' ? 'bg-emerald-500/10 text-emerald-600' : (currentItemDetail.type === 'call' ? 'bg-green-600/10 text-green-600' : (currentItemDetail.type === 'absence' ? 'bg-amber-500/10 text-amber-600' : 'bg-purple-600/10 text-purple-600'))}">
+            <span class="px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider {currentItemDetail.type === 'meeting' ? 'bg-emerald-500/10 text-emerald-600' : (currentItemDetail.type === 'call' ? 'bg-green-600/10 text-green-600' : (currentItemDetail.type === 'absence' ? 'bg-amber-500/10 text-amber-600' : 'bg-purple-600/10 text-purple-600'))}">
               {currentItemDetail.type}
             </span>
-            <h3 class="text-lg font-black mt-1 leading-tight">{currentItemDetail.title}</h3>
+            <h3 class="text-lg font-semibold mt-1 leading-tight">{currentItemDetail.title}</h3>
           </div>
           <button onclick={() => detailModalOpen = false} class="w-8 h-8 rounded-full hover:bg-surface-hover flex items-center justify-center transition-colors">
             <Papicon icon="x" size={20} />
@@ -882,7 +882,7 @@
 
         <div class="p-6 space-y-4">
           {#if raw.description || raw.reason}
-            <div class="p-4 bg-surface-container-low rounded-2xl border border-outline-variant/10 text-xs italic">
+            <div class="p-4 bg-surface-container-low rounded-lg border border-outline-variant/10 text-xs italic">
               {raw.description || raw.reason}
             </div>
           {/if}
@@ -927,11 +927,11 @@
             {#if currentItemDetail.type === 'task'}
               <div class="flex justify-between py-1.5 border-b border-outline-variant/10">
                 <span class="font-bold">Statut :</span>
-                <span class="font-black uppercase tracking-wider text-purple-600">{raw.status}</span>
+                <span class="font-semibold uppercase tracking-wider text-purple-600">{raw.status}</span>
               </div>
               <div class="flex justify-between py-1.5 border-b border-outline-variant/10">
                 <span class="font-bold">Priorité :</span>
-                <span class="font-black uppercase tracking-wider text-amber-500">{raw.priority}</span>
+                <span class="font-semibold uppercase tracking-wider text-amber-500">{raw.priority}</span>
               </div>
               <div class="flex justify-between py-1.5 border-b border-outline-variant/10">
                 <span class="font-bold">Assigné à :</span>

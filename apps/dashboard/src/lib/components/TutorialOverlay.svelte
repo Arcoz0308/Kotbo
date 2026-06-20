@@ -78,7 +78,7 @@
 {#if show}
   <div class="fixed inset-0 z-[9999] pointer-events-none">
     <!-- Backdrop -->
-    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300"></div>
+    <div class="absolute inset-0 bg-black/40 transition-opacity duration-300"></div>
     
     <!-- Highlight overlay -->
     {#if highlightPosition}
@@ -90,7 +90,7 @@
 
     <!-- Tutorial card -->
     <div class="fixed inset-0 flex items-center justify-center p-4">
-      <div class="bg-surface border border-outline/50 rounded-3xl shadow-2xl max-w-xl w-full pointer-events-auto animate-in fade-in zoom-in duration-300 overflow-hidden">
+      <div class="bg-surface border border-outline/50 rounded-xl shadow-sm max-w-xl w-full pointer-events-auto animate-in fade-in zoom-in duration-300 overflow-hidden">
         <!-- Gradient header -->
         <div class="bg-gradient-to-r from-primary/20 to-secondary/20 p-6 border-b border-outline/30">
           <div class="flex items-start justify-between">
@@ -187,7 +187,7 @@
             <div class="flex items-center gap-3">
               <button
                 onclick={nextStep}
-                class="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-primary to-secondary text-on-primary hover:opacity-90 transition-all duration-200 font-medium shadow-lg shadow-primary/25"
+                class="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-primary to-secondary text-on-primary hover:opacity-90 transition-all duration-200 font-medium "
               >
                 {currentStep === tutorialSteps.length - 1 ? 'Terminer' : 'Suivant'}
                 <ArrowRight class="w-4 h-4" />

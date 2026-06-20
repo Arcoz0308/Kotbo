@@ -138,14 +138,14 @@
         <div class="w-10 h-10 border-3 border-primary/20 border-t-primary rounded-full animate-spin"></div>
       </div>
     {:else if error}
-      <div class="rounded-2xl bg-rose-500/10 border border-rose-500/20 p-5 text-rose-600 text-sm">{error}</div>
+      <div class="rounded-lg bg-rose-500/10 border border-rose-500/20 p-5 text-rose-600 text-sm">{error}</div>
     {:else if filtered.length === 0}
-      <div class="rounded-2xl border-2 border-dashed border-outline-variant/20 p-16 text-center text-on-surface-variant/40">
+      <div class="rounded-lg border-2 border-dashed border-outline-variant/20 p-16 text-center text-on-surface-variant/40">
         <Papicon icon="inbox" size={48} class="mb-3" />
         <p class="text-sm font-sans">Aucune réponse trouvée</p>
       </div>
     {:else}
-      <div class="rounded-2xl border border-outline-variant/20 overflow-hidden shadow-sm">
+      <div class="rounded-lg border border-outline-variant/20 overflow-hidden shadow-sm">
         <table class="w-full text-sm">
           <thead>
             <tr class="bg-surface-container-low/60 border-b border-outline-variant/10">
@@ -192,16 +192,16 @@
     <!-- Backdrop -->
     <button
       type="button"
-      class="absolute inset-0 bg-black/40 backdrop-blur-sm border-none cursor-default w-full h-full text-left p-0"
+      class="absolute inset-0 bg-black/40 border-none cursor-default w-full h-full text-left p-0"
       onclick={() => selectedResponse = null}
       aria-label="Fermer"
     ></button>
 
     <!-- Detail panel -->
-    <div class="relative z-10 bg-surface rounded-3xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto">
+    <div class="relative z-10 bg-surface rounded-xl shadow-sm max-w-lg w-full max-h-[80vh] overflow-y-auto">
       <div class="sticky top-0 bg-surface border-b border-outline-variant/10 px-6 py-4 flex items-start justify-between rounded-t-3xl">
         <div>
-          <h2 class="font-black text-on-surface text-lg font-sans">Réponse détaillée</h2>
+          <h2 class="font-semibold text-on-surface text-lg font-sans">Réponse détaillée</h2>
           <p class="text-xs font-mono text-on-surface-variant/40 mt-0.5">{selectedResponse.id}</p>
         </div>
         <button onclick={() => selectedResponse = null}
@@ -233,7 +233,7 @@
 
         <!-- Answers -->
         <div>
-          <h3 class="text-sm font-black text-on-surface-variant/60 uppercase tracking-wide mb-3 font-sans">Réponses aux questions</h3>
+          <h3 class="text-sm font-semibold text-on-surface-variant/60 uppercase tracking-wide mb-3 font-sans">Réponses aux questions</h3>
           <div class="space-y-3">
             {#each Object.entries(selectedResponse.data || {}) as [key, value]}
               <div class="bg-surface-container/60 rounded-xl p-3">

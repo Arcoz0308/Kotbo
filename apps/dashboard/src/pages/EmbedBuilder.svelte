@@ -209,14 +209,14 @@
 </script>
 
 <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-  <header class="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-surface-container-low/40 backdrop-blur-3xl p-8 rounded-4xl border border-outline-variant/30">
-    <div class="flex items-center gap-6">
-      <div class="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shadow-inner">
-        <Papicon icon="FilePlus" size={32} />
+  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
+    <div class="flex items-center gap-4">
+      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+        <Papicon icon="FilePlus" size={20} />
       </div>
       <div>
-        <h1 class="text-3xl font-black tracking-tight leading-tight">Créateur d'Embeds</h1>
-        <p class="text-on-surface-variant/80 font-medium">Concevez et modifiez des messages d'embed complexes et personnalisés sur vos salons.</p>
+        <h1 class="text-lg font-semibold tracking-tight leading-tight">Créateur d'Embeds</h1>
+        <p class="text-sm text-on-surface-variant/70 font-medium">Concevez et modifiez des messages d'embed complexes et personnalisés sur vos salons.</p>
       </div>
     </div>
   </header>
@@ -232,9 +232,9 @@
   {:else}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <!-- Editor Form -->
-      <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6 h-fit max-h-[85vh] overflow-y-auto scrollbar-thin pr-3">
-        <div class="p-5 rounded-2xl bg-surface-container-high/20 border border-outline-variant/10 space-y-4">
-          <h3 class="text-sm font-black uppercase tracking-wider text-on-surface-variant/80">Mes modèles</h3>
+      <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 h-fit max-h-[85vh] overflow-y-auto scrollbar-thin pr-3">
+        <div class="p-5 rounded-lg bg-surface-container-high/20 border border-outline-variant/10 space-y-4">
+          <h3 class="text-sm font-semibold uppercase tracking-wider text-on-surface-variant/80">Mes modèles</h3>
           {#if canManageSettings}
             <div class="flex flex-col sm:flex-row gap-2">
               <input
@@ -246,7 +246,7 @@
               <button
                 type="button"
                 onclick={saveCurrentAsTemplate}
-                class="px-4 py-2.5 bg-secondary/20 text-secondary font-black uppercase tracking-widest text-[10px] rounded-xl hover:bg-secondary/30 transition-all"
+                class="px-4 py-2.5 bg-secondary/20 text-secondary font-semibold uppercase tracking-widest text-[10px] rounded-xl hover:bg-secondary/30 transition-all"
               >
                 Sauvegarder
               </button>
@@ -266,7 +266,7 @@
                   >
                     {tpl.name}
                   </button>
-                  <span class="text-[9px] text-on-surface-variant/40 shrink-0">
+                  <span class="text-[11px] text-on-surface-variant/40 shrink-0">
                     {new Date(tpl.createdAt).toLocaleDateString('fr-FR')}
                   </span>
                   {#if canManageSettings}
@@ -285,7 +285,7 @@
           {/if}
         </div>
 
-        <h3 class="text-xl font-black flex items-center gap-3">
+        <h3 class="text-xl font-semibold flex items-center gap-3">
           <Papicon icon="Pen" size={20} class="text-primary" />
           Éditeur d'Embed
         </h3>
@@ -298,7 +298,7 @@
               bind:value={targetChannelId} 
               options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} 
               placeholder="Sélectionner le salon" 
-              className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
+              className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
               disabled={!canManageSettings}
             />
           </div>
@@ -310,31 +310,31 @@
               type="text" 
               bind:value={targetMessageId} 
               placeholder="Laisser vide pour envoyer un nouveau"
-              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all text-on-surface"
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all text-on-surface"
               disabled={!canManageSettings}
             />
           </div>
         </div>
 
         <div class="space-y-4 pt-4 border-t border-outline-variant/10">
-          <h4 class="text-xs font-black uppercase text-on-surface-variant/80 tracking-wider">Texte du message</h4>
+          <h4 class="text-xs font-semibold uppercase text-on-surface-variant/80 tracking-wider">Texte du message</h4>
           <div class="space-y-1.5">
-            <label for="msgContent" class="text-[8px] font-bold text-on-surface-variant/60 ml-2 uppercase">Contenu textuel (hors embed)</label>
+            <label for="msgContent" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">Contenu textuel (hors embed)</label>
             <textarea 
               id="msgContent"
               bind:value={content} 
               placeholder="Texte brut à afficher en dehors de l'embed..."
-              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-2.5 text-sm focus:outline-none h-20 resize-none text-on-surface"
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-sm focus:outline-none h-20 resize-none text-on-surface"
               disabled={!canManageSettings}
             ></textarea>
           </div>
         </div>
 
         <div class="space-y-4 pt-4 border-t border-outline-variant/10">
-          <h4 class="text-xs font-black uppercase text-on-surface-variant/80 tracking-wider">Auteur</h4>
+          <h4 class="text-xs font-semibold uppercase text-on-surface-variant/80 tracking-wider">Auteur</h4>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-1.5">
-              <label for="authorName" class="text-[8px] font-bold text-on-surface-variant/60 ml-2 uppercase">Nom de l'auteur</label>
+              <label for="authorName" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">Nom de l'auteur</label>
               <input 
                 id="authorName"
                 type="text" 
@@ -345,7 +345,7 @@
               />
             </div>
             <div class="space-y-1.5">
-              <label for="authorIcon" class="text-[8px] font-bold text-on-surface-variant/60 ml-2 uppercase">URL de l'icône de l'auteur</label>
+              <label for="authorIcon" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">URL de l'icône de l'auteur</label>
               <input 
                 id="authorIcon"
                 type="url" 
@@ -356,7 +356,7 @@
               />
             </div>
             <div class="space-y-1.5 sm:col-span-2">
-              <label for="authorUrl" class="text-[8px] font-bold text-on-surface-variant/60 ml-2 uppercase">URL du lien de l'auteur (clic sur le nom)</label>
+              <label for="authorUrl" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">URL du lien de l'auteur (clic sur le nom)</label>
               <input 
                 id="authorUrl"
                 type="url" 
@@ -370,9 +370,9 @@
         </div>
 
         <div class="space-y-4 pt-4 border-t border-outline-variant/10">
-          <h4 class="text-xs font-black uppercase text-on-surface-variant/80 tracking-wider">Contenu Principal</h4>
+          <h4 class="text-xs font-semibold uppercase text-on-surface-variant/80 tracking-wider">Contenu Principal</h4>
           <div class="space-y-1.5">
-            <label for="embedTitle" class="text-[8px] font-bold text-on-surface-variant/60 ml-2 uppercase">Titre de l'embed</label>
+            <label for="embedTitle" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">Titre de l'embed</label>
             <input 
               id="embedTitle"
               type="text" 
@@ -384,7 +384,7 @@
           </div>
 
           <div class="space-y-1.5">
-            <label for="embedUrl" class="text-[8px] font-bold text-on-surface-variant/60 ml-2 uppercase">URL du titre (lien de redirection)</label>
+            <label for="embedUrl" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">URL du titre (lien de redirection)</label>
             <input 
               id="embedUrl"
               type="url" 
@@ -396,7 +396,7 @@
           </div>
 
           <div class="space-y-1.5">
-            <label for="embedDesc" class="text-[8px] font-bold text-on-surface-variant/60 ml-2 uppercase">Description</label>
+            <label for="embedDesc" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">Description</label>
             <textarea 
               id="embedDesc"
               bind:value={embed.description} 
@@ -408,7 +408,7 @@
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-1.5">
-              <label for="embedColor" class="text-[8px] font-bold text-on-surface-variant/60 ml-2 uppercase">Couleur latérale (Hex ou select)</label>
+              <label for="embedColor" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">Couleur latérale (Hex ou select)</label>
               <div class="flex gap-2">
                 <input 
                   id="embedColor"
@@ -428,7 +428,7 @@
             </div>
             
             <div class="space-y-1.5">
-              <label for="embedThumbnail" class="text-[8px] font-bold text-on-surface-variant/60 ml-2 uppercase">URL de la vignette (haut-droite)</label>
+              <label for="embedThumbnail" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">URL de la vignette (haut-droite)</label>
               <input 
                 id="embedThumbnail"
                 type="url" 
@@ -441,7 +441,7 @@
           </div>
 
           <div class="space-y-1.5">
-            <label for="embedImage" class="text-[8px] font-bold text-on-surface-variant/60 ml-2 uppercase">URL de la grande image (bas)</label>
+            <label for="embedImage" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">URL de la grande image (bas)</label>
             <input 
               id="embedImage"
               type="url" 
@@ -456,7 +456,7 @@
         <!-- Fields Builder -->
         <div class="space-y-4 pt-4 border-t border-outline-variant/10">
           <div class="flex items-center justify-between">
-            <h4 class="text-xs font-black uppercase text-on-surface-variant/80 tracking-wider">Champs de l'Embed ({embed.fields.length})</h4>
+            <h4 class="text-xs font-semibold uppercase text-on-surface-variant/80 tracking-wider">Champs de l'Embed ({embed.fields.length})</h4>
             <button 
               type="button" 
               onclick={addField} 
@@ -469,10 +469,10 @@
 
           <div class="space-y-3">
             {#each embed.fields as fld, idx}
-              <div class="p-4 rounded-2xl bg-surface-container-high/20 border border-outline-variant/5 space-y-3 relative group">
+              <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 space-y-3 relative group">
                 <div class="flex gap-2">
                   <div class="flex-1 space-y-1">
-                    <label for={`fldName-${idx}`} class="text-[8px] font-bold text-on-surface-variant/50 ml-1 uppercase">Titre du champ</label>
+                    <label for={`fldName-${idx}`} class="text-[10px] font-bold text-on-surface-variant/50 ml-1 uppercase">Titre du champ</label>
                     <input 
                       id={`fldName-${idx}`}
                       type="text" 
@@ -495,7 +495,7 @@
                 </div>
 
                 <div class="space-y-1">
-                  <label for={`fldVal-${idx}`} class="text-[8px] font-bold text-on-surface-variant/50 ml-1 uppercase">Contenu du champ</label>
+                  <label for={`fldVal-${idx}`} class="text-[10px] font-bold text-on-surface-variant/50 ml-1 uppercase">Contenu du champ</label>
                   <textarea 
                     id={`fldVal-${idx}`}
                     bind:value={fld.value} 
@@ -514,7 +514,7 @@
                     class="rounded border-outline-variant/20 text-primary focus:ring-primary/20"
                     disabled={!canManageSettings}
                   />
-                  <label for={`fldInline-${idx}`} class="text-[9px] font-bold text-on-surface-variant/60 uppercase">Aligner en ligne (Inline)</label>
+                  <label for={`fldInline-${idx}`} class="text-[11px] font-bold text-on-surface-variant/60 uppercase">Aligner en ligne (Inline)</label>
                 </div>
               </div>
             {/each}
@@ -522,10 +522,10 @@
         </div>
 
         <div class="space-y-4 pt-4 border-t border-outline-variant/10">
-          <h4 class="text-xs font-black uppercase text-on-surface-variant/80 tracking-wider">Pied de Page (Footer)</h4>
+          <h4 class="text-xs font-semibold uppercase text-on-surface-variant/80 tracking-wider">Pied de Page (Footer)</h4>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-1.5">
-              <label for="footerText" class="text-[8px] font-bold text-on-surface-variant/60 ml-2 uppercase">Texte du footer</label>
+              <label for="footerText" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">Texte du footer</label>
               <input 
                 id="footerText"
                 type="text" 
@@ -536,7 +536,7 @@
               />
             </div>
             <div class="space-y-1.5">
-              <label for="footerIcon" class="text-[8px] font-bold text-on-surface-variant/60 ml-2 uppercase">URL de l'icône du footer</label>
+              <label for="footerIcon" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase">URL de l'icône du footer</label>
               <input 
                 id="footerIcon"
                 type="url" 
@@ -554,7 +554,7 @@
                 class="rounded border-outline-variant/20 text-primary focus:ring-primary/20"
                 disabled={!canManageSettings}
               />
-              <label for="embedTimestamp" class="text-[9px] font-bold text-on-surface-variant/60 uppercase">Afficher l'horodatage (Timestamp)</label>
+              <label for="embedTimestamp" class="text-[11px] font-bold text-on-surface-variant/60 uppercase">Afficher l'horodatage (Timestamp)</label>
             </div>
           </div>
         </div>
@@ -564,7 +564,7 @@
             <button 
               onclick={handleSend}
               disabled={actionState.state.loading || !targetChannelId}
-              class="px-8 py-3.5 bg-primary text-on-primary font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-primary/20 hover:scale-105 transition-all disabled:opacity-50"
+              class="px-8 py-3.5 bg-primary text-on-primary font-semibold uppercase tracking-widest text-xs rounded-lg  hover:scale-105 transition-all disabled:opacity-50"
             >
               {targetMessageId.trim() ? "Modifier l'embed" : "Publier l'embed"}
             </button>
@@ -574,21 +574,21 @@
 
       <!-- Live Preview -->
       <section class="space-y-6 h-fit">
-        <h3 class="text-xl font-black flex items-center gap-3">
+        <h3 class="text-xl font-semibold flex items-center gap-3">
           <Papicon icon="Camera" size={20} class="text-secondary" />
           Aperçu en temps réel
         </h3>
 
-        <div class="p-6 rounded-[2.5rem] bg-surface-container-low/30 border border-outline-variant/10 flex flex-col gap-4 select-none relative overflow-hidden">
+        <div class="p-6 rounded-xl bg-surface-container-low/30 border border-outline-variant/10 flex flex-col gap-4 select-none relative overflow-hidden">
           <div class="flex items-start gap-4">
-            <div class="w-10 h-10 rounded-full bg-outline-variant/30 flex items-center justify-center text-xs font-black text-on-surface-variant/60">
+            <div class="w-10 h-10 rounded-full bg-outline-variant/30 flex items-center justify-center text-xs font-semibold text-on-surface-variant/60">
               BOT
             </div>
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2">
                 <span class="font-bold text-primary">Kotbo</span>
-                <span class="bg-primary/20 text-primary text-[8px] font-black px-1.5 py-0.5 rounded uppercase leading-none">BOT</span>
-                <span class="text-[9px] text-on-surface-variant/40">Aujourd'hui à 12:10</span>
+                <span class="bg-primary/20 text-primary text-[10px] font-semibold px-1.5 py-0.5 rounded uppercase leading-none">BOT</span>
+                <span class="text-[11px] text-on-surface-variant/40">Aujourd'hui à 12:10</span>
               </div>
               
               <!-- Message content (outside embed) -->
@@ -619,7 +619,7 @@
 
                     <!-- Title -->
                     {#if embed.title}
-                      <h4 class="text-base font-black text-white leading-snug">
+                      <h4 class="text-base font-semibold text-white leading-snug">
                         {#if embed.url}
                           <a href={embed.url} target="_blank" rel="noopener noreferrer" class="text-[#00a8fc] hover:underline">{embed.title}</a>
                         {:else}

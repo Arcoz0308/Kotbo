@@ -73,24 +73,21 @@
     tabindex="-1"
     onkeydown={(e) => { if (e.key === 'Escape') close(); }}
   >
-    <!-- Backdrop -->
     <button
       type="button"
-      class="absolute inset-0 bg-black/70 backdrop-blur-md border-none cursor-default w-full h-full text-left p-0"
+      class="absolute inset-0 bg-black/40 border-none cursor-default w-full h-full text-left p-0"
       onclick={close}
       aria-label="Fermer"
-      transition:fade={{ duration: 150 }}
+      transition:fade={{ duration: 100 }}
     ></button>
 
-    <!-- Switcher panel -->
     <div
-      class="relative z-10 w-full max-w-md bg-surface-container border border-outline-variant/20 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden"
+      class="relative z-10 w-full max-w-md bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg overflow-hidden"
       role="document"
-      transition:scale={{ start: 0.97, duration: 150 }}
+      transition:scale={{ start: 0.98, duration: 150 }}
     >
-      <!-- Search input -->
-      <div class="flex items-center gap-3 px-4 py-3.5 border-b border-outline-variant/10">
-        <Papicon icon="Search" size={16} class="text-on-surface-variant/40 shrink-0" />
+      <div class="flex items-center gap-2.5 px-3 py-2.5 border-b border-outline-variant">
+        <Papicon icon="Search" size={15} class="text-on-surface-variant/40 shrink-0" />
         <input
           bind:this={inputEl}
           bind:value={query}
@@ -98,16 +95,15 @@
           onkeydown={handleKeydown}
           type="text"
           placeholder="Rechercher un serveur..."
-          class="flex-1 bg-transparent text-sm text-on-surface placeholder-on-surface-variant/30 focus:outline-none font-medium"
+          class="flex-1 bg-transparent text-sm text-on-surface placeholder-on-surface-variant/40 focus:outline-none"
         />
-        <kbd class="hidden sm:flex items-center gap-1 px-2 py-1 rounded-lg bg-on-surface/5 border border-outline-variant/10 text-[10px] font-black text-on-surface-variant/40 leading-none">
+        <kbd class="hidden sm:flex px-1.5 py-0.5 rounded bg-surface-container border border-outline-variant text-[10px] font-medium text-on-surface-variant/40 leading-none">
           ESC
         </kbd>
       </div>
 
-      <!-- Results list -->
-      <div class="max-h-[50vh] overflow-y-auto py-2">
-        <p class="text-[9px] font-black uppercase tracking-[0.2em] text-on-surface-variant/30 px-4 py-2">
+      <div class="max-h-[50vh] overflow-y-auto py-1">
+        <p class="text-[10px] font-medium uppercase tracking-wider text-on-surface-variant px-3 py-1.5">
           Serveurs ({filteredGuilds.length})
         </p>
 
@@ -115,61 +111,58 @@
           {@const isSelected = idx === selectedIndex}
           {@const isActive = guild.id === authStore.selectedGuildId}
           {@const iconUrl = resolveGuildIconSrc(guild.id, guild.icon)}
-          
+
           <button
             onclick={() => selectGuild(guild.id)}
             onmouseenter={() => selectedIndex = idx}
-            class="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left transition-all duration-100
-              {isSelected ? 'bg-primary/10 text-primary' : 'text-on-surface-variant/70 hover:bg-on-surface/5 hover:text-on-surface'}"
+            class="w-full flex items-center gap-2.5 px-3 py-2 mx-1 rounded-lg text-left transition-colors duration-100
+              {isSelected ? 'bg-primary/8 text-primary' : 'text-on-surface-variant hover:bg-surface-container'}"
+            style="width: calc(100% - 0.5rem)"
           >
-            <!-- Guild Icon -->
             {#if iconUrl}
               <img
                 src={iconUrl}
                 alt={guild.name}
                 referrerpolicy="no-referrer"
-                class="w-7 h-7 rounded-lg object-cover border border-outline-variant/10"
+                class="w-6 h-6 rounded object-cover"
               />
             {:else}
-              <div class="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-[10px] font-black text-primary border border-primary/20">
+              <div class="w-6 h-6 rounded bg-primary/10 flex items-center justify-center text-[10px] font-medium text-primary">
                 {guild.name.charAt(0)}
               </div>
             {/if}
 
-            <!-- Guild Details -->
             <div class="flex-1 min-w-0">
-              <p class="text-sm font-bold leading-none truncate flex items-center gap-2">
+              <p class="text-sm leading-none truncate flex items-center gap-1.5">
                 {guild.name}
                 {#if isActive}
-                  <span class="text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">Actuel</span>
+                  <span class="text-[9px] font-medium uppercase tracking-wide px-1 py-0.5 rounded bg-primary/10 text-primary">Actuel</span>
                 {/if}
               </p>
-              <p class="text-[10px] text-on-surface-variant/40 mt-0.5 truncate">
-                Rôle : {guild.accessLevel === 'admin' ? 'Propriétaire / Admin' : guild.accessLevel === 'moderator' ? 'Modérateur' : 'Membre'}
+              <p class="text-[10px] text-on-surface-variant mt-0.5 truncate">
+                {guild.accessLevel === 'admin' ? 'Admin' : guild.accessLevel === 'moderator' ? 'Modérateur' : 'Membre'}
               </p>
             </div>
 
-            <!-- Arrow indicators -->
             {#if isSelected}
-              <kbd class="text-[9px] font-black text-primary/50 leading-none">↵</kbd>
+              <kbd class="text-[9px] text-primary/50 leading-none">↵</kbd>
             {/if}
           </button>
         {:else}
-          <div class="flex flex-col items-center py-10 gap-2 text-center">
-            <Papicon icon="SearchX" size={28} class="text-on-surface-variant/20" />
-            <p class="text-sm text-on-surface-variant/40 font-medium">Aucun serveur trouvé</p>
+          <div class="flex flex-col items-center py-8 gap-1.5 text-center">
+            <Papicon icon="SearchX" size={24} class="text-on-surface-variant/30" />
+            <p class="text-sm text-on-surface-variant/50">Aucun serveur trouvé</p>
           </div>
         {/each}
       </div>
 
-      <!-- Footer hint -->
-      <div class="flex items-center gap-4 px-4 py-2.5 border-t border-outline-variant/10 bg-on-surface/2">
-        <div class="flex items-center gap-1.5 text-[10px] text-on-surface-variant/30 font-medium">
-          <kbd class="px-1.5 py-0.5 rounded bg-on-surface/8 border border-outline-variant/10 font-mono">↑↓</kbd>
+      <div class="flex items-center gap-3 px-3 py-2 border-t border-outline-variant bg-surface-container">
+        <div class="flex items-center gap-1 text-[10px] text-on-surface-variant/40">
+          <kbd class="px-1 py-0.5 rounded bg-surface-container-highest border border-outline-variant font-mono text-[9px]">↑↓</kbd>
           Naviguer
         </div>
-        <div class="flex items-center gap-1.5 text-[10px] text-on-surface-variant/30 font-medium">
-          <kbd class="px-1.5 py-0.5 rounded bg-on-surface/8 border border-outline-variant/10 font-mono">↵</kbd>
+        <div class="flex items-center gap-1 text-[10px] text-on-surface-variant/40">
+          <kbd class="px-1 py-0.5 rounded bg-surface-container-highest border border-outline-variant font-mono text-[9px]">↵</kbd>
           Sélectionner
         </div>
       </div>

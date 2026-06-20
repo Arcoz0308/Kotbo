@@ -156,8 +156,8 @@
   {#snippet actions()}
     <div class="flex flex-wrap items-center gap-3">
       <!-- Seuil selection -->
-      <div class="flex items-center gap-2 bg-surface-container-low/60 rounded-2xl border border-outline-variant/10 px-3 py-1.5">
-        <label for="threshold-select" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Seuil :</label>
+      <div class="flex items-center gap-2 bg-surface-container-low/60 rounded-lg border border-outline-variant/10 px-3 py-1.5">
+        <label for="threshold-select" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Seuil :</label>
         <select
           id="threshold-select"
           bind:value={thresholdDays}
@@ -188,46 +188,46 @@
   {/snippet}
 
   <div class="grid gap-4 md:grid-cols-4 mb-8">
-    <div class="rounded-3xl border border-outline-variant/10 bg-surface-container-low/40 p-5">
-      <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Suspects</p>
-      <p class="mt-2 text-3xl font-black text-on-surface">{stats.total}</p>
+    <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-5">
+      <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Suspects</p>
+      <p class="mt-2 text-lg font-semibold text-on-surface">{stats.total}</p>
     </div>
-    <div class="rounded-3xl border border-outline-variant/10 bg-surface-container-low/40 p-5">
-      <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Encore présents</p>
-      <p class="mt-2 text-3xl font-black text-emerald-500">{stats.onServer}</p>
+    <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-5">
+      <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Encore présents</p>
+      <p class="mt-2 text-lg font-semibold text-emerald-500">{stats.onServer}</p>
     </div>
-    <div class="rounded-3xl border border-outline-variant/10 bg-surface-container-low/40 p-5">
-      <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Partis</p>
-      <p class="mt-2 text-3xl font-black text-amber-500">{stats.left}</p>
+    <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-5">
+      <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Partis</p>
+      <p class="mt-2 text-lg font-semibold text-amber-500">{stats.left}</p>
     </div>
-    <div class="rounded-3xl border border-outline-variant/10 bg-surface-container-low/40 p-5">
-      <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Bots</p>
-      <p class="mt-2 text-3xl font-black text-sky-500">{stats.bot}</p>
+    <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-5">
+      <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Bots</p>
+      <p class="mt-2 text-lg font-semibold text-sky-500">{stats.bot}</p>
     </div>
   </div>
 
-  <div class="mb-8 rounded-[2.5rem] border border-amber-500/20 bg-amber-500/5 p-6 flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
+  <div class="mb-8 rounded-xl border border-amber-500/20 bg-amber-500/5 p-6 flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
     <div class="flex gap-4 items-start">
-      <div class="rounded-2xl bg-amber-500/10 p-3 text-amber-500 shrink-0">
+      <div class="rounded-lg bg-amber-500/10 p-3 text-amber-500 shrink-0">
         <Papicon icon="AlertTriangle" size={22} />
       </div>
       <div>
-        <h3 class="text-lg font-black text-on-surface">Centre de surveillance</h3>
+        <h3 class="text-lg font-semibold text-on-surface">Centre de surveillance</h3>
         <p class="mt-1 text-sm text-on-surface-variant/70">
           Cette page centralise les comptes marqués comme suspects par le bot. Ouvre un dossier pour vérifier les détails, puis valide ou sanctionne depuis le module <span class="font-bold">Doubles Comptes</span>.
         </p>
       </div>
     </div>
-    <div class="w-full md:w-auto bg-surface-container-high/40 rounded-2xl p-4 border border-outline-variant/10 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+    <div class="w-full md:w-auto bg-surface-container-high/40 rounded-lg p-4 border border-outline-variant/10 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
       <div class="flex flex-col min-w-[200px]">
-        <span class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40">Commande Discord</span>
+        <span class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Commande Discord</span>
         <code class="text-xs font-mono font-bold text-amber-500 mt-1 bg-surface-container-low px-2.5 py-1.5 rounded-lg border border-outline-variant/5 select-all truncate">
           {discordCommand}
         </code>
       </div>
       <button
         onclick={copyCommand}
-        class="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-amber-500 text-white hover:opacity-90 transition-all active:scale-95"
+        class="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-[10px] font-semibold uppercase tracking-widest bg-amber-500 text-white hover:opacity-90 transition-all active:scale-95"
       >
         <Papicon icon={commandCopied ? "check" : "copy"} size={12} />
         {commandCopied ? "Copié !" : "Copier"}
@@ -241,13 +241,13 @@
       <p class="text-sm font-bold text-on-surface-variant/60">Chargement des détections...</p>
     </div>
   {:else if error}
-    <div class="rounded-2xl border border-rose-500/20 bg-rose-500/5 px-4 py-6 text-center">
+    <div class="rounded-lg border border-rose-500/20 bg-rose-500/5 px-4 py-6 text-center">
       <p class="text-rose-500 font-bold">{error}</p>
-      <button onclick={loadDetections} class="mt-4 text-xs font-black uppercase tracking-widest text-primary">Réessayer</button>
+      <button onclick={loadDetections} class="mt-4 text-xs font-semibold uppercase tracking-widest text-primary">Réessayer</button>
     </div>
   {:else if detections.length === 0}
-    <div class="flex flex-col items-center justify-center py-24 text-center rounded-[2.5rem] border border-outline-variant/10 bg-surface-container-low/30">
-      <div class="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-500">
+    <div class="flex flex-col items-center justify-center py-24 text-center rounded-xl border border-outline-variant/10 bg-surface-container-low/30">
+      <div class="flex h-16 w-16 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
         <Papicon icon="ShieldCheck" size={32} />
       </div>
       <h3 class="mt-6 text-xl font-bold text-on-surface">Aucune détection active</h3>
@@ -258,24 +258,24 @@
   {:else}
     <div class="grid gap-4 xl:grid-cols-2">
       {#each detections as detection (detection.id)}
-        <article class="rounded-[2rem] border border-outline-variant/10 bg-surface-container-low/40 p-5 transition-all duration-300 hover:border-primary/20 hover:bg-surface-container-low">
+        <article class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-5 transition-all duration-300 hover:border-primary/20 hover:bg-surface-container-low">
           <div class="flex items-start gap-4">
             {#if detection.avatarUrl}
-              <img src={detection.avatarUrl} alt="" class="h-14 w-14 rounded-2xl object-cover shrink-0" />
+              <img src={detection.avatarUrl} alt="" class="h-14 w-14 rounded-lg object-cover shrink-0" />
             {:else}
-              <div class="h-14 w-14 rounded-2xl bg-surface-container-high flex items-center justify-center text-on-surface-variant/40 shrink-0">
+              <div class="h-14 w-14 rounded-lg bg-surface-container-high flex items-center justify-center text-on-surface-variant/40 shrink-0">
                 <Papicon icon="User" size={24} />
               </div>
             {/if}
 
             <div class="min-w-0 flex-1">
               <div class="flex flex-wrap items-center gap-2">
-                <h4 class="text-lg font-black text-on-surface truncate">{detection.displayName || detection.username || detection.id}</h4>
-                <span class={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest ${detection.isOnServer ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-500/10 text-slate-400'}`}>
+                <h4 class="text-lg font-semibold text-on-surface truncate">{detection.displayName || detection.username || detection.id}</h4>
+                <span class={`px-2 py-0.5 rounded-lg text-[11px] font-semibold uppercase tracking-widest ${detection.isOnServer ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-500/10 text-slate-400'}`}>
                   {detection.isOnServer ? 'Sur le serveur' : 'Parti'}
                 </span>
                 {#if detection.isBot}
-                  <span class="px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest bg-sky-500/10 text-sky-500">Bot</span>
+                  <span class="px-2 py-0.5 rounded-lg text-[11px] font-semibold uppercase tracking-widest bg-sky-500/10 text-sky-500">Bot</span>
                 {/if}
               </div>
               <p class="mt-1 text-xs text-on-surface-variant/60">@{detection.username || 'inconnu'} · ID {detection.id}</p>
@@ -289,18 +289,18 @@
           </div>
 
           <div class="mt-4 grid gap-2 text-xs text-on-surface-variant/60 sm:grid-cols-2">
-            <div class="rounded-2xl bg-surface-container-high/30 px-3 py-2">Dernière activité: {formatRelative(detection.lastSeenAt)}</div>
-            <div class="rounded-2xl bg-surface-container-high/30 px-3 py-2">Messages: {detection.messageCount}</div>
+            <div class="rounded-lg bg-surface-container-high/30 px-3 py-2">Dernière activité: {formatRelative(detection.lastSeenAt)}</div>
+            <div class="rounded-lg bg-surface-container-high/30 px-3 py-2">Messages: {detection.messageCount}</div>
           </div>
 
           <div class="mt-5 flex flex-wrap items-center gap-2">
             <button
               onclick={() => openMemberCase(detection)}
-              class="rounded-xl bg-primary px-4 py-2 text-[10px] font-black uppercase tracking-widest text-on-primary transition-transform hover:scale-[1.02]"
+              class="rounded-xl bg-primary px-4 py-2 text-[10px] font-semibold uppercase tracking-widest text-on-primary transition-transform hover:"
             >
               Ouvrir le dossier
             </button>
-            <a href={`/members/${detection.id}`} class="rounded-xl border border-outline-variant/10 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-on-surface-variant transition-colors hover:text-on-surface hover:border-primary/20">
+            <a href={`/members/${detection.id}`} class="rounded-xl border border-outline-variant/10 px-4 py-2 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant transition-colors hover:text-on-surface hover:border-primary/20">
               Voir dans les membres
             </a>
           </div>

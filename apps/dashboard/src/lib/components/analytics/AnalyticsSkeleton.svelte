@@ -6,7 +6,7 @@
   <!-- Top Stats Grid -->
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
     {#each Array(4) as _}
-      <div class="premium-card p-6 rounded-4xl flex flex-col gap-4">
+      <div class="premium-card p-6 rounded-xl flex flex-col gap-4">
         <div class="flex justify-between items-start">
           <Skeleton width="w-10" height="h-10" rounded="rounded-xl" />
           <Skeleton width="w-16" height="h-3" />
@@ -22,10 +22,10 @@
   <!-- Main Grid Section -->
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <!-- Large Chart Card -->
-    <div class="lg:col-span-2 premium-card p-8 rounded-[2.5rem] space-y-6">
+    <div class="lg:col-span-2 premium-card p-8 rounded-xl space-y-6">
       <div class="flex justify-between items-center">
         <div class="flex items-center gap-3">
-          <Skeleton width="w-12" height="h-12" rounded="rounded-2xl" />
+          <Skeleton width="w-12" height="h-12" rounded="rounded-lg" />
           <div class="space-y-2">
             <Skeleton width="w-32" height="h-5" />
             <Skeleton width="w-24" height="h-3" />
@@ -33,19 +33,19 @@
         </div>
         <Skeleton width="w-20" height="h-8" rounded="rounded-xl" />
       </div>
-      <Skeleton width="w-full" height="h-64" rounded="rounded-3xl" />
+      <Skeleton width="w-full" height="h-64" rounded="rounded-xl" />
     </div>
 
     <!-- Side Bento Column -->
     <div class="space-y-6">
-      <div class="premium-card p-6 rounded-[2.5rem] space-y-4">
-        <Skeleton width="w-full" height="h-40" rounded="rounded-2xl" />
+      <div class="premium-card p-6 rounded-xl space-y-4">
+        <Skeleton width="w-full" height="h-40" rounded="rounded-lg" />
         <div class="space-y-2">
           <Skeleton width="w-3/4" height="h-4" />
           <Skeleton width="w-1/2" height="h-3" />
         </div>
       </div>
-      <div class="premium-card p-6 rounded-[2.5rem] space-y-4">
+      <div class="premium-card p-6 rounded-xl space-y-4">
         <div class="flex items-center gap-3">
           <Skeleton width="w-8" height="h-8" circle />
           <Skeleton width="w-24" height="h-4" />

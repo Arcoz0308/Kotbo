@@ -1023,7 +1023,7 @@
         onClick={() => dashboardStore.refresh()}
         loading={dashboardStore.state.loading}
         label="Actualiser"
-        className="px-5 py-2.5 font-bold shadow-lg shadow-primary/10"
+        className="px-5 py-2.5 font-bold "
         iconClass="text-lg"
       />
     </div>
@@ -1033,7 +1033,7 @@
     <div class="flex border-b border-outline-variant/10">
       <button 
         onclick={() => activeTab = 'sanctions'}
-        class="px-8 py-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative {activeTab === 'sanctions' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
+        class="px-8 py-4 text-[10px] font-semibold uppercase tracking-wider transition-all relative {activeTab === 'sanctions' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
       >
         Historique
         {#if activeTab === 'sanctions'}
@@ -1043,7 +1043,7 @@
       {#if canManageSettings}
         <button 
           onclick={() => activeTab = 'settings'}
-          class="px-8 py-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative {activeTab === 'settings' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
+          class="px-8 py-4 text-[10px] font-semibold uppercase tracking-wider transition-all relative {activeTab === 'settings' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
         >
           Configuration
           {#if activeTab === 'settings'}
@@ -1056,7 +1056,7 @@
     {#if activeTab === 'sanctions'}
       <section class="section-card-flush font-inter">
         <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-          <h3 class="text-lg font-black">Liste des sanctions</h3>
+          <h3 class="text-lg font-semibold">Liste des sanctions</h3>
           <div class="flex items-center gap-3">
             <span class="text-xs font-bold text-on-surface-variant">{filteredAndSortedSanctions.length} / {sanctions.length} entree(s)</span>
             {#if hasActiveFiltersOrSort}
@@ -1241,20 +1241,20 @@
     
     {#if activeTab === 'settings'}
       <section class="space-y-8 animate-in fade-in duration-500">
-        <div class="premium-card p-10 rounded-[3rem] space-y-8">
+        <div class="premium-card p-10 rounded-xl space-y-8">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div class="space-y-4">
               <div>
-                <p class="text-sm font-black text-on-surface">Rôle Modérateur</p>
+                <p class="text-sm font-semibold text-on-surface">Rôle Modérateur</p>
                 <p class="text-xs text-on-surface-variant/70 mt-1">Rôle requis pour utiliser les commandes de modération.</p>
               </div>
-              <SearchableSelect bind:value={guildSettings.moderatorRoleId} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="— Aucun rôle —" className="w-full rounded-2xl bg-surface-container-high/40 border border-outline-variant/10 px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all" />
+              <SearchableSelect bind:value={guildSettings.moderatorRoleId} options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="— Aucun rôle —" className="w-full rounded-lg bg-surface-container-high/40 border border-outline-variant/10 px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all" />
             </div>
 
             <div class="space-y-4">
               <div class="flex items-center justify-between">
                 <div>
-                  <p class="text-sm font-black text-on-surface">Propagation des sanctions</p>
+                  <p class="text-sm font-semibold text-on-surface">Propagation des sanctions</p>
                   <p class="text-xs text-on-surface-variant/70 mt-1">Appliquer automatiquement les sanctions sur les serveurs liés.</p>
                 </div>
                  <ToggleSwitch
@@ -1269,7 +1269,7 @@
             <div class="space-y-4">
               <div class="flex items-center justify-between">
                 <div>
-                  <p class="text-sm font-black text-on-surface">Rapports de sanction</p>
+                  <p class="text-sm font-semibold text-on-surface">Rapports de sanction</p>
                   <p class="text-xs text-on-surface-variant/70 mt-1">Exiger la création de rapports détaillés pour chaque sanction.</p>
                 </div>
                 <ToggleSwitch
@@ -1304,20 +1304,20 @@
       <!-- Échelles de Sanctions Progressives -->
       <section class="section-card-flush font-inter mt-8">
         <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-800">
-          <h3 class="text-lg font-black">Échelles de Sanctions Progressives</h3>
+          <h3 class="text-lg font-semibold">Échelles de Sanctions Progressives</h3>
           <p class="text-xs text-on-surface-variant/70 mt-1">Configurez des échelles de sanctions qui s'alourdissent automatiquement à chaque récidive d'une infraction.</p>
         </div>
 
-        <div class="premium-card p-10 rounded-[3rem]">
+        <div class="premium-card p-10 rounded-xl">
           <div class="flex flex-col lg:flex-row gap-10">
             <!-- Left panel: scales list -->
             <div class="w-full lg:w-1/3 space-y-4 border-r border-outline-variant/10 lg:pr-8">
               <div class="flex items-center justify-between">
-                <span class="text-[10px] font-black uppercase tracking-wider text-on-surface-variant/60">Mes Échelles</span>
+                <span class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60">Mes Échelles</span>
                 {#if !showAddTableField}
                   <button 
                     onclick={() => showAddTableField = true}
-                    class="text-xs font-black text-primary hover:text-primary/80 transition uppercase tracking-wider"
+                    class="text-xs font-semibold text-primary hover:text-primary/80 transition uppercase tracking-wider"
                   >
                     + Ajouter
                   </button>
@@ -1325,7 +1325,7 @@
               </div>
 
               {#if showAddTableField}
-                <div class="flex gap-2 p-2 bg-surface-container-high/40 rounded-2xl border border-outline-variant/10">
+                <div class="flex gap-2 p-2 bg-surface-container-high/40 rounded-lg border border-outline-variant/10">
                   <FormInput 
                     bind:value={newTableName} 
                     placeholder="Nom (ex: Spam, Pub)" 
@@ -1333,7 +1333,7 @@
                   />
                   <button 
                     onclick={addSanctionTable}
-                    class="px-3 py-1 bg-primary text-on-primary rounded-xl text-[10px] font-black uppercase tracking-wider"
+                    class="px-3 py-1 bg-primary text-on-primary rounded-xl text-[10px] font-semibold uppercase tracking-wider"
                   >
                     Ok
                   </button>
@@ -1349,12 +1349,12 @@
               <div class="space-y-2 max-h-[300px] overflow-y-auto pr-2">
                 {#each guildSettings.sanctionTables as table, i}
                   <div 
-                    class="flex items-center justify-between p-4 rounded-2xl transition-all cursor-pointer {selectedTableIndex === i ? 'bg-primary/10 border border-primary/20 text-primary' : 'bg-surface-container-high/30 border border-transparent text-on-surface hover:bg-surface-container-high/60'}"
+                    class="flex items-center justify-between p-4 rounded-lg transition-all cursor-pointer {selectedTableIndex === i ? 'bg-primary/10 border border-primary/20 text-primary' : 'bg-surface-container-high/30 border border-transparent text-on-surface hover:bg-surface-container-high/60'}"
                     onclick={() => selectedTableIndex = i}
                   >
                     <span class="text-sm font-bold truncate">{table.name}</span>
                     <div class="flex items-center gap-3">
-                      <span class="text-[10px] font-black bg-on-surface/5 px-2 py-0.5 rounded-md text-on-surface-variant/80">{table.tiers.length} palier(s)</span>
+                      <span class="text-[10px] font-semibold bg-on-surface/5 px-2 py-0.5 rounded-md text-on-surface-variant/80">{table.tiers.length} palier(s)</span>
                       <button 
                         onclick={(e) => { e.stopPropagation(); deleteSanctionTable(i); }}
                         class="text-on-surface-variant/40 hover:text-red-500 transition-colors"
@@ -1382,14 +1382,14 @@
                     <div class="flex items-center gap-4">
                       <FormInput 
                         bind:value={currentTable.name} 
-                        className="text-lg font-black bg-transparent border-none text-on-surface focus:ring-0 px-0 py-0 w-60"
+                        className="text-lg font-semibold bg-transparent border-none text-on-surface focus:ring-0 px-0 py-0 w-60"
                       />
                       <span class="text-xs text-on-surface-variant/60 italic font-medium">(Cliquez pour renommer)</span>
                     </div>
 
                     <!-- Exporter -->
                     <div class="flex items-center gap-2">
-                      <span class="text-[10px] font-black uppercase tracking-wider text-on-surface-variant/60 mr-2">Exporter l'échelle :</span>
+                      <span class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60 mr-2">Exporter l'échelle :</span>
                       <button 
                         onclick={() => exportTableToImage(currentTable)}
                         class="p-2 rounded-xl bg-surface-container-high/40 hover:bg-primary/10 hover:text-primary transition-all text-on-surface-variant flex items-center justify-center cursor-pointer"
@@ -1423,10 +1423,10 @@
 
                   <!-- Grille éditable de Tiers (Style Google Sheets) -->
                   <div class="max-h-[500px] overflow-y-auto pr-2">
-                    <div class="overflow-x-auto rounded-2xl border border-outline-variant/10 bg-surface-container-low/20">
+                    <div class="overflow-x-auto rounded-lg border border-outline-variant/10 bg-surface-container-low/20">
                       <table class="w-full text-left border-collapse font-inter text-xs">
                         <thead>
-                          <tr class="bg-surface-container-high/40 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/70 border-b border-outline-variant/15 select-none">
+                          <tr class="bg-surface-container-high/40 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/70 border-b border-outline-variant/15 select-none">
                             <th class="py-3 px-4 w-20 text-center border-r border-outline-variant/10">Palier</th>
                             <th class="py-3 px-4 w-48 border-r border-outline-variant/10">Action</th>
                             <th class="py-3 px-4 w-48 border-r border-outline-variant/10">Durée</th>
@@ -1438,7 +1438,7 @@
                           {#each currentTable.tiers as tier, tierIdx}
                             <tr class="group hover:bg-surface-hover/10 transition-colors">
                               <!-- Palier -->
-                              <td class="py-2.5 px-4 font-black text-center text-primary/80 select-none bg-surface-container-high/15 border-r border-outline-variant/10">
+                              <td class="py-2.5 px-4 font-semibold text-center text-primary/80 select-none bg-surface-container-high/15 border-r border-outline-variant/10">
                                 T{tier.level}
                               </td>
                               
@@ -1451,7 +1451,7 @@
                                     {tier.action === 'TIMEOUT' ? 'text-blue-500 dark:text-blue-400' : ''}
                                     {tier.action === 'KICK' ? 'text-rose-500 dark:text-rose-400' : ''}
                                     {tier.action === 'TEMP_BAN' ? 'text-red-500 dark:text-red-400 font-extrabold' : ''}
-                                    {tier.action === 'BAN' ? 'text-red-600 dark:text-red-500 font-black' : ''}
+                                    {tier.action === 'BAN' ? 'text-red-600 dark:text-red-500 font-semibold' : ''}
                                     {tier.action === 'SOFTBAN' ? 'text-purple-500 dark:text-purple-400' : ''}"
                                 >
                                   <option value="WARN" class="text-on-surface bg-surface-container-lowest">Warn</option>
@@ -1487,7 +1487,7 @@
                                     </select>
                                   </div>
                                 {:else}
-                                  <div class="h-7 flex items-center justify-center text-[10px] font-black tracking-wider text-on-surface-variant/30 select-none bg-linear-to-br from-outline-variant/5 to-transparent rounded-lg">
+                                  <div class="h-7 flex items-center justify-center text-[10px] font-semibold tracking-wider text-on-surface-variant/30 select-none bg-linear-to-br from-outline-variant/5 to-transparent rounded-lg">
                                     N/A
                                   </div>
                                 {/if}
@@ -1523,7 +1523,7 @@
                             <td colspan="5" class="p-0">
                               <button 
                                 onclick={() => addTier(selectedTableIndex)}
-                                class="w-full py-2.5 text-center text-[10px] font-black uppercase tracking-wider text-primary hover:text-primary/80 hover:bg-primary/5 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                class="w-full py-2.5 text-center text-[10px] font-semibold uppercase tracking-wider text-primary hover:text-primary/80 hover:bg-primary/5 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                               >
                                 <Papicon icon="plus" size={12} />
                                 Insérer un nouveau palier (Row)
@@ -1556,22 +1556,22 @@
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div 
-      class="modal-panel modal-panel-lg space-y-0 p-0 font-inter overflow-hidden rounded-[2.5rem]" 
+      class="modal-panel modal-panel-lg space-y-0 p-0 font-inter overflow-hidden rounded-xl" 
       onclick={(e) => e.stopPropagation()}
     >
       <!-- Hero Header Style -->
       <div class="relative bg-linear-to-br from-primary/10 via-surface to-surface p-8 border-b border-outline-variant/5">
         <div class="flex items-start justify-between gap-4">
           <div>
-            <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Dossier de Sanction</p>
-            <h3 id="modal-title" class="text-2xl font-black text-on-surface mt-1">{typeLabel(selectedSanction.type)}</h3>
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">Dossier de Sanction</p>
+            <h3 id="modal-title" class="text-2xl font-semibold text-on-surface mt-1">{typeLabel(selectedSanction.type)}</h3>
             <p class="text-xs font-bold text-on-surface-variant/60 mt-1">
               Appliquée à 
-              <button onclick={() => openCaseModal(selectedSanction.targetUserId, selectedSanction.targetTag)} class="text-on-surface hover:text-primary transition-colors font-black">
+              <button onclick={() => openCaseModal(selectedSanction.targetUserId, selectedSanction.targetTag)} class="text-on-surface hover:text-primary transition-colors font-semibold">
                 @{selectedSanction.targetTag}
               </button> 
               par 
-              <button onclick={() => openCaseModal(selectedSanction.moderatorUserId, selectedSanction.moderatorTag)} class="text-on-surface hover:text-primary transition-colors font-black">
+              <button onclick={() => openCaseModal(selectedSanction.moderatorUserId, selectedSanction.moderatorTag)} class="text-on-surface hover:text-primary transition-colors font-semibold">
                 @{selectedSanction.moderatorTag}
               </button>
             </p>
@@ -1591,37 +1591,37 @@
           <div class="space-y-8 animate-in fade-in duration-300">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div class="space-y-1.5">
-                <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Date de l'incident</p>
-                <div class="rounded-2xl bg-surface-container-high/40 px-5 py-3 text-sm font-bold text-on-surface">
+                <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Date de l'incident</p>
+                <div class="rounded-lg bg-surface-container-high/40 px-5 py-3 text-sm font-bold text-on-surface">
                   {new Date(selectedReport.incidentAt).toLocaleString('fr-FR')}
                 </div>
               </div>
               <div class="space-y-1.5">
-                <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Durée annoncée</p>
-                <div class="rounded-2xl bg-surface-container-high/40 px-5 py-3 text-sm font-bold text-on-surface">
+                <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Durée annoncée</p>
+                <div class="rounded-lg bg-surface-container-high/40 px-5 py-3 text-sm font-bold text-on-surface">
                   {selectedReport.sanctionDurationLabel || 'N/A'}
                 </div>
               </div>
             </div>
 
             <div class="space-y-3">
-              <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Règles enfreintes</p>
+              <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Règles enfreintes</p>
               <SelectedRuleChips selectedRules={selectedReportRules} />
             </div>
 
             <div class="space-y-3">
-              <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Raison détaillée</p>
-              <div class="rounded-3xl bg-surface-container-high/30 p-6 text-sm text-on-surface-variant leading-relaxed italic border border-outline-variant/5">
+              <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Raison détaillée</p>
+              <div class="rounded-xl bg-surface-container-high/30 p-6 text-sm text-on-surface-variant leading-relaxed italic border border-outline-variant/5">
                 "{selectedReport.detailedReason}"
               </div>
             </div>
 
             {#if selectedReport.evidenceLinks && selectedReport.evidenceLinks.length > 0}
               <div class="space-y-3">
-                <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Preuves</p>
+                <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Preuves</p>
                 <div class="flex flex-wrap gap-2">
                   {#each selectedReport.evidenceLinks as link}
-                    <a href={link} target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 rounded-xl bg-primary/5 px-4 py-2.5 text-[11px] font-black text-primary uppercase tracking-widest transition-all hover:bg-primary/10">
+                    <a href={link} target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 rounded-xl bg-primary/5 px-4 py-2.5 text-[11px] font-semibold text-primary uppercase tracking-widest transition-all hover:bg-primary/10">
                       <Papicon icon="external-link" size={14} />
                       Lien de preuve
                     </a>
@@ -1632,8 +1632,8 @@
 
             {#if selectedReport.additionalNotes}
               <div class="space-y-3">
-                <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Notes complémentaires</p>
-                <p class="text-sm text-on-surface-variant/70 leading-relaxed bg-surface-container-low p-4 rounded-2xl border border-outline-variant/10">{selectedReport.additionalNotes}</p>
+                <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Notes complémentaires</p>
+                <p class="text-sm text-on-surface-variant/70 leading-relaxed bg-surface-container-low p-4 rounded-lg border border-outline-variant/10">{selectedReport.additionalNotes}</p>
               </div>
             {/if}
 
@@ -1651,7 +1651,7 @@
               {#if canEditSelectedReport}
                 <button
                   onclick={startEditing}
-                  class="inline-flex items-center gap-2 rounded-2xl bg-primary px-8 py-3 text-[11px] font-black text-on-primary uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-primary/20"
+                  class="inline-flex items-center gap-2 rounded-lg bg-primary px-8 py-3 text-[11px] font-semibold text-on-primary uppercase tracking-widest transition-all hover: active:scale-95 "
                 >
                   <Papicon icon="edit-3" size={16} />
                   Modifier le rapport
@@ -1663,7 +1663,7 @@
           <!-- Create / Edit Form -->
           <div class="space-y-8 animate-in fade-in duration-300">
             {#if !canCreateSelectedReport && !isEditing}
-              <div class="rounded-2xl bg-amber-500/10 border border-amber-500/20 p-4 flex items-center gap-4">
+              <div class="rounded-lg bg-amber-500/10 border border-amber-500/20 p-4 flex items-center gap-4">
                 <Papicon icon="lock" class="text-amber-500" />
                 <p class="text-xs font-bold text-amber-700">Seule la personne qui a appliqué la sanction peut créer ce rapport.</p>
               </div>
@@ -1671,17 +1671,17 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div class="space-y-1.5">
-                <label for="report-incident-at" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Date et heure de l'incident</label>
-                <input id="report-incident-at" type="datetime-local" bind:value={incidentAt} class="w-full rounded-2xl bg-surface-container-high px-5 py-3 text-sm font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all" />
+                <label for="report-incident-at" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Date et heure de l'incident</label>
+                <input id="report-incident-at" type="datetime-local" bind:value={incidentAt} class="w-full rounded-lg bg-surface-container-high px-5 py-3 text-sm font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all" />
               </div>
               <div class="space-y-1.5">
-                <label for="report-duration" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Durée appliquée</label>
-                <input id="report-duration" type="text" bind:value={sanctionDurationLabel} placeholder="Ex: 2h, 1j, Permanent" class="w-full rounded-2xl bg-surface-container-high px-5 py-3 text-sm font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all" />
+                <label for="report-duration" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Durée appliquée</label>
+                <input id="report-duration" type="text" bind:value={sanctionDurationLabel} placeholder="Ex: 2h, 1j, Permanent" class="w-full rounded-lg bg-surface-container-high px-5 py-3 text-sm font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all" />
               </div>
             </div>
 
             <div class="space-y-3">
-              <label for="report-rules" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Règles enfreintes</label>
+              <label for="report-rules" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Règles enfreintes</label>
               <ReportRuleSelector
                 id="report-rules"
                 options={reportRuleOptions}
@@ -1693,12 +1693,12 @@
             </div>
 
             <div class="space-y-1.5">
-              <label for="report-reason" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Raison détaillée</label>
-              <textarea id="report-reason" bind:value={detailedReason} rows={4} placeholder="Décrivez précisément les faits reprochés..." class="w-full rounded-3xl bg-surface-container-high px-5 py-4 text-sm font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"></textarea>
+              <label for="report-reason" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Raison détaillée</label>
+              <textarea id="report-reason" bind:value={detailedReason} rows={4} placeholder="Décrivez précisément les faits reprochés..." class="w-full rounded-xl bg-surface-container-high px-5 py-4 text-sm font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"></textarea>
             </div>
 
             <div class="space-y-3">
-              <p id="report-evidence-label" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Preuves (URLs)</p>
+              <p id="report-evidence-label" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Preuves (URLs)</p>
               <EvidenceInputList
                 bind:links={evidenceLinks}
                 labelId="report-evidence-label"
@@ -1707,12 +1707,12 @@
             </div>
 
             <div class="space-y-1.5">
-              <label for="report-notes" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Notes contextuelles</label>
-              <textarea id="report-notes" bind:value={additionalNotes} rows={2} placeholder="Contexte, antécédents, remarques..." class="w-full rounded-2xl bg-surface-container-high px-5 py-3 text-sm font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"></textarea>
+              <label for="report-notes" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Notes contextuelles</label>
+              <textarea id="report-notes" bind:value={additionalNotes} rows={2} placeholder="Contexte, antécédents, remarques..." class="w-full rounded-lg bg-surface-container-high px-5 py-3 text-sm font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"></textarea>
             </div>
 
             {#if reportMessage}
-              <div class="rounded-xl p-4 text-xs font-black uppercase tracking-widest {reportMessageIsError ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}">
+              <div class="rounded-xl p-4 text-xs font-semibold uppercase tracking-widest {reportMessageIsError ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}">
                 {reportMessage}
               </div>
             {/if}
@@ -1721,14 +1721,14 @@
               {#if isEditing}
                 <button
                   onclick={() => isEditing = false}
-                  class="flex-1 py-4 rounded-2xl bg-on-surface/5 text-[11px] font-black uppercase tracking-widest text-on-surface-variant transition-all hover:bg-on-surface/10"
+                  class="flex-1 py-4 rounded-lg bg-on-surface/5 text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant transition-all hover:bg-on-surface/10"
                 >
                   Annuler
                 </button>
                 <button
                   onclick={handleUpdateReport}
                   disabled={updateReportBusy}
-                  class="flex-2 py-4 rounded-2xl bg-primary text-on-primary text-[11px] font-black uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-primary/20 disabled:opacity-50"
+                  class="flex-2 py-4 rounded-lg bg-primary text-on-primary text-[11px] font-semibold uppercase tracking-widest transition-all hover: active:scale-95  disabled:opacity-50"
                 >
                   {updateReportBusy ? 'Enregistrement...' : 'Mettre à jour le rapport'}
                 </button>
@@ -1736,7 +1736,7 @@
                 <button
                   onclick={submitReport}
                   disabled={creatingReport || !canCreateSelectedReport}
-                  class="w-full py-4 rounded-2xl bg-primary text-on-primary text-[11px] font-black uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-primary/20 disabled:opacity-50"
+                  class="w-full py-4 rounded-lg bg-primary text-on-primary text-[11px] font-semibold uppercase tracking-widest transition-all hover: active:scale-95  disabled:opacity-50"
                 >
                   {creatingReport ? 'Création en cours...' : 'Finaliser et créer le rapport'}
                 </button>
@@ -1769,8 +1769,8 @@
       tabindex="-1"
     >
       <div>
-        <p class="text-[10px] font-black uppercase tracking-[0.25em] text-red-500">Action sensible</p>
-        <h3 id="delete-sanction-title" class="mt-1 text-xl font-black text-on-surface">Confirmer la suppression</h3>
+        <p class="text-[10px] font-semibold uppercase tracking-wider text-red-500">Action sensible</p>
+        <h3 id="delete-sanction-title" class="mt-1 text-xl font-semibold text-on-surface">Confirmer la suppression</h3>
         <p class="mt-2 text-sm text-on-surface-variant">
           Tu es sur le point de supprimer l'infraction <span class="font-bold text-on-surface">{typeLabel(pendingDeletion.type)}</span>
           pour <span class="font-bold text-on-surface">{pendingDeletion.targetTag}</span>. Cette action est irreversible.

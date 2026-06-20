@@ -12,19 +12,19 @@
   } = $props();
 </script>
 
-<div class="premium-card rounded-[2.25rem] p-6 flex items-center gap-5 group {cardClass}">
-  <div class="w-14 h-14 rounded-[1.25rem] {toneClass} flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner shrink-0">
-    <Papicon {icon} size={24} />
+<div class="section-card p-5 flex items-center gap-4 {cardClass}">
+  <div class="w-10 h-10 rounded-lg {toneClass} flex items-center justify-center shrink-0">
+    <Papicon {icon} size={20} />
   </div>
   <div class="flex-1 min-w-0">
-    <p class="text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant/40 truncate">{label}</p>
+    <p class="text-[11px] font-medium uppercase tracking-wider text-on-surface-variant truncate">{label}</p>
     {#if loading}
-      <div class="mt-2.5 mb-1.5 h-8 w-16 animate-pulse bg-on-surface/10 rounded-lg"></div>
+      <div class="mt-1.5 h-7 w-14 animate-pulse bg-surface-container-high rounded"></div>
     {:else}
-      <p class="text-3xl font-black font-headline text-on-surface mt-1 tracking-tighter truncate">{value}</p>
+      <p class="text-2xl font-semibold text-on-surface mt-0.5 tracking-tight truncate">{value}</p>
     {/if}
     {#if note}
-      <p class="text-xs font-medium text-on-surface-variant/60 mt-1 truncate">{note}</p>
+      <p class="text-xs text-on-surface-variant mt-0.5 truncate">{note}</p>
     {/if}
   </div>
 </div>

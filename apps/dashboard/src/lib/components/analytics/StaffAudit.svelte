@@ -22,26 +22,26 @@
       { l: 'Réunions', v: fmt(data.staff?.meetings), icon: 'UsersThree', color: 'amber-500' },
       { l: 'Présence moy.', v: `${data.staff?.avgMeetingAttendance ?? 0}%`, icon: 'CheckCircle', color: 'emerald-500' },
     ] as s}
-      <div class="premium-card p-6 rounded-3xl group">
+      <div class="premium-card p-6 rounded-xl group">
         <div class="flex justify-between items-start mb-4">
           <div class="p-2 rounded-xl bg-on-surface/5 text-on-surface-variant/40 group-hover:text-primary transition-colors">
             <Papicon icon={s.icon} size={18} />
           </div>
-          <span class="text-[9px] font-black text-on-surface-variant/40 uppercase tracking-widest">{s.l}</span>
+          <span class="text-[11px] font-semibold text-on-surface-variant/40 uppercase tracking-widest">{s.l}</span>
         </div>
-        <div class="text-3xl font-black text-on-surface">{s.v}</div>
+        <div class="text-lg font-semibold text-on-surface">{s.v}</div>
       </div>
     {/each}
   </div>
 
-  <div class="premium-card p-8 rounded-[2.5rem] space-y-6 flex flex-col">
+  <div class="premium-card p-8 rounded-xl space-y-6 flex flex-col">
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-4">
-        <div class="p-3 rounded-2xl bg-primary/10 text-primary">
+        <div class="p-3 rounded-lg bg-primary/10 text-primary">
           <Papicon icon="Crown" size={24} />
         </div>
         <div>
-          <h3 class="text-xl font-black text-on-surface">Leaderboard Staff</h3>
+          <h3 class="text-xl font-semibold text-on-surface">Leaderboard Staff</h3>
           <p class="text-xs font-bold text-on-surface-variant/40">Activité globale de l'équipe</p>
         </div>
       </div>
@@ -57,9 +57,9 @@
       {#each staffList.slice(0, 5) as s, i}
         <button 
           onclick={() => onOpenMember(s.userId, s.name)}
-          class="w-full flex items-center gap-4 p-4 rounded-2xl bg-surface-container-high/20 hover:bg-surface-container-high/50 border border-outline-variant/5 transition-all text-left group"
+          class="w-full flex items-center gap-4 p-4 rounded-lg bg-surface-container-high/20 hover:bg-surface-container-high/50 border border-outline-variant/5 transition-all text-left group"
         >
-          <div class="flex items-center justify-center w-8 h-8 rounded-full font-black text-xs {i < 3 ? 'bg-amber-500/10 text-amber-500' : 'bg-on-surface/5 text-on-surface-variant/30'}">
+          <div class="flex items-center justify-center w-8 h-8 rounded-full font-semibold text-xs {i < 3 ? 'bg-amber-500/10 text-amber-500' : 'bg-on-surface/5 text-on-surface-variant/30'}">
             {i + 1}
           </div>
           <div class="relative">
@@ -67,22 +67,22 @@
             <div class="absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-surface bg-emerald-500"></div>
           </div>
           <div class="flex-1 min-w-0">
-            <span class="text-base font-black text-on-surface block truncate">{s.name}</span>
+            <span class="text-base font-semibold text-on-surface block truncate">{s.name}</span>
             <span class="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest">{s.grade || 'Staff'}</span>
           </div>
           <div class="hidden md:flex items-center gap-6 mr-4">
             <div class="text-right">
-              <p class="text-[9px] font-black text-on-surface-variant/30 uppercase tracking-widest">Messages</p>
+              <p class="text-[11px] font-semibold text-on-surface-variant/30 uppercase tracking-widest">Messages</p>
               <p class="text-xs font-bold text-on-surface">{fmt(s.messages)}</p>
             </div>
             <div class="text-right">
-              <p class="text-[9px] font-black text-on-surface-variant/30 uppercase tracking-widest">Vocal</p>
+              <p class="text-[11px] font-semibold text-on-surface-variant/30 uppercase tracking-widest">Vocal</p>
               <p class="text-xs font-bold text-on-surface">{fmtH(s.voiceMinutes)}</p>
             </div>
           </div>
           <div class="text-right pl-4 border-l border-outline-variant/10">
-            <p class="text-[9px] font-black text-primary uppercase tracking-widest">Score</p>
-            <p class="text-lg font-black text-primary">{fmt(s.score)}</p>
+            <p class="text-[11px] font-semibold text-primary uppercase tracking-widest">Score</p>
+            <p class="text-lg font-semibold text-primary">{fmt(s.score)}</p>
           </div>
         </button>
       {/each}

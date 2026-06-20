@@ -334,24 +334,24 @@
 
 <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
   <!-- En-tête -->
-  <header class="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-surface-container-low/40 backdrop-blur-3xl p-8 rounded-4xl border border-outline-variant/30">
-    <div class="flex items-center gap-6">
-      <div class="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shadow-inner">
-        <Papicon icon="Trophy" size={32} />
+  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
+    <div class="flex items-center gap-4">
+      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+        <Papicon icon="Trophy" size={20} />
       </div>
       <div>
-        <h1 class="text-3xl font-black tracking-tight leading-tight">Leveling & XP</h1>
-        <p class="text-on-surface-variant/80 font-medium">Configurez le gain d'expérience des membres et les rôles de récompense.</p>
+        <h1 class="text-lg font-semibold tracking-tight leading-tight">Leveling & XP</h1>
+        <p class="text-sm text-on-surface-variant/70 font-medium">Configurez le gain d'expérience des membres et les rôles de récompense.</p>
       </div>
     </div>
     {#if !loading}
-      <div class="flex items-center gap-4 bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-6 py-3.5">
-        <span class="text-sm font-bold text-on-surface-variant/80">Statut du module :</span>
-        <ToggleSwitch 
-          checked={config.enabled} 
-          onToggle={(v: boolean) => { 
-            config.enabled = v; 
-          }} 
+      <div class="flex items-center gap-3 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5">
+        <span class="text-xs font-bold text-on-surface-variant/80">Statut du module :</span>
+        <ToggleSwitch
+          checked={config.enabled}
+          onToggle={(v: boolean) => {
+            config.enabled = v;
+          }}
           disabled={!canManageSettings}
         />
       </div>
@@ -362,11 +362,11 @@
   <InlineFeedback state={rewardAction} />
 
   <!-- Navigation par onglets -->
-  <nav class="flex gap-2 bg-surface-container-low/30 border border-outline-variant/10 rounded-3xl p-2 w-fit">
+  <nav class="flex gap-2 bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-2 w-fit">
     <button
       id="tab-config"
       onclick={() => activeTab = 'config'}
-      class="flex items-center gap-2.5 px-6 py-3 rounded-2xl text-sm font-black transition-all duration-300 {activeTab === 'config' ? 'bg-primary text-on-primary shadow-lg shadow-primary/20 scale-[1.02]' : 'text-on-surface-variant/70 hover:bg-surface-container-high/40 hover:text-on-surface'}"
+      class="flex items-center gap-2.5 px-6 py-3 rounded-lg text-sm font-semibold transition-all duration-300 {activeTab === 'config' ? 'bg-primary text-on-primary  ' : 'text-on-surface-variant/70 hover:bg-surface-container-high/40 hover:text-on-surface'}"
     >
       <Papicon icon="Settings" size={16} />
       Configuration
@@ -374,12 +374,12 @@
     <button
       id="tab-leaderboard"
       onclick={() => activeTab = 'leaderboard'}
-      class="flex items-center gap-2.5 px-6 py-3 rounded-2xl text-sm font-black transition-all duration-300 {activeTab === 'leaderboard' ? 'bg-tertiary text-on-tertiary shadow-lg shadow-tertiary/20 scale-[1.02]' : 'text-on-surface-variant/70 hover:bg-surface-container-high/40 hover:text-on-surface'}"
+      class="flex items-center gap-2.5 px-6 py-3 rounded-lg text-sm font-semibold transition-all duration-300 {activeTab === 'leaderboard' ? 'bg-tertiary text-on-tertiary shadow-lg shadow-tertiary/20 ' : 'text-on-surface-variant/70 hover:bg-surface-container-high/40 hover:text-on-surface'}"
     >
       <Papicon icon="Grades" size={16} />
       Classement
       {#if levels.length > 0}
-        <span class="text-[10px] font-black px-1.5 py-0.5 rounded-lg {activeTab === 'leaderboard' ? 'bg-on-tertiary/20' : 'bg-surface-container-high/60 text-on-surface-variant/60'}">
+        <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-lg {activeTab === 'leaderboard' ? 'bg-on-tertiary/20' : 'bg-surface-container-high/60 text-on-surface-variant/60'}">
           {levels.length}
         </span>
       {/if}
@@ -388,7 +388,7 @@
       <button
         id="tab-import"
         onclick={() => activeTab = 'import'}
-        class="flex items-center gap-2.5 px-6 py-3 rounded-2xl text-sm font-black transition-all duration-300 {activeTab === 'import' ? 'bg-secondary text-on-secondary shadow-lg shadow-secondary/20 scale-[1.02]' : 'text-on-surface-variant/70 hover:bg-surface-container-high/40 hover:text-on-surface'}"
+        class="flex items-center gap-2.5 px-6 py-3 rounded-lg text-sm font-semibold transition-all duration-300 {activeTab === 'import' ? 'bg-secondary text-on-secondary shadow-lg shadow-secondary/20 ' : 'text-on-surface-variant/70 hover:bg-surface-container-high/40 hover:text-on-surface'}"
       >
         <Papicon icon="Upload" size={16} />
         Importer
@@ -409,8 +409,8 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in duration-300">
       <div class="lg:col-span-2 space-y-8">
         <!-- Paramètres XP -->
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
-          <h3 class="text-xl font-black flex items-center gap-3">
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+          <h3 class="text-xl font-semibold flex items-center gap-3">
             <Papicon icon="Settings" size={20} class="text-primary" />
             Paramètres d'Expérience (XP)
           </h3>
@@ -422,7 +422,7 @@
                 id="xpMin"
                 type="number" 
                 bind:value={config.xpMin} 
-                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                 disabled={!canManageSettings}
               />
             </div>
@@ -433,7 +433,7 @@
                 id="xpMax"
                 type="number" 
                 bind:value={config.xpMax} 
-                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                 disabled={!canManageSettings}
               />
             </div>
@@ -444,7 +444,7 @@
                 id="cooldown"
                 type="number" 
                 bind:value={config.cooldownSeconds} 
-                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                 disabled={!canManageSettings}
               />
             </div>
@@ -455,13 +455,13 @@
                 id="vocalXp"
                 type="number" 
                 bind:value={config.vocalXpPerMin} 
-                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                 disabled={!canManageSettings}
               />
             </div>
 
             <!-- Toggle cumul récompenses -->
-            <div class="space-y-1.5 flex items-center justify-between bg-surface-container-high/20 border border-outline-variant/5 rounded-2xl px-6 py-4 col-span-2 mt-2">
+            <div class="space-y-1.5 flex items-center justify-between bg-surface-container-high/20 border border-outline-variant/5 rounded-lg px-6 py-4 col-span-2 mt-2">
               <div>
                 <span class="text-xs font-bold text-on-surface">Cumuler les Rôles de Récompense</span>
                 <p class="text-[10px] text-on-surface-variant/60 font-medium">Les membres conservent tous les rôles obtenus au lieu de ne garder que le plus élevé.</p>
@@ -476,13 +476,13 @@
             <!-- Salons exclus -->
             <div class="space-y-2 col-span-2 pt-2 border-t border-outline-variant/10">
               <p class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salons Exclus (Pas de gain d'XP)</p>
-              <div class="flex flex-wrap gap-2 p-2.5 bg-surface-container-high/20 border border-outline-variant/10 rounded-2xl min-h-[46px] items-center">
+              <div class="flex flex-wrap gap-2 p-2.5 bg-surface-container-high/20 border border-outline-variant/10 rounded-lg min-h-[46px] items-center">
                 {#each config.ignoredChannels as channelId}
                   {@const channel = availableChannels.find(c => c.id === channelId)}
                   <span class="flex items-center gap-1.5 px-3 py-1 bg-surface-container-low text-xs font-bold text-on-surface-variant rounded-xl border border-outline-variant/10 shadow-sm">
                     #{channel ? channel.name : channelId}
                     {#if canManageSettings}
-                      <button type="button" onclick={() => config.ignoredChannels = config.ignoredChannels.filter(id => id !== channelId)} class="text-[10px] text-error hover:scale-110 transition-transform">✕</button>
+                      <button type="button" onclick={() => config.ignoredChannels = config.ignoredChannels.filter(id => id !== channelId)} class="text-[10px] text-error  transition-transform">✕</button>
                     {/if}
                   </span>
                 {:else}
@@ -505,13 +505,13 @@
             <!-- Rôles exclus -->
             <div class="space-y-2 col-span-2 pt-2 border-t border-outline-variant/10">
               <p class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Rôles Exclus (Pas de gain d'XP)</p>
-              <div class="flex flex-wrap gap-2 p-2.5 bg-surface-container-high/20 border border-outline-variant/10 rounded-2xl min-h-[46px] items-center">
+              <div class="flex flex-wrap gap-2 p-2.5 bg-surface-container-high/20 border border-outline-variant/10 rounded-lg min-h-[46px] items-center">
                 {#each config.ignoredRoles as roleId}
                   {@const role = availableRoles.find(r => r.id === roleId)}
                   <span class="flex items-center gap-1.5 px-3 py-1 bg-surface-container-low text-xs font-bold text-on-surface-variant rounded-xl border border-outline-variant/10 shadow-sm">
                     @{role ? role.name : roleId}
                     {#if canManageSettings}
-                      <button type="button" onclick={() => config.ignoredRoles = config.ignoredRoles.filter(id => id !== roleId)} class="text-[10px] text-error hover:scale-110 transition-transform">✕</button>
+                      <button type="button" onclick={() => config.ignoredRoles = config.ignoredRoles.filter(id => id !== roleId)} class="text-[10px] text-error  transition-transform">✕</button>
                     {/if}
                   </span>
                 {:else}
@@ -536,7 +536,7 @@
               <h4 class="text-sm font-bold text-on-surface-variant">Multiplicateurs d'XP par Rôle</h4>
               
               {#if canManageSettings}
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end bg-surface-container-high/20 p-4 rounded-3xl border border-outline-variant/5">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end bg-surface-container-high/20 p-4 rounded-xl border border-outline-variant/5">
                   <div class="space-y-1.5">
                     <label for="multRole" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Rôle</label>
                     <SearchableSelect 
@@ -544,7 +544,7 @@
                       bind:value={newMultRoleId}
                       options={availableRoles.filter(r => !Object.keys(config.xpMultipliers).includes(r.id)).map(r => ({ id: r.id, name: `@${r.name}` }))} 
                       placeholder="Choisir un rôle" 
-                      className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl"
+                      className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg"
                       clearable={true}
                     />
                   </div>
@@ -558,7 +558,7 @@
                       min="0.1"
                       max="10"
                       bind:value={newMultValue} 
-                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                      class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                     />
                   </div>
 
@@ -566,21 +566,21 @@
                     type="button"
                     onclick={handleAddMultiplier}
                     disabled={!newMultRoleId || !newMultValue}
-                    class="w-full py-3.5 bg-secondary text-on-secondary font-black uppercase tracking-widest text-xs rounded-2xl hover:scale-105 transition-all disabled:opacity-50"
+                    class="w-full py-3.5 bg-secondary text-on-secondary font-semibold uppercase tracking-widest text-xs rounded-lg hover:scale-105 transition-all disabled:opacity-50"
                   >
                     Ajouter
                   </button>
                 </div>
               {/if}
 
-              <div class="overflow-hidden rounded-2xl border border-outline-variant/10 bg-surface-container-low/10">
+              <div class="overflow-hidden rounded-lg border border-outline-variant/10 bg-surface-container-low/10">
                 <table class="w-full border-collapse text-left">
                   <thead>
                     <tr class="bg-surface-container-high/50 border-b border-outline-variant/10">
-                      <th class="px-6 py-3 text-xs font-black text-on-surface-variant/70 uppercase tracking-wider">Rôle</th>
-                      <th class="px-6 py-3 text-xs font-black text-on-surface-variant/70 uppercase tracking-wider">Multiplicateur</th>
+                      <th class="px-6 py-3 text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">Rôle</th>
+                      <th class="px-6 py-3 text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">Multiplicateur</th>
                       {#if canManageSettings}
-                        <th class="px-6 py-3 text-right text-xs font-black text-on-surface-variant/70 uppercase tracking-wider">Actions</th>
+                        <th class="px-6 py-3 text-right text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">Actions</th>
                       {/if}
                     </tr>
                   </thead>
@@ -588,7 +588,7 @@
                     {#each Object.entries(config.xpMultipliers) as [roleId, mult]}
                       <tr class="hover:bg-surface-hover/20 transition-all font-semibold">
                         <td class="px-6 py-3.5 text-sm font-semibold">{getRoleName(roleId)}</td>
-                        <td class="px-6 py-3.5 text-sm font-black text-primary">{mult}x</td>
+                        <td class="px-6 py-3.5 text-sm font-semibold text-primary">{mult}x</td>
                         {#if canManageSettings}
                           <td class="px-6 py-3.5 text-right">
                             <button 
@@ -627,7 +627,7 @@
                   ...availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))
                 ]} 
                 placeholder="— Sélectionner —" 
-                className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
+                className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
                 disabled={!canManageSettings}
               />
             </div>
@@ -638,11 +638,11 @@
                 id="lvlMsg"
                 type="text" 
                 bind:value={config.levelUpMessage} 
-                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                 placeholder={"Ex: Bravo {user} ! Tu es niveau {level} !"}
                 disabled={!canManageSettings}
               />
-              <p class="text-[9px] text-on-surface-variant/40 ml-2">Variables utilisables : <code class="bg-surface-container px-1 py-0.5 rounded text-primary dark:text-blue-300">{`{user}`}</code> (mention), <code class="bg-surface-container px-1 py-0.5 rounded text-primary dark:text-blue-300">{`{username}`}</code>, <code class="bg-surface-container px-1 py-0.5 rounded text-primary dark:text-blue-300">{`{level}`}</code></p>
+              <p class="text-[11px] text-on-surface-variant/40 ml-2">Variables utilisables : <code class="bg-surface-container px-1 py-0.5 rounded text-primary dark:text-blue-300">{`{user}`}</code> (mention), <code class="bg-surface-container px-1 py-0.5 rounded text-primary dark:text-blue-300">{`{username}`}</code>, <code class="bg-surface-container px-1 py-0.5 rounded text-primary dark:text-blue-300">{`{level}`}</code></p>
             </div>
           </div>
 
@@ -651,14 +651,14 @@
       </div>
 
       <!-- Récompenses (sidebar droite) -->
-      <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
-        <h3 class="text-xl font-black flex items-center gap-3">
+      <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+        <h3 class="text-xl font-semibold flex items-center gap-3">
           <Papicon icon="Award" size={20} class="text-secondary" />
           Rôles Récompenses
         </h3>
 
         {#if canManageSettings}
-          <form onsubmit={(e) => { e.preventDefault(); handleAddReward(); }} class="space-y-4 bg-surface-container-high/20 p-4 rounded-3xl border border-outline-variant/5">
+          <form onsubmit={(e) => { e.preventDefault(); handleAddReward(); }} class="space-y-4 bg-surface-container-high/20 p-4 rounded-xl border border-outline-variant/5">
             <div class="space-y-1.5">
               <label for="rewardLvl" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Niveau Requis</label>
               <input 
@@ -667,7 +667,7 @@
                 min="1"
                 placeholder="Ex: 5"
                 bind:value={newRewardLevel} 
-                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                 required
               />
             </div>
@@ -679,35 +679,35 @@
                 bind:value={newRewardRoleId} 
                 options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} 
                 placeholder="Choisir un rôle" 
-                className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
+                className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
               />
             </div>
 
             <button 
               type="submit"
               disabled={!newRewardLevel || !newRewardRoleId}
-              class="w-full py-3.5 bg-secondary text-on-secondary font-black uppercase tracking-widest text-xs rounded-2xl hover:scale-105 transition-all disabled:opacity-50"
+              class="w-full py-3.5 bg-secondary text-on-secondary font-semibold uppercase tracking-widest text-xs rounded-lg hover:scale-105 transition-all disabled:opacity-50"
             >
               Ajouter le rôle récompense
             </button>
           </form>
         {/if}
 
-        <div class="overflow-hidden rounded-3xl border border-outline-variant/10 bg-surface-container-low/10">
+        <div class="overflow-hidden rounded-xl border border-outline-variant/10 bg-surface-container-low/10">
           <table class="w-full border-collapse text-left">
             <thead>
               <tr class="bg-surface-container-high/50 border-b border-outline-variant/10">
-                <th class="px-5 py-4 text-xs font-black text-on-surface-variant/70 uppercase tracking-wider">Niveau</th>
-                <th class="px-5 py-4 text-xs font-black text-on-surface-variant/70 uppercase tracking-wider">Rôle</th>
+                <th class="px-5 py-4 text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">Niveau</th>
+                <th class="px-5 py-4 text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">Rôle</th>
                 {#if canManageSettings}
-                  <th class="px-5 py-4 text-right text-xs font-black text-on-surface-variant/70 uppercase tracking-wider">–</th>
+                  <th class="px-5 py-4 text-right text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">–</th>
                 {/if}
               </tr>
             </thead>
             <tbody class="divide-y divide-outline-variant/5">
               {#each rewards as reward}
                 <tr class="hover:bg-surface-hover/20 transition-all">
-                  <td class="px-5 py-4 font-black text-primary text-sm">Lvl {reward.level}</td>
+                  <td class="px-5 py-4 font-semibold text-primary text-sm">Lvl {reward.level}</td>
                   <td class="px-5 py-4 text-xs font-semibold">{getRoleName(reward.roleId)}</td>
                   {#if canManageSettings}
                     <td class="px-5 py-4 text-right">
@@ -737,14 +737,14 @@
     <div class="space-y-6 animate-in fade-in duration-300">
 
       <!-- Bannière lien public premium -->
-      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-linear-to-r from-tertiary/10 to-secondary/10 border border-tertiary/20 rounded-4xl p-6 px-8 shadow-xs relative overflow-hidden group">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-linear-to-r from-tertiary/10 to-secondary/10 border border-tertiary/20 rounded-xl p-6 px-8 shadow-xs relative overflow-hidden group">
         <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700" style="background: radial-gradient(circle, color-mix(in srgb, var(--color-tertiary) 5%, transparent) 0%, transparent 70%);"></div>
         <div class="flex items-center gap-4 relative z-10">
-          <div class="w-12 h-12 rounded-2xl bg-tertiary/10 border border-tertiary/20 flex items-center justify-center text-tertiary shadow-inner transform group-hover:scale-105 transition-transform duration-350">
+          <div class="w-12 h-12 rounded-lg bg-tertiary/10 border border-tertiary/20 flex items-center justify-center text-tertiary shadow-inner transform  transition-transform duration-350">
             <Papicon icon="Globe" size={22} />
           </div>
           <div>
-            <p class="text-sm font-black text-on-surface">Page publique du classement</p>
+            <p class="text-sm font-semibold text-on-surface">Page publique du classement</p>
             <p class="text-xs text-on-surface-variant/70 font-medium">Partagez ce lien avec vos membres pour qu'ils consultent leur progression en direct.</p>
           </div>
         </div>
@@ -753,14 +753,14 @@
             href={publicLeaderboardUrl}
             target="_blank"
             rel="noopener noreferrer"
-            class="flex items-center justify-center gap-2 px-5 py-3 bg-tertiary/20 text-tertiary border border-tertiary/25 rounded-2xl text-xs font-black hover:bg-tertiary/30 transition-all hover:scale-103 w-full sm:w-auto text-center"
+            class="flex items-center justify-center gap-2 px-5 py-3 bg-tertiary/20 text-tertiary border border-tertiary/25 rounded-lg text-xs font-semibold hover:bg-tertiary/30 transition-all hover:scale-103 w-full sm:w-auto text-center"
           >
             <Papicon icon="ExternalLink" size={14} />
             Voir la page
           </a>
           <button
             onclick={copyPublicUrl}
-            class="flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-xs font-black transition-all hover:scale-103 w-full sm:w-auto {copySuccess ? 'bg-green-500/15 text-green-400 border border-green-500/20' : 'bg-surface-container-high/40 text-on-surface-variant border border-outline-variant/10 hover:bg-surface-container-high/60'}"
+            class="flex items-center justify-center gap-2 px-5 py-3 rounded-lg text-xs font-semibold transition-all hover:scale-103 w-full sm:w-auto {copySuccess ? 'bg-green-500/15 text-green-400 border border-green-500/20' : 'bg-surface-container-high/40 text-on-surface-variant border border-outline-variant/10 hover:bg-surface-container-high/60'}"
           >
             {#if copySuccess}
               <Papicon icon="Check" size={14} />
@@ -776,29 +776,29 @@
       <!-- Stats globales -->
       {#if levels.length > 0}
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-3xl p-5 text-center space-y-1.5 hover:border-primary/20 transition-all duration-300 group">
-            <p class="text-2xl font-black text-primary group-hover:scale-105 transition-transform duration-300">{levels.length}</p>
+          <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 text-center space-y-1.5 hover:border-primary/20 transition-all duration-300 group">
+            <p class="text-2xl font-semibold text-primary  transition-transform duration-300">{levels.length}</p>
             <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Membres classés</p>
           </div>
-          <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-3xl p-5 text-center space-y-1.5 hover:border-secondary/20 transition-all duration-300 group">
-            <p class="text-2xl font-black text-secondary group-hover:scale-105 transition-transform duration-300">{maxLevel}</p>
+          <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 text-center space-y-1.5 hover:border-secondary/20 transition-all duration-300 group">
+            <p class="text-2xl font-semibold text-secondary  transition-transform duration-300">{maxLevel}</p>
             <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Niveau max</p>
           </div>
-          <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-3xl p-5 text-center space-y-1.5 hover:border-tertiary/20 transition-all duration-300 group">
-            <p class="text-2xl font-black text-tertiary group-hover:scale-105 transition-transform duration-300">{avgLevel}</p>
+          <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 text-center space-y-1.5 hover:border-tertiary/20 transition-all duration-300 group">
+            <p class="text-2xl font-semibold text-tertiary  transition-transform duration-300">{avgLevel}</p>
             <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Niveau moyen</p>
           </div>
-          <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-3xl p-5 text-center space-y-1.5 hover:border-amber-500/20 transition-all duration-300 group">
-            <p class="text-2xl font-black text-amber-500 group-hover:scale-105 transition-transform duration-300">{(totalXp / 1000).toFixed(1)}k</p>
+          <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-5 text-center space-y-1.5 hover:border-amber-500/20 transition-all duration-300 group">
+            <p class="text-2xl font-semibold text-amber-500  transition-transform duration-300">{(totalXp / 1000).toFixed(1)}k</p>
             <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">XP Total</p>
           </div>
         </div>
       {/if}
 
       <!-- Classement principal -->
-      <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
+      <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <h3 class="text-xl font-black flex items-center gap-3">
+          <h3 class="text-xl font-semibold flex items-center gap-3">
             <Papicon icon="Grades" size={20} class="text-tertiary" />
             Classement XP — Top {levels.length}
           </h3>
@@ -809,7 +809,7 @@
               type="text" 
               placeholder="Rechercher un membre..." 
               bind:value={searchQuery}
-              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 pl-11 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-tertiary/30 placeholder:text-on-surface-variant/50 transition-all shadow-inner"
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 pl-11 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-tertiary/30 placeholder:text-on-surface-variant/50 transition-all shadow-inner"
             />
             <div class="absolute left-4 top-1/2 -translate-y-1/2 text-sm opacity-40 text-on-surface flex items-center">
               <Papicon icon="Search" size={14} />
@@ -831,13 +831,13 @@
             
             <!-- Rank 2 Card -->
             {#if levels[1]}
-              <div class="relative bg-surface-container-low/30 border border-outline-variant/10 rounded-3xl p-6 flex flex-col justify-between hover:border-primary/25 transition-all duration-300 group shadow-sm order-2 sm:order-1">
+              <div class="relative bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 flex flex-col justify-between hover:border-primary/25 transition-all duration-300 group shadow-sm order-2 sm:order-1">
                 <div class="flex items-start justify-between">
                   <div class="relative">
                     <img
                       src={levels[1].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/1.png'}
                       alt=""
-                      class="w-16 h-16 rounded-2xl object-cover border border-outline-variant/10 shadow-inner"
+                      class="w-16 h-16 rounded-lg object-cover border border-outline-variant/10 shadow-inner"
                     />
                     <!-- Rank indicator -->
                     <div class="absolute -bottom-2 -right-2 bg-surface-container-high text-on-surface-variant border border-outline-variant/15 w-6 h-6 rounded-lg flex items-center justify-center font-bold text-xs font-mono">
@@ -870,7 +870,7 @@
 
             <!-- Rank 1 Card (Highlighted) -->
             {#if levels[0]}
-              <div class="relative bg-surface-container-low/60 border border-tertiary/20 rounded-3xl overflow-hidden p-6 flex flex-col justify-between hover:border-tertiary/40 transition-all duration-300 group shadow-md ring-1 ring-tertiary/5 order-1 sm:order-2">
+              <div class="relative bg-surface-container-low/60 border border-tertiary/20 rounded-xl overflow-hidden p-6 flex flex-col justify-between hover:border-tertiary/40 transition-all duration-300 group shadow-md ring-1 ring-tertiary/5 order-1 sm:order-2">
                 <!-- Top accent bar -->
                 <div class="absolute top-0 inset-x-0 h-1 bg-linear-to-r from-tertiary to-secondary"></div>
                 
@@ -879,10 +879,10 @@
                     <img
                       src={levels[0].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'}
                       alt=""
-                      class="w-20 h-20 rounded-2xl object-cover border border-tertiary/20 shadow-inner"
+                      class="w-20 h-20 rounded-lg object-cover border border-tertiary/20 shadow-inner"
                     />
                     <!-- Rank indicator -->
-                    <div class="absolute -bottom-2 -right-2 bg-tertiary text-on-tertiary w-7 h-7 rounded-lg flex items-center justify-center font-black text-sm font-mono shadow-md">
+                    <div class="absolute -bottom-2 -right-2 bg-tertiary text-on-tertiary w-7 h-7 rounded-lg flex items-center justify-center font-semibold text-sm font-mono shadow-md">
                       1
                     </div>
                   </div>
@@ -912,13 +912,13 @@
 
             <!-- Rank 3 Card -->
             {#if levels[2]}
-              <div class="relative bg-surface-container-low/30 border border-outline-variant/10 rounded-3xl p-6 flex flex-col justify-between hover:border-primary/25 transition-all duration-300 group shadow-sm order-3">
+              <div class="relative bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 flex flex-col justify-between hover:border-primary/25 transition-all duration-300 group shadow-sm order-3">
                 <div class="flex items-start justify-between">
                   <div class="relative">
                     <img
                       src={levels[2].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/2.png'}
                       alt=""
-                      class="w-16 h-16 rounded-2xl object-cover border border-outline-variant/10 shadow-inner"
+                      class="w-16 h-16 rounded-lg object-cover border border-outline-variant/10 shadow-inner"
                     />
                     <!-- Rank indicator -->
                     <div class="absolute -bottom-2 -right-2 bg-surface-container-high text-on-surface-variant border border-outline-variant/15 w-6 h-6 rounded-lg flex items-center justify-center font-bold text-xs font-mono">
@@ -962,7 +962,7 @@
             {@const neededProgress = nextLvlXp - prevLvlXp}
             {@const percent = Math.min(100, Math.max(0, (currentProgress / neededProgress) * 100))}
             
-            <div class="flex items-center gap-4 p-4 rounded-2xl bg-surface-container-high/15 border border-outline-variant/5 hover:bg-surface-container-high/30 hover:border-outline-variant/15 transition-all duration-350 group">
+            <div class="flex items-center gap-4 p-4 rounded-lg bg-surface-container-high/15 border border-outline-variant/5 hover:bg-surface-container-high/30 hover:border-outline-variant/15 transition-all duration-350 group">
               <!-- Rang -->
               <div class="w-10 h-10 rounded-xl flex items-center justify-center font-extrabold text-sm shrink-0 font-mono
                 {index === 0 ? 'bg-amber-400/15 text-amber-500 border border-amber-400/25 shadow-sm shadow-amber-400/5' : 
@@ -1000,13 +1000,13 @@
                       style="width: {percent}%"
                     ></div>
                   </div>
-                  <span class="text-[9px] font-bold text-on-surface-variant/40 whitespace-nowrap font-mono tracking-wide">{userLvl.xp.toLocaleString()} / {nextLvlXp.toLocaleString()} XP</span>
+                  <span class="text-[11px] font-bold text-on-surface-variant/40 whitespace-nowrap font-mono tracking-wide">{userLvl.xp.toLocaleString()} / {nextLvlXp.toLocaleString()} XP</span>
                 </div>
               </div>
 
               <!-- Niveau Badge -->
               <div class="text-right shrink-0">
-                <span class="text-xs font-black uppercase tracking-wider px-3.5 py-2 rounded-xl border whitespace-nowrap shadow-xs
+                <span class="text-xs font-semibold uppercase tracking-wider px-3.5 py-2 rounded-xl border whitespace-nowrap shadow-xs
                   {index === 0 ? 'bg-amber-400/10 text-amber-500 border-amber-400/20' : 
                    index === 1 ? 'bg-slate-400/10 text-slate-500 border-slate-400/20' : 
                    index === 2 ? 'bg-amber-700/10 text-amber-600 border-amber-700/20' : 
@@ -1018,7 +1018,7 @@
           {:else}
             <!-- Aucun membre trouvé -->
             <div class="flex flex-col items-center justify-center py-20 text-center space-y-4">
-              <div class="w-16 h-16 rounded-2xl bg-surface-container-high/30 border border-outline-variant/10 flex items-center justify-center text-primary animate-bounce">
+              <div class="w-16 h-16 rounded-lg bg-surface-container-high/30 border border-outline-variant/10 flex items-center justify-center text-primary animate-bounce">
                 {#if searchQuery}
                   <Papicon icon="Search" size={24} />
                 {:else}
@@ -1043,12 +1043,12 @@
     <div class="space-y-8 animate-in fade-in duration-300">
       
       <!-- Avertissement de sécurité / explicatif -->
-      <div class="bg-surface-container-low/40 border border-outline-variant/10 p-6 rounded-3xl flex items-start gap-4">
-        <div class="w-10 h-10 bg-secondary/15 rounded-2xl flex items-center justify-center text-secondary shrink-0">
+      <div class="bg-surface-container-low/40 border border-outline-variant/10 p-6 rounded-xl flex items-start gap-4">
+        <div class="w-10 h-10 bg-secondary/15 rounded-lg flex items-center justify-center text-secondary shrink-0">
           <Papicon icon="Info" size={20} />
         </div>
         <div class="space-y-1">
-          <h4 class="text-sm font-black text-on-surface">Comment fonctionne l'importation ?</h4>
+          <h4 class="text-sm font-semibold text-on-surface">Comment fonctionne l'importation ?</h4>
           <p class="text-xs text-on-surface-variant/70 leading-relaxed font-medium">
             L'importation permet de charger une liste de membres avec leurs niveaux et XP. Le système essaiera de faire correspondre chaque membre avec un utilisateur Discord du serveur en comparant de manière insensible à la casse son <strong>nom d'utilisateur (@username)</strong>, son <strong>nom d'affichage (Display Name)</strong> ou son <strong>tag classique</strong>. Les membres non trouvés seront ignorés et listés dans un récapitulatif.
           </p>
@@ -1058,8 +1058,8 @@
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <!-- Zone d'importation (2/3 de large) -->
         <div class="lg:col-span-2 space-y-6">
-          <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
-            <h3 class="text-xl font-black flex items-center gap-3">
+          <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+            <h3 class="text-xl font-semibold flex items-center gap-3">
               <Papicon icon="Upload" size={20} class="text-secondary" />
               Saisie des Données
             </h3>
@@ -1068,7 +1068,7 @@
             <div 
               role="button"
               tabindex="0"
-              class="w-full border-2 border-dashed border-outline-variant/20 rounded-3xl p-8 text-center hover:bg-surface-container-high/20 transition-all cursor-pointer flex flex-col items-center justify-center space-y-2 relative {isDragging ? 'border-primary bg-primary/5 scale-[1.01]' : ''}"
+              class="w-full border-2 border-dashed border-outline-variant/20 rounded-xl p-8 text-center hover:bg-surface-container-high/20 transition-all cursor-pointer flex flex-col items-center justify-center space-y-2 relative {isDragging ? 'border-primary bg-primary/5 scale-[1.01]' : ''}"
               ondragover={(e) => { e.preventDefault(); isDragging = true; }}
               ondragleave={() => isDragging = false}
               ondrop={handleFileDrop}
@@ -1079,10 +1079,10 @@
                 class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 onchange={handleFileSelect}
               />
-              <div class="w-12 h-12 bg-secondary/10 text-secondary rounded-2xl flex items-center justify-center shadow-inner mb-2">
+              <div class="w-12 h-12 bg-secondary/10 text-secondary rounded-lg flex items-center justify-center shadow-inner mb-2">
                 <Papicon icon="Upload" size={24} />
               </div>
-              <p class="text-sm font-black text-on-surface">Glissez-déposez un fichier `.json` ici</p>
+              <p class="text-sm font-semibold text-on-surface">Glissez-déposez un fichier `.json` ici</p>
               <p class="text-xs text-on-surface-variant/60 font-medium">ou cliquez pour parcourir vos dossiers</p>
             </div>
 
@@ -1094,13 +1094,13 @@
                 rows="10"
                 bind:value={importRawJson}
                 placeholder={`[\n  {\n    "username": "@klaynight",\n    "display_name": "Klaynight",\n    "level": 48,\n    "xp": 119652\n  }\n]`}
-                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-xs font-mono focus:ring-2 focus:ring-secondary/30 transition-all text-on-surface focus:outline-none resize-y"
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-xs font-mono focus:ring-2 focus:ring-secondary/30 transition-all text-on-surface focus:outline-none resize-y"
               ></textarea>
             </div>
 
             <!-- Messages d'erreur locaux / globaux -->
             {#if importFileError}
-              <div class="bg-error/10 text-error text-xs font-bold px-4 py-3 rounded-2xl border border-error/20 flex items-center gap-2">
+              <div class="bg-error/10 text-error text-xs font-bold px-4 py-3 rounded-lg border border-error/20 flex items-center gap-2">
                 ✕ {importFileError}
               </div>
             {/if}
@@ -1112,7 +1112,7 @@
               <button
                 type="button"
                 onclick={() => { importRawJson = ''; importFileError = null; importResults = null; }}
-                class="px-6 py-3.5 bg-surface-container-high/50 text-on-surface-variant font-black uppercase tracking-widest text-xs rounded-2xl hover:bg-surface-container-high transition-all"
+                class="px-6 py-3.5 bg-surface-container-high/50 text-on-surface-variant font-semibold uppercase tracking-widest text-xs rounded-lg hover:bg-surface-container-high transition-all"
               >
                 Vider
               </button>
@@ -1120,7 +1120,7 @@
                 type="button"
                 onclick={handleImportSubmit}
                 disabled={!importRawJson.trim()}
-                class="px-8 py-3.5 bg-secondary text-on-secondary font-black uppercase tracking-widest text-xs rounded-2xl hover:scale-105 transition-all disabled:opacity-50"
+                class="px-8 py-3.5 bg-secondary text-on-secondary font-semibold uppercase tracking-widest text-xs rounded-lg hover:scale-105 transition-all disabled:opacity-50"
               >
                 Lancer l'importation
               </button>
@@ -1129,24 +1129,24 @@
 
           <!-- Liste des erreurs d'import (si présentes) -->
           {#if importResults && importResults.failedCount > 0}
-            <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-4">
+            <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-4">
               <div class="flex items-center gap-3 text-error">
                 <div class="w-8 h-8 rounded-xl bg-error/15 flex items-center justify-center">
                   ✕
                 </div>
                 <div>
-                  <h3 class="text-base font-black">Membres non importés ({importResults.failedCount})</h3>
+                  <h3 class="text-base font-semibold">Membres non importés ({importResults.failedCount})</h3>
                   <p class="text-[10px] text-on-surface-variant/60 font-semibold uppercase tracking-wider">Ces membres n'ont pas pu être fait correspondre à un utilisateur Discord</p>
                 </div>
               </div>
 
-              <div class="overflow-hidden rounded-2xl border border-outline-variant/10 bg-surface-container-low/10 max-h-72 overflow-y-auto">
+              <div class="overflow-hidden rounded-lg border border-outline-variant/10 bg-surface-container-low/10 max-h-72 overflow-y-auto">
                 <table class="w-full border-collapse text-left">
                   <thead>
                     <tr class="bg-surface-container-high/50 border-b border-outline-variant/10">
-                      <th class="px-5 py-3 text-xs font-black text-on-surface-variant/70 uppercase tracking-wider">Username</th>
-                      <th class="px-5 py-3 text-xs font-black text-on-surface-variant/70 uppercase tracking-wider">Display Name</th>
-                      <th class="px-5 py-3 text-xs font-black text-on-surface-variant/70 uppercase tracking-wider">Raison</th>
+                      <th class="px-5 py-3 text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">Username</th>
+                      <th class="px-5 py-3 text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">Display Name</th>
+                      <th class="px-5 py-3 text-xs font-semibold text-on-surface-variant/70 uppercase tracking-wider">Raison</th>
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-outline-variant/5">
@@ -1166,8 +1166,8 @@
 
         <!-- Format Attendu & Résumé (1/3 de large) -->
         <div class="space-y-6">
-          <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
-            <h3 class="text-lg font-black flex items-center gap-3">
+          <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+            <h3 class="text-lg font-semibold flex items-center gap-3">
               <Papicon icon="Info" size={18} class="text-primary" />
               Format Attendu
             </h3>
@@ -1176,7 +1176,7 @@
               Les données doivent être un tableau d'objets JSON contenant au minimum le <code>username</code> ou <code>display_name</code>, ainsi que le <code>level</code> ou les <code>xp</code>.
             </p>
 
-            <div class="relative bg-surface-container-high/60 border border-outline-variant/5 p-4 rounded-2xl">
+            <div class="relative bg-surface-container-high/60 border border-outline-variant/5 p-4 rounded-lg">
               <pre class="text-[10px] font-mono text-on-surface-variant/90 overflow-x-auto leading-relaxed">{`[
   {
     "username": "@klaynight",
@@ -1194,7 +1194,7 @@
             </div>
 
             <div class="space-y-2.5 pt-2 border-t border-outline-variant/10">
-              <h4 class="text-[10px] font-black text-on-surface-variant/50 uppercase tracking-widest">Règles de conversion :</h4>
+              <h4 class="text-[10px] font-semibold text-on-surface-variant/50 uppercase tracking-widest">Règles de conversion :</h4>
               <ul class="list-disc list-inside text-[11px] text-on-surface-variant/80 space-y-1 font-medium">
                 <li>Si seul l'<strong>XP</strong> est fourni, le niveau est déduit automatiquement.</li>
                 <li>Si seul le <strong>niveau</strong> est fourni, l'XP minimum pour ce niveau est attribué.</li>
@@ -1205,20 +1205,20 @@
 
           <!-- Carte de résumé rapide des résultats d'importation -->
           {#if importResults}
-            <section class="bg-linear-to-b from-secondary/15 to-transparent border border-secondary/20 p-8 rounded-[2.5rem] space-y-4">
-              <h3 class="text-base font-black flex items-center gap-2 text-secondary">
+            <section class="bg-linear-to-b from-secondary/15 to-transparent border border-secondary/20 p-8 rounded-xl space-y-4">
+              <h3 class="text-base font-semibold flex items-center gap-2 text-secondary">
                 <Papicon icon="Check" size={18} />
                 Résultat de l'Import
               </h3>
               
               <div class="grid grid-cols-2 gap-4">
-                <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-2xl p-4 text-center">
-                  <p class="text-2xl font-black text-green-400">{importResults.importedCount}</p>
-                  <p class="text-[9px] font-bold text-on-surface-variant/60 uppercase tracking-wider">Succès</p>
+                <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-lg p-4 text-center">
+                  <p class="text-2xl font-semibold text-green-400">{importResults.importedCount}</p>
+                  <p class="text-[11px] font-bold text-on-surface-variant/60 uppercase tracking-wider">Succès</p>
                 </div>
-                <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-2xl p-4 text-center">
-                  <p class="text-2xl font-black {importResults.failedCount > 0 ? 'text-error' : 'text-on-surface-variant/40'}">{importResults.failedCount}</p>
-                  <p class="text-[9px] font-bold text-on-surface-variant/60 uppercase tracking-wider">Échecs</p>
+                <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-lg p-4 text-center">
+                  <p class="text-2xl font-semibold {importResults.failedCount > 0 ? 'text-error' : 'text-on-surface-variant/40'}">{importResults.failedCount}</p>
+                  <p class="text-[11px] font-bold text-on-surface-variant/60 uppercase tracking-wider">Échecs</p>
                 </div>
               </div>
             </section>

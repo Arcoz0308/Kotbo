@@ -189,14 +189,14 @@
   {:else}
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
       <!-- Counting Card -->
-      <section class="bg-surface-container-low/40 backdrop-blur-xl border border-outline-variant/30 p-8 rounded-[2.5rem] flex flex-col justify-between gap-6 hover:bg-surface-container-low/60 transition-all duration-300">
+      <section class="bg-surface-container-low/40 border border-outline-variant/30 p-8 rounded-xl flex flex-col justify-between gap-6 hover:bg-surface-container-low/60 transition-all duration-300">
         <div class="space-y-4">
           <div class="flex items-center gap-3 pb-3 border-b border-outline-variant/15">
             <div class="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
               <Papicon icon="Binary" size={20} />
             </div>
             <div>
-              <h3 class="text-lg font-black tracking-tight text-on-surface">Salon de comptage</h3>
+              <h3 class="text-lg font-semibold tracking-tight text-on-surface">Salon de comptage</h3>
               <p class="text-[10px] text-on-surface-variant/55 uppercase font-bold tracking-wider">Jeu : 1, 2, 3...</p>
             </div>
           </div>
@@ -208,17 +208,17 @@
               bind:value={config.funCountingChannelId}
               options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))}
               placeholder="Aucun salon configuré"
-              className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-amber-500/30 transition-all"
+              className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-amber-500/30 transition-all"
               disabled={!canManageSettings}
             />
           </div>
 
-          <div class="p-4 rounded-2xl bg-surface-container-high/20 border border-outline-variant/5 space-y-2.5">
-            <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/50">État actuel du jeu</p>
+          <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 space-y-2.5">
+            <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">État actuel du jeu</p>
             <div class="grid grid-cols-2 gap-4">
               <div class="bg-surface-container-high/40 p-3 rounded-xl border border-outline-variant/10 text-center">
                 <span class="text-[10px] text-on-surface-variant/50 uppercase font-bold">Nombre</span>
-                <p class="text-2xl font-black text-amber-500 mt-0.5">{gameState.countingCurrent}</p>
+                <p class="text-2xl font-semibold text-amber-500 mt-0.5">{gameState.countingCurrent}</p>
               </div>
               <div class="bg-surface-container-high/40 p-3 rounded-xl border border-outline-variant/10 text-center flex flex-col justify-center min-w-0">
                 <span class="text-[10px] text-on-surface-variant/50 uppercase font-bold truncate">Dernier joueur</span>
@@ -234,7 +234,7 @@
           type="button"
           onclick={handleResetCounting}
           disabled={!canManageSettings || actionState.state.loading}
-          class="w-full py-3.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 rounded-2xl text-xs font-black uppercase tracking-wider transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-40"
+          class="w-full py-3.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-40"
         >
           <Papicon icon="refresh-cw" size={14} />
           Réinitialiser le comptage
@@ -242,14 +242,14 @@
       </section>
 
       <!-- One Word Story Card -->
-      <section class="bg-surface-container-low/40 backdrop-blur-xl border border-outline-variant/30 p-8 rounded-[2.5rem] flex flex-col justify-between gap-6 hover:bg-surface-container-low/60 transition-all duration-300">
+      <section class="bg-surface-container-low/40 border border-outline-variant/30 p-8 rounded-xl flex flex-col justify-between gap-6 hover:bg-surface-container-low/60 transition-all duration-300">
         <div class="space-y-4">
           <div class="flex items-center gap-3 pb-3 border-b border-outline-variant/15">
             <div class="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-500 flex items-center justify-center">
               <Papicon icon="BookOpen" size={20} />
             </div>
             <div>
-              <h3 class="text-lg font-black tracking-tight text-on-surface">One Word Story</h3>
+              <h3 class="text-lg font-semibold tracking-tight text-on-surface">One Word Story</h3>
               <p class="text-[10px] text-on-surface-variant/55 uppercase font-bold tracking-wider">Un mot après l'autre</p>
             </div>
           </div>
@@ -261,13 +261,13 @@
               bind:value={config.funOneWordStoryChannelId}
               options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))}
               placeholder="Aucun salon configuré"
-              className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-purple-500/30 transition-all"
+              className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-purple-500/30 transition-all"
               disabled={!canManageSettings}
             />
           </div>
 
-          <div class="p-4 rounded-2xl bg-surface-container-high/20 border border-outline-variant/5 space-y-2.5">
-            <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/50">État actuel du jeu</p>
+          <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 space-y-2.5">
+            <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">État actuel du jeu</p>
             <div class="bg-surface-container-high/40 p-3 rounded-xl border border-outline-variant/10 text-center flex flex-col justify-center min-w-0">
               <span class="text-[10px] text-on-surface-variant/50 uppercase font-bold truncate">Dernier auteur</span>
               <p class="text-xs font-bold text-on-surface mt-1 truncate" title={gameState.oneWordStoryLastUserId || 'Aucun'}>
@@ -283,14 +283,14 @@
       </section>
 
       <!-- Guess Number Card -->
-      <section class="bg-surface-container-low/40 backdrop-blur-xl border border-outline-variant/30 p-8 rounded-[2.5rem] flex flex-col justify-between gap-6 hover:bg-surface-container-low/60 transition-all duration-300">
+      <section class="bg-surface-container-low/40 border border-outline-variant/30 p-8 rounded-xl flex flex-col justify-between gap-6 hover:bg-surface-container-low/60 transition-all duration-300">
         <div class="space-y-4">
           <div class="flex items-center gap-3 pb-3 border-b border-outline-variant/15">
             <div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
               <Papicon icon="Gamepad2" size={20} />
             </div>
             <div>
-              <h3 class="text-lg font-black tracking-tight text-on-surface">Nombre Mystère</h3>
+              <h3 class="text-lg font-semibold tracking-tight text-on-surface">Nombre Mystère</h3>
               <p class="text-[10px] text-on-surface-variant/55 uppercase font-bold tracking-wider">Deviner un chiffre</p>
             </div>
           </div>
@@ -302,16 +302,16 @@
               bind:value={config.funGuessNumberChannelId}
               options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))}
               placeholder="Aucun salon configuré"
-              className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500/30 transition-all"
+              className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500/30 transition-all"
               disabled={!canManageSettings}
             />
           </div>
 
-          <div class="p-4 rounded-2xl bg-surface-container-high/20 border border-outline-variant/5 space-y-2.5">
-            <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/50">État actuel du jeu</p>
+          <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 space-y-2.5">
+            <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">État actuel du jeu</p>
             <div class="bg-surface-container-high/40 p-3 rounded-xl border border-outline-variant/10 text-center">
               <span class="text-[10px] text-on-surface-variant/50 uppercase font-bold">Cible mystère</span>
-              <p class="text-2xl font-black text-emerald-500 mt-0.5">{gameState.guessNumberTarget || '???'}</p>
+              <p class="text-2xl font-semibold text-emerald-500 mt-0.5">{gameState.guessNumberTarget || '???'}</p>
             </div>
           </div>
         </div>
@@ -320,7 +320,7 @@
           type="button"
           onclick={handleResetGuessNumber}
           disabled={!canManageSettings || actionState.state.loading}
-          class="w-full py-3.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 rounded-2xl text-xs font-black uppercase tracking-wider transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-40"
+          class="w-full py-3.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-200 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-40"
         >
           <Papicon icon="refresh-cw" size={14} />
           Générer une nouvelle cible

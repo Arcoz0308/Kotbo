@@ -76,11 +76,11 @@
     aria-modal="true"
     aria-labelledby="confirm-modal-title"
   >
-    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"></div>
+    <div class="absolute inset-0 bg-black/40 animate-in fade-in duration-200"></div>
 
     <!-- Modal -->
     <div
-      class="relative z-10 w-full max-w-md bg-surface-container border border-outline-variant/20 rounded-2xl shadow-2xl shadow-black/50 p-6 space-y-5 animate-in fade-in zoom-in-95 duration-200"
+      class="relative z-10 w-full max-w-md bg-surface-container border border-outline-variant/20 rounded-lg shadow-sm shadow-black/50 p-6 space-y-5 animate-in fade-in zoom-in-95 duration-200"
       onclick={(e) => e.stopPropagation()}
       role="document"
     >
@@ -90,7 +90,7 @@
           <Papicon icon={variantConfig().icon} size={20} class={variantConfig().iconColor} />
         </div>
         <div>
-          <h3 id="confirm-modal-title" class="font-black text-on-surface text-base">{title}</h3>
+          <h3 id="confirm-modal-title" class="font-semibold text-on-surface text-base">{title}</h3>
           {#if description}
             <p class="text-sm text-on-surface-variant/60 mt-1 leading-relaxed">{description}</p>
           {/if}
@@ -101,7 +101,7 @@
       {#if requireInput}
         <div class="space-y-1.5">
           <p class="text-xs text-on-surface-variant/50 font-medium">
-            Tapez <span class="font-mono font-black text-on-surface">{requireInput}</span> pour confirmer
+            Tapez <span class="font-mono font-semibold text-on-surface">{requireInput}</span> pour confirmer
           </p>
           <input
             type="text"
@@ -124,7 +124,7 @@
         <button
           onclick={handleConfirm}
           disabled={!canConfirm || executing || loading}
-          class="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-black text-white transition-all shadow-lg hover:scale-[1.02] active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100 {variantConfig().btnClass}"
+          class="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all shadow-lg hover: active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100 {variantConfig().btnClass}"
         >
           {#if executing || loading}
             <div class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>

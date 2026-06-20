@@ -193,7 +193,7 @@
     <div class="modal-panel modal-panel-xl space-y-0 p-0 font-body">
       <div class="p-6 border-b border-outline-variant/30 flex items-center justify-between">
         <div>
-          <h3 class="text-2xl font-black">Invitation {inviteCode}</h3>
+          <h3 class="text-2xl font-semibold">Invitation {inviteCode}</h3>
           <p class="text-sm text-on-surface-variant">Vue modération centralisée</p>
         </div>
         <button
@@ -212,18 +212,18 @@
             <span class="text-sm font-bold">Chargement des détails...</span>
           </div>
         {:else if error}
-          <div class="p-4 rounded-2xl bg-red-500/10 text-red-500 text-sm font-bold">{error}</div>
+          <div class="p-4 rounded-lg bg-red-500/10 text-red-500 text-sm font-bold">{error}</div>
         {:else if details}
           <!-- Tendance des joins -->
           <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
-            <div class="lg:col-span-3 premium-card p-5 rounded-3xl space-y-4">
+            <div class="lg:col-span-3 premium-card p-5 rounded-xl space-y-4">
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-3">
                   <div class="p-2 rounded-xl bg-primary/10 text-primary">
                     <Papicon icon="TrendingUp" size={18} />
                   </div>
                   <div>
-                    <h4 class="text-sm font-black uppercase tracking-widest text-on-surface-variant/60">TENDANCE DES JOINS</h4>
+                    <h4 class="text-sm font-semibold uppercase tracking-widest text-on-surface-variant/60">TENDANCE DES JOINS</h4>
                     <p class="text-xs text-on-surface-variant/40">Évolution sur la période sélectionnée</p>
                   </div>
                 </div>
@@ -244,22 +244,22 @@
               </div>
             </div>
 
-            <div class="premium-card p-5 rounded-3xl space-y-4">
+            <div class="premium-card p-5 rounded-xl space-y-4">
               <div class="grid grid-cols-1 gap-4">
                 <div>
-                  <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/50">JOINS</p>
-                  <p class="text-3xl font-black text-emerald-500">{details.trend?.totalJoined ?? 0}</p>
+                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">JOINS</p>
+                  <p class="text-lg font-semibold text-emerald-500">{details.trend?.totalJoined ?? 0}</p>
                 </div>
                 <div>
-                  <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/50">DEPARTS</p>
-                  <p class="text-3xl font-black text-orange-500">{details.trend?.totalLeft ?? 0}</p>
+                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">DEPARTS</p>
+                  <p class="text-lg font-semibold text-orange-500">{details.trend?.totalLeft ?? 0}</p>
                 </div>
                 <div>
-                  <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/50">RESTANTS</p>
-                  <p class="text-3xl font-black text-cyan-500">{details.trend?.totalStayed ?? 0}</p>
+                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">RESTANTS</p>
+                  <p class="text-lg font-semibold text-cyan-500">{details.trend?.totalStayed ?? 0}</p>
                 </div>
                 <div class="pt-2 border-t border-outline-variant/10">
-                  <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/50">EXPIRE</p>
+                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">EXPIRE</p>
                   <p class="text-sm font-bold text-on-surface-variant/70">{details.invite?.expiresAt ? formatDate(details.invite.expiresAt) : 'Jamais'}</p>
                 </div>
               </div>
@@ -268,12 +268,12 @@
 
           <!-- Meta, Créateur, Actions -->
           <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div class="premium-card p-5 rounded-3xl space-y-4">
+            <div class="premium-card p-5 rounded-xl space-y-4">
               <div class="flex items-center gap-3">
                 <div class="p-2 rounded-xl bg-surface-container-high/40 text-on-surface-variant">
                   <Papicon icon="Info" size={18} />
                 </div>
-                <h4 class="text-sm font-black">META</h4>
+                <h4 class="text-sm font-semibold">META</h4>
               </div>
               <div class="space-y-2">
                 <div class="flex justify-between text-xs">
@@ -303,12 +303,12 @@
               </div>
             </div>
 
-            <div class="premium-card p-5 rounded-3xl space-y-4">
+            <div class="premium-card p-5 rounded-xl space-y-4">
               <div class="flex items-center gap-3">
                 <div class="p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
                   <Papicon icon="User" size={18} />
                 </div>
-                <h4 class="text-sm font-black">CRÉATEUR</h4>
+                <h4 class="text-sm font-semibold">CRÉATEUR</h4>
               </div>
               <div class="space-y-2">
                 <div class="flex justify-between text-xs">
@@ -327,12 +327,12 @@
               {/if}
             </div>
 
-            <div class="premium-card p-5 rounded-3xl space-y-4">
+            <div class="premium-card p-5 rounded-xl space-y-4">
               <div class="flex items-center gap-3">
                 <div class="p-2 rounded-xl bg-primary/10 text-primary">
                   <Papicon icon="Settings" size={18} />
                 </div>
-                <h4 class="text-sm font-black">ACTIONS</h4>
+                <h4 class="text-sm font-semibold">ACTIONS</h4>
               </div>
               <div class="space-y-2">
                 <ActionButton label="COPIER LIEN" icon="Copy" size="md" variant="muted" onClick={copyInvite} />
@@ -352,36 +352,36 @@
           </div>
 
           <!-- Personnes invitées -->
-          <div class="premium-card p-5 rounded-3xl space-y-4">
+          <div class="premium-card p-5 rounded-xl space-y-4">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-3">
                 <div class="p-2 rounded-xl bg-purple-500/10 text-purple-500">
                   <Papicon icon="Users" size={18} />
                 </div>
                 <div>
-                  <h4 class="text-sm font-black">PERSONNES INVITÉES</h4>
+                  <h4 class="text-sm font-semibold">PERSONNES INVITÉES</h4>
                   <p class="text-xs text-on-surface-variant/60">Cliquez pour ouvrir la fiche membre</p>
                 </div>
               </div>
-              <span class="px-3 py-1 rounded-full text-xs font-black bg-surface-container-high/40 text-on-surface-variant/70">{details.joins?.length ?? 0} entrées</span>
+              <span class="px-3 py-1 rounded-full text-xs font-semibold bg-surface-container-high/40 text-on-surface-variant/70">{details.joins?.length ?? 0} entrées</span>
             </div>
 
             <div class="space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
               {#each details.joins as join}
                 <button
-                  class="w-full flex items-center justify-between p-4 rounded-2xl bg-surface-container-high/20 border border-outline-variant/10 hover:bg-surface-container-high/40 transition-all text-left group"
+                  class="w-full flex items-center justify-between p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/10 hover:bg-surface-container-high/40 transition-all text-left group"
                   onclick={() => openMember(join.userId)}
                 >
                   <div class="flex items-center gap-4">
                     <img src={join.avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt="" class="w-10 h-10 rounded-xl object-cover" />
                     <div>
-                      <p class="text-sm font-black text-on-surface group-hover:text-primary transition-colors">{join.userTag}</p>
+                      <p class="text-sm font-semibold text-on-surface group-hover:text-primary transition-colors">{join.userTag}</p>
                       <p class="text-[10px] text-on-surface-variant/50 font-mono">{join.userId} • {formatDateTime(join.joinedAt)}</p>
                     </div>
                   </div>
                   <div class="text-right">
-                    <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Statut</p>
-                    <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[9px] font-black {join.leftAt ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}">
+                    <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Statut</p>
+                    <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-semibold {join.leftAt ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}">
                       {join.leftAt ? 'Parti' : 'Présent'}
                     </span>
                   </div>

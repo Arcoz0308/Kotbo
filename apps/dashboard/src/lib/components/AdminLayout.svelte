@@ -114,11 +114,11 @@
   <div class="fixed inset-0 pointer-events-none overflow-hidden z-0">
     <div class="absolute -top-32 -left-32 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px]"></div>
     <div class="absolute -bottom-32 -right-32 w-[400px] h-[400px] bg-purple-500/4 rounded-full blur-[100px]"></div>
-    <div class="absolute top-1/2 left-1/3 w-[300px] h-[300px] bg-indigo-500/3 rounded-full blur-[80px]"></div>
+    <div class="absolute top-1/2 left-1/3 w-[300px] h-[300px] bg-indigo-500/3 rounded-full blur-none hidden"></div>
   </div>
 
   <!-- Header -->
-  <header class="relative z-10 border-b border-outline-variant/10 bg-surface-container-lowest/80 backdrop-blur-xl">
+  <header class="relative z-10 border-b border-outline-variant/10 bg-surface-container-lowest/80">
     <div class="flex items-center justify-between px-6 py-4">
       <!-- Brand -->
       <div class="flex items-center gap-3">
@@ -126,8 +126,8 @@
           <Papicon icon="Lock" size={16} class="text-primary" />
         </div>
         <div>
-          <p class="text-xs font-black uppercase tracking-[0.2em] text-primary/80 leading-none">Kotbo</p>
-          <h1 class="text-base font-black text-on-surface leading-none mt-0.5">Console Admin</h1>
+          <p class="text-xs font-semibold uppercase tracking-wider text-primary/80 leading-none">Kotbo</p>
+          <h1 class="text-base font-semibold text-on-surface leading-none mt-0.5">Console Admin</h1>
         </div>
       </div>
 
@@ -139,13 +139,13 @@
         <Papicon icon="Search" size={14} />
         <span class="flex-1 text-left text-xs">Rechercher ou naviguer...</span>
         <div class="flex items-center gap-1">
-          <kbd class="px-1.5 py-0.5 rounded bg-on-surface/8 border border-outline-variant/10 text-[9px] font-black font-mono leading-none">⌘K</kbd>
+          <kbd class="px-1.5 py-0.5 rounded bg-on-surface/8 border border-outline-variant/10 text-[11px] font-semibold font-mono leading-none">⌘K</kbd>
         </div>
       </button>
 
       <!-- Right: Status badge + back button -->
       <div class="flex items-center gap-3">
-        <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-success/10 border border-success/20 text-success text-[10px] font-black uppercase tracking-widest">
+        <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-success/10 border border-success/20 text-success text-[10px] font-semibold uppercase tracking-widest">
           <span class="w-1.5 h-1.5 rounded-full bg-success animate-pulse"></span>
           Opérationnel
         </div>
@@ -188,11 +188,11 @@
   <!-- Main layout -->
   <div class="relative z-10 flex">
     <!-- Desktop sidebar -->
-    <aside class="hidden lg:flex flex-col w-72 shrink-0 min-h-[calc(100vh-73px)] border-r border-outline-variant/10 bg-surface-container-lowest/50 backdrop-blur-md">
+    <aside class="hidden lg:flex flex-col w-72 shrink-0 min-h-[calc(100vh-73px)] border-r border-outline-variant/10 bg-surface-container-lowest/50">
       <nav class="flex flex-col gap-6 p-5 flex-1">
         {#each navGroups as group}
           <div class="space-y-1">
-            <p class="text-[9px] font-black uppercase tracking-[0.25em] text-on-surface-variant/30 px-3 mb-2">{group.label}</p>
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/30 px-3 mb-2">{group.label}</p>
 
             {#each group.items as item}
               {@const active = isActive(item.path, item.exact)}
@@ -226,8 +226,8 @@
           <!-- Heap bar -->
           <div class="space-y-1.5">
             <div class="flex items-center justify-between text-[10px]">
-              <span class="font-black uppercase tracking-widest text-on-surface-variant/30">Heap</span>
-              <span class="font-mono font-black {heapPercent > 80 ? 'text-red-400' : heapPercent > 60 ? 'text-amber-400' : 'text-emerald-400'}">
+              <span class="font-semibold uppercase tracking-widest text-on-surface-variant/30">Heap</span>
+              <span class="font-mono font-semibold {heapPercent > 80 ? 'text-red-400' : heapPercent > 60 ? 'text-amber-400' : 'text-emerald-400'}">
                 {heapPercent}%
               </span>
             </div>
@@ -244,9 +244,9 @@
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-1.5 text-[10px]">
               <div class="w-1.5 h-1.5 rounded-full {health.averageShardPing < 100 ? 'bg-emerald-400' : health.averageShardPing < 200 ? 'bg-amber-400' : 'bg-red-400'} animate-pulse"></div>
-              <span class="font-black text-on-surface-variant/40">{health.averageShardPing}ms</span>
+              <span class="font-semibold text-on-surface-variant/40">{health.averageShardPing}ms</span>
             </div>
-            <div class="text-[10px] font-black text-on-surface-variant/30">
+            <div class="text-[10px] font-semibold text-on-surface-variant/30">
               {health.onlineShardCount}/{health.shardCount} shards
             </div>
           </div>
@@ -254,7 +254,7 @@
 
         <!-- Access notice -->
         <div class="px-3 py-3 rounded-xl bg-on-surface/3 border border-outline-variant/5 space-y-1">
-          <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/30">Accès restreint</p>
+          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/30">Accès restreint</p>
           <p class="text-xs text-on-surface-variant/50 font-medium">Admins Kotbo uniquement</p>
         </div>
       </div>

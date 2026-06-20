@@ -55,10 +55,10 @@
     background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
     background-position: right 0.5rem center;
     background-repeat: no-repeat;
-    background-size: 1.5em 1.5em;
+    background-size: 1.25em 1.25em;
   }
-  :global(.custom-select option) {
-    background-color: #1e1e24; /* Dark theme DA */
-    color: #ffffff;
+  :global(.dark .custom-select option) {
+    background-color: var(--surface-container);
+    color: var(--on-surface);
   }
 </style>

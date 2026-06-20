@@ -263,14 +263,14 @@
 </script>
 
 <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-  <header class="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-surface-container-low/40 backdrop-blur-3xl p-8 rounded-4xl border border-outline-variant/30">
-    <div class="flex items-center gap-6">
-      <div class="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shadow-inner">
-        <Papicon icon="MessageSquare" size={32} />
+  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
+    <div class="flex items-center gap-4">
+      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+        <Papicon icon="MessageSquare" size={20} />
       </div>
       <div>
-        <h1 class="text-3xl font-black tracking-tight leading-tight">Déclencheurs d'actions (Triggers)</h1>
-        <p class="text-on-surface-variant/80 font-medium">Configurez des actions instantanées (envoi de messages, attribution/retrait de rôles ou modération) basées sur des mots-clés.</p>
+        <h1 class="text-lg font-semibold tracking-tight leading-tight">Déclencheurs d'actions (Triggers)</h1>
+        <p class="text-sm text-on-surface-variant/70 font-medium">Configurez des actions instantanées (envoi de messages, attribution/retrait de rôles ou modération) basées sur des mots-clés.</p>
       </div>
     </div>
   </header>
@@ -288,14 +288,14 @@
       <!-- Title & Actions Bar -->
       <div class="flex items-center justify-between gap-4 flex-wrap">
         <div class="flex items-center gap-4">
-          <h3 class="text-xl font-black flex items-center gap-3">
+          <h3 class="text-xl font-semibold flex items-center gap-3">
             <Papicon icon="List" size={20} class="text-secondary" />
             Liste des Déclencheurs ({list.length})
           </h3>
           {#if list.length > 0}
             <button 
               onclick={toggleSelectAll}
-              class="text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl bg-surface-container-high/40 hover:bg-surface-container-high/80 border border-outline-variant/5 text-on-surface-variant transition-all cursor-pointer select-none"
+              class="text-[10px] font-semibold uppercase tracking-wider px-3 py-1.5 rounded-xl bg-surface-container-high/40 hover:bg-surface-container-high/80 border border-outline-variant/5 text-on-surface-variant transition-all cursor-pointer select-none"
             >
               {allSelected ? 'Tout désélectionner' : 'Tout sélectionner'}
             </button>
@@ -305,7 +305,7 @@
         {#if canManageSettings}
           <button 
             onclick={openCreateModal}
-            class="flex items-center gap-2 px-6 py-3.5 bg-primary hover:bg-primary-hover text-on-primary font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-primary/20 hover:scale-[1.03] transition-all cursor-pointer"
+            class="flex items-center gap-2 px-6 py-3.5 bg-primary hover:bg-primary-hover text-on-primary font-semibold uppercase tracking-widest text-xs rounded-lg  hover:scale-[1.03] transition-all cursor-pointer"
           >
             <Papicon icon="Add" size={16} />
             Nouveau déclencheur
@@ -316,7 +316,7 @@
       <!-- Triggers Grid -->
       <div class="grid grid-cols-1 gap-4">
         {#each list as item, index}
-          <div class="bg-surface-container-low/30 border border-outline-variant/10 p-6 rounded-3xl space-y-4 hover:bg-surface-container-low/50 transition-all flex items-start gap-4 {selectedIds.has(item.id) ? 'border-primary/40 bg-primary/5! dark:bg-primary/10!' : ''}">
+          <div class="bg-surface-container-low/30 border border-outline-variant/10 p-6 rounded-xl space-y-4 hover:bg-surface-container-low/50 transition-all flex items-start gap-4 {selectedIds.has(item.id) ? 'border-primary/40 bg-primary/5! dark:bg-primary/10!' : ''}">
             <!-- Checkbox -->
             <div class="pt-1 select-none shrink-0">
               <input
@@ -331,16 +331,16 @@
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <!-- Trigger details -->
                 <div class="flex items-center gap-3 flex-wrap">
-                  <span class="text-xs font-black uppercase tracking-wider px-3 py-1 rounded-xl bg-primary/10 text-primary border border-primary/25">
+                  <span class="text-xs font-semibold uppercase tracking-wider px-3 py-1 rounded-xl bg-primary/10 text-primary border border-primary/25">
                     {matchTypeLabels[item.matchType] || item.matchType}
                   </span>
                   <span class="text-[11px] text-on-surface-variant/50 font-bold uppercase tracking-wider">Déclencheur :</span>
-                  <code class="text-sm font-black font-mono bg-surface-container-high/65 px-3 py-1 rounded-xl text-secondary dark:text-cyan-300 border border-outline-variant/5">{item.trigger}</code>
+                  <code class="text-sm font-semibold font-mono bg-surface-container-high/65 px-3 py-1 rounded-xl text-secondary dark:text-cyan-300 border border-outline-variant/5">{item.trigger}</code>
                 </div>
 
                 <!-- Status & Card Action Buttons -->
                 <div class="flex items-center gap-4 self-end sm:self-auto">
-                  <div class="flex items-center gap-2 bg-surface-container-high/40 px-3 py-1.5 rounded-2xl border border-outline-variant/5">
+                  <div class="flex items-center gap-2 bg-surface-container-high/40 px-3 py-1.5 rounded-lg border border-outline-variant/5">
                     <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-wider">Actif</span>
                     <ToggleSwitch 
                       checked={item.enabled} 
@@ -374,7 +374,7 @@
               {#if item.response}
                 <div class="space-y-1">
                   <span class="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest block ml-1">Message de réponse :</span>
-                  <div class="p-4 bg-surface-container-high/30 border border-outline-variant/5 rounded-2xl text-sm font-medium text-on-surface-variant/90 leading-relaxed whitespace-pre-wrap">
+                  <div class="p-4 bg-surface-container-high/30 border border-outline-variant/5 rounded-lg text-sm font-medium text-on-surface-variant/90 leading-relaxed whitespace-pre-wrap">
                     {item.response}
                   </div>
                 </div>
@@ -426,7 +426,7 @@
             </div>
           </div>
         {:else}
-          <div class="flex flex-col items-center justify-center py-20 bg-surface-container-low/20 border border-outline-variant/10 rounded-[2.5rem] text-center">
+          <div class="flex flex-col items-center justify-center py-20 bg-surface-container-low/20 border border-outline-variant/10 rounded-xl text-center">
             <Papicon icon="Info" size={32} class="text-on-surface-variant/20 mb-3" />
             <p class="text-sm text-on-surface-variant/60 font-medium">Aucun déclencheur enregistré.</p>
           </div>
@@ -434,27 +434,27 @@
       </div>
       <!-- Floating Action Bar for Bulk Actions -->
       {#if selectedIds.size > 0}
-        <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-surface-container-high/90 backdrop-blur-xl border border-outline-variant/30 px-6 py-4 rounded-4xl shadow-2xl flex items-center gap-6 animate-in slide-in-from-bottom-6 duration-300 select-none">
-          <span class="text-xs font-black text-on-surface">
+        <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-surface-container-high/90 border border-outline-variant/30 px-6 py-4 rounded-xl shadow-sm flex items-center gap-6 animate-in slide-in-from-bottom-6 duration-300 select-none">
+          <span class="text-xs font-semibold text-on-surface">
             {selectedIds.size} sélectionné{selectedIds.size > 1 ? 's' : ''}
           </span>
           <div class="h-6 w-px bg-outline-variant/30"></div>
           <div class="flex items-center gap-2">
             <button 
               onclick={() => bulkToggle(true)}
-              class="flex items-center gap-1.5 px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/25 border border-emerald-500/20 text-emerald-500 dark:text-emerald-400 font-black text-[10px] uppercase tracking-wider rounded-xl transition-all cursor-pointer"
+              class="flex items-center gap-1.5 px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/25 border border-emerald-500/20 text-emerald-500 dark:text-emerald-400 font-semibold text-[10px] uppercase tracking-wider rounded-xl transition-all cursor-pointer"
             >
               <Papicon icon="Check" size={10} /> Activer
             </button>
             <button 
               onclick={() => bulkToggle(false)}
-              class="flex items-center gap-1.5 px-4 py-2 bg-amber-500/10 hover:bg-amber-500/25 border border-amber-500/20 text-amber-500 dark:text-amber-400 font-black text-[10px] uppercase tracking-wider rounded-xl transition-all cursor-pointer"
+              class="flex items-center gap-1.5 px-4 py-2 bg-amber-500/10 hover:bg-amber-500/25 border border-amber-500/20 text-amber-500 dark:text-amber-400 font-semibold text-[10px] uppercase tracking-wider rounded-xl transition-all cursor-pointer"
             >
               <Papicon icon="Block" size={10} /> Désactiver
             </button>
             <button 
               onclick={bulkDelete}
-              class="flex items-center gap-1.5 px-4 py-2 bg-red-500/10 hover:bg-red-500/25 border border-red-500/20 text-red-500 dark:text-red-400 font-black text-[10px] uppercase tracking-wider rounded-xl transition-all cursor-pointer"
+              class="flex items-center gap-1.5 px-4 py-2 bg-red-500/10 hover:bg-red-500/25 border border-red-500/20 text-red-500 dark:text-red-400 font-semibold text-[10px] uppercase tracking-wider rounded-xl transition-all cursor-pointer"
             >
               <Papicon icon="Trash" size={10} /> Supprimer
             </button>
@@ -462,7 +462,7 @@
           <div class="h-6 w-px bg-outline-variant/30"></div>
           <button 
             onclick={() => { selectedIds = new Set(); lastSelectedIndex = null; }}
-            class="text-[10px] text-on-surface-variant/60 hover:text-on-surface font-black uppercase tracking-wider transition-colors cursor-pointer"
+            class="text-[10px] text-on-surface-variant/60 hover:text-on-surface font-semibold uppercase tracking-wider transition-colors cursor-pointer"
           >
             Annuler
           </button>
@@ -474,9 +474,9 @@
 
 <!-- Modal Creation / Edition -->
 {#if showModal}
-  <div class="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4" transition:fade={{ duration: 150 }}>
+  <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" transition:fade={{ duration: 150 }}>
     <!-- Modal container -->
-    <div class="bg-surface-container-low/95 border border-outline-variant/20 max-w-2xl w-full rounded-[2.5rem] p-8 space-y-6 shadow-2xl relative max-h-[92vh] overflow-y-auto" transition:scale={{ start: 0.97, duration: 150 }}>
+    <div class="bg-surface-container-low/95 border border-outline-variant/20 max-w-2xl w-full rounded-xl p-8 space-y-6 shadow-sm relative max-h-[92vh] overflow-y-auto" transition:scale={{ start: 0.97, duration: 150 }}>
       
       <!-- Close button -->
       <button 
@@ -489,11 +489,11 @@
 
       <!-- Modal Header -->
       <div class="flex items-center gap-4">
-        <div class="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shadow-inner">
+        <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center text-primary shadow-inner">
           <Papicon icon={isEditing ? 'Edit' : 'Add'} size={24} />
         </div>
         <div>
-          <h3 class="text-2xl font-black tracking-tight">{isEditing ? 'Modifier le déclencheur' : 'Ajouter un déclencheur'}</h3>
+          <h3 class="text-2xl font-semibold tracking-tight">{isEditing ? 'Modifier le déclencheur' : 'Ajouter un déclencheur'}</h3>
           <p class="text-xs text-on-surface-variant/80 font-medium">Configurez le mot-clé et les actions à exécuter.</p>
         </div>
       </div>
@@ -507,7 +507,7 @@
               type="text" 
               bind:value={formTrigger} 
               placeholder="Ex: !ip ou bonjour"
-              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
               required
               disabled={!canManageSettings}
             />
@@ -518,7 +518,7 @@
             <select 
               id="modal-matchType"
               bind:value={formMatchType}
-              class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all focus:outline-none cursor-pointer"
+              class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all focus:outline-none cursor-pointer"
               disabled={!canManageSettings}
             >
               <option value="CONTAINS">Contient le mot-clé</option>
@@ -534,7 +534,7 @@
             id="modal-response"
             bind:value={formResponse} 
             placeholder="Texte à renvoyer automatiquement par le bot..."
-            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none h-24 resize-none"
+            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none h-24 resize-none"
             disabled={!canManageSettings}
           ></textarea>
         </div>
@@ -547,7 +547,7 @@
               bind:value={formRoleIdToAdd}
               options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))}
               placeholder="— Aucun rôle —"
-              className="w-full rounded-2xl bg-surface-container-high/40 border border-outline-variant/10 px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all"
+              className="w-full rounded-lg bg-surface-container-high/40 border border-outline-variant/10 px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all"
               disabled={!canManageSettings}
             />
           </div>
@@ -559,14 +559,14 @@
               bind:value={formRoleIdToRemove}
               options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))}
               placeholder="— Aucun rôle —"
-              className="w-full rounded-2xl bg-surface-container-high/40 border border-outline-variant/10 px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all"
+              className="w-full rounded-lg bg-surface-container-high/40 border border-outline-variant/10 px-4 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all"
               disabled={!canManageSettings}
             />
           </div>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container-high/20 border border-outline-variant/5">
+          <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5">
             <div>
               <p class="text-sm font-bold">Supprimer le message</p>
               <p class="text-[10px] text-on-surface-variant/50">Supprime le message de l'utilisateur</p>
@@ -578,7 +578,7 @@
             />
           </div>
 
-          <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container-high/20 border border-outline-variant/5">
+          <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5">
             <div>
               <p class="text-sm font-bold">Activer le déclencheur</p>
               <p class="text-[10px] text-on-surface-variant/50">Actif dès l'enregistrement</p>
@@ -664,14 +664,14 @@
           <button 
             type="button"
             onclick={() => showModal = false}
-            class="px-6 py-3 bg-outline-variant/20 hover:bg-outline-variant/30 text-on-surface text-xs font-black uppercase tracking-wider rounded-2xl transition-all cursor-pointer"
+            class="px-6 py-3 bg-outline-variant/20 hover:bg-outline-variant/30 text-on-surface text-xs font-semibold uppercase tracking-wider rounded-lg transition-all cursor-pointer"
           >
             Annuler
           </button>
           {#if canManageSettings}
             <button 
               type="submit"
-              class="px-8 py-3 bg-primary text-on-primary font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-primary/20 hover:scale-[1.03] transition-all cursor-pointer"
+              class="px-8 py-3 bg-primary text-on-primary font-semibold uppercase tracking-widest text-xs rounded-lg  hover:scale-[1.03] transition-all cursor-pointer"
             >
               Enregistrer
             </button>

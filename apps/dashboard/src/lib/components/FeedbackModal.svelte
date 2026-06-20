@@ -65,15 +65,15 @@
   <!-- Premium background mesh glow -->
   <div class="absolute inset-0 pointer-events-none opacity-[0.03] dark:opacity-[0.05] overflow-hidden">
     <div class="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-primary rounded-full blur-[100px]"></div>
-    <div class="absolute bottom-[20%] right-[-10%] w-[50%] h-[50%] bg-secondary rounded-full blur-[80px]"></div>
+    <div class="absolute bottom-[20%] right-[-10%] w-[50%] h-[50%] bg-secondary rounded-full blur-none hidden"></div>
   </div>
 
   <!-- Form Content -->
   <form onsubmit={handleSubmit} class="p-6 space-y-5 relative z-10">
     <!-- Type Selection -->
     <div class="space-y-2">
-      <label for="feedback-type" class="text-xs font-black uppercase tracking-wider text-on-surface-variant/70">Type de retour</label>
-      <FormSelect id="feedback-type" bind:value={type} className="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-hidden focus:border-primary/40 focus:ring-4 focus:ring-primary/10 transition-all duration-300">
+      <label for="feedback-type" class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant/70">Type de retour</label>
+      <FormSelect id="feedback-type" bind:value={type} className="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-hidden focus:border-primary/40 focus:ring-4 focus:ring-primary/10 transition-all duration-300">
         <option value="retour">📬 Retour d'expérience</option>
         <option value="bloquage">🛑 Bloquage / Bug</option>
         <option value="suggestion">💡 Suggestion d'amélioration</option>
@@ -84,7 +84,7 @@
     <!-- Description Textarea -->
     <div class="space-y-2">
       <div class="flex items-center justify-between">
-        <label for="feedback-message" class="text-xs font-black uppercase tracking-wider text-on-surface-variant/70">Message / Description</label>
+        <label for="feedback-message" class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant/70">Message / Description</label>
         <span class="text-[10px] font-bold {message.length > 1900 ? 'text-error' : 'text-on-surface-variant/50'}">
           {message.length} / 2000
         </span>
@@ -95,7 +95,7 @@
         rows={5}
         placeholder="Décrivez votre expérience, votre bug bloquant ou votre idée de fonctionnalité..."
         disabled={isSending}
-        className="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-hidden focus:border-primary/40 focus:ring-4 focus:ring-primary/10 transition-all duration-300 resize-none font-medium leading-relaxed placeholder:text-on-surface-variant/40"
+        className="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-hidden focus:border-primary/40 focus:ring-4 focus:ring-primary/10 transition-all duration-300 resize-none font-medium leading-relaxed placeholder:text-on-surface-variant/40"
       />
     </div>
 
@@ -111,7 +111,7 @@
       <button
         type="submit"
         disabled={isSending || !message.trim()}
-        class="px-5 py-2.5 text-xs rounded-xl font-black uppercase tracking-[0.12em] bg-primary text-on-primary border border-primary shadow-lg shadow-primary/20 hover:bg-primary-container active:scale-95 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60 flex items-center gap-2"
+        class="px-5 py-2.5 text-xs rounded-xl font-semibold uppercase tracking-wide bg-primary text-on-primary border border-primary  hover:bg-primary-container active:scale-95 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-60 flex items-center gap-2"
       >
         {#if isSending}
           <div class="w-4 h-4 border-2 border-on-primary border-t-transparent rounded-full animate-spin"></div>

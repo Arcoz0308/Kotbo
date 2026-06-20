@@ -35,12 +35,12 @@
     role="dialog"
     aria-modal="true"
     aria-labelledby="keyboard-shortcuts-title"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
     onclick={handleBackdropClick}
     onkeydown={handleKeyDown}
     tabindex="-1"
   >
-    <div class="bg-surface-container-low border border-outline-variant/20 rounded-3xl shadow-2xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div class="bg-surface-container-low border border-outline-variant/20 rounded-xl shadow-sm max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
       <!-- Header -->
       <div class="flex items-center justify-between p-6 border-b border-outline-variant/10">
         <div class="flex items-center gap-3">
@@ -48,7 +48,7 @@
             <Papicon icon="Keyboard" size={20} class="text-primary" />
           </div>
           <div>
-            <h2 id="keyboard-shortcuts-title" class="text-xl font-black">Raccourcis clavier</h2>
+            <h2 id="keyboard-shortcuts-title" class="text-xl font-semibold">Raccourcis clavier</h2>
             <p class="text-sm text-on-surface-variant/60">Navigation rapide dans le dashboard</p>
           </div>
         </div>

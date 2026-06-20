@@ -152,14 +152,14 @@
 
 <div class="space-y-6">
   <!-- Header Card -->
-  <div class="premium-card p-6 md:p-8 rounded-[2.5rem] space-y-6">
+  <div class="premium-card p-6 md:p-8 rounded-xl space-y-6">
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div class="flex items-center gap-4">
-        <div class="bg-primary/10 p-3 rounded-2xl text-primary">
+        <div class="bg-primary/10 p-3 rounded-lg text-primary">
           <Papicon icon="fire" size={24} />
         </div>
         <div>
-          <h3 class="text-xl font-black text-on-surface">Carte Thermique d'Activité</h3>
+          <h3 class="text-xl font-semibold text-on-surface">Carte Thermique d'Activité</h3>
           <p class="text-xs font-bold text-on-surface-variant/40">
             {fluxMetricActive
               ? 'Moyennes par jour × heure (mêmes stats que Flux de Population)'
@@ -174,8 +174,8 @@
           {#each activityMetrics as m}
             <button
               onclick={() => metric = m}
-              class="flex items-center gap-1.5 px-3 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all duration-200 border {metric === m
-                ? 'bg-primary text-on-primary border-primary shadow-lg shadow-primary/25'
+              class="flex items-center gap-1.5 px-3 py-2 rounded-xl font-semibold text-[10px] uppercase tracking-widest transition-all duration-200 border {metric === m
+                ? 'bg-primary text-on-primary border-primary '
                 : 'bg-surface-container-high/40 text-on-surface-variant/60 border-outline-variant/10 hover:bg-surface-container-high hover:text-on-surface'}"
             >
               <Papicon icon={metricConfig[m].icon} size={12} />
@@ -187,7 +187,7 @@
           {#each fluxMetrics as m}
             <button
               onclick={() => metric = m}
-              class="flex items-center gap-1.5 px-3 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all duration-200 border {metric === m
+              class="flex items-center gap-1.5 px-3 py-2 rounded-xl font-semibold text-[10px] uppercase tracking-widest transition-all duration-200 border {metric === m
                 ? 'bg-emerald-600 text-white border-emerald-500 shadow-lg shadow-emerald-600/25'
                 : 'bg-surface-container-high/40 text-on-surface-variant/60 border-outline-variant/10 hover:bg-surface-container-high hover:text-on-surface'}"
             >
@@ -200,7 +200,7 @@
         <!-- Show values toggle -->
         <button
           onclick={() => showValues = !showValues}
-          class="flex items-center gap-1.5 px-3 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all duration-200 border {showValues
+          class="flex items-center gap-1.5 px-3 py-2 rounded-xl font-semibold text-[10px] uppercase tracking-widest transition-all duration-200 border {showValues
             ? 'bg-surface-container-high text-on-surface border-outline-variant/30'
             : 'text-on-surface-variant/40 border-outline-variant/10 hover:bg-surface-container-high'}"
           title="Afficher les valeurs"
@@ -213,23 +213,23 @@
 
     <!-- Summary stats -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-      <div class="bg-surface-container-high/30 rounded-2xl p-4 border border-outline-variant/5">
-        <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-1">Total période</p>
-        <p class="text-lg font-black text-on-surface {metric === 'net' && totalValue < 0 ? 'text-rose-400' : metric === 'net' && totalValue > 0 ? 'text-emerald-400' : ''}">
+      <div class="bg-surface-container-high/30 rounded-lg p-4 border border-outline-variant/5">
+        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-1">Total période</p>
+        <p class="text-lg font-semibold text-on-surface {metric === 'net' && totalValue < 0 ? 'text-rose-400' : metric === 'net' && totalValue > 0 ? 'text-emerald-400' : ''}">
           {metric === 'net' && totalValue > 0 ? '+' : ''}{totalValue.toLocaleString('fr-FR')}
           <span class="text-xs font-bold text-on-surface-variant/40">{cfg.unit}</span>
         </p>
       </div>
-      <div class="bg-surface-container-high/30 rounded-2xl p-4 border border-outline-variant/5">
-        <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-1">Pic absolu</p>
-        <p class="text-lg font-black text-on-surface">
+      <div class="bg-surface-container-high/30 rounded-lg p-4 border border-outline-variant/5">
+        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-1">Pic absolu</p>
+        <p class="text-lg font-semibold text-on-surface">
           {metric === 'net' && peakCell.val > 0 ? '+' : ''}{peakCell.val.toLocaleString('fr-FR')}
           <span class="text-xs font-bold text-on-surface-variant/40">{cfg.unit}</span>
         </p>
       </div>
-      <div class="bg-surface-container-high/30 rounded-2xl p-4 border border-outline-variant/5 md:col-span-2">
-        <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-1">Heure de pointe</p>
-        <p class="text-base font-black text-on-surface flex items-center gap-2">
+      <div class="bg-surface-container-high/30 rounded-lg p-4 border border-outline-variant/5 md:col-span-2">
+        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-1">Heure de pointe</p>
+        <p class="text-base font-semibold text-on-surface flex items-center gap-2">
           <Papicon icon="Lightning" size={14} class="text-amber-400" />
           {bestSlot}
         </p>
@@ -238,7 +238,7 @@
   </div>
 
   <!-- Heatmap Grid Card -->
-  <div class="premium-card p-4 md:p-8 rounded-[2.5rem] overflow-hidden">
+  <div class="premium-card p-4 md:p-8 rounded-xl overflow-hidden">
     <div class="overflow-x-auto">
       <div class="min-w-[700px]">
         <!-- Hour axis labels -->
@@ -246,7 +246,7 @@
           {#each hours as hour}
             <div class="flex-1 text-center">
               {#if hour % 3 === 0}
-                <span class="text-[9px] font-black text-on-surface-variant/40">{String(hour).padStart(2, '0')}h</span>
+                <span class="text-[11px] font-semibold text-on-surface-variant/40">{String(hour).padStart(2, '0')}h</span>
               {/if}
             </div>
           {/each}
@@ -264,7 +264,7 @@
               role="button"
               tabindex="-1"
             >
-              <span class="text-[10px] font-black uppercase tracking-wider transition-colors duration-150 {isHovDow ? 'text-on-surface' : 'text-on-surface-variant/50'}">{dayNames[dow]}</span>
+              <span class="text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 {isHovDow ? 'text-on-surface' : 'text-on-surface-variant/50'}">{dayNames[dow]}</span>
             </div>
 
             <!-- Cells -->
@@ -285,7 +285,7 @@
               >
                 <!-- Value text -->
                 {#if showValues && Math.abs(val) >= 0.05}
-                  <span class="text-[8px] font-black leading-none select-none" style="color: {getCellTextColor(val, maxValue)}">
+                  <span class="text-[10px] font-semibold leading-none select-none" style="color: {getCellTextColor(val, maxValue)}">
                     {formatVal(val)}
                   </span>
                 {:else if isPeak && !showValues}
@@ -293,15 +293,15 @@
                 {/if}
 
                 <!-- Tooltip -->
-                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-surface-container-highest/95 backdrop-blur-sm text-on-surface rounded-xl text-[10px] font-bold
+                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-surface-container-highest/95 text-on-surface rounded-xl text-[10px] font-bold
                   opacity-0 group-hover/cell:opacity-100 transition-all duration-150 pointer-events-none whitespace-nowrap z-50
-                  border border-outline-variant/20 shadow-xl shadow-black/40">
-                  <div class="font-black text-[11px]">{dayNamesFull[dow]} {String(hour).padStart(2, '0')}h–{String(hour + 1).padStart(2, '0')}h</div>
-                  <div class="text-primary font-black mt-0.5">
+                  border border-outline-variant/20 shadow-sm shadow-black/40">
+                  <div class="font-semibold text-[11px]">{dayNamesFull[dow]} {String(hour).padStart(2, '0')}h–{String(hour + 1).padStart(2, '0')}h</div>
+                  <div class="text-primary font-semibold mt-0.5">
                     {fluxMetricActive ? formatFlux(val) : val.toLocaleString('fr-FR')} {cfg.unit}
                   </div>
                   {#if maxValue > 0}
-                    <div class="text-on-surface-variant/40 text-[9px] mt-0.5">{Math.round((Math.abs(val) / maxValue) * 100)}% du pic</div>
+                    <div class="text-on-surface-variant/40 text-[11px] mt-0.5">{Math.round((Math.abs(val) / maxValue) * 100)}% du pic</div>
                   {/if}
                 </div>
               </div>
@@ -331,7 +331,7 @@
 
     <!-- Legend -->
     <div class="flex items-center justify-center gap-3 pt-6 mt-2 border-t border-outline-variant/10 flex-wrap">
-      <span class="text-[9px] font-black text-on-surface-variant/40 uppercase tracking-widest">Intensité</span>
+      <span class="text-[11px] font-semibold text-on-surface-variant/40 uppercase tracking-widest">Intensité</span>
       <div class="flex items-center gap-1.5">
         <div class="w-3 h-3 rounded border border-white/5" style="background: rgba(255,255,255,0.04)"></div>
         <div class="w-5 h-4 rounded" style="background: {cfg.color1}60"></div>
@@ -340,23 +340,23 @@
         <div class="w-5 h-4 rounded" style="background: {cfg.color3}dd"></div>
         <div class="w-5 h-5 rounded border" style="background: {cfg.colorPeak}; border-color: {cfg.colorPeak}"></div>
       </div>
-      <div class="flex items-center gap-3 text-[9px] font-bold text-on-surface-variant/40">
+      <div class="flex items-center gap-3 text-[11px] font-bold text-on-surface-variant/40">
         <span>Faible</span>
         <span class="w-8 h-px bg-outline-variant/20"></span>
         <span>Élevée</span>
       </div>
       {#if peakCell.val !== 0}
-        <div class="flex items-center gap-1.5 text-[9px] font-bold text-amber-400/70 border border-amber-400/20 px-2 py-1 rounded-lg">
+        <div class="flex items-center gap-1.5 text-[11px] font-bold text-amber-400/70 border border-amber-400/20 px-2 py-1 rounded-lg">
           <div class="w-2 h-2 rounded-full border border-amber-400/60"></div>
           {metric === 'net' ? 'Pic de flux' : "Pic d'activité"}
         </div>
       {/if}
       {#if metric === 'net'}
-        <div class="flex items-center gap-1.5 text-[9px] font-bold text-emerald-400/70 border border-emerald-400/20 px-2 py-1 rounded-lg">
+        <div class="flex items-center gap-1.5 text-[11px] font-bold text-emerald-400/70 border border-emerald-400/20 px-2 py-1 rounded-lg">
           <div class="w-2 h-2 rounded" style="background: {metricConfig.net.color2}"></div>
           Gain net
         </div>
-        <div class="flex items-center gap-1.5 text-[9px] font-bold text-rose-400/70 border border-rose-400/20 px-2 py-1 rounded-lg">
+        <div class="flex items-center gap-1.5 text-[11px] font-bold text-rose-400/70 border border-rose-400/20 px-2 py-1 rounded-lg">
           <div class="w-2 h-2 rounded bg-rose-500/80"></div>
           Perte nette
         </div>
@@ -365,13 +365,13 @@
   </div>
 
   <!-- Hour breakdown -->
-  <div class="premium-card p-6 md:p-8 rounded-[2.5rem] space-y-4">
+  <div class="premium-card p-6 md:p-8 rounded-xl space-y-4">
     <div class="flex items-center gap-3">
       <div class="bg-primary/10 p-2.5 rounded-xl text-primary">
         <Papicon icon="Clock" size={18} />
       </div>
       <div>
-        <h4 class="text-base font-black text-on-surface">Répartition par Tranche Horaire</h4>
+        <h4 class="text-base font-semibold text-on-surface">Répartition par Tranche Horaire</h4>
         <p class="text-[10px] font-bold text-on-surface-variant/40">Cumul toutes journées confondues</p>
       </div>
     </div>
@@ -386,10 +386,10 @@
       ] as slot}
         {@const slotTotal = slot.hours.reduce((s, h) => s + hourTotals[h], 0)}
         {@const slotPct = totalValue > 0 ? Math.round((slotTotal / totalValue) * 100) : 0}
-        <div class="bg-surface-container-high/20 rounded-2xl p-4 border border-outline-variant/5 text-center space-y-2">
-          <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/50">{slot.label}</p>
-          <p class="text-[9px] text-on-surface-variant/30">{slot.range}</p>
-          <p class="text-base font-black text-on-surface">{slotPct}%</p>
+        <div class="bg-surface-container-high/20 rounded-lg p-4 border border-outline-variant/5 text-center space-y-2">
+          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/50">{slot.label}</p>
+          <p class="text-[11px] text-on-surface-variant/30">{slot.range}</p>
+          <p class="text-base font-semibold text-on-surface">{slotPct}%</p>
           <div class="h-1 bg-surface-container-high rounded-full overflow-hidden">
             <div class="h-full rounded-full" style="width: {slotPct}%; background: {cfg.color2}"></div>
           </div>

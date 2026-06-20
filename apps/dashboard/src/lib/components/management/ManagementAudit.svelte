@@ -18,10 +18,10 @@
   );
 </script>
 
-<div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6 animate-in fade-in duration-500">
+<div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 animate-in fade-in duration-500">
   <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
     <div>
-      <h3 class="text-2xl font-black">Journal d'Audit</h3>
+      <h3 class="text-2xl font-semibold">Journal d'Audit</h3>
       <p class="text-xs text-on-surface-variant/50 mt-1">Historique de toutes les modifications de configuration.</p>
     </div>
     <div class="flex items-center gap-3">
@@ -44,9 +44,9 @@
     </div>
   </div>
 
-  <div class="overflow-hidden rounded-2xl border border-outline-variant/5">
+  <div class="overflow-hidden rounded-lg border border-outline-variant/5">
     <table class="w-full text-left border-collapse">
-      <thead class="bg-surface-container-high/40 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60">
+      <thead class="bg-surface-container-high/40 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">
         <tr>
           <th class="px-5 py-3.5">Date</th>
           <th class="px-5 py-3.5">Utilisateur</th>
@@ -59,7 +59,7 @@
           <tr class="hover:bg-surface-container-high/20 transition-colors text-sm">
             <td class="px-5 py-3.5 text-on-surface-variant/60 text-xs">{new Date(log.dateIso).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
             <td class="px-5 py-3.5 font-bold text-xs">{log.user}</td>
-            <td class="px-5 py-3.5"><span class="px-2 py-1 bg-surface-container-high rounded text-[10px] font-black uppercase">{log.module}</span></td>
+            <td class="px-5 py-3.5"><span class="px-2 py-1 bg-surface-container-high rounded text-[10px] font-semibold uppercase">{log.module}</span></td>
             <td class="px-5 py-3.5 text-xs">{log.action}</td>
           </tr>
         {:else}

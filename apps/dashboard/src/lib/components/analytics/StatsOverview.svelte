@@ -18,18 +18,18 @@
   <!-- Stats Grid -->
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
     {#each stats as stat}
-      <div class="premium-card p-6 rounded-4xl group transition-all hover:scale-[1.02] relative overflow-hidden">
+      <div class="premium-card p-6 rounded-xl group transition-all hover: relative overflow-hidden">
         <div class="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
           <Papicon icon={stat.icon} size={80} />
         </div>
         <div class="flex justify-between items-start mb-4 relative z-10">
-          <div class="p-3 rounded-2xl transition-transform group-hover:rotate-12" style="background: {stat.color}15; color: {stat.color}">
+          <div class="p-3 rounded-lg transition-transform group-hover:rotate-12" style="background: {stat.color}15; color: {stat.color}">
             <Papicon icon={stat.icon} size={24} />
           </div>
-          <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Total</span>
+          <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Total</span>
         </div>
         <div class="space-y-1 relative z-10">
-          <h4 class="text-3xl font-black text-on-surface">{stat.value}</h4>
+          <h4 class="text-lg font-semibold text-on-surface">{stat.value}</h4>
           <p class="text-xs font-bold text-on-surface-variant/60">{stat.label}</p>
         </div>
       </div>
@@ -38,14 +38,14 @@
 
   <!-- Main Chart Section -->
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <div class="lg:col-span-2 premium-card p-8 rounded-[2.5rem] space-y-8">
+    <div class="lg:col-span-2 premium-card p-8 rounded-xl space-y-8">
       <div class="flex justify-between items-center">
         <div class="flex items-center gap-4">
-          <div class="bg-primary/10 p-3 rounded-2xl text-primary">
+          <div class="bg-primary/10 p-3 rounded-lg text-primary">
             <Papicon icon="ChartLineUp" size={24} />
           </div>
           <div>
-            <h3 class="text-xl font-black text-on-surface">Tendance Globale</h3>
+            <h3 class="text-xl font-semibold text-on-surface">Tendance Globale</h3>
             <p class="text-xs font-bold text-on-surface-variant/40">Messages & Sessions Vocales</p>
           </div>
         </div>
@@ -102,34 +102,34 @@
     </div>
 
     <!-- Live Snapshots -->
-    <div class="premium-card p-8 rounded-[2.5rem] space-y-8 flex flex-col">
+    <div class="premium-card p-8 rounded-xl space-y-8 flex flex-col">
       <div class="flex items-center gap-3">
         <div class="p-2 rounded-lg bg-amber-500/10 text-amber-500">
           <Papicon icon="Lightning" size={20} />
         </div>
-        <h3 class="text-lg font-black text-on-surface">En Direct</h3>
+        <h3 class="text-lg font-semibold text-on-surface">En Direct</h3>
       </div>
       
       <div class="space-y-4 flex-grow">
-        <div class="p-6 rounded-3xl bg-surface-container-high/30 border border-outline-variant/10 hover:border-primary/20 transition-all group">
-          <p class="text-[9px] font-black uppercase tracking-[0.2em] text-on-surface-variant/40 mb-3">Salon le plus actif</p>
+        <div class="p-6 rounded-xl bg-surface-container-high/30 border border-outline-variant/10 hover:border-primary/20 transition-all group">
+          <p class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/40 mb-3">Salon le plus actif</p>
           <div class="flex items-center justify-between">
-            <span class="text-base font-black text-primary group-hover:translate-x-1 transition-transform">
+            <span class="text-base font-semibold text-primary group-hover:translate-x-1 transition-transform">
               #{data?.topChannels?.[0]?.channelName || 'général'}
             </span>
           </div>
         </div>
         
-        <div class="p-6 rounded-3xl bg-surface-container-high/30 border border-outline-variant/10 hover:border-secondary/20 transition-all group">
-          <p class="text-[9px] font-black uppercase tracking-[0.2em] text-on-surface-variant/40 mb-3">Pic d'activité (Période)</p>
+        <div class="p-6 rounded-xl bg-surface-container-high/30 border border-outline-variant/10 hover:border-secondary/20 transition-all group">
+          <p class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/40 mb-3">Pic d'activité (Période)</p>
           <div class="flex items-center justify-between">
-            <span class="text-base font-black text-on-surface group-hover:translate-x-1 transition-transform">
+            <span class="text-base font-semibold text-on-surface group-hover:translate-x-1 transition-transform">
               {(() => {
                 const max = [...(data?.dailyTrend || [])].sort((a, b) => b.peakOnline - a.peakOnline)[0];
                 return max ? max.dateKey : 'Aujourd\'hui';
               })()}
             </span>
-            <span class="text-[10px] font-black {data?.summary?.messagesTrend >= 0 ? 'text-emerald-500 bg-emerald-500/10' : 'text-rose-500 bg-rose-500/10'} px-2 py-1 rounded-lg">
+            <span class="text-[10px] font-semibold {data?.summary?.messagesTrend >= 0 ? 'text-emerald-500 bg-emerald-500/10' : 'text-rose-500 bg-rose-500/10'} px-2 py-1 rounded-lg">
               {data?.summary?.messagesTrend >= 0 ? '+' : ''}{data?.summary?.messagesTrend ?? 0}%
             </span>
           </div>

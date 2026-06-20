@@ -208,19 +208,15 @@
 </script>
 
 <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-12">
-  <!-- Hero Header -->
-  <header class="relative overflow-hidden flex flex-col md:flex-row md:items-center gap-6 bg-surface-container-low/40 backdrop-blur-3xl p-8 rounded-4xl border border-outline-variant/30">
-    <div class="absolute inset-0 pointer-events-none">
-      <div class="absolute -top-16 -right-16 w-64 h-64 rounded-full bg-primary/5 blur-3xl"></div>
-      <div class="absolute -bottom-8 -left-8 w-40 h-40 rounded-full bg-secondary/5 blur-2xl"></div>
-    </div>
-    <div class="relative flex items-center gap-6 flex-1">
-      <div class="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shadow-inner shrink-0">
-        <Papicon icon="calendar" size={32} />
+  <!-- Header -->
+  <header class="relative overflow-hidden flex flex-col md:flex-row md:items-center gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
+    <div class="relative flex items-center gap-4 flex-1">
+      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary shrink-0">
+        <Papicon icon="calendar" size={20} />
       </div>
       <div>
-        <h1 class="text-3xl font-black tracking-tight leading-tight">Planifications de tâches</h1>
-        <p class="text-on-surface-variant/70 font-medium mt-1">
+        <h1 class="text-lg font-semibold tracking-tight leading-tight">Planifications de tâches</h1>
+        <p class="text-sm text-on-surface-variant/70 font-medium">
           Configurez et automatisez des actions régulières sur votre serveur Discord.
         </p>
       </div>
@@ -236,17 +232,17 @@
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
     {#if loading}
       {#each Array(3) as _}
-        <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-3xl p-6 h-[250px]">
+        <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 h-[250px]">
           <Skeleton height="100%" radius="1.5rem" />
         </div>
       {/each}
     {:else if schedules.length === 0}
-      <div class="col-span-full bg-surface-container-low/30 border border-outline-variant/10 rounded-[2.5rem] p-12 flex flex-col items-center justify-center text-center space-y-4">
+      <div class="col-span-full bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-12 flex flex-col items-center justify-center text-center space-y-4">
         <div class="w-16 h-16 bg-surface-container-high/40 rounded-full flex items-center justify-center text-on-surface-variant/40 border border-outline-variant/10">
           <Papicon icon="calendar" size={32} />
         </div>
         <div class="space-y-1">
-          <h3 class="text-xl font-black">Aucune planification</h3>
+          <h3 class="text-xl font-semibold">Aucune planification</h3>
           <p class="text-sm text-on-surface-variant/70 font-medium">Créez votre première planification pour automatiser des tâches récurrentes.</p>
         </div>
         {#if canManageSchedules}
@@ -255,12 +251,12 @@
       </div>
     {:else}
       {#each schedules as schedule}
-        <div class="relative overflow-hidden bg-surface-container-low/30 border border-outline-variant/10 hover:border-primary/30 rounded-4xl p-6 flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/5">
+        <div class="relative overflow-hidden bg-surface-container-low/30 border border-outline-variant/10 hover:border-primary/30 rounded-xl p-6 flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/5">
           <div class="space-y-4">
             <div class="flex items-start justify-between gap-4">
               <div class="min-w-0 flex-1">
-                <h3 class="text-lg font-black truncate leading-snug">{schedule.name}</h3>
-                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 mt-1 bg-surface-container-high/50 border border-outline-variant/15 text-[10px] font-black rounded-lg uppercase tracking-wider text-primary">
+                <h3 class="text-lg font-semibold truncate leading-snug">{schedule.name}</h3>
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 mt-1 bg-surface-container-high/50 border border-outline-variant/15 text-[10px] font-semibold rounded-lg uppercase tracking-wider text-primary">
                   {formatType(schedule.type)}
                 </span>
               </div>
@@ -274,7 +270,7 @@
             </div>
 
             <!-- Details Block -->
-            <div class="space-y-2.5 bg-surface-container-high/15 border border-outline-variant/5 p-4 rounded-2xl text-xs font-semibold text-on-surface-variant">
+            <div class="space-y-2.5 bg-surface-container-high/15 border border-outline-variant/5 p-4 rounded-lg text-xs font-semibold text-on-surface-variant">
               <div class="flex items-center gap-2">
                 <div class="text-primary/70 shrink-0"><Papicon icon="clock" size={16} /></div>
                 <span class="truncate">Fréquence : {formatCron(schedule.cron)}</span>
@@ -340,7 +336,7 @@
         type="text"
         bind:value={formName}
         placeholder="ex: Réinitialisation Générale Salon Général"
-        class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+        class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
       />
     </div>
 
@@ -349,7 +345,7 @@
       <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Type d'action</span>
       <FormSelect
         bind:value={formType}
-        className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+        className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
       >
         <option value="CHANNEL_RESET">Réinitialisation de salon (nuke)</option>
         <option value="SERVER_BACKUP">Sauvegarde complète du serveur</option>
@@ -377,7 +373,7 @@
       <FormSelect
         value={formFrequency}
         onchange={(e) => handleFrequencyChange((e.target as HTMLSelectElement).value)}
-        className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+        className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
       >
         {#each frequencies as freq}
           <option value={freq.key}>{freq.label}</option>
@@ -393,7 +389,7 @@
           type="text"
           bind:value={formCron}
           placeholder="* * * * * (minute, heure, jour, mois, jour de la semaine)"
-          class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none font-mono"
+          class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none font-mono"
         />
         <p class="text-[10px] text-on-surface-variant/60 ml-2">Standard cron unix format. ex: `0 12 * * *` pour chaque midi.</p>
       </div>
@@ -412,7 +408,7 @@
 <Modal bind:open={showDeleteModal} title="Supprimer la planification">
   <div class="space-y-4">
     <p class="text-sm font-medium">Êtes-vous sûr de vouloir supprimer la planification <strong class="text-on-surface">{selectedSchedule?.name}</strong> ?</p>
-    <p class="text-xs text-error font-bold bg-error/10 border border-error/20 px-4 py-3 rounded-2xl flex items-center gap-2">
+    <p class="text-xs text-error font-bold bg-error/10 border border-error/20 px-4 py-3 rounded-lg flex items-center gap-2">
       <Papicon icon="alert-triangle" size={16} />
       Cette action est définitive.
     </p>

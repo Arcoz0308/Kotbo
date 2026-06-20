@@ -1380,36 +1380,41 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 <div class="space-y-16 animate-in fade-in slide-in-from-bottom-6 duration-1000">
   {#if !guildId && !error}
     <div class="space-y-8 p-8 md:p-10 w-full animate-in fade-in duration-700">
-      <Skeleton width="w-1/3" height="h-14" rounded="rounded-2xl" />
+      <Skeleton width="w-1/3" height="h-14" rounded="rounded-lg" />
       <div class="flex flex-col md:flex-row gap-6">
-        <Skeleton height="h-32" class="flex-1" rounded="rounded-3xl" />
-        <Skeleton height="h-32" class="flex-1" rounded="rounded-3xl" />
-        <Skeleton height="h-32" class="flex-1" rounded="rounded-3xl" />
-        <Skeleton height="h-32" class="flex-1" rounded="rounded-3xl" />
+        <Skeleton height="h-32" class="flex-1" rounded="rounded-xl" />
+        <Skeleton height="h-32" class="flex-1" rounded="rounded-xl" />
+        <Skeleton height="h-32" class="flex-1" rounded="rounded-xl" />
+        <Skeleton height="h-32" class="flex-1" rounded="rounded-xl" />
       </div>
-      <Skeleton height="h-[60vh]" rounded="rounded-[3rem]" />
+      <Skeleton height="h-[60vh]" rounded="rounded-xl" />
     </div>
   {:else if error}
-    <div class="mt-6 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-700 text-center max-w-2xl mx-auto">
+    <div class="mt-6 rounded-lg border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-700 text-center max-w-2xl mx-auto">
       {error}
     </div>
   {:else if guildId}
     <div
-      class="rounded-[3rem] border border-outline-variant/20 bg-linear-to-br from-surface-container/90 via-surface-container-low/80 to-surface-container/50 p-8 md:p-10 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur-xl"
+      class="rounded-xl border border-outline-variant/20 bg-linear-to-br from-surface-container/90 via-surface-container-low/80 to-surface-container/50 p-5"
     >
-      <div class="flex flex-col gap-8 xl:flex-row xl:items-end xl:justify-between pb-8">
-        <div class="max-w-3xl space-y-4">
-          <h2 class="text-4xl font-black text-on-surface tracking-tighter font-headline leading-tight md:text-5xl">
-            Gestion du Personnel
-          </h2>
-          <p class="max-w-2xl text-base leading-relaxed text-on-surface-variant/75 md:text-lg">
-            Supervisez votre équipe de modération, attribuez des permissions, gérez les périodes de test et consultez l'historique des avertissements.
-          </p>
+      <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div class="flex items-center gap-4">
+          <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+            <Papicon icon="users" size={20} />
+          </div>
+          <div>
+            <h2 class="text-lg font-semibold text-on-surface tracking-tight font-headline leading-tight">
+              Gestion du Personnel
+            </h2>
+            <p class="text-sm text-on-surface-variant/70 font-medium">
+              Supervisez votre équipe de modération, attribuez des permissions et gérez les avertissements.
+            </p>
+          </div>
         </div>
         {#if canManageSettings}
           <div>
-            <button onclick={() => showConfigMenu = true} class="flex h-14 w-14 items-center justify-center rounded-2xl border-2 border-outline-variant/20 bg-surface text-on-surface transition-all hover:border-primary/50 hover:bg-primary/5 hover:text-primary active:scale-95 shadow-sm" title="Configuration Automatisation & Sanctions">
-              <Papicon icon="settings" size={26} />
+            <button onclick={() => showConfigMenu = true} class="flex h-10 w-10 items-center justify-center rounded-lg border border-outline-variant/20 bg-surface text-on-surface transition-all hover:border-primary/50 hover:bg-primary/5 hover:text-primary active:scale-95" title="Configuration Automatisation & Sanctions">
+              <Papicon icon="settings" size={20} />
             </button>
           </div>
         {/if}
@@ -1447,8 +1452,8 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       ].filter(t => t.visible) as tab}
         <button
           onclick={() => switchTab(tab.id as StaffTab)}
-          class="inline-flex items-center gap-2 rounded-full px-5 py-3 text-xs font-black uppercase tracking-[0.18em] transition-all {activeTab === tab.id
-            ? 'bg-primary text-white shadow-xl shadow-primary/20 scale-[1.02]'
+          class="inline-flex items-center gap-2 rounded-full px-5 py-3 text-xs font-semibold uppercase tracking-[0.18em] transition-all {activeTab === tab.id
+            ? 'bg-primary text-white shadow-sm shadow-primary/20 '
             : 'border border-outline-variant/20 bg-surface-container-low/50 text-on-surface-variant/70 hover:bg-surface-container-low hover:text-on-surface'}"
         >
         <Papicon icon={tab.icon} size={16} class="shrink-0" />
@@ -1458,17 +1463,17 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     </div>
 
     <!-- SECTIONS -->
-    <div class="premium-card rounded-[3rem] overflow-hidden">
+    <div class="premium-card rounded-xl overflow-hidden">
       {#if activeTab === 'members'}
-        <div class="p-6 md:p-8 flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-low/30 backdrop-blur-sm">
+        <div class="p-6 md:p-8 flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-low/30">
           <div>
-            <h3 class="text-2xl font-black tracking-tighter text-on-surface">Membres du Personnel</h3>
+            <h3 class="text-2xl font-semibold tracking-tighter text-on-surface">Membres du Personnel</h3>
             <p class="text-sm font-medium text-on-surface-variant/60 mt-1">Gérez l'équipe et leurs grades actuels.</p>
           </div>
           {#if directoryAccess.canConfigure}
             <button
               onclick={openAddMemberForm}
-              class="inline-flex items-center gap-2 whitespace-nowrap rounded-2xl border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
+              class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
             >
               <Papicon icon={showAddMemberForm ? 'x' : 'plus'} size={14} />
               {showAddMemberForm ? 'Annuler' : 'Ajouter un membre'}
@@ -1499,7 +1504,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               <div class="md:w-64 shrink-0">
                 <label>
                   <span class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Grade Global</span>
-                  <select bind:value={newMemberGrade} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
+                  <select bind:value={newMemberGrade} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
                     {#each orderedStaffRoles as role}
                       <option value={role.name}>{role.name}</option>
                     {/each}
@@ -1513,7 +1518,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 />
                 <span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant/70">Créer un tutorat</span>
               </div>
-              <button onclick={addStaffMember} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-primary px-8 py-3 text-xs font-black uppercase tracking-[0.18em] text-white shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]">
+              <button onclick={addStaffMember} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white  transition-all hover: active:scale-[0.98]">
                 Ajouter
               </button>
             </div>
@@ -1556,17 +1561,17 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                       {/if}
                     </div>
                     <div>
-                      <h4 class="text-lg font-black text-on-surface leading-tight hover:text-primary transition-colors cursor-pointer">
+                      <h4 class="text-lg font-semibold text-on-surface leading-tight hover:text-primary transition-colors cursor-pointer">
                         <a href="/profile/{member.userId}">{member.displayName || member.username || 'Utilisateur inconnu'}</a>
                       </h4>
                       <div class="flex items-center gap-3 mt-1.5 flex-wrap">
-                        <span class="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-primary">
+                        <span class="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
                           {member.grade}
                         </span>
                         {#if member.hierarchyGrades && member.hierarchyGrades.length > 0}
                           {#each member.hierarchyGrades as hGrade}
                             <span 
-                              class="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.15em]"
+                              class="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
                               style="border-color: {hGrade.hierarchy?.color ? hGrade.hierarchy.color + '30' : 'rgba(99, 102, 241, 0.2)'}; background-color: {hGrade.hierarchy?.color ? hGrade.hierarchy.color + '15' : 'rgba(99, 102, 241, 0.1)'}; color: {hGrade.hierarchy?.color || 'var(--color-primary)'}"
                             >
                               <span>{hGrade.hierarchy?.icon || '🔵'}</span>
@@ -1575,7 +1580,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                           {/each}
                         {/if}
                         {#if member.isTutor}
-                          <span class="inline-flex items-center gap-1 item rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.15em] text-indigo-600 shadow-sm shadow-indigo-500/5 transition-all animate-in zoom-in-95 duration-300">
+                          <span class="inline-flex items-center gap-1 item rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-indigo-600 shadow-sm shadow-indigo-500/5 transition-all animate-in zoom-in-95 duration-300">
                             <Papicon icon="shield" size={12} />
                             Tuteur
                           </span>
@@ -1584,7 +1589,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                           Membre depuis {new Date(member.joinedStaffAt).toLocaleDateString()}
                         </span>
                         {#if (member.warnings?.length || 0) > 0}
-                          <span class="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.15em] text-amber-700">
+                          <span class="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700">
                             <Papicon icon="alert-triangle" size={12} />
                             {member.warnings?.length || 0} avert.{(member.warnings?.length || 0) > 1 ? 's' : ''}
                           </span>
@@ -1678,10 +1683,10 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           </div>
         {:else}
           <div class="flex flex-col items-center justify-center p-16 text-center">
-            <div class="w-20 h-20 rounded-4xl bg-primary/8 text-primary flex items-center justify-center shadow-inner">
+            <div class="w-20 h-20 rounded-xl bg-primary/8 text-primary flex items-center justify-center shadow-inner">
               <Papicon icon="users" size={40} />
             </div>
-            <h3 class="mt-6 text-2xl font-black tracking-tighter text-on-surface">
+            <h3 class="mt-6 text-2xl font-semibold tracking-tighter text-on-surface">
               Aucun membre dans le staff
             </h3>
             <p class="mt-3 max-w-xl text-sm leading-relaxed text-on-surface-variant/65">
@@ -1691,23 +1696,23 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         {/if}
 
       {:else if activeTab === 'roles'}
-        <div class="p-6 md:p-8 flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-low/30 backdrop-blur-sm">
+        <div class="p-6 md:p-8 flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-low/30">
           <div>
-            <h3 class="text-2xl font-black tracking-tighter text-on-surface">Hiérarchie des Rôles</h3>
+            <h3 class="text-2xl font-semibold tracking-tighter text-on-surface">Hiérarchie des Rôles</h3>
             <p class="text-sm font-medium text-on-surface-variant/75 mt-1">Gerez vos différentes hiérarchies, associez des rôles Discord à des grades staff et organisez-les.</p>
           </div>
           <div class="flex items-center gap-2">
             {#if rolesAccess.canConfigure}
               <button
                 onclick={openAddHierarchyForm}
-                class="inline-flex items-center gap-2 whitespace-nowrap rounded-2xl border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
+                class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
               >
                 <Papicon icon="plus" size={14} />
                 Nouvelle Hiérarchie
               </button>
               <button
                 onclick={() => showAddRoleForm = !showAddRoleForm}
-                class="inline-flex items-center gap-2 whitespace-nowrap rounded-2xl border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
+                class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
               >
                 <Papicon icon={showAddRoleForm ? 'x' : 'plus'} size={14} />
                 {showAddRoleForm ? 'Fermer' : 'Nouveau Rôle'}
@@ -1718,7 +1723,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
         <div class="p-6 md:p-8 border-b border-outline-variant/20 bg-surface-container-lowest/50">
           <div class="flex items-center justify-between mb-4">
-            <h4 class="text-xs font-black uppercase tracking-[0.2em] text-on-surface-variant/50">Configuration Globale</h4>
+            <h4 class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant/50">Configuration Globale</h4>
             {#if isSavingConfig}
               <span class="text-[10px] font-bold uppercase text-primary animate-pulse">Sauvegarde...</span>
             {/if}
@@ -1727,7 +1732,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <div>
               <label>
                 <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">Rôle Staff de base <span class="text-on-surface-variant/50 normal-case tracking-normal">(Optionnel)</span></span>
-                <select bind:value={baseStaffRoleId} onchange={saveStaffConfig} disabled={!rolesAccess.canConfigure} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 disabled:opacity-50 disabled:cursor-not-allowed">
+                <select bind:value={baseStaffRoleId} onchange={saveStaffConfig} disabled={!rolesAccess.canConfigure} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 disabled:opacity-50 disabled:cursor-not-allowed">
                   <option value={null}>-- Aucun --</option>
                   {#each availableDiscordRoles as dr}
                     <option value={dr.id}>{dr.name}</option>
@@ -1738,7 +1743,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <div>
               <label>
                 <span class="block text-xs font-bold text-on-surface uppercase tracking-wider mb-2">Rôle Staff en Test <span class="text-on-surface-variant/50 normal-case tracking-normal">(Optionnel)</span></span>
-                <select bind:value={testStaffRoleId} onchange={saveStaffConfig} disabled={!rolesAccess.canConfigure} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 disabled:opacity-50 disabled:cursor-not-allowed">
+                <select bind:value={testStaffRoleId} onchange={saveStaffConfig} disabled={!rolesAccess.canConfigure} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 disabled:opacity-50 disabled:cursor-not-allowed">
                   <option value={null}>-- Aucun --</option>
                   {#each availableDiscordRoles as dr}
                     <option value={dr.id}>{dr.name}</option>
@@ -1787,11 +1792,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                       }}
                       onfocus={() => roleSuggestionsOpen = true}
                       onblur={() => setTimeout(() => { roleSuggestionsOpen = false; }, 120)}
-                      class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low pl-12 pr-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+                      class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low pl-12 pr-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
                     />
                   </div>
                   {#if roleSuggestionsOpen && roleSuggestions.length > 0}
-                    <div class="absolute left-0 right-0 top-full mt-2 z-10 rounded-2xl border border-outline-variant/20 bg-surface-container-high p-2 shadow-2xl">
+                    <div class="absolute left-0 right-0 top-full mt-2 z-10 rounded-lg border border-outline-variant/20 bg-surface-container-high p-2 shadow-sm">
                       {#each roleSuggestions as role (role.id)}
                         <button
                           type="button"
@@ -1811,7 +1816,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                   <select
                     id="role-hierarchy-select"
                     bind:value={newRoleHierarchyId}
-                    class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+                    class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
                   >
                     <option value="">-- Aucune --</option>
                     {#each hierarchies as h}
@@ -1830,7 +1835,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               </div>
 
               <div class="flex justify-end">
-                <button onclick={createStaffRole} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-primary px-8 py-3 text-xs font-black uppercase tracking-[0.18em] text-white shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]">
+                <button onclick={createStaffRole} class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white  transition-all hover: active:scale-[0.98]">
                   Créer l'association
                 </button>
               </div>
@@ -1839,7 +1844,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         {/if}
 
         {#if isSavingRoleOrder}
-          <div class="bg-blue-500/10 border-b border-blue-500/20 px-6 py-2.5 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-[0.15em] text-blue-700">
+          <div class="bg-blue-500/10 border-b border-blue-500/20 px-6 py-2.5 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-700">
              <Papicon icon="refresh-cw" size={14} class="animate-spin" />
              Sauvegarde de l'ordre...
           </div>
@@ -1848,7 +1853,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         {#if loadingStates.roles}
           <div class="p-6 md:p-8 space-y-3">
             {#each Array(4) as _}
-              <div class="flex items-center justify-between gap-4 rounded-3xl border border-outline-variant/10 bg-surface-container px-6 py-4">
+              <div class="flex items-center justify-between gap-4 rounded-xl border border-outline-variant/10 bg-surface-container px-6 py-4">
                 <div class="flex items-center gap-3">
                   <Skeleton width="w-8" height="h-8" rounded="rounded-lg" />
                   <Skeleton width="w-32" height="h-5" />
@@ -1863,12 +1868,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
               {#each hierarchies as h (h.id)}
                 {@const hRoles = getOrderedStaffRoles().filter(r => r.hierarchyId === h.id)}
-                <div class="premium-card rounded-[2.5rem] p-6 border-t-4 bg-surface-container-low" style="border-top-color: {h.color || '#3b82f6'}">
+                <div class="premium-card rounded-xl p-6 border-t-4 bg-surface-container-low" style="border-top-color: {h.color || '#3b82f6'}">
                   <div class="flex items-start justify-between mb-4">
                     <div class="flex items-center gap-3">
                       <span class="text-2xl">{h.icon || '🔵'}</span>
                       <div>
-                        <h4 class="text-lg font-black text-on-surface">{h.name}</h4>
+                        <h4 class="text-lg font-semibold text-on-surface">{h.name}</h4>
                         {#if h.description}
                           <p class="text-xs text-on-surface-variant/75 mt-0.5">{h.description}</p>
                         {/if}
@@ -1891,7 +1896,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
                   <!-- Roles Stack inside this Hierarchy -->
                   <div
-                    class="space-y-3 min-h-20 p-2 rounded-2xl transition-all {containerDragOverId === h.id ? 'bg-primary/5 border-2 border-dashed border-primary/40' : ''}"
+                    class="space-y-3 min-h-20 p-2 rounded-lg transition-all {containerDragOverId === h.id ? 'bg-primary/5 border-2 border-dashed border-primary/40' : ''}"
                     role="list"
                     aria-label={`Rôles pour ${h.name}`}
                     ondragover={(event) => {
@@ -1912,7 +1917,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                     {#if hRoles.length > 0}
                       {#each hRoles as role (role.id)}
                         <div
-                          class="group flex items-center justify-between gap-4 rounded-3xl border border-outline-variant/20 bg-surface-container px-6 py-4 transition-all {roleDropTargetId === role.id ? 'border-primary shadow-lg shadow-primary/10 scale-[1.02] bg-primary/5' : 'hover:border-primary/40 hover:bg-surface-container-high'}"
+                          class="group flex items-center justify-between gap-4 rounded-xl border border-outline-variant/20 bg-surface-container px-6 py-4 transition-all {roleDropTargetId === role.id ? 'border-primary   bg-primary/5' : 'hover:border-primary/40 hover:bg-surface-container-high'}"
                           role="listitem"
                           ondragover={(event) => {
                             event.preventDefault();
@@ -1939,10 +1944,10 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                               <Papicon icon="menu" size={20} />
                             </button>
                             <div class="min-w-0 flex-1">
-                              <h5 class="text-sm font-black text-on-surface flex items-center gap-2">
+                              <h5 class="text-sm font-semibold text-on-surface flex items-center gap-2">
                                 {role.name}
                                 {#if role.isResponsable}
-                                  <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[8px] font-black uppercase tracking-wider">Chef</span>
+                                  <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[10px] font-semibold uppercase tracking-wider">Chef</span>
                                 {/if}
                                 <span class="inline-flex items-center rounded-full bg-outline-variant/20 px-2 py-0.5 text-[10px] font-bold text-on-surface-variant">
                                   Niveau {getHierarchyRoleLevel(role)}
@@ -1978,16 +1983,16 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               {/each}
 
               <!-- Roles without hierarchy -->
-              <div class="premium-card rounded-[2.5rem] p-6 border-t-4 border-slate-400 bg-surface-container-low">
+              <div class="premium-card rounded-xl p-6 border-t-4 border-slate-400 bg-surface-container-low">
                 <div class="flex items-center justify-between mb-4">
                   <div>
-                    <h4 class="text-lg font-black text-on-surface">Rôles Hors Hiérarchie</h4>
+                    <h4 class="text-lg font-semibold text-on-surface">Rôles Hors Hiérarchie</h4>
                     <p class="text-xs text-on-surface-variant/75 mt-0.5">Rôles globaux ou non catégorisés</p>
                   </div>
                 </div>
 
                 <div
-                  class="space-y-3 min-h-20 p-2 rounded-2xl transition-all {containerDragOverId === 'unlinked' ? 'bg-primary/5 border-2 border-dashed border-primary/40' : ''}"
+                  class="space-y-3 min-h-20 p-2 rounded-lg transition-all {containerDragOverId === 'unlinked' ? 'bg-primary/5 border-2 border-dashed border-primary/40' : ''}"
                   role="list"
                   aria-label="Rôles sans hiérarchie"
                   ondragover={(event) => {
@@ -2008,7 +2013,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                   {#if unlinkedRoles.length > 0}
                     {#each unlinkedRoles as role (role.id)}
                       <div
-                        class="group flex items-center justify-between gap-4 rounded-3xl border border-outline-variant/20 bg-surface-container px-6 py-4 transition-all {roleDropTargetId === role.id ? 'border-primary shadow-lg shadow-primary/10 scale-[1.02] bg-primary/5' : 'hover:border-primary/40 hover:bg-surface-container-high'}"
+                        class="group flex items-center justify-between gap-4 rounded-xl border border-outline-variant/20 bg-surface-container px-6 py-4 transition-all {roleDropTargetId === role.id ? 'border-primary   bg-primary/5' : 'hover:border-primary/40 hover:bg-surface-container-high'}"
                         role="listitem"
                         ondragover={(event) => {
                           event.preventDefault();
@@ -2035,7 +2040,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                             <Papicon icon="menu" size={20} />
                           </button>
                           <div class="min-w-0 flex-1">
-                            <h5 class="text-sm font-black text-on-surface flex items-center gap-2">
+                            <h5 class="text-sm font-semibold text-on-surface flex items-center gap-2">
                               {role.name}
                               <span class="inline-flex items-center rounded-full bg-outline-variant/20 px-2 py-0.5 text-[10px] font-bold text-on-surface-variant">
                                 Niveau {getHierarchyRoleLevel(role)}
@@ -2076,21 +2081,21 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       {:else if activeTab === 'organigramme'}
         {#if loadingStates.organigramme}
           <div class="p-8 flex items-center justify-center">
-            <Skeleton width="w-full" height="h-[60vh]" rounded="rounded-[3rem]" />
+            <Skeleton width="w-full" height="h-[60vh]" rounded="rounded-xl" />
           </div>
         {:else}
           <OrgChart schema={hierarchySchema} />
         {/if}
 
       {:else if activeTab === 'warnings'}
-        <div class="p-6 md:p-8 flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-low/30 backdrop-blur-sm">
+        <div class="p-6 md:p-8 flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-low/30">
           <div>
-            <h3 class="text-2xl font-black tracking-tighter text-on-surface">Avertissements Internes</h3>
+            <h3 class="text-2xl font-semibold tracking-tighter text-on-surface">Avertissements Internes</h3>
             <p class="text-sm font-medium text-on-surface-variant/60 mt-1">Imposez un avertissement au staff en cas de manquement aux règles.</p>
           </div>
           <button
             onclick={openWarnForm}
-            class="inline-flex items-center gap-2 whitespace-nowrap rounded-2xl border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
+            class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-primary/20 bg-primary/8 px-6 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
           >
             <Papicon icon={showWarnForm ? 'x' : 'plus'} size={14} />
             {showWarnForm ? 'Annuler' : 'Nouvel Avertisss.'}
@@ -2121,7 +2126,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                     bind:value={warnReason}
                     placeholder="Décrivez précisément le manquement constaté..."
                     rows="3"
-                    class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 resize-none"
+                    class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 resize-none"
                   ></textarea>
                 </label>
               </div>
@@ -2133,11 +2138,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                      id="warn-expires-at"
                      type="datetime-local"
                      bind:value={warnExpiresAt}
-                     class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+                     class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
                    />
                 </div>
                 <div class="flex justify-end mt-4">
-                  <button onclick={issueWarning} class="inline-flex items-center justify-center gap-2 rounded-2xl bg-amber-500 px-8 py-3 text-xs font-black uppercase tracking-[0.18em] text-white shadow-lg shadow-amber-500/20 transition-all hover:scale-[1.02] hover:bg-amber-600 active:scale-[0.98]">
+                  <button onclick={issueWarning} class="inline-flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white shadow-lg shadow-amber-500/20 transition-all hover: hover:bg-amber-600 active:scale-[0.98]">
                     <Papicon icon="gavel" size={14} />
                     Sanctionner
                   </button>
@@ -2150,16 +2155,16 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         {#if loadingStates.warnings}
           <div class="p-6 md:p-8 space-y-4">
             {#each Array(3) as _}
-              <div class="h-16 w-full rounded-3xl border border-outline-variant/10 bg-surface-container animate-pulse"></div>
+              <div class="h-16 w-full rounded-xl border border-outline-variant/10 bg-surface-container animate-pulse"></div>
             {/each}
           </div>
         {:else if staffWarnings.length > 0}
           <div class="p-6 md:p-8">
-            <div class="overflow-hidden rounded-3xl border border-outline-variant/10 bg-surface-container-low/50">
+            <div class="overflow-hidden rounded-xl border border-outline-variant/10 bg-surface-container-low/50">
               <div class="overflow-x-auto">
                 <table class="w-full text-left border-collapse">
                   <thead>
-                    <tr class="bg-surface-container-high/30 text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/40">
+                    <tr class="bg-surface-container-high/30 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/40">
                       <th class="px-6 py-4">Membre</th>
                       <th class="px-6 py-4">Raison</th>
                       <th class="px-6 py-4">Émis par</th>
@@ -2205,12 +2210,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-center">
                           {#if warn.isActive}
-                            <span class="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-amber-600 border border-amber-500/20">
+                            <span class="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-amber-600 border border-amber-500/20">
                               <span class="w-1 h-1 rounded-full bg-amber-600 animate-pulse"></span>
                               Actif
                             </span>
                           {:else}
-                            <span class="inline-flex items-center rounded-full bg-outline-variant/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/40">Expiré</span>
+                            <span class="inline-flex items-center rounded-full bg-outline-variant/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/40">Expiré</span>
                           {/if}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right">
@@ -2231,10 +2236,10 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           </div>
         {:else}
           <div class="p-16 flex flex-col items-center justify-center text-center">
-            <div class="w-20 h-20 rounded-4xl bg-amber-500/10 text-amber-500 flex items-center justify-center shadow-inner">
+            <div class="w-20 h-20 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center shadow-inner">
               <Papicon icon="alert-triangle" size={40} />
             </div>
-            <h3 class="mt-6 text-2xl font-black tracking-tighter text-on-surface">
+            <h3 class="mt-6 text-2xl font-semibold tracking-tighter text-on-surface">
               Aucun avertissement actif
             </h3>
             <p class="mt-3 max-w-xl text-sm leading-relaxed text-on-surface-variant/65">
@@ -2244,14 +2249,14 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         {/if}
 
       {:else if activeTab === 'blacklist'}
-         <div class="p-6 md:p-8 flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-low/30 backdrop-blur-sm">
+         <div class="p-6 md:p-8 flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-low/30">
           <div>
-            <h3 class="text-2xl font-black tracking-tighter text-on-surface">Blacklist du Staff</h3>
+            <h3 class="text-2xl font-semibold tracking-tighter text-on-surface">Blacklist du Staff</h3>
             <p class="text-sm font-medium text-on-surface-variant/60 mt-1">Stoppez net tout accès d'un utilisateur à l'équipe Staff.</p>
           </div>
           <button
             onclick={openBlacklistForm}
-            class="inline-flex items-center gap-2 whitespace-nowrap rounded-2xl border border-rose-500/20 bg-rose-500/10 px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-rose-700 transition-colors hover:bg-rose-500 hover:text-white"
+            class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-rose-500/20 bg-rose-500/10 px-6 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-rose-700 transition-colors hover:bg-rose-500 hover:text-white"
           >
             <Papicon icon={showBlacklistForm ? 'x' : 'slash'} size={14} />
             {showBlacklistForm ? 'Annuler' : 'Blacklister'}
@@ -2282,7 +2287,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                     bind:value={blacklistReason}
                     placeholder="Décrivez précisément ce qui a mené à cette blacklist..."
                     rows="3"
-                    class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-rose-500/40 focus:ring-4 focus:ring-rose-500/10 resize-none"
+                    class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-rose-500/40 focus:ring-4 focus:ring-rose-500/10 resize-none"
                   ></textarea>
                 </label>
               </div>
@@ -2294,11 +2299,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                      id="blacklist-end-date"
                      type="date"
                      bind:value={blacklistEndDate}
-                     class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-rose-500/40 focus:ring-4 focus:ring-rose-500/10"
+                     class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-rose-500/40 focus:ring-4 focus:ring-rose-500/10"
                    />
                 </div>
                 <div class="flex justify-end mt-4">
-                  <button onclick={blacklistStaff} class="inline-flex items-center justify-center gap-2 rounded-2xl bg-rose-600 px-8 py-3 text-xs font-black uppercase tracking-[0.18em] text-white shadow-lg shadow-rose-500/20 transition-all hover:scale-[1.02] hover:bg-rose-700 active:scale-[0.98]">
+                  <button onclick={blacklistStaff} class="inline-flex items-center justify-center gap-2 rounded-lg bg-rose-600 px-8 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-white shadow-lg shadow-rose-500/20 transition-all hover: hover:bg-rose-700 active:scale-[0.98]">
                     <Papicon icon="slash" size={14} />
                     Appliquer Blacklist
                   </button>
@@ -2310,10 +2315,10 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
         {#if blacklistedStaffMembers.length === 0}
           <div class="p-16 flex flex-col items-center justify-center text-center opacity-40">
-            <div class="w-20 h-20 rounded-4xl bg-rose-500/10 text-rose-500 flex items-center justify-center shadow-inner mb-6">
+            <div class="w-20 h-20 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center shadow-inner mb-6">
               <Papicon icon="user-x" size={40} />
             </div>
-            <h3 class="text-2xl font-black tracking-tighter text-on-surface">Section Blacklist</h3>
+            <h3 class="text-2xl font-semibold tracking-tighter text-on-surface">Section Blacklist</h3>
             <p class="mt-3 max-w-xl text-sm leading-relaxed text-on-surface-variant/65">
                Aucun utilisateur n'est actuellement inscrit dans la blacklist staff.
             </p>
@@ -2332,11 +2337,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                       {/if}
                     </div>
                     <div>
-                      <h4 class="text-lg font-black text-on-surface leading-tight">
+                      <h4 class="text-lg font-semibold text-on-surface leading-tight">
                         {member.displayName || member.username || 'Utilisateur inconnu'}
                       </h4>
                       <div class="flex items-center gap-3 mt-1.5 flex-wrap">
-                        <span class="inline-flex items-center rounded-full border border-rose-500/20 bg-rose-500/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.2em] text-rose-700">
+                        <span class="inline-flex items-center rounded-full border border-rose-500/20 bg-rose-500/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-rose-700">
                           Blacklisté
                         </span>
                         {#if member.blacklistEntries?.[0]?.reason}
@@ -2361,7 +2366,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                     {#if canModerate}
                       <button
                         onclick={() => removeStaffBlacklist(member.userId)}
-                        class="inline-flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-xs font-black uppercase tracking-widest text-rose-700 transition-colors hover:bg-rose-600 hover:text-white"
+                        class="inline-flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-rose-700 transition-colors hover:bg-rose-600 hover:text-white"
                         title="Retirer de la blacklist"
                       >
                         <Papicon icon="trash-2" size={16} />
@@ -2377,14 +2382,14 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
 
       {:else if activeTab === 'polls'}
-        <div class="p-6 md:p-8 flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-low/30 backdrop-blur-sm">
+        <div class="p-6 md:p-8 flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-low/30">
           <div>
-            <h3 class="text-2xl font-black tracking-tighter text-on-surface">Sondages & Gouvernance</h3>
+            <h3 class="text-2xl font-semibold tracking-tighter text-on-surface">Sondages & Gouvernance</h3>
             <p class="text-sm font-medium text-on-surface-variant/60 mt-1">Prenez des décisions collectives avec des votes pondérés par grade.</p>
           </div>
           <button
             onclick={() => showPollForm = !showPollForm}
-            class="inline-flex items-center gap-2 whitespace-nowrap rounded-2xl border border-primary/20 bg-primary/10 px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
+            class="inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-primary/20 bg-primary/10 px-6 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-primary transition-colors hover:bg-primary hover:text-white"
           >
             <Papicon icon={showPollForm ? 'x' : 'plus'} size={14} />
             {showPollForm ? 'Annuler' : 'Nouveau Sondage'}
@@ -2397,15 +2402,15 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               <div class="space-y-4">
                 <div>
                   <label for="poll-title" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Titre du sondage</label>
-                  <FormInput id="poll-title" bind:value={newPollTitle} placeholder="Ex: Nouveau règlement du salon général" className="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
+                  <FormInput id="poll-title" bind:value={newPollTitle} placeholder="Ex: Nouveau règlement du salon général" className="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
                 </div>
                 <div>
                   <label for="poll-description" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Description</label>
-                  <textarea id="poll-description" bind:value={newPollDescription} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 h-32 resize-none" placeholder="Détaillez le sujet du vote..."></textarea>
+                  <textarea id="poll-description" bind:value={newPollDescription} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 h-32 resize-none" placeholder="Détaillez le sujet du vote..."></textarea>
                 </div>
                 <div>
                   <label for="poll-closes-at" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Date de clôture automatique (optionnelle)</label>
-                  <input id="poll-closes-at" type="datetime-local" bind:value={newPollClosesAt} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
+                  <input id="poll-closes-at" type="datetime-local" bind:value={newPollClosesAt} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
                 </div>
               </div>
               <div class="space-y-4">
@@ -2413,7 +2418,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 <div class="space-y-3">
                   {#each newPollOptions as option, i}
                     <div class="flex items-center gap-2">
-                      <input bind:value={newPollOptions[i]} class="flex-1 rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" placeholder="Option {i+1}" />
+                      <input bind:value={newPollOptions[i]} class="flex-1 rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" placeholder="Option {i+1}" />
                       {#if newPollOptions.length > 2}
                         <button onclick={() => removePollOptionInput(i)} class="p-2 text-rose-500 hover:bg-rose-500/10 rounded-xl transition-colors">
                           <Papicon icon="trash-2" size={20} />
@@ -2427,7 +2432,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                   Ajouter une option
                 </button>
                 <div class="pt-6 border-t border-outline-variant/10">
-                   <button onclick={createPoll} disabled={isSavingPoll} class="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-8 py-4 text-xs font-black uppercase tracking-[0.18em] text-white shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50">
+                   <button onclick={createPoll} disabled={isSavingPoll} class="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-8 py-4 text-xs font-semibold uppercase tracking-[0.18em] text-white  transition-all hover: active:scale-[0.98] disabled:opacity-50">
                     <Papicon icon={isSavingPoll ? 'refresh-cw' : 'check-square'} size={14} class={isSavingPoll ? 'animate-spin' : ''} />
                     Publier le sondage
                   </button>
@@ -2441,7 +2446,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           {#if loadingStates.polls}
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {#each Array(4) as _}
-                <div class="bg-surface-container px-6 py-6 rounded-3xl border border-outline-variant/10">
+                <div class="bg-surface-container px-6 py-6 rounded-xl border border-outline-variant/10">
                    <div class="flex justify-between items-start mb-6">
                       <div class="space-y-2">
                         <Skeleton width="w-24" height="h-4" rounded="rounded-full" />
@@ -2474,18 +2479,18 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                   return sum + optVotes.reduce((s: number, v: any) => s + (v.weight || 1), 0);
                 }, 0)}
                 {@const userVote = (poll.votes as any[] | undefined)?.find((v: any) => v.staffUserId === authStore.user?.id)}
-                <div class="bg-surface-container px-6 py-6 rounded-3xl border border-outline-variant/10 group transition-all hover:border-primary/20">
+                <div class="bg-surface-container px-6 py-6 rounded-xl border border-outline-variant/10 group transition-all hover:border-primary/20">
                   <div class="flex items-start justify-between gap-4">
                     <div class="space-y-1">
                       <div class="flex items-center gap-2">
                         {#if isClosed}
-                          <span class="inline-flex items-center rounded-full bg-surface-container-high px-2 py-0.5 text-[9px] font-black uppercase text-on-surface-variant/60">Clôturé</span>
+                          <span class="inline-flex items-center rounded-full bg-surface-container-high px-2 py-0.5 text-[11px] font-semibold uppercase text-on-surface-variant/60">Clôturé</span>
                         {:else}
-                          <span class="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-600 animate-pulse">En cours</span>
+                          <span class="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold uppercase text-emerald-600 animate-pulse">En cours</span>
                         {/if}
                         <span class="text-[10px] font-medium text-on-surface-variant/40">Par {poll.author?.displayName || poll.author?.username}</span>
                       </div>
-                      <h4 class="text-lg font-black text-on-surface tracking-tight leading-tight">{poll.title}</h4>
+                      <h4 class="text-lg font-semibold text-on-surface tracking-tight leading-tight">{poll.title}</h4>
                     </div>
                     {#if !isClosed && accessLevel === 'admin'}
                        <button onclick={() => closePoll(poll.id)} class="p-2 text-on-surface-variant/40 hover:text-rose-500 transition-colors" title="Clôturer maintenant">
@@ -2511,7 +2516,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                           disabled={isClosed || !!userVote}
                           class="w-full relative overflow-hidden rounded-xl border p-3 flex items-center justify-between transition-all {isSelected ? 'border-primary bg-primary/5' : 'border-outline-variant/10 bg-surface-container-low hover:border-primary/30'} group/opt"
                         >
-                          <span class="relative z-10 text-xs font-black {isSelected ? 'text-primary' : 'text-on-surface-variant group-hover/opt:text-on-surface'}">{option.text}</span>
+                          <span class="relative z-10 text-xs font-semibold {isSelected ? 'text-primary' : 'text-on-surface-variant group-hover/opt:text-on-surface'}">{option.text}</span>
                           {#if isSelected}
                              <Papicon icon="check-circle" size={14} class="relative z-10 text-primary" />
                           {/if}
@@ -2526,7 +2531,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                                   <div class="h-1 w-3 rounded-full bg-primary/30" title="Poids: {vote.weight}"></div>
                                 {/each}
                              </div>
-                             <span class="text-[9px] font-black text-on-surface-variant/50">{Math.round(percent)}% ({optWeight.toFixed(1)})</span>
+                             <span class="text-[11px] font-semibold text-on-surface-variant/50">{Math.round(percent)}% ({optWeight.toFixed(1)})</span>
                            </div>
                         {/if}
                       </div>
@@ -2550,30 +2555,30 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       {:else if activeTab === 'leadership'}
         <div class="p-6 md:p-8 space-y-8">
           <div>
-            <h3 class="text-2xl font-black tracking-tighter text-on-surface">Dashboard Leadership</h3>
+            <h3 class="text-2xl font-semibold tracking-tighter text-on-surface">Dashboard Leadership</h3>
             <p class="text-sm font-medium text-on-surface-variant/60 mt-1">Analyse des performances, scores de progression et alertes d'inactivité.</p>
           </div>
 
           <!-- Analyse des Performances (Charts) -->
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div class="premium-card p-6 rounded-[2.5rem] space-y-4">
+            <div class="premium-card p-6 rounded-xl space-y-4">
               <div class="flex items-center gap-3 mb-2">
                 <div class="p-2 rounded-xl bg-primary/10 text-primary">
                   <Papicon icon="BarChart" size={18} />
                 </div>
-                <h4 class="text-sm font-black text-on-surface uppercase tracking-widest">Distribution des Scores</h4>
+                <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">Distribution des Scores</h4>
               </div>
               <div class="h-50">
                 <Chart data={progressionChartData} type="bar" height={200} options={{ indexAxis: 'y', scales: { x: { beginAtZero: true, max: 100 } } }} />
               </div>
             </div>
 
-            <div class="premium-card p-6 rounded-[2.5rem] space-y-4">
+            <div class="premium-card p-6 rounded-xl space-y-4">
               <div class="flex items-center gap-3 mb-2">
                 <div class="p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
                   <Papicon icon="Activity" size={18} />
                 </div>
-                <h4 class="text-sm font-black text-on-surface uppercase tracking-widest">Comparaison d'Activité</h4>
+                <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">Comparaison d'Activité</h4>
               </div>
               <div class="h-50">
                 <Chart data={activityChartData} type="bar" height={200} options={{ indexAxis: 'y', scales: { x: { beginAtZero: true } } }} />
@@ -2581,10 +2586,10 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             </div>
           </div>
 
-          <div class="overflow-x-auto rounded-4xl border border-outline-variant/10 bg-surface-container-low/50">
+          <div class="overflow-x-auto rounded-xl border border-outline-variant/10 bg-surface-container-low/50">
             <table class="w-full text-left border-collapse">
               <thead>
-                <tr class="border-b border-outline-variant/10 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">
+                <tr class="border-b border-outline-variant/10 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">
                   <th class="px-8 py-5">Membre</th>
                   <th class="px-8 py-5">Score Progression</th>
                   <th class="px-8 py-5">Activité (30j / 7j)</th>
@@ -2615,11 +2620,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                   <tr class="group hover:bg-primary/4 transition-colors">
                     <td class="px-8 py-5">
                       <div class="flex items-center gap-3">
-                        <div class="h-9 w-9 rounded-full bg-surface-container-high border border-outline-variant/20 flex items-center justify-center text-xs font-black">
+                        <div class="h-9 w-9 rounded-full bg-surface-container-high border border-outline-variant/20 flex items-center justify-center text-xs font-semibold">
                           {member?.username?.substring(0, 1).toUpperCase() || '?'}
                         </div>
                         <div>
-                          <div class="text-sm font-black text-on-surface tracking-tight">{member?.displayName || member?.username}</div>
+                          <div class="text-sm font-semibold text-on-surface tracking-tight">{member?.displayName || member?.username}</div>
                           <div class="text-[10px] font-bold text-on-surface-variant/50 uppercase">{member?.grade}</div>
                         </div>
                       </div>
@@ -2629,7 +2634,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                         <div class="flex-1 h-2 bg-surface-container-high rounded-full overflow-hidden max-w-25">
                           <div class="h-full bg-primary" style="width: {metric.progressionScore}%"></div>
                         </div>
-                        <span class="text-xs font-black text-primary">{metric.progressionScore}/100</span>
+                        <span class="text-xs font-semibold text-primary">{metric.progressionScore}/100</span>
                       </div>
                     </td>
                     <td class="px-8 py-5">
@@ -2644,12 +2649,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                     </td>
                     <td class="px-8 py-5 text-right">
                        {#if metric.hasInactivityAlert}
-                         <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 px-3 py-1 text-[10px] font-black text-amber-600 animate-pulse">
+                         <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 px-3 py-1 text-[10px] font-semibold text-amber-600 animate-pulse">
                            <Papicon icon="alert-triangle" size={14} />
                            INACTIVITÉ DÉTECTÉE
                          </span>
                        {:else}
-                         <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 text-[10px] font-black text-emerald-600">
+                         <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 text-[10px] font-semibold text-emerald-600">
                            <Papicon icon="check-circle" size={14} />
                            ACTIF
                          </span>
@@ -2666,7 +2671,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       {:else if activeTab === 'permissions'}
         <div class="p-6 md:p-8 space-y-12">
           <div>
-            <h3 class="text-2xl font-black tracking-tighter text-on-surface flex items-center gap-3">
+            <h3 class="text-2xl font-semibold tracking-tighter text-on-surface flex items-center gap-3">
               <Papicon icon="lock" size={28} class="text-primary" />
               Permissions Staff
             </h3>
@@ -2714,7 +2719,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 {#if showConfigMenu}
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
     <div
-      class="absolute inset-0 bg-surface-container-lowest/80 backdrop-blur-sm transition-opacity"
+      class="absolute inset-0 bg-surface-container-lowest/80 transition-opacity"
       role="button"
       tabindex="0"
       aria-label="Fermer la configuration"
@@ -2728,15 +2733,15 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       }}
     ></div>
     
-    <div class="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[3rem] border border-outline-variant/30 bg-surface shadow-2xl">
-      <div class="sticky top-0 z-10 flex items-center justify-between border-b border-outline-variant/20 bg-surface/80 p-6 backdrop-blur-xl md:px-8">
+    <div class="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-xl border border-outline-variant/30 bg-surface shadow-sm">
+      <div class="sticky top-0 z-10 flex items-center justify-between border-b border-outline-variant/20 bg-surface/80 p-6 md:px-8">
         <div>
-          <h3 class="text-2xl font-black tracking-tighter text-on-surface">Automatisation & Sanctions</h3>
+          <h3 class="text-2xl font-semibold tracking-tighter text-on-surface">Automatisation & Sanctions</h3>
           <p class="text-sm font-medium text-on-surface-variant/75 mt-1">Configurez les comportements automatiques lors de l'atteinte de seuils critiques.</p>
         </div>
         <div class="flex items-center gap-4">
           {#if isSavingConfig}
-            <span class="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-primary">
+            <span class="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-primary">
               <span class="relative flex h-2 w-2">
                 <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75"></span>
                 <span class="relative inline-flex h-2 w-2 rounded-full bg-primary"></span>
@@ -2752,23 +2757,23 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
       <div class="grid grid-cols-1 gap-6 p-6 md:p-8 lg:grid-cols-2">
         <!-- Bloc Sanctions / Seuils -->
-        <div class="premium-card relative overflow-hidden rounded-[2.5rem] border border-rose-500/15 bg-surface-container-low p-6">
-          <div class="absolute -right-12 -top-12 h-32 w-32 rounded-full bg-rose-500/5 blur-2xl"></div>
+        <div class="premium-card relative overflow-hidden rounded-xl border border-rose-500/15 bg-surface-container-low p-6">
+          <div class="absolute -right-12 -top-12 h-32 w-32 rounded-full bg-rose-500/5 blur-none hidden"></div>
           
           <div class="relative mb-6 flex items-center gap-4">
-            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-600 shadow-inner">
+            <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-rose-500/10 text-rose-600 shadow-inner">
               <Papicon icon="alert-triangle" size={24} />
             </div>
             <div>
-              <h4 class="text-lg font-black tracking-tight text-on-surface">Sanctions & Seuils</h4>
+              <h4 class="text-lg font-semibold tracking-tight text-on-surface">Sanctions & Seuils</h4>
               <p class="text-xs text-on-surface-variant/80">Règles d'action selon l'accumulation d'avertissements</p>
             </div>
           </div>
 
           <div class="space-y-6">
             <div>
-              <span class="mb-3 block text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/60">Mode d'exécution</span>
-              <div class="flex gap-2 rounded-2xl border border-outline-variant/20 bg-surface p-1">
+              <span class="mb-3 block text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60">Mode d'exécution</span>
+              <div class="flex gap-2 rounded-lg border border-outline-variant/20 bg-surface p-1">
                 <label class="flex-1 cursor-pointer">
                   <input type="radio" name="actionMode" value="validation" checked={actionMode === 'validation'} onchange={() => { actionMode = 'validation'; saveStaffConfig(); }} class="peer sr-only" />
                   <div class="rounded-xl px-3 py-2 text-center text-xs font-bold transition-all peer-checked:bg-primary/10 peer-checked:text-primary peer-checked:shadow-sm">
@@ -2787,25 +2792,25 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             </div>
 
             <div>
-              <span class="mb-3 block text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/60">Seuils d'avertissements</span>
+              <span class="mb-3 block text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60">Seuils d'avertissements</span>
               <div class="flex gap-4">
-                <div class="flex-1 rounded-2xl border border-orange-500/20 bg-orange-500/5 p-4">
+                <div class="flex-1 rounded-lg border border-orange-500/20 bg-orange-500/5 p-4">
                   <div class="flex items-center justify-between mb-2">
                      <span class="text-xs font-bold text-orange-700">Démotion</span>
                      <Papicon icon="chevrons-down" size={16} class="text-orange-600/50" />
                   </div>
                   <div class="flex items-center gap-2">
-                    <input type="number" min="0" bind:value={warnsToDemote} onchange={saveStaffConfig} class="w-full rounded-xl border border-outline-variant/30 bg-surface px-3 py-2 text-center text-lg font-black text-on-surface outline-none transition focus:border-orange-500/50 focus:ring-2 focus:ring-orange-500/20" />
+                    <input type="number" min="0" bind:value={warnsToDemote} onchange={saveStaffConfig} class="w-full rounded-xl border border-outline-variant/30 bg-surface px-3 py-2 text-center text-lg font-semibold text-on-surface outline-none transition focus:border-orange-500/50 focus:ring-2 focus:ring-orange-500/20" />
                     <span class="text-[10px] font-bold uppercase text-on-surface-variant/60">Warn(s)</span>
                   </div>
                 </div>
-                <div class="flex-1 rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4">
+                <div class="flex-1 rounded-lg border border-rose-500/20 bg-rose-500/5 p-4">
                   <div class="flex items-center justify-between mb-2">
                      <span class="text-xs font-bold text-rose-700">Blacklist</span>
                      <Papicon icon="shield-off" size={16} class="text-rose-600/50" />
                   </div>
                    <div class="flex items-center gap-2">
-                    <input type="number" min="0" bind:value={warnsToBlacklist} onchange={saveStaffConfig} class="w-full rounded-xl border border-outline-variant/30 bg-surface px-3 py-2 text-center text-lg font-black text-on-surface outline-none transition focus:border-rose-500/50 focus:ring-2 focus:ring-rose-500/20" />
+                    <input type="number" min="0" bind:value={warnsToBlacklist} onchange={saveStaffConfig} class="w-full rounded-xl border border-outline-variant/30 bg-surface px-3 py-2 text-center text-lg font-semibold text-on-surface outline-none transition focus:border-rose-500/50 focus:ring-2 focus:ring-rose-500/20" />
                     <span class="text-[10px] font-bold uppercase text-on-surface-variant/60">Warn(s)</span>
                   </div>
                 </div>
@@ -2813,7 +2818,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             </div>
 
             <div class="space-y-1">
-              <label class="flex cursor-pointer items-center justify-between rounded-2xl border border-outline-variant/15 bg-surface px-4 py-3 hover:bg-surface-container-high transition-colors">
+              <label class="flex cursor-pointer items-center justify-between rounded-lg border border-outline-variant/15 bg-surface px-4 py-3 hover:bg-surface-container-high transition-colors">
                 <div class="flex items-center gap-3">
                   <Papicon icon="user-minus" size={18} class="text-on-surface-variant/60" />
                   <div>
@@ -2824,7 +2829,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 <ToggleSwitch checked={demoteRemoveAllRoles} onToggle={(v: boolean) => { demoteRemoveAllRoles = v; saveStaffConfig(); }} size="sm" activeClass="peer-checked:bg-amber-500" />
               </label>
 
-              <label class="flex cursor-pointer items-center justify-between rounded-2xl border border-outline-variant/15 bg-surface px-4 py-3 hover:bg-surface-container-high transition-colors">
+              <label class="flex cursor-pointer items-center justify-between rounded-lg border border-outline-variant/15 bg-surface px-4 py-3 hover:bg-surface-container-high transition-colors">
                 <div class="flex items-center gap-3">
                   <Papicon icon="lock" size={18} class="text-on-surface-variant/60" />
                   <div>
@@ -2848,7 +2853,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 {#if showAddHierarchyForm}
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
     <div
-      class="absolute inset-0 bg-surface-container-lowest/80 backdrop-blur-sm transition-opacity"
+      class="absolute inset-0 bg-surface-container-lowest/80 transition-opacity"
       role="button"
       tabindex="0"
       aria-label="Fermer"
@@ -2856,9 +2861,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       onkeydown={(e) => { if (e.key === 'Escape') showAddHierarchyForm = false; }}
     ></div>
     
-    <div class="relative w-full max-w-lg rounded-[3rem] border border-outline-variant/30 bg-surface p-8 shadow-2xl animate-in zoom-in-95 duration-200">
+    <div class="relative w-full max-w-lg rounded-xl border border-outline-variant/30 bg-surface p-8 shadow-sm animate-in zoom-in-95 duration-200">
       <div class="flex items-center justify-between mb-6">
-        <h3 class="text-2xl font-black tracking-tighter text-on-surface">
+        <h3 class="text-2xl font-semibold tracking-tighter text-on-surface">
           {editingHierarchy ? 'Modifier la Hiérarchie' : 'Nouvelle Hiérarchie'}
         </h3>
         <button onclick={() => showAddHierarchyForm = false} class="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-container text-on-surface-variant hover:bg-rose-500/10 hover:text-rose-500 transition-colors">
@@ -2869,12 +2874,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       <div class="space-y-4">
         <div>
           <label for="hierarchy-name" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Nom de la hiérarchie</label>
-          <input id="hierarchy-name" type="text" bind:value={newHierarchyName} placeholder="Ex: Modération, Animation..." class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
+          <input id="hierarchy-name" type="text" bind:value={newHierarchyName} placeholder="Ex: Modération, Animation..." class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
         </div>
 
         <div>
           <label for="hierarchy-desc" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Description</label>
-          <textarea id="hierarchy-desc" bind:value={newHierarchyDescription} placeholder="Décrivez le but de cette hiérarchie..." rows="3" class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 resize-none"></textarea>
+          <textarea id="hierarchy-desc" bind:value={newHierarchyDescription} placeholder="Décrivez le but de cette hiérarchie..." rows="3" class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10 resize-none"></textarea>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
@@ -2882,13 +2887,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <label for="hierarchy-color" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Couleur (Hex)</label>
             <div class="flex gap-2">
               <input id="hierarchy-color" type="color" bind:value={newHierarchyColor} class="h-11 w-12 rounded-xl border border-outline-variant/20 bg-surface-container-low p-1 cursor-pointer" />
-              <input type="text" bind:value={newHierarchyColor} class="flex-1 rounded-2xl border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-sm text-on-surface outline-none transition focus:border-primary/40" />
+              <input type="text" bind:value={newHierarchyColor} class="flex-1 rounded-lg border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-sm text-on-surface outline-none transition focus:border-primary/40" />
             </div>
           </div>
           <div>
             <label for="hierarchy-icon" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Emoji / Icone</label>
             <div class="flex gap-2">
-              <input id="hierarchy-icon" type="text" bind:value={newHierarchyIcon} placeholder="🔵, 🛡️, 🎭..." class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
+              <input id="hierarchy-icon" type="text" bind:value={newHierarchyIcon} placeholder="🔵, 🛡️, 🎭..." class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10" />
               <EmojiPicker bind:value={newHierarchyIcon} />
             </div>
           </div>
@@ -2896,7 +2901,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
         <div>
           <label for="hierarchy-role" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Rôle Discord Responsable (Optionnel)</label>
-          <select id="hierarchy-role" bind:value={newHierarchyDiscordRoleId} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
+          <select id="hierarchy-role" bind:value={newHierarchyDiscordRoleId} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
             <option value="">-- Aucun --</option>
             {#each availableDiscordRoles as dr}
               <option value={dr.id}>{dr.name}</option>
@@ -2906,7 +2911,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
         <div>
           <label for="hierarchy-resp" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Membre Responsable (Optionnel)</label>
-          <select id="hierarchy-resp" bind:value={newHierarchyResponsableUserId} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
+          <select id="hierarchy-resp" bind:value={newHierarchyResponsableUserId} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
             <option value="">-- Aucun --</option>
             {#each staffMembers as sm}
               <option value={sm.userId}>{sm.displayName || sm.username || sm.userId}</option>
@@ -2916,7 +2921,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
         <div>
           <label for="hierarchy-parent" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Hiérarchie supérieure (Optionnel)</label>
-          <select id="hierarchy-parent" bind:value={newHierarchyParentId} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
+          <select id="hierarchy-parent" bind:value={newHierarchyParentId} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
             <option value="">-- Aucune --</option>
             {#each hierarchies.filter((h) => !editingHierarchy || h.id !== editingHierarchy.id) as h}
               <option value={h.id}>{h.name}</option>
@@ -2926,10 +2931,10 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       </div>
 
       <div class="mt-8 flex justify-end gap-3">
-        <button onclick={() => showAddHierarchyForm = false} class="px-6 py-3 rounded-2xl border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-xs font-black uppercase tracking-wider text-on-surface transition-all">
+        <button onclick={() => showAddHierarchyForm = false} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-xs font-semibold uppercase tracking-wider text-on-surface transition-all">
           Annuler
         </button>
-        <button onclick={saveHierarchy} disabled={isSavingHierarchy || !newHierarchyName.trim()} class="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-3 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50">
+        <button onclick={saveHierarchy} disabled={isSavingHierarchy || !newHierarchyName.trim()} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-xs font-semibold uppercase tracking-wider text-white  transition-all hover: active:scale-[0.98] disabled:opacity-50">
           {isSavingHierarchy ? 'Enregistrement...' : 'Enregistrer'}
         </button>
       </div>
@@ -2941,7 +2946,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 {#if showImportModal && importHierarchyTarget}
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
     <div
-      class="absolute inset-0 bg-surface-container-lowest/80 backdrop-blur-sm transition-opacity"
+      class="absolute inset-0 bg-surface-container-lowest/80 transition-opacity"
       role="button"
       tabindex="0"
       aria-label="Fermer"
@@ -2949,9 +2954,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       onkeydown={(e) => { if (e.key === 'Escape') showImportModal = false; }}
     ></div>
     
-    <div class="relative w-full max-w-lg rounded-[3rem] border border-outline-variant/30 bg-surface p-8 shadow-2xl animate-in zoom-in-95 duration-200">
+    <div class="relative w-full max-w-lg rounded-xl border border-outline-variant/30 bg-surface p-8 shadow-sm animate-in zoom-in-95 duration-200">
       <div class="flex items-center justify-between mb-6">
-        <h3 class="text-2xl font-black tracking-tighter text-on-surface">
+        <h3 class="text-2xl font-semibold tracking-tighter text-on-surface">
           Importer des membres dans {importHierarchyTarget.name}
         </h3>
         <button onclick={() => showImportModal = false} class="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-container text-on-surface-variant hover:bg-rose-500/10 hover:text-rose-500 transition-colors">
@@ -2960,7 +2965,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       </div>
 
       {#if importResult}
-        <div class="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 text-emerald-700 space-y-2 mb-6">
+        <div class="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-4 text-emerald-700 space-y-2 mb-6">
           <p class="font-bold">Importation terminée avec succès !</p>
           <ul class="text-xs list-disc list-inside">
             <li>Total analysés : {importResult.total}</li>
@@ -2973,7 +2978,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       <div class="space-y-4">
         <div>
           <label for="import-role-select" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Rôle Discord à importer</label>
-          <select id="import-role-select" bind:value={importDiscordRoleId} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
+          <select id="import-role-select" bind:value={importDiscordRoleId} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
             <option value="">-- Choisir un rôle --</option>
             {#each availableDiscordRoles as dr}
               <option value={dr.id}>{dr.name}</option>
@@ -2983,7 +2988,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
         <div>
           <label for="import-grade-select" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Grade de destination</label>
-          <select id="import-grade-select" bind:value={importGradeName} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
+          <select id="import-grade-select" bind:value={importGradeName} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
             <option value="">-- Choisir un grade --</option>
             {#each getOrderedStaffRoles().filter(r => r.hierarchyId === importHierarchyTarget?.id) as r}
               <option value={r.name}>{r.name}</option>
@@ -2993,11 +2998,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       </div>
 
       <div class="mt-8 flex justify-end gap-3">
-        <button onclick={() => showImportModal = false} class="px-6 py-3 rounded-2xl border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-xs font-black uppercase tracking-wider text-on-surface transition-all">
+        <button onclick={() => showImportModal = false} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-xs font-semibold uppercase tracking-wider text-on-surface transition-all">
           {importResult ? 'Fermer' : 'Annuler'}
         </button>
         {#if !importResult}
-          <button onclick={runImport} disabled={isImporting || !importDiscordRoleId || !importGradeName} class="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-3 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50">
+          <button onclick={runImport} disabled={isImporting || !importDiscordRoleId || !importGradeName} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-xs font-semibold uppercase tracking-wider text-white  transition-all hover: active:scale-[0.98] disabled:opacity-50">
             {isImporting ? 'Importation en cours...' : 'Lancer l\'import'}
           </button>
         {/if}
@@ -3010,7 +3015,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 {#if showMemberHierarchyGradeForm && memberHierarchyGradeTarget}
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
     <div
-      class="absolute inset-0 bg-surface-container-lowest/80 backdrop-blur-sm transition-opacity"
+      class="absolute inset-0 bg-surface-container-lowest/80 transition-opacity"
       role="button"
       tabindex="0"
       aria-label="Fermer"
@@ -3018,9 +3023,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       onkeydown={(e) => { if (e.key === 'Escape') showMemberHierarchyGradeForm = false; }}
     ></div>
     
-    <div class="relative w-full max-w-lg rounded-[3rem] border border-outline-variant/30 bg-surface p-8 shadow-2xl animate-in zoom-in-95 duration-200">
+    <div class="relative w-full max-w-lg rounded-xl border border-outline-variant/30 bg-surface p-8 shadow-sm animate-in zoom-in-95 duration-200">
       <div class="flex items-center justify-between mb-6">
-        <h3 class="text-2xl font-black tracking-tighter text-on-surface">
+        <h3 class="text-2xl font-semibold tracking-tighter text-on-surface">
           Hiérarchies de {memberHierarchyGradeTarget.displayName || memberHierarchyGradeTarget.username}
         </h3>
         <button onclick={() => showMemberHierarchyGradeForm = false} class="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-container text-on-surface-variant hover:bg-rose-500/10 hover:text-rose-500 transition-colors">
@@ -3032,7 +3037,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       <div class="mb-6 space-y-2">
         <span class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant/70 mb-2">Grades Actuels</span>
         {#if memberHierarchyGradeTarget?.hierarchyGrades && memberHierarchyGradeTarget.hierarchyGrades.length > 0}
-          <div class="divide-y divide-outline-variant/10 border border-outline-variant/15 rounded-2xl bg-surface-container-low overflow-hidden">
+          <div class="divide-y divide-outline-variant/10 border border-outline-variant/15 rounded-lg bg-surface-container-low overflow-hidden">
             {#each memberHierarchyGradeTarget.hierarchyGrades as hGrade}
               <div class="flex items-center justify-between px-4 py-3 text-sm">
                 <div class="flex items-center gap-2">
@@ -3040,7 +3045,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                   <span class="font-bold">{hGrade.hierarchy?.name}</span>
                   <span class="text-on-surface-variant/75">— {hGrade.grade}</span>
                 </div>
-                <button onclick={() => removeMemberHierarchy(memberHierarchyGradeTarget?.userId || '', hGrade.hierarchyId)} class="text-rose-600 hover:text-rose-700 text-xs font-black uppercase tracking-wider">
+                <button onclick={() => removeMemberHierarchy(memberHierarchyGradeTarget?.userId || '', hGrade.hierarchyId)} class="text-rose-600 hover:text-rose-700 text-xs font-semibold uppercase tracking-wider">
                   Retirer
                 </button>
               </div>
@@ -3072,7 +3077,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               const existingGrade = memberHierarchyGradeTarget.hierarchyGrades?.find((entry) => entry.hierarchyId === hierarchyId)?.grade;
               selectedMemberHierarchyGrade = existingGrade || getOrderedStaffRoles().find((role) => role.hierarchyId === hierarchyId)?.name || '';
             }}
-            class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+            class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
           >
             <option value="">-- Choisir une hiérarchie --</option>
             {#each hierarchies as h}
@@ -3086,7 +3091,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         {#if selectedMemberHierarchyId}
           <div>
             <label for="member-g-select" class="block text-xs font-bold text-on-surface-variant/60 mb-2">Grade</label>
-            <select id="member-g-select" bind:value={selectedMemberHierarchyGrade} class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
+            <select id="member-g-select" bind:value={selectedMemberHierarchyGrade} class="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10">
               <option value="">-- Choisir un grade --</option>
               {#each getOrderedStaffRoles().filter(r => r.hierarchyId === selectedMemberHierarchyId) as r}
                 <option value={r.name}>{r.name}</option>
@@ -3097,10 +3102,10 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       </div>
 
       <div class="mt-8 flex justify-end gap-3">
-        <button onclick={() => showMemberHierarchyGradeForm = false} class="px-6 py-3 rounded-2xl border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-xs font-black uppercase tracking-wider text-on-surface transition-all">
+        <button onclick={() => showMemberHierarchyGradeForm = false} class="px-6 py-3 rounded-lg border border-outline-variant/20 bg-surface-container-low hover:bg-surface-container text-xs font-semibold uppercase tracking-wider text-on-surface transition-all">
           Fermer
         </button>
-        <button onclick={saveMemberHierarchyGrade} disabled={isSavingMemberHierarchyGrade || !selectedMemberHierarchyId || !selectedMemberHierarchyGrade} class="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-6 py-3 text-xs font-black uppercase tracking-wider text-white shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50">
+        <button onclick={saveMemberHierarchyGrade} disabled={isSavingMemberHierarchyGrade || !selectedMemberHierarchyId || !selectedMemberHierarchyGrade} class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-xs font-semibold uppercase tracking-wider text-white  transition-all hover: active:scale-[0.98] disabled:opacity-50">
           {isSavingMemberHierarchyGrade ? 'Ajout...' : 'Ajouter'}
         </button>
       </div>

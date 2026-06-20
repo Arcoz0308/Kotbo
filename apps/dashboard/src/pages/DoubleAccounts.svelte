@@ -228,10 +228,10 @@
 >
   {#if doubleAccountsConfig}
     <div class="mb-10 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-      <div class="rounded-[2.5rem] border border-outline-variant/10 bg-surface-container-low/30 p-8 space-y-6">
+      <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/30 p-8 space-y-6">
         <div class="flex items-center justify-between gap-4">
           <div>
-            <h3 class="text-2xl font-black">Configuration du module</h3>
+            <h3 class="text-2xl font-semibold">Configuration du module</h3>
             <p class="mt-1 text-sm text-on-surface-variant/60">Activez le module et définissez les rôles responsables des décisions automatiques.</p>
           </div>
           <ToggleSwitch
@@ -243,22 +243,22 @@
 
         <div class="grid gap-4 md:grid-cols-3">
             <label class="space-y-2 text-sm">
-            <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Rôle validation</span>
-            <SearchableSelect bind:value={workflowDraft.validationRoleId} options={dashboardStore.state.discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Aucun rôle" className="w-full rounded-2xl border border-outline-variant/10 bg-surface-container-high/40 px-4 py-3 text-sm" />
+            <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Rôle validation</span>
+            <SearchableSelect bind:value={workflowDraft.validationRoleId} options={dashboardStore.state.discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Aucun rôle" className="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-4 py-3 text-sm" />
           </label>
 
           <label class="space-y-2 text-sm">
-            <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Rôle sanction</span>
-            <SearchableSelect bind:value={workflowDraft.sanctionRoleId} options={dashboardStore.state.discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Aucun rôle" className="w-full rounded-2xl border border-outline-variant/10 bg-surface-container-high/40 px-4 py-3 text-sm" />
+            <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Rôle sanction</span>
+            <SearchableSelect bind:value={workflowDraft.sanctionRoleId} options={dashboardStore.state.discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Aucun rôle" className="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-4 py-3 text-sm" />
           </label>
 
           <label class="space-y-2 text-sm">
-            <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Rôle DS</span>
-            <SearchableSelect bind:value={workflowDraft.dsRoleId} options={dashboardStore.state.discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Aucun rôle" className="w-full rounded-2xl border border-outline-variant/10 bg-surface-container-high/40 px-4 py-3 text-sm" />
+            <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Rôle DS</span>
+            <SearchableSelect bind:value={workflowDraft.dsRoleId} options={dashboardStore.state.discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Aucun rôle" className="w-full rounded-lg border border-outline-variant/10 bg-surface-container-high/40 px-4 py-3 text-sm" />
           </label>
         </div>
 
-        <div class="flex items-center justify-between gap-4 rounded-2xl border border-outline-variant/10 bg-surface-container-high/30 px-4 py-3">
+        <div class="flex items-center justify-between gap-4 rounded-lg border border-outline-variant/10 bg-surface-container-high/30 px-4 py-3">
           <div>
             <p class="font-bold text-on-surface">Détection automatique</p>
             <p class="text-xs text-on-surface-variant/60">Autorise le bot à signaler les comptes trop récents à l’arrivée.</p>
@@ -273,30 +273,30 @@
         <!-- Save button removed since global bottom bar handles saving -->
       </div>
 
-      <div class="rounded-[2.5rem] border border-amber-500/20 bg-amber-500/5 p-8 space-y-4 flex flex-col justify-between">
+      <div class="rounded-xl border border-amber-500/20 bg-amber-500/5 p-8 space-y-4 flex flex-col justify-between">
         <div>
-          <h3 class="text-2xl font-black">Détections</h3>
+          <h3 class="text-2xl font-semibold">Détections</h3>
           <p class="mt-1 text-sm text-on-surface-variant/70">
             Les comptes marqués suspects sont visibles dans la page dédiée Détections. Cette page sert de console d’alerte et garde les liaisons à portée de main.
           </p>
           <div class="mt-4 bg-surface-container-high/40 rounded-xl p-3 border border-outline-variant/10 flex items-center justify-between gap-2">
             <div class="min-w-0">
-              <span class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40">Commande Discord</span>
+              <span class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Commande Discord</span>
               <p class="text-xs font-mono font-bold text-amber-500 truncate mt-0.5">/rescan</p>
             </div>
-            <span class="px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 text-[8px] font-black uppercase tracking-widest">Bot</span>
+            <span class="px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 text-[10px] font-semibold uppercase tracking-widest">Bot</span>
           </div>
         </div>
         
         <div class="flex flex-wrap gap-2 pt-2">
-          <a href="/detections" class="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl border border-amber-500/20 bg-surface-container-low px-4 py-3 text-[10px] font-black uppercase tracking-widest text-amber-500 transition-colors hover:bg-amber-500 hover:text-white">
+          <a href="/detections" class="flex-1 inline-flex items-center justify-center gap-2 rounded-lg border border-amber-500/20 bg-surface-container-low px-4 py-3 text-[10px] font-semibold uppercase tracking-widest text-amber-500 transition-colors hover:bg-amber-500 hover:text-white">
             <Papicon icon="Bell" size={14} />
             <span>Détails</span>
           </a>
           <button
             onclick={triggerRescan}
             disabled={scanning || loading}
-            class="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-amber-500 text-white px-4 py-3 text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all disabled:opacity-50"
+            class="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-amber-500 text-white px-4 py-3 text-[10px] font-semibold uppercase tracking-widest hover:opacity-90 transition-all disabled:opacity-50"
           >
             {#if scanning}
               <div class="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
@@ -312,7 +312,7 @@
   {/if}
 
   {#if doubleAccountsConfig}
-    <div class="bg-surface-container-low/30 p-8 rounded-[2.5rem] border border-outline-variant/10 mb-10 animate-in fade-in duration-500">
+    <div class="bg-surface-container-low/30 p-8 rounded-xl border border-outline-variant/10 mb-10 animate-in fade-in duration-500">
       <RolePermissionSettings 
         featureKey="double_accounts" 
         roleAccess={doubleAccountsConfig.roleAccessByRole} 
@@ -325,7 +325,7 @@
   {/snippet}
 
   <div class="flex flex-wrap items-center justify-between gap-4 mb-8">
-    <div class="flex flex-wrap items-center gap-2 rounded-2xl border border-outline-variant/10 bg-surface-container-low/70 p-1 w-fit">
+    <div class="flex flex-wrap items-center gap-2 rounded-lg border border-outline-variant/10 bg-surface-container-low/70 p-1 w-fit">
       <button
         onclick={() => filterStatus = 'ALL'}
         class={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${filterStatus === 'ALL' ? 'bg-surface text-primary shadow-xs' : 'text-on-surface-variant/60 hover:text-on-surface'}`}
@@ -363,13 +363,13 @@
       <p class="text-sm font-bold text-on-surface-variant/60">Chargement des données...</p>
     </div>
   {:else if error}
-    <div class="rounded-2xl border border-rose-500/20 bg-rose-500/5 px-4 py-6 text-center">
+    <div class="rounded-lg border border-rose-500/20 bg-rose-500/5 px-4 py-6 text-center">
       <p class="text-rose-500 font-bold">{error}</p>
-      <button onclick={loadData} class="mt-4 text-xs font-black uppercase tracking-widest text-primary">Réessayer</button>
+      <button onclick={loadData} class="mt-4 text-xs font-semibold uppercase tracking-widest text-primary">Réessayer</button>
     </div>
   {:else if filteredAccounts.length === 0}
     <div class="flex flex-col items-center justify-center py-24 text-center">
-      <div class="flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-container-low text-on-surface-variant/20">
+      <div class="flex h-16 w-16 items-center justify-center rounded-lg bg-surface-container-low text-on-surface-variant/20">
         <Papicon icon="link-2-off" size={32} />
       </div>
       <h3 class="mt-6 text-xl font-bold text-on-surface">Aucune liaison trouvée</h3>
@@ -380,21 +380,21 @@
   {:else}
     <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {#each filteredAccounts as link (link.id)}
-        <div class="group relative rounded-3xl border border-outline-variant/10 bg-surface-container-low/40 p-5 transition-all duration-300 hover:border-primary/20 hover:bg-surface-container-low">
+        <div class="group relative rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-5 transition-all duration-300 hover:border-primary/20 hover:bg-surface-container-low">
           <div class="flex items-center justify-between mb-4">
-             <span class={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest 
+             <span class={`px-2 py-0.5 rounded-lg text-[11px] font-semibold uppercase tracking-widest 
                 ${link.status === 'VALIDATED' ? 'bg-emerald-500/10 text-emerald-500' : 
                   link.status === 'PENDING' ? 'bg-amber-500/10 text-amber-500' : 'bg-rose-500/10 text-rose-500'}`}>
                {link.status}
              </span>
-             <span class="text-[9px] font-bold text-on-surface-variant/30">{new Date(link.createdAt).toLocaleDateString('fr-FR')}</span>
+             <span class="text-[11px] font-bold text-on-surface-variant/30">{new Date(link.createdAt).toLocaleDateString('fr-FR')}</span>
           </div>
 
-          <div class="flex items-center gap-3 bg-surface-container-low/50 rounded-2xl p-3 mb-4">
+          <div class="flex items-center gap-3 bg-surface-container-low/50 rounded-lg p-3 mb-4">
              <div class="flex-1 min-w-0">
                 <button 
                   onclick={() => openMemberCase(link.user1Id, link.user1.tag)} 
-                  class="flex items-center gap-2 text-sm font-black text-on-surface hover:text-primary transition-colors truncate w-full text-left"
+                  class="flex items-center gap-2 text-sm font-semibold text-on-surface hover:text-primary transition-colors truncate w-full text-left"
                 >
                   {#if link.user1.avatar}
                     <img src={link.user1.avatar} alt="" class="w-5 h-5 rounded-full shrink-0" />
@@ -406,7 +406,7 @@
              <div class="flex-1 min-w-0">
                 <button 
                   onclick={() => openMemberCase(link.user2Id, link.user2.tag)} 
-                  class="flex items-center justify-end gap-2 text-sm font-black text-on-surface hover:text-primary transition-colors truncate w-full text-right"
+                  class="flex items-center justify-end gap-2 text-sm font-semibold text-on-surface hover:text-primary transition-colors truncate w-full text-right"
                 >
                   <span class="truncate">@{link.user2.tag}</span>
                   {#if link.user2.avatar}
@@ -418,7 +418,7 @@
 
           {#if link.reason}
             <div class="mb-6 bg-surface-container-low/20 rounded-xl p-3 border border-outline-variant/5">
-              <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/30 mb-1">Raison</p>
+              <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/30 mb-1">Raison</p>
               <p class="text-[11px] text-on-surface-variant/70 italic leading-relaxed">"{link.reason}"</p>
             </div>
           {/if}
@@ -428,7 +428,7 @@
               <button 
                 onclick={() => handleUpdateStatus(link.id, 'VALIDATED')}
                 disabled={saveAction.state.loading}
-                class="flex-1 py-2 rounded-xl bg-emerald-500/10 text-emerald-500 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                class="flex-1 py-2 rounded-xl bg-emerald-500/10 text-emerald-500 text-[10px] font-semibold uppercase tracking-widest hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 <Papicon icon="check" size={12} />
                 Valider
@@ -436,13 +436,13 @@
               <button 
                 onclick={() => handleUpdateStatus(link.id, 'REJECTED')}
                 disabled={saveAction.state.loading}
-                class="flex-1 py-2 rounded-xl bg-rose-500/10 text-rose-500 text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                class="flex-1 py-2 rounded-xl bg-rose-500/10 text-rose-500 text-[10px] font-semibold uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 <Papicon icon="x" size={12} />
                 Rejeter
               </button>
             {:else}
-              <div class="flex-1 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/20 italic">
+              <div class="flex-1 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/20 italic">
                 {link.type}
               </div>
               <button 

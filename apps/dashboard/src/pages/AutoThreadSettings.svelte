@@ -130,19 +130,19 @@
   {#if loading}
     <div class="flex flex-col gap-6 animate-pulse">
       <div class="h-12 w-48 bg-surface-container-low/60 rounded-xl"></div>
-      <div class="h-64 rounded-3xl bg-surface-container-low/60"></div>
+      <div class="h-64 rounded-xl bg-surface-container-low/60"></div>
     </div>
   {:else if loadError}
-    <div class="rounded-3xl bg-error/10 border border-error/20 p-6 text-error text-sm font-semibold">
+    <div class="rounded-xl bg-error/10 border border-error/20 p-6 text-error text-sm font-semibold">
       ⚠️ {loadError}
     </div>
   {:else}
     <div class="grid grid-cols-1 gap-8">
       <!-- Section Salons -->
-      <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
+      <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h3 class="text-xl font-black flex items-center gap-3">
+            <h3 class="text-xl font-semibold flex items-center gap-3">
               <Papicon icon="Hash" size={20} class="text-primary" />
               Salons éligibles
             </h3>
@@ -172,14 +172,14 @@
               type="text"
               bind:value={searchQuery}
               placeholder="Rechercher un salon..."
-              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl pl-11 pr-5 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/20 transition-all outline-none"
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg pl-11 pr-5 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/20 transition-all outline-none"
             />
             <div class="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/50">
               <Papicon icon="search" size={16} />
             </div>
           </div>
           
-          <div class="px-5 py-3 rounded-2xl bg-surface-container-high/20 border border-outline-variant/5 flex items-center gap-2 text-xs font-bold">
+          <div class="px-5 py-3 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 flex items-center gap-2 text-xs font-bold">
             <span class="text-primary">{config.channels.length}</span>
             <span class="text-on-surface-variant/60">salon(s) sélectionné(s)</span>
           </div>
@@ -192,14 +192,14 @@
               {@const isChecked = config.channels.includes(channel.id)}
               <button
                 onclick={() => toggleChannel(channel.id)}
-                class="flex items-center justify-between p-4 rounded-2xl border transition-all text-left group
+                class="flex items-center justify-between p-4 rounded-lg border transition-all text-left group
                   {isChecked 
                     ? 'bg-primary/5 border-primary/30 text-primary hover:bg-primary/10' 
                     : 'bg-surface-container-high/10 border-outline-variant/5 hover:bg-surface-container-high/30'}"
               >
                 <div class="flex items-center gap-3">
                   <div class="w-8 h-8 rounded-lg flex items-center justify-center {isChecked ? 'bg-primary/10' : 'bg-surface-container-highest'}">
-                    <span class="text-sm font-black opacity-60">#</span>
+                    <span class="text-sm font-semibold opacity-60">#</span>
                   </div>
                   <span class="text-sm font-semibold truncate max-w-[180px]">{channel.name}</span>
                 </div>
@@ -217,7 +217,7 @@
             {/each}
           </div>
         {:else}
-          <div class="flex flex-col items-center justify-center py-12 text-on-surface-variant/30 bg-surface-container-high/10 border border-dashed border-outline-variant/10 rounded-2xl gap-3">
+          <div class="flex flex-col items-center justify-center py-12 text-on-surface-variant/30 bg-surface-container-high/10 border border-dashed border-outline-variant/10 rounded-lg gap-3">
             <Papicon icon="search" size={32} class="opacity-30" />
             <p class="text-sm font-bold">Aucun salon ne correspond à votre recherche.</p>
           </div>
@@ -225,10 +225,10 @@
       </section>
 
       <!-- Section Bots -->
-      <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
+      <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
         <div class="flex items-center justify-between">
           <div>
-            <h3 class="text-xl font-black flex items-center gap-3">
+            <h3 class="text-xl font-semibold flex items-center gap-3">
               <Papicon icon="bot" size={20} class="text-primary" />
               Prise en charge des bots & webhooks
             </h3>

@@ -87,41 +87,41 @@
   <!-- Moderation Stats & Charts -->
   <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
     {#each stats as stat}
-      <div class="premium-card p-6 rounded-4xl flex flex-col items-center text-center gap-2 group hover:scale-[1.02] transition-all">
-        <div class="p-3 rounded-2xl mb-2" style="background: {stat.color}15; color: {stat.color}">
+      <div class="premium-card p-6 rounded-xl flex flex-col items-center text-center gap-2 group hover: transition-all">
+        <div class="p-3 rounded-lg mb-2" style="background: {stat.color}15; color: {stat.color}">
            <Papicon icon="Hammer" size={20} />
         </div>
-        <span class="text-4xl font-black" style="color: {stat.color}">{stat.value}</span>
-        <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">{stat.label}</p>
+        <span class="text-lg font-semibold" style="color: {stat.color}">{stat.value}</span>
+        <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">{stat.label}</p>
       </div>
     {/each}
   </div>
 
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <!-- Distribution Chart -->
-    <div class="premium-card p-6 rounded-4xl flex flex-col items-center justify-center min-h-[220px]">
+    <div class="premium-card p-6 rounded-xl flex flex-col items-center justify-center min-h-[220px]">
       <div class="flex items-center gap-3 mb-6 w-full">
         <div class="p-2 rounded-xl bg-amber-500/10 text-amber-500">
           <Papicon icon="ChartPieSlice" size={18} />
         </div>
-        <h4 class="text-sm font-black text-on-surface uppercase tracking-widest">Distribution</h4>
+        <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">Distribution</h4>
       </div>
       <div class="h-32 w-32 relative">
         <Chart data={distributionData} type="doughnut" height={128} options={doughnutOptions} />
         <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-           <span class="text-xl font-black text-on-surface">{stats.reduce((a, b) => a + b.value, 0)}</span>
-           <span class="text-[8px] font-black uppercase tracking-widest text-on-surface-variant/40">Total</span>
+           <span class="text-xl font-semibold text-on-surface">{stats.reduce((a, b) => a + b.value, 0)}</span>
+           <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Total</span>
         </div>
       </div>
     </div>
 
     <!-- Trend Chart -->
-    <div class="premium-card p-6 rounded-4xl flex flex-col min-h-[220px] space-y-4">
+    <div class="premium-card p-6 rounded-xl flex flex-col min-h-[220px] space-y-4">
       <div class="flex items-center gap-3">
         <div class="p-2 rounded-xl bg-rose-500/10 text-rose-500">
           <Papicon icon="ChartLineUp" size={18} />
         </div>
-        <h4 class="text-sm font-black text-on-surface uppercase tracking-widest">Tendance</h4>
+        <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">Tendance</h4>
       </div>
       <div class="flex-grow h-[140px]">
         <Chart data={trendChartData} type="line" height={140} options={trendOptions} />
@@ -131,13 +131,13 @@
 
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <!-- Top Moderators -->
-    <div class="premium-card p-8 rounded-[2.5rem] space-y-6 flex flex-col">
+    <div class="premium-card p-8 rounded-xl space-y-6 flex flex-col">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
           <div class="p-2 rounded-xl bg-primary/10 text-primary">
             <Papicon icon="ShieldCheck" size={20} />
           </div>
-          <h3 class="text-lg font-black text-on-surface">Top Modérateurs</h3>
+          <h3 class="text-lg font-semibold text-on-surface">Top Modérateurs</h3>
         </div>
         <button 
           onclick={() => showModsModal = true}
@@ -150,16 +150,16 @@
         {#each topModerators.slice(0, 5) as mod}
           <button 
             onclick={() => onOpenMember(mod.userId, mod.moderatorTag)}
-            class="w-full flex items-center justify-between p-3 rounded-2xl bg-surface-container-high/20 hover:bg-surface-container-high/50 transition-all text-left"
+            class="w-full flex items-center justify-between p-3 rounded-lg bg-surface-container-high/20 hover:bg-surface-container-high/50 transition-all text-left"
           >
             <div class="flex items-center gap-3">
               <img src={getAvatar(mod.avatarUrl)} alt="" class="w-8 h-8 rounded-lg object-cover" />
               <div>
-                <p class="text-sm font-black text-on-surface">@{mod.moderatorTag}</p>
+                <p class="text-sm font-semibold text-on-surface">@{mod.moderatorTag}</p>
                 <p class="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest">Activité modération</p>
               </div>
             </div>
-            <span class="text-sm font-black text-primary">{mod.count} actions</span>
+            <span class="text-sm font-semibold text-primary">{mod.count} actions</span>
           </button>
         {/each}
         {#if topModerators.length === 0}
@@ -169,13 +169,13 @@
     </div>
 
     <!-- Top Sanctioned -->
-    <div class="premium-card p-8 rounded-[2.5rem] space-y-6 flex flex-col">
+    <div class="premium-card p-8 rounded-xl space-y-6 flex flex-col">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
           <div class="p-2 rounded-xl bg-rose-500/10 text-rose-500">
             <Papicon icon="UserFocus" size={20} />
           </div>
-          <h3 class="text-lg font-black text-on-surface">Membres Sanctionnés</h3>
+          <h3 class="text-lg font-semibold text-on-surface">Membres Sanctionnés</h3>
         </div>
         <button 
           onclick={() => showSanctionedModal = true}
@@ -188,16 +188,16 @@
         {#each topSanctionedMembers.slice(0, 5) as m}
           <button 
             onclick={() => onOpenMember(m.targetUserId, m.targetTag)}
-            class="w-full flex items-center justify-between p-3 rounded-2xl bg-surface-container-high/20 hover:bg-surface-container-high/50 transition-all text-left"
+            class="w-full flex items-center justify-between p-3 rounded-lg bg-surface-container-high/20 hover:bg-surface-container-high/50 transition-all text-left"
           >
             <div class="flex items-center gap-3">
               <img src={getAvatar(m.avatarUrl)} alt="" class="w-8 h-8 rounded-lg object-cover" />
               <div>
-                <p class="text-sm font-black text-on-surface">@{m.targetTag}</p>
+                <p class="text-sm font-semibold text-on-surface">@{m.targetTag}</p>
                 <p class="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest">Récidive</p>
               </div>
             </div>
-            <span class="text-sm font-black text-rose-500">{m.count} sanctions</span>
+            <span class="text-sm font-semibold text-rose-500">{m.count} sanctions</span>
           </button>
         {/each}
         {#if topSanctionedMembers.length === 0}
@@ -208,14 +208,14 @@
   </div>
 
   <!-- Recent Sanctions -->
-  <div class="premium-card p-8 rounded-[2.5rem] space-y-8">
+  <div class="premium-card p-8 rounded-xl space-y-8">
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-4">
-        <div class="bg-rose-500/10 p-3 rounded-2xl text-rose-500">
+        <div class="bg-rose-500/10 p-3 rounded-lg text-rose-500">
           <Papicon icon="Gavel" size={24} />
         </div>
         <div>
-          <h3 class="text-xl font-black text-on-surface">Historique Récent</h3>
+          <h3 class="text-xl font-semibold text-on-surface">Historique Récent</h3>
           <p class="text-xs font-bold text-on-surface-variant/40">Dernières actions enregistrées</p>
         </div>
       </div>
@@ -229,25 +229,25 @@
 
     <div class="space-y-4">
       {#each recentSanctions.slice(0, 5) as sanction}
-        <div class="flex flex-col md:flex-row md:items-center justify-between p-5 rounded-3xl bg-surface-container-high/30 border border-outline-variant/10 hover:bg-surface-container-high/50 transition-all group gap-4">
+        <div class="flex flex-col md:flex-row md:items-center justify-between p-5 rounded-xl bg-surface-container-high/30 border border-outline-variant/10 hover:bg-surface-container-high/50 transition-all group gap-4">
           <div class="flex items-center gap-4">
             <button 
               onclick={() => onOpenMember(sanction.targetUserId, sanction.targetTag)}
-              class="w-12 h-12 rounded-2xl overflow-hidden bg-on-surface/5 flex items-center justify-center transition-transform group-hover:scale-105 shrink-0"
+              class="w-12 h-12 rounded-lg overflow-hidden bg-on-surface/5 flex items-center justify-center transition-transform  shrink-0"
             >
               <img src={getAvatar(sanction.targetAvatarUrl)} alt="" class="w-full h-full object-cover" />
             </button>
             <div>
               <div class="flex items-center gap-2">
-                <p class="text-sm font-black text-on-surface">@{sanction.targetTag}</p>
-                <span class="px-2 py-0.5 rounded-lg text-[9px] font-black tracking-widest uppercase" style="background: {getSanctionColor(sanction.type)}20; color: {getSanctionColor(sanction.type)}">{sanction.type}</span>
+                <p class="text-sm font-semibold text-on-surface">@{sanction.targetTag}</p>
+                <span class="px-2 py-0.5 rounded-lg text-[11px] font-semibold tracking-widest uppercase" style="background: {getSanctionColor(sanction.type)}20; color: {getSanctionColor(sanction.type)}">{sanction.type}</span>
               </div>
               <p class="text-xs font-medium text-on-surface-variant/60 mt-0.5 line-clamp-1">{sanction.reason || 'Aucune raison spécifiée'}</p>
             </div>
           </div>
           <div class="flex items-center justify-between md:justify-end gap-6 border-t md:border-t-0 border-outline-variant/5 pt-3 md:pt-0 shrink-0">
             <div class="text-right">
-              <p class="text-[9px] font-black text-on-surface-variant/40 uppercase tracking-widest">Modérateur</p>
+              <p class="text-[11px] font-semibold text-on-surface-variant/40 uppercase tracking-widest">Modérateur</p>
               <div class="flex items-center gap-2 mt-0.5">
                 <img src={getAvatar(sanction.moderatorAvatarUrl)} alt="" class="w-5 h-5 rounded-md object-cover" />
                 <p class="text-xs font-bold text-on-surface">@{sanction.moderatorTag}</p>

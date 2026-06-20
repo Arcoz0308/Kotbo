@@ -35,13 +35,13 @@
   let expandedCategory = $state<string | null>(null);
 </script>
 
-<div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6 animate-in fade-in duration-500">
+<div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 animate-in fade-in duration-500">
   <div class="flex justify-between items-center">
     <div>
-      <h3 class="text-2xl font-black">Fonctionnalités</h3>
+      <h3 class="text-2xl font-semibold">Fonctionnalités</h3>
       <p class="text-xs text-on-surface-variant/50 mt-1">Activez ou désactivez chaque module, ses logs et son suivi utilisateur.</p>
     </div>
-    <button onclick={onSave} class="px-7 py-3 bg-primary text-on-primary font-black uppercase tracking-widest text-[10px] rounded-2xl shadow-lg shadow-primary/20 hover:scale-105 transition-transform">
+    <button onclick={onSave} class="px-7 py-3 bg-primary text-on-primary font-semibold uppercase tracking-widest text-[10px] rounded-lg  hover:scale-105 transition-transform">
       Sauvegarder
     </button>
   </div>
@@ -56,10 +56,10 @@
         <!-- Category header -->
         <button
           onclick={() => expandedCategory = isCatExpanded ? null : group.category}
-          class="w-full flex items-center gap-3 px-5 py-3 rounded-2xl {catColor.bg} border {catColor.border} hover:opacity-90 transition-all cursor-pointer"
+          class="w-full flex items-center gap-3 px-5 py-3 rounded-lg {catColor.bg} border {catColor.border} hover:opacity-90 transition-all cursor-pointer"
         >
           <Papicon icon={catIcon} size={18} class={catColor.text} />
-          <span class="text-[11px] font-black uppercase tracking-widest {catColor.text}">{group.category}</span>
+          <span class="text-[11px] font-semibold uppercase tracking-widest {catColor.text}">{group.category}</span>
           <span class="text-[10px] text-on-surface-variant/40 ml-1">{group.items.length} module{group.items.length > 1 ? 's' : ''}</span>
           <div class="ml-auto transform transition-transform {isCatExpanded ? 'rotate-180' : ''}">
             <Papicon icon="CaretDown" size={14} class="text-on-surface-variant/40" />
@@ -68,9 +68,9 @@
 
         <!-- Category items table -->
         {#if isCatExpanded}
-          <div class="overflow-hidden rounded-4xl border border-outline-variant/5 animate-in fade-in slide-in-from-top-1 duration-300">
+          <div class="overflow-hidden rounded-xl border border-outline-variant/5 animate-in fade-in slide-in-from-top-1 duration-300">
             <table class="w-full text-left border-collapse">
-              <thead class="bg-surface-container-high/40 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60">
+              <thead class="bg-surface-container-high/40 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">
                 <tr>
                   <th class="px-6 py-4">Module</th>
                   <th class="px-6 py-4 text-center">Activé</th>

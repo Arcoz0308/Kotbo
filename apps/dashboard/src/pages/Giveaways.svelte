@@ -169,14 +169,14 @@
 </script>
 
 <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-  <header class="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-surface-container-low/40 backdrop-blur-3xl p-8 rounded-4xl border border-outline-variant/30">
-    <div class="flex items-center gap-6">
-      <div class="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shadow-inner">
-        <Papicon icon="Sparkles" size={32} />
+  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
+    <div class="flex items-center gap-4">
+      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+        <Papicon icon="Sparkles" size={20} />
       </div>
       <div>
-        <h1 class="text-3xl font-black tracking-tight leading-tight">Giveaways</h1>
-        <p class="text-on-surface-variant/80 font-medium">Créez et gérez des tirages au sort interactifs avec boutons de participation.</p>
+        <h1 class="text-lg font-semibold tracking-tight leading-tight">Giveaways</h1>
+        <p class="text-sm text-on-surface-variant/70 font-medium">Créez et gérez des tirages au sort interactifs avec boutons de participation.</p>
       </div>
     </div>
   </header>
@@ -193,7 +193,7 @@
     <div class="space-y-6">
       <!-- Title & Actions Bar -->
       <div class="flex items-center justify-between gap-4 flex-wrap">
-        <h3 class="text-xl font-black flex items-center gap-3">
+        <h3 class="text-xl font-semibold flex items-center gap-3">
           <Papicon icon="List" size={20} class="text-secondary" />
           Liste des Concours ({giveaways.length})
         </h3>
@@ -201,7 +201,7 @@
         {#if canManageSettings}
           <button
             onclick={openCreateModal}
-            class="flex items-center gap-2 px-6 py-3.5 bg-primary hover:bg-primary-hover text-on-primary font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-primary/20 hover:scale-[1.03] transition-all cursor-pointer"
+            class="flex items-center gap-2 px-6 py-3.5 bg-primary hover:bg-primary-hover text-on-primary font-semibold uppercase tracking-widest text-xs rounded-lg  hover:scale-[1.03] transition-all cursor-pointer"
           >
             <Papicon icon="Add" size={16} />
             Lancer un Concours
@@ -212,11 +212,11 @@
       <!-- Giveaways list -->
       <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {#each giveaways as giveaway}
-          <div class="bg-surface-container-low/30 backdrop-blur-md border border-outline-variant/10 p-6 rounded-4xl flex flex-col justify-between hover:bg-surface-container-low/50 hover:border-outline-variant/20 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 relative group">
+          <div class="bg-surface-container-low/30 border border-outline-variant/10 p-6 rounded-xl flex flex-col justify-between hover:bg-surface-container-low/50 hover:border-outline-variant/20 hover:shadow-sm hover:shadow-primary/5 transition-all duration-300 relative group">
             <div class="space-y-4">
               <!-- Status & Destination -->
               <div class="flex items-center justify-between gap-3 flex-wrap">
-                <span class="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-xl {giveaway.ended ? 'bg-outline-variant/20 text-on-surface-variant' : 'bg-primary/10 text-primary border border-primary/20 animate-pulse'}">
+                <span class="text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-xl {giveaway.ended ? 'bg-outline-variant/20 text-on-surface-variant' : 'bg-primary/10 text-primary border border-primary/20 animate-pulse'}">
                   {giveaway.ended ? 'Terminé' : 'En cours'}
                 </span>
                 <span class="text-[11px] font-bold text-on-surface-variant/70 flex items-center gap-1 bg-surface-container-high/40 px-2 py-1 rounded-lg">
@@ -226,7 +226,7 @@
 
               <!-- Prize & Description -->
               <div class="space-y-1">
-                <h4 class="text-lg font-black text-on-surface leading-tight group-hover:text-primary transition-colors duration-300">{giveaway.prize}</h4>
+                <h4 class="text-lg font-semibold text-on-surface leading-tight group-hover:text-primary transition-colors duration-300">{giveaway.prize}</h4>
                 {#if giveaway.description}
                   <p class="text-xs text-on-surface-variant/70 font-medium line-clamp-3 leading-relaxed">{giveaway.description}</p>
                 {/if}
@@ -234,18 +234,18 @@
 
               <!-- Stats row -->
               <div class="flex flex-wrap gap-2 pt-3 border-t border-outline-variant/10">
-                <span class="inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/10">
+                <span class="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/10">
                   <Papicon icon="Users" size={10} />{giveaway.participants.length} participants
                 </span>
-                <span class="inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/10">
+                <span class="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/10">
                   <Papicon icon="Crown" size={10} />{giveaway.winnerCount} gagnants
                 </span>
               </div>
 
               <!-- Winners or Clock -->
               {#if giveaway.ended}
-                <div class="bg-emerald-500/5 border border-emerald-500/10 rounded-2xl p-3 space-y-1">
-                  <span class="text-[8px] font-black uppercase tracking-widest text-emerald-400 flex items-center gap-1">
+                <div class="bg-emerald-500/5 border border-emerald-500/10 rounded-lg p-3 space-y-1">
+                  <span class="text-[10px] font-semibold uppercase tracking-widest text-emerald-400 flex items-center gap-1">
                     <Papicon icon="Crown" size={10} /> Gagnant(s)
                   </span>
                   <p class="text-xs font-bold text-emerald-300/95 wrap-break-word">
@@ -253,7 +253,7 @@
                   </p>
                 </div>
               {:else}
-                <div class="bg-surface-container-high/20 border border-outline-variant/5 rounded-2xl p-3 flex items-center gap-2 text-on-surface-variant/60">
+                <div class="bg-surface-container-high/20 border border-outline-variant/5 rounded-lg p-3 flex items-center gap-2 text-on-surface-variant/60">
                   <Papicon icon="Clock" size={12} class="text-primary" />
                   <span class="text-[10px] font-semibold">
                     Fin le {formatDate(giveaway.endsAt)}
@@ -268,7 +268,7 @@
                 {#if !giveaway.ended}
                   <button
                     onclick={() => handleEnd(giveaway.id)}
-                    class="px-3.5 py-2 bg-secondary hover:bg-secondary-hover text-on-secondary text-[10px] font-black uppercase tracking-wider rounded-xl transition-all shadow-md shadow-secondary/10 cursor-pointer flex items-center gap-1.5"
+                    class="px-3.5 py-2 bg-secondary hover:bg-secondary-hover text-on-secondary text-[10px] font-semibold uppercase tracking-wider rounded-xl transition-all shadow-md shadow-secondary/10 cursor-pointer flex items-center gap-1.5"
                     title="Forcer la fin et tirer au sort"
                   >
                     <Papicon icon="Sparkles" size={11} />
@@ -277,7 +277,7 @@
                 {:else}
                   <button
                     onclick={() => handleReroll(giveaway.id)}
-                    class="px-3.5 py-2 bg-outline-variant/20 hover:bg-outline-variant/35 text-on-surface text-[10px] font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                    class="px-3.5 py-2 bg-outline-variant/20 hover:bg-outline-variant/35 text-on-surface text-[10px] font-semibold uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
                     title="Effectuer un nouveau tirage"
                   >
                     <Papicon icon="Refresh" size={11} />
@@ -295,13 +295,13 @@
             {/if}
           </div>
         {:else}
-          <div class="col-span-full flex flex-col items-center justify-center py-20 bg-surface-container-low/20 border border-outline-variant/10 rounded-[2.5rem] text-center">
+          <div class="col-span-full flex flex-col items-center justify-center py-20 bg-surface-container-low/20 border border-outline-variant/10 rounded-xl text-center">
             <Papicon icon="Sparkles" size={32} class="text-on-surface-variant/20 mb-3" />
             <p class="text-sm text-on-surface-variant/60 font-medium">Aucun concours configuré pour le moment.</p>
             {#if canManageSettings}
               <button
                 onclick={openCreateModal}
-                class="mt-4 flex items-center gap-2 px-5 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary font-bold text-xs rounded-2xl transition-all cursor-pointer"
+                class="mt-4 flex items-center gap-2 px-5 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary font-bold text-xs rounded-lg transition-all cursor-pointer"
               >
                 <Papicon icon="Add" size={14} /> Lancer un premier concours
               </button>
@@ -315,8 +315,8 @@
 
 <!-- Modal Création Giveaway -->
 {#if showModal}
-  <div class="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4" transition:fade={{ duration: 150 }}>
-    <div class="bg-surface-container-low/95 border border-outline-variant/20 max-w-lg w-full rounded-[2.5rem] p-8 space-y-6 shadow-2xl relative" transition:scale={{ start: 0.97, duration: 150 }}>
+  <div class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" transition:fade={{ duration: 150 }}>
+    <div class="bg-surface-container-low/95 border border-outline-variant/20 max-w-lg w-full rounded-xl p-8 space-y-6 shadow-sm relative" transition:scale={{ start: 0.97, duration: 150 }}>
 
       <!-- Close button -->
       <button
@@ -329,11 +329,11 @@
 
       <!-- Modal Header -->
       <div class="flex items-center gap-4">
-        <div class="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shadow-inner">
+        <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center text-primary shadow-inner">
           <Papicon icon="Sparkles" size={24} />
         </div>
         <div>
-          <h3 class="text-2xl font-black tracking-tight">Lancer un Concours</h3>
+          <h3 class="text-2xl font-semibold tracking-tight">Lancer un Concours</h3>
           <p class="text-xs text-on-surface-variant/80 font-medium">Configurez et déployez un giveaway sur Discord.</p>
         </div>
       </div>
@@ -346,7 +346,7 @@
             type="text"
             bind:value={formPrize}
             placeholder="Ex: Nitro Boost 1 Mois 💎"
-            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
             required
             disabled={!canManageSettings}
           />
@@ -358,7 +358,7 @@
             id="modal-desc"
             bind:value={formDescription}
             placeholder="Conditions ou détails supplémentaires..."
-            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none h-20 resize-none"
+            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none h-20 resize-none"
             disabled={!canManageSettings}
           ></textarea>
         </div>
@@ -372,7 +372,7 @@
               min="1"
               max="50"
               bind:value={formWinnerCount}
-              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
               required
               disabled={!canManageSettings}
             />
@@ -386,13 +386,13 @@
                 type="number"
                 min="1"
                 bind:value={durationValue}
-                class="w-2/3 bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+                class="w-2/3 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
                 required
                 disabled={!canManageSettings}
               />
               <select
                 bind:value={durationUnit}
-                class="w-1/3 bg-surface-container-high/45 border border-outline-variant/10 rounded-2xl px-3 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all focus:outline-none cursor-pointer"
+                class="w-1/3 bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-3 py-3 text-sm text-on-surface focus:ring-2 focus:ring-primary/30 transition-all focus:outline-none cursor-pointer"
                 disabled={!canManageSettings}
               >
                 <option value="minutes">Min</option>
@@ -405,7 +405,7 @@
 
         <!-- Presets -->
         <div class="space-y-1.5">
-          <span class="text-[9px] font-bold text-on-surface-variant/50 ml-2 uppercase tracking-widest">Durées prédéfinies</span>
+          <span class="text-[11px] font-bold text-on-surface-variant/50 ml-2 uppercase tracking-widest">Durées prédéfinies</span>
           <div class="flex flex-wrap gap-2 ml-1">
             {#each presets as preset}
               <button
@@ -427,7 +427,7 @@
             bind:value={formChannelId}
             options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))}
             placeholder="Sélectionner le salon"
-            className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
+            className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
             disabled={!canManageSettings}
           />
         </div>
@@ -436,14 +436,14 @@
           <button
             type="button"
             onclick={() => showModal = false}
-            class="px-6 py-3 bg-outline-variant/20 hover:bg-outline-variant/30 text-on-surface text-xs font-black uppercase tracking-wider rounded-2xl transition-all cursor-pointer"
+            class="px-6 py-3 bg-outline-variant/20 hover:bg-outline-variant/30 text-on-surface text-xs font-semibold uppercase tracking-wider rounded-lg transition-all cursor-pointer"
           >
             Annuler
           </button>
           {#if canManageSettings}
             <button
               type="submit"
-              class="px-8 py-3 bg-primary text-on-primary font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-primary/20 hover:scale-[1.03] transition-all cursor-pointer"
+              class="px-8 py-3 bg-primary text-on-primary font-semibold uppercase tracking-widest text-xs rounded-lg  hover:scale-[1.03] transition-all cursor-pointer"
             >
               Envoyer sur Discord
             </button>

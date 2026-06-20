@@ -511,23 +511,26 @@
   }
 </script>
 
-<div class="relative overflow-hidden rounded-4xl border border-primary/10 bg-linear-to-br from-primary/10 via-white to-sky-100/70 dark:from-primary/20 dark:via-slate-900 dark:to-slate-800 p-8 mb-8 font-inter">
-  <div class="absolute -right-14 -top-14 h-48 w-48 rounded-full bg-primary/10 blur-3xl"></div>
-  <div class="absolute -left-20 -bottom-20 h-52 w-52 rounded-full bg-cyan-500/10 blur-3xl"></div>
-  <div class="relative z-10 flex flex-wrap items-end justify-between gap-6">
-    <div>
-      <p class="text-[11px] font-black uppercase tracking-[0.22em] text-primary/70">Centre de permissions</p>
-      <h2 class="mt-2 text-4xl font-extrabold text-primary tracking-tight font-headline">Gestion des commandes</h2>
-      <p class="text-on-surface-variant mt-2 text-base md:text-lg max-w-3xl">Configurez précisément qui peut exécuter chaque commande, où et avec quels rôles, dans une interface rapide inspirée des dashboards de modération modernes.</p>
-    </div>
-    <div class="flex flex-wrap gap-3">
-      <div class="rounded-2xl border border-primary/20 bg-white/80 dark:bg-slate-900/80 px-4 py-3 min-w-42.5">
-        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-on-surface-variant">Commandes totales</p>
-        <p class="mt-1 text-2xl font-black text-on-surface">{commandCatalog.length}</p>
+<div class="relative overflow-hidden rounded-xl border border-primary/10 bg-linear-to-br from-primary/10 via-white to-sky-100/70 dark:from-primary/20 dark:via-slate-900 dark:to-slate-800 p-5 mb-6 font-inter">
+  <div class="relative z-10 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center gap-4">
+      <div class="bg-primary/10 p-2 rounded-xl text-primary">
+        <Papicon icon="Lock" size={20} />
       </div>
-      <div class="rounded-2xl border border-emerald-300/40 bg-emerald-500/10 px-4 py-3 min-w-42.5">
-        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-300">Règles actives</p>
-        <p class="mt-1 text-2xl font-black text-emerald-800 dark:text-emerald-200">{activeRestrictionCount}</p>
+      <div>
+        <span class="text-[10px] font-semibold uppercase tracking-widest text-primary/70">Centre de permissions</span>
+        <h2 class="text-lg font-extrabold text-primary tracking-tight font-headline">Gestion des commandes</h2>
+        <p class="text-sm text-on-surface-variant/70 max-w-xl">Configurez qui peut exécuter chaque commande, où et avec quels rôles.</p>
+      </div>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <div class="rounded-lg border border-primary/20 bg-white/80 dark:bg-slate-900/80 px-3 py-2">
+        <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant">Commandes</p>
+        <p class="text-lg font-semibold text-on-surface">{commandCatalog.length}</p>
+      </div>
+      <div class="rounded-lg border border-emerald-300/40 bg-emerald-500/10 px-3 py-2">
+        <p class="text-[10px] font-semibold uppercase tracking-widest text-emerald-700 dark:text-emerald-300">Règles</p>
+        <p class="text-lg font-semibold text-emerald-800 dark:text-emerald-200">{activeRestrictionCount}</p>
       </div>
     </div>
   </div>
@@ -541,7 +544,7 @@
           <Papicon icon="segment" size={20} class="text-primary" />
           Catalogue des commandes
         </h3>
-        <span class="text-[10px] font-black uppercase tracking-[0.18em] px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-on-surface-variant">{filteredCommandCatalog.length}</span>
+        <span class="text-[10px] font-semibold uppercase tracking-[0.18em] px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-on-surface-variant">{filteredCommandCatalog.length}</span>
       </div>
 
       <div class="mb-4">
@@ -553,23 +556,23 @@
             type="text"
             bind:value={commandSearch}
             placeholder="Rechercher : nom, label ou description"
-            class="w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 pl-10 pr-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/25"
+            class="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 pl-10 pr-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/25"
           />
         </div>
       </div>
 
       <div class="mb-5 flex flex-wrap gap-2">
-        <button type="button" onclick={() => { catalogFilter = 'all'; }} class="px-3 py-1.5 rounded-full text-[11px] font-black uppercase tracking-[0.15em] border transition-colors {catalogFilter === 'all' ? 'bg-primary text-white border-primary' : 'border-slate-200 dark:border-slate-700 text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Toutes</button>
-        <button type="button" onclick={() => { catalogFilter = 'active'; }} class="px-3 py-1.5 rounded-full text-[11px] font-black uppercase tracking-[0.15em] border transition-colors {catalogFilter === 'active' ? 'bg-primary text-white border-primary' : 'border-slate-200 dark:border-slate-700 text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Règles actives</button>
-        <button type="button" onclick={() => { catalogFilter = 'no-rules'; }} class="px-3 py-1.5 rounded-full text-[11px] font-black uppercase tracking-[0.15em] border transition-colors {catalogFilter === 'no-rules' ? 'bg-primary text-white border-primary' : 'border-slate-200 dark:border-slate-700 text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Sans règle</button>
-        <button type="button" onclick={() => { catalogFilter = 'administration'; }} class="px-3 py-1.5 rounded-full text-[11px] font-black uppercase tracking-[0.15em] border transition-colors {catalogFilter === 'administration' ? 'bg-primary text-white border-primary' : 'border-slate-200 dark:border-slate-700 text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Admin</button>
-        <button type="button" onclick={() => { catalogFilter = 'modération'; }} class="px-3 py-1.5 rounded-full text-[11px] font-black uppercase tracking-[0.15em] border transition-colors {catalogFilter === 'modération' ? 'bg-primary text-white border-primary' : 'border-slate-200 dark:border-slate-700 text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Modération</button>
-        <button type="button" onclick={() => { catalogFilter = 'public'; }} class="px-3 py-1.5 rounded-full text-[11px] font-black uppercase tracking-[0.15em] border transition-colors {catalogFilter === 'public' ? 'bg-primary text-white border-primary' : 'border-slate-200 dark:border-slate-700 text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Ouvertes</button>
+        <button type="button" onclick={() => { catalogFilter = 'all'; }} class="px-3 py-1.5 rounded-full text-[11px] font-semibold uppercase tracking-wider border transition-colors {catalogFilter === 'all' ? 'bg-primary text-white border-primary' : 'border-slate-200 dark:border-slate-700 text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Toutes</button>
+        <button type="button" onclick={() => { catalogFilter = 'active'; }} class="px-3 py-1.5 rounded-full text-[11px] font-semibold uppercase tracking-wider border transition-colors {catalogFilter === 'active' ? 'bg-primary text-white border-primary' : 'border-slate-200 dark:border-slate-700 text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Règles actives</button>
+        <button type="button" onclick={() => { catalogFilter = 'no-rules'; }} class="px-3 py-1.5 rounded-full text-[11px] font-semibold uppercase tracking-wider border transition-colors {catalogFilter === 'no-rules' ? 'bg-primary text-white border-primary' : 'border-slate-200 dark:border-slate-700 text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Sans règle</button>
+        <button type="button" onclick={() => { catalogFilter = 'administration'; }} class="px-3 py-1.5 rounded-full text-[11px] font-semibold uppercase tracking-wider border transition-colors {catalogFilter === 'administration' ? 'bg-primary text-white border-primary' : 'border-slate-200 dark:border-slate-700 text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Admin</button>
+        <button type="button" onclick={() => { catalogFilter = 'modération'; }} class="px-3 py-1.5 rounded-full text-[11px] font-semibold uppercase tracking-wider border transition-colors {catalogFilter === 'modération' ? 'bg-primary text-white border-primary' : 'border-slate-200 dark:border-slate-700 text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Modération</button>
+        <button type="button" onclick={() => { catalogFilter = 'public'; }} class="px-3 py-1.5 rounded-full text-[11px] font-semibold uppercase tracking-wider border transition-colors {catalogFilter === 'public' ? 'bg-primary text-white border-primary' : 'border-slate-200 dark:border-slate-700 text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Ouvertes</button>
       </div>
 
       <div class="space-y-2 max-h-[66vh] overflow-y-auto pr-1">
         {#if filteredCommandCatalog.length === 0}
-          <div class="p-4 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 text-sm text-on-surface-variant">
+          <div class="p-4 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 text-sm text-on-surface-variant">
             Aucune commande ne correspond à votre recherche.
           </div>
         {:else}
@@ -577,18 +580,18 @@
             <button
               type="button"
               onclick={() => selectCommand(command.name)}
-              class="w-full text-left p-4 rounded-2xl border transition-all duration-200 {selectedCommandName === command.name ? 'border-primary bg-primary/5 shadow-sm' : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-white/5'}"
+              class="w-full text-left p-4 rounded-lg border transition-all duration-200 {selectedCommandName === command.name ? 'border-primary bg-primary/5 shadow-sm' : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-white/5'}"
             >
               <div class="flex items-start justify-between gap-3">
                 <div>
-                  <p class="font-black text-slate-800 dark:text-slate-100">/{command.name}</p>
+                  <p class="font-semibold text-slate-800 dark:text-slate-100">/{command.name}</p>
                   <p class="text-xs text-on-surface-variant mt-1">{command.label}</p>
                 </div>
                 <div class="flex items-center gap-2">
                   {#if hasRestriction(command.name)}
-                    <span class="text-[10px] font-black uppercase tracking-[0.15em] px-2 py-1 rounded-full bg-primary/10 text-primary">Actif</span>
+                    <span class="text-[10px] font-semibold uppercase tracking-wider px-2 py-1 rounded-full bg-primary/10 text-primary">Actif</span>
                   {/if}
-                  <span class="text-[10px] font-black uppercase tracking-[0.18em] px-2 py-1 rounded-full {defaultAccessClasses(command.defaultAccess)}">
+                  <span class="text-[10px] font-semibold uppercase tracking-[0.18em] px-2 py-1 rounded-full {defaultAccessClasses(command.defaultAccess)}">
                     {defaultAccessLabel(command.defaultAccess)}
                   </span>
                 </div>
@@ -604,10 +607,10 @@
     <div class="section-card p-8">
       <div class="flex items-center justify-between gap-4 flex-wrap mb-6">
         <div>
-          <h3 class="text-2xl font-black font-headline">{selectedCatalogEntry ? `/${selectedCatalogEntry.name}` : 'Sélectionnez une commande'}</h3>
+          <h3 class="text-2xl font-semibold font-headline">{selectedCatalogEntry ? `/${selectedCatalogEntry.name}` : 'Sélectionnez une commande'}</h3>
           <p class="text-on-surface-variant mt-1">{selectedCatalogEntry?.description || 'Choisissez une commande dans la colonne de gauche.'}</p>
         </div>
-        <div class="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-on-surface-variant">
+        <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-on-surface-variant">
           <span class="px-3 py-1 rounded-full {hasSelectedRestriction ? 'bg-primary/10 text-primary' : 'bg-slate-100 dark:bg-slate-800'}">{hasSelectedRestriction ? 'Règles actives' : 'Aucune règle'}</span>
           {#if selectedCatalogEntry}
             <span class="px-3 py-1 rounded-full {defaultAccessClasses(selectedCatalogEntry.defaultAccess)}">{defaultAccessLabel(selectedCatalogEntry.defaultAccess)}</span>
@@ -616,54 +619,54 @@
       </div>
 
       <div class="mb-6 grid grid-cols-1 md:grid-cols-6 gap-3">
-        <div class="rounded-2xl border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800/80">
-          <p class="text-[10px] font-black uppercase tracking-[0.17em] text-on-surface-variant">Salons autorisés</p>
-          <p class="mt-1 text-xl font-black">{commandDraft.allowedChannelIds.length}</p>
+        <div class="rounded-lg border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800/80">
+          <p class="text-[10px] font-semibold uppercase tracking-[0.17em] text-on-surface-variant">Salons autorisés</p>
+          <p class="mt-1 text-xl font-semibold">{commandDraft.allowedChannelIds.length}</p>
         </div>
-        <div class="rounded-2xl border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800/80">
-          <p class="text-[10px] font-black uppercase tracking-[0.17em] text-on-surface-variant">Salons interdits</p>
-          <p class="mt-1 text-xl font-black">{commandDraft.blockedChannelIds.length}</p>
+        <div class="rounded-lg border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800/80">
+          <p class="text-[10px] font-semibold uppercase tracking-[0.17em] text-on-surface-variant">Salons interdits</p>
+          <p class="mt-1 text-xl font-semibold">{commandDraft.blockedChannelIds.length}</p>
         </div>
-        <div class="rounded-2xl border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800/80">
-          <p class="text-[10px] font-black uppercase tracking-[0.17em] text-on-surface-variant">Rôles autorisés</p>
-          <p class="mt-1 text-xl font-black">{commandDraft.allowedRoleIds.length}</p>
+        <div class="rounded-lg border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800/80">
+          <p class="text-[10px] font-semibold uppercase tracking-[0.17em] text-on-surface-variant">Rôles autorisés</p>
+          <p class="mt-1 text-xl font-semibold">{commandDraft.allowedRoleIds.length}</p>
         </div>
-        <div class="rounded-2xl border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800/80">
-          <p class="text-[10px] font-black uppercase tracking-[0.17em] text-on-surface-variant">Rôles interdits</p>
-          <p class="mt-1 text-xl font-black">{commandDraft.blockedRoleIds.length}</p>
+        <div class="rounded-lg border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800/80">
+          <p class="text-[10px] font-semibold uppercase tracking-[0.17em] text-on-surface-variant">Rôles interdits</p>
+          <p class="mt-1 text-xl font-semibold">{commandDraft.blockedRoleIds.length}</p>
         </div>
-        <div class="rounded-2xl border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800/80">
-          <p class="text-[10px] font-black uppercase tracking-[0.17em] text-on-surface-variant">Utilisateurs autorisés</p>
-          <p class="mt-1 text-xl font-black">{commandDraft.allowedUserIds.length}</p>
+        <div class="rounded-lg border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800/80">
+          <p class="text-[10px] font-semibold uppercase tracking-[0.17em] text-on-surface-variant">Utilisateurs autorisés</p>
+          <p class="mt-1 text-xl font-semibold">{commandDraft.allowedUserIds.length}</p>
         </div>
-        <div class="rounded-2xl border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800/80">
-          <p class="text-[10px] font-black uppercase tracking-[0.17em] text-on-surface-variant">Utilisateurs interdits</p>
-          <p class="mt-1 text-xl font-black">{commandDraft.blockedUserIds.length}</p>
+        <div class="rounded-lg border border-slate-200 dark:border-slate-700 p-3 bg-slate-50 dark:bg-slate-800/80">
+          <p class="text-[10px] font-semibold uppercase tracking-[0.17em] text-on-surface-variant">Utilisateurs interdits</p>
+          <p class="mt-1 text-xl font-semibold">{commandDraft.blockedUserIds.length}</p>
         </div>
       </div>
 
       {#if hasConflicts}
-        <div class="mb-6 rounded-2xl border border-amber-300/70 bg-amber-500/10 p-4 text-sm">
+        <div class="mb-6 rounded-lg border border-amber-300/70 bg-amber-500/10 p-4 text-sm">
           <p class="font-bold text-amber-800 dark:text-amber-200">Conflit détecté</p>
           <p class="text-amber-700 dark:text-amber-300 mt-1">Des éléments sont à la fois autorisés et interdits ({channelConflicts.length} salon(s), {roleConflicts.length} rôle(s), {userConflicts.length} utilisateur(s)).</p>
           <button
             type="button"
             onclick={resolveDraftConflicts}
             disabled={!canManageSettings || !selectedCommandName}
-            class="mt-3 px-3 py-1.5 rounded-xl bg-amber-600 text-white text-[11px] font-black uppercase tracking-[0.14em] disabled:opacity-50"
+            class="mt-3 px-3 py-1.5 rounded-xl bg-amber-600 text-white text-[11px] font-semibold uppercase tracking-[0.14em] disabled:opacity-50"
           >
             Résoudre automatiquement
           </button>
         </div>
       {/if}
 
-      <div class="mb-5 flex flex-wrap items-center gap-2 border border-slate-200 dark:border-slate-700 rounded-2xl p-3 bg-slate-50 dark:bg-slate-800/60">
-        <span class="text-[10px] font-black uppercase tracking-[0.17em] text-on-surface-variant mr-2">Actions rapides</span>
+      <div class="mb-5 flex flex-wrap items-center gap-2 border border-slate-200 dark:border-slate-700 rounded-lg p-3 bg-slate-50 dark:bg-slate-800/60">
+        <span class="text-[10px] font-semibold uppercase tracking-[0.17em] text-on-surface-variant mr-2">Actions rapides</span>
         <button
           type="button"
           onclick={clearChannels}
           disabled={!canManageSettings || !selectedCommandName}
-          class="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-600 text-[11px] font-black uppercase tracking-[0.14em] hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
+          class="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-600 text-[11px] font-semibold uppercase tracking-[0.14em] hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
         >
           Vider les salons
         </button>
@@ -671,7 +674,7 @@
           type="button"
           onclick={clearRoles}
           disabled={!canManageSettings || !selectedCommandName}
-          class="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-600 text-[11px] font-black uppercase tracking-[0.14em] hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
+          class="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-600 text-[11px] font-semibold uppercase tracking-[0.14em] hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
         >
           Vider les rôles
         </button>
@@ -679,7 +682,7 @@
           type="button"
           onclick={clearUsers}
           disabled={!canManageSettings || !selectedCommandName}
-          class="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-600 text-[11px] font-black uppercase tracking-[0.14em] hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
+          class="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-600 text-[11px] font-semibold uppercase tracking-[0.14em] hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50"
         >
           Vider les utilisateurs
         </button>
@@ -687,20 +690,20 @@
           type="button"
           onclick={clearAllRules}
           disabled={!canManageSettings || !selectedCommandName}
-          class="px-3 py-1.5 rounded-xl border border-rose-300/70 text-rose-700 dark:text-rose-300 text-[11px] font-black uppercase tracking-[0.14em] hover:bg-rose-500/10 disabled:opacity-50"
+          class="px-3 py-1.5 rounded-xl border border-rose-300/70 text-rose-700 dark:text-rose-300 text-[11px] font-semibold uppercase tracking-[0.14em] hover:bg-rose-500/10 disabled:opacity-50"
         >
           Supprimer toutes les règles
         </button>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="space-y-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 p-4">
+        <div class="space-y-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 p-4">
           <div class="flex items-center justify-between gap-3">
             <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Mode salons</p>
             <div class="inline-flex rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-1">
-              <button type="button" onclick={() => setChannelMode('neutral')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-[0.12em] transition-colors {channelMode === 'neutral' ? 'bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Vide</button>
-              <button type="button" onclick={() => setChannelMode('allowedOnly')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-[0.12em] transition-colors {channelMode === 'allowedOnly' ? 'bg-emerald-600 text-white' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Autorisé</button>
-              <button type="button" onclick={() => setChannelMode('blockedOnly')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-[0.12em] transition-colors {channelMode === 'blockedOnly' ? 'bg-rose-600 text-white' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Interdit</button>
+              <button type="button" onclick={() => setChannelMode('neutral')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wide transition-colors {channelMode === 'neutral' ? 'bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Vide</button>
+              <button type="button" onclick={() => setChannelMode('allowedOnly')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wide transition-colors {channelMode === 'allowedOnly' ? 'bg-emerald-600 text-white' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Autorisé</button>
+              <button type="button" onclick={() => setChannelMode('blockedOnly')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wide transition-colors {channelMode === 'blockedOnly' ? 'bg-rose-600 text-white' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Interdit</button>
             </div>
           </div>
 
@@ -724,13 +727,13 @@
           </p>
         </div>
 
-        <div class="space-y-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 p-4">
+        <div class="space-y-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 p-4">
           <div class="flex items-center justify-between gap-3">
             <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Mode rôles</p>
             <div class="inline-flex rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-1">
-              <button type="button" onclick={() => setRoleMode('neutral')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-[0.12em] transition-colors {roleMode === 'neutral' ? 'bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Vide</button>
-              <button type="button" onclick={() => setRoleMode('allowedOnly')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-[0.12em] transition-colors {roleMode === 'allowedOnly' ? 'bg-emerald-600 text-white' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Autorisé</button>
-              <button type="button" onclick={() => setRoleMode('blockedOnly')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-[0.12em] transition-colors {roleMode === 'blockedOnly' ? 'bg-rose-600 text-white' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Interdit</button>
+              <button type="button" onclick={() => setRoleMode('neutral')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wide transition-colors {roleMode === 'neutral' ? 'bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Vide</button>
+              <button type="button" onclick={() => setRoleMode('allowedOnly')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wide transition-colors {roleMode === 'allowedOnly' ? 'bg-emerald-600 text-white' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Autorisé</button>
+              <button type="button" onclick={() => setRoleMode('blockedOnly')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wide transition-colors {roleMode === 'blockedOnly' ? 'bg-rose-600 text-white' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Interdit</button>
             </div>
           </div>
 
@@ -754,13 +757,13 @@
           </p>
         </div>
 
-        <div class="space-y-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 p-4">
+        <div class="space-y-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 p-4">
           <div class="flex items-center justify-between gap-3">
             <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Mode utilisateurs</p>
             <div class="inline-flex rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-1">
-              <button type="button" onclick={() => setUserMode('neutral')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-[0.12em] transition-colors {userMode === 'neutral' ? 'bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Vide</button>
-              <button type="button" onclick={() => setUserMode('allowedOnly')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-[0.12em] transition-colors {userMode === 'allowedOnly' ? 'bg-emerald-600 text-white' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Autorisé</button>
-              <button type="button" onclick={() => setUserMode('blockedOnly')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-[0.12em] transition-colors {userMode === 'blockedOnly' ? 'bg-rose-600 text-white' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Interdit</button>
+              <button type="button" onclick={() => setUserMode('neutral')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wide transition-colors {userMode === 'neutral' ? 'bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Vide</button>
+              <button type="button" onclick={() => setUserMode('allowedOnly')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wide transition-colors {userMode === 'allowedOnly' ? 'bg-emerald-600 text-white' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Autorisé</button>
+              <button type="button" onclick={() => setUserMode('blockedOnly')} disabled={!canManageSettings || !selectedCommandName} class="px-2.5 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wide transition-colors {userMode === 'blockedOnly' ? 'bg-rose-600 text-white' : 'text-on-surface-variant hover:bg-slate-100 dark:hover:bg-slate-800'}">Interdit</button>
             </div>
           </div>
 
@@ -777,7 +780,7 @@
                 type="button"
                 onclick={addUserId}
                 disabled={userSelectionDisabled}
-                class="px-3 py-2 rounded-xl bg-primary text-white text-[10px] font-black uppercase tracking-[0.12em] disabled:opacity-50"
+                class="px-3 py-2 rounded-xl bg-primary text-white text-[10px] font-semibold uppercase tracking-wide disabled:opacity-50"
               >
                 Ajouter
               </button>
@@ -800,7 +803,7 @@
                       type="button"
                       onclick={() => removeUserId(userId)}
                       disabled={userSelectionDisabled}
-                      class="text-[10px] font-black uppercase tracking-[0.12em] text-rose-500 disabled:opacity-50"
+                      class="text-[10px] font-semibold uppercase tracking-wide text-rose-500 disabled:opacity-50"
                     >
                       Retirer
                     </button>
@@ -822,7 +825,7 @@
         </div>
       </div>
 
-      <div class="mt-8 p-4 rounded-3xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-sm text-on-surface-variant">
+      <div class="mt-8 p-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-sm text-on-surface-variant">
         <p class="font-bold text-on-surface mb-2">Résumé de la règle en cours</p>
         <p>Salons autorisés : {commandDraft.allowedChannelIds.length || 'aucun'} · Salons interdits : {commandDraft.blockedChannelIds.length || 'aucun'} · Rôles autorisés : {commandDraft.allowedRoleIds.length || 'aucun'} · Rôles interdits : {commandDraft.blockedRoleIds.length || 'aucun'} · Utilisateurs autorisés : {commandDraft.allowedUserIds.length || 'aucun'} · Utilisateurs interdits : {commandDraft.blockedUserIds.length || 'aucun'}</p>
       </div>

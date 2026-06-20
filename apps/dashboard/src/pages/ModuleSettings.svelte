@@ -1338,22 +1338,22 @@
 <div class="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
   
   <div class="flex items-center gap-3 px-2">
-    <a href="/modules" class="text-[10px] font-black text-on-surface-variant/40 hover:text-primary uppercase tracking-[0.25em] transition-colors">Catalogue</a>
+    <a href="/modules" class="text-[10px] font-semibold text-on-surface-variant/40 hover:text-primary uppercase tracking-wider transition-colors">Catalogue</a>
     <Papicon icon="chevron_right" size={14} class="text-slate-400 opacity-30" />
-    <span class="text-[10px] font-black text-primary uppercase tracking-[0.25em]">{module.name}</span>
+    <span class="text-[10px] font-semibold text-primary uppercase tracking-wider">{module.name}</span>
   </div>
 
   
-  <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-8 pb-8 border-b border-outline-variant/20">
-    <div class="flex items-center gap-6">
-      <div class="w-16 h-16 rounded-[1.75rem] {moduleMeta.headerToneClasses} flex items-center justify-center shadow-inner border group hover:rotate-6 transition-transform">
-        <Papicon icon={moduleMeta.icon} size={30} />
+  <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-5 border-b border-outline-variant/20">
+    <div class="flex items-center gap-4">
+      <div class="w-11 h-11 rounded-xl {moduleMeta.headerToneClasses} flex items-center justify-center shadow-inner border group hover:rotate-6 transition-transform">
+        <Papicon icon={moduleMeta.icon} size={22} />
       </div>
       <div>
-        <h2 class="text-3xl font-black font-headline tracking-tighter leading-tight">{module.name}</h2>
-        <div class="flex items-center gap-3 mt-1.5 px-3 py-1 bg-emerald-500/5 rounded-full border border-emerald-500/10 w-fit">
+        <h2 class="text-lg font-semibold font-headline tracking-tight leading-tight">{module.name}</h2>
+        <div class="flex items-center gap-2 mt-1 px-2.5 py-0.5 bg-emerald-500/5 rounded-full border border-emerald-500/10 w-fit">
           <span class="w-1.5 h-1.5 rounded-full {module.status === 'active' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}"></span>
-          <span class="text-[9px] font-black {module.status === 'active' ? 'text-emerald-600' : 'text-slate-500'} uppercase tracking-widest whitespace-nowrap">
+          <span class="text-[11px] font-semibold {module.status === 'active' ? 'text-emerald-600' : 'text-slate-500'} uppercase tracking-widest whitespace-nowrap">
             {module.status === 'active' ? 'Actif' : 'Inactif'}
           </span>
         </div>
@@ -1365,7 +1365,7 @@
         onClick={() => dashboardStore.refresh()}
         loading={dashboardStore.state.loading}
         label="Rafraîchir"
-        className="px-6 py-3.5 text-xs font-black uppercase tracking-widest rounded-2xl bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/30 text-on-surface-variant/60 hover:text-on-surface shadow-none"
+        className="px-6 py-3.5 text-xs font-semibold uppercase tracking-widest rounded-lg bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/30 text-on-surface-variant/60 hover:text-on-surface shadow-none"
         iconClass="text-base"
       />
       <!-- Save button removed since global bottom bar handles saving -->
@@ -1375,7 +1375,7 @@
   <InlineFeedback message={formAction.state.message} error={formAction.state.error} />
 
   {#if moduleId !== 'dailyalgo'}
-    <div class="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700">
+    <div class="rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs font-bold text-amber-700">
       Accès modérateur: cette page est en lecture seule.
     </div>
   {/if}
@@ -1386,14 +1386,14 @@
       
       {#if moduleId !== 'dailyalgo'}
         <section class="space-y-8">
-          <h3 class="text-xl font-black tracking-tight flex items-center gap-4">
+          <h3 class="text-xl font-semibold tracking-tight flex items-center gap-4">
             <div class="w-1.5 h-8 bg-primary rounded-full"></div>
             Configuration Générale
           </h3>
-          <div class="premium-card p-10 rounded-[3rem] space-y-10 group">
+          <div class="premium-card p-10 rounded-xl space-y-10 group">
             <div class="space-y-4">
-              <label class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.25em] ml-2 block" for="name">Description du module</label>
-              <p class="px-6 py-4 bg-surface-container-low border border-outline-variant/5 rounded-2xl text-sm italic opacity-70">
+              <label class="text-[10px] font-semibold text-on-surface-variant/40 uppercase tracking-wider ml-2 block" for="name">Description du module</label>
+              <p class="px-6 py-4 bg-surface-container-low border border-outline-variant/5 rounded-lg text-sm italic opacity-70">
                 {module.description}
               </p>
             </div>
@@ -1403,7 +1403,7 @@
         <section class="space-y-8">
           <div class="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <h3 class="text-xl font-black tracking-tight flex items-center gap-4">
+              <h3 class="text-xl font-semibold tracking-tight flex items-center gap-4">
                 <div class="w-1.5 h-8 bg-emerald-500 rounded-full"></div>
                 Daily Algo Control Room
               </h3>
@@ -1416,13 +1416,13 @@
                 onClick={() => Promise.all([loadTodayDailyAlgoSubmissions(), loadDailyAlgoProblems(), loadDailyAlgoHistory(), loadDailyAlgoSchedule(), loadMyApiKeys()])}
                 loading={isFetchingAlgoSubmissions || isFetchingAlgo || isFetchingAlgoHistory || isFetchingAlgoSchedule || isEnsuringAlgoSchedule || isFetchingApiKeys}
                 label="Tout rafraîchir"
-                className="px-4 py-2 text-[10px] font-black uppercase tracking-wider rounded-xl bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/20 text-on-surface-variant"
+                className="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider rounded-xl bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/20 text-on-surface-variant"
                 iconClass="text-sm"
               />
               <button
                 type="button"
                 onclick={openDailyAlgoApiModal}
-                class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-outline-variant/30 bg-surface-container-low text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
+                class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-outline-variant/30 bg-surface-container-low text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
               >
                 <Papicon icon="key" size={14} />
                 API Externe
@@ -1431,7 +1431,7 @@
                 <button
                   type="button"
                   onclick={openDailyAlgoProblemModal}
-                  class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-[0.12em] shadow-lg shadow-emerald-500/20 hover:bg-emerald-700"
+                  class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-[10px] font-semibold uppercase tracking-wide shadow-lg shadow-emerald-500/20 hover:bg-emerald-700"
                 >
                   Ajouter un exercice
                 </button>
@@ -1439,35 +1439,35 @@
             </div>
           </div>
 
-          <div class="premium-card rounded-[2.5rem] p-6 md:p-7 bg-linear-to-br from-emerald-500/10 via-surface to-sky-500/10 border border-emerald-500/15">
+          <div class="premium-card rounded-xl p-6 md:p-7 bg-linear-to-br from-emerald-500/10 via-surface to-sky-500/10 border border-emerald-500/15">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-              <div class="rounded-2xl bg-slate-500/10 border border-slate-500/20 p-4">
-                <p class="text-[9px] uppercase tracking-[0.2em] font-black text-slate-700/80">Soumissions</p>
-                <p class="text-2xl font-black text-slate-700 mt-1">{todaySubmissionStats.total}</p>
+              <div class="rounded-lg bg-slate-500/10 border border-slate-500/20 p-4">
+                <p class="text-[11px] uppercase tracking-wider font-semibold text-slate-700/80">Soumissions</p>
+                <p class="text-2xl font-semibold text-slate-700 mt-1">{todaySubmissionStats.total}</p>
               </div>
-              <div class="rounded-2xl bg-amber-500/10 border border-amber-500/20 p-4">
-                <p class="text-[9px] uppercase tracking-[0.2em] font-black text-amber-700/80">En attente</p>
-                <p class="text-2xl font-black text-amber-700 mt-1">{todaySubmissionStats.pending}</p>
+              <div class="rounded-lg bg-amber-500/10 border border-amber-500/20 p-4">
+                <p class="text-[11px] uppercase tracking-wider font-semibold text-amber-700/80">En attente</p>
+                <p class="text-2xl font-semibold text-amber-700 mt-1">{todaySubmissionStats.pending}</p>
               </div>
-              <div class="rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-4">
-                <p class="text-[9px] uppercase tracking-[0.2em] font-black text-emerald-700/80">Validées</p>
-                <p class="text-2xl font-black text-emerald-700 mt-1">{todaySubmissionStats.approved}</p>
+              <div class="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-4">
+                <p class="text-[11px] uppercase tracking-wider font-semibold text-emerald-700/80">Validées</p>
+                <p class="text-2xl font-semibold text-emerald-700 mt-1">{todaySubmissionStats.approved}</p>
               </div>
-              <div class="rounded-2xl bg-sky-500/10 border border-sky-500/20 p-4">
-                <p class="text-[9px] uppercase tracking-[0.2em] font-black text-sky-700/80">Dates sûres</p>
-                <p class="text-2xl font-black text-sky-700 mt-1">{dailyAlgoFutureRunsCount}</p>
+              <div class="rounded-lg bg-sky-500/10 border border-sky-500/20 p-4">
+                <p class="text-[11px] uppercase tracking-wider font-semibold text-sky-700/80">Dates sûres</p>
+                <p class="text-2xl font-semibold text-sky-700 mt-1">{dailyAlgoFutureRunsCount}</p>
               </div>
             </div>
           </div>
 
-          <div class="premium-card p-8 rounded-[2.5rem] space-y-6">
+          <div class="premium-card p-8 rounded-xl space-y-6">
             <div class="flex items-center justify-between gap-4">
-              <h4 class="text-lg font-black text-on-surface">1) Défi du jour & validation des soumissions</h4>
+              <h4 class="text-lg font-semibold text-on-surface">1) Défi du jour & validation des soumissions</h4>
               <RefreshButton
                 onClick={loadTodayDailyAlgoSubmissions}
                 loading={isFetchingAlgoSubmissions}
                 label="Rafraîchir"
-                className="px-4 py-2 text-[10px] font-black uppercase tracking-wider rounded-xl bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/20 text-on-surface-variant"
+                className="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider rounded-xl bg-surface-container-low hover:bg-surface-container-high border border-outline-variant/20 text-on-surface-variant"
                 iconClass="text-sm"
               />
             </div>
@@ -1475,7 +1475,7 @@
             {#if isFetchingAlgoSubmissions}
               <div class="space-y-2">
                 {#each Array(3) as _}
-                  <div class="p-4 rounded-2xl border border-outline-variant/20 bg-surface-container-low space-y-3">
+                  <div class="p-4 rounded-lg border border-outline-variant/20 bg-surface-container-low space-y-3">
                     <div class="flex items-center justify-between gap-2">
                       <Skeleton width="w-32" height="h-4" />
                       <Skeleton width="w-20" height="h-4" />
@@ -1489,24 +1489,24 @@
                 {/each}
               </div>
             {:else if !dailyAlgoToday?.run}
-              <div class="p-8 rounded-2xl border border-outline-variant/20 bg-surface-container-low text-sm text-on-surface-variant">
+              <div class="p-8 rounded-lg border border-outline-variant/20 bg-surface-container-low text-sm text-on-surface-variant">
                 Aucun Daily Algo n'a encore été lancé aujourd'hui.
               </div>
             {:else}
-              <div class="rounded-2xl bg-surface-container-low border border-outline-variant/15 p-4">
+              <div class="rounded-lg bg-surface-container-low border border-outline-variant/15 p-4">
                 <div class="flex flex-wrap items-center justify-between gap-2">
-                  <p class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/60">Défi en cours</p>
-                  <span class="px-2 py-1 rounded-md border border-outline-variant/25 bg-surface text-[10px] font-black uppercase tracking-[0.08em] text-on-surface-variant">
+                  <p class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60">Défi en cours</p>
+                  <span class="px-2 py-1 rounded-md border border-outline-variant/25 bg-surface text-[10px] font-semibold uppercase tracking-[0.08em] text-on-surface-variant">
                     {dailyAlgoChallengeTypeLabel(dailyAlgoDetectChallengeTypeKey(dailyAlgoToday.run.problem.title, dailyAlgoToday.run.problem.description))}
                   </span>
                 </div>
-                <p class="mt-1 text-sm font-black text-on-surface">{dailyAlgoToday.run.problem.title}</p>
+                <p class="mt-1 text-sm font-semibold text-on-surface">{dailyAlgoToday.run.problem.title}</p>
                 <p class="mt-2 text-xs text-on-surface-variant line-clamp-3">{dailyAlgoToday.run.problem.description}</p>
               </div>
 
-              <div class="rounded-2xl border border-outline-variant/15 bg-surface-container-low p-4">
+              <div class="rounded-lg border border-outline-variant/15 bg-surface-container-low p-4">
                 <div class="flex flex-wrap items-center gap-2">
-                  <span class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/60 mr-2">Filtrer par statut</span>
+                  <span class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60 mr-2">Filtrer par statut</span>
                   {#each [
                     { value: 'ALL', label: 'Tous' },
                     { value: 'PENDING', label: 'En attente' },
@@ -1516,7 +1516,7 @@
                     <button
                       type="button"
                       onclick={() => (dailyAlgoSubmissionStatusFilter = option.value as 'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED')}
-                      class="px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-[0.12em] transition-colors {dailyAlgoSubmissionStatusFilter === option.value
+                      class="px-3 py-1.5 rounded-lg border text-[10px] font-semibold uppercase tracking-wide transition-colors {dailyAlgoSubmissionStatusFilter === option.value
                         ? 'bg-primary text-on-primary border-primary'
                         : 'bg-surface text-on-surface-variant border-outline-variant/30 hover:text-on-surface'}"
                     >
@@ -1527,11 +1527,11 @@
               </div>
 
               {#if (dailyAlgoToday.submissions ?? []).length === 0}
-                <div class="p-8 rounded-2xl border border-outline-variant/20 bg-surface-container-low text-sm text-on-surface-variant">
+                <div class="p-8 rounded-lg border border-outline-variant/20 bg-surface-container-low text-sm text-on-surface-variant">
                   Aucune soumission enregistrée pour le moment.
                 </div>
               {:else if filteredTodaySubmissions.length === 0}
-                <div class="p-8 rounded-2xl border border-outline-variant/20 bg-surface-container-low text-sm text-on-surface-variant">
+                <div class="p-8 rounded-lg border border-outline-variant/20 bg-surface-container-low text-sm text-on-surface-variant">
                   Aucune soumission ne correspond à ce filtre.
                 </div>
               {:else}
@@ -1539,27 +1539,27 @@
                   <p class="text-xs font-bold text-on-surface-variant">
                     {sortedFilteredTodaySubmissions.length} / {dailyAlgoToday.submissions.length} soumission(s) affichée(s)
                   </p>
-                  <div class="rounded-2xl border border-outline-variant/15 bg-surface-container-low overflow-x-auto">
+                  <div class="rounded-lg border border-outline-variant/15 bg-surface-container-low overflow-x-auto">
                     <table class="data-table">
                       <thead>
                         <tr>
-                          <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Membre</th>
-                          <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Statut</th>
-                          <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Soumission</th>
-                          <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Note / Total</th>
-                          <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Modération</th>
-                          <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Actions</th>
+                          <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Membre</th>
+                          <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Statut</th>
+                          <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Soumission</th>
+                          <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Note / Total</th>
+                          <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Modération</th>
+                          <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {#each sortedFilteredTodaySubmissions as submission}
                           <tr>
                             <td>
-                              <p class="text-sm font-black text-on-surface">{submission.authorName}</p>
+                              <p class="text-sm font-semibold text-on-surface">{submission.authorName}</p>
                               <p class="text-[10px] text-on-surface-variant">ID: {submission.authorId}</p>
                             </td>
                             <td>
-                              <span class="px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-[0.12em] {submissionStatusMeta(submission.status).classes}">
+                              <span class="px-2.5 py-1 rounded-lg border text-[10px] font-semibold uppercase tracking-wide {submissionStatusMeta(submission.status).classes}">
                                 {submissionStatusMeta(submission.status).label}
                               </span>
                               {#if submission.speedRank}
@@ -1577,7 +1577,7 @@
                                 <button
                                   type="button"
                                   onclick={() => openSubmissionInIntegratedIde(submission)}
-                                  class="text-[10px] font-black uppercase tracking-widest text-emerald-700 hover:text-emerald-600"
+                                  class="text-[10px] font-semibold uppercase tracking-widest text-emerald-700 hover:text-emerald-600"
                                 >
                                   IDE intégré
                                 </button>
@@ -1585,12 +1585,12 @@
                             </td>
                             <td>
                               {#if submission.status === 'APPROVED'}
-                                <p class="text-xs font-black text-emerald-700">{submission.scoreFinal ?? 0}/5</p>
+                                <p class="text-xs font-semibold text-emerald-700">{submission.scoreFinal ?? 0}/5</p>
                                 <p class="text-[10px] text-emerald-700/80">Total {submission.totalPoints ?? submission.scoreFinal ?? 0} pts</p>
                               {:else if submission.status === 'REJECTED'}
-                                <p class="text-xs font-black text-red-700">Rejetée</p>
+                                <p class="text-xs font-semibold text-red-700">Rejetée</p>
                               {:else}
-                                <p class="text-xs font-black text-amber-700">En attente de note</p>
+                                <p class="text-xs font-semibold text-amber-700">En attente de note</p>
                               {/if}
                               {#if submission.reviewFeedback}
                                 <p class="mt-1 text-[10px] text-on-surface-variant line-clamp-2">{submission.reviewFeedback}</p>
@@ -1610,7 +1610,7 @@
                                   <button
                                     type="button"
                                     onclick={() => openSubmissionInIntegratedIde(submission)}
-                                    class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest"
+                                    class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[10px] font-semibold uppercase tracking-widest"
                                   >
                                     {submission.status === 'PENDING' ? 'Noter dans IDE' : submission.status === 'APPROVED' ? 'Modifier dans IDE' : 'Réévaluer dans IDE'}
                                   </button>
@@ -1618,7 +1618,7 @@
                                     <button
                                       type="button"
                                       onclick={() => rejectSubmission(submission.id)}
-                                      class="px-3 py-1.5 rounded-lg border border-red-500/30 bg-red-500/10 text-red-700 text-[10px] font-black uppercase tracking-widest"
+                                      class="px-3 py-1.5 rounded-lg border border-red-500/30 bg-red-500/10 text-red-700 text-[10px] font-semibold uppercase tracking-widest"
                                     >
                                       Rejeter
                                     </button>
@@ -1639,26 +1639,26 @@
           </div>
 
           {#if globalLeaderboard?.submissions?.length > 0}
-            <div class="premium-card p-8 rounded-[2.5rem] border-sky-500/10 bg-sky-500/5 space-y-6">
+            <div class="premium-card p-8 rounded-xl border-sky-500/10 bg-sky-500/5 space-y-6">
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-4">
-                  <div class="w-12 h-12 rounded-2xl bg-sky-500/10 flex items-center justify-center text-sky-600 shadow-inner">
+                  <div class="w-12 h-12 rounded-lg bg-sky-500/10 flex items-center justify-center text-sky-600 shadow-inner">
                     <Papicon icon="Globe" size={24} />
                   </div>
                   <div>
-                    <h4 class="text-lg font-black text-on-surface">Leaderboard Global</h4>
+                    <h4 class="text-lg font-semibold text-on-surface">Leaderboard Global</h4>
                     <p class="text-xs text-on-surface-variant">Top scores agrégés sur tous les serveurs Kotbo</p>
                   </div>
                 </div>
                 <div class="flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-500/10 border border-sky-500/20">
                   <Papicon icon="Server" size={14} class="text-sky-600" />
-                  <span class="text-[10px] font-black uppercase tracking-widest text-sky-700">{globalLeaderboard.guildsCount} serveurs synchronisés</span>
+                  <span class="text-[10px] font-semibold uppercase tracking-widest text-sky-700">{globalLeaderboard.guildsCount} serveurs synchronisés</span>
                 </div>
               </div>
 
-              <div class="overflow-x-auto rounded-2xl border border-sky-500/15 bg-surface/60 backdrop-blur-md">
+              <div class="overflow-x-auto rounded-lg border border-sky-500/15 bg-surface/60">
                 <table class="w-full text-left">
-                  <thead class="bg-sky-500/5 text-sky-800 text-[10px] font-black uppercase tracking-widest">
+                  <thead class="bg-sky-500/5 text-sky-800 text-[10px] font-semibold uppercase tracking-widest">
                     <tr>
                       <th class="px-6 py-4">Rang</th>
                       <th class="px-6 py-4">Utilisateur</th>
@@ -1671,7 +1671,7 @@
                     {#each globalLeaderboard.submissions.slice(0, 10) as sub, i}
                       <tr class="hover:bg-sky-500/5 transition-colors">
                         <td class="px-6 py-4">
-                          <span class="w-6 h-6 flex items-center justify-center rounded-lg font-black text-xs {i === 0 ? 'bg-amber-400 text-amber-900' : i === 1 ? 'bg-slate-300 text-slate-800' : i === 2 ? 'bg-amber-700/30 text-amber-900' : 'text-on-surface-variant'}">
+                          <span class="w-6 h-6 flex items-center justify-center rounded-lg font-semibold text-xs {i === 0 ? 'bg-amber-400 text-amber-900' : i === 1 ? 'bg-slate-300 text-slate-800' : i === 2 ? 'bg-amber-700/30 text-amber-900' : 'text-on-surface-variant'}">
                             {i + 1}
                           </span>
                         </td>
@@ -1685,10 +1685,10 @@
                           <span class="text-xs font-medium text-on-surface-variant">{sub.guildName}</span>
                         </td>
                         <td class="px-6 py-4 text-center">
-                          <span class="text-xs font-black text-sky-700">{sub.scoreFinal}/5</span>
+                          <span class="text-xs font-semibold text-sky-700">{sub.scoreFinal}/5</span>
                         </td>
                         <td class="px-6 py-4 text-right">
-                          <span class="text-sm font-black text-sky-900">{sub.totalPoints} pts</span>
+                          <span class="text-sm font-semibold text-sky-900">{sub.totalPoints} pts</span>
                         </td>
                       </tr>
                     {/each}
@@ -1698,13 +1698,13 @@
             </div>
           {/if}
 
-          <div class="premium-card p-8 rounded-[2.5rem] space-y-6">
-            <h4 class="text-lg font-black text-on-surface">2) + 3) Calendrier réel & banque d'exercices fusionnés</h4>
+          <div class="premium-card p-8 rounded-xl space-y-6">
+            <h4 class="text-lg font-semibold text-on-surface">2) + 3) Calendrier réel & banque d'exercices fusionnés</h4>
 
             <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-4">
-              <div class="rounded-2xl border border-outline-variant/20 bg-surface-container-low p-4 space-y-4">
+              <div class="rounded-lg border border-outline-variant/20 bg-surface-container-low p-4 space-y-4">
                 <div class="flex items-center justify-between gap-2">
-                  <p class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/60">Mini calendrier confirmé (dates réelles)</p>
+                  <p class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60">Mini calendrier confirmé (dates réelles)</p>
                   <span class="text-[10px] font-bold text-on-surface-variant">{dailyAlgoUpcomingRuns.length} date(s) affichée(s)</span>
                 </div>
                 {#if isFetchingAlgoSchedule || isEnsuringAlgoSchedule}
@@ -1733,24 +1733,24 @@
                     {#each dailyAlgoUpcomingRuns.slice(0, 14) as run}
                       <article class="rounded-xl border border-outline-variant/25 bg-surface px-3 py-3 space-y-1">
                         <div class="flex items-center justify-between gap-2">
-                          <p class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">
+                          <p class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">
                             {historyDateLabel(run.dateKey)}
                           </p>
-                          <span class="px-2 py-0.5 rounded-md border text-[10px] font-black uppercase tracking-[0.08em] {run.status === 'today'
+                          <span class="px-2 py-0.5 rounded-md border text-[10px] font-semibold uppercase tracking-[0.08em] {run.status === 'today'
                             ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700'
                             : 'border-sky-500/25 bg-sky-500/10 text-sky-700'}">
                             {run.status === 'today' ? "Aujourd'hui" : 'Programmé'}
                           </span>
                         </div>
-                        <p class="text-sm font-black text-on-surface line-clamp-1">{run.problem?.title ?? 'Exercice inconnu'}</p>
+                        <p class="text-sm font-semibold text-on-surface line-clamp-1">{run.problem?.title ?? 'Exercice inconnu'}</p>
                         <div class="flex flex-wrap items-center gap-1.5">
-                          <span class="px-2 py-0.5 rounded-md border border-outline-variant/20 bg-surface-container-low text-[10px] font-black uppercase tracking-[0.08em] text-on-surface-variant">
+                          <span class="px-2 py-0.5 rounded-md border border-outline-variant/20 bg-surface-container-low text-[10px] font-semibold uppercase tracking-[0.08em] text-on-surface-variant">
                             {difficultyLabel(run.problem?.difficulty ?? 'moyen')}
                           </span>
-                          <span class="px-2 py-0.5 rounded-md border border-sky-500/25 bg-sky-500/10 text-[10px] font-black uppercase tracking-[0.08em] text-sky-700">
+                          <span class="px-2 py-0.5 rounded-md border border-sky-500/25 bg-sky-500/10 text-[10px] font-semibold uppercase tracking-[0.08em] text-sky-700">
                             {dailyAlgoChallengeTypeLabel(run.challengeType)}
                           </span>
-                          <span class="px-2 py-0.5 rounded-md border border-outline-variant/20 bg-surface-container-low text-[10px] font-black uppercase tracking-[0.08em] text-on-surface-variant">
+                          <span class="px-2 py-0.5 rounded-md border border-outline-variant/20 bg-surface-container-low text-[10px] font-semibold uppercase tracking-[0.08em] text-on-surface-variant">
                             {run.submissionsCount ?? 0} soum.
                           </span>
                         </div>
@@ -1760,8 +1760,8 @@
                 {/if}
               </div>
 
-              <div class="rounded-2xl border border-outline-variant/20 bg-surface-container-low p-4 space-y-3">
-                <p class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/60">Historique récent</p>
+              <div class="rounded-lg border border-outline-variant/20 bg-surface-container-low p-4 space-y-3">
+                <p class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60">Historique récent</p>
                 {#if isFetchingAlgoHistory}
                   <div class="space-y-2 max-h-72 overflow-auto pr-1">
                     {#each Array(5) as _}
@@ -1778,7 +1778,7 @@
                   <div class="space-y-2 max-h-72 overflow-auto pr-1">
                     {#each dailyAlgoHistory.slice(0, 8) as run}
                       <div class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2">
-                        <p class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">{historyDateLabel(run.dateKey)}</p>
+                        <p class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">{historyDateLabel(run.dateKey)}</p>
                         <p class="text-xs font-bold text-on-surface line-clamp-1 mt-0.5">{run.problem.title}</p>
                         <p class="text-[10px] text-on-surface-variant mt-1">Total: {run.stats.total} · Validées: {run.stats.approved} · Rejetées: {run.stats.rejected}</p>
                       </div>
@@ -1788,7 +1788,7 @@
               </div>
             </div>
 
-            <div class="rounded-2xl border border-outline-variant/20 bg-surface-container-low p-4 space-y-4">
+            <div class="rounded-lg border border-outline-variant/20 bg-surface-container-low p-4 space-y-4">
               <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
                 <div class="flex flex-wrap items-center gap-2">
                   {#each [
@@ -1799,7 +1799,7 @@
                     <button
                       type="button"
                       onclick={() => (dailyAlgoLibraryMode = mode.value as 'ALL' | 'AVAILABLE' | 'USED')}
-                      class="px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-[0.12em] transition-colors {dailyAlgoLibraryMode === mode.value
+                      class="px-3 py-1.5 rounded-lg border text-[10px] font-semibold uppercase tracking-wide transition-colors {dailyAlgoLibraryMode === mode.value
                         ? 'bg-primary text-on-primary border-primary'
                         : 'bg-surface text-on-surface-variant border-outline-variant/30 hover:text-on-surface'}"
                     >
@@ -1824,17 +1824,17 @@
                   Aucun exercice ne correspond au filtre actuel.
                 </div>
               {:else}
-                <div class="overflow-x-auto rounded-2xl border border-outline-variant/15 bg-surface">
+                <div class="overflow-x-auto rounded-lg border border-outline-variant/15 bg-surface">
                   <table class="data-table">
                     <thead>
                       <tr>
-                        <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Date réelle</th>
-                        <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Exercice</th>
-                        <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Difficulté</th>
-                        <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Type</th>
-                        <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Langages</th>
-                        <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Tests</th>
-                        <th class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">Actions</th>
+                        <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Date réelle</th>
+                        <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Exercice</th>
+                        <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Difficulté</th>
+                        <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Type</th>
+                        <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Langages</th>
+                        <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Tests</th>
+                        <th class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1843,44 +1843,44 @@
                           <td>
                             {#if dailyAlgoPlannedDateForProblem(problem.id)}
                               {#if (dailyAlgoPlannedDateForProblem(problem.id) || '') === todayDateKey}
-                                <span class="inline-flex px-2 py-0.5 rounded-md border border-emerald-500/25 bg-emerald-500/10 text-[10px] font-black uppercase tracking-[0.08em] text-emerald-700">Aujourd'hui</span>
+                                <span class="inline-flex px-2 py-0.5 rounded-md border border-emerald-500/25 bg-emerald-500/10 text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-700">Aujourd'hui</span>
                               {:else if (dailyAlgoPlannedDateForProblem(problem.id) || '') > todayDateKey}
-                                <span class="inline-flex px-2 py-0.5 rounded-md border border-sky-500/25 bg-sky-500/10 text-[10px] font-black uppercase tracking-[0.08em] text-sky-700">Programmé</span>
+                                <span class="inline-flex px-2 py-0.5 rounded-md border border-sky-500/25 bg-sky-500/10 text-[10px] font-semibold uppercase tracking-[0.08em] text-sky-700">Programmé</span>
                               {:else}
-                                <span class="inline-flex px-2 py-0.5 rounded-md border border-slate-500/25 bg-slate-500/10 text-[10px] font-black uppercase tracking-[0.08em] text-slate-700">Joué</span>
+                                <span class="inline-flex px-2 py-0.5 rounded-md border border-slate-500/25 bg-slate-500/10 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-700">Joué</span>
                               {/if}
                               <p class="mt-1 text-[11px] font-bold text-on-surface-variant">{historyDateLabel(dailyAlgoPlannedDateForProblem(problem.id) || '')}</p>
                             {:else if problem.usedAt}
-                              <span class="inline-flex px-2 py-0.5 rounded-md border border-slate-500/25 bg-slate-500/10 text-[10px] font-black uppercase tracking-[0.08em] text-slate-700">Joué</span>
+                              <span class="inline-flex px-2 py-0.5 rounded-md border border-slate-500/25 bg-slate-500/10 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-700">Joué</span>
                               <p class="mt-1 text-[11px] font-bold text-on-surface-variant">{formatDate(problem.usedAt)}</p>
                             {:else}
-                              <span class="inline-flex px-2 py-0.5 rounded-md border border-amber-500/25 bg-amber-500/10 text-[10px] font-black uppercase tracking-[0.08em] text-amber-700">Backlog</span>
+                              <span class="inline-flex px-2 py-0.5 rounded-md border border-amber-500/25 bg-amber-500/10 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-700">Backlog</span>
                               <p class="mt-1 text-[11px] font-bold text-on-surface-variant">En attente</p>
                             {/if}
                           </td>
                           <td>
-                            <p class="text-sm font-black text-on-surface">{problem.title}</p>
+                            <p class="text-sm font-semibold text-on-surface">{problem.title}</p>
                             <p class="text-[11px] font-mono text-on-surface-variant mt-1 line-clamp-1">{dailyAlgoProblemFunctionSignature(problem)}</p>
                           </td>
                           <td>
-                            <span class="inline-flex px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-[0.12em] {problem.difficulty === 'facile' ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20' : problem.difficulty === 'moyen' ? 'bg-amber-500/10 text-amber-700 border-amber-500/20' : 'bg-red-500/10 text-red-700 border-red-500/20'}">
+                            <span class="inline-flex px-2.5 py-1 rounded-lg border text-[10px] font-semibold uppercase tracking-wide {problem.difficulty === 'facile' ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20' : problem.difficulty === 'moyen' ? 'bg-amber-500/10 text-amber-700 border-amber-500/20' : 'bg-red-500/10 text-red-700 border-red-500/20'}">
                               {difficultyLabel(problem.difficulty)}
                             </span>
                           </td>
                           <td>
-                            <span class="inline-flex px-2 py-0.5 rounded-md border border-outline-variant/20 bg-surface-container-low text-[10px] font-black uppercase tracking-[0.08em] text-on-surface-variant">
+                            <span class="inline-flex px-2 py-0.5 rounded-md border border-outline-variant/20 bg-surface-container-low text-[10px] font-semibold uppercase tracking-[0.08em] text-on-surface-variant">
                               {dailyAlgoChallengeTypeLabel(dailyAlgoDetectChallengeTypeKey(problem.title, problem.description))}
                             </span>
                           </td>
                           <td>
                             {#if dailyAlgoProblemAllowedLanguages(problem).length === 0}
-                              <span class="px-2 py-0.5 rounded-md border border-emerald-500/25 bg-emerald-500/10 text-[10px] font-black uppercase tracking-[0.08em] text-emerald-700">
+                              <span class="px-2 py-0.5 rounded-md border border-emerald-500/25 bg-emerald-500/10 text-[10px] font-semibold uppercase tracking-[0.08em] text-emerald-700">
                                 Libre
                               </span>
                             {:else}
                               <div class="flex flex-wrap gap-1">
                                 {#each dailyAlgoProblemAllowedLanguages(problem) as lang}
-                                  <span class="px-2 py-0.5 rounded-md border border-outline-variant/25 bg-surface text-[10px] font-black uppercase tracking-[0.08em] text-on-surface-variant">
+                                  <span class="px-2 py-0.5 rounded-md border border-outline-variant/25 bg-surface text-[10px] font-semibold uppercase tracking-[0.08em] text-on-surface-variant">
                                     {lang}
                                   </span>
                                 {/each}
@@ -1888,7 +1888,7 @@
                             {/if}
                           </td>
                           <td>
-                            <p class="text-xs font-black text-emerald-700">{Array.isArray(problem.unitTests) ? problem.unitTests.length : 0}</p>
+                            <p class="text-xs font-semibold text-emerald-700">{Array.isArray(problem.unitTests) ? problem.unitTests.length : 0}</p>
                           </td>
                           <td>
                             {#if canManageSettings}
@@ -1896,7 +1896,7 @@
                                 <button
                                   type="button"
                                   onclick={() => openDailyAlgoProblemEditModal(problem)}
-                                  class="px-3 py-1.5 rounded-lg border border-outline-variant/30 bg-surface text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant hover:text-on-surface"
+                                  class="px-3 py-1.5 rounded-lg border border-outline-variant/30 bg-surface text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant hover:text-on-surface"
                                 >
                                   Éditer
                                 </button>
@@ -1904,7 +1904,7 @@
                                   type="button"
                                   onclick={() => setProblemAsToday(problem.id)}
                                   disabled={switchingTodayProblemId === problem.id || deletingDailyAlgoProblemId === problem.id || todayRunProblemId === problem.id}
-                                  class="px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-[0.12em] disabled:opacity-50 disabled:cursor-not-allowed {todayRunProblemId === problem.id
+                                  class="px-3 py-1.5 rounded-lg border text-[10px] font-semibold uppercase tracking-wide disabled:opacity-50 disabled:cursor-not-allowed {todayRunProblemId === problem.id
                                     ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700'
                                     : 'border-sky-500/30 bg-sky-500/10 text-sky-700 hover:bg-sky-500/20'}"
                                 >
@@ -1914,7 +1914,7 @@
                                   type="button"
                                   onclick={() => deleteDailyAlgoProblemFromLibrary(problem)}
                                   disabled={deletingDailyAlgoProblemId === problem.id || switchingTodayProblemId === problem.id}
-                                  class="px-3 py-1.5 rounded-lg border border-red-500/30 bg-red-500/10 text-red-700 text-[10px] font-black uppercase tracking-[0.12em] hover:bg-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  class="px-3 py-1.5 rounded-lg border border-red-500/30 bg-red-500/10 text-red-700 text-[10px] font-semibold uppercase tracking-wide hover:bg-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   Supprimer
                                 </button>
@@ -1934,14 +1934,14 @@
         </section>
       {:else}
         <section class="space-y-8">
-            <h3 class="text-xl font-black tracking-tight flex items-center gap-4">
+            <h3 class="text-xl font-semibold tracking-tight flex items-center gap-4">
               <div class="w-1.5 h-8 bg-primary rounded-full"></div>
               Paramètres du module
             </h3>
-            <div class="premium-card p-10 rounded-[3rem] space-y-8">
-              <div class="flex items-center justify-between gap-6 p-6 rounded-2xl bg-surface-container-low border border-outline-variant/20">
+            <div class="premium-card p-10 rounded-xl space-y-8">
+              <div class="flex items-center justify-between gap-6 p-6 rounded-lg bg-surface-container-low border border-outline-variant/20">
                 <div>
-                  <p class="text-sm font-black text-on-surface">Activation du module</p>
+                  <p class="text-sm font-semibold text-on-surface">Activation du module</p>
                   <p class="text-xs text-on-surface-variant/70 mt-1">Définissez l'état opérationnel de ce module et appliquez via "Enregistrer".</p>
                 </div>
                 <ToggleSwitch
@@ -1955,13 +1955,13 @@
                 <button
                   onclick={() => router.goto('/settings')}
                   disabled={!canManageSettings}
-                  class="px-5 py-4 rounded-2xl border border-outline-variant/30 bg-surface-container-low text-sm font-black uppercase tracking-wider text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-all"
+                  class="px-5 py-4 rounded-lg border border-outline-variant/30 bg-surface-container-low text-sm font-semibold uppercase tracking-wider text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-all"
                 >
                   Ouvrir les paramètres globaux
                 </button>
                 <button
                   onclick={() => router.goto('/activity')}
-                  class="px-5 py-4 rounded-2xl border border-outline-variant/30 bg-surface-container-low text-sm font-black uppercase tracking-wider text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-all"
+                  class="px-5 py-4 rounded-lg border border-outline-variant/30 bg-surface-container-low text-sm font-semibold uppercase tracking-wider text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-all"
                 >
                   Consulter les actions récentes
                 </button>
@@ -1982,8 +1982,8 @@
     <div class="dailyalgo-api-popover" onclick={(event) => event.stopPropagation()}>
       <div class="flex items-start justify-between gap-4">
         <div>
-          <p class="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">Daily Algo</p>
-          <h3 id="dailyalgo-api-title" class="mt-1 text-lg font-black text-on-surface">Configuration API externe</h3>
+          <p class="text-[10px] font-semibold uppercase tracking-wider text-emerald-600">Daily Algo</p>
+          <h3 id="dailyalgo-api-title" class="mt-1 text-lg font-semibold text-on-surface">Configuration API externe</h3>
           <p class="mt-1 text-xs text-on-surface-variant">
             Clé personnelle, URL publique et commandes cURL de la guilde active.
           </p>
@@ -1999,19 +1999,19 @@
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div class="rounded-2xl border border-outline-variant/20 bg-surface-container-low p-4 space-y-4">
+        <div class="rounded-lg border border-outline-variant/20 bg-surface-container-low p-4 space-y-4">
           <div class="flex items-center justify-between gap-2">
-            <p class="text-[10px] uppercase tracking-[0.16em] font-black text-on-surface-variant/70">Gestion de clé</p>
+            <p class="text-[10px] uppercase tracking-[0.16em] font-semibold text-on-surface-variant/70">Gestion de clé</p>
             <RefreshButton
               onClick={loadMyApiKeys}
               loading={isFetchingApiKeys}
               label="Rafraîchir"
-              className="px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] rounded-lg bg-surface border border-outline-variant/20 text-on-surface-variant"
+              className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide rounded-lg bg-surface border border-outline-variant/20 text-on-surface-variant"
               iconClass="text-sm"
             />
           </div>
 
-          <label for="dailyalgo-api-key-name" class="text-[10px] font-black uppercase tracking-[0.16em] text-on-surface-variant/70">
+          <label for="dailyalgo-api-key-name" class="text-[10px] font-semibold uppercase tracking-[0.16em] text-on-surface-variant/70">
             Nom de la clé
           </label>
           <input
@@ -2025,7 +2025,7 @@
           <div class="flex flex-wrap gap-2">
             <button
               type="button"
-              class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-[0.12em] hover:bg-emerald-700 disabled:opacity-60"
+              class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-[10px] font-semibold uppercase tracking-wide hover:bg-emerald-700 disabled:opacity-60"
               onclick={createOrResetMyApiKey}
               disabled={!canManageSettings || apiKeyAction.state.loading}
             >
@@ -2035,7 +2035,7 @@
             {#if currentApiKey}
               <button
                 type="button"
-                class="px-4 py-2 rounded-xl border border-red-500/30 bg-red-500/10 text-red-700 text-[10px] font-black uppercase tracking-[0.12em] hover:bg-red-500/20 disabled:opacity-60"
+                class="px-4 py-2 rounded-xl border border-red-500/30 bg-red-500/10 text-red-700 text-[10px] font-semibold uppercase tracking-wide hover:bg-red-500/20 disabled:opacity-60"
                 onclick={() => deleteCurrentApiKey(currentApiKey.id)}
                 disabled={!canManageSettings || apiKeyAction.state.loading}
               >
@@ -2047,7 +2047,7 @@
           <InlineFeedback message={apiKeyAction.state.message} error={apiKeyAction.state.error} />
 
           <div class="space-y-2 rounded-xl border border-outline-variant/20 bg-surface px-4 py-3">
-            <p class="text-[10px] uppercase tracking-[0.16em] font-black text-on-surface-variant/70">Clé active</p>
+            <p class="text-[10px] uppercase tracking-[0.16em] font-semibold text-on-surface-variant/70">Clé active</p>
             <p class="text-sm font-mono text-on-surface">{currentApiKey?.displayKey ?? 'Aucune clé active'}</p>
             {#if currentApiKey?.lastUsedAt}
               <p class="text-[11px] text-on-surface-variant">Dernière utilisation: {formatDate(currentApiKey.lastUsedAt)}</p>
@@ -2056,11 +2056,11 @@
 
           {#if latestIssuedApiKey}
             <div class="space-y-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
-              <p class="text-[10px] uppercase tracking-[0.16em] font-black text-emerald-700">Nouvelle clé (visible une seule fois)</p>
+              <p class="text-[10px] uppercase tracking-[0.16em] font-semibold text-emerald-700">Nouvelle clé (visible une seule fois)</p>
               <p class="text-sm font-mono text-emerald-800 break-all">{latestIssuedApiKey}</p>
               <button
                 type="button"
-                class="px-3 py-1.5 rounded-lg border border-emerald-600/30 bg-white text-emerald-700 text-[10px] font-black uppercase tracking-[0.12em] hover:bg-emerald-50"
+                class="px-3 py-1.5 rounded-lg border border-emerald-600/30 bg-white text-emerald-700 text-[10px] font-semibold uppercase tracking-wide hover:bg-emerald-50"
                 onclick={() => copyToClipboard(latestIssuedApiKey, 'Clé API copiée.')}
               >
                 Copier la clé
@@ -2069,21 +2069,21 @@
           {/if}
         </div>
 
-        <div class="rounded-2xl border border-outline-variant/20 bg-surface-container-low p-4 space-y-4">
+        <div class="rounded-lg border border-outline-variant/20 bg-surface-container-low p-4 space-y-4">
           <div>
-            <p class="text-[10px] uppercase tracking-[0.16em] font-black text-on-surface-variant/70">Mini doc API (guilde actuelle)</p>
+            <p class="text-[10px] uppercase tracking-[0.16em] font-semibold text-on-surface-variant/70">Mini doc API (guilde actuelle)</p>
             <p class="mt-1 text-xs text-on-surface-variant break-all">Guild ID: {selectedGuildId || 'Aucune guilde sélectionnée'}</p>
           </div>
 
           <div class="space-y-2">
-            <p class="text-[10px] uppercase tracking-[0.16em] font-black text-on-surface-variant/70">Base URL</p>
+            <p class="text-[10px] uppercase tracking-[0.16em] font-semibold text-on-surface-variant/70">Base URL</p>
             <div class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-xs font-mono break-all">
               {dailyAlgoPublicApiProblemsUrl || 'Sélectionnez une guilde pour voir l’URL.'}
             </div>
           </div>
 
           <div class="space-y-2">
-            <p class="text-[10px] uppercase tracking-[0.16em] font-black text-on-surface-variant/70">Exemples cURL</p>
+            <p class="text-[10px] uppercase tracking-[0.16em] font-semibold text-on-surface-variant/70">Exemples cURL</p>
             <pre class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-[11px] font-mono overflow-auto">{apiDocGetCurl}</pre>
             <pre class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-[11px] font-mono overflow-auto">{apiDocPostCurl}</pre>
             <pre class="rounded-lg border border-outline-variant/20 bg-surface px-3 py-2 text-[11px] font-mono overflow-auto">{apiDocPatchCurl}</pre>
@@ -2146,7 +2146,7 @@
         </section>
 
         <aside class="dailyalgo-ide-score-panel">
-          <h4 class="text-[11px] font-black uppercase tracking-[0.14em] text-on-surface-variant">Review Panel</h4>
+          <h4 class="text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">Review Panel</h4>
 
           {#if canModerateDailyAlgo && (focusedSubmission.status === 'PENDING' || focusedSubmission.status === 'APPROVED' || focusedSubmission.status === 'REJECTED')}
             <div class="grid grid-cols-2 gap-3">
@@ -2236,13 +2236,13 @@
             </div>
 
             <div class="dailyalgo-ide-score-actions">
-              <p class="text-xs font-black text-emerald-700">Moyenne: {reviewAverage(focusedSubmission.id)}/5</p>
+              <p class="text-xs font-semibold text-emerald-700">Moyenne: {reviewAverage(focusedSubmission.id)}/5</p>
               <div class="flex items-center gap-2">
                 {#if focusedSubmission.status === 'PENDING'}
                   <button
                     type="button"
                     onclick={() => rejectSubmission(focusedSubmission.id)}
-                    class="px-3 py-2 rounded-lg border border-red-500/30 bg-red-500/10 text-red-700 text-[10px] font-black uppercase tracking-[0.12em]"
+                    class="px-3 py-2 rounded-lg border border-red-500/30 bg-red-500/10 text-red-700 text-[10px] font-semibold uppercase tracking-wide"
                   >
                     Rejeter
                   </button>
@@ -2250,7 +2250,7 @@
                 <button
                   type="button"
                   onclick={() => approveSubmission(focusedSubmission.id)}
-                  class="px-4 py-2 rounded-lg bg-emerald-700 text-white text-[10px] font-black uppercase tracking-[0.12em] hover:bg-emerald-800"
+                  class="px-4 py-2 rounded-lg bg-emerald-700 text-white text-[10px] font-semibold uppercase tracking-wide hover:bg-emerald-800"
                 >
                   {focusedSubmission.status === 'PENDING' ? 'Confirmer la validation' : focusedSubmission.status === 'APPROVED' ? 'Enregistrer les modifications' : 'Valider la réévaluation'}
                 </button>
@@ -2278,8 +2278,8 @@
     <div class="modal-panel modal-panel-lg space-y-5" onclick={(e) => e.stopPropagation()}>
       <div class="flex items-start justify-between gap-4">
         <div>
-          <p class="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">Daily Algo</p>
-          <h3 id="dailyalgo-create-title" class="mt-1 text-xl font-black text-on-surface">
+          <p class="text-[10px] font-semibold uppercase tracking-wider text-emerald-600">Daily Algo</p>
+          <h3 id="dailyalgo-create-title" class="mt-1 text-xl font-semibold text-on-surface">
             {editingDailyAlgoProblemId ? 'Modifier l\'exercice' : 'Ajouter un nouvel exercice'}
           </h3>
           <p class="mt-1 text-sm text-on-surface-variant">
@@ -2300,7 +2300,7 @@
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="space-y-2">
-          <label for="modal-dailyalgo-title" class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Titre</label>
+          <label for="modal-dailyalgo-title" class="text-[10px] font-semibold text-on-surface-variant/40 uppercase tracking-wider">Titre</label>
           <FormInput
             id="modal-dailyalgo-title"
             bind:value={algoDraft.title}
@@ -2309,7 +2309,7 @@
           />
         </div>
         <div class="space-y-2">
-          <label for="modal-dailyalgo-difficulty" class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Difficulté</label>
+          <label for="modal-dailyalgo-difficulty" class="text-[10px] font-semibold text-on-surface-variant/40 uppercase tracking-wider">Difficulté</label>
           <select
             id="modal-dailyalgo-difficulty"
             bind:value={algoDraft.difficulty}
@@ -2321,7 +2321,7 @@
           </select>
         </div>
         <div class="space-y-2 md:col-span-2">
-          <label for="modal-dailyalgo-function-name" class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Nom de fonction attendu</label>
+          <label for="modal-dailyalgo-function-name" class="text-[10px] font-semibold text-on-surface-variant/40 uppercase tracking-wider">Nom de fonction attendu</label>
           <FormInput
             id="modal-dailyalgo-function-name"
             bind:value={algoDraft.functionName}
@@ -2330,16 +2330,16 @@
           />
         </div>
         <div class="space-y-2 md:col-span-2">
-          <p class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Langages autorisés (optionnel)</p>
-          <div class="rounded-2xl border border-outline-variant/15 bg-surface-container-low p-4 space-y-3">
+          <p class="text-[10px] font-semibold text-on-surface-variant/40 uppercase tracking-wider">Langages autorisés (optionnel)</p>
+          <div class="rounded-lg border border-outline-variant/15 bg-surface-container-low p-4 space-y-3">
             <div class="flex flex-wrap gap-2">
               {#if algoDraft.allowedLanguages.length === 0}
-                <span class="px-2.5 py-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700">
+                <span class="px-2.5 py-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
                   Langage libre
                 </span>
               {:else}
                 {#each algoDraft.allowedLanguages as lang}
-                  <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-outline-variant/25 bg-surface text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant">
+                  <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-outline-variant/25 bg-surface text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant">
                     {lang}
                     <button
                       type="button"
@@ -2365,14 +2365,14 @@
               <button
                 type="button"
                 onclick={addDraftAllowedLanguage}
-                class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-[0.12em] hover:bg-emerald-700"
+                class="px-4 py-2 rounded-xl bg-emerald-600 text-white text-[10px] font-semibold uppercase tracking-wide hover:bg-emerald-700"
               >
                 Ajouter
               </button>
               <button
                 type="button"
                 onclick={enableFreeLanguageMode}
-                class="px-4 py-2 rounded-xl border border-outline-variant/30 text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant hover:text-on-surface hover:bg-surface"
+                class="px-4 py-2 rounded-xl border border-outline-variant/30 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant hover:text-on-surface hover:bg-surface"
               >
                 Mode libre
               </button>
@@ -2383,7 +2383,7 @@
                 <button
                   type="button"
                   onclick={() => addSuggestedLanguage(suggestion)}
-                  class="px-2.5 py-1 rounded-lg border border-outline-variant/25 bg-surface text-[10px] font-black uppercase tracking-widest text-on-surface-variant hover:text-on-surface"
+                  class="px-2.5 py-1 rounded-lg border border-outline-variant/25 bg-surface text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant hover:text-on-surface"
                 >
                   {suggestion}
                 </button>
@@ -2396,7 +2396,7 @@
           </div>
         </div>
         <div class="space-y-2 md:col-span-2">
-          <label for="modal-dailyalgo-description" class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Description (Markdown autorisé)</label>
+          <label for="modal-dailyalgo-description" class="text-[10px] font-semibold text-on-surface-variant/40 uppercase tracking-wider">Description (Markdown autorisé)</label>
           <textarea
             id="modal-dailyalgo-description"
             bind:value={algoDraft.description}
@@ -2406,16 +2406,16 @@
         </div>
         <div class="space-y-2 md:col-span-2">
           <div class="flex items-center justify-between gap-3">
-            <p class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Arguments de la fonction</p>
+            <p class="text-[10px] font-semibold text-on-surface-variant/40 uppercase tracking-wider">Arguments de la fonction</p>
             <button
               type="button"
               onclick={addFunctionArg}
-              class="px-3 py-1.5 rounded-lg bg-surface border border-outline-variant/25 text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant hover:text-on-surface"
+              class="px-3 py-1.5 rounded-lg bg-surface border border-outline-variant/25 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant hover:text-on-surface"
             >
               + Ajouter un argument
             </button>
           </div>
-          <div class="rounded-2xl border border-outline-variant/15 bg-surface-container-low p-4 space-y-3">
+          <div class="rounded-lg border border-outline-variant/15 bg-surface-container-low p-4 space-y-3">
             {#if algoDraft.functionArgs.length === 0}
               <p class="text-xs text-on-surface-variant">Aucun argument: la fonction est attendue sans paramètre.</p>
             {:else}
@@ -2438,7 +2438,7 @@
                   <button
                     type="button"
                     onclick={() => removeFunctionArg(argIndex)}
-                    class="px-3 py-2 rounded-xl border border-red-500/20 bg-red-500/10 text-[10px] font-black uppercase tracking-[0.12em] text-red-700 hover:bg-red-500/20"
+                    class="px-3 py-2 rounded-xl border border-red-500/20 bg-red-500/10 text-[10px] font-semibold uppercase tracking-wide text-red-700 hover:bg-red-500/20"
                   >
                     Supprimer
                   </button>
@@ -2449,16 +2449,16 @@
         </div>
         <div class="space-y-2 md:col-span-2">
           <div class="flex items-center justify-between gap-3">
-            <p class="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em]">Tests unitaires</p>
+            <p class="text-[10px] font-semibold text-on-surface-variant/40 uppercase tracking-wider">Tests unitaires</p>
             <button
               type="button"
               onclick={addUnitTest}
-              class="px-3 py-1.5 rounded-lg bg-surface border border-outline-variant/25 text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant hover:text-on-surface"
+              class="px-3 py-1.5 rounded-lg bg-surface border border-outline-variant/25 text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant hover:text-on-surface"
             >
               + Ajouter un test
             </button>
           </div>
-          <div class="rounded-2xl border border-outline-variant/15 bg-surface-container-low p-4 space-y-3">
+          <div class="rounded-lg border border-outline-variant/15 bg-surface-container-low p-4 space-y-3">
             {#if algoDraft.unitTests.length === 0}
               <p class="text-xs text-on-surface-variant">Aucun test défini.</p>
             {:else}
@@ -2475,7 +2475,7 @@
                     <button
                       type="button"
                       onclick={() => removeUnitTest(testIndex)}
-                      class="px-3 py-2 rounded-xl border border-red-500/20 bg-red-500/10 text-[10px] font-black uppercase tracking-[0.12em] text-red-700 hover:bg-red-500/20"
+                      class="px-3 py-2 rounded-xl border border-red-500/20 bg-red-500/10 text-[10px] font-semibold uppercase tracking-wide text-red-700 hover:bg-red-500/20"
                     >
                       Supprimer
                     </button>
@@ -2487,7 +2487,7 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
                       {#each algoDraft.functionArgs as arg, argIndex}
                         <label class="space-y-1">
-                          <span class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant/60">{arg.name || `arg${argIndex + 1}`}</span>
+                          <span class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant/60">{arg.name || `arg${argIndex + 1}`}</span>
                           <input
                             type="text"
                             value={test.argValues[argIndex] ?? 'null'}
@@ -2501,7 +2501,7 @@
                   {/if}
 
                   <label class="space-y-1">
-                    <span class="text-[10px] font-black uppercase tracking-[0.12em] text-on-surface-variant/60">Valeur attendue</span>
+                    <span class="text-[10px] font-semibold uppercase tracking-wide text-on-surface-variant/60">Valeur attendue</span>
                     <input
                       type="text"
                       value={test.expectedValue}
@@ -2532,7 +2532,7 @@
         <button
           type="button"
           onclick={closeDailyAlgoProblemModal}
-          class="px-4 py-2 rounded-xl border border-outline-variant/30 text-xs font-black uppercase tracking-[0.12em] text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
+          class="px-4 py-2 rounded-xl border border-outline-variant/30 text-xs font-semibold uppercase tracking-wide text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low"
         >
           Annuler
         </button>
@@ -2540,7 +2540,7 @@
           type="button"
           onclick={submitDailyAlgoProblem}
           disabled={formAction.state.loading}
-          class="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-black uppercase tracking-[0.12em] shadow-lg shadow-emerald-500/20 hover:bg-emerald-700"
+          class="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold uppercase tracking-wide shadow-lg shadow-emerald-500/20 hover:bg-emerald-700"
         >
           {formAction.state.loading
             ? (editingDailyAlgoProblemId ? 'Enregistrement...' : 'Ajout...')
@@ -2575,8 +2575,6 @@
     align-items: stretch;
     justify-content: stretch;
     background: rgba(2, 6, 23, 0.72);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
   }
 
   .modal-panel-dailyalgo-ide {

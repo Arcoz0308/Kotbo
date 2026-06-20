@@ -304,19 +304,15 @@
 </script>
 
 <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-12">
-  <!-- Hero Header -->
-  <header class="relative overflow-hidden flex flex-col md:flex-row md:items-center gap-6 bg-surface-container-low/40 backdrop-blur-3xl p-8 rounded-4xl border border-outline-variant/30">
-    <div class="absolute inset-0 pointer-events-none">
-      <div class="absolute -top-16 -right-16 w-64 h-64 rounded-full bg-primary/5 blur-3xl"></div>
-      <div class="absolute -bottom-8 -left-8 w-40 h-40 rounded-full bg-secondary/5 blur-2xl"></div>
-    </div>
-    <div class="relative flex items-center gap-6 flex-1">
-      <div class="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shadow-inner shrink-0">
-        <Papicon icon="archive" size={32} />
+  <!-- Header -->
+  <header class="relative overflow-hidden flex flex-col md:flex-row md:items-center gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
+    <div class="relative flex items-center gap-4 flex-1">
+      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary shrink-0">
+        <Papicon icon="archive" size={20} />
       </div>
       <div>
-        <h1 class="text-3xl font-black tracking-tight leading-tight">Sauvegardes du serveur</h1>
-        <p class="text-on-surface-variant/70 font-medium mt-1">
+        <h1 class="text-lg font-semibold tracking-tight leading-tight">Sauvegardes du serveur</h1>
+        <p class="text-sm text-on-surface-variant/70 font-medium">
           Gérez et restaurez les configurations, salons, rôles et membres de votre serveur Discord.
         </p>
       </div>
@@ -332,17 +328,17 @@
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
     {#if loading}
       {#each Array(3) as _}
-        <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-3xl p-6 h-[320px]">
+        <div class="bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-6 h-[320px]">
           <Skeleton height="100%" radius="1.5rem" />
         </div>
       {/each}
     {:else if backups.length === 0 && !creatingBackup}
-      <div class="col-span-full bg-surface-container-low/30 border border-outline-variant/10 rounded-[2.5rem] p-12 flex flex-col items-center justify-center text-center space-y-4">
+      <div class="col-span-full bg-surface-container-low/30 border border-outline-variant/10 rounded-xl p-12 flex flex-col items-center justify-center text-center space-y-4">
         <div class="w-16 h-16 bg-surface-container-high/40 rounded-full flex items-center justify-center text-on-surface-variant/40 border border-outline-variant/10">
           <Papicon icon="archive" size={32} />
         </div>
         <div class="space-y-1">
-          <h3 class="text-xl font-black">Aucune sauvegarde</h3>
+          <h3 class="text-xl font-semibold">Aucune sauvegarde</h3>
           <p class="text-sm text-on-surface-variant/70 font-medium">Créez votre première sauvegarde pour sécuriser votre serveur.</p>
         </div>
         {#if canManageBackups}
@@ -351,17 +347,17 @@
       </div>
     {:else}
       {#if creatingBackup}
-        <div class="relative overflow-hidden bg-surface-container-low/35 border-2 border-primary/30 rounded-4xl p-6 flex flex-col justify-between transition-all duration-300 shadow-xl shadow-primary/5">
+        <div class="relative overflow-hidden bg-surface-container-low/35 border-2 border-primary/30 rounded-xl p-6 flex flex-col justify-between transition-all duration-300 shadow-sm shadow-primary/5">
           <div>
             <div class="flex items-center gap-4 mb-4 relative">
               <div class="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 overflow-hidden flex items-center justify-center text-primary animate-bounce">
                 <Papicon icon="archive" size={24} />
               </div>
               <div class="flex-1 min-w-0">
-                <h3 class="text-base font-black truncate leading-snug text-primary">{creatingBackup.name}</h3>
+                <h3 class="text-base font-semibold truncate leading-snug text-primary">{creatingBackup.name}</h3>
                 <p class="text-xs text-on-surface-variant/60 font-semibold mt-0.5">Sauvegarde en cours...</p>
               </div>
-              <span class="px-2.5 py-1 bg-primary/10 border border-primary/20 text-primary text-[10px] font-black rounded-lg uppercase tracking-wider shrink-0">
+              <span class="px-2.5 py-1 bg-primary/10 border border-primary/20 text-primary text-[10px] font-semibold rounded-lg uppercase tracking-wider shrink-0">
                 {Math.round(creatingBackup.progress)}%
               </span>
             </div>
@@ -370,7 +366,7 @@
               <p class="text-xs text-on-surface-variant/80 font-medium leading-relaxed mb-4 line-clamp-2">{creatingBackup.description}</p>
             {/if}
 
-            <div class="space-y-2.5 bg-surface-container-high/10 border border-outline-variant/5 p-4 rounded-2xl">
+            <div class="space-y-2.5 bg-surface-container-high/10 border border-outline-variant/5 p-4 rounded-lg">
               <div class="flex justify-between text-xs font-bold text-on-surface-variant">
                 <span class="truncate pr-2">{creatingBackup.statusText}</span>
                 <span class="shrink-0">{Math.round(creatingBackup.progress)}%</span>
@@ -398,7 +394,7 @@
       {/if}
 
       {#each backups as backup}
-        <div class="relative overflow-hidden bg-surface-container-low/30 border border-outline-variant/10 hover:border-primary/30 rounded-4xl p-6 flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/5">
+        <div class="relative overflow-hidden bg-surface-container-low/30 border border-outline-variant/10 hover:border-primary/30 rounded-xl p-6 flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/5">
           <div>
             <div class="flex items-center gap-4 mb-4 relative">
               <div class="w-12 h-12 rounded-xl bg-surface-container-high/50 border border-outline-variant/10 overflow-hidden flex items-center justify-center text-on-surface-variant">
@@ -409,11 +405,11 @@
                 {/if}
               </div>
               <div class="flex-1 min-w-0">
-                <h3 class="text-base font-black truncate leading-snug">{backup.name}</h3>
+                <h3 class="text-base font-semibold truncate leading-snug">{backup.name}</h3>
                 <p class="text-xs text-on-surface-variant/60 font-semibold mt-0.5">{formatDate(backup.createdAt)}</p>
               </div>
               {#if backup.isPreset}
-                <span class="px-2.5 py-1 bg-primary/10 border border-primary/20 text-primary text-[10px] font-black rounded-lg uppercase tracking-wider shrink-0">Preset</span>
+                <span class="px-2.5 py-1 bg-primary/10 border border-primary/20 text-primary text-[10px] font-semibold rounded-lg uppercase tracking-wider shrink-0">Preset</span>
               {/if}
             </div>
 
@@ -422,7 +418,7 @@
             {/if}
 
             <!-- Statistics Grid -->
-            <div class="grid grid-cols-2 gap-2.5 mb-4 bg-surface-container-high/15 border border-outline-variant/5 p-4 rounded-2xl">
+            <div class="grid grid-cols-2 gap-2.5 mb-4 bg-surface-container-high/15 border border-outline-variant/5 p-4 rounded-lg">
               <div class="flex items-center gap-2 text-xs font-semibold text-on-surface-variant">
                 <div class="text-primary/70 shrink-0"><Papicon icon="role" size={16} /></div>
                 <span class="truncate">{backup.rolesCount} rôles</span>
@@ -448,22 +444,22 @@
             <!-- Enabled options list -->
             <div class="flex flex-wrap gap-1.5 mb-4">
               {#if backup.includeMessages}
-                <span class="text-[9px] font-bold bg-surface-container-high/40 border border-outline-variant/10 text-on-surface-variant px-2 py-0.5 rounded-lg">Messages</span>
+                <span class="text-[11px] font-bold bg-surface-container-high/40 border border-outline-variant/10 text-on-surface-variant px-2 py-0.5 rounded-lg">Messages</span>
               {/if}
               {#if backup.includeMembers}
-                <span class="text-[9px] font-bold bg-surface-container-high/40 border border-outline-variant/10 text-on-surface-variant px-2 py-0.5 rounded-lg">Membres</span>
+                <span class="text-[11px] font-bold bg-surface-container-high/40 border border-outline-variant/10 text-on-surface-variant px-2 py-0.5 rounded-lg">Membres</span>
               {/if}
               {#if backup.includeRoles}
-                <span class="text-[9px] font-bold bg-surface-container-high/40 border border-outline-variant/10 text-on-surface-variant px-2 py-0.5 rounded-lg">Rôles</span>
+                <span class="text-[11px] font-bold bg-surface-container-high/40 border border-outline-variant/10 text-on-surface-variant px-2 py-0.5 rounded-lg">Rôles</span>
               {/if}
               {#if backup.includeChannels}
-                <span class="text-[9px] font-bold bg-surface-container-high/40 border border-outline-variant/10 text-on-surface-variant px-2 py-0.5 rounded-lg">Salons</span>
+                <span class="text-[11px] font-bold bg-surface-container-high/40 border border-outline-variant/10 text-on-surface-variant px-2 py-0.5 rounded-lg">Salons</span>
               {/if}
               {#if backup.includeEmojis}
-                <span class="text-[9px] font-bold bg-surface-container-high/40 border border-outline-variant/10 text-on-surface-variant px-2 py-0.5 rounded-lg">Emojis</span>
+                <span class="text-[11px] font-bold bg-surface-container-high/40 border border-outline-variant/10 text-on-surface-variant px-2 py-0.5 rounded-lg">Emojis</span>
               {/if}
               {#if backup.includeStickers}
-                <span class="text-[9px] font-bold bg-surface-container-high/40 border border-outline-variant/10 text-on-surface-variant px-2 py-0.5 rounded-lg">Stickers</span>
+                <span class="text-[11px] font-bold bg-surface-container-high/40 border border-outline-variant/10 text-on-surface-variant px-2 py-0.5 rounded-lg">Stickers</span>
               {/if}
             </div>
           </div>
@@ -497,9 +493,9 @@
 
   <!-- Import Section -->
   {#if canManageBackups}
-    <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] flex flex-col md:flex-row md:items-center justify-between gap-6">
+    <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
       <div class="space-y-1">
-        <h3 class="text-xl font-black">Importer une sauvegarde</h3>
+        <h3 class="text-xl font-semibold">Importer une sauvegarde</h3>
         <p class="text-sm text-on-surface-variant/70 font-medium">Vous avez un fichier de sauvegarde au format JSON ? Importez-le directement sur le serveur.</p>
       </div>
       <ActionButton onClick={() => showImportModal = true} variant="muted" label="Importer un fichier" icon="upload" />
@@ -516,7 +512,7 @@
         type="text" 
         bind:value={createOptions.name} 
         placeholder="Laisser vide pour le nom par défaut" 
-        class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+        class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
       />
     </div>
     
@@ -526,13 +522,13 @@
         type="text" 
         bind:value={createOptions.description} 
         placeholder="Description optionnelle" 
-        class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+        class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
       />
     </div>
 
     <div class="space-y-3">
       <span class="block text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Éléments à inclure</span>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-3 bg-surface-container-high/20 border border-outline-variant/5 p-4 rounded-2xl">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3 bg-surface-container-high/20 border border-outline-variant/5 p-4 rounded-lg">
         <label class="flex items-center gap-3 cursor-pointer group">
           <input 
             type="checkbox" 
@@ -596,7 +592,7 @@
 <Modal bind:open={showDeleteModal} title="Supprimer la sauvegarde">
   <div class="space-y-4">
     <p class="text-sm font-medium">Êtes-vous sûr de vouloir supprimer la sauvegarde <strong class="text-on-surface">{selectedBackup?.name}</strong> ?</p>
-    <p class="text-xs text-error font-bold bg-error/10 border border-error/20 px-4 py-3 rounded-2xl flex items-center gap-2">
+    <p class="text-xs text-error font-bold bg-error/10 border border-error/20 px-4 py-3 rounded-lg flex items-center gap-2">
       <Papicon icon="AlertTriangle" size={16} />
       Cette action est irréversible.
     </p>
@@ -617,7 +613,7 @@
         type="file" 
         accept=".json" 
         onchange={(e) => importFile = (e.currentTarget as HTMLInputElement).files?.[0] || null} 
-        class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none file:mr-4 file:py-1.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary file:text-on-primary hover:file:bg-primary/90 file:cursor-pointer file:transition-all"
+        class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none file:mr-4 file:py-1.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-primary file:text-on-primary hover:file:bg-primary/90 file:cursor-pointer file:transition-all"
       />
     </div>
     
@@ -627,7 +623,7 @@
         type="text" 
         bind:value={createOptions.name} 
         placeholder="Laisser vide pour le nom par défaut" 
-        class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+        class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
       />
     </div>
 
@@ -643,7 +639,7 @@
 <Modal bind:open={showRestoreModal} title="Restaurer la sauvegarde">
   <div class="space-y-4">
     <p class="text-sm font-medium">Voulez-vous restaurer la sauvegarde <strong class="text-on-surface">{selectedBackup?.name}</strong> sur ce serveur ?</p>
-    <p class="text-xs text-amber-500 font-bold bg-amber-500/10 border border-amber-500/20 px-4 py-3 rounded-2xl flex items-center gap-2">
+    <p class="text-xs text-amber-500 font-bold bg-amber-500/10 border border-amber-500/20 px-4 py-3 rounded-lg flex items-center gap-2">
       <Papicon icon="AlertTriangle" size={16} />
       Cette action écrasera la configuration actuelle du serveur avec les données de la sauvegarde. Le bot va appliquer les rôles, salons et permissions sauvegardés.
     </p>

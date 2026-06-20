@@ -48,10 +48,10 @@
   function interpretMarkdown(text: string) {
     if (!text) return '';
     return text
-      .replace(/### (.*)/g, '<h5 class="text-xs font-black uppercase tracking-wider text-primary mt-4 mb-2">$1</h5>')
-      .replace(/## (.*)/g, '<h4 class="text-sm font-black text-on-surface mt-6 mb-3 border-b border-outline-variant/20 pb-1">$1</h4>')
-      .replace(/# (.*)/g, '<h3 class="text-lg font-black text-on-surface mt-8 mb-4">$1</h3>')
-      .replace(/\*\*(.*)\*\*/g, '<strong class="font-black text-primary">$1</strong>')
+      .replace(/### (.*)/g, '<h5 class="text-xs font-semibold uppercase tracking-wider text-primary mt-4 mb-2">$1</h5>')
+      .replace(/## (.*)/g, '<h4 class="text-sm font-semibold text-on-surface mt-6 mb-3 border-b border-outline-variant/20 pb-1">$1</h4>')
+      .replace(/# (.*)/g, '<h3 class="text-lg font-semibold text-on-surface mt-8 mb-4">$1</h3>')
+      .replace(/\*\*(.*)\*\*/g, '<strong class="font-semibold text-primary">$1</strong>')
       .replace(/\*(.*)\*/g, '<em class="italic">$1</em>')
       .replace(/^- (.*)/mg, '<li class="ml-4 list-disc text-sm text-on-surface-variant">$1</li>')
       .replace(/\n/g, '<br/>');
@@ -70,7 +70,7 @@
       <!-- Custom header with icon -->
       <header class="p-8 border-b border-outline-variant/30 {event.type === 'absence' ? 'bg-amber-500/10' : event.type === 'vocal' ? 'bg-primary/10' : 'bg-emerald-500/10'} flex items-center justify-between shrink-0 -mt-6 -mx-6">
         <div class="flex items-center gap-4">
-          <div class="w-14 h-14 {event.type === 'absence' ? 'bg-amber-500 shadow-amber-500/20' : event.type === 'vocal' ? 'bg-primary shadow-primary/20' : 'bg-emerald-500 shadow-emerald-500/20'} rounded-2xl flex items-center justify-center shadow-lg">
+          <div class="w-14 h-14 {event.type === 'absence' ? 'bg-amber-500 shadow-amber-500/20' : event.type === 'vocal' ? 'bg-primary shadow-primary/20' : 'bg-emerald-500 shadow-emerald-500/20'} rounded-lg flex items-center justify-center shadow-lg">
             <Papicon
               icon={event.type === 'absence' ? 'calendar-off' : event.type === 'vocal' ? 'mic' : 'users'}
               size={28}
@@ -95,11 +95,11 @@
       <div class="p-8 space-y-6 overflow-y-auto custom-scrollbar flex-1">
         <div class="grid grid-cols-2 gap-6">
           <div class="space-y-1">
-            <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Début</p>
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">Début</p>
             <p class="text-sm font-bold text-on-surface">{formatDate(event.start)}</p>
           </div>
           <div class="space-y-1">
-            <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Fin</p>
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">Fin</p>
             <p class="text-sm font-bold text-on-surface">
               {event.end ? formatDate(event.end) : (event.isIndefinite ? 'Durée indéterminée' : 'En cours')}
             </p>
@@ -107,18 +107,18 @@
         </div>
 
         {#if event.type === 'vocal' && event.details}
-          <div class="p-4 bg-surface-container rounded-2xl border border-outline-variant/30 flex items-center gap-4">
+          <div class="p-4 bg-surface-container rounded-lg border border-outline-variant/30 flex items-center gap-4">
              <div class="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
                 <Papicon icon="volume-2" size={20} />
              </div>
              <div>
-                <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Salon Vocal</p>
+                <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant">Salon Vocal</p>
                 <p class="text-sm font-bold text-on-surface">{event.details}</p>
              </div>
              {#if event.raw?.durationSeconds}
                <div class="ml-auto text-right">
-                  <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Durée</p>
-                  <p class="text-sm font-black text-primary">{formatDuration(event.raw.durationSeconds)}</p>
+                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant">Durée</p>
+                  <p class="text-sm font-semibold text-primary">{formatDuration(event.raw.durationSeconds)}</p>
                </div>
              {/if}
           </div>
@@ -128,11 +128,11 @@
           <div class="space-y-4">
             <div class="grid grid-cols-2 gap-4">
                <div class="p-3 bg-surface-container rounded-xl border border-outline-variant/20">
-                  <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Type</p>
+                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant">Type</p>
                   <p class="text-xs font-bold text-amber-600">{event.raw?.type || 'Autre'}</p>
                </div>
                <div class="p-3 bg-surface-container rounded-xl border border-outline-variant/20">
-                  <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Statut</p>
+                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant">Statut</p>
                   <p class="text-xs font-bold {event.raw?.status === 'APPROVED' ? 'text-emerald-600' : 'text-amber-600'}">
                     {event.raw?.status === 'APPROVED' ? 'Approuvé' : event.raw?.status === 'PENDING' ? 'En attente' : 'Validé'}
                   </p>
@@ -140,8 +140,8 @@
             </div>
 
             <div class="space-y-1">
-              <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Raison / Motif</p>
-              <div class="p-4 bg-surface-container-low rounded-2xl border border-outline-variant/20 italic text-sm text-on-surface leading-relaxed">
+              <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">Raison / Motif</p>
+              <div class="p-4 bg-surface-container-low rounded-lg border border-outline-variant/20 italic text-sm text-on-surface leading-relaxed">
                 "{event.details || event.title}"
               </div>
             </div>
@@ -162,7 +162,7 @@
         {#if event.type === 'meeting'}
           <div class="space-y-6">
             {#if event.details}
-              <div class="p-6 bg-surface-container rounded-3xl border border-outline-variant/30">
+              <div class="p-6 bg-surface-container rounded-xl border border-outline-variant/30">
                 <div class="text-sm text-on-surface leading-relaxed prose-invert prose-sm">
                   {@html interpretMarkdown(event.details)}
                 </div>
@@ -170,13 +170,13 @@
             {/if}
 
             <div class="space-y-4">
-              <h4 class="text-[10px] font-black text-on-surface-variant uppercase tracking-widest px-1">Liste des présences</h4>
+              <h4 class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest px-1">Liste des présences</h4>
               <div class="grid grid-cols-1 gap-2">
                 {#if event.raw?.presences && event.raw.presences.length > 0}
                   {#each event.raw.presences as presence}
-                    <div class="flex items-center justify-between p-3 bg-surface-container-low rounded-2xl border border-outline-variant/10">
+                    <div class="flex items-center justify-between p-3 bg-surface-container-low rounded-lg border border-outline-variant/10">
                       <div class="flex items-center gap-3">
-                        <div class="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-xs font-black text-primary overflow-hidden">
+                        <div class="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary overflow-hidden">
                           {#if presence.staffMember?.avatarUrl}
                             <img src={presence.staffMember.avatarUrl} alt="" class="w-full h-full object-cover" />
                           {:else}
@@ -190,13 +190,13 @@
                           {/if}
                         </div>
                       </div>
-                      <span class="text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-full {getStatusColor(presence.status)}">
+                      <span class="text-[11px] font-semibold uppercase tracking-wider px-2 py-1 rounded-full {getStatusColor(presence.status)}">
                         {presence.status}
                       </span>
                     </div>
                   {/each}
                 {:else}
-                  <div class="flex flex-col items-center justify-center py-10 bg-surface-container-low rounded-2xl border border-dashed border-outline-variant/30">
+                  <div class="flex flex-col items-center justify-center py-10 bg-surface-container-low rounded-lg border border-dashed border-outline-variant/30">
                     <Papicon icon="users" size={32} class="text-on-surface-variant/20 mb-2" />
                     <p class="text-xs text-on-surface-variant font-medium">Aucune donnée de présence</p>
                   </div>

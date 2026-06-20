@@ -336,13 +336,13 @@
 <AdminLayout>
   <div class="space-y-6 pb-12 animate-in fade-in slide-in-from-bottom-3 duration-600">
   <!-- Header -->
-  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
     <div>
-      <h2 class="text-2xl font-black text-on-surface tracking-tight">Mots globaux</h2>
-      <p class="text-sm text-on-surface-variant/50 mt-0.5 font-medium">Gestion des mots interdits globalement sur tous les serveurs</p>
+      <h2 class="text-lg font-semibold text-on-surface tracking-tight">Mots globaux</h2>
+      <p class="text-sm text-on-surface-variant/50 font-medium">Gestion des mots interdits globalement sur tous les serveurs</p>
     </div>
     <div class="flex items-center gap-2">
-      <div class="px-3.5 py-2 rounded-xl bg-on-surface/5 border border-outline-variant/10 text-xs font-black text-on-surface-variant">
+      <div class="px-3 py-1.5 rounded-lg bg-on-surface/5 border border-outline-variant/10 text-xs font-semibold text-on-surface-variant">
         {globalBannedWords.length} mot{globalBannedWords.length > 1 ? 's' : ''}
       </div>
     </div>
@@ -354,10 +354,10 @@
         <div class="w-8 h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/15 flex items-center justify-center text-cyan-400">
           <Papicon icon="filter" size={16} />
         </div>
-        <p class="font-black text-on-surface text-sm">Importer des mots</p>
+        <p class="font-semibold text-on-surface text-sm">Importer des mots</p>
       </div>
 
-      <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-2xl p-6 space-y-4">
+      <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-lg p-6 space-y-4">
         <div class="space-y-2">
           <p class="text-sm text-on-surface-variant leading-relaxed">
             Collez un CSV, un JSON ou une liste de mots. Vous choisissez les catégories à la main, puis le système ne fait que nettoyer les doublons.
@@ -378,13 +378,13 @@
           bind:value={globalImportText}
           rows="10"
           placeholder="word,category\nmenace,threat\ninsulte,insult"
-          class="w-full rounded-2xl border border-outline-variant/20 bg-surface/60 px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-primary/50"
+          class="w-full rounded-lg border border-outline-variant/20 bg-surface/60 px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-primary/50"
         ></textarea>
 
         <div class="flex flex-wrap gap-3">
-          <button onclick={handleAnalyzeGlobalImport} class="px-5 py-3 rounded-2xl bg-primary text-white font-bold text-sm hover:bg-primary/90 transition-colors">Analyser</button>
-          <button onclick={resetGlobalImport} class="px-5 py-3 rounded-2xl border border-outline-variant/20 text-sm font-bold text-on-surface-variant hover:bg-on-surface/5 transition-colors">Réinitialiser</button>
-          <button onclick={handleSaveGlobalImport} disabled={globalImportLoading || globalImportDrafts.length === 0} class="px-5 py-3 rounded-2xl bg-emerald-500 text-white font-bold text-sm hover:bg-emerald-500/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+          <button onclick={handleAnalyzeGlobalImport} class="px-5 py-3 rounded-lg bg-primary text-white font-bold text-sm hover:bg-primary/90 transition-colors">Analyser</button>
+          <button onclick={resetGlobalImport} class="px-5 py-3 rounded-lg border border-outline-variant/20 text-sm font-bold text-on-surface-variant hover:bg-on-surface/5 transition-colors">Réinitialiser</button>
+          <button onclick={handleSaveGlobalImport} disabled={globalImportLoading || globalImportDrafts.length === 0} class="px-5 py-3 rounded-lg bg-emerald-500 text-white font-bold text-sm hover:bg-emerald-500/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
             {globalImportLoading ? 'Enregistrement...' : 'Enregistrer les mots'}
           </button>
         </div>
@@ -394,22 +394,22 @@
         {/if}
 
         {#if globalImportError}
-          <div class="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-600">
+          <div class="rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-600">
             {globalImportError}
           </div>
         {/if}
       </div>
 
       {#if globalImportDrafts.length > 0}
-        <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-2xl p-5 space-y-4">
+        <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-lg p-5 space-y-4">
           <div class="flex items-center justify-between gap-4">
-            <h3 class="text-lg font-black text-on-surface">Prévisualisation ({globalImportDrafts.length})</h3>
+            <h3 class="text-lg font-semibold text-on-surface">Prévisualisation ({globalImportDrafts.length})</h3>
             <p class="text-xs text-on-surface-variant/50">Modifiez les catégories avant validation.</p>
           </div>
 
-          <div class="overflow-hidden rounded-2xl border border-outline-variant/10">
+          <div class="overflow-hidden rounded-lg border border-outline-variant/10">
             <table class="w-full text-sm">
-              <thead class="bg-surface/40 text-left text-[10px] uppercase tracking-[0.2em] text-on-surface-variant/50">
+              <thead class="bg-surface/40 text-left text-[10px] uppercase tracking-wider text-on-surface-variant/50">
                 <tr>
                   <th class="px-4 py-3">Mot</th>
                   <th class="px-4 py-3">Catégorie</th>
@@ -466,10 +466,10 @@
         <div class="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/15 flex items-center justify-center text-indigo-400">
           <Papicon icon="ShieldAlert" size={16} />
         </div>
-        <p class="font-black text-on-surface text-sm">Mots actifs ({globalBannedWords.length})</p>
+        <p class="font-semibold text-on-surface text-sm">Mots actifs ({globalBannedWords.length})</p>
       </div>
 
-      <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-2xl p-5 space-y-4">
+      <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-lg p-5 space-y-4">
         <p class="text-sm text-on-surface-variant/70">
           Ces mots sont appliqués à tous les serveurs et peuvent être désactivés ou supprimés depuis cette interface d'administration.
         </p>
@@ -479,7 +479,7 @@
             type="button"
             onclick={handleCleanupGlobalWords}
             disabled={globalCleanupLoading}
-            class="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-bold text-white hover:bg-cyan-500/90 transition-colors disabled:opacity-40"
+            class="inline-flex items-center gap-2 rounded-lg bg-cyan-500 px-4 py-3 text-sm font-bold text-white hover:bg-cyan-500/90 transition-colors disabled:opacity-40"
           >
             <Papicon icon="Sparkles" size={16} />
             {globalCleanupLoading ? 'Nettoyage...' : 'Dédupliquer seulement'}
@@ -487,7 +487,7 @@
           <button
             type="button"
               onclick={loadGlobalBannedWords}
-            class="inline-flex items-center gap-2 rounded-2xl border border-outline-variant/20 px-4 py-3 text-sm font-bold text-on-surface-variant hover:bg-on-surface/5 transition-colors"
+            class="inline-flex items-center gap-2 rounded-lg border border-outline-variant/20 px-4 py-3 text-sm font-bold text-on-surface-variant hover:bg-on-surface/5 transition-colors"
           >
             <Papicon icon="RefreshCw" size={16} />
             Rafraîchir
@@ -495,13 +495,13 @@
         </div>
 
           {#if globalBannedWordsLoading && !globalBannedWordsLoaded}
-            <div class="space-y-3 rounded-2xl border border-outline-variant/10 p-4">
+            <div class="space-y-3 rounded-lg border border-outline-variant/10 p-4">
               {#each [1, 2, 3, 4, 5, 6] as _}
                 <Skeleton height="64px" class="rounded-xl" />
               {/each}
             </div>
           {:else if globalBannedWordsError}
-            <div class="rounded-2xl border border-error/20 bg-error/10 p-4 text-sm text-error flex items-center justify-between gap-4">
+            <div class="rounded-lg border border-error/20 bg-error/10 p-4 text-sm text-error flex items-center justify-between gap-4">
               <span>{globalBannedWordsError}</span>
               <button onclick={loadGlobalBannedWords} class="rounded-xl bg-error px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-error/90">
                 Réessayer
@@ -569,7 +569,7 @@
             {#if globalBannedWords.length === 0}
               <p class="py-4 text-center text-sm text-on-surface-variant/50">Aucun mot global configuré.</p>
             {:else}
-              <div class="flex flex-col gap-3 rounded-2xl border border-outline-variant/10 bg-surface/20 px-4 py-3 md:flex-row md:items-center md:justify-between">
+              <div class="flex flex-col gap-3 rounded-lg border border-outline-variant/10 bg-surface/20 px-4 py-3 md:flex-row md:items-center md:justify-between">
                 <p class="text-xs text-on-surface-variant/60">
                   Page {globalBannedWordsPage} sur {globalBannedWordsTotalPages} · {globalBannedWords.length} mot(s) global(aux)
                 </p>

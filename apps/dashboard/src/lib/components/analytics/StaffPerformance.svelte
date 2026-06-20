@@ -12,10 +12,10 @@
 </script>
 
 <div class="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
-  <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
+  <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
     <div class="flex justify-between items-center">
       <div>
-        <h3 class="text-xl font-black flex items-center gap-3">
+        <h3 class="text-xl font-semibold flex items-center gap-3">
           <Papicon icon="TrendUp" size={20} class="text-primary" />
           Performance Individuelle du Staff
         </h3>
@@ -23,9 +23,9 @@
       </div>
     </div>
 
-    <div class="overflow-x-auto no-scrollbar rounded-2xl border border-outline-variant/5">
+    <div class="overflow-x-auto no-scrollbar rounded-lg border border-outline-variant/5">
       <table class="w-full text-left border-collapse">
-        <thead class="bg-surface-container-high/40 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60">
+        <thead class="bg-surface-container-high/40 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">
           <tr>
             <th class="px-6 py-4">Membre Staff</th>
             {#each metrics as m}
@@ -50,11 +50,11 @@
                   <div class="relative">
                     <img src={staff.avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'} alt={staff.username} class="w-10 h-10 rounded-full border-2 border-outline-variant/10" />
                     {#if staff.reportRate > 80}
-                      <span class="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-surface flex items-center justify-center text-[8px] text-white">★</span>
+                      <span class="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-surface flex items-center justify-center text-[10px] text-white">★</span>
                     {/if}
                   </div>
                   <div class="flex flex-col items-start">
-                    <span class="text-sm font-black">{staff.displayName || staff.username}</span>
+                    <span class="text-sm font-semibold">{staff.displayName || staff.username}</span>
                     <span class="text-[10px] text-on-surface-variant/40 font-mono">@{staff.username}</span>
                   </div>
                 </button>
@@ -66,11 +66,11 @@
               {/each}
               <td class="px-6 py-4 text-center">
                 <div class="flex flex-col items-center gap-1">
-                  <span class="text-xs font-black text-primary">{staff.reportRate}%</span>
+                  <span class="text-xs font-semibold text-primary">{staff.reportRate}%</span>
                   <div class="w-16 h-1 bg-surface-container-high rounded-full overflow-hidden">
                     <div class="h-full bg-primary rounded-full" style="width: {staff.reportRate}%"></div>
                   </div>
-                  <span class="text-[8px] font-bold text-on-surface-variant/30 uppercase tracking-tighter">Précision Signalements</span>
+                  <span class="text-[10px] font-bold text-on-surface-variant/30 uppercase tracking-tighter">Précision Signalements</span>
                 </div>
               </td>
             </tr>

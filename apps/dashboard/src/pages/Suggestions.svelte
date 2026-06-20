@@ -186,23 +186,22 @@
 </script>
 
 <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-  <header class="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-surface-container-low/40 backdrop-blur-3xl p-8 rounded-4xl border border-outline-variant/30">
-    <div class="flex items-center gap-6">
-      <div class="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shadow-inner">
-        <Papicon icon="ThumbsUp" size={32} />
+  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
+    <div class="flex items-center gap-4">
+      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+        <Papicon icon="ThumbsUp" size={20} />
       </div>
       <div>
-        <h1 class="text-3xl font-black tracking-tight leading-tight">Suggestions</h1>
-        <p class="text-on-surface-variant/80 font-medium">Consultez et modérez les suggestions de la communauté avec vote en temps réel.</p>
+        <h1 class="text-lg font-semibold tracking-tight leading-tight">Suggestions</h1>
+        <p class="text-sm text-on-surface-variant/70 font-medium">Consultez et modérez les suggestions de la communauté avec vote en temps réel.</p>
       </div>
     </div>
 
-    <!-- Filters header chips -->
-    <div class="flex flex-wrap gap-2 bg-surface-container-high/30 p-1.5 rounded-2xl border border-outline-variant/10">
+    <div class="flex flex-wrap gap-1.5 bg-surface-container-high/30 p-1.5 rounded-lg border border-outline-variant/10">
       {#each ['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'IMPLEMENTED'] as filter}
-        <button 
+        <button
           onclick={() => currentFilter = filter as any}
-          class="px-4 py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all {currentFilter === filter ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-surface-hover/30'}"
+          class="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider rounded-lg transition-all {currentFilter === filter ? 'bg-primary text-on-primary shadow-md' : 'text-on-surface-variant hover:bg-surface-hover/30'}"
         >
           {filter === 'ALL' ? 'Toutes' : statusLabels[filter]}
         </button>
@@ -221,10 +220,10 @@
       <Skeleton height="150px" radius="2rem" />
     </div>
   {:else}
-    <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
+    <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 class="text-lg font-black">Configuration</h2>
+          <h2 class="text-lg font-semibold">Configuration</h2>
           <p class="text-xs text-on-surface-variant/70 font-medium mt-1">
             Définissez le salon où les nouvelles suggestions sont publiées sur Discord.
           </p>
@@ -233,7 +232,7 @@
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div class="flex items-center justify-between p-4 bg-surface-container-high/20 rounded-2xl border border-outline-variant/10">
+        <div class="flex items-center justify-between p-4 bg-surface-container-high/20 rounded-lg border border-outline-variant/10">
           <div>
             <p class="text-sm font-bold">Système de suggestions</p>
             <p class="text-[10px] text-on-surface-variant/60 font-medium">Active ou désactive la publication des suggestions.</p>
@@ -254,7 +253,7 @@
             bind:value={moduleConfig.channelId}
             options={availableChannels.map((c) => ({ id: c.id, name: `#${c.name}` }))}
             placeholder="Sélectionner un salon"
-            className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm"
+            className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm"
             disabled={!canConfigure || !moduleConfig.enabled}
           />
         </div>
@@ -263,41 +262,41 @@
 
     <div class="space-y-6">
       {#each filteredSuggestions as suggestion}
-        <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6 hover:bg-surface-container-low/40 transition-all">
+        <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 hover:bg-surface-container-low/40 transition-all">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-outline-variant/10 pb-4">
             <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center font-black text-primary text-sm uppercase">
+              <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center font-semibold text-primary text-sm uppercase">
                 {suggestion.username.substring(0, 2)}
               </div>
               <div>
-                <p class="text-sm font-black text-on-surface">{suggestion.username}</p>
+                <p class="text-sm font-semibold text-on-surface">{suggestion.username}</p>
                 <p class="text-[10px] text-on-surface-variant/50 font-bold">Posté le {formatDate(suggestion.createdAt)}</p>
               </div>
             </div>
 
             <div class="flex items-center gap-3">
               <!-- Upvote Downvote pills -->
-              <div class="flex items-center gap-1.5 px-3 py-1 bg-emerald-400/10 border border-emerald-400/20 text-emerald-400 rounded-full text-xs font-black">
+              <div class="flex items-center gap-1.5 px-3 py-1 bg-emerald-400/10 border border-emerald-400/20 text-emerald-400 rounded-full text-xs font-semibold">
                 <Papicon icon="ThumbsUp" size={12} /> {suggestion.upvoters.length}
               </div>
-              <div class="flex items-center gap-1.5 px-3 py-1 bg-rose-400/10 border border-rose-400/20 text-rose-400 rounded-full text-xs font-black">
+              <div class="flex items-center gap-1.5 px-3 py-1 bg-rose-400/10 border border-rose-400/20 text-rose-400 rounded-full text-xs font-semibold">
                 <Papicon icon="Minus" size={12} /> {suggestion.downvoters.length}
               </div>
               <!-- Status badge -->
-              <span class="px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider border {statusColors[suggestion.status]}">
+              <span class="px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider border {statusColors[suggestion.status]}">
                 {statusLabels[suggestion.status]}
               </span>
             </div>
           </div>
 
-          <div class="text-sm font-medium text-on-surface-variant/90 leading-relaxed whitespace-pre-wrap font-sans bg-surface-container-high/15 p-5 rounded-2xl border border-outline-variant/5">
+          <div class="text-sm font-medium text-on-surface-variant/90 leading-relaxed whitespace-pre-wrap font-sans bg-surface-container-high/15 p-5 rounded-lg border border-outline-variant/5">
             {suggestion.content}
           </div>
 
           {#if suggestion.responseText}
             <!-- Public response display -->
-            <div class="p-5 rounded-2xl bg-secondary/5 border border-secondary/15 space-y-2 animate-in fade-in duration-200">
-              <div class="flex items-center gap-2 text-xs font-black text-secondary uppercase tracking-wider">
+            <div class="p-5 rounded-lg bg-secondary/5 border border-secondary/15 space-y-2 animate-in fade-in duration-200">
+              <div class="flex items-center gap-2 text-xs font-semibold text-secondary uppercase tracking-wider">
                 <Papicon icon="User" size={14} /> Réponse du Staff
               </div>
               <p class="text-sm text-on-surface-variant font-medium leading-relaxed font-sans">{suggestion.responseText}</p>
@@ -313,7 +312,7 @@
                   id={`resp-${suggestion.id}`}
                   bind:value={responseDrafts[suggestion.id]} 
                   placeholder="Expliquez la décision prise par l'équipe..."
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:outline-none h-20 resize-none"
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none h-20 resize-none"
                 ></textarea>
               </div>
 
@@ -321,21 +320,21 @@
                 <button 
                   onclick={() => handleResolve(suggestion.id, 'REJECTED')}
                   disabled={!responseDrafts[suggestion.id]?.trim()}
-                  class="px-6 py-3.5 bg-rose-500 hover:bg-rose-600 text-white text-xs font-black uppercase tracking-widest rounded-2xl hover:scale-105 transition-all disabled:opacity-50"
+                  class="px-6 py-3.5 bg-rose-500 hover:bg-rose-600 text-white text-xs font-semibold uppercase tracking-widest rounded-lg hover:scale-105 transition-all disabled:opacity-50"
                 >
                   Refuser
                 </button>
                 <button 
                   onclick={() => handleResolve(suggestion.id, 'APPROVED')}
                   disabled={!responseDrafts[suggestion.id]?.trim()}
-                  class="px-6 py-3.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-black uppercase tracking-widest rounded-2xl hover:scale-105 transition-all disabled:opacity-50"
+                  class="px-6 py-3.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold uppercase tracking-widest rounded-lg hover:scale-105 transition-all disabled:opacity-50"
                 >
                   Approuver
                 </button>
                 <button 
                   onclick={() => handleResolve(suggestion.id, 'IMPLEMENTED')}
                   disabled={!responseDrafts[suggestion.id]?.trim()}
-                  class="px-6 py-3.5 bg-sky-500 hover:bg-sky-600 text-white text-xs font-black uppercase tracking-widest rounded-2xl hover:scale-105 transition-all disabled:opacity-50"
+                  class="px-6 py-3.5 bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold uppercase tracking-widest rounded-lg hover:scale-105 transition-all disabled:opacity-50"
                 >
                   Implémentée
                 </button>
@@ -344,7 +343,7 @@
           {/if}
         </div>
       {:else}
-        <div class="flex flex-col items-center justify-center py-24 bg-surface-container-low/20 border border-outline-variant/10 rounded-[2.5rem] text-center">
+        <div class="flex flex-col items-center justify-center py-24 bg-surface-container-low/20 border border-outline-variant/10 rounded-xl text-center">
           <Papicon icon="Info" size={36} class="text-on-surface-variant/20 mb-3" />
           <p class="text-sm text-on-surface-variant/60 font-medium">Aucune suggestion trouvée dans cette catégorie.</p>
         </div>

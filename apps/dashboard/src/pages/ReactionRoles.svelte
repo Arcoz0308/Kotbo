@@ -117,14 +117,14 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 </script>
 
 <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-  <header class="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-surface-container-low/40 backdrop-blur-3xl p-8 rounded-4xl border border-outline-variant/30">
-    <div class="flex items-center gap-6">
-      <div class="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shadow-inner">
-        <Papicon icon="MousePointer" size={32} />
+  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
+    <div class="flex items-center gap-4">
+      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+        <Papicon icon="MousePointer" size={20} />
       </div>
       <div>
-        <h1 class="text-3xl font-black tracking-tight leading-tight">Reaction Roles</h1>
-        <p class="text-on-surface-variant/80 font-medium">Déployez des messages contenant des boutons interactifs pour attribuer des rôles aux membres.</p>
+        <h1 class="text-lg font-semibold tracking-tight leading-tight">Reaction Roles</h1>
+        <p class="text-sm text-on-surface-variant/70 font-medium">Déployez des messages contenant des boutons interactifs pour attribuer des rôles aux membres.</p>
       </div>
     </div>
   </header>
@@ -141,7 +141,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     <div class="space-y-6">
       <!-- Title & Actions Bar -->
       <div class="flex items-center justify-between gap-4 flex-wrap">
-        <h3 class="text-xl font-black flex items-center gap-3">
+        <h3 class="text-xl font-semibold flex items-center gap-3">
           <Papicon icon="List" size={20} class="text-secondary" />
           Panels Déployés ({menus.length})
         </h3>
@@ -149,7 +149,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         {#if canManageSettings}
           <button
             onclick={openCreateModal}
-            class="flex items-center gap-2 px-6 py-3.5 bg-primary hover:bg-primary-hover text-on-primary font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-primary/20 hover:scale-[1.03] transition-all cursor-pointer"
+            class="flex items-center gap-2 px-6 py-3.5 bg-primary hover:bg-primary-hover text-on-primary font-semibold uppercase tracking-widest text-xs rounded-lg  hover:scale-[1.03] transition-all cursor-pointer"
           >
             <Papicon icon="Add" size={16} />
             Déployer un Panel
@@ -160,12 +160,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       <!-- Menus list -->
       <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {#each menus as menu}
-          <div class="bg-surface-container-low/30 backdrop-blur-md border border-outline-variant/10 p-6 rounded-4xl flex flex-col justify-between hover:bg-surface-container-low/50 hover:border-outline-variant/20 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 relative group">
+          <div class="bg-surface-container-low/30 border border-outline-variant/10 p-6 rounded-xl flex flex-col justify-between hover:bg-surface-container-low/50 hover:border-outline-variant/20 hover:shadow-sm hover:shadow-primary/5 transition-all duration-300 relative group">
             <div class="space-y-4">
               <div class="flex items-start justify-between gap-4">
                 <!-- Menu info -->
                 <div class="space-y-1.5 flex-1 min-w-0">
-                  <h4 class="text-lg font-black text-on-surface leading-tight group-hover:text-primary transition-colors duration-300 wrap-break-word">{menu.title}</h4>
+                  <h4 class="text-lg font-semibold text-on-surface leading-tight group-hover:text-primary transition-colors duration-300 wrap-break-word">{menu.title}</h4>
                   <div class="flex flex-wrap gap-2 text-[10px] text-on-surface-variant/60 font-semibold">
                     <span class="flex items-center gap-1 bg-surface-container-high/40 px-2 py-0.5 rounded"><Papicon icon="Hash" size={10} />{getChannelName(menu.channelId)}</span>
                     {#if menu.messageId}
@@ -204,13 +204,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             </div>
           </div>
         {:else}
-          <div class="col-span-full flex flex-col items-center justify-center py-20 bg-surface-container-low/20 border border-outline-variant/10 rounded-[2.5rem] text-center">
+          <div class="col-span-full flex flex-col items-center justify-center py-20 bg-surface-container-low/20 border border-outline-variant/10 rounded-xl text-center">
             <Papicon icon="MousePointer" size={32} class="text-on-surface-variant/20 mb-3" />
             <p class="text-sm text-on-surface-variant/60 font-medium">Aucun menu de rôles déployé pour le moment.</p>
             {#if canManageSettings}
               <button
                 onclick={openCreateModal}
-                class="mt-4 flex items-center gap-2 px-5 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary font-bold text-xs rounded-2xl transition-all cursor-pointer"
+                class="mt-4 flex items-center gap-2 px-5 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary font-bold text-xs rounded-lg transition-all cursor-pointer"
               >
                 <Papicon icon="Add" size={14} /> Créer un premier panel
               </button>
@@ -224,8 +224,8 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
 <!-- Modal Déployer un Panel -->
 {#if showModal}
-  <div class="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4" transition:fade={{ duration: 150 }}>
-    <div class="bg-surface-container-low/95 border border-outline-variant/20 max-w-3xl w-full rounded-[2.5rem] p-8 space-y-6 shadow-2xl relative max-h-[90vh] overflow-y-auto" transition:scale={{ start: 0.97, duration: 150 }}>
+  <div class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" transition:fade={{ duration: 150 }}>
+    <div class="bg-surface-container-low/95 border border-outline-variant/20 max-w-3xl w-full rounded-xl p-8 space-y-6 shadow-sm relative max-h-[90vh] overflow-y-auto" transition:scale={{ start: 0.97, duration: 150 }}>
 
       <!-- Close button -->
       <button
@@ -238,11 +238,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
       <!-- Modal Header -->
       <div class="flex items-center gap-4">
-        <div class="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shadow-inner">
+        <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center text-primary shadow-inner">
           <Papicon icon="Add" size={24} />
         </div>
         <div>
-          <h3 class="text-2xl font-black tracking-tight">Déployer un Panel</h3>
+          <h3 class="text-2xl font-semibold tracking-tight">Déployer un Panel</h3>
           <p class="text-xs text-on-surface-variant/80 font-medium">Configurez les boutons de rôles et le salon de destination.</p>
         </div>
       </div>
@@ -256,7 +256,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               type="text"
               bind:value={formTitle}
               placeholder="Ex: Sélectionnez vos rôles de notification"
-              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all text-on-surface focus:outline-none"
               required
               disabled={!canManageSettings}
             />
@@ -269,15 +269,15 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               bind:value={formChannelId}
               options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))}
               placeholder="Sélectionner le salon"
-              className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
+              className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all"
               disabled={!canManageSettings}
             />
           </div>
         </div>
 
         <!-- Live Discord Message Preview -->
-        <div class="p-5 rounded-3xl bg-[#36393f] border border-[#202225] text-[#dcddde] font-sans space-y-3 shadow-inner">
-          <div class="flex items-center gap-1.5 text-[10px] font-black uppercase text-[#8e9297] tracking-wider select-none">
+        <div class="p-5 rounded-xl bg-[#36393f] border border-[#202225] text-[#dcddde] font-sans space-y-3 shadow-inner">
+          <div class="flex items-center gap-1.5 text-[10px] font-semibold uppercase text-[#8e9297] tracking-wider select-none">
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Aperçu Live (Discord)
           </div>
 
@@ -291,7 +291,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <div class="space-y-3 flex-1 min-w-0">
               <div class="flex items-center gap-2 select-none">
                 <span class="font-bold text-white text-sm hover:underline cursor-pointer">Kotbo</span>
-                <span class="bg-[#5865f2] text-white text-[9px] font-bold px-1.5 py-0.5 rounded uppercase">Bot</span>
+                <span class="bg-[#5865f2] text-white text-[11px] font-bold px-1.5 py-0.5 rounded uppercase">Bot</span>
                 <span class="text-xs text-[#72767d]">Aujourd'hui à 12:00</span>
               </div>
 
@@ -337,7 +337,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             </button>
           </div>
 
-          <div class="grid grid-cols-[110px_1.2fr_1.8fr_48px] gap-3 px-3 text-[9px] font-black uppercase text-on-surface-variant/50 tracking-wider select-none">
+          <div class="grid grid-cols-[110px_1.2fr_1.8fr_48px] gap-3 px-3 text-[11px] font-semibold uppercase text-on-surface-variant/50 tracking-wider select-none">
             <div>Émoji</div>
             <div>Libellé bouton</div>
             <div>Rôle associé</div>
@@ -346,7 +346,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
           <div class="space-y-2.5 max-h-[220px] overflow-y-auto pr-1 scrollbar-thin">
             {#each formOptions as opt, idx}
-              <div class="grid grid-cols-[110px_1.2fr_1.8fr_48px] gap-3 items-center p-2.5 rounded-2xl bg-surface-container-high/20 border border-outline-variant/5 hover:bg-surface-container-high/40 transition-colors duration-150">
+              <div class="grid grid-cols-[110px_1.2fr_1.8fr_48px] gap-3 items-center p-2.5 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 hover:bg-surface-container-high/40 transition-colors duration-150">
                 <!-- Emoji input -->
                 <div class="flex gap-1 items-center">
                   <input
@@ -403,14 +403,14 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           <button
             type="button"
             onclick={() => showModal = false}
-            class="px-6 py-3 bg-outline-variant/20 hover:bg-outline-variant/30 text-on-surface text-xs font-black uppercase tracking-wider rounded-2xl transition-all cursor-pointer"
+            class="px-6 py-3 bg-outline-variant/20 hover:bg-outline-variant/30 text-on-surface text-xs font-semibold uppercase tracking-wider rounded-lg transition-all cursor-pointer"
           >
             Annuler
           </button>
           {#if canManageSettings}
             <button
               type="submit"
-              class="px-8 py-3 bg-primary text-on-primary font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-primary/20 hover:scale-[1.03] transition-all cursor-pointer"
+              class="px-8 py-3 bg-primary text-on-primary font-semibold uppercase tracking-widest text-xs rounded-lg  hover:scale-[1.03] transition-all cursor-pointer"
             >
               Déployer le Panel
             </button>

@@ -1675,7 +1675,7 @@ json.dumps(results, ensure_ascii=False, default=str)
 
   .ide-label {
     font-size: 10px;
-    font-weight: 800;
+    font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: #9ca3af;
@@ -1695,7 +1695,7 @@ json.dumps(results, ensure_ascii=False, default=str)
     border-radius: 0.4rem;
     padding: 0.35rem 0.6rem;
     font-size: 10px;
-    font-weight: 900;
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.11em;
     border: 1px solid transparent;
@@ -1757,7 +1757,7 @@ json.dumps(results, ensure_ascii=False, default=str)
     border-bottom: 1px solid #2d2d30;
     padding: 0.55rem 0.65rem;
     font-size: 10px;
-    font-weight: 900;
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.14em;
     color: #9ca3af;
@@ -1779,7 +1779,7 @@ json.dumps(results, ensure_ascii=False, default=str)
 
   .tree-folder {
     color: #c8c8c8;
-    font-weight: 800;
+    font-weight: 600;
     letter-spacing: 0.08em;
   }
 
@@ -1829,7 +1829,7 @@ json.dumps(results, ensure_ascii=False, default=str)
   .tests-zone-title {
     margin: 0;
     font-size: 10px;
-    font-weight: 900;
+    font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: #aeb5c2;
@@ -1844,7 +1844,7 @@ json.dumps(results, ensure_ascii=False, default=str)
     font-size: 9px;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    font-weight: 900;
+    font-weight: 600;
     cursor: pointer;
   }
 
@@ -1894,7 +1894,7 @@ json.dumps(results, ensure_ascii=False, default=str)
   .tests-zone-score-main {
     margin: 0;
     font-size: 12px;
-    font-weight: 900;
+    font-weight: 600;
     color: #dbe2ef;
   }
 
@@ -1904,7 +1904,7 @@ json.dumps(results, ensure_ascii=False, default=str)
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: #aeb5c2;
-    font-weight: 800;
+    font-weight: 600;
   }
 
   .tests-zone-list {
@@ -1943,7 +1943,7 @@ json.dumps(results, ensure_ascii=False, default=str)
   .test-result-badge {
     font-size: 9px;
     letter-spacing: 0.08em;
-    font-weight: 900;
+    font-weight: 600;
     text-transform: uppercase;
     border: 1px solid #3d4350;
     border-radius: 999px;
@@ -1954,7 +1954,7 @@ json.dumps(results, ensure_ascii=False, default=str)
 
   .test-result-name {
     font-size: 11px;
-    font-weight: 800;
+    font-weight: 600;
     color: #dce2ee;
   }
 
@@ -1987,7 +1987,7 @@ json.dumps(results, ensure_ascii=False, default=str)
     color: #9aa0ac;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    font-weight: 900;
+    font-weight: 600;
   }
 
   .test-result-code {
@@ -2095,7 +2095,7 @@ json.dumps(results, ensure_ascii=False, default=str)
 
   .panel-tab {
     font-size: 10px;
-    font-weight: 900;
+    font-weight: 600;
     letter-spacing: 0.11em;
     text-transform: uppercase;
     color: #9ca3af;
@@ -2117,7 +2117,7 @@ json.dumps(results, ensure_ascii=False, default=str)
     font-size: 9px;
     text-transform: uppercase;
     letter-spacing: 0.09em;
-    font-weight: 800;
+    font-weight: 600;
   }
 
   .terminal-host {
@@ -2140,7 +2140,7 @@ json.dumps(results, ensure_ascii=False, default=str)
     justify-content: flex-end;
     gap: 0.6rem;
     font-size: 10px;
-    font-weight: 800;
+    font-weight: 600;
     letter-spacing: 0.04em;
   }
 

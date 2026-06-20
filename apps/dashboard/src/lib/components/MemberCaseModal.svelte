@@ -579,7 +579,7 @@
       <button
         type="button"
         onclick={onClose}
-        class="absolute top-4 right-4 z-50 flex h-9 w-9 items-center justify-center rounded-xl bg-black/20 text-white/80 backdrop-blur-lg transition-all hover:bg-black/40 hover:text-white hover:scale-110 active:scale-95 shadow-lg"
+        class="absolute top-4 right-4 z-50 flex h-8 w-8 items-center justify-center rounded-md bg-black/20 text-white/80 transition-colors hover:bg-black/40 hover:text-white"
       >
         <Papicon icon="x" size={18} />
       </button>
@@ -587,15 +587,15 @@
       <!-- Avatar + Identity block -->
       <div class="relative z-10 flex items-end gap-5 px-8 pb-5 pt-20">
         <div class="relative shrink-0">
-          <div class="absolute -inset-1.5 rounded-3xl bg-white/20 blur-lg animate-pulse"></div>
+          <div class="absolute -inset-1.5 rounded-xl bg-white/20 blur-lg animate-pulse"></div>
           {#if caseData?.profile?.avatarUrl}
             <img
               src={caseData?.profile?.avatarUrl}
               alt="Avatar"
-              class="relative h-20 w-20 rounded-2xl border-4 border-(--surface-container-lowest) object-cover shadow-2xl"
+              class="relative h-20 w-20 rounded-lg border-4 border-(--surface-container-lowest) object-cover shadow-sm"
             />
           {:else}
-            <div class="relative flex h-20 w-20 items-center justify-center rounded-2xl border-4 border-(--surface-container-lowest) bg-(--surface-container-high) text-2xl font-black text-primary shadow-2xl">
+            <div class="relative flex h-20 w-20 items-center justify-center rounded-lg border-4 border-(--surface-container-lowest) bg-(--surface-container-high) text-2xl font-semibold text-primary shadow-sm">
               {userName.slice(0, 1).toUpperCase()}
             </div>
           {/if}
@@ -604,7 +604,7 @@
         </div>
 
         <div class="min-w-0 pb-1">
-          <h3 id="member-case-title" class="text-2xl font-black text-on-surface tracking-tight truncate font-headline">
+          <h3 id="member-case-title" class="text-2xl font-semibold text-on-surface tracking-tight truncate font-headline">
             {caseData?.profile?.displayName || caseData?.profile?.globalName || userName}
           </h3>
           <div class="mt-1 flex flex-wrap items-center gap-2">
@@ -636,7 +636,7 @@
             {#if userId}
               <a
                 href="/profile/{userId}"
-                class="inline-flex items-center gap-1.5 rounded-lg bg-white/15 backdrop-blur-md px-3 py-1.5 text-[10px] font-black text-white/80 uppercase tracking-widest transition-all hover:bg-white/25 hover:text-white hover:scale-[1.02] active:scale-[0.98] shadow-sm ml-auto"
+                class="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-[10px] font-semibold text-white/80 uppercase tracking-widest transition-all hover:bg-white/25 hover:text-white hover:scale-[1.02] active:scale-[0.98] shadow-sm ml-auto"
               >
                 <Papicon icon="external-link" size={14} />
                 Profil
@@ -661,7 +661,7 @@
               {#if tab.count && caseData}
                 {@const c = tab.count()}
                 {#if c > 0}
-                  <span class="flex h-5 min-w-5 items-center justify-center rounded-full text-[9px] font-black {activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}">
+                  <span class="flex h-5 min-w-5 items-center justify-center rounded-full text-[11px] font-semibold {activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}">
                     {c}
                   </span>
                 {/if}
@@ -674,37 +674,37 @@
       <!-- ── Content Area ──────────────────────────────────────── -->
       <div class="px-6 pb-6 pt-2">
         {#if !userId}
-          <div class="flex flex-col items-center justify-center py-20 text-center bg-amber-500/5 rounded-[2.5rem] border-2 border-dashed border-amber-500/20">
-            <div class="flex h-16 w-16 items-center justify-center rounded-3xl bg-amber-500/10 text-amber-500 mb-6">
+          <div class="flex flex-col items-center justify-center py-20 text-center bg-amber-500/5 rounded-xl border-2 border-dashed border-amber-500/20">
+            <div class="flex h-16 w-16 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 mb-6">
               <Papicon icon="alert-triangle" size={32} />
             </div>
-            <h3 class="text-xl font-black text-amber-600 font-headline">Utilisateur introuvable</h3>
+            <h3 class="text-xl font-semibold text-amber-600 font-headline">Utilisateur introuvable</h3>
             <p class="mt-2 text-sm text-amber-700/60 max-w-sm">
               Impossible de relier ce log à un ID utilisateur Discord. Le dossier ne peut pas être chargé.
             </p>
           </div>
         {:else if loading}
           <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3 animate-pulse">
-            <div class="h-48 bg-surface-container-high/30 rounded-4xl"></div>
-            <div class="h-48 bg-surface-container-high/30 rounded-4xl"></div>
-            <div class="h-48 bg-surface-container-high/30 rounded-4xl"></div>
-            <div class="md:col-span-2 h-80 bg-surface-container-high/30 rounded-4xl"></div>
-            <div class="h-80 bg-surface-container-high/30 rounded-4xl"></div>
+            <div class="h-48 bg-surface-container-high/30 rounded-xl"></div>
+            <div class="h-48 bg-surface-container-high/30 rounded-xl"></div>
+            <div class="h-48 bg-surface-container-high/30 rounded-xl"></div>
+            <div class="md:col-span-2 h-80 bg-surface-container-high/30 rounded-xl"></div>
+            <div class="h-80 bg-surface-container-high/30 rounded-xl"></div>
           </div>
         {:else if error}
-          <div class="flex flex-col items-center justify-center py-20 text-center bg-rose-500/5 rounded-[2.5rem] border-2 border-dashed border-rose-500/20">
-            <div class="flex h-16 w-16 items-center justify-center rounded-3xl bg-rose-500/10 text-rose-500 mb-6">
+          <div class="flex flex-col items-center justify-center py-20 text-center bg-rose-500/5 rounded-xl border-2 border-dashed border-rose-500/20">
+            <div class="flex h-16 w-16 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500 mb-6">
               <Papicon icon="alert-circle" size={32} />
             </div>
-            <h3 class="text-xl font-black text-rose-600 font-headline">Erreur de chargement</h3>
+            <h3 class="text-xl font-semibold text-rose-600 font-headline">Erreur de chargement</h3>
             <p class="mt-2 text-sm text-rose-700/60 max-w-sm">{error}</p>
           </div>
         {:else if !caseData}
-          <div class="flex flex-col items-center justify-center py-20 text-center bg-surface-container-low rounded-[2.5rem] border-2 border-dashed border-outline-variant/30">
-            <div class="flex h-16 w-16 items-center justify-center rounded-3xl bg-surface-container-high text-on-surface-variant/30 mb-6">
+          <div class="flex flex-col items-center justify-center py-20 text-center bg-surface-container-low rounded-xl border-2 border-dashed border-outline-variant/30">
+            <div class="flex h-16 w-16 items-center justify-center rounded-xl bg-surface-container-high text-on-surface-variant/30 mb-6">
               <Papicon icon="user-x" size={32} />
             </div>
-            <h3 class="text-xl font-black text-on-surface-variant font-headline">Aucune donnée</h3>
+            <h3 class="text-xl font-semibold text-on-surface-variant font-headline">Aucune donnée</h3>
             <p class="mt-2 text-sm text-on-surface-variant/60 max-w-sm">
               Aucun dossier détaillé n'est disponible pour ce membre.
             </p>
@@ -713,12 +713,12 @@
           <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
             
             {#if caseData?.isSuspectedDC}
-              <div class="rounded-4xl bg-rose-500/10 border-2 border-rose-500/20 p-6 flex items-center gap-6 animate-in zoom-in-95 duration-500">
-                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-rose-500/20 text-rose-500 shadow-lg shadow-rose-500/20">
+              <div class="rounded-xl bg-rose-500/10 border-2 border-rose-500/20 p-6 flex items-center gap-6 animate-in zoom-in-95 duration-500">
+                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-rose-500/20 text-rose-500 shadow-lg shadow-rose-500/20">
                   <Papicon icon="alert-octagon" size={24} />
                 </div>
                 <div class="min-w-0 flex-1">
-                  <h4 class="text-sm font-black text-rose-600 uppercase tracking-widest">Suspicion de Double Compte</h4>
+                  <h4 class="text-sm font-semibold text-rose-600 uppercase tracking-widest">Suspicion de Double Compte</h4>
                   <p class="text-xs font-bold text-rose-500/70 mt-1">
                     Ce compte a été identifié comme un potentiel double compte automatique lors de son arrivée.
                   </p>
@@ -734,32 +734,32 @@
               <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
 
                 <!-- Account Identity Card (Bento Large) -->
-                <div class="md:col-span-2 rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm transition-all hover:shadow-xl hover:bg-surface-container-low duration-500 group">
+                <div class="md:col-span-2 rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm transition-all hover:shadow-xl hover:bg-surface-container-low duration-500 group">
                    <div class="flex items-center justify-between mb-8">
                      <div class="flex items-center gap-3">
-                       <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary group-hover:scale-110 transition-transform">
+                       <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:scale-110 transition-transform">
                          <Papicon icon="user" size={24} />
                        </div>
                        <div>
-                         <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Informations Compte</p>
-                         <p class="text-lg font-black text-on-surface">Identité & Ancienneté</p>
+                         <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">Informations Compte</p>
+                         <p class="text-lg font-semibold text-on-surface">Identité & Ancienneté</p>
                        </div>
                      </div>
                    </div>
 
                    <div class="grid grid-cols-2 gap-8">
                      <div class="space-y-1">
-                       <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Âge du compte</p>
-                       <p class="text-lg font-black text-on-surface">{getDurationSince(caseData?.profile?.accountCreatedAt)}</p>
+                       <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Âge du compte</p>
+                       <p class="text-lg font-semibold text-on-surface">{getDurationSince(caseData?.profile?.accountCreatedAt)}</p>
                        <p class="text-[10px] font-bold text-on-surface-variant/60">Créé le {formatDateShort(caseData?.profile?.accountCreatedAt)}</p>
                      </div>
                      <div class="space-y-1">
-                       <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Présence Serveur</p>
-                       <p class="text-lg font-black text-on-surface">{getDurationSince(caseData?.profile?.guildJoinedAt)}</p>
+                       <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Présence Serveur</p>
+                       <p class="text-lg font-semibold text-on-surface">{getDurationSince(caseData?.profile?.guildJoinedAt)}</p>
                        <p class="text-[10px] font-bold text-on-surface-variant/60">Arrivé le {formatDateShort(caseData?.profile?.guildJoinedAt)}</p>
                      </div>
                      <div class="space-y-1">
-                       <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Invité par</p>
+                       <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Invité par</p>
                         {#if caseData?.invite?.inviterTag}
                           {#if caseData?.invite?.inviterId}
                             <button
@@ -779,7 +779,7 @@
                                   {caseData.invite.inviterTag.slice(0, 1).toUpperCase()}
                                 </div>
                               {/if}
-                              <p class="text-sm font-black text-on-surface group-hover/inviter:text-primary truncate transition-colors">@{caseData.invite.inviterTag}</p>
+                              <p class="text-sm font-semibold text-on-surface group-hover/inviter:text-primary truncate transition-colors">@{caseData.invite.inviterTag}</p>
                             </button>
                           {:else}
                             <div class="flex items-center gap-2">
@@ -794,7 +794,7 @@
                                   {caseData.invite.inviterTag.slice(0, 1).toUpperCase()}
                                 </div>
                               {/if}
-                              <p class="text-sm font-black text-on-surface truncate">@{caseData.invite.inviterTag}</p>
+                              <p class="text-sm font-semibold text-on-surface truncate">@{caseData.invite.inviterTag}</p>
                             </div>
                           {/if}
                         {:else}
@@ -802,39 +802,39 @@
                         {/if}
                      </div>
                      <div class="space-y-1">
-                       <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Code d'invitation</p>
+                       <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Code d'invitation</p>
                        {#if caseData?.invite?.code}
                          <button
                            type="button"
-                           class="text-sm font-black text-primary bg-primary/10 px-3 py-1 rounded-xl hover:bg-primary/20 transition-colors"
+                           class="text-sm font-semibold text-primary bg-primary/10 px-3 py-1 rounded-xl hover:bg-primary/20 transition-colors"
                            onclick={() => inviteDetailsModal.show(caseData.invite.code)}
                            title="Ouvrir la vue Invitations"
                          >
                            {caseData.invite.code}
                          </button>
                        {:else}
-                         <p class="text-sm font-black text-on-surface">—</p>
+                         <p class="text-sm font-semibold text-on-surface">—</p>
                        {/if}
                      </div>
                    </div>
                 </div>
 
                 <!-- Sanctions Status Card -->
-                <div class="rounded-[2.5rem] {sanctions.filter(s => s.status === 'ACTIVE').length > 0 ? 'bg-rose-500/5 border-rose-500/20 shadow-rose-500/5' : 'bg-surface-container-low/50 border-outline-variant/10 shadow-sm'} p-8 border transition-all hover:shadow-xl duration-500 group">
+                <div class="rounded-xl {sanctions.filter(s => s.status === 'ACTIVE').length > 0 ? 'bg-rose-500/5 border-rose-500/20 shadow-rose-500/5' : 'bg-surface-container-low/50 border-outline-variant/10 shadow-sm'} p-8 border transition-all hover:shadow-xl duration-500 group">
                    <div class="flex items-center gap-3 mb-8">
-                     <div class="flex h-12 w-12 items-center justify-center rounded-2xl {sanctions.filter(s => s.status === 'ACTIVE').length > 0 ? 'bg-rose-500/10 text-rose-500' : 'bg-amber-500/10 text-amber-500'} group-hover:rotate-12 transition-transform">
+                     <div class="flex h-12 w-12 items-center justify-center rounded-lg {sanctions.filter(s => s.status === 'ACTIVE').length > 0 ? 'bg-rose-500/10 text-rose-500' : 'bg-amber-500/10 text-amber-500'} group-hover:rotate-12 transition-transform">
                        <Papicon icon="hammer" size={24} />
                      </div>
                      <div>
-                       <p class="text-[10px] font-black uppercase tracking-[0.2em] {sanctions.filter(s => s.status === 'ACTIVE').length > 0 ? 'text-rose-500' : 'text-amber-500'}">Casier</p>
-                       <p class="text-lg font-black text-on-surface">Sanctions</p>
+                       <p class="text-[10px] font-semibold uppercase tracking-wider {sanctions.filter(s => s.status === 'ACTIVE').length > 0 ? 'text-rose-500' : 'text-amber-500'}">Casier</p>
+                       <p class="text-lg font-semibold text-on-surface">Sanctions</p>
                      </div>
                    </div>
 
                    <div class="space-y-4">
                      <div class="flex items-end justify-between">
-                        <span class="text-4xl font-black text-on-surface">{sanctions.length}</span>
-                        <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 pb-1">Total</span>
+                        <span class="text-4xl font-semibold text-on-surface">{sanctions.length}</span>
+                        <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 pb-1">Total</span>
                      </div>
                      <div class="h-2 w-full rounded-full bg-on-surface/5 overflow-hidden">
                         <div class="h-full bg-rose-500 transition-all duration-1000" style="width: {sanctions.length > 0 ? (sanctions.filter(s => s.status === 'ACTIVE').length / sanctions.length) * 100 : 0}%"></div>
@@ -846,55 +846,55 @@
                 </div>
 
                 <!-- Activity Summary Card -->
-                <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm transition-all hover:shadow-xl duration-500 group">
+                <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm transition-all hover:shadow-xl duration-500 group">
                    <div class="flex items-center gap-3 mb-8">
-                     <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary/10 text-secondary group-hover:scale-110 transition-transform">
+                     <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-secondary/10 text-secondary group-hover:scale-110 transition-transform">
                        <Papicon icon="activity" size={24} />
                      </div>
                      <div>
-                       <p class="text-[10px] font-black uppercase tracking-[0.2em] text-secondary">Activité</p>
-                       <p class="text-lg font-black text-on-surface">Engagement</p>
+                       <p class="text-[10px] font-semibold uppercase tracking-wider text-secondary">Activité</p>
+                       <p class="text-lg font-semibold text-on-surface">Engagement</p>
                      </div>
                    </div>
 
                    <div class="grid grid-cols-1 gap-4">
                      <div class="flex items-center justify-between">
                        <span class="text-xs font-bold text-on-surface-variant/60">Messages</span>
-                       <span class="text-sm font-black text-on-surface">{caseData?.profile?.messageCount?.toLocaleString('fr-FR') ?? 0}</span>
+                       <span class="text-sm font-semibold text-on-surface">{caseData?.profile?.messageCount?.toLocaleString('fr-FR') ?? 0}</span>
                      </div>
                      <div class="flex items-center justify-between">
                        <span class="text-xs font-bold text-on-surface-variant/60">Vocal</span>
-                       <span class="text-sm font-black text-on-surface">{formatDurationFromSeconds(caseData?.profile?.voiceTimeSeconds)}</span>
+                       <span class="text-sm font-semibold text-on-surface">{formatDurationFromSeconds(caseData?.profile?.voiceTimeSeconds)}</span>
                      </div>
                      <div class="flex items-center justify-between">
                        <span class="text-xs font-bold text-on-surface-variant/60">Dernier passage</span>
-                       <span class="text-sm font-black text-on-surface">{formatRelative(caseData?.profile?.lastSeenAt)}</span>
+                       <span class="text-sm font-semibold text-on-surface">{formatRelative(caseData?.profile?.lastSeenAt)}</span>
                      </div>
                    </div>
                 </div>
 
                 <!-- Activity Chart (Bento Large) -->
                 {#if analyticsData && analyticsData.dailyTrend && analyticsData.dailyTrend.length > 0}
-                  <div class="md:col-span-3 rounded-[3rem] bg-surface-container-low/30 p-10 border border-outline-variant/10 shadow-sm group">
+                  <div class="md:col-span-3 rounded-xl bg-surface-container-low/30 p-10 border border-outline-variant/10 shadow-sm group">
                     <div class="flex items-center justify-between mb-8">
                        <div class="flex items-center gap-4">
-                         <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                         <div class="flex h-14 w-14 items-center justify-center rounded-lg bg-primary/10 text-primary">
                            <Papicon icon="trending-up" size={28} />
                          </div>
                          <div>
-                           <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary">Statistiques</p>
-                           <h4 class="text-2xl font-black text-on-surface font-headline">Tendance d'activité (30j)</h4>
+                           <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">Statistiques</p>
+                           <h4 class="text-2xl font-semibold text-on-surface font-headline">Tendance d'activité (30j)</h4>
                          </div>
                        </div>
                        <div class="flex gap-2">
                          <div class="flex flex-col items-end">
-                           <p class="text-2xl font-black text-primary">{analyticsData.totalMessages.toLocaleString('fr-FR')}</p>
-                           <p class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/40">Messages totaux</p>
+                           <p class="text-2xl font-semibold text-primary">{analyticsData.totalMessages.toLocaleString('fr-FR')}</p>
+                           <p class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/40">Messages totaux</p>
                          </div>
                          <div class="h-8 w-px bg-outline-variant/20 mx-4"></div>
                          <div class="flex flex-col items-end">
-                           <p class="text-2xl font-black text-secondary">{Math.round(analyticsData.totalVoiceMinutes)}m</p>
-                           <p class="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant/40">Temps vocal</p>
+                           <p class="text-2xl font-semibold text-secondary">{Math.round(analyticsData.totalVoiceMinutes)}m</p>
+                           <p class="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/40">Temps vocal</p>
                          </div>
                        </div>
                     </div>
@@ -940,38 +940,38 @@
                      </div>
                   </div>
                 {:else if analyticsLoading}
-                  <div class="md:col-span-3 rounded-[3rem] bg-surface-container-low/30 p-10 border border-outline-variant/10 shadow-sm animate-pulse flex flex-col justify-center items-center">
+                  <div class="md:col-span-3 rounded-xl bg-surface-container-low/30 p-10 border border-outline-variant/10 shadow-sm animate-pulse flex flex-col justify-center items-center">
                     <Papicon icon="loader" size={32} class="animate-spin text-primary/20 mb-4" />
-                    <p class="text-xs font-black uppercase tracking-widest text-on-surface-variant/20">Calcul des stats...</p>
+                    <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/20">Calcul des stats...</p>
                   </div>
                 {:else}
-                  <div class="md:col-span-3 rounded-[3rem] bg-surface-container-low/10 p-10 border border-dashed border-outline-variant/20 flex flex-col justify-center items-center text-center">
-                    <div class="h-12 w-12 rounded-2xl bg-on-surface/5 flex items-center justify-center text-on-surface-variant/20 mb-4">
+                  <div class="md:col-span-3 rounded-xl bg-surface-container-low/10 p-10 border border-dashed border-outline-variant/20 flex flex-col justify-center items-center text-center">
+                    <div class="h-12 w-12 rounded-lg bg-on-surface/5 flex items-center justify-center text-on-surface-variant/20 mb-4">
                       <Papicon icon="bar-chart-2" size={24} />
                     </div>
-                    <p class="text-sm font-black text-on-surface-variant/40">Statistiques indisponibles</p>
+                    <p class="text-sm font-semibold text-on-surface-variant/40">Statistiques indisponibles</p>
                     <p class="text-[10px] font-bold text-on-surface-variant/20 mt-1 uppercase tracking-widest">Activité insuffisante sur 30j</p>
                   </div>
                 {/if}
 
                 <!-- Role & Permissions (Bento Side) -->
-                <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm transition-all hover:shadow-xl duration-500 group overflow-hidden relative">
+                <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm transition-all hover:shadow-xl duration-500 group overflow-hidden relative">
                    <div class="absolute -right-10 -bottom-10 opacity-[0.03] rotate-12 pointer-events-none">
                      <Papicon icon="shield" size={160} />
                    </div>
                    <div class="flex items-center gap-3 mb-8">
-                     <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-500 group-hover:scale-110 transition-transform">
+                     <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500 group-hover:scale-110 transition-transform">
                        <Papicon icon="shield" size={24} />
                      </div>
                      <div>
-                       <p class="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500">Autorisations</p>
-                       <p class="text-lg font-black text-on-surface">Rôles & Accès</p>
+                       <p class="text-[10px] font-semibold uppercase tracking-wider text-emerald-500">Autorisations</p>
+                       <p class="text-lg font-semibold text-on-surface">Rôles & Accès</p>
                      </div>
                    </div>
 
                    <div class="space-y-6">
                      <div>
-                        <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-3">Rôles Principaux</p>
+                        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-3">Rôles Principaux</p>
                         <div class="flex flex-wrap gap-2">
                           {#each caseData?.roles.slice(0, 4) as role}
                             <span class="px-3 py-1.5 rounded-xl bg-surface-container-high text-[10px] font-bold text-on-surface border border-outline-variant/20 flex items-center gap-1.5">
@@ -982,15 +982,15 @@
                             </span>
                           {/each}
                           {#if caseData?.roles.length > 4}
-                            <span class="px-3 py-1.5 rounded-xl bg-primary/5 text-[10px] font-black text-primary border border-primary/10">+{caseData?.roles.length - 4}</span>
+                            <span class="px-3 py-1.5 rounded-xl bg-primary/5 text-[10px] font-semibold text-primary border border-primary/10">+{caseData?.roles.length - 4}</span>
                           {/if}
                         </div>
                      </div>
                      <div>
-                        <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-3">Permissions Clés</p>
+                        <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-3">Permissions Clés</p>
                         <div class="flex flex-wrap gap-1.5">
                           {#each caseData?.effectivePermissions.slice(0, 3) as perm}
-                            <span class="text-[10px] font-black text-emerald-500 uppercase tracking-tighter flex items-center gap-1.5">
+                            <span class="text-[10px] font-semibold text-emerald-500 uppercase tracking-tighter flex items-center gap-1.5">
                               <Papicon icon="check-circle" size={10} /> {perm}
                             </span>
                           {/each}
@@ -1000,18 +1000,18 @@
                 </div>
 
                 <!-- Recent Activity Feed (Wide Footer) -->
-                <div class="md:col-span-4 rounded-[3rem] bg-surface-container-low/20 p-10 border border-outline-variant/10 group">
+                <div class="md:col-span-4 rounded-xl bg-surface-container-low/20 p-10 border border-outline-variant/10 group">
                   <div class="flex items-center justify-between mb-10">
                     <div class="flex items-center gap-4">
-                       <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-on-surface/5 text-on-surface-variant">
+                       <div class="flex h-14 w-14 items-center justify-center rounded-lg bg-on-surface/5 text-on-surface-variant">
                          <Papicon icon="history" size={28} />
                        </div>
                        <div>
-                         <p class="text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant/40">Timeline</p>
-                         <h4 class="text-2xl font-black text-on-surface font-headline">Activités récentes</h4>
+                         <p class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/40">Timeline</p>
+                         <h4 class="text-2xl font-semibold text-on-surface font-headline">Activités récentes</h4>
                        </div>
                     </div>
-                    <button onclick={() => activeTab = 'logs'} class="group/btn inline-flex items-center gap-2 rounded-2xl bg-white/5 px-6 py-3 text-xs font-black text-on-surface-variant uppercase tracking-widest transition-all hover:bg-white/10 hover:text-on-surface">
+                    <button onclick={() => activeTab = 'logs'} class="group/btn inline-flex items-center gap-2 rounded-lg bg-white/5 px-6 py-3 text-xs font-semibold text-on-surface-variant uppercase tracking-widest transition-all hover:bg-white/10 hover:text-on-surface">
                       Voir tous les logs
                       <Papicon icon="arrow-right" size={14} class="group-hover/btn:translate-x-1 transition-transform" />
                     </button>
@@ -1019,9 +1019,9 @@
 
                   <div class="grid gap-6 md:grid-cols-2">
                     <div class="space-y-4">
-                       <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary px-2 mb-4">Derniers Messages</p>
+                       <p class="text-[10px] font-semibold uppercase tracking-wider text-primary px-2 mb-4">Derniers Messages</p>
                        {#each caseData?.messagesByChannel.slice(0, 3).flatMap(c => c.recentMessages.slice(0, 1)) as msg}
-                         <div class="rounded-3xl bg-surface-container-low/60 p-5 border border-outline-variant/5 transition-all hover:border-primary/20">
+                         <div class="rounded-xl bg-surface-container-low/60 p-5 border border-outline-variant/5 transition-all hover:border-primary/20">
                             <div class="flex items-center justify-between mb-2">
                                <span class="text-[10px] font-bold text-primary">#{msg.channelName}</span>
                                <span class="text-[10px] font-bold text-on-surface-variant/40">{formatRelative(msg.dateIso)}</span>
@@ -1035,12 +1035,12 @@
                     </div>
 
                     <div class="space-y-4">
-                       <p class="text-[10px] font-black uppercase tracking-[0.25em] text-secondary px-2 mb-4">Derniers Logs</p>
+                       <p class="text-[10px] font-semibold uppercase tracking-wider text-secondary px-2 mb-4">Derniers Logs</p>
                        <div class="space-y-3 relative pl-4 border-l border-outline-variant/20 ml-2">
                          {#each caseData?.logs.slice(0, 3) as log}
                            <div class="relative pb-6">
                               <div class="absolute -left-[calc(1rem+4.5px)] top-1 h-2 w-2 rounded-full bg-secondary border border-surface"></div>
-                              <p class="text-xs font-black text-on-surface">{log.action}</p>
+                              <p class="text-xs font-semibold text-on-surface">{log.action}</p>
                               <p class="text-[10px] font-bold text-on-surface-variant/40 mt-0.5">{log.module} · {formatRelative(log.dateIso)}</p>
                            </div>
                          {/each}
@@ -1051,26 +1051,26 @@
 
                 <!-- Basic Profile Card -->
                 <div class="md:col-span-4 grid gap-6 md:grid-cols-2">
-                  <div class="rounded-4xl bg-surface-container-low/50 p-6 border border-outline-variant/10">
-                    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-6">Profil Discord</p>
+                  <div class="rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10">
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-primary mb-6">Profil Discord</p>
                     <dl class="space-y-4">
-                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Nom d'utilisateur</dt><dd class="text-sm font-black text-on-surface">@{caseData?.profile?.username ?? 'Inconnu'}</dd></div>
-                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Nom global</dt><dd class="text-sm font-black text-on-surface">{caseData?.profile?.globalName ?? 'Inconnu'}</dd></div>
-                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Affichage serveur</dt><dd class="text-sm font-black text-on-surface">{caseData?.profile?.displayName ?? 'Inconnu'}</dd></div>
-                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Langue</dt><dd class="text-sm font-black text-on-surface uppercase tracking-widest">{caseData?.profile?.locale ?? 'Inconnue'}</dd></div>
-                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Pronoms</dt><dd class="text-sm font-black text-on-surface">{caseData?.profile?.pronouns ?? 'Non spécifiés'}</dd></div>
+                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Nom d'utilisateur</dt><dd class="text-sm font-semibold text-on-surface">@{caseData?.profile?.username ?? 'Inconnu'}</dd></div>
+                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Nom global</dt><dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.globalName ?? 'Inconnu'}</dd></div>
+                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Affichage serveur</dt><dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.displayName ?? 'Inconnu'}</dd></div>
+                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Langue</dt><dd class="text-sm font-semibold text-on-surface uppercase tracking-widest">{caseData?.profile?.locale ?? 'Inconnue'}</dd></div>
+                      <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Pronoms</dt><dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.pronouns ?? 'Non spécifiés'}</dd></div>
                     </dl>
                   </div>
-                  <div class="rounded-4xl bg-surface-container-low/50 p-6 border border-outline-variant/10 space-y-6">
-                    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-secondary mb-6">Visuels</p>
+                  <div class="rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10 space-y-6">
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-secondary mb-6">Visuels</p>
                     {#if caseData?.profile?.avatarUrl}
                       <div class="flex items-center gap-4">
-                        <img src={caseData?.profile?.avatarUrl} alt="Avatar" class="h-16 w-16 rounded-2xl object-cover shadow-lg border-2 border-surface" />
+                        <img src={caseData?.profile?.avatarUrl} alt="Avatar" class="h-16 w-16 rounded-lg object-cover shadow-lg border-2 border-surface" />
                         <span class="text-xs font-bold text-on-surface-variant/60">Avatar personnalisé</span>
                       </div>
                     {/if}
                     {#if caseData?.profile?.bannerUrl}
-                      <img src={caseData?.profile?.bannerUrl} alt="Bannière" class="w-full h-24 rounded-2xl object-cover border border-outline-variant/10 shadow-sm" />
+                      <img src={caseData?.profile?.bannerUrl} alt="Bannière" class="w-full h-24 rounded-lg object-cover border border-outline-variant/10 shadow-sm" />
                     {/if}
                     {#if caseData?.profile?.accentColor}
                       <div class="flex items-center gap-3">
@@ -1085,64 +1085,64 @@
             {:else if activeTab === 'identite'}
               <div class="grid gap-6 md:grid-cols-2">
                 <!-- Profile details -->
-                <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm hover:bg-surface-container-low transition-all duration-500 group">
+                <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm hover:bg-surface-container-low transition-all duration-500 group">
                    <div class="flex items-center gap-3 mb-8">
-                     <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary group-hover:scale-110 transition-transform">
+                     <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:scale-110 transition-transform">
                        <Papicon icon="user" size={24} />
                      </div>
                      <div>
-                       <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Données Compte</p>
-                       <p class="text-lg font-black text-on-surface">Profil Complet</p>
+                       <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">Données Compte</p>
+                       <p class="text-lg font-semibold text-on-surface">Profil Complet</p>
                      </div>
                    </div>
                    <dl class="space-y-5">
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">ID Discord</dt>
-                       <dd class="text-sm font-black text-on-surface select-all">{caseData?.profile?.userId ?? userId}</dd>
+                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">ID Discord</dt>
+                       <dd class="text-sm font-semibold text-on-surface select-all">{caseData?.profile?.userId ?? userId}</dd>
                      </div>
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Nom d'utilisateur</dt>
-                       <dd class="text-sm font-black text-on-surface">@{caseData?.profile?.username ?? 'Inconnu'}</dd>
+                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Nom d'utilisateur</dt>
+                       <dd class="text-sm font-semibold text-on-surface">@{caseData?.profile?.username ?? 'Inconnu'}</dd>
                      </div>
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Nom Global</dt>
-                       <dd class="text-sm font-black text-on-surface">{caseData?.profile?.globalName ?? 'Inconnu'}</dd>
+                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Nom Global</dt>
+                       <dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.globalName ?? 'Inconnu'}</dd>
                      </div>
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Surnom Serveur</dt>
-                       <dd class="text-sm font-black text-on-surface">{caseData?.profile?.displayName ?? 'Inconnu'}</dd>
+                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Surnom Serveur</dt>
+                       <dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.displayName ?? 'Inconnu'}</dd>
                      </div>
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Pronoms</dt>
-                       <dd class="text-sm font-black text-on-surface">{caseData?.profile?.pronouns ?? 'Non spécifiés'}</dd>
+                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Pronoms</dt>
+                       <dd class="text-sm font-semibold text-on-surface">{caseData?.profile?.pronouns ?? 'Non spécifiés'}</dd>
                      </div>
                      <div class="flex items-center justify-between">
-                       <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Langue (Locale)</dt>
-                       <dd class="text-sm font-black text-on-surface uppercase tracking-widest">{caseData?.profile?.locale ?? 'Inconnue'}</dd>
+                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Langue (Locale)</dt>
+                       <dd class="text-sm font-semibold text-on-surface uppercase tracking-widest">{caseData?.profile?.locale ?? 'Inconnue'}</dd>
                      </div>
                    </dl>
                 </div>
 
                 {#if caseData?.profile?.staffGrade}
                   <!-- Staff Role Section -->
-                  <div class="rounded-[2.5rem] bg-amber-500/5 dark:bg-amber-500/10 p-8 border border-amber-500/20 dark:border-amber-400/20 shadow-sm hover:bg-amber-500/10 dark:hover:bg-amber-500/15 transition-all duration-500 group">
+                  <div class="rounded-xl bg-amber-500/5 dark:bg-amber-500/10 p-8 border border-amber-500/20 dark:border-amber-400/20 shadow-sm hover:bg-amber-500/10 dark:hover:bg-amber-500/15 transition-all duration-500 group">
                      <div class="flex items-center gap-3 mb-8">
-                       <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500 text-white group-hover:scale-110 transition-transform shadow-lg shadow-amber-500/20">
+                       <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-amber-500 text-white group-hover:scale-110 transition-transform shadow-lg shadow-amber-500/20">
                          <Papicon icon="star" size={24} />
                        </div>
                        <div>
-                         <p class="text-[10px] font-black uppercase tracking-[0.2em] text-amber-600 dark:text-amber-400">Administration</p>
-                         <p class="text-lg font-black text-on-surface">Statut Staff</p>
+                         <p class="text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Administration</p>
+                         <p class="text-lg font-semibold text-on-surface">Statut Staff</p>
                        </div>
                      </div>
                      <dl class="space-y-5">
                        <div class="flex items-center justify-between border-b border-amber-500/15 pb-2">
-                         <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Grade Actuel</dt>
-                         <dd class="text-sm font-black text-amber-600 dark:text-amber-400">{caseData?.profile?.staffGrade}</dd>
+                         <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Grade Actuel</dt>
+                         <dd class="text-sm font-semibold text-amber-600 dark:text-amber-400">{caseData?.profile?.staffGrade}</dd>
                        </div>
                        <div class="flex items-center justify-between">
-                         <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Statut Tuteur</dt>
-                         <dd class="text-sm font-black text-on-surface">
+                         <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Statut Tuteur</dt>
+                         <dd class="text-sm font-semibold text-on-surface">
                            {caseData?.profile?.isTutor ? 'Oui (Actif)' : 'Non'}
                          </dd>
                        </div>
@@ -1151,56 +1151,56 @@
                 {/if}
 
                 <!-- Timeline -->
-                <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm hover:bg-surface-container-low transition-all duration-500 group">
+                <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm hover:bg-surface-container-low transition-all duration-500 group">
                    <div class="flex items-center gap-3 mb-8">
-                     <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary/10 text-secondary group-hover:scale-110 transition-transform">
+                     <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-secondary/10 text-secondary group-hover:scale-110 transition-transform">
                        <Papicon icon="calendar" size={24} />
                      </div>
                      <div>
-                       <p class="text-[10px] font-black uppercase tracking-[0.2em] text-secondary">Chronologie</p>
-                       <p class="text-lg font-black text-on-surface">Dates Clés</p>
+                       <p class="text-[10px] font-semibold uppercase tracking-wider text-secondary">Chronologie</p>
+                       <p class="text-lg font-semibold text-on-surface">Dates Clés</p>
                      </div>
                    </div>
                    <dl class="space-y-5">
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Création Compte</dt>
-                       <dd class="text-sm font-black text-on-surface">{formatDateTime(caseData?.profile?.accountCreatedAt)}</dd>
+                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Création Compte</dt>
+                       <dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.profile?.accountCreatedAt)}</dd>
                      </div>
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Arrivée Serveur</dt>
-                       <dd class="text-sm font-black text-on-surface">{formatDateTime(caseData?.profile?.guildJoinedAt)}</dd>
+                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Arrivée Serveur</dt>
+                       <dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.profile?.guildJoinedAt)}</dd>
                      </div>
                      {#if caseData?.profile?.guildLeftAt}
                        <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                         <dt class="text-[10px] font-black uppercase tracking-widest text-rose-500/60">Dernier Départ</dt>
-                         <dd class="text-sm font-black text-rose-500">{formatDateTime(caseData?.profile?.guildLeftAt)}</dd>
+                         <dt class="text-[10px] font-semibold uppercase tracking-widest text-rose-500/60">Dernier Départ</dt>
+                         <dd class="text-sm font-semibold text-rose-500">{formatDateTime(caseData?.profile?.guildLeftAt)}</dd>
                        </div>
                      {/if}
                      <div class="flex items-center justify-between border-b border-outline-variant/5 pb-2">
-                       <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Première Vue</dt>
-                       <dd class="text-sm font-black text-on-surface">{formatDateTime(caseData?.profile?.firstSeenAt)}</dd>
+                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Première Vue</dt>
+                       <dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.profile?.firstSeenAt)}</dd>
                      </div>
                      <div class="flex items-center justify-between">
-                       <dt class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Dernière Vue</dt>
-                       <dd class="text-sm font-black text-on-surface">{formatDateTime(caseData?.profile?.lastSeenAt)}</dd>
+                       <dt class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Dernière Vue</dt>
+                       <dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.profile?.lastSeenAt)}</dd>
                      </div>
                    </dl>
                 </div>
 
                 <!-- Roles Detailed -->
-                <div class="md:col-span-2 rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm hover:bg-surface-container-low transition-all duration-500 group">
+                <div class="md:col-span-2 rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm hover:bg-surface-container-low transition-all duration-500 group">
                    <div class="flex items-center gap-3 mb-8">
-                     <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-500 group-hover:rotate-12 transition-transform">
+                     <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500 group-hover:rotate-12 transition-transform">
                        <Papicon icon="shield" size={24} />
                      </div>
                      <div>
-                       <p class="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500">Autorisations</p>
-                       <p class="text-lg font-black text-on-surface">Rôles ({caseData?.roles.length})</p>
+                       <p class="text-[10px] font-semibold uppercase tracking-wider text-emerald-500">Autorisations</p>
+                       <p class="text-lg font-semibold text-on-surface">Rôles ({caseData?.roles.length})</p>
                      </div>
                    </div>
                    <div class="flex flex-wrap gap-3">
                      {#each caseData?.roles as role}
-                       <span class="px-5 py-2.5 rounded-2xl bg-surface-container-high text-xs font-black text-on-surface border border-outline-variant/20 shadow-sm transition-all hover:scale-105 hover:bg-surface-container-highest flex items-center gap-2">
+                       <span class="px-5 py-2.5 rounded-lg bg-surface-container-high text-xs font-semibold text-on-surface border border-outline-variant/20 shadow-sm transition-all hover:scale-105 hover:bg-surface-container-highest flex items-center gap-2">
                          {#if role.color && role.color !== '#000000'}
                            <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: {role.color}"></span>
                          {/if}
@@ -1208,8 +1208,8 @@
                        </span>
                      {/each}
                      {#if caseData?.roles.length === 0}
-                        <div class="w-full py-10 text-center bg-surface-container-low rounded-3xl border border-dashed border-outline-variant/20">
-                          <p class="text-sm font-black text-on-surface-variant/40 uppercase tracking-widest">Aucun rôle attribué</p>
+                        <div class="w-full py-10 text-center bg-surface-container-low rounded-xl border border-dashed border-outline-variant/20">
+                          <p class="text-sm font-semibold text-on-surface-variant/40 uppercase tracking-widest">Aucun rôle attribué</p>
                         </div>
                      {/if}
                    </div>
@@ -1219,37 +1219,37 @@
             {:else if activeTab === 'activite'}
                 <div class="space-y-8">
                   <div class="grid gap-6 md:grid-cols-3">
-                    <div class="rounded-4xl bg-primary/5 p-6 border border-primary/10 text-center">
+                    <div class="rounded-xl bg-primary/5 p-6 border border-primary/10 text-center">
                       <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary mx-auto mb-4">
                         <Papicon icon="message-square" size={20} />
                       </div>
-                      <p class="text-2xl font-black text-on-surface">{caseData?.profile?.messageCount ?? 0}</p>
-                      <p class="text-[9px] font-black uppercase tracking-widest text-primary/60 mt-1">Messages</p>
+                      <p class="text-2xl font-semibold text-on-surface">{caseData?.profile?.messageCount ?? 0}</p>
+                      <p class="text-[11px] font-semibold uppercase tracking-widest text-primary/60 mt-1">Messages</p>
                     </div>
-                    <div class="rounded-4xl bg-secondary/5 p-6 border border-secondary/10 text-center">
+                    <div class="rounded-xl bg-secondary/5 p-6 border border-secondary/10 text-center">
                       <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary/10 text-secondary mx-auto mb-4">
                         <Papicon icon="mic" size={20} />
                       </div>
-                      <p class="text-2xl font-black text-on-surface">{formatDurationFromSeconds(caseData?.profile?.voiceTimeSeconds)}</p>
-                      <p class="text-[9px] font-black uppercase tracking-widest text-secondary/60 mt-1">Temps vocal</p>
+                      <p class="text-2xl font-semibold text-on-surface">{formatDurationFromSeconds(caseData?.profile?.voiceTimeSeconds)}</p>
+                      <p class="text-[11px] font-semibold uppercase tracking-widest text-secondary/60 mt-1">Temps vocal</p>
                     </div>
-                    <div class="rounded-4xl bg-emerald-500/5 p-6 border border-emerald-500/10 text-center">
+                    <div class="rounded-xl bg-emerald-500/5 p-6 border border-emerald-500/10 text-center">
                       <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500 mx-auto mb-4">
                         <Papicon icon="eye" size={20} />
                       </div>
-                      <p class="text-lg font-black text-on-surface">{formatDateShort(caseData?.profile?.lastSeenAt)}</p>
-                      <p class="text-[9px] font-black uppercase tracking-widest text-emerald-500/60 mt-1">Dernière activité</p>
+                      <p class="text-lg font-semibold text-on-surface">{formatDateShort(caseData?.profile?.lastSeenAt)}</p>
+                      <p class="text-[11px] font-semibold uppercase tracking-widest text-emerald-500/60 mt-1">Dernière activité</p>
                     </div>
                   </div>
 
-                  <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10">
-                    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-8 px-2">Répartition par salon</p>
+                  <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10">
+                    <p class="text-[10px] font-semibold uppercase tracking-wider text-primary mb-8 px-2">Répartition par salon</p>
                     <div class="space-y-6">
                       {#each caseData?.messagesByChannel || [] as channel}
                         {@const max = Math.max(...(caseData?.messagesByChannel || []).map(c => c.count), 1)}
                         <div class="space-y-2">
                           <div class="flex items-center justify-between px-1">
-                            <span class="text-sm font-black text-on-surface">{channel.channelName}</span>
+                            <span class="text-sm font-semibold text-on-surface">{channel.channelName}</span>
                             <span class="text-xs font-bold text-on-surface-variant/60">{channel.count} messages</span>
                           </div>
                           <div class="h-2 w-full rounded-full bg-surface-container-high overflow-hidden">
@@ -1264,20 +1264,20 @@
               {:else if activeTab === 'analytics'}
                 <div class="space-y-8">
                   {#if analyticsLoading}
-                    <div class="flex flex-col items-center justify-center py-24 bg-surface-container-low/30 rounded-[3rem] border border-outline-variant/10">
+                    <div class="flex flex-col items-center justify-center py-24 bg-surface-container-low/30 rounded-xl border border-outline-variant/10">
                       <div class="relative mb-6">
                         <div class="absolute -inset-4 rounded-full bg-primary/10 blur-xl animate-pulse"></div>
                         <Papicon icon="loader" size={48} class="animate-spin text-primary" />
                       </div>
-                      <p class="text-xs font-black uppercase tracking-[0.3em] text-on-surface-variant/60">Analyse du comportement...</p>
+                      <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/60">Analyse du comportement...</p>
                     </div>
                   {:else if analyticsData && analyticsData.dailyTrend && analyticsData.dailyTrend.length > 0}
                     <div class="grid gap-6 lg:grid-cols-2">
-                       <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm group">
+                       <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm group">
                          <div class="flex items-center justify-between mb-8">
                             <div>
-                              <p class="text-[10px] font-black uppercase tracking-widest text-primary mb-1">Activité</p>
-                              <h4 class="text-sm font-black text-on-surface uppercase tracking-widest">Volume Messages</h4>
+                              <p class="text-[10px] font-semibold uppercase tracking-widest text-primary mb-1">Activité</p>
+                              <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">Volume Messages</h4>
                             </div>
                             <span class="text-[10px] font-bold text-on-surface-variant/40 bg-surface-container-high px-3 py-1 rounded-lg">30 derniers jours</span>
                          </div>
@@ -1303,11 +1303,11 @@
                             height={180} 
                           />
                        </div>
-                       <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm group">
+                       <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm group">
                          <div class="flex items-center justify-between mb-8">
                             <div>
-                              <p class="text-[10px] font-black uppercase tracking-widest text-secondary mb-1">Engagement</p>
-                              <h4 class="text-sm font-black text-on-surface uppercase tracking-widest">Activité Vocal</h4>
+                              <p class="text-[10px] font-semibold uppercase tracking-widest text-secondary mb-1">Engagement</p>
+                              <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">Activité Vocal</h4>
                             </div>
                             <span class="text-[10px] font-bold text-on-surface-variant/40 bg-surface-container-high px-3 py-1 rounded-lg">Minutes / jour</span>
                          </div>
@@ -1335,11 +1335,11 @@
                        </div>
                     </div>
                   {:else}
-                    <div class="flex flex-col items-center justify-center py-24 text-center bg-surface-container-low/30 rounded-[3rem] border-2 border-dashed border-outline-variant/20">
-                      <div class="flex h-20 w-20 items-center justify-center rounded-3xl bg-surface-container-high text-on-surface-variant/20 mb-8">
+                    <div class="flex flex-col items-center justify-center py-24 text-center bg-surface-container-low/30 rounded-xl border-2 border-dashed border-outline-variant/20">
+                      <div class="flex h-20 w-20 items-center justify-center rounded-xl bg-surface-container-high text-on-surface-variant/20 mb-8">
                         <Papicon icon="bar-chart-2" size={40} />
                       </div>
-                      <h3 class="text-2xl font-black text-on-surface-variant font-headline">Aucune donnée analytique</h3>
+                      <h3 class="text-2xl font-semibold text-on-surface-variant font-headline">Aucune donnée analytique</h3>
                       <p class="mt-2 text-sm text-on-surface-variant/60 max-w-sm mx-auto px-6">
                         Nous n'avons pas encore assez de données d'activité pour générer des graphiques pour ce membre sur les 30 derniers jours.
                       </p>
@@ -1350,7 +1350,7 @@
               {:else if activeTab === 'messages'}
                 <div class="space-y-6">
                   {#each caseData?.messagesByChannel as channel}
-                    <div class="rounded-4xl bg-surface-container-low/50 p-6 border border-outline-variant/10">
+                    <div class="rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10">
                       <div class="flex items-center gap-3 mb-6 border-b border-outline-variant/10 pb-4">
                         <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
                           <Papicon icon="tag" size={16} />
@@ -1358,20 +1358,20 @@
                         <a 
                           href="https://discord.com/channels/{authStore.selectedGuildId}/{channel.channelId}" 
                           target="_blank"
-                          class="text-sm font-black text-on-surface hover:text-primary transition-colors flex items-center gap-1.5"
+                          class="text-sm font-semibold text-on-surface hover:text-primary transition-colors flex items-center gap-1.5"
                         >
                           {channel.channelName}
                           <Papicon icon="external-link" size={12} class="opacity-30" />
                         </a>
-                        <span class="ml-auto text-[10px] font-black bg-primary/5 text-primary px-3 py-1 rounded-full uppercase tracking-widest">{channel.count} msg</span>
+                        <span class="ml-auto text-[10px] font-semibold bg-primary/5 text-primary px-3 py-1 rounded-full uppercase tracking-widest">{channel.count} msg</span>
                       </div>
                       <div class="space-y-3">
                         {#each channel.recentMessages as msg}
-                          <div class="rounded-2xl bg-surface-container-high/30 p-4 border border-outline-variant/5">
+                          <div class="rounded-lg bg-surface-container-high/30 p-4 border border-outline-variant/5">
                             <div class="flex items-center justify-between mb-2">
                                <span class="text-[10px] font-bold text-on-surface-variant/40">{formatDateTime(msg.dateIso)}</span>
                                {#if msg.discordUrl}
-                                 <a href={msg.discordUrl} target="_blank" class="text-[9px] font-black text-primary hover:underline uppercase tracking-widest flex items-center gap-1">
+                                 <a href={msg.discordUrl} target="_blank" class="text-[11px] font-semibold text-primary hover:underline uppercase tracking-widest flex items-center gap-1">
                                    Voir sur Discord
                                    <Papicon icon="arrow-up-right" size={10} />
                                  </a>
@@ -1384,11 +1384,11 @@
                     </div>
                   {/each}
                   {#if caseData?.messagesByChannel.length === 0}
-                    <div class="flex flex-col items-center justify-center py-24 text-center bg-surface-container-low/30 rounded-[3rem] border-2 border-dashed border-outline-variant/20">
-                      <div class="flex h-20 w-20 items-center justify-center rounded-3xl bg-surface-container-high text-on-surface-variant/20 mb-8">
+                    <div class="flex flex-col items-center justify-center py-24 text-center bg-surface-container-low/30 rounded-xl border-2 border-dashed border-outline-variant/20">
+                      <div class="flex h-20 w-20 items-center justify-center rounded-xl bg-surface-container-high text-on-surface-variant/20 mb-8">
                         <Papicon icon="message-square" size={40} />
                       </div>
-                      <h3 class="text-2xl font-black text-on-surface-variant font-headline">Silence radio</h3>
+                      <h3 class="text-2xl font-semibold text-on-surface-variant font-headline">Silence radio</h3>
                       <p class="mt-2 text-sm text-on-surface-variant/60 max-w-sm mx-auto px-6">
                         Aucun message récent n'a été indexé pour ce membre dans les salons surveillés.
                       </p>
@@ -1397,19 +1397,19 @@
                 </div>
 
               {:else if activeTab === 'logs'}
-                <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10">
+                <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10">
                   <div class="space-y-8 relative pl-6 border-l-2 border-outline-variant/20 ml-4">
                     {#each caseData?.logs as log}
                       <div class="relative">
                         <div class="absolute -left-[calc(1.5rem+5px)] top-1.5 h-3 w-3 rounded-full bg-primary border-2 border-surface shadow-sm"></div>
                         <div class="flex items-start justify-between gap-4 mb-2">
                           <div>
-                            <p class="text-sm font-black text-on-surface tracking-tight">{log.action}</p>
+                            <p class="text-sm font-semibold text-on-surface tracking-tight">{log.action}</p>
                             <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/40 mt-1">{log.module} · {log.source}</p>
                           </div>
-                          <span class="text-[10px] font-black text-on-surface-variant/30 uppercase tracking-widest">{formatDateTime(log.dateIso)}</span>
+                          <span class="text-[10px] font-semibold text-on-surface-variant/30 uppercase tracking-widest">{formatDateTime(log.dateIso)}</span>
                         </div>
-                        <div class="rounded-2xl bg-surface-container-high/30 p-4 text-xs text-on-surface-variant/80 italic leading-relaxed">
+                        <div class="rounded-lg bg-surface-container-high/30 p-4 text-xs text-on-surface-variant/80 italic leading-relaxed">
                           {@html sanitizeLogSnippet(log.details)}
                         </div>
                       </div>
@@ -1417,22 +1417,22 @@
                     {#if caseData?.logs.length === 0}
                       <div class="flex flex-col items-center justify-center py-10 text-on-surface-variant/20">
                          <Papicon icon="history" size={48} />
-                         <p class="mt-4 text-sm font-black uppercase tracking-widest">Aucun log disponible</p>
+                         <p class="mt-4 text-sm font-semibold uppercase tracking-widest">Aucun log disponible</p>
                       </div>
                     {/if}
                   </div>
                 </div>
 
               {:else if activeTab === 'sanctions'}
-                <div class="rounded-[2.5rem] bg-surface-container-low/50 overflow-hidden border border-outline-variant/10 shadow-sm">
+                <div class="rounded-xl bg-surface-container-low/50 overflow-hidden border border-outline-variant/10 shadow-sm">
                   <table class="w-full text-left border-collapse">
                     <thead>
                       <tr class="bg-surface-container-high/30">
-                        <th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Date</th>
-                        <th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Action</th>
-                        <th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Statut</th>
-                        <th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Raison</th>
-                        <th class="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Rapport</th>
+                        <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Date</th>
+                        <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Action</th>
+                        <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Statut</th>
+                        <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Raison</th>
+                        <th class="px-6 py-4 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Rapport</th>
                       </tr>
                     </thead>
                     <tbody class="divide-y divide-outline-variant/10">
@@ -1441,11 +1441,11 @@
                         <tr class="hover:bg-surface-container-high/20 transition-colors">
                           <td class="px-6 py-4 text-xs font-bold text-on-surface-variant/60">{formatDateShort(sanction.createdAt)}</td>
                           <td class="px-6 py-4">
-                            <span class="text-xs font-black text-primary uppercase tracking-widest">{formatTypeLabel(sanction.type)}</span>
+                            <span class="text-xs font-semibold text-primary uppercase tracking-widest">{formatTypeLabel(sanction.type)}</span>
                             <p class="text-[10px] font-bold text-on-surface-variant/40 mt-0.5">par @{sanction.moderatorTag}</p>
                           </td>
                           <td class="px-6 py-4">
-                            <span class="px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest {sanction.status === 'ACTIVE' ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}">
+                            <span class="px-3 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-widest {sanction.status === 'ACTIVE' ? 'bg-rose-500/10 text-rose-500' : 'bg-emerald-500/10 text-emerald-500'}">
                               {getSanctionStatusLabel(sanction.status)}
                             </span>
                           </td>
@@ -1454,7 +1454,7 @@
                             {#if hasReport}
                               <button
                                 onclick={() => viewingReportSanctionId = sanction.id}
-                                class="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[10px] font-black text-on-primary uppercase tracking-widest transition-all hover:bg-primary-container hover:scale-[1.02] active:scale-[0.98] shadow-xs cursor-pointer"
+                                class="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[10px] font-semibold text-on-primary uppercase tracking-widest transition-all hover:bg-primary-container hover:scale-[1.02] active:scale-[0.98] shadow-xs cursor-pointer"
                               >
                                 <Papicon icon="file-text" size={12} />
                                 Voir plus
@@ -1470,34 +1470,34 @@
                   {#if sanctions.length === 0}
                     <div class="flex flex-col items-center py-20 text-on-surface-variant/30">
                       <Papicon icon="check-circle" size={48} />
-                      <p class="mt-4 text-sm font-black uppercase tracking-widest">Dossier vierge</p>
+                      <p class="mt-4 text-sm font-semibold uppercase tracking-widest">Dossier vierge</p>
                     </div>
                   {/if}
                 </div>
 
               {:else if activeTab === 'invites'}
                 <div class="grid gap-6 md:grid-cols-2">
-                   <div class="rounded-4xl bg-surface-container-low/50 p-6 border border-outline-variant/10">
-                     <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-6">Source d'invitation</p>
+                   <div class="rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10">
+                     <p class="text-[10px] font-semibold uppercase tracking-wider text-primary mb-6">Source d'invitation</p>
                      <dl class="space-y-4">
                        <div class="flex items-center justify-between">
                          <dt class="text-xs font-bold text-on-surface-variant/60">Code utilisé</dt>
                          {#if caseData?.invite?.code}
                            <button
                              type="button"
-                             class="text-sm font-black text-primary bg-primary/10 px-3 py-1 rounded-xl hover:bg-primary/20 transition-colors font-mono"
+                             class="text-sm font-semibold text-primary bg-primary/10 px-3 py-1 rounded-xl hover:bg-primary/20 transition-colors font-mono"
                              onclick={() => inviteDetailsModal.show(caseData.invite.code)}
                              title="Ouvrir la vue Invitations"
                            >
                              {caseData.invite.code}
                            </button>
                          {:else}
-                           <dd class="text-sm font-black text-on-surface font-mono">Inconnu</dd>
+                           <dd class="text-sm font-semibold text-on-surface font-mono">Inconnu</dd>
                          {/if}
                        </div>
                        <div class="flex items-center justify-between">
                           <dt class="text-xs font-bold text-on-surface-variant/60">Créateur</dt>
-                          <dd class="text-sm font-black text-on-surface">
+                          <dd class="text-sm font-semibold text-on-surface">
                             {#if caseData?.invite?.inviterTag}
                               <div class="flex items-center gap-2">
                                 {#if caseData.invite.inviterAvatarUrl}
@@ -1511,7 +1511,7 @@
                                   <button
                                     type="button"
                                     onclick={() => caseData?.invite?.inviterId && onSelectUser(caseData.invite.inviterId)}
-                                    class="text-primary hover:underline focus:outline-none font-black text-left"
+                                    class="text-primary hover:underline focus:outline-none font-semibold text-left"
                                     title="Ouvrir la vue modérateur de l'inviteur"
                                   >
                                     @{caseData.invite.inviterTag}
@@ -1525,15 +1525,15 @@
                             {/if}
                           </dd>
                         </div>
-                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Date d'utilisation</dt><dd class="text-sm font-black text-on-surface">{formatDateTime(caseData?.invite?.joinedAt ?? caseData?.profile?.guildJoinedAt)}</dd></div>
+                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Date d'utilisation</dt><dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.invite?.joinedAt ?? caseData?.profile?.guildJoinedAt)}</dd></div>
                      </dl>
                    </div>
-                   <div class="rounded-4xl bg-surface-container-low/50 p-6 border border-outline-variant/10">
-                     <p class="text-[10px] font-black uppercase tracking-[0.2em] text-secondary mb-6">Mouvements Serveur</p>
+                   <div class="rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10">
+                     <p class="text-[10px] font-semibold uppercase tracking-wider text-secondary mb-6">Mouvements Serveur</p>
                      <dl class="space-y-4">
-                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Dernière arrivée</dt><dd class="text-sm font-black text-on-surface">{formatDateTime(caseData?.profile?.guildJoinedAt)}</dd></div>
-                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Dernier départ</dt><dd class="text-sm font-black text-on-surface">{formatDateTime(caseData?.profile?.guildLeftAt)}</dd></div>
-                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Première observation</dt><dd class="text-sm font-black text-on-surface">{formatDateTime(caseData?.profile?.firstSeenAt)}</dd></div>
+                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Dernière arrivée</dt><dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.profile?.guildJoinedAt)}</dd></div>
+                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Dernier départ</dt><dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.profile?.guildLeftAt)}</dd></div>
+                       <div class="flex items-center justify-between"><dt class="text-xs font-bold text-on-surface-variant/60">Première observation</dt><dd class="text-sm font-semibold text-on-surface">{formatDateTime(caseData?.profile?.firstSeenAt)}</dd></div>
                      </dl>
                    </div>
                 </div>
@@ -1542,8 +1542,8 @@
                 <div class="space-y-6">
                   <div class="flex items-center justify-between px-2">
                     <div>
-                      <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-1">Réseau Social</p>
-                      <h4 class="text-sm font-black text-on-surface uppercase tracking-widest">Graphe d'Interactions</h4>
+                      <p class="text-[10px] font-semibold uppercase tracking-wider text-primary mb-1">Réseau Social</p>
+                      <h4 class="text-sm font-semibold text-on-surface uppercase tracking-widest">Graphe d'Interactions</h4>
                     </div>
                     <div class="flex items-center gap-2">
                       <span class="text-[10px] font-bold text-on-surface-variant/40 bg-surface-container-high px-3 py-1 rounded-lg">Top 10 contacts</span>
@@ -1560,20 +1560,20 @@
 
                   <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {#each caseData?.connections as connection}
-                      <div class="flex items-center gap-4 rounded-[1.5rem] bg-surface-container-low/50 p-4 border border-outline-variant/10 hover:border-primary/30 transition-all group">
-                        <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary group-hover:scale-110 transition-transform">
+                      <div class="flex items-center gap-4 rounded-xl bg-surface-container-low/50 p-4 border border-outline-variant/10 hover:border-primary/30 transition-all group">
+                        <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:scale-110 transition-transform">
                           <Papicon icon={getConnectionIcon(connection.type)} size={20} />
                         </div>
                         <div class="min-w-0">
-                          <p class="text-sm font-black text-on-surface truncate">{connection.name}</p>
-                          <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 mt-0.5">{connection.type}</p>
+                          <p class="text-sm font-semibold text-on-surface truncate">{connection.name}</p>
+                          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mt-0.5">{connection.type}</p>
                         </div>
                       </div>
                     {/each}
                     {#if caseData?.connections.length === 0 && (caseData?.interactionGraph?.nodes || []).length === 0}
-                      <div class="md:col-span-2 lg:col-span-3 flex flex-col items-center py-20 text-on-surface-variant/30 bg-surface-container-low/30 rounded-[2.5rem]">
+                      <div class="md:col-span-2 lg:col-span-3 flex flex-col items-center py-20 text-on-surface-variant/30 bg-surface-container-low/30 rounded-xl">
                         <Papicon icon="link-2" size={48} />
-                        <p class="mt-4 text-sm font-black uppercase tracking-widest">Aucun lien externe</p>
+                        <p class="mt-4 text-sm font-semibold uppercase tracking-widest">Aucun lien externe</p>
                       </div>
                     {/if}
                   </div>
@@ -1582,23 +1582,23 @@
               {:else if activeTab === 'candidatures'}
                 <div class="space-y-6">
                   {#each (caseData?.candidatures || []) as cand}
-                    <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 space-y-6">
+                    <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 space-y-6">
                       <div class="flex items-start justify-between">
                          <div>
-                            <span class="text-[10px] font-black uppercase tracking-widest text-primary mb-2 block">{formatDateShort(cand.createdAt)}</span>
-                            <span class="px-4 py-1.5 rounded-xl text-xs font-black uppercase tracking-widest {cand.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}">
+                            <span class="text-[10px] font-semibold uppercase tracking-widest text-primary mb-2 block">{formatDateShort(cand.createdAt)}</span>
+                            <span class="px-4 py-1.5 rounded-xl text-xs font-semibold uppercase tracking-widest {cand.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}">
                               {cand.status}
                             </span>
                          </div>
                          {#if cand.oralResult}
                            <div class="flex flex-col items-end">
-                              <span class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40 mb-1">Résultat Oral</span>
-                              <span class="text-sm font-black text-on-surface">{cand.oralResult}</span>
+                              <span class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40 mb-1">Résultat Oral</span>
+                              <span class="text-sm font-semibold text-on-surface">{cand.oralResult}</span>
                            </div>
                          {/if}
                       </div>
                       {#if cand.notes}
-                        <div class="rounded-2xl bg-surface-container-high/30 p-5 border-l-4 border-primary italic text-sm text-on-surface-variant leading-relaxed">
+                        <div class="rounded-lg bg-surface-container-high/30 p-5 border-l-4 border-primary italic text-sm text-on-surface-variant leading-relaxed">
                           "{cand.notes}"
                         </div>
                       {/if}
@@ -1607,8 +1607,8 @@
                 </div>
 
               {:else if activeTab === 'linked_accounts'}
-                <div class="mb-8 rounded-3xl bg-surface-container-low/50 p-6 border border-outline-variant/10">
-                  <h3 class="text-sm font-black text-on-surface mb-4 flex items-center gap-2"><Papicon icon="link-2" size={16} /> Lier un compte manuellement</h3>
+                <div class="mb-8 rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10">
+                  <h3 class="text-sm font-semibold text-on-surface mb-4 flex items-center gap-2"><Papicon icon="link-2" size={16} /> Lier un compte manuellement</h3>
                   <div class="grid gap-4 md:grid-cols-2">
                     <FormInput 
                       id="targetAccountId" 
@@ -1635,7 +1635,7 @@
                   
                   <div class="mt-4 flex justify-end">
                     <button 
-                      class="px-6 py-2 rounded-xl text-sm font-black tracking-widest uppercase transition-all duration-300 {linkBusy || !targetAccountId ? 'bg-surface-container-high text-on-surface-variant/50 cursor-not-allowed' : 'bg-primary text-on-primary hover:bg-primary/90 hover:scale-[1.02] active:scale-95'}"
+                      class="px-6 py-2 rounded-xl text-sm font-semibold tracking-widest uppercase transition-all duration-300 {linkBusy || !targetAccountId ? 'bg-surface-container-high text-on-surface-variant/50 cursor-not-allowed' : 'bg-primary text-on-primary hover:bg-primary/90 hover:scale-[1.02] active:scale-95'}"
                       onclick={handleLinkAccount}
                       disabled={linkBusy || !targetAccountId}
                     >
@@ -1653,19 +1653,19 @@
 
                 <div class="grid gap-6 md:grid-cols-2">
                   {#each caseData?.linkedAccounts || [] as link}
-                    <div class="rounded-[2.5rem] bg-surface-container-low/50 p-6 border border-outline-variant/10 shadow-sm hover:bg-surface-container-low transition-all duration-500 group flex items-center gap-4">
+                    <div class="rounded-xl bg-surface-container-low/50 p-6 border border-outline-variant/10 shadow-sm hover:bg-surface-container-low transition-all duration-500 group flex items-center gap-4">
                       {#if link.avatarUrl}
-                        <img src={link.avatarUrl} alt="Avatar" class="h-16 w-16 rounded-2xl object-cover shadow-lg border-2 border-surface" />
+                        <img src={link.avatarUrl} alt="Avatar" class="h-16 w-16 rounded-lg object-cover shadow-lg border-2 border-surface" />
                       {:else}
-                        <div class="flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-container-high text-xl font-black text-primary">
+                        <div class="flex h-16 w-16 items-center justify-center rounded-lg bg-surface-container-high text-xl font-semibold text-primary">
                           {link.userTag?.slice(0, 1).toUpperCase()}
                         </div>
                       {/if}
                       <div class="min-w-0 flex-1">
                         <div class="flex items-center justify-between">
-                           <p class="text-sm font-black text-on-surface truncate">{link.userTag}</p>
+                           <p class="text-sm font-semibold text-on-surface truncate">{link.userTag}</p>
                            <div class="flex items-center gap-2">
-                             <span class="px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest {link.status === 'VALIDATED' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}">
+                             <span class="px-2 py-0.5 rounded-lg text-[11px] font-semibold uppercase tracking-widest {link.status === 'VALIDATED' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}">
                                {link.status}
                              </span>
                              {#if dashboardStore.state.accessLevel === 'admin'}
@@ -1685,29 +1685,29 @@
                            </div>
                         </div>
                         <p class="text-[10px] font-bold text-on-surface-variant/40 mt-1">ID: {link.userId}</p>
-                        <p class="text-[10px] font-black text-primary uppercase tracking-widest mt-1">{link.type}</p>
+                        <p class="text-[10px] font-semibold text-primary uppercase tracking-widest mt-1">{link.type}</p>
                       </div>
                     </div>
                   {/each}
                   {#if (caseData?.linkedAccounts || []).length === 0}
-                    <div class="md:col-span-2 flex flex-col items-center py-20 text-on-surface-variant/30 bg-surface-container-low/30 rounded-[2.5rem]">
-                      <div class="flex h-16 w-16 items-center justify-center rounded-3xl bg-surface-container-high text-on-surface-variant/20 mb-6">
+                    <div class="md:col-span-2 flex flex-col items-center py-20 text-on-surface-variant/30 bg-surface-container-low/30 rounded-xl">
+                      <div class="flex h-16 w-16 items-center justify-center rounded-xl bg-surface-container-high text-on-surface-variant/20 mb-6">
                         <Papicon icon="user-plus" size={32} />
                       </div>
-                      <p class="mt-4 text-sm font-black uppercase tracking-widest">Aucun compte lié</p>
+                      <p class="mt-4 text-sm font-semibold uppercase tracking-widest">Aucun compte lié</p>
                     </div>
                   {/if}
                 </div>
               {:else if activeTab === 'notes'}
                 <div class="space-y-6">
-                  <div class="rounded-[2.5rem] bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm">
+                  <div class="rounded-xl bg-surface-container-low/50 p-8 border border-outline-variant/10 shadow-sm">
                     <div class="flex items-center gap-3 mb-6">
-                      <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                      <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
                         <Papicon icon="edit-3" size={24} />
                       </div>
                       <div>
-                        <p class="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Modération</p>
-                        <p class="text-lg font-black text-on-surface">Notes Modérateur</p>
+                        <p class="text-[10px] font-semibold uppercase tracking-wider text-primary">Modération</p>
+                        <p class="text-lg font-semibold text-on-surface">Notes Modérateur</p>
                       </div>
                     </div>
 
@@ -1721,7 +1721,7 @@
                         id="moderator-note-textarea"
                         bind:value={moderatorNote}
                         placeholder="Ajouter une note sur cet utilisateur..."
-                        class="w-full min-h-[300px] rounded-3xl bg-surface-container-high/50 p-6 text-sm text-on-surface placeholder:text-on-surface-variant/30 border-2 border-transparent focus:border-primary/30 focus:bg-surface-container-high transition-all outline-hidden resize-none"
+                        class="w-full min-h-[300px] rounded-xl bg-surface-container-high/50 p-6 text-sm text-on-surface placeholder:text-on-surface-variant/30 border-2 border-transparent focus:border-primary/30 focus:bg-surface-container-high transition-all outline-hidden resize-none"
                       ></textarea>
                     </div>
 
@@ -1736,7 +1736,7 @@
                       <button
                         onclick={handleSaveNote}
                         disabled={noteBusy}
-                        class="flex items-center gap-2 px-8 py-3 rounded-2xl bg-primary text-on-primary text-sm font-black uppercase tracking-widest transition-all hover:bg-primary/90 hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/20"
+                        class="flex items-center gap-2 px-8 py-3 rounded-lg bg-primary text-on-primary text-sm font-semibold uppercase tracking-widest transition-all hover:bg-primary/90 hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/20"
                       >
                         {#if noteBusy}
                           <div class="h-4 w-4 animate-spin rounded-full border-2 border-on-primary border-t-transparent"></div>
@@ -1760,13 +1760,13 @@
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div 
-        class="fixed inset-0 z-[10010] flex items-center justify-center bg-surface-container-lowest/90 backdrop-blur-sm animate-in fade-in duration-300"
+        class="fixed inset-0 z-[10010] flex items-center justify-center bg-surface-container-lowest/90 animate-in fade-in duration-300"
         onclick={(e) => e.stopPropagation()}
       >
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div 
-          class="w-full max-w-2xl bg-surface-container-low rounded-[2.5rem] border border-outline-variant/10 shadow-2xl p-8 max-h-[90%] overflow-y-auto relative"
+          class="w-full max-w-2xl bg-surface-container-low rounded-xl border border-outline-variant/10 shadow-sm p-8 max-h-[90%] overflow-y-auto relative"
           onclick={(e) => e.stopPropagation()}
         >
           <button
@@ -1777,8 +1777,8 @@
           </button>
 
           <div class="mb-8">
-            <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary mb-1">Rapport de sanction</p>
-            <h4 class="text-2xl font-black text-on-surface font-headline">{formatTypeLabel(selectedSanctionForReport.type)}</h4>
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-primary mb-1">Rapport de sanction</p>
+            <h4 class="text-2xl font-semibold text-on-surface font-headline">{formatTypeLabel(selectedSanctionForReport.type)}</h4>
             <p class="text-xs text-on-surface-variant/60 mt-1">Appliquée le {formatDateTime(selectedSanctionForReport.createdAt)} par @{selectedSanctionForReport.moderatorTag}</p>
           </div>
 
@@ -1788,26 +1788,26 @@
                <div class="space-y-6 animate-in fade-in duration-300">
                  <div class="grid grid-cols-2 gap-4">
                    <div class="space-y-1.5">
-                     <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Date de l'incident</p>
+                     <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Date de l'incident</p>
                      <input 
                        type="datetime-local" 
                        bind:value={editReportData.incidentAt} 
-                       class="w-full rounded-2xl bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all"
+                       class="w-full rounded-lg bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all"
                      />
                    </div>
                    <div class="space-y-1.5">
-                     <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Durée appliquée</p>
+                     <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Durée appliquée</p>
                      <input 
                        type="text" 
                        bind:value={editReportData.sanctionDurationLabel} 
                        placeholder="Ex: 2h, Permanent..." 
-                       class="w-full rounded-2xl bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all"
+                       class="w-full rounded-lg bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all"
                      />
                    </div>
                  </div>
 
                  <div class="space-y-1.5">
-                   <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Règles enfreintes</p>
+                   <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Règles enfreintes</p>
                    <ReportRuleSelector
                      options={reportRuleOptions}
                      selectedIds={editReportData.selectedRuleIds}
@@ -1823,41 +1823,41 @@
                  </div>
 
                  <div class="space-y-1.5">
-                   <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Raison détaillée</p>
+                   <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Raison détaillée</p>
                    <textarea 
                      bind:value={editReportData.detailedReason} 
                      rows="4"
                      placeholder="Description précise des faits..." 
-                     class="w-full rounded-2xl bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"
+                     class="w-full rounded-lg bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"
                    ></textarea>
                  </div>
 
                  <div class="space-y-1.5">
-                   <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Preuves (URLs)</p>
+                   <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Preuves (URLs)</p>
                    <EvidenceInputList bind:links={editReportData.evidenceLinks} />
                  </div>
 
                  <div class="space-y-1.5">
-                   <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-1">Notes complémentaires</p>
+                   <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-1">Notes complémentaires</p>
                    <textarea 
                      bind:value={editReportData.additionalNotes} 
                      rows="2"
                      placeholder="Précisions facultatives..." 
-                     class="w-full rounded-2xl bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"
+                     class="w-full rounded-lg bg-surface-container-high px-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all resize-none"
                    ></textarea>
                  </div>
 
                  <div class="flex gap-3 pt-4">
                    <button
                      onclick={() => isEditingReport = false}
-                     class="flex-1 py-3 rounded-xl bg-on-surface/5 text-xs font-black uppercase tracking-widest text-on-surface-variant transition-all hover:bg-on-surface/10"
+                     class="flex-1 py-3 rounded-xl bg-on-surface/5 text-xs font-semibold uppercase tracking-widest text-on-surface-variant transition-all hover:bg-on-surface/10"
                    >
                      Annuler
                    </button>
                    <button
                      onclick={handleUpdateReport}
                      disabled={updateReportBusy}
-                     class="flex-1 py-3 rounded-xl bg-primary text-on-primary text-xs font-black uppercase tracking-widest transition-all hover:bg-primary-container hover:text-primary disabled:opacity-50"
+                     class="flex-1 py-3 rounded-xl bg-primary text-on-primary text-xs font-semibold uppercase tracking-widest transition-all hover:bg-primary-container hover:text-primary disabled:opacity-50"
                    >
                      {updateReportBusy ? 'Enregistrement...' : 'Enregistrer'}
                    </button>
@@ -1868,30 +1868,30 @@
               <div class="space-y-6">
                 <div class="grid grid-cols-2 gap-4">
                   <div class="space-y-1">
-                    <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Incident</p>
+                    <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Incident</p>
                     <p class="text-sm font-bold text-on-surface">{formatDateTime(selectedReport.incidentAt)}</p>
                   </div>
                   <div class="space-y-1">
-                    <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Durée</p>
+                    <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Durée</p>
                     <p class="text-sm font-bold text-on-surface">{selectedReport.sanctionDurationLabel || 'N/A'}</p>
                   </div>
                 </div>
 
                 <div class="space-y-2">
-                  <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Règles enfreintes</p>
+                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Règles enfreintes</p>
                   <SelectedRuleChips selectedRules={selectedReportRules} />
                 </div>
 
                 <div class="space-y-2">
-                  <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Raison détaillée</p>
-                  <div class="rounded-2xl bg-surface-container-high/30 p-4 text-sm text-on-surface-variant leading-relaxed italic">
+                  <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Raison détaillée</p>
+                  <div class="rounded-lg bg-surface-container-high/30 p-4 text-sm text-on-surface-variant leading-relaxed italic">
                     "{selectedReport.detailedReason}"
                   </div>
                 </div>
 
                 {#if selectedReport.evidenceLinks && selectedReport.evidenceLinks.length > 0}
                   <div class="space-y-2">
-                    <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Preuves</p>
+                    <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Preuves</p>
                     <div class="flex flex-wrap gap-2">
                       {#each selectedReport.evidenceLinks as link}
                         <a href={link} target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 rounded-xl bg-on-surface/5 px-4 py-2 text-xs font-bold text-primary transition-all hover:bg-primary/10">
@@ -1905,7 +1905,7 @@
 
                 {#if selectedReport.additionalNotes}
                   <div class="space-y-2">
-                    <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Notes complémentaires</p>
+                    <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Notes complémentaires</p>
                     <p class="text-xs text-on-surface-variant/70 leading-relaxed">{selectedReport.additionalNotes}</p>
                   </div>
                 {/if}
@@ -1916,7 +1916,7 @@
                   {#if selectedReport.createdByUserId === authStore.user?.userId || authStore.isAdmin}
                     <button
                       onclick={() => startEditingReport(selectedReport)}
-                      class="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-[10px] font-black text-on-primary uppercase tracking-widest transition-all hover:bg-primary-container hover:scale-[1.02] active:scale-[0.98] shadow-xs cursor-pointer"
+                      class="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-[10px] font-semibold text-on-primary uppercase tracking-widest transition-all hover:bg-primary-container hover:scale-[1.02] active:scale-[0.98] shadow-xs cursor-pointer"
                     >
                       <Papicon icon="edit-3" size={14} />
                       Modifier le rapport
@@ -1931,14 +1931,14 @@
               <div class="h-16 w-16 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center mb-4">
                 <Papicon icon="alert-triangle" size={32} />
               </div>
-              <p class="text-sm font-black text-on-surface-variant">Rapport détaillé manquant</p>
+              <p class="text-sm font-semibold text-on-surface-variant">Rapport détaillé manquant</p>
               <p class="text-xs text-on-surface-variant/40 mt-1 max-w-xs">La sanction a été enregistrée mais le rapport détaillé n'a pas encore été rédigé par le modérateur.</p>
             </div>
           {/if}
 
           <button
             onclick={() => viewingReportSanctionId = null}
-            class="w-full mt-8 py-4 rounded-2xl bg-on-surface/5 text-sm font-black uppercase tracking-widest text-on-surface-variant transition-all hover:bg-on-surface/10 hover:text-on-surface"
+            class="w-full mt-8 py-4 rounded-lg bg-on-surface/5 text-sm font-semibold uppercase tracking-widest text-on-surface-variant transition-all hover:bg-on-surface/10 hover:text-on-surface"
           >
             Fermer les détails
           </button>

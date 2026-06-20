@@ -89,10 +89,10 @@
 <AdminLayout>
   <div class="space-y-6 pb-12 animate-in fade-in slide-in-from-bottom-3 duration-600">
   <!-- Header -->
-  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
     <div>
-      <h2 class="text-2xl font-black text-on-surface tracking-tight">Codes d'activation</h2>
-      <p class="text-sm text-on-surface-variant/50 mt-0.5 font-medium">Gestion des jetons d'activation pour les serveurs</p>
+      <h2 class="text-lg font-semibold text-on-surface tracking-tight">Codes d'activation</h2>
+      <p class="text-sm text-on-surface-variant/50 font-medium">Gestion des jetons d'activation pour les serveurs</p>
     </div>
   </div>
 
@@ -100,8 +100,8 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
       <div class="premium-card rounded-[2.25rem] p-8 space-y-6 h-full">
         <div class="animate-pulse space-y-4">
-          <div class="h-20 bg-surface/40 rounded-2xl"></div>
-          <div class="h-20 bg-surface/40 rounded-2xl"></div>
+          <div class="h-20 bg-surface/40 rounded-lg"></div>
+          <div class="h-20 bg-surface/40 rounded-lg"></div>
           <div class="h-12 bg-surface/40 rounded-xl"></div>
         </div>
       </div>
@@ -123,7 +123,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in">
       <!-- Generation Sidebar -->
       <div class="lg:col-span-1 space-y-6">
-        <h2 class="text-xl font-black font-headline flex items-center gap-3 px-2">
+        <h2 class="text-xl font-semibold font-headline flex items-center gap-3 px-2">
           <Papicon icon="Lock" size={24} class="text-indigo-400" />
           Générateur
         </h2>
@@ -133,7 +133,7 @@
             <p class="text-sm text-on-surface-variant leading-relaxed">
               Générez un nouveau code d'activation aléatoire unique. Ce code pourra être utilisé par les administrateurs de serveurs Discord pour activer le bot et débloquer leur accès au tableau de bord.
             </p>
-            <div class="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400 font-bold flex items-start gap-3">
+            <div class="p-4 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400 font-bold flex items-start gap-3">
               <Papicon icon="AlertTriangle" size={18} class="shrink-0 mt-0.5" />
               <span>Chaque code ne peut être utilisé que pour un seul serveur Discord à la fois.</span>
             </div>
@@ -141,7 +141,7 @@
 
           <button 
             onclick={handleGenerateCode}
-            class="w-full py-4 rounded-xl bg-primary text-on-primary font-black uppercase tracking-widest text-xs transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-primary/20 flex items-center justify-center gap-3"
+            class="w-full py-4 rounded-xl bg-primary text-on-primary font-semibold uppercase tracking-widest text-xs transition-all hover: active:scale-95  flex items-center justify-center gap-3"
           >
             <Papicon icon="Unlock" size={16} />
             Générer un code
@@ -151,7 +151,7 @@
 
       <!-- Codes List Table -->
       <div class="lg:col-span-2 space-y-6">
-        <h2 class="text-xl font-black font-headline flex items-center gap-3 px-2">
+        <h2 class="text-xl font-semibold font-headline flex items-center gap-3 px-2">
           <Papicon icon="activity" size={24} class="text-purple-400" />
           Jetons d'activation ({activationCodes.length})
         </h2>
@@ -159,7 +159,7 @@
         <div class="premium-card rounded-[2.25rem] overflow-hidden">
           <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse border-spacing-0">
-              <thead class="bg-on-surface/5 text-on-surface-variant/40 text-[10px] font-black uppercase tracking-widest">
+              <thead class="bg-on-surface/5 text-on-surface-variant/40 text-[10px] font-semibold uppercase tracking-widest">
                 <tr>
                   <th class="px-8 py-5">Code d'activation</th>
                   <th class="px-8 py-5">Statut</th>
@@ -171,18 +171,18 @@
                 {#each activationCodes as item}
                   <tr class="hover:bg-on-surface/5 transition-colors group">
                     <td class="px-8 py-5">
-                      <span class="font-mono text-sm font-black text-on-surface bg-surface-container-high px-3 py-1.5 rounded-lg border border-outline-variant/20 tracking-wider">
+                      <span class="font-mono text-sm font-semibold text-on-surface bg-surface-container-high px-3 py-1.5 rounded-lg border border-outline-variant/20 tracking-wider">
                         {item.code}
                       </span>
                     </td>
                     <td class="px-8 py-5">
                       {#if item.isActive}
-                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-success/10 text-success border border-success/20">
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-success/10 text-success border border-success/20">
                           <span class="w-1.5 h-1.5 rounded-full bg-success animate-pulse"></span>
                           Disponible
                         </span>
                       {:else}
-                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-amber-500/10 text-amber-500 border border-amber-500/20">
                           <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
                           Utilisé
                         </span>
@@ -200,7 +200,7 @@
                     </td>
                     <td class="px-8 py-5 text-right">
                         <button 
-                        class="w-10 h-10 inline-flex items-center justify-center hover:bg-error/10 rounded-xl text-on-surface-variant hover:text-error transition-all group-hover:scale-110"
+                        class="w-10 h-10 inline-flex items-center justify-center hover:bg-error/10 rounded-xl text-on-surface-variant hover:text-error transition-all group-"
                         onclick={() => handleDeleteCode(item.id, item.code, item.guildName)}
                         title={item.usedByGuildId ? "Révoquer et désactiver le serveur" : "Supprimer ce code"}
                       >

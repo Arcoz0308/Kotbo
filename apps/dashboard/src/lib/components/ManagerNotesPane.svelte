@@ -75,13 +75,13 @@
 
 <div class="space-y-6">
   <!-- Note Input -->
-  <div class="premium-card rounded-3xl p-6 bg-surface-container-low/40 border-outline-variant/10">
+  <div class="premium-card rounded-xl p-6 bg-surface-container-low/40 border-outline-variant/10">
     <div class="flex items-center gap-3 mb-4">
       <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
         <Papicon icon="edit_note" size={24} />
       </div>
       <div>
-        <h4 class="text-sm font-black uppercase tracking-widest text-on-surface">Ajouter une note</h4>
+        <h4 class="text-sm font-semibold uppercase tracking-widest text-on-surface">Ajouter une note</h4>
         <p class="text-[10px] text-on-surface-variant/50">Visible uniquement par l'administration</p>
       </div>
     </div>
@@ -91,7 +91,7 @@
         bind:value={newNote}
         placeholder="Rédiger une observation, un avertissement oral ou une note de suivi..."
         rows="3"
-        class="w-full bg-surface-container/30 border border-outline-variant/20 rounded-2xl p-4 text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-hidden focus:border-primary/50 transition-all resize-none"
+        class="w-full bg-surface-container/30 border border-outline-variant/20 rounded-lg p-4 text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-hidden focus:border-primary/50 transition-all resize-none"
       ></textarea>
       {#if error}
         <p class="text-[10px] text-rose-500 mt-2 font-bold">{error}</p>
@@ -102,7 +102,7 @@
       <button
         onclick={handleAddNote}
         disabled={isSaving || !newNote.trim()}
-        class="inline-flex items-center gap-2 px-6 py-2.5 bg-primary text-on-primary rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-primary/20 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:scale-100 transition-all font-headline"
+        class="inline-flex items-center gap-2 px-6 py-2.5 bg-primary text-on-primary rounded-xl text-xs font-semibold uppercase tracking-widest  hover:shadow-xl hover: active:scale-[0.98] disabled:opacity-50 disabled:scale-100 transition-all font-headline"
       >
         <Papicon icon={isSaving ? 'progress_activity' : 'send'} size={14} class={isSaving ? 'animate-spin' : ''} />
         {isSaving ? 'Envoi...' : 'Enregistrer'}
@@ -113,10 +113,10 @@
   <!-- Notes List -->
   <div class="space-y-4">
     {#each notes as note (note.id)}
-      <div class="group relative flex gap-4 p-5 rounded-3xl border border-outline-variant/10 bg-surface-container-lowest/50 hover:bg-surface-container-low/80 hover:border-outline-variant/30 transition-all duration-300">
+      <div class="group relative flex gap-4 p-5 rounded-xl border border-outline-variant/10 bg-surface-container-lowest/50 hover:bg-surface-container-low/80 hover:border-outline-variant/30 transition-all duration-300">
         <!-- Author Avatar -->
         <div class="shrink-0">
-          <div class="w-10 h-10 rounded-2xl overflow-hidden border-2 border-outline-variant/20 group-hover:border-primary/30 transition-all">
+          <div class="w-10 h-10 rounded-lg overflow-hidden border-2 border-outline-variant/20 group-hover:border-primary/30 transition-all">
             <img src={getAuthorAvatar(note.author)} alt="Avatar" class="w-full h-full object-cover" />
           </div>
         </div>
@@ -124,7 +124,7 @@
         <div class="flex-1 min-w-0">
           <div class="flex items-center justify-between gap-4 mb-2">
             <div class="flex items-center gap-2">
-              <span class="text-sm font-black text-on-surface">{note.author?.displayName || 'Gestionnaire'}</span>
+              <span class="text-sm font-semibold text-on-surface">{note.author?.displayName || 'Gestionnaire'}</span>
               <span class="text-[10px] text-on-surface-variant/40 font-bold uppercase tracking-wider">• {formatDate(note.createdAt)}</span>
             </div>
             
@@ -146,11 +146,11 @@
         <div class="absolute left-9 bottom-0 top-14 w-0.5 bg-outline-variant/10 -z-10 group-last:hidden"></div>
       </div>
     {:else}
-      <div class="flex flex-col items-center justify-center p-12 text-center border-2 border-dashed border-outline-variant/15 rounded-[2.5rem]">
-        <div class="w-16 h-16 rounded-3xl bg-surface-container text-on-surface-variant/20 flex items-center justify-center">
+      <div class="flex flex-col items-center justify-center p-12 text-center border-2 border-dashed border-outline-variant/15 rounded-xl">
+        <div class="w-16 h-16 rounded-xl bg-surface-container text-on-surface-variant/20 flex items-center justify-center">
           <Papicon icon="notes" size={30} />
         </div>
-        <h4 class="mt-4 text-sm font-black text-on-surface/40 uppercase tracking-widest">Aucune note</h4>
+        <h4 class="mt-4 text-sm font-semibold text-on-surface/40 uppercase tracking-widest">Aucune note</h4>
         <p class="mt-2 text-xs text-on-surface-variant/30 max-w-[200px]">Utilisez le formulaire ci-dessus pour ajouter le premier suivi.</p>
       </div>
     {/each}

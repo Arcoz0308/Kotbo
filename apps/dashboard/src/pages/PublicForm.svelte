@@ -199,14 +199,14 @@
   {:else if notFound}
     <div class="max-w-lg mx-auto text-center py-24">
       <div class="text-6xl mb-6">🔍</div>
-      <h1 class="text-2xl font-black text-on-surface mb-3">Formulaire introuvable</h1>
+      <h1 class="text-2xl font-semibold text-on-surface mb-3">Formulaire introuvable</h1>
       <p class="text-on-surface-variant/60 text-sm">Ce formulaire n'existe pas ou n'est plus actif.</p>
     </div>
 
   {:else if submitted}
     <!-- ── Success ── -->
     <div class="max-w-lg mx-auto">
-      <div class="rounded-3xl overflow-hidden shadow-2xl border border-outline-variant/20">
+      <div class="rounded-xl overflow-hidden shadow-sm border border-outline-variant/20">
         <div class="h-3" style="background:var(--form-color)"></div>
         <div class="bg-surface p-10 text-center">
           <div class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg"
@@ -216,7 +216,7 @@
                 style="stroke:var(--form-color)" />
             </svg>
           </div>
-          <h1 class="text-2xl font-black text-on-surface mb-3">Candidature envoyée !</h1>
+          <h1 class="text-2xl font-semibold text-on-surface mb-3">Candidature envoyée !</h1>
           <p class="text-on-surface-variant/70 text-sm leading-relaxed">
             Votre réponse a bien été reçue. Vous serez contacté prochainement par notre équipe.
           </p>
@@ -243,10 +243,10 @@
       {/if}
 
       <!-- Header card -->
-      <div class="rounded-3xl overflow-hidden shadow-lg border border-outline-variant/20">
+      <div class="rounded-xl overflow-hidden shadow-lg border border-outline-variant/20">
         <div class="h-3" style="background:var(--form-color)"></div>
         <div class="bg-surface p-6">
-          <h1 class="text-2xl font-black text-on-surface">{form.name}</h1>
+          <h1 class="text-2xl font-semibold text-on-surface">{form.name}</h1>
           {#if form.description}
             <p class="text-on-surface-variant/70 mt-2 text-sm leading-relaxed">{form.description}</p>
           {/if}
@@ -264,7 +264,7 @@
       <!-- Fields -->
       {#each currentFields as field (field.id)}
         {@const error = errors[field.id]}
-        <div class="rounded-2xl bg-surface border border-outline-variant/20 p-5 shadow-sm
+        <div class="rounded-lg bg-surface border border-outline-variant/20 p-5 shadow-sm
           {error ? 'ring-2 ring-rose-500/40' : ''}">
 
           <label for={field.id} class="block font-semibold text-on-surface mb-1 text-[15px]">
@@ -446,7 +446,7 @@
 
       <!-- Submit error -->
       {#if submitError}
-        <div class="rounded-2xl bg-rose-500/10 border border-rose-500/20 px-5 py-4 text-sm text-rose-600 font-medium">
+        <div class="rounded-lg bg-rose-500/10 border border-rose-500/20 px-5 py-4 text-sm text-rose-600 font-medium">
           {submitError}
         </div>
       {/if}
@@ -461,7 +461,7 @@
         {/if}
         <div class="flex-1"></div>
         <button onclick={nextSection} disabled={submitting}
-          class="px-8 py-3 rounded-xl text-white font-black text-sm shadow-lg transition-all hover:scale-105 active:scale-95 disabled:opacity-60 disabled:scale-100"
+          class="px-8 py-3 rounded-xl text-white font-semibold text-sm shadow-lg transition-all hover:scale-105 active:scale-95 disabled:opacity-60 disabled:scale-100"
           style="background:var(--form-color)">
           {#if submitting}
             <span class="flex items-center gap-2">

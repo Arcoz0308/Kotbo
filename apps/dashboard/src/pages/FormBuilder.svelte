@@ -298,7 +298,7 @@
   <!-- ── PREVIEW MODE ───────────────────────────────────────────────────────── -->
   <div class="min-h-screen bg-surface/50">
     <div class="sticky top-0 z-50 bg-surface border-b border-outline-variant/20 px-6 py-3 flex items-center justify-between">
-      <span class="font-black text-on-surface">Aperçu du formulaire</span>
+      <span class="font-semibold text-on-surface">Aperçu du formulaire</span>
       <button onclick={() => showPreview = false}
         class="px-4 py-2 rounded-xl bg-primary text-white text-sm font-bold flex items-center gap-2">
         <Papicon icon="edit" size={16} /> Retour à l'édition
@@ -306,25 +306,25 @@
     </div>
     <div class="max-w-2xl mx-auto p-6 space-y-4 pt-8">
       <!-- Header card -->
-      <div class="rounded-2xl overflow-hidden shadow-lg">
+      <div class="rounded-lg overflow-hidden shadow-lg">
         <div class="h-2" style="background:{headerColor}"></div>
         <div class="bg-surface border border-outline-variant/20 p-6 rounded-b-2xl">
-          <h1 class="text-2xl font-black text-on-surface">{formName}</h1>
+          <h1 class="text-2xl font-semibold text-on-surface">{formName}</h1>
           {#if formDescription}<p class="text-on-surface-variant/70 mt-2 text-sm">{formDescription}</p>{/if}
         </div>
       </div>
 
       {#each sections as section, sIdx}
         {#if sIdx > 0}
-          <div class="bg-surface border border-outline-variant/20 rounded-2xl p-5 shadow">
+          <div class="bg-surface border border-outline-variant/20 rounded-lg p-5 shadow">
             <div class="h-1 rounded-full mb-4" style="background:{headerColor}"></div>
-            <h2 class="text-lg font-black text-on-surface">{section.title}</h2>
+            <h2 class="text-lg font-semibold text-on-surface">{section.title}</h2>
             {#if section.description}<p class="text-sm text-on-surface-variant/70 mt-1">{section.description}</p>{/if}
           </div>
         {/if}
         {#each sectionFields(sIdx) as field (field.id)}
           {#if field.type !== 'section_header'}
-            <div class="bg-surface border border-outline-variant/20 rounded-2xl p-5 shadow">
+            <div class="bg-surface border border-outline-variant/20 rounded-lg p-5 shadow">
               <span class="block font-semibold text-on-surface mb-1">
                 {field.label}{#if field.required}<span class="text-rose-500 ml-1">*</span>{/if}
               </span>
@@ -407,8 +407,8 @@
               {/if}
             </div>
           {:else}
-            <div class="bg-surface border-l-4 rounded-2xl p-5 shadow" style="border-left-color:{headerColor}">
-              <h3 class="font-black text-on-surface text-lg">{field.label}</h3>
+            <div class="bg-surface border-l-4 rounded-lg p-5 shadow" style="border-left-color:{headerColor}">
+              <h3 class="font-semibold text-on-surface text-lg">{field.label}</h3>
               {#if field.description}<p class="text-sm text-on-surface-variant/70 mt-1">{field.description}</p>{/if}
             </div>
           {/if}
@@ -416,7 +416,7 @@
       {/each}
 
       <div class="flex justify-end pt-4">
-        <button class="px-8 py-3 rounded-xl text-white font-black text-sm" style="background:{headerColor}">
+        <button class="px-8 py-3 rounded-xl text-white font-semibold text-sm" style="background:{headerColor}">
           Envoyer
         </button>
       </div>
@@ -428,14 +428,14 @@
   <div class="flex flex-col min-h-screen bg-surface">
 
     <!-- Top bar -->
-    <div class="sticky top-0 z-50 bg-surface/95 backdrop-blur border-b border-outline-variant/20 px-4 py-2 flex items-center gap-3">
+    <div class="sticky top-0 z-50 bg-surface/95 border-b border-outline-variant/20 px-4 py-2 flex items-center gap-3">
       <button onclick={() => router.goto(isCustomFormMode ? '/forms' : '/recruitment-forms')}
         class="p-2 rounded-xl hover:bg-surface-container transition-colors">
         <Papicon icon="arrow_back" size={20} />
       </button>
       <div class="flex-1 min-w-0">
         <input bind:value={formName}
-          class="w-full bg-transparent text-lg font-black text-on-surface outline-none focus:border-b-2 focus:border-primary"
+          class="w-full bg-transparent text-lg font-semibold text-on-surface outline-none focus:border-b-2 focus:border-primary"
           placeholder="Titre du formulaire" />
       </div>
 
@@ -454,7 +454,7 @@
           <span class="hidden sm:inline">Aperçu</span>
         </button>
         <button onclick={() => save(false)}
-          class="px-4 py-1.5 rounded-xl bg-primary text-white text-xs font-black flex items-center gap-1.5 hover:bg-primary/90 transition-colors disabled:opacity-60"
+          class="px-4 py-1.5 rounded-xl bg-primary text-white text-xs font-semibold flex items-center gap-1.5 hover:bg-primary/90 transition-colors disabled:opacity-60"
           disabled={saving}>
           {#if saving}
             <div class="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin"></div>
@@ -473,11 +473,11 @@
 
         <!-- Header color picker -->
         <div class="p-4 border-b border-outline-variant/10">
-          <p class="text-xs font-black uppercase tracking-widest text-on-surface-variant/60 mb-2">Couleur d'en-tête</p>
+          <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/60 mb-2">Couleur d'en-tête</p>
           <div class="flex flex-wrap gap-2">
             {#each PALETTE as color}
               <button onclick={() => headerColor = color}
-                class="w-6 h-6 rounded-full transition-transform hover:scale-110 {headerColor === color ? 'ring-2 ring-offset-2 ring-offset-surface ring-primary scale-110' : ''}"
+                class="w-6 h-6 rounded-full transition-transform  {headerColor === color ? 'ring-2 ring-offset-2 ring-offset-surface ring-primary scale-110' : ''}"
                 style="background:{color}"
                 aria-label="Sélectionner la couleur d'en-tête {color}"
               ></button>
@@ -488,7 +488,7 @@
         <!-- Sections -->
         <div class="p-4 border-b border-outline-variant/10">
           <div class="flex items-center justify-between mb-2">
-            <p class="text-xs font-black uppercase tracking-widest text-on-surface-variant/60">Sections</p>
+            <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/60">Sections</p>
             <button onclick={addSection}
               class="p-1 rounded-lg hover:bg-surface-container transition-colors text-primary">
               <Papicon icon="add" size={16} />
@@ -514,7 +514,7 @@
 
         <!-- Add question types -->
         <div class="p-4 flex-1">
-          <p class="text-xs font-black uppercase tracking-widest text-on-surface-variant/60 mb-3">Ajouter une question</p>
+          <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/60 mb-3">Ajouter une question</p>
           <div class="grid grid-cols-1 gap-1">
             {#each FIELD_TYPES as ft}
               <button onclick={() => addField(ft.type)}
@@ -532,11 +532,11 @@
         <div class="max-w-2xl mx-auto space-y-3">
 
           <!-- Form header card -->
-          <div class="rounded-2xl overflow-hidden shadow-sm border border-outline-variant/20">
+          <div class="rounded-lg overflow-hidden shadow-sm border border-outline-variant/20">
             <div class="h-2 transition-colors" style="background:{headerColor}"></div>
             <div class="bg-surface p-5">
               <input bind:value={formName}
-                class="w-full bg-transparent text-xl font-black text-on-surface outline-none border-b-2 border-transparent focus:border-primary/50 pb-1 mb-2 transition-colors"
+                class="w-full bg-transparent text-xl font-semibold text-on-surface outline-none border-b-2 border-transparent focus:border-primary/50 pb-1 mb-2 transition-colors"
                 placeholder="Titre du formulaire" />
               <input bind:value={formDescription}
                 class="w-full bg-transparent text-sm text-on-surface-variant outline-none border-b border-transparent focus:border-primary/30 pb-1 transition-colors"
@@ -546,9 +546,9 @@
 
           <!-- Section header editor (active section > 0) -->
           {#if activeSection > 0}
-            <div class="rounded-2xl border-l-4 border-primary bg-surface p-5 shadow-sm border border-outline-variant/20">
+            <div class="rounded-lg border-l-4 border-primary bg-surface p-5 shadow-sm border border-outline-variant/20">
               <input bind:value={sections[activeSection].title}
-                class="w-full bg-transparent text-lg font-black text-on-surface outline-none border-b-2 border-transparent focus:border-primary/50 pb-1 mb-2 transition-colors"
+                class="w-full bg-transparent text-lg font-semibold text-on-surface outline-none border-b-2 border-transparent focus:border-primary/50 pb-1 mb-2 transition-colors"
                 placeholder="Titre de la section" />
               <input bind:value={sections[activeSection].description}
                 class="w-full bg-transparent text-sm text-on-surface-variant outline-none border-b border-transparent focus:border-primary/30 pb-1 transition-colors"
@@ -569,7 +569,7 @@
               ondragleave={() => dragOverId = null}
               onclick={() => activeFieldId = field.id}
               onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') activeFieldId = field.id; }}
-              class="rounded-2xl bg-surface border-2 shadow-sm cursor-pointer transition-all outline-none focus:ring-2 focus:ring-primary/40
+              class="rounded-lg bg-surface border-2 shadow-sm cursor-pointer transition-all outline-none focus:ring-2 focus:ring-primary/40
                 {isActive ? 'border-primary shadow-primary/10' : 'border-outline-variant/20 hover:border-outline-variant/40'}
                 {dragOverId === field.id ? 'scale-[1.01] border-primary/60' : ''}">
 
@@ -594,7 +594,7 @@
               <div class="p-4 space-y-3">
                 {#if field.type === 'section_header'}
                   <input value={field.label} oninput={(e) => updateField(field.id, 'label', (e.target as HTMLInputElement).value)}
-                    class="w-full text-lg font-black bg-transparent outline-none border-b-2 border-transparent focus:border-primary/50 pb-1"
+                    class="w-full text-lg font-semibold bg-transparent outline-none border-b-2 border-transparent focus:border-primary/50 pb-1"
                     placeholder="Titre de section" />
                   <input value={field.description || ''} oninput={(e) => updateField(field.id, 'description', (e.target as HTMLInputElement).value)}
                     class="w-full text-sm bg-transparent outline-none text-on-surface-variant border-b border-transparent focus:border-primary/30 pb-1"
@@ -744,7 +744,7 @@
           {/each}
 
           {#if sectionFields(activeSection).length === 0}
-            <div class="rounded-2xl border-2 border-dashed border-outline-variant/20 p-12 text-center text-on-surface-variant/30">
+            <div class="rounded-lg border-2 border-dashed border-outline-variant/20 p-12 text-center text-on-surface-variant/30">
               <Papicon icon="add_circle" size={48} class="mb-3" />
               <p class="text-sm">Cliquez sur un type de question dans le panneau gauche pour commencer</p>
             </div>

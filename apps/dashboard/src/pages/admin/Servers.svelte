@@ -140,18 +140,18 @@
   <div class="space-y-6 pb-12 animate-in fade-in slide-in-from-bottom-3 duration-600">
 
     <!-- Page header -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
       <div>
-        <h2 class="text-2xl font-black text-on-surface tracking-tight">Serveurs</h2>
-        <p class="text-sm text-on-surface-variant/50 mt-0.5 font-medium">Gestion des serveurs Discord connectés</p>
+        <h2 class="text-lg font-semibold text-on-surface tracking-tight">Serveurs</h2>
+        <p class="text-sm text-on-surface-variant/50 font-medium">Gestion des serveurs Discord connectés</p>
       </div>
       {#if !loading && stats}
         <div class="flex items-center gap-2 flex-wrap">
-          <div class="px-3.5 py-2 rounded-xl bg-on-surface/5 border border-outline-variant/10 text-xs font-black text-on-surface-variant flex items-center gap-2">
+          <div class="px-3.5 py-2 rounded-xl bg-on-surface/5 border border-outline-variant/10 text-xs font-semibold text-on-surface-variant flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
             {activatedCount} activé{activatedCount > 1 ? 's' : ''}
           </div>
-          <div class="px-3.5 py-2 rounded-xl bg-on-surface/5 border border-outline-variant/10 text-xs font-black text-on-surface-variant">
+          <div class="px-3.5 py-2 rounded-xl bg-on-surface/5 border border-outline-variant/10 text-xs font-semibold text-on-surface-variant">
             {stats.guildCount} total
           </div>
         </div>
@@ -166,12 +166,12 @@
       </div>
 
     {:else if error}
-      <div class="flex flex-col items-center justify-center py-20 gap-4 text-center bg-error/5 border border-error/15 rounded-2xl">
-        <div class="w-14 h-14 rounded-2xl bg-error/10 border border-error/20 flex items-center justify-center text-error">
+      <div class="flex flex-col items-center justify-center py-20 gap-4 text-center bg-error/5 border border-error/15 rounded-lg">
+        <div class="w-14 h-14 rounded-lg bg-error/10 border border-error/20 flex items-center justify-center text-error">
           <Papicon icon="AlertTriangle" size={28} />
         </div>
         <div>
-          <p class="font-black text-on-surface text-lg">Erreur de chargement</p>
+          <p class="font-semibold text-on-surface text-lg">Erreur de chargement</p>
           <p class="text-sm text-on-surface-variant/60 mt-1">{error}</p>
         </div>
       </div>
@@ -191,17 +191,17 @@
       </div>
 
       <!-- Table -->
-      <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-2xl overflow-hidden">
+      <div class="bg-surface-container-low/50 border border-outline-variant/10 rounded-lg overflow-hidden">
         <div class="overflow-x-auto">
           <table class="w-full">
             <thead>
               <tr class="border-b border-outline-variant/10 bg-on-surface/3">
-                <th class="text-left text-[10px] font-black uppercase tracking-widest text-on-surface-variant/30 px-5 py-3.5">Serveur</th>
-                <th class="text-left text-[10px] font-black uppercase tracking-widest text-on-surface-variant/30 px-5 py-3.5">Shard</th>
-                <th class="text-left text-[10px] font-black uppercase tracking-widest text-on-surface-variant/30 px-5 py-3.5">Statut</th>
-                <th class="text-left text-[10px] font-black uppercase tracking-widest text-on-surface-variant/30 px-5 py-3.5">Scan Stats</th>
-                <th class="text-left text-[10px] font-black uppercase tracking-widest text-on-surface-variant/30 px-5 py-3.5">Rejoint</th>
-                <th class="text-right text-[10px] font-black uppercase tracking-widest text-on-surface-variant/30 px-5 py-3.5">Actions</th>
+                <th class="text-left text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/30 px-5 py-3.5">Serveur</th>
+                <th class="text-left text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/30 px-5 py-3.5">Shard</th>
+                <th class="text-left text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/30 px-5 py-3.5">Statut</th>
+                <th class="text-left text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/30 px-5 py-3.5">Scan Stats</th>
+                <th class="text-left text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/30 px-5 py-3.5">Rejoint</th>
+                <th class="text-right text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/30 px-5 py-3.5">Actions</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-outline-variant/8">
@@ -216,7 +216,7 @@
                       {#if guild.icon}
                         <img src={guild.icon} alt={guild.name} class="w-9 h-9 rounded-lg object-cover border border-outline-variant/10 shadow-sm" />
                       {:else}
-                        <div class="w-9 h-9 rounded-lg bg-on-surface/10 border border-outline-variant/10 flex items-center justify-center text-sm font-black text-on-surface-variant/60">
+                        <div class="w-9 h-9 rounded-lg bg-on-surface/10 border border-outline-variant/10 flex items-center justify-center text-sm font-semibold text-on-surface-variant/60">
                           {guild.name.charAt(0)}
                         </div>
                       {/if}
@@ -229,7 +229,7 @@
 
                   <!-- Shard -->
                   <td class="px-5 py-4">
-                    <span class="text-xs font-black font-mono text-on-surface-variant/50 bg-on-surface/5 px-2 py-1 rounded-lg border border-outline-variant/10">
+                    <span class="text-xs font-semibold font-mono text-on-surface-variant/50 bg-on-surface/5 px-2 py-1 rounded-lg border border-outline-variant/10">
                       #{guild.shardId}
                     </span>
                   </td>
@@ -238,18 +238,18 @@
                   <td class="px-5 py-4">
                     {#if guild.activated}
                       <div class="flex flex-col gap-1">
-                        <span class="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full w-fit">
+                        <span class="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full w-fit">
                           <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                           Activé
                         </span>
                         {#if guild.activationCode}
-                          <span class="text-[9px] font-mono text-on-surface-variant/30 pl-1">{guild.activationCode}</span>
+                          <span class="text-[11px] font-mono text-on-surface-variant/30 pl-1">{guild.activationCode}</span>
                         {/if}
                       </div>
                     {:else}
                       <button
                         onclick={() => handleActivateGuildAuto(guild.id, guild.name)}
-                        class="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-2.5 py-1 rounded-full cursor-pointer transition-all"
+                        class="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-2.5 py-1 rounded-full cursor-pointer transition-all"
                       >
                         <Papicon icon="Key" size={10} />
                         Activer
@@ -261,16 +261,16 @@
                   <td class="px-5 py-4">
                     {#if guild.activated}
                       <div class="flex flex-col gap-1.5">
-                        <span class="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest border px-2.5 py-1 rounded-full w-fit {scanCfg.chip}">
+                        <span class="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest border px-2.5 py-1 rounded-full w-fit {scanCfg.chip}">
                           <span class="w-1.5 h-1.5 rounded-full {scanCfg.dot}"></span>
                           {scanCfg.label}
                         </span>
                         {#if status === 'IN_PROGRESS' && progress}
-                          <p class="text-[9px] text-on-surface-variant/40 font-mono pl-1">
+                          <p class="text-[11px] text-on-surface-variant/40 font-mono pl-1">
                             {progress.scrapedChannelsCount}/{progress.totalChannelsCount} ch · {progress.scrapedMessagesCount.toLocaleString()} msgs
                           </p>
                         {:else if status === 'COMPLETED' && guild.statsConfig?.historicalScrapedMessages}
-                          <p class="text-[9px] text-on-surface-variant/30 font-mono pl-1">
+                          <p class="text-[11px] text-on-surface-variant/30 font-mono pl-1">
                             {guild.statsConfig.historicalScrapedMessages.toLocaleString()} msgs
                           </p>
                         {/if}
@@ -278,11 +278,11 @@
                           <div class="flex gap-1">
                             <button
                               onclick={() => handleRescanStats(guild.id, guild.name, false)}
-                              class="text-[9px] font-black text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 px-2 py-0.5 rounded cursor-pointer transition-all"
+                              class="text-[11px] font-semibold text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 px-2 py-0.5 rounded cursor-pointer transition-all"
                             >Scan</button>
                             <button
                               onclick={() => handleRescanStats(guild.id, guild.name, true)}
-                              class="text-[9px] font-black text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 px-2 py-0.5 rounded cursor-pointer transition-all"
+                              class="text-[11px] font-semibold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 px-2 py-0.5 rounded cursor-pointer transition-all"
                             >Forcer</button>
                           </div>
                         {/if}

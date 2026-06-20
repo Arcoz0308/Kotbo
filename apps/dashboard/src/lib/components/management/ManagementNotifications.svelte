@@ -42,9 +42,9 @@
   let expandedFeature = $state<string | null>(null);
 </script>
 
-<div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6 animate-in fade-in duration-500">
+<div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 animate-in fade-in duration-500">
   <div>
-    <h3 class="text-2xl font-black">Système de Notifications</h3>
+    <h3 class="text-2xl font-semibold">Système de Notifications</h3>
     <p class="text-xs text-on-surface-variant/50 mt-1">Configurez qui et comment les alertes sont envoyées pour chaque module.</p>
   </div>
 
@@ -58,10 +58,10 @@
         <!-- Category header -->
         <button
           onclick={() => expandedCategory = isCatExpanded ? null : group.category}
-          class="w-full flex items-center gap-3 px-5 py-3 rounded-2xl {catColor.bg} border {catColor.border} hover:opacity-90 transition-all cursor-pointer"
+          class="w-full flex items-center gap-3 px-5 py-3 rounded-lg {catColor.bg} border {catColor.border} hover:opacity-90 transition-all cursor-pointer"
         >
           <Papicon icon={catIcon} size={18} class={catColor.text} />
-          <span class="text-[11px] font-black uppercase tracking-widest {catColor.text}">{group.category}</span>
+          <span class="text-[11px] font-semibold uppercase tracking-widest {catColor.text}">{group.category}</span>
           <span class="text-[10px] text-on-surface-variant/40 ml-1">{group.items.length} module{group.items.length > 1 ? 's' : ''}</span>
           <div class="ml-auto transform transition-transform {isCatExpanded ? 'rotate-180' : ''}">
             <Papicon icon="CaretDown" size={14} class="text-on-surface-variant/40" />
@@ -73,7 +73,7 @@
           <div class="space-y-2 pl-2 animate-in fade-in slide-in-from-top-1 duration-300">
             {#each group.items as { feature, idx }}
               {@const isExpanded = expandedFeature === feature.featureKey}
-              <div class="bg-surface-container-high/20 border border-outline-variant/5 rounded-3xl overflow-hidden">
+              <div class="bg-surface-container-high/20 border border-outline-variant/5 rounded-xl overflow-hidden">
                 <!-- Feature header -->
                 <button
                   onclick={() => expandedFeature = isExpanded ? null : feature.featureKey}
@@ -84,13 +84,13 @@
                     <span class="text-sm font-bold">{feature.featureName}</span>
                     <div class="flex gap-1 ml-2">
                       {#if feature.featureKey === 'absences'}
-                        <span class="px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-400 text-[8px] font-bold">Absences</span>
+                        <span class="px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-400 text-[10px] font-bold">Absences</span>
                       {/if}
                       {#if feature.notifyViaDiscordChannel}
-                        <span class="px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-400 text-[8px] font-bold">Salon</span>
+                        <span class="px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-400 text-[10px] font-bold">Salon</span>
                       {/if}
                       {#if feature.notifyViaDM}
-                        <span class="px-1.5 py-0.5 rounded-md bg-purple-500/10 text-purple-400 text-[8px] font-bold">MP</span>
+                        <span class="px-1.5 py-0.5 rounded-md bg-purple-500/10 text-purple-400 text-[10px] font-bold">MP</span>
                       {/if}
                     </div>
                   </div>
@@ -104,7 +104,7 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <!-- Methods -->
                       <div class="space-y-3">
-                        <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Méthodes d'envoi</p>
+                        <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Méthodes d'envoi</p>
                         <div class="space-y-2">
                           {#each notificationMethods as method}
                             <div class="flex items-center justify-between p-3 rounded-xl bg-surface-container-high/40 border border-outline-variant/5">
@@ -112,7 +112,7 @@
                                 <Papicon icon={method.icon} size={14} class="text-primary" />
                                 <div>
                                   <p class="text-[11px] font-bold">{method.label}</p>
-                                  <p class="text-[9px] text-on-surface-variant/40">{method.desc}</p>
+                                  <p class="text-[11px] text-on-surface-variant/40">{method.desc}</p>
                                 </div>
                               </div>
                               <ToggleSwitch checked={features[idx][method.key]} onToggle={(v) => { features[idx][method.key] = v; features = [...features]; }} />
@@ -123,7 +123,7 @@
 
                       <!-- Configuration -->
                       <div class="space-y-3">
-                        <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Paramètres</p>
+                        <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Paramètres</p>
                         <div class="space-y-4">
                           <div class="space-y-1.5">
                             <label for="notify-channel-{feature.featureKey}" class="text-[10px] font-bold text-on-surface-variant/60">Salon des alertes</label>
@@ -155,7 +155,7 @@
                     <div class="flex justify-end pt-2">
                       <button
                         onclick={() => onSave(feature.featureKey)}
-                        class="px-6 py-2.5 bg-primary text-on-primary text-[10px] font-black uppercase tracking-widest rounded-xl hover:scale-105 transition-transform"
+                        class="px-6 py-2.5 bg-primary text-on-primary text-[10px] font-semibold uppercase tracking-widest rounded-xl hover:scale-105 transition-transform"
                       >
                         Appliquer
                       </button>

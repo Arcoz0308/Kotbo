@@ -94,7 +94,7 @@
       <button
         type="button"
         onclick={() => onToggleSort?.()}
-        class="inline-flex h-6 min-w-6 items-center justify-center rounded-md border border-transparent text-[11px] font-black transition hover:border-slate-300 hover:bg-slate-100 dark:hover:border-slate-600 dark:hover:bg-slate-800 {sortDirection ? 'text-primary' : 'text-on-surface-variant'}"
+        class="inline-flex h-6 min-w-6 items-center justify-center rounded-md border border-transparent text-[11px] font-semibold transition hover:border-slate-300 hover:bg-slate-100 dark:hover:border-slate-600 dark:hover:bg-slate-800 {sortDirection ? 'text-primary' : 'text-on-surface-variant'}"
         title={sortDirection ? `Tri ${sortDirection === 'asc' ? 'croissant' : 'decroissant'}` : 'Activer le tri'}
         disabled={disabled}
       >
@@ -112,7 +112,7 @@
       <button
         type="button"
         onclick={toggleFilterPanel}
-        class="inline-flex h-6 min-w-6 items-center justify-center rounded-md border text-[11px] font-black transition {selectedCount > 0 ? 'border-primary/35 bg-primary/10 text-primary' : 'border-slate-200 text-on-surface-variant hover:border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:hover:border-slate-600 dark:hover:bg-slate-800'}"
+        class="inline-flex h-6 min-w-6 items-center justify-center rounded-md border text-[11px] font-semibold transition {selectedCount > 0 ? 'border-primary/35 bg-primary/10 text-primary' : 'border-slate-200 text-on-surface-variant hover:border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:hover:border-slate-600 dark:hover:bg-slate-800'}"
         title={selectedCount > 0 ? `${selectedCount} filtre(s) actif(s)` : 'Filtrer cette colonne'}
         disabled={disabled}
       >
@@ -122,9 +122,9 @@
   </div>
 
   {#if canFilter && filterOpen}
-    <div class="absolute left-0 top-8 z-20 w-64 rounded-xl border border-slate-200 bg-white p-3 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+    <div class="absolute left-0 top-8 z-20 w-64 rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
       <div class="mb-2 flex items-center justify-between gap-2">
-        <p class="text-[11px] font-black uppercase tracking-wider text-on-surface-variant">Filtrer {label.toLowerCase()}</p>
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Filtrer {label.toLowerCase()}</p>
         {#if selectedCount > 0}
           <button
             type="button"

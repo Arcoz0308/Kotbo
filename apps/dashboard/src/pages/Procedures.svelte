@@ -86,29 +86,31 @@
 
 <div class="h-[calc(100vh-8rem)] flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
   <!-- Header -->
-  <div class="rounded-[2.5rem] border border-outline-variant/20 bg-linear-to-br from-surface-container/90 to-surface-container-low/80 p-6 md:p-8 backdrop-blur-xl shrink-0">
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
-      <div class="space-y-2">
-        <div class="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-primary">
-          <Papicon icon="file-text" size={14} />
-          Manuel des Procédures
+  <div class="rounded-xl border border-outline-variant/20 bg-linear-to-br from-surface-container/90 to-surface-container-low/80 p-5 shrink-0">
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div class="flex items-center gap-4">
+        <div class="bg-primary/10 p-2 rounded-xl text-primary">
+          <Papicon icon="file-text" size={20} />
         </div>
-        <h1 class="text-3xl font-black tracking-tighter text-on-surface">Guide Interne Staff</h1>
-        <p class="text-sm font-medium text-on-surface-variant/70">Consultez et validez les étapes clés de nos protocoles de modération.</p>
+        <div>
+          <span class="text-[10px] font-semibold uppercase tracking-widest text-primary">Manuel des Procédures</span>
+          <h1 class="text-lg font-semibold tracking-tight text-on-surface">Guide Interne Staff</h1>
+          <p class="text-sm font-medium text-on-surface-variant/70">Consultez et validez les étapes clés de nos protocoles de modération.</p>
+        </div>
       </div>
 
-      <div class="flex items-center gap-6">
-        <div class="flex flex-col items-end gap-1.5">
-          <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/50">Progression globale</span>
-          <div class="flex items-center gap-3">
-             <div class="w-32 h-2 bg-surface-container-high rounded-full overflow-hidden">
+      <div class="flex items-center gap-4">
+        <div class="flex flex-col items-end gap-1">
+          <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Progression</span>
+          <div class="flex items-center gap-2">
+             <div class="w-24 h-1.5 bg-surface-container-high rounded-full overflow-hidden">
                 <div class="h-full bg-primary transition-all duration-1000" style="width: {progressPercent}%"></div>
              </div>
-             <span class="text-xs font-black text-primary">{readCount}/{totalCount}</span>
+             <span class="text-xs font-semibold text-primary">{readCount}/{totalCount}</span>
           </div>
         </div>
         {#if isAdmin}
-          <button onclick={openCreate} class="flex items-center gap-2 rounded-2xl bg-primary px-5 py-3 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all">
+          <button onclick={openCreate} class="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-xs font-semibold uppercase tracking-widest text-white hover:scale-105 active:scale-95 transition-all">
              <Papicon icon="plus" size={16} />
              Nouveau
           </button>
@@ -126,13 +128,13 @@
            tabindex="0"
            onclick={() => { selectedProcedure = proc }}
            onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectedProcedure = proc } }}
-           class="flex items-start gap-4 p-4 rounded-3xl border transition-all text-left cursor-pointer group {selectedProcedure?.id === proc.id ? 'bg-primary border-primary text-white shadow-xl shadow-primary/20 scale-[1.02]' : 'bg-surface-container-low border-outline-variant/20 text-on-surface-variant hover:bg-surface-container-high'}"
+           class="flex items-start gap-4 p-4 rounded-xl border transition-all text-left cursor-pointer group {selectedProcedure?.id === proc.id ? 'bg-primary border-primary text-white shadow-sm shadow-primary/20 ' : 'bg-surface-container-low border-outline-variant/20 text-on-surface-variant hover:bg-surface-container-high'}"
          >
            <div class="mt-1 rounded-full p-2 {selectedProcedure?.id === proc.id ? 'bg-white/20' : 'bg-primary/10 text-primary'}">
               <Papicon icon={isRead(proc) ? 'check' : 'file-text'} size={18} />
            </div>
            <div class="flex-1 min-w-0">
-              <div class="text-sm font-black tracking-tight line-clamp-1">{proc.title}</div>
+              <div class="text-sm font-semibold tracking-tight line-clamp-1">{proc.title}</div>
               <div class="text-[10px] font-bold uppercase opacity-60 mt-0.5 tracking-wider">Ordre: {proc.sortOrder}</div>
            </div>
            {#if isAdmin}
@@ -145,12 +147,12 @@
     </aside>
 
     <!-- Main Content -->
-    <main class="flex-1 bg-surface-container-low/50 rounded-[3rem] border border-outline-variant/20 overflow-hidden flex flex-col">
+    <main class="flex-1 bg-surface-container-low/50 rounded-xl border border-outline-variant/20 overflow-hidden flex flex-col">
        {#if selectedProcedure}
           <div class="p-8 md:p-12 overflow-y-auto flex-1 scrollbar-hide">
              <div class="max-w-3xl mx-auto space-y-8">
                 <div class="space-y-4">
-                   <h2 class="text-4xl font-black tracking-tighter text-on-surface leading-tight">{selectedProcedure.title}</h2>
+                   <h2 class="text-lg font-semibold tracking-tighter text-on-surface leading-tight">{selectedProcedure.title}</h2>
                    <div class="flex items-center gap-4 text-xs font-bold text-on-surface-variant/40 uppercase tracking-widest">
                       <span>Dernière mise à jour: {new Date(selectedProcedure.updatedAt).toLocaleDateString('fr')}</span>
                       {#if isRead(selectedProcedure)}
@@ -168,16 +170,16 @@
              </div>
           </div>
           
-          <div class="p-6 border-t border-outline-variant/10 bg-surface-container/30 backdrop-blur-sm flex items-center justify-between">
+          <div class="p-6 border-t border-outline-variant/10 bg-surface-container/30 flex items-center justify-between">
              <div class="flex items-center gap-3">
                 <div class="flex -space-x-2">
                    {#each (selectedProcedure.reads || []).slice(0, 5) as read}
-                      <div class="w-8 h-8 rounded-full border-2 border-surface bg-primary/20 flex items-center justify-center text-[10px] font-black" title="Lu">
+                      <div class="w-8 h-8 rounded-full border-2 border-surface bg-primary/20 flex items-center justify-center text-[10px] font-semibold" title="Lu">
                          ?
                       </div>
                    {/each}
                    {#if (selectedProcedure.reads?.length || 0) > 5}
-                      <div class="w-8 h-8 rounded-full border-2 border-surface bg-surface-container-high flex items-center justify-center text-[10px] font-black">
+                      <div class="w-8 h-8 rounded-full border-2 border-surface bg-surface-container-high flex items-center justify-center text-[10px] font-semibold">
                          +{(selectedProcedure.reads?.length || 0) - 5}
                       </div>
                    {/if}
@@ -186,12 +188,12 @@
              </div>
 
              {#if !isRead(selectedProcedure)}
-                <button onclick={handleMarkAsRead} class="flex items-center gap-2 rounded-2xl bg-emerald-600 px-8 py-4 text-sm font-black uppercase tracking-widest text-white shadow-xl shadow-emerald-500/20 hover:scale-[1.02] active:scale-95 transition-all">
+                <button onclick={handleMarkAsRead} class="flex items-center gap-2 rounded-lg bg-emerald-600 px-8 py-4 text-sm font-semibold uppercase tracking-widest text-white shadow-sm shadow-emerald-500/20 hover: active:scale-95 transition-all">
                    J'ai lu et j'accepte
                    <Papicon icon="check" size={20} />
                 </button>
              {:else}
-                <div class="text-sm font-black text-emerald-500 flex items-center gap-2">
+                <div class="text-sm font-semibold text-emerald-500 flex items-center gap-2">
                    <Papicon icon="check-circle" size={20} />
                    PROCÉDURE VALIDÉE
                 </div>
@@ -200,7 +202,7 @@
        {:else}
           <div class="flex-1 flex flex-col items-center justify-center text-on-surface-variant/20">
              <Papicon icon="Grid" size={120} />
-             <p class="mt-8 text-xl font-black uppercase tracking-[0.2em]">Sélectionnez une procédure</p>
+             <p class="mt-8 text-xl font-semibold uppercase tracking-wider">Sélectionnez une procédure</p>
           </div>
        {/if}
     </main>
@@ -208,12 +210,12 @@
 </div>
 
 {#if showEditModal}
-  <div class="fixed inset-0 z-100 flex items-center justify-center p-6 backdrop-blur-md bg-black/40 animate-in fade-in duration-300">
-    <div class="w-full max-w-2xl bg-surface-container rounded-[3rem] border border-outline-variant/30 shadow-2xl overflow-hidden p-8 space-y-6">
-       <h3 class="text-2xl font-black tracking-tighter">Édition / Création</h3>
+  <div class="fixed inset-0 z-100 flex items-center justify-center p-6 bg-black/40 animate-in fade-in duration-300">
+    <div class="w-full max-w-2xl bg-surface-container rounded-xl border border-outline-variant/30 shadow-sm overflow-hidden p-8 space-y-6">
+       <h3 class="text-2xl font-semibold tracking-tighter">Édition / Création</h3>
        <div class="space-y-4">
-          <input bind:value={editingProcedure.title} placeholder="Titre de la procédure" class="w-full bg-surface-container-low border border-outline-variant/20 rounded-2xl px-5 py-4 text-sm outline-none focus:border-primary transition-all" />
-          <textarea bind:value={editingProcedure.content} placeholder="Contenu (Markdown possible)..." rows="12" class="w-full bg-surface-container-low border border-outline-variant/20 rounded-2xl px-5 py-4 text-sm outline-none focus:border-primary transition-all resize-none"></textarea>
+          <input bind:value={editingProcedure.title} placeholder="Titre de la procédure" class="w-full bg-surface-container-low border border-outline-variant/20 rounded-lg px-5 py-4 text-sm outline-none focus:border-primary transition-all" />
+          <textarea bind:value={editingProcedure.content} placeholder="Contenu (Markdown possible)..." rows="12" class="w-full bg-surface-container-low border border-outline-variant/20 rounded-lg px-5 py-4 text-sm outline-none focus:border-primary transition-all resize-none"></textarea>
           <div class="flex items-center gap-4">
              <div class="flex-1 flex items-center gap-3">
                 <span class="text-xs font-bold uppercase tracking-widest opacity-50">Ordre</span>
@@ -227,8 +229,8 @@
           </div>
        </div>
        <div class="flex gap-4 pt-4">
-          <button onclick={() => showEditModal = false} class="flex-1 py-4 text-sm font-black uppercase tracking-widest text-on-surface-variant/60 hover:bg-surface-container-high rounded-2xl transition-all">Annuler</button>
-          <button onclick={handleSave} class="flex-1 py-4 bg-primary text-white text-sm font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all">Sauvegarder</button>
+          <button onclick={() => showEditModal = false} class="flex-1 py-4 text-sm font-semibold uppercase tracking-widest text-on-surface-variant/60 hover:bg-surface-container-high rounded-lg transition-all">Annuler</button>
+          <button onclick={handleSave} class="flex-1 py-4 bg-primary text-white text-sm font-semibold uppercase tracking-widest rounded-lg shadow-sm shadow-primary/20 hover: transition-all">Sauvegarder</button>
        </div>
     </div>
   </div>

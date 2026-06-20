@@ -57,35 +57,35 @@
 
 <div class="max-w-5xl mx-auto space-y-8" in:fade={{ duration: 300, delay: 150 }}>
   <!-- Header -->
-  <div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
-    <div>
-      <div class="flex items-center gap-3 mb-2">
-        <div class="w-10 h-10 bg-primary/10 rounded-2xl flex items-center justify-center text-primary border border-primary/20">
-          <Papicon icon="inbox" size={24} />
-        </div>
-        <h1 class="text-4xl font-black text-on-surface font-headline tracking-tighter">Inbox</h1>
+  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
+    <div class="flex items-center gap-4">
+      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+        <Papicon icon="inbox" size={20} />
       </div>
-      <p class="text-on-surface-variant font-medium max-w-md">
-        Votre centre de communication centralisé pour toutes les activités du serveur.
-      </p>
+      <div>
+        <h1 class="text-lg font-semibold text-on-surface font-headline tracking-tight">Inbox</h1>
+        <p class="text-sm text-on-surface-variant/70 font-medium max-w-md">
+          Votre centre de communication centralisé pour toutes les activités du serveur.
+        </p>
+      </div>
     </div>
 
     <div class="flex items-center gap-3">
       {#if notificationsStore.unreadCount > 0}
-        <button 
+        <button
           onclick={() => notificationsStore.markAllAsRead()}
-          class="group flex items-center gap-2 px-5 py-2.5 bg-primary text-white font-black text-sm rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-[0_8px_20px_rgba(var(--color-primary),0.3)]"
+          class="group flex items-center gap-2 px-4 py-2 bg-primary text-white font-semibold text-sm rounded-lg hover:scale-105 active:scale-95 transition-all"
         >
           <Papicon icon="check" size={16} />
           Tout marquer lu
         </button>
       {/if}
-      <button 
+      <button
         onclick={() => notificationsStore.fetchNotifications()}
-        class="p-2.5 bg-surface-container-high text-on-surface-variant rounded-2xl hover:bg-surface-container-highest transition-all border border-outline-variant/30"
+        class="p-2 bg-surface-container-high text-on-surface-variant rounded-lg hover:bg-surface-container-highest transition-all border border-outline-variant/30"
         title="Rafraîchir"
       >
-        <Papicon icon="refresh-cw" size={20} class={notificationsStore.loading ? 'animate-spin' : ''} />
+        <Papicon icon="refresh-cw" size={18} class={notificationsStore.loading ? 'animate-spin' : ''} />
       </button>
     </div>
   </div>
@@ -95,12 +95,12 @@
     {#each tabs as tab}
       <button
         onclick={() => currentTab = tab.id}
-        class="relative flex items-center gap-2.5 px-5 py-2.5 rounded-2xl text-sm font-black transition-all duration-300
+        class="relative flex items-center gap-2.5 px-5 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300
           {currentTab === tab.id ? 'text-white' : 'text-on-surface-variant hover:bg-surface-container-high'}"
       >
         {#if currentTab === tab.id}
           <div 
-            class="absolute inset-0 bg-primary rounded-2xl shadow-[0_4px_12px_rgba(var(--color-primary),0.25)]"
+            class="absolute inset-0 bg-primary rounded-lg shadow-[0_4px_12px_rgba(var(--color-primary),0.25)]"
             in:fade={{ duration: 200 }}
           ></div>
         {/if}
@@ -109,7 +109,7 @@
           {tab.label}
           
           {#if tab.id === 'tous' && notificationsStore.unreadCount > 0}
-            <span class="px-1.5 py-0.5 bg-white/20 text-white rounded-lg text-[10px] font-black">
+            <span class="px-1.5 py-0.5 bg-white/20 text-white rounded-lg text-[10px] font-semibold">
               {notificationsStore.unreadCount}
             </span>
           {/if}
@@ -123,7 +123,7 @@
     {#if notificationsStore.loading && notificationsStore.items.length === 0}
       <div class="grid gap-4">
         {#each Array(5) as _}
-          <div class="h-32 bg-surface-container-lowest border border-outline-variant/20 rounded-3xl animate-pulse"></div>
+          <div class="h-32 bg-surface-container-lowest border border-outline-variant/20 rounded-xl animate-pulse"></div>
         {/each}
       </div>
     {:else if filteredNotifications.length === 0}
@@ -131,7 +131,7 @@
         <div class="w-24 h-24 bg-surface-container-high rounded-[32px] flex items-center justify-center mb-8 border border-outline-variant/20 rotate-3">
           <Papicon icon="inbox" size={48} />
         </div>
-        <h2 class="text-2xl font-black text-on-surface">Inbox impeccable</h2>
+        <h2 class="text-2xl font-semibold text-on-surface">Inbox impeccable</h2>
         <p class="text-sm mt-3 max-w-xs text-center font-medium opacity-60">
           Aucune notification dans la catégorie <b>{currentTab}</b> pour le moment. Reposez-vous bien !
         </p>
@@ -144,7 +144,7 @@
             in:fly={{ y: 20, duration: 400 }}
           >
             <!-- Type Icon -->
-            <div class="shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center border {getColorForType(notif.type)} shadow-sm transition-transform group-hover:scale-110">
+            <div class="shrink-0 w-14 h-14 rounded-lg flex items-center justify-center border {getColorForType(notif.type)} shadow-sm transition-transform group-">
               <Papicon icon={getIconForType(notif.type)} size={28} />
             </div>
 
@@ -152,7 +152,7 @@
             <div class="flex-1 min-w-0">
               <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-4 mb-2">
                 <div class="flex items-center gap-2">
-                  <h3 class="text-lg font-black text-on-surface tracking-tight truncate">
+                  <h3 class="text-lg font-semibold text-on-surface tracking-tight truncate">
                     {notif.title}
                   </h3>
                   {#if !notif.isRead}
@@ -175,7 +175,7 @@
                   {#if notif.link}
                     <a 
                       href={notif.link}
-                      class="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-xs font-black rounded-xl hover:scale-105 active:scale-95 transition-all shadow-[0_4px_12px_rgba(var(--color-primary),0.2)]"
+                      class="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-xs font-semibold rounded-xl hover:scale-105 active:scale-95 transition-all shadow-[0_4px_12px_rgba(var(--color-primary),0.2)]"
                     >
                       <Papicon icon="external-link" size={14} />
                       Consulter
@@ -185,7 +185,7 @@
                   {#if !notif.isRead}
                     <button 
                       onclick={() => notificationsStore.markAsRead(notif.id)}
-                      class="inline-flex items-center gap-2 px-5 py-2.5 bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-black rounded-xl transition-all border border-outline-variant/30"
+                      class="inline-flex items-center gap-2 px-5 py-2.5 bg-surface-container-high hover:bg-surface-container-highest text-on-surface text-xs font-semibold rounded-xl transition-all border border-outline-variant/30"
                     >
                       <Papicon icon="check" size={14} />
                       Marquer lu
@@ -193,7 +193,7 @@
                   {/if}
                 </div>
 
-                <div class="hidden sm:flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/30">
+                <div class="hidden sm:flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/30">
                   <span class="w-1.5 h-1.5 rounded-full bg-current opacity-30"></span>
                   {getCategory(notif)}
                 </div>

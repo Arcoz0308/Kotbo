@@ -4,15 +4,17 @@
  */
 
 import { sidebarStore } from './sidebar.svelte';
-import { themeStore } from './theme.svelte';
+import { themeStore, type ThemeId, type AccentColorId } from './theme.svelte';
 
 type Language = 'fr' | 'en';
 type DateFormat = 'relative' | 'absolute' | 'both';
 type SidebarBehavior = 'auto' | 'always-open' | 'always-closed';
-type AccentColor = 'violet' | 'blue' | 'green' | 'rose' | 'orange' | 'cyan';
+
+// Keep old type alias for backward compat in imports
+type AccentColor = AccentColorId;
 
 interface UserPrefs {
-  theme: 'dark' | 'light';
+  theme: ThemeId;
   language: Language;
   sidebarBehavior: SidebarBehavior;
   compactMode: boolean;
@@ -35,15 +37,6 @@ const DEFAULT_PREFS: UserPrefs = {
   accentColor: 'violet',
   animationsEnabled: true,
   showOnlineStatus: true,
-};
-
-const ACCENT_COLORS: Record<AccentColor, string> = {
-  violet: '#8b5cf6',
-  blue: '#3b82f6',
-  green: '#10b981',
-  rose: '#f43f5e',
-  orange: '#f97316',
-  cyan: '#06b6d4',
 };
 
 const STORAGE_KEY = 'kotbo_prefs';
@@ -84,8 +77,8 @@ class UserPreferencesStore {
     if (canUseDom()) {
       window.addEventListener('storage', this.storageListener);
 
-      const savedTheme = localStorage.getItem('kotbo_theme');
-      if (savedTheme === 'dark' || savedTheme === 'light') {
+      const savedTheme = localStorage.getItem('kotbo_theme') as ThemeId | null;
+      if (savedTheme) {
         this.prefs.theme = savedTheme;
       } else {
         this.prefs.theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -108,9 +101,7 @@ class UserPreferencesStore {
       return;
     }
 
-    themeStore.dark = theme === 'dark';
-    localStorage.setItem('kotbo_theme', theme);
-    document.documentElement.classList.toggle('dark', theme === 'dark');
+    themeStore.themeId = theme;
   }
 
   private applyAccentColorPreference(accentColor: AccentColor) {
@@ -118,7 +109,7 @@ class UserPreferencesStore {
       return;
     }
 
-    document.documentElement.style.setProperty('--primary-color', ACCENT_COLORS[accentColor]);
+    themeStore.setAccent(accentColor);
   }
 
   private applyUiPreferences() {
@@ -161,3 +152,4 @@ class UserPreferencesStore {
 
 export const userPrefs = new UserPreferencesStore();
 export type { UserPrefs, Language, DateFormat, SidebarBehavior, AccentColor };
+export type { ThemeId } from './theme.svelte';

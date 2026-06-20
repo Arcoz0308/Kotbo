@@ -301,11 +301,11 @@
   });
 </script>
 
-<div class="calendar-container h-175 flex flex-col bg-surface-container-low rounded-4xl border border-outline-variant/30 overflow-hidden shadow-xl">
+<div class="calendar-container h-175 flex flex-col bg-surface-container-low rounded-xl border border-outline-variant/30 overflow-hidden shadow-sm">
   <!-- Header -->
   <header class="p-6 border-b border-outline-variant/30 flex items-center justify-between bg-surface-container-lowest">
     <div class="flex items-center gap-4">
-      <h2 class="text-xl font-black text-on-surface capitalize">
+      <h2 class="text-xl font-semibold text-on-surface capitalize">
         {#if view === 'month'}
           {currentDate.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
         {:else}
@@ -349,7 +349,7 @@
       <div class="grid grid-cols-7 border-collapse h-full overflow-y-auto custom-scrollbar">
         <!-- Day headers -->
         {#each weekDays as day}
-          <div class="p-4 text-center text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant border-b border-r border-outline-variant/10 last:border-r-0 bg-surface-container-lowest/50">
+          <div class="p-4 text-center text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant border-b border-r border-outline-variant/10 last:border-r-0 bg-surface-container-lowest/50">
             {day}
           </div>
         {/each}
@@ -373,7 +373,7 @@
               {/if}
             {/if}
             <div class="flex items-center justify-between mb-2 px-1 relative z-10">
-              <span class="text-xs font-black {isToday(date) ? 'w-6 h-6 bg-primary text-white flex items-center justify-center rounded-full' : 'text-on-surface-variant'}">
+              <span class="text-xs font-semibold {isToday(date) ? 'w-6 h-6 bg-primary text-white flex items-center justify-center rounded-full' : 'text-on-surface-variant'}">
                 {date.getDate()}
               </span>
             </div>
@@ -382,7 +382,7 @@
                 <button 
                   onclick={(e) => { e.stopPropagation(); onEventClick(event); }}
                   onmousedown={(e) => e.stopPropagation()}
-                  class="w-full text-left px-1.5 py-0.5 rounded-md text-[9px] font-bold truncate transition-all hover:scale-[1.02] shadow-sm {getEventClass(event)}"
+                  class="w-full text-left px-1.5 py-0.5 rounded-md text-[11px] font-bold truncate transition-all hover: shadow-sm {getEventClass(event)}"
                 >
                   {#if event.avatarUrl}
                     <img src={event.avatarUrl} alt="" class="inline-block w-3 h-3 rounded-full mr-1 -mt-0.5" />
@@ -415,15 +415,15 @@
           <div class="border-r border-outline-variant/10"></div>
           {#each calendarDays as { date }}
             <div class="p-3 text-center border-r border-outline-variant/10 last:border-r-0 {isToday(date) ? 'bg-primary/5' : ''}">
-              <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">{weekDays[(date.getDay() + 6) % 7]}</p>
-              <p class="text-lg font-black {isToday(date) ? 'text-primary' : 'text-on-surface'}">{date.getDate()}</p>
+              <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant">{weekDays[(date.getDay() + 6) % 7]}</p>
+              <p class="text-lg font-semibold {isToday(date) ? 'text-primary' : 'text-on-surface'}">{date.getDate()}</p>
             </div>
           {/each}
         </div>
 
         <!-- All Day Section -->
         <div class="grid grid-cols-[60px_repeat(7,1fr)] border-b border-outline-variant/30 bg-surface-container-lowest/50">
-          <div class="p-2 text-[8px] font-black uppercase text-on-surface-variant flex items-center justify-center border-r border-outline-variant/10">
+          <div class="p-2 text-[10px] font-semibold uppercase text-on-surface-variant flex items-center justify-center border-r border-outline-variant/10">
             Journée
           </div>
           {#each calendarDays as { date }}
@@ -439,7 +439,7 @@
                 <button 
                   onclick={(e) => { e.stopPropagation(); onEventClick(event); }}
                   onmousedown={(e) => e.stopPropagation()}
-                  class="w-full text-left px-2 py-0.5 rounded-md text-[9px] font-bold truncate transition-all hover:scale-[1.02] shadow-sm {getEventClass(event)}"
+                  class="w-full text-left px-2 py-0.5 rounded-md text-[11px] font-bold truncate transition-all hover: shadow-sm {getEventClass(event)}"
                 >
                   <span class="inline-flex items-center gap-0.5">
                     {#if event.type === 'vocal'}
@@ -459,7 +459,7 @@
               {/each}
               {#if allDayEvents.length > 2}
                 <button 
-                  class="w-full text-center py-0.5 text-[10px] font-black text-on-surface-variant/60 hover:text-primary transition-colors"
+                  class="w-full text-center py-0.5 text-[10px] font-semibold text-on-surface-variant/60 hover:text-primary transition-colors"
                   onclick={() => onDateClick(date)}
                 >
                   ... (+{allDayEvents.length - 2})
@@ -515,7 +515,7 @@
                       style="top: {displayTop}%; height: {displayHeight}%"
                     >
                       {#if isStartDay}
-                        <div class="p-1 text-[8px] font-black text-primary uppercase">
+                        <div class="p-1 text-[10px] font-semibold text-primary uppercase">
                            {Math.floor(selectionStart.minutes / 60)}:{selectionStart.minutes % 60 === 0 ? '00' : '30'} - ...
                         </div>
                       {/if}
@@ -529,7 +529,7 @@
                   <button 
                     onclick={(e) => { e.stopPropagation(); onEventClick(event); }}
                     onmousedown={(e) => e.stopPropagation()}
-                    class="absolute rounded-lg p-2 text-[10px] font-black border shadow-lg transition-all hover:z-10 hover:scale-[1.02] flex flex-col gap-1 {getEventClass(event)}"
+                    class="absolute rounded-lg p-2 text-[10px] font-semibold border shadow-lg transition-all hover:z-10 hover: flex flex-col gap-1 {getEventClass(event)}"
                     style="top: {styles.top}%; height: {styles.height}%; left: {styles.left}%; width: {styles.width}%; min-height: 24px;"
                   >
                     <div class="flex items-center gap-1">

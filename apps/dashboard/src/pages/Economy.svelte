@@ -272,24 +272,24 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
 <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
   <!-- Header -->
-  <header class="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-surface-container-low/40 backdrop-blur-3xl p-8 rounded-4xl border border-outline-variant/30">
-    <div class="flex items-center gap-6">
-      <div class="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shadow-inner">
-        <Papicon icon="Coins" size={32} />
+  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
+    <div class="flex items-center gap-4">
+      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+        <Papicon icon="Coins" size={20} />
       </div>
       <div>
-        <h1 class="text-3xl font-black tracking-tight leading-tight">Économie & Jeu RPG</h1>
-        <p class="text-on-surface-variant/80 font-medium">Gérez la monnaie locale, configurez les aventures textuelles RNG et gérez la boutique du serveur.</p>
+        <h1 class="text-lg font-semibold tracking-tight leading-tight">Économie & Jeu RPG</h1>
+        <p class="text-sm text-on-surface-variant/70 font-medium">Gérez la monnaie locale, configurez les aventures textuelles RNG et gérez la boutique du serveur.</p>
       </div>
     </div>
     {#if !loading}
-      <div class="flex items-center gap-4 bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-6 py-3.5">
-        <span class="text-sm font-bold text-on-surface-variant/80">Statut du module :</span>
-        <ToggleSwitch 
-          checked={config.enabled} 
-          onToggle={(v: boolean) => { 
-            config.enabled = v; 
-          }} 
+      <div class="flex items-center gap-3 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5">
+        <span class="text-xs font-bold text-on-surface-variant/80">Statut du module :</span>
+        <ToggleSwitch
+          checked={config.enabled}
+          onToggle={(v: boolean) => {
+            config.enabled = v;
+          }}
           disabled={!canManageSettings}
         />
       </div>
@@ -299,7 +299,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   <InlineFeedback state={actionState} />
 
   <!-- Navigation Tabs -->
-  <div class="flex gap-1.5 bg-surface-container-low/40 p-1.5 rounded-2xl border border-outline-variant/10 w-fit">
+  <div class="flex gap-1.5 bg-surface-container-low/40 p-1.5 rounded-lg border border-outline-variant/10 w-fit">
     <button 
       onclick={() => activeTab = 'config'}
       class="px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 {activeTab === 'config' ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant hover:text-on-surface'}"
@@ -330,8 +330,8 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     {#if activeTab === 'config'}
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <!-- Activation settings -->
-        <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6 h-fit">
-          <h3 class="text-lg font-black border-b border-outline-variant/15 pb-4">Activation des Modules</h3>
+        <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 h-fit">
+          <h3 class="text-lg font-semibold border-b border-outline-variant/15 pb-4">Activation des Modules</h3>
           
           <div class="space-y-4">
             <!-- RPG Toggle -->
@@ -364,19 +364,19 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         </div>
 
         <!-- Details config -->
-        <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6 transition-opacity duration-300 {!config.enabled ? 'opacity-60' : ''}">
-          <h3 class="text-lg font-black border-b border-outline-variant/15 pb-4">Paramètres d'Économie & RPG</h3>
+        <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 transition-opacity duration-300 {!config.enabled ? 'opacity-60' : ''}">
+          <h3 class="text-lg font-semibold border-b border-outline-variant/15 pb-4">Paramètres d'Économie & RPG</h3>
           
           <div class="grid grid-cols-2 gap-4">
             <div class="space-y-1.5">
               <label for="curName" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Nom de la monnaie</label>
-              <input id="curName" type="text" bind:value={config.currencyName} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+              <input id="curName" type="text" bind:value={config.currencyName} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
             </div>
 
             <div class="space-y-1.5">
               <label for="curEmoji" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Emoji de la monnaie</label>
               <div class="flex gap-2">
-                <input id="curEmoji" type="text" bind:value={config.currencyEmoji} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+                <input id="curEmoji" type="text" bind:value={config.currencyEmoji} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
                 <EmojiPicker bind:value={config.currencyEmoji} disabled={!canManageSettings || !config.enabled} />
               </div>
             </div>
@@ -384,7 +384,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <!-- Currency Image Upload -->
             <div class="col-span-2 space-y-2 pt-2 border-t border-outline-variant/10">
               <span class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2 block">Image de la monnaie (Optionnelle)</span>
-              <div class="flex items-center gap-4 bg-surface-container-high/20 p-4 rounded-2xl border border-outline-variant/10">
+              <div class="flex items-center gap-4 bg-surface-container-high/20 p-4 rounded-lg border border-outline-variant/10">
                 {#if config.currencyIcon}
                   <div class="relative w-12 h-12 rounded-xl bg-surface-container overflow-hidden border border-outline-variant/20 flex items-center justify-center shrink-0">
                     <img src={config.currencyIcon} alt="Icone" class="w-full h-full object-contain" />
@@ -392,7 +392,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                       <button
                         type="button"
                         onclick={() => { config.currencyIcon = null; }}
-                        class="absolute -top-1 -right-1 bg-red-500 hover:bg-red-600 text-white w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-black transition-colors"
+                        class="absolute -top-1 -right-1 bg-red-500 hover:bg-red-600 text-white w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-semibold transition-colors"
                         title="Supprimer l'image"
                       >
                         ✕
@@ -400,7 +400,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                     {/if}
                   </div>
                 {:else}
-                  <div class="w-12 h-12 rounded-xl bg-surface-container/60 border-2 border-dashed border-outline-variant/25 flex items-center justify-center text-on-surface-variant/30 text-[10px] font-black shrink-0">
+                  <div class="w-12 h-12 rounded-xl bg-surface-container/60 border-2 border-dashed border-outline-variant/25 flex items-center justify-center text-on-surface-variant/30 text-[10px] font-semibold shrink-0">
                     SANS
                   </div>
                 {/if}
@@ -435,7 +435,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                     >
                       {config.currencyIcon ? 'Changer l\'image' : 'Importer une image'}
                     </button>
-                    <p class="text-[9px] text-on-surface-variant/40 leading-none">PNG, JPG ou SVG. S'affiche en priorité sur le dashboard.</p>
+                    <p class="text-[11px] text-on-surface-variant/40 leading-none">PNG, JPG ou SVG. S'affiche en priorité sur le dashboard.</p>
                   </div>
                 {:else}
                   <p class="text-xs text-on-surface-variant/40 italic">Lecture seule</p>
@@ -445,41 +445,41 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
             <div class="space-y-1.5">
               <label for="dailyMin" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Gain Daily Minimum</label>
-              <input id="dailyMin" type="number" bind:value={config.dailyRewardMin} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+              <input id="dailyMin" type="number" bind:value={config.dailyRewardMin} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
             </div>
 
             <div class="space-y-1.5">
               <label for="dailyMax" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Gain Daily Maximum</label>
-              <input id="dailyMax" type="number" bind:value={config.dailyRewardMax} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+              <input id="dailyMax" type="number" bind:value={config.dailyRewardMax} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
             </div>
 
             <div class="space-y-1.5">
               <label for="dailyCd" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Cooldown du Daily (Heures)</label>
-              <input id="dailyCd" type="number" bind:value={config.dailyCooldownHour} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+              <input id="dailyCd" type="number" bind:value={config.dailyCooldownHour} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
             </div>
 
             <div class="space-y-1.5">
               <label for="advCd" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Cooldown Aventure (Min)</label>
-              <input id="advCd" type="number" bind:value={config.adventureCooldownMin} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+              <input id="advCd" type="number" bind:value={config.adventureCooldownMin} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
             </div>
 
             <div class="space-y-1.5">
               <label for="maxEnergy" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Énergie Maximale</label>
-              <input id="maxEnergy" type="number" bind:value={config.maxEnergy} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+              <input id="maxEnergy" type="number" bind:value={config.maxEnergy} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
             </div>
 
             <div class="space-y-1.5">
               <label for="energyRecovery" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Récupération Énergie / H</label>
-              <input id="energyRecovery" type="number" bind:value={config.energyRecoveryPerHour} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
+              <input id="energyRecovery" type="number" bind:value={config.energyRecoveryPerHour} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed" disabled={!canManageSettings || !config.enabled} />
             </div>
           </div>
         </div>
 
         <!-- Reset Economy Section -->
         {#if canManageSettings}
-          <div class="col-span-1 lg:col-span-2 bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6 transition-opacity duration-300 {!config.enabled ? 'opacity-60' : ''}">
+          <div class="col-span-1 lg:col-span-2 bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 transition-opacity duration-300 {!config.enabled ? 'opacity-60' : ''}">
             <div class="border-b border-outline-variant/15 pb-4">
-              <h3 class="text-lg font-black text-error flex items-center gap-2.5">
+              <h3 class="text-lg font-semibold text-error flex items-center gap-2.5">
                 <Papicon icon="alert-triangle" size={20} class="text-error" />
                 Réinitialisation de l'Économie / RPG
               </h3>
@@ -491,9 +491,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 type="button"
                 onclick={() => triggerReset('profiles')}
                 disabled={!config.enabled}
-                class="px-5 py-4 bg-error/10 hover:bg-error/20 text-error text-xs font-bold rounded-2xl transition-all border border-error/20 flex flex-col items-center justify-center text-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                class="px-5 py-4 bg-error/10 hover:bg-error/20 text-error text-xs font-bold rounded-lg transition-all border border-error/20 flex flex-col items-center justify-center text-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span class="font-black flex items-center gap-1.5"><Papicon icon="users" size={14} /> Joueurs</span>
+                <span class="font-semibold flex items-center gap-1.5"><Papicon icon="users" size={14} /> Joueurs</span>
                 <span class="text-[10px] text-on-surface-variant/60 font-normal">Efface les comptes, inventaires, soldes</span>
               </button>
 
@@ -501,9 +501,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 type="button"
                 onclick={() => triggerReset('items')}
                 disabled={!config.enabled}
-                class="px-5 py-4 bg-error/10 hover:bg-error/20 text-error text-xs font-bold rounded-2xl transition-all border border-error/20 flex flex-col items-center justify-center text-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                class="px-5 py-4 bg-error/10 hover:bg-error/20 text-error text-xs font-bold rounded-lg transition-all border border-error/20 flex flex-col items-center justify-center text-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span class="font-black flex items-center gap-1.5"><Papicon icon="package" size={14} /> Boutique</span>
+                <span class="font-semibold flex items-center gap-1.5"><Papicon icon="package" size={14} /> Boutique</span>
                 <span class="text-[10px] text-on-surface-variant/60 font-normal">Efface les objets créés</span>
               </button>
 
@@ -511,9 +511,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 type="button"
                 onclick={() => triggerReset('guilds')}
                 disabled={!config.enabled}
-                class="px-5 py-4 bg-error/10 hover:bg-error/20 text-error text-xs font-bold rounded-2xl transition-all border border-error/20 flex flex-col items-center justify-center text-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                class="px-5 py-4 bg-error/10 hover:bg-error/20 text-error text-xs font-bold rounded-lg transition-all border border-error/20 flex flex-col items-center justify-center text-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span class="font-black flex items-center gap-1.5"><Papicon icon="shield" size={14} /> Guildes</span>
+                <span class="font-semibold flex items-center gap-1.5"><Papicon icon="shield" size={14} /> Guildes</span>
                 <span class="text-[10px] text-on-surface-variant/60 font-normal">Efface les guildes RPG</span>
               </button>
 
@@ -521,9 +521,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 type="button"
                 onclick={() => triggerReset('config')}
                 disabled={!config.enabled}
-                class="px-5 py-4 bg-error/10 hover:bg-error/20 text-error text-xs font-bold rounded-2xl transition-all border border-error/20 flex flex-col items-center justify-center text-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                class="px-5 py-4 bg-error/10 hover:bg-error/20 text-error text-xs font-bold rounded-lg transition-all border border-error/20 flex flex-col items-center justify-center text-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span class="font-black flex items-center gap-1.5"><Papicon icon="settings" size={14} /> Configuration</span>
+                <span class="font-semibold flex items-center gap-1.5"><Papicon icon="settings" size={14} /> Configuration</span>
                 <span class="text-[10px] text-on-surface-variant/60 font-normal">Remet à zéro les multiplicateurs, cooldowns</span>
               </button>
 
@@ -531,9 +531,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 type="button"
                 onclick={() => triggerReset('all')}
                 disabled={!config.enabled}
-                class="px-5 py-4 bg-error text-on-error hover:bg-error-hover text-xs font-bold rounded-2xl shadow-lg transition-all flex flex-col items-center justify-center text-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                class="px-5 py-4 bg-error text-on-error hover:bg-error-hover text-xs font-bold rounded-lg shadow-lg transition-all flex flex-col items-center justify-center text-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span class="font-black flex items-center gap-1.5"><Papicon icon="alert-triangle" size={14} /> Reset Global</span>
+                <span class="font-semibold flex items-center gap-1.5"><Papicon icon="alert-triangle" size={14} /> Reset Global</span>
                 <span class="text-[10px] text-on-error/80 font-normal">Tout supprimer (irréversible)</span>
               </button>
             </div>
@@ -544,9 +544,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
     <!-- Tab 2: Shop Items -->
     {#if activeTab === 'items'}
-      <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6 transition-opacity duration-300 {!config.enabled ? 'opacity-60' : ''}">
+      <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 transition-opacity duration-300 {!config.enabled ? 'opacity-60' : ''}">
         <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
-          <h3 class="text-lg font-black">Objets de la boutique RPG</h3>
+          <h3 class="text-lg font-semibold">Objets de la boutique RPG</h3>
           {#if canManageSettings}
             <button 
               type="button" 
@@ -567,13 +567,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         {:else}
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {#each items as item}
-              <div class="bg-surface-container-high/30 border border-outline-variant/10 p-6 rounded-3xl relative group flex flex-col justify-between">
+              <div class="bg-surface-container-high/30 border border-outline-variant/10 p-6 rounded-xl relative group flex flex-col justify-between">
                 <div class="space-y-3">
                   <div class="flex items-center gap-3">
-                    <span class="text-3xl">{item.emoji}</span>
+                    <span class="text-lg">{item.emoji}</span>
                     <div>
-                      <h4 class="font-black text-base leading-none">{item.name}</h4>
-                      <span class="text-[9px] font-black uppercase tracking-widest text-primary bg-primary/10 px-2 py-0.5 rounded-full inline-block mt-1">{item.type}</span>
+                      <h4 class="font-semibold text-base leading-none">{item.name}</h4>
+                      <span class="text-[11px] font-semibold uppercase tracking-widest text-primary bg-primary/10 px-2 py-0.5 rounded-full inline-block mt-1">{item.type}</span>
                     </div>
                   </div>
                   <p class="text-xs text-on-surface-variant/60 leading-relaxed">{item.description}</p>
@@ -620,7 +620,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                       </button>
                     </div>
                   {:else}
-                    <span class="text-[9px] font-bold text-on-surface-variant/40 italic">Global (Read-Only)</span>
+                    <span class="text-[11px] font-bold text-on-surface-variant/40 italic">Global (Read-Only)</span>
                   {/if}
                 </div>
               </div>
@@ -634,15 +634,15 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
     <!-- Tab 3: Players list & Leaderboard -->
     {#if activeTab === 'players'}
-      <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6 transition-opacity duration-300 {!config.enabled ? 'opacity-60' : ''}">
+      <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 transition-opacity duration-300 {!config.enabled ? 'opacity-60' : ''}">
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-outline-variant/15 pb-4">
-          <h3 class="text-lg font-black">Classement des joueurs RPG</h3>
+          <h3 class="text-lg font-semibold">Classement des joueurs RPG</h3>
           
           <input 
             type="search" 
             placeholder="Rechercher par pseudo ou ID..." 
             bind:value={searchQuery}
-            class="bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-2.5 text-xs focus:outline-none w-full md:w-64"
+            class="bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none w-full md:w-64"
           />
         </div>
 
@@ -678,7 +678,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                         <div class="w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold">U</div>
                       {/if}
                       <div>
-                        <div class="font-black text-sm">{player.displayName || player.username}</div>
+                        <div class="font-semibold text-sm">{player.displayName || player.username}</div>
                         <div class="text-[10px] text-on-surface-variant/40 font-mono mt-0.5">{player.userId}</div>
                       </div>
                     </td>
@@ -741,20 +741,20 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
 <!-- ITEM MODAL EDITOR -->
 {#if editingItem}
-  <div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-    <div class="bg-surface-container rounded-[2.5rem] border border-outline-variant/30 p-8 w-full max-w-lg space-y-6 animate-in zoom-in-95 duration-200">
-      <h3 class="text-xl font-black">{editingItem.id ? 'Modifier l\'objet boutique' : 'Créer un nouvel objet'}</h3>
+  <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-lg space-y-6 animate-in zoom-in-95 duration-200">
+      <h3 class="text-xl font-semibold">{editingItem.id ? 'Modifier l\'objet boutique' : 'Créer un nouvel objet'}</h3>
       
       <div class="space-y-4">
         <div class="grid grid-cols-3 gap-3">
           <div class="col-span-2 space-y-1">
             <label for="itemName" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">Nom de l'objet</label>
-            <input id="itemName" type="text" bind:value={editingItem.name} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-2.5 text-xs focus:outline-none" />
+            <input id="itemName" type="text" bind:value={editingItem.name} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
           </div>
           <div class="space-y-1">
             <label for="itemEmoji" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">Emoji</label>
             <div class="flex gap-2">
-              <input id="itemEmoji" type="text" bind:value={editingItem.emoji} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-2.5 text-xs focus:outline-none" />
+              <input id="itemEmoji" type="text" bind:value={editingItem.emoji} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
               <EmojiPicker bind:value={editingItem.emoji} />
             </div>
           </div>
@@ -762,13 +762,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
         <div class="space-y-1">
           <label for="itemDesc" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">Description</label>
-          <textarea id="itemDesc" bind:value={editingItem.description} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-2.5 text-xs focus:outline-none h-16 resize-none"></textarea>
+          <textarea id="itemDesc" bind:value={editingItem.description} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none h-16 resize-none"></textarea>
         </div>
 
         <div class="grid grid-cols-2 gap-3">
           <div class="space-y-1">
             <label for="itemType" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">Type d'objet</label>
-            <select id="itemType" bind:value={editingItem.type} class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-2xl px-4 py-2.5 text-xs focus:outline-none text-on-surface">
+            <select id="itemType" bind:value={editingItem.type} class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none text-on-surface">
               <option value="WEAPON">🗡️ WEAPON (Arme)</option>
               <option value="ARMOR">🦺 ARMOR (Armure)</option>
               <option value="POTION">🧪 POTION (Consommable)</option>
@@ -777,13 +777,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           </div>
           <div class="space-y-1">
             <label for="itemPrice" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">Prix d'achat ({config.currencyName})</label>
-            <input id="itemPrice" type="number" bind:value={editingItem.price} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-2.5 text-xs focus:outline-none" />
+            <input id="itemPrice" type="number" bind:value={editingItem.price} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
           </div>
         </div>
 
         <!-- Dynamic inputs depending on item type -->
-        <fieldset class="border border-outline-variant/10 p-4 rounded-2xl space-y-3">
-          <legend class="text-[9px] font-black uppercase tracking-wider text-on-surface-variant/50 px-2">Statistiques & Effets</legend>
+        <fieldset class="border border-outline-variant/10 p-4 rounded-lg space-y-3">
+          <legend class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant/50 px-2">Statistiques & Effets</legend>
           {#if editingItem.type === 'WEAPON'}
             <div class="space-y-1">
               <label for="itemAtk" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest">Bonus d'Attaque (ATK)</label>
@@ -833,49 +833,49 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
 <!-- PLAYER MODAL EDITOR -->
 {#if editingPlayer}
-  <div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-    <div class="bg-surface-container rounded-[2.5rem] border border-outline-variant/30 p-8 w-full max-w-lg space-y-6 animate-in zoom-in-95 duration-200">
-      <h3 class="text-xl font-black">Modifier le profil joueur — {editingPlayer.displayName || editingPlayer.username}</h3>
+  <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-lg space-y-6 animate-in zoom-in-95 duration-200">
+      <h3 class="text-xl font-semibold">Modifier le profil joueur — {editingPlayer.displayName || editingPlayer.username}</h3>
       
       <div class="grid grid-cols-2 gap-4">
         <div class="space-y-1">
           <label for="pBalance" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">Solde en {config.currencyName}</label>
-          <input id="pBalance" type="number" bind:value={editingPlayer.balance} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-2.5 text-xs focus:outline-none" />
+          <input id="pBalance" type="number" bind:value={editingPlayer.balance} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
         </div>
 
         <div class="space-y-1">
           <label for="pLevel" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">Niveau RPG</label>
-          <input id="pLevel" type="number" bind:value={editingPlayer.level} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-2.5 text-xs focus:outline-none" />
+          <input id="pLevel" type="number" bind:value={editingPlayer.level} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
         </div>
 
         <div class="space-y-1">
           <label for="pXp" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">Expérience (XP)</label>
-          <input id="pXp" type="number" bind:value={editingPlayer.xp} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-2.5 text-xs focus:outline-none" />
+          <input id="pXp" type="number" bind:value={editingPlayer.xp} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
         </div>
 
         <div class="space-y-1">
           <label for="pHp" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">Points de Vie (PV)</label>
-          <input id="pHp" type="number" bind:value={editingPlayer.health} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-2.5 text-xs focus:outline-none" />
+          <input id="pHp" type="number" bind:value={editingPlayer.health} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
         </div>
 
         <div class="space-y-1">
           <label for="pEnergy" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">Énergie (%)</label>
-          <input id="pEnergy" type="number" bind:value={editingPlayer.energy} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-2.5 text-xs focus:outline-none" />
+          <input id="pEnergy" type="number" bind:value={editingPlayer.energy} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
         </div>
 
         <div class="space-y-1">
           <label for="pAtk" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">Force (ATK)</label>
-          <input id="pAtk" type="number" bind:value={editingPlayer.attack} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-2.5 text-xs focus:outline-none" />
+          <input id="pAtk" type="number" bind:value={editingPlayer.attack} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
         </div>
 
         <div class="space-y-1">
           <label for="pDef" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">Défense (DEF)</label>
-          <input id="pDef" type="number" bind:value={editingPlayer.defense} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-2.5 text-xs focus:outline-none" />
+          <input id="pDef" type="number" bind:value={editingPlayer.defense} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
         </div>
 
         <div class="space-y-1">
           <label for="pSpd" class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-2">Vitesse (SPD)</label>
-          <input id="pSpd" type="number" bind:value={editingPlayer.speed} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-2.5 text-xs focus:outline-none" />
+          <input id="pSpd" type="number" bind:value={editingPlayer.speed} class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs focus:outline-none" />
         </div>
       </div>
 
@@ -901,13 +901,13 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
 <!-- RESET CONFIRMATION MODAL -->
 {#if resetComponent}
-  <div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-    <div class="bg-surface-container rounded-[2.5rem] border border-outline-variant/30 p-8 w-full max-w-md space-y-6 animate-in zoom-in-95 duration-200">
+  <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div class="bg-surface-container rounded-xl border border-outline-variant/30 p-8 w-full max-w-md space-y-6 animate-in zoom-in-95 duration-200">
       <div class="text-center space-y-3 flex flex-col items-center">
         <div class="w-16 h-16 bg-error/10 text-error rounded-full flex items-center justify-center mb-2">
           <Papicon icon="alert-triangle" size={32} />
         </div>
-        <h3 class="text-xl font-black text-error">Confirmer la réinitialisation</h3>
+        <h3 class="text-xl font-semibold text-error">Confirmer la réinitialisation</h3>
         <p class="text-xs text-on-surface-variant/80 leading-relaxed text-center">
           Êtes-vous sûr de vouloir réinitialiser le composant <strong>{resetComponent}</strong> ?
           Cette opération supprimera définitivement les données associées et est <strong>totalement irréversible</strong> !

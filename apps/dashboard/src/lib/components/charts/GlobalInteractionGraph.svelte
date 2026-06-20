@@ -385,7 +385,7 @@
 <!-- Outer Container with rich dark aesthetic, neon border-glow and glassmorphic control layout -->
 <div 
   bind:this={container}
-  class="relative w-full h-[620px] rounded-2xl border border-white/5 bg-[#0f1118]/80 backdrop-blur-xl overflow-hidden shadow-2xl transition-all duration-300"
+  class="relative w-full h-[620px] rounded-lg border border-white/5 bg-[#0f1118]/80 overflow-hidden shadow-sm transition-all duration-300"
 >
   <!-- Interactive Canvas Header -->
   <div class="absolute top-4 left-6 z-10 flex flex-col pointer-events-none">
@@ -599,7 +599,7 @@
   <!-- Node detail information card (glassmorphic slide-in panel in the bottom-left corner) -->
   {#if selectedNode && selectedNodeStats}
     <div
-      class="absolute bottom-5 left-5 z-20 w-80 rounded-xl border border-white/10 bg-slate-950/80 backdrop-blur-lg p-5 shadow-2xl flex flex-col gap-4 animate-fade-in-slide"
+      class="absolute bottom-5 left-5 z-20 w-80 rounded-xl border border-white/10 bg-slate-950/80 p-5 shadow-sm flex flex-col gap-4 animate-fade-in-slide"
     >
       <div class="flex items-center gap-3">
         {#if selectedNode.avatar}

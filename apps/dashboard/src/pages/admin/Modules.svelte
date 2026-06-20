@@ -46,17 +46,17 @@
 <AdminLayout>
   <div class="space-y-6 pb-12 animate-in fade-in slide-in-from-bottom-3 duration-600">
   <!-- Header -->
-  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
     <div>
-      <h2 class="text-2xl font-black text-on-surface tracking-tight">Modules</h2>
-      <p class="text-sm text-on-surface-variant/50 mt-0.5 font-medium">Statistiques d'utilisation et performance des modules</p>
+      <h2 class="text-lg font-semibold text-on-surface tracking-tight">Modules</h2>
+      <p class="text-sm text-on-surface-variant/50 font-medium">Statistiques d'utilisation et performance des modules</p>
     </div>
   </div>
 
   <!-- Controls -->
   <div class="flex flex-wrap items-center justify-between gap-4">
     <div class="flex items-center gap-4">
-      <h2 class="text-xl font-black font-headline flex items-center gap-3 px-2">
+      <h2 class="text-xl font-semibold font-headline flex items-center gap-3 px-2">
         <Papicon icon="Box" size={24} class="text-purple-400" />
         Statistiques des Modules
       </h2>
@@ -114,7 +114,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <!-- Top Modules -->
       <div class="space-y-6">
-        <h3 class="text-lg font-black text-on-surface">Modules les plus utilisés</h3>
+        <h3 class="text-lg font-semibold text-on-surface">Modules les plus utilisés</h3>
         <div class="premium-card rounded-[2.25rem] p-8 space-y-4">
           {#each moduleStats.topModules?.slice(0, 5) || [] as module}
             <div class="flex items-center justify-between p-4 bg-surface/30 rounded-xl">
@@ -128,7 +128,7 @@
                 </div>
               </div>
               <div class="text-right">
-                <p class="text-sm font-black text-on-surface">{module.usagePercentage}%</p>
+                <p class="text-sm font-semibold text-on-surface">{module.usagePercentage}%</p>
               </div>
             </div>
           {/each}
@@ -140,7 +140,7 @@
 
       <!-- Activation Rate -->
       <div class="space-y-6">
-        <h3 class="text-lg font-black text-on-surface">Taux d'activation</h3>
+        <h3 class="text-lg font-semibold text-on-surface">Taux d'activation</h3>
         <div class="premium-card rounded-[2.25rem] p-8 space-y-4">
           {#each moduleStats.activationRate?.slice(0, 5) || [] as module}
             <div class="flex items-center justify-between p-4 bg-surface/30 rounded-xl">
@@ -154,7 +154,7 @@
                 </div>
               </div>
               <div class="text-right">
-                <p class="text-sm font-black text-emerald-400">{module.rate}%</p>
+                <p class="text-sm font-semibold text-emerald-400">{module.rate}%</p>
               </div>
             </div>
           {/each}
@@ -166,10 +166,10 @@
     </div>
   {:else if moduleStatsView === 'activation' && moduleStats}
     <div class="premium-card rounded-[2.25rem] p-8">
-      <h3 class="text-lg font-black text-on-surface mb-6">Détail des activations par module</h3>
-      <div class="overflow-hidden rounded-2xl border border-outline-variant/10">
+      <h3 class="text-lg font-semibold text-on-surface mb-6">Détail des activations par module</h3>
+      <div class="overflow-hidden rounded-lg border border-outline-variant/10">
         <table class="w-full text-sm">
-          <thead class="bg-surface/40 text-left text-[10px] uppercase tracking-[0.2em] text-on-surface-variant/50">
+          <thead class="bg-surface/40 text-left text-[10px] uppercase tracking-wider text-on-surface-variant/50">
             <tr>
               <th class="px-4 py-3">Module</th>
               <th class="px-4 py-3">Serveurs actifs</th>
@@ -182,7 +182,7 @@
               <tr class="bg-surface/10">
                 <td class="px-4 py-3 font-bold text-on-surface">{module.name}</td>
                 <td class="px-4 py-3">{module.activeGuilds}</td>
-                <td class="px-4 py-3 text-emerald-400 font-black">{module.rate}%</td>
+                <td class="px-4 py-3 text-emerald-400 font-semibold">{module.rate}%</td>
                 <td class="px-4 py-3">
                   {#if module.trend === 'up'}
                     <span class="text-emerald-400">↗ +{module.change}%</span>
@@ -205,10 +205,10 @@
     </div>
   {:else if moduleStatsView === 'usage' && moduleStats}
     <div class="premium-card rounded-[2.25rem] p-8">
-      <h3 class="text-lg font-black text-on-surface mb-6">Statistiques d'utilisation</h3>
-      <div class="overflow-hidden rounded-2xl border border-outline-variant/10">
+      <h3 class="text-lg font-semibold text-on-surface mb-6">Statistiques d'utilisation</h3>
+      <div class="overflow-hidden rounded-lg border border-outline-variant/10">
         <table class="w-full text-sm">
-          <thead class="bg-surface/40 text-left text-[10px] uppercase tracking-[0.2em] text-on-surface-variant/50">
+          <thead class="bg-surface/40 text-left text-[10px] uppercase tracking-wider text-on-surface-variant/50">
             <tr>
               <th class="px-4 py-3">Module</th>
               <th class="px-4 py-3">Utilisations totales</th>
@@ -236,10 +236,10 @@
     </div>
   {:else if moduleStatsView === 'performance' && moduleStats}
     <div class="premium-card rounded-[2.25rem] p-8">
-      <h3 class="text-lg font-black text-on-surface mb-6">Métriques de performance</h3>
-      <div class="overflow-hidden rounded-2xl border border-outline-variant/10">
+      <h3 class="text-lg font-semibold text-on-surface mb-6">Métriques de performance</h3>
+      <div class="overflow-hidden rounded-lg border border-outline-variant/10">
         <table class="w-full text-sm">
-          <thead class="bg-surface/40 text-left text-[10px] uppercase tracking-[0.2em] text-on-surface-variant/50">
+          <thead class="bg-surface/40 text-left text-[10px] uppercase tracking-wider text-on-surface-variant/50">
             <tr>
               <th class="px-4 py-3">Module</th>
               <th class="px-4 py-3">Temps de réponse moyen</th>
@@ -261,7 +261,7 @@
                         style="width: {module.performanceScore}%"
                       ></div>
                     </div>
-                    <span class="text-xs font-black">{module.performanceScore}/100</span>
+                    <span class="text-xs font-semibold">{module.performanceScore}/100</span>
                   </div>
                 </td>
               </tr>

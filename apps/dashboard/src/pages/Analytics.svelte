@@ -469,53 +469,52 @@ import { toast } from '../lib/stores/toast.svelte';
 
 <div id="analytics-export-root" class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20 max-w-7xl mx-auto px-4 md:px-8">
   <!-- Header -->
-  <div class="relative overflow-hidden bg-surface-container-low/30 p-8 md:p-12 rounded-[3rem] border border-outline-variant/10 group">
-    <div class="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors duration-1000"></div>
-    <div class="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/4 w-64 h-64 bg-secondary/5 rounded-full blur-2xl group-hover:bg-secondary/10 transition-colors duration-1000"></div>
-    
-    <div class="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
-      <div class="space-y-2">
-        <div class="flex items-center gap-3">
-           <div class="bg-primary/10 p-2 rounded-xl text-primary">
-              <Papicon icon="ChartLineUp" size={20} />
-           </div>
-           <span class="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Intelligence & Analytics</span>
+  <div class="relative overflow-hidden bg-surface-container-low/30 p-5 md:p-6 rounded-xl border border-outline-variant/10 group">
+    <div class="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-64 h-64 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors duration-1000"></div>
+
+    <div class="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div class="flex items-center gap-4">
+        <div class="bg-primary/10 p-2 rounded-xl text-primary">
+          <Papicon icon="ChartLineUp" size={20} />
         </div>
-        <h2 class="text-3xl md:text-5xl font-black tracking-tight text-on-surface font-headline leading-tight">
-          Performance <span class="text-primary">Serveur</span>
-        </h2>
-        <p class="text-on-surface-variant/60 text-base max-w-md">Analysez la croissance, l'engagement et l'activité de votre communauté en temps réel.</p>
+        <div>
+          <span class="text-[10px] font-semibold uppercase tracking-widest text-primary">Intelligence & Analytics</span>
+          <h2 class="text-lg font-semibold tracking-tight text-on-surface font-headline leading-tight">
+            Performance <span class="text-primary">Serveur</span>
+          </h2>
+          <p class="text-on-surface-variant/60 text-sm max-w-md">Analysez la croissance, l'engagement et l'activité de votre communauté en temps réel.</p>
+        </div>
       </div>
 
-      <div class="flex flex-col items-end gap-4 w-full md:w-auto">
-        <div class="flex flex-wrap items-center justify-end gap-3">
-          <button 
+      <div class="flex flex-col items-end gap-3 w-full md:w-auto">
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          <button
             onclick={exportAllToCSV}
-            class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors"
+            class="flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-semibold uppercase tracking-widest bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors"
           >
             <Papicon icon="DownloadSimple" size={14} /> Export CSV
           </button>
 
-          <button 
+          <button
             onclick={exportAllToXLSX}
-            class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors"
+            class="flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-semibold uppercase tracking-widest bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors"
           >
             <Papicon icon="file-text" size={14} /> Export XLSX
           </button>
 
-          <button 
+          <button
             onclick={exportAllChartsAsImages}
-            class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors"
+            class="flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-semibold uppercase tracking-widest bg-surface-container-high/40 border border-outline-variant/10 hover:bg-surface-container-high transition-colors"
           >
             <Papicon icon="image" size={14} /> Export Images
           </button>
-          
+
           <div class="flex flex-col gap-2">
-            <div class="flex gap-1.5 bg-surface-container-high/40 p-2 rounded-2xl border border-outline-variant/10 backdrop-blur-sm overflow-x-auto no-scrollbar">
+            <div class="flex gap-1 bg-surface-container-high/40 p-1.5 rounded-lg border border-outline-variant/10 overflow-x-auto no-scrollbar">
               {#each periodPresets as p}
-                <button 
-                  onclick={() => changePeriod(p.value as any)} 
-                  class="px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap { (isCustomPeriod ? p.value === 'custom' : period === p.value) ? 'bg-on-surface text-surface shadow-xl' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
+                <button
+                  onclick={() => changePeriod(p.value as any)}
+                  class="px-3 py-2 rounded-lg text-[10px] font-semibold uppercase tracking-widest transition-all duration-300 whitespace-nowrap { (isCustomPeriod ? p.value === 'custom' : period === p.value) ? 'bg-on-surface text-surface shadow-sm' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
                 >
                   {p.label}
                 </button>
@@ -524,20 +523,20 @@ import { toast } from '../lib/stores/toast.svelte';
 
             {#if isCustomPeriod}
               <div class="flex items-center gap-2 animate-in fade-in zoom-in-95 duration-300">
-                <input 
-                  type="datetime-local" 
+                <input
+                  type="datetime-local"
                   bind:value={startDate}
-                  class="bg-surface-container-low border border-outline-variant/10 rounded-xl px-3 py-1.5 text-xs text-on-surface focus:outline-none focus:border-primary transition-colors"
+                  class="bg-surface-container-low border border-outline-variant/10 rounded-lg px-3 py-1.5 text-xs text-on-surface focus:outline-none focus:border-primary transition-colors"
                 />
                 <span class="text-[10px] font-bold text-on-surface-variant/40">au</span>
-                <input 
-                  type="datetime-local" 
+                <input
+                  type="datetime-local"
                   bind:value={endDate}
-                  class="bg-surface-container-low border border-outline-variant/10 rounded-xl px-3 py-1.5 text-xs text-on-surface focus:outline-none focus:border-primary transition-colors"
+                  class="bg-surface-container-low border border-outline-variant/10 rounded-lg px-3 py-1.5 text-xs text-on-surface focus:outline-none focus:border-primary transition-colors"
                 />
-                <button 
+                <button
                   onclick={applyCustomRange}
-                  class="bg-primary text-on-primary px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:brightness-110 transition-all"
+                  class="bg-primary text-on-primary px-3 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-widest hover:brightness-110 transition-all"
                 >
                   Appliquer
                 </button>
@@ -546,7 +545,7 @@ import { toast } from '../lib/stores/toast.svelte';
           </div>
         </div>
         {#if data?.totals}
-          <div class="flex items-center gap-4 text-xs font-bold text-on-surface-variant/40 bg-surface-container-low/40 px-4 py-2 rounded-xl border border-outline-variant/5">
+          <div class="flex items-center gap-3 text-xs font-bold text-on-surface-variant/40 bg-surface-container-low/40 px-3 py-1.5 rounded-lg border border-outline-variant/5">
              <div class="flex items-center gap-2">
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                 <span>Live Feed</span>
@@ -561,11 +560,11 @@ import { toast } from '../lib/stores/toast.svelte';
 
   <!-- Navigation Catégories -->
   <div class="sticky top-4 z-40 flex justify-center">
-    <div class="flex gap-1 bg-surface-container-low/60 backdrop-blur-2xl p-1.5 rounded-4xl border border-outline-variant/10 shadow-2xl shadow-surface/20 overflow-x-auto no-scrollbar max-w-full">
+    <div class="flex gap-1 bg-surface-container-low/60 p-1.5 rounded-xl border border-outline-variant/10 shadow-sm shadow-surface/20 overflow-x-auto no-scrollbar max-w-full">
       {#each categories as cat}
         <button 
           onclick={() => { activeCategory = cat.id; activeTab = tabsByCategory[cat.id]?.[0]?.id || cat.id; }} 
-          class="flex items-center gap-2.5 px-6 py-3.5 rounded-3xl text-[10px] font-black uppercase tracking-widest transition-all duration-400 whitespace-nowrap group {activeCategory === cat.id ? 'bg-primary text-on-primary shadow-lg shadow-primary/25 scale-[1.02]' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
+          class="flex items-center gap-2.5 px-6 py-3.5 rounded-xl text-[10px] font-semibold uppercase tracking-widest transition-all duration-400 whitespace-nowrap group {activeCategory === cat.id ? 'bg-primary text-on-primary shadow-lg shadow-primary/25 scale-[1.02]' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
           title={cat.description}
         >
           <div class="transition-transform group-hover:scale-110 {activeCategory === cat.id ? 'text-on-primary' : 'text-primary'}">
@@ -580,20 +579,20 @@ import { toast } from '../lib/stores/toast.svelte';
   <!-- Navigation Onglets (sous-catégories) -->
   {#if currentTabs.length > 1}
     <div class="flex justify-center">
-      <div class="flex gap-1 bg-surface-container-low/40 backdrop-blur-lg p-1.5 rounded-3xl border border-outline-variant/5">
+      <div class="flex gap-1 bg-surface-container p-1.5 rounded-lg border border-outline-variant">
         {#each currentTabs as tab}
           <button 
             onclick={() => selectTab(tab)}
             disabled={tab.disabled}
             aria-disabled={tab.disabled}
-            class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest transition-all duration-300 whitespace-nowrap {tab.disabled ? 'bg-surface-container-high/40 text-on-surface-variant/30 cursor-not-allowed opacity-70' : activeTab === tab.id ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
+            class="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all duration-300 whitespace-nowrap {tab.disabled ? 'bg-surface-container-high/40 text-on-surface-variant/30 cursor-not-allowed opacity-70' : activeTab === tab.id ? 'bg-primary text-on-primary shadow-lg' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
           >
             <div class="transition-transform {tab.disabled ? 'text-on-surface-variant/30' : activeTab === tab.id ? 'text-on-primary' : 'text-primary'}">
               <Papicon icon={tab.icon} size={14} />
             </div>
             {tab.label}
             {#if tab.badge}
-              <span class="ml-1 rounded-full border border-current/20 bg-current/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest {tab.disabled ? 'text-on-surface-variant/35' : 'text-current/80'}">
+              <span class="ml-1 rounded-full border border-current/20 bg-current/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest {tab.disabled ? 'text-on-surface-variant/35' : 'text-current/80'}">
                 {tab.badge}
               </span>
             {/if}
@@ -608,7 +607,7 @@ import { toast } from '../lib/stores/toast.svelte';
     <AnalyticsSkeleton />
   {:else if error}
 
-    <div class="bg-error-container/10 border border-error/20 p-5 rounded-4xl text-error text-sm font-bold flex items-center gap-3">
+    <div class="bg-error-container/10 border border-error/20 p-5 rounded-xl text-error text-sm font-bold flex items-center gap-3">
       <Papicon icon="alert-octagon" size={20} />{error}
     </div>
   {:else if data}
@@ -619,26 +618,26 @@ import { toast } from '../lib/stores/toast.svelte';
       <EngagementMetrics {data} mode={activeTab} onOpenMember={openMemberDetails} />
     {:else if activeTab === 'interactions'}
       {#if loadingInteractions}
-        <div class="w-full h-155 rounded-4xl border border-white/5 bg-surface-container-low/50 backdrop-blur-xl flex flex-col items-center justify-center gap-4 text-on-surface-variant p-8">
+        <div class="w-full h-155 rounded-xl border border-white/5 bg-surface-container-low/50 flex flex-col items-center justify-center gap-4 text-on-surface-variant p-8">
           <div class="relative w-16 h-16 flex items-center justify-center">
             <div class="absolute inset-0 rounded-full border-4 border-primary/10 border-t-primary animate-spin"></div>
             <div class="absolute inset-2 rounded-full border-4 border-secondary/10 border-t-secondary animate-spin" style="animation-direction: reverse; animation-duration: 1.5s;"></div>
           </div>
           <div class="flex flex-col items-center text-center mt-2">
-            <span class="text-sm font-black uppercase tracking-wider text-primary animate-pulse">Chargement du Réseau...</span>
+            <span class="text-sm font-semibold uppercase tracking-wider text-primary animate-pulse">Chargement du Réseau...</span>
             <span class="text-xs text-on-surface-variant/60 mt-1">Analyse des flux de communication et des interactions globales</span>
           </div>
         </div>
       {:else if interactionsError}
-        <div class="w-full h-155 rounded-4xl border border-error/10 bg-error-container/5 backdrop-blur-xl flex flex-col items-center justify-center gap-4 text-error p-8 text-center">
+        <div class="w-full h-155 rounded-xl border border-error/10 bg-error-container/5 flex flex-col items-center justify-center gap-4 text-error p-8 text-center">
           <div class="w-12 h-12 rounded-full bg-error/10 flex items-center justify-center text-error mb-2">
             <Papicon icon="alert-octagon" size={24} />
           </div>
-          <span class="text-sm font-black uppercase tracking-wider">Impossible de charger le graphe de réseau</span>
+          <span class="text-sm font-semibold uppercase tracking-wider">Impossible de charger le graphe de réseau</span>
           <span class="text-xs text-on-surface-variant/60 max-w-md">{interactionsError}</span>
           <button 
             onclick={loadInteractions}
-            class="mt-2 px-5 py-2.5 bg-error/10 hover:bg-error/20 border border-error/20 hover:border-error/30 rounded-full text-xs font-black uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-[0.98]"
+            class="mt-2 px-5 py-2.5 bg-error/10 hover:bg-error/20 border border-error/20 hover:border-error/30 rounded-full text-xs font-semibold uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-[0.98]"
           >
             Réessayer
           </button>
@@ -668,11 +667,11 @@ import { toast } from '../lib/stores/toast.svelte';
       {#if data?.commandUsage && data.commandUsage.length > 0}
         <CommandUsage data={data.commandUsage} />
       {:else}
-        <div class="rounded-4xl border border-outline-variant/10 bg-surface-container-low/40 p-10 text-center">
-          <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+        <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-10 text-center">
+          <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <Papicon icon="Code" size={26} />
           </div>
-          <h3 class="text-lg font-black text-on-surface">Aucune commande enregistrée sur la période</h3>
+          <h3 class="text-lg font-semibold text-on-surface">Aucune commande enregistrée sur la période</h3>
           <p class="mt-2 text-sm text-on-surface-variant/70">
             Les statistiques de commandes apparaîtront automatiquement dès qu'un membre utilisera des commandes du bot.
           </p>

@@ -634,7 +634,7 @@
   <div class="flex border-b border-outline-variant/10 mb-8">
     <button 
       onclick={() => changeTab('tickets')}
-      class="px-8 py-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative {activeTab === 'tickets' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
+      class="px-8 py-4 text-[10px] font-semibold uppercase tracking-wider transition-all relative {activeTab === 'tickets' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
     >
       Tickets Support
       {#if activeTab === 'tickets'}
@@ -643,7 +643,7 @@
     </button>
     <button 
       onclick={() => changeTab('transcripts')}
-      class="px-8 py-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative {activeTab === 'transcripts' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
+      class="px-8 py-4 text-[10px] font-semibold uppercase tracking-wider transition-all relative {activeTab === 'transcripts' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
     >
       Transcriptions
       {#if activeTab === 'transcripts'}
@@ -652,7 +652,7 @@
     </button>
     <button 
       onclick={() => changeTab('config')}
-      class="px-8 py-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative {activeTab === 'config' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
+      class="px-8 py-4 text-[10px] font-semibold uppercase tracking-wider transition-all relative {activeTab === 'config' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
     >
       Configuration
       {#if activeTab === 'config'}
@@ -666,13 +666,13 @@
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 h-[75vh]">
       
       <!-- Left Panel: Tickets Browser (col-span-4) -->
-      <div class="lg:col-span-4 bg-surface-container-low/40 border border-outline-variant/10 rounded-[2.5rem] p-6 flex flex-col overflow-hidden h-full">
+      <div class="lg:col-span-4 bg-surface-container-low/40 border border-outline-variant/10 rounded-xl p-6 flex flex-col overflow-hidden h-full">
         <!-- Filter chips inside browser -->
         <div class="flex items-center gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
           {#each ['ALL', 'OPEN', 'CLAIMED', 'CLOSED'] as filterType}
             <button
               onclick={() => ticketFilter = filterType as any}
-              class="px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all {ticketFilter === filterType ? 'bg-primary text-white shadow-md shadow-primary/20' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}"
+              class="px-4 py-2 rounded-full text-[10px] font-semibold uppercase tracking-widest transition-all {ticketFilter === filterType ? 'bg-primary text-white shadow-md shadow-primary/20' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}"
             >
               {filterType === 'ALL' ? 'Tous' : getStatusLabel(filterType)}
             </button>
@@ -690,22 +690,22 @@
             {#each filteredTickets as ticket (ticket.id)}
               <button
                 onclick={() => selectTicket(ticket.id)}
-                class="w-full text-left p-4 rounded-2xl border transition-all duration-300 relative overflow-hidden group {selectedTicketId === ticket.id ? 'bg-primary/5 border-primary shadow-sm' : 'bg-surface-container/30 border-outline-variant/10 hover:border-outline-variant/40 hover:bg-surface-container/50'}"
+                class="w-full text-left p-4 rounded-lg border transition-all duration-300 relative overflow-hidden group {selectedTicketId === ticket.id ? 'bg-primary/5 border-primary shadow-sm' : 'bg-surface-container/30 border-outline-variant/10 hover:border-outline-variant/40 hover:bg-surface-container/50'}"
               >
                 <!-- Avatar & Header info -->
                 <div class="flex items-start gap-3">
-                  <div class="w-10 h-10 rounded-xl bg-surface-container flex items-center justify-center text-primary font-black text-sm shadow-sm group-hover:scale-105 transition-transform">
+                  <div class="w-10 h-10 rounded-xl bg-surface-container flex items-center justify-center text-primary font-semibold text-sm shadow-sm  transition-transform">
                     {ticket.username?.charAt(0).toUpperCase() || '?'}
                   </div>
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center justify-between gap-2">
-                      <p class="text-sm font-black text-on-surface truncate">@{ticket.username || 'Anonyme'}</p>
-                      <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border {getStatusColor(ticket.status)}">
+                      <p class="text-sm font-semibold text-on-surface truncate">@{ticket.username || 'Anonyme'}</p>
+                      <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider border {getStatusColor(ticket.status)}">
                         {getStatusLabel(ticket.status)}
                       </span>
                     </div>
                     <p class="text-[10px] text-on-surface-variant/60 font-mono mt-0.5">ID: {ticket.id}</p>
-                    <p class="text-[9px] text-on-surface-variant/50 mt-1">Créé le {new Date(ticket.createdAt).toLocaleDateString()}</p>
+                    <p class="text-[11px] text-on-surface-variant/50 mt-1">Créé le {new Date(ticket.createdAt).toLocaleDateString()}</p>
                   </div>
                 </div>
 
@@ -722,26 +722,26 @@
       </div>
 
       <!-- Right Panel: Live Chat & Actions (col-span-8) -->
-      <div class="lg:col-span-8 bg-surface-container-low/40 border border-outline-variant/10 rounded-[2.5rem] flex flex-col overflow-hidden h-full">
+      <div class="lg:col-span-8 bg-surface-container-low/40 border border-outline-variant/10 rounded-xl flex flex-col overflow-hidden h-full">
         {#if !selectedTicketId}
           <div class="flex-1 flex flex-col items-center justify-center text-on-surface-variant/30 py-32">
-            <div class="w-20 h-20 rounded-[2.5rem] bg-surface-container flex items-center justify-center mb-6 shadow-inner">
+            <div class="w-20 h-20 rounded-xl bg-surface-container flex items-center justify-center mb-6 shadow-inner">
               <Papicon icon="message-square" size={40} />
             </div>
-            <h3 class="text-xl font-black text-on-surface/40 font-headline">Aucun ticket sélectionné</h3>
+            <h3 class="text-xl font-semibold text-on-surface/40 font-headline">Aucun ticket sélectionné</h3>
             <p class="text-xs opacity-60 mt-1">Sélectionnez un ticket dans la liste pour démarrer l'assistance en direct.</p>
           </div>
         {:else}
           <!-- Chat Header -->
           <div class="p-6 border-b border-outline-variant/10 bg-surface-container/20 flex flex-wrap items-center justify-between gap-4">
             <div class="flex items-center gap-3">
-              <div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-black text-lg shadow-inner">
+              <div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-semibold text-lg shadow-inner">
                 {selectedTicketDetail?.username?.charAt(0).toUpperCase() || '?'}
               </div>
               <div>
                 <div class="flex items-center gap-2">
-                  <h3 class="text-base font-black text-on-surface">@{selectedTicketDetail?.username || 'Utilisateur'}</h3>
-                  <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border {getStatusColor(selectedTicketDetail?.status)}">
+                  <h3 class="text-base font-semibold text-on-surface">@{selectedTicketDetail?.username || 'Utilisateur'}</h3>
+                  <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider border {getStatusColor(selectedTicketDetail?.status)}">
                     {getStatusLabel(selectedTicketDetail?.status)}
                   </span>
                 </div>
@@ -758,7 +758,7 @@
             <div class="flex flex-wrap items-center gap-2">
               <button 
                 onclick={() => openMemberCase(selectedTicketDetail.userId, selectedTicketDetail.username)}
-                class="px-4 py-2 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-indigo-500 hover:text-white transition-all flex items-center gap-1.5 shadow-sm"
+                class="px-4 py-2 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-xl text-xs font-semibold uppercase tracking-wider hover:bg-indigo-500 hover:text-white transition-all flex items-center gap-1.5 shadow-sm"
               >
                 <Papicon icon="shield" size={14} /> Casier
               </button>
@@ -767,14 +767,14 @@
                 {#if selectedTicketDetail.claimedBy !== authStore.user?.id}
                   <button 
                     onclick={claimTicket}
-                    class="px-4 py-2 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 shadow-sm"
+                    class="px-4 py-2 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-xl text-xs font-semibold uppercase tracking-wider hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 shadow-sm"
                   >
                     <Papicon icon="user-check" size={14} /> S'assigner
                   </button>
                 {/if}
                 <button 
                   onclick={() => showCloseModal = true}
-                  class="px-4 py-2 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-rose-500 hover:text-white transition-all flex items-center gap-1.5 shadow-sm"
+                  class="px-4 py-2 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-xl text-xs font-semibold uppercase tracking-wider hover:bg-rose-500 hover:text-white transition-all flex items-center gap-1.5 shadow-sm"
                 >
                   <Papicon icon="x-circle" size={14} /> Fermer
                 </button>
@@ -783,7 +783,7 @@
               {#if selectedTicketDetail?.status === 'CLAIMED' && selectedTicketDetail.claimedById !== authStore.user?.id && (config.ticketAllowOverclaim ?? true) && config.ticketOverclaimPermission !== 'NONE'}
                 <button 
                   onclick={claimTicket}
-                  class="px-4 py-2 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 shadow-sm"
+                  class="px-4 py-2 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-xl text-xs font-semibold uppercase tracking-wider hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 shadow-sm"
                 >
                   <Papicon icon="user-check" size={14} /> Sur-revendiquer
                 </button>
@@ -793,13 +793,13 @@
                 {#if selectedTicketDetail.channelId}
                   <button 
                     onclick={reopenTicket}
-                    class="px-4 py-2 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-emerald-500 hover:text-white transition-all flex items-center gap-1.5 shadow-sm"
+                    class="px-4 py-2 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-xl text-xs font-semibold uppercase tracking-wider hover:bg-emerald-500 hover:text-white transition-all flex items-center gap-1.5 shadow-sm"
                   >
                     <Papicon icon="refresh" size={14} /> Réouvrir
                   </button>
                   <button 
                     onclick={() => showDeleteConfirmModal = true}
-                    class="px-4 py-2 bg-rose-600 text-white rounded-xl text-xs font-black uppercase tracking-wider hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5 shadow-md shadow-rose-600/20"
+                    class="px-4 py-2 bg-rose-600 text-white rounded-xl text-xs font-semibold uppercase tracking-wider hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5 shadow-md shadow-rose-600/20"
                   >
                     <Papicon icon="delete" size={14} /> Supprimer
                   </button>
@@ -809,7 +809,7 @@
                   <a 
                     href="/transcripts/{selectedTicketDetail.transcriptId}" 
                     target="_blank"
-                    class="px-4 py-2 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-blue-500 hover:text-white transition-all flex items-center gap-1.5 shadow-sm"
+                    class="px-4 py-2 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-xl text-xs font-semibold uppercase tracking-wider hover:bg-blue-500 hover:text-white transition-all flex items-center gap-1.5 shadow-sm"
                   >
                     <Papicon icon="external-link" size={14} /> Voir la transcription
                   </a>
@@ -818,9 +818,9 @@
             </div>
 
             {#if selectedTicketDetail?.channelId}
-              <div class="mt-4 flex flex-col gap-3 rounded-2xl border border-outline-variant/10 bg-surface-container/30 p-4">
+              <div class="mt-4 flex flex-col gap-3 rounded-lg border border-outline-variant/10 bg-surface-container/30 p-4">
                 <div class="flex flex-col gap-1">
-                  <span class="text-[10px] font-black uppercase tracking-[0.22em] text-primary">Renommage du salon</span>
+                  <span class="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">Renommage du salon</span>
                   <p class="text-[11px] text-on-surface-variant/70">Le nom sera normalisé côté Discord pour rester compatible avec les règles des salons.</p>
                 </div>
                 <div class="flex flex-col gap-3 sm:flex-row">
@@ -833,7 +833,7 @@
                   <button
                     onclick={renameTicket}
                     disabled={renameAction.state.loading || !ticketRenameName.trim()}
-                    class="px-5 py-3 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-wider hover:scale-105 active:scale-95 transition-transform shadow-lg shadow-primary/25 disabled:opacity-50 flex items-center gap-2"
+                    class="px-5 py-3 bg-primary text-white rounded-xl text-xs font-semibold uppercase tracking-wider hover:scale-105 active:scale-95 transition-transform  disabled:opacity-50 flex items-center gap-2"
                   >
                     <Papicon icon="edit" size={14} />
                     {renameAction.state.loading ? 'Renommage...' : 'Renommer'}
@@ -875,7 +875,7 @@
                     {#if msg.authorAvatar}
                       <img src={msg.authorAvatar} alt="Avatar" class="h-10 w-10 rounded-full object-cover border border-white/10" />
                     {:else}
-                      <div class="h-10 w-10 rounded-full bg-white/10 flex items-center justify-center text-sm font-black text-white/80">
+                      <div class="h-10 w-10 rounded-full bg-white/10 flex items-center justify-center text-sm font-semibold text-white/80">
                         {msg.authorName?.slice(0, 1).toUpperCase()}
                       </div>
                     {/if}
@@ -886,7 +886,7 @@
                     <div class="flex items-baseline gap-2">
                       <span class="text-sm font-bold text-white hover:underline cursor-pointer">{msg.authorName || 'Anonyme'}</span>
                       {#if msg.isStaff}
-                        <span class="bg-[#5865F2] text-white text-[9px] font-black uppercase px-1.5 py-0.5 rounded tracking-wider leading-none">Kotbo Staff</span>
+                        <span class="bg-[#5865F2] text-white text-[11px] font-semibold uppercase px-1.5 py-0.5 rounded tracking-wider leading-none">Kotbo Staff</span>
                       {/if}
                       <span class="text-[10px] text-white/40">{new Date(msg.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
@@ -963,7 +963,7 @@
                         {#each msg.stickers as sticker}
                           <div class="relative group max-w-xs">
                             <img src={sticker.url} alt={sticker.name} class="h-40 w-auto rounded-lg object-contain hover:scale-105 transition-transform" />
-                            <span class="absolute bottom-1 left-1 bg-black/60 text-white/70 text-[9px] px-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">Autocollant : {sticker.name}</span>
+                            <span class="absolute bottom-1 left-1 bg-black/60 text-white/70 text-[11px] px-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">Autocollant : {sticker.name}</span>
                           </div>
                         {/each}
                       </div>
@@ -1055,18 +1055,18 @@
                 bind:value={chatInput}
                 onkeydown={(e) => e.key === 'Enter' && sendMessage()}
                 placeholder="Écrire un message privé au candidat..."
-                class="flex-1 bg-surface-container rounded-2xl px-6 py-4 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm font-medium"
+                class="flex-1 bg-surface-container rounded-lg px-6 py-4 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm font-medium"
               />
               <button 
                 onclick={sendMessage}
                 disabled={!chatInput.trim()}
-                class="w-14 h-14 rounded-2xl bg-primary text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-transform disabled:opacity-50 shadow-lg shadow-primary/20"
+                class="w-14 h-14 rounded-lg bg-primary text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-transform disabled:opacity-50 "
               >
                 <Papicon icon="send" size={20} />
               </button>
             </div>
           {:else}
-            <div class="p-6 border-t border-outline-variant/10 bg-rose-500/10 text-rose-500 flex items-center justify-center text-xs font-black uppercase tracking-widest gap-2">
+            <div class="p-6 border-t border-outline-variant/10 bg-rose-500/10 text-rose-500 flex items-center justify-center text-xs font-semibold uppercase tracking-widest gap-2">
               <Papicon icon="lock" size={16} /> Ce ticket est fermé. Aucune modification ou envoi de message n'est possible.
             </div>
           {/if}
@@ -1076,16 +1076,16 @@
     </div>
   {:else if activeTab === 'config'}
     <!-- Configuration Panel -->
-    <div class="bg-surface-container-low/40 border border-outline-variant/10 rounded-[3rem] p-8 max-w-4xl mx-auto space-y-8 font-inter">
+    <div class="bg-surface-container-low/40 border border-outline-variant/10 rounded-xl p-8 max-w-4xl mx-auto space-y-8 font-inter">
       <div class="border-b border-outline-variant/20 pb-4 flex items-center justify-between">
         <div>
-          <h3 class="text-xl font-black text-on-surface">Configuration du Module</h3>
+          <h3 class="text-xl font-semibold text-on-surface">Configuration du Module</h3>
           <p class="text-on-surface-variant text-sm">Organisez les salons et personnalisez le bouton d'ouverture.</p>
         </div>
         <button 
           onclick={sendEmbedPanel} 
           disabled={sendEmbedAction.state.loading || !ticketChannelId}
-          class="px-5 py-3 bg-primary text-white rounded-xl text-xs font-black uppercase tracking-wider hover:scale-105 active:scale-95 transition-transform shadow-lg shadow-primary/25 disabled:opacity-50 flex items-center gap-2"
+          class="px-5 py-3 bg-primary text-white rounded-xl text-xs font-semibold uppercase tracking-wider hover:scale-105 active:scale-95 transition-transform  disabled:opacity-50 flex items-center gap-2"
         >
           <Papicon icon="send" size={14} /> 
           {sendEmbedAction.state.loading ? 'Envoi...' : 'Envoyer Embed sur Discord'}
@@ -1095,7 +1095,7 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <!-- Salons -->
         <div class="space-y-4">
-          <h4 class="text-xs font-black uppercase tracking-widest text-primary mb-2">Salons & Rôles Discord</h4>
+          <h4 class="text-xs font-semibold uppercase tracking-widest text-primary mb-2">Salons & Rôles Discord</h4>
 
           <label class="block">
             <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">ID Catégorie Tickets (Création des salons)</span>
@@ -1140,7 +1140,7 @@
 
         <!-- Custom Embed -->
         <div class="space-y-4">
-          <h4 class="text-xs font-black uppercase tracking-widest text-primary mb-2">Personnalisation de l'Embed</h4>
+          <h4 class="text-xs font-semibold uppercase tracking-widest text-primary mb-2">Personnalisation de l'Embed</h4>
 
           <label class="block">
             <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Titre de l'Embed</span>
@@ -1165,9 +1165,9 @@
       </div>
 
       <!-- Inactivité du Créateur -->
-      <div class="rounded-4xl border border-outline-variant/10 bg-surface-container/30 p-6 space-y-5">
+      <div class="rounded-xl border border-outline-variant/10 bg-surface-container/30 p-6 space-y-5">
         <div>
-          <h4 class="text-xs font-black uppercase tracking-widest text-primary mb-1">Inactivité du Créateur</h4>
+          <h4 class="text-xs font-semibold uppercase tracking-widest text-primary mb-1">Inactivité du Créateur</h4>
           <p class="text-sm text-on-surface-variant">Configurez un rappel automatique pour relancer le créateur du ticket s\'il ne répond pas.</p>
         </div>
 
@@ -1196,15 +1196,15 @@
         </div>
       </div>
 
-      <div class="rounded-4xl border border-outline-variant/10 bg-surface-container/30 p-6 space-y-5">
+      <div class="rounded-xl border border-outline-variant/10 bg-surface-container/30 p-6 space-y-5">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h4 class="text-xs font-black uppercase tracking-widest text-primary mb-1">Types de tickets</h4>
+            <h4 class="text-xs font-semibold uppercase tracking-widest text-primary mb-1">Types de tickets</h4>
             <p class="text-sm text-on-surface-variant">Chaque type affiche son propre bouton, ping le bon rôle et ouvre le salon dans la bonne catégorie.</p>
           </div>
           <button
             onclick={addTicketType}
-            class="px-4 py-2 bg-primary text-white rounded-xl text-[10px] font-black uppercase tracking-wider hover:scale-105 active:scale-95 transition-transform shadow-lg shadow-primary/20 flex items-center gap-2"
+            class="px-4 py-2 bg-primary text-white rounded-xl text-[10px] font-semibold uppercase tracking-wider hover:scale-105 active:scale-95 transition-transform  flex items-center gap-2"
           >
             <Papicon icon="plus" size={14} /> Ajouter un type
           </button>
@@ -1212,15 +1212,15 @@
 
         <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
           {#each ticketTypes as ticketType, index}
-            <div class="rounded-3xl border border-outline-variant/10 bg-surface-container-low/40 p-5 space-y-4">
+            <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-5 space-y-4">
               <div class="flex items-center justify-between gap-3">
                 <div>
-                  <p class="text-xs font-black uppercase tracking-widest text-on-surface-variant/70">Type #{index + 1}</p>
+                  <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/70">Type #{index + 1}</p>
                   <p class="text-sm font-bold text-on-surface">Bouton visible dans l'embed</p>
                 </div>
                 <button
                   onclick={() => removeTicketType(index)}
-                  class="px-3 py-2 rounded-xl bg-rose-500/10 text-rose-500 border border-rose-500/20 text-[10px] font-black uppercase tracking-wider hover:bg-rose-500 hover:text-white transition-colors"
+                  class="px-3 py-2 rounded-xl bg-rose-500/10 text-rose-500 border border-rose-500/20 text-[10px] font-semibold uppercase tracking-wider hover:bg-rose-500 hover:text-white transition-colors"
                 >
                   Supprimer
                 </button>
@@ -1273,10 +1273,10 @@
 
     </div>
   {:else if activeTab === 'transcripts'}
-    <div class="bg-surface-container-low/40 border border-outline-variant/10 rounded-[2.5rem] p-8 flex flex-col h-full min-h-[50vh] font-inter">
+    <div class="bg-surface-container-low/40 border border-outline-variant/10 rounded-xl p-8 flex flex-col h-full min-h-[50vh] font-inter">
       <div class="flex items-center justify-between mb-6">
         <div>
-          <h3 class="text-xl font-black text-on-surface">Historique des Transcriptions</h3>
+          <h3 class="text-xl font-semibold text-on-surface">Historique des Transcriptions</h3>
           <p class="text-on-surface-variant text-sm">Consultez l'historique complet des transcriptions de tickets et de salons.</p>
         </div>
       </div>
@@ -1294,7 +1294,7 @@
         <div class="overflow-x-auto w-full">
           <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="border-b border-outline-variant/15 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/70">
+              <tr class="border-b border-outline-variant/15 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/70">
                 <th class="py-4 px-6">Salon</th>
                 <th class="py-4 px-6">Type / Origine</th>
                 <th class="py-4 px-6">Période des messages</th>
@@ -1310,11 +1310,11 @@
                   </td>
                   <td class="py-4 px-6">
                     {#if t.channelName.startsWith('ticket-') || t.channelName.startsWith('fermer-')}
-                      <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                      <span class="px-3 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/20">
                         Ticket Support
                       </span>
                     {:else}
-                      <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      <span class="px-3 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                         Commande /transcript
                       </span>
                     {/if}
@@ -1336,7 +1336,7 @@
                     <a
                       href="/transcripts/{t.id}"
                       target="_blank"
-                      class="px-4 py-2 bg-primary/10 text-primary border border-primary/20 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-primary hover:text-white transition-all inline-flex items-center gap-1.5 shadow-sm"
+                      class="px-4 py-2 bg-primary/10 text-primary border border-primary/20 rounded-xl text-xs font-semibold uppercase tracking-wider hover:bg-primary hover:text-white transition-all inline-flex items-center gap-1.5 shadow-sm"
                     >
                       <Papicon icon="external-link" size={12} />
                       Consulter
@@ -1358,17 +1358,17 @@
 
 <!-- Ticket Close Modal -->
 {#if showCloseModal}
-  <div class="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-    <div class="bg-surface border border-outline-variant/30 rounded-[3rem] w-full max-w-lg shadow-2xl p-10 animate-in zoom-in-95 duration-300">
+  <div class="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60">
+    <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-lg shadow-sm p-10 animate-in zoom-in-95 duration-300">
       <div class="flex items-center gap-4 mb-2 text-rose-500">
         <Papicon icon="x-circle" size={36} />
-        <h3 class="text-2xl font-black">Clôturer le Ticket</h3>
+        <h3 class="text-2xl font-semibold">Clôturer le Ticket</h3>
       </div>
       <p class="text-sm text-on-surface-variant/80 mb-6">Cette action fermera le salon de ticket. Vous pourrez y ajouter un motif de fermeture.</p>
       
       <div>
         <label for="close-reason-input" class="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Raison de la fermeture (Optionnel)</label>
-        <textarea id="close-reason-input" bind:value={closeReason} class="w-full h-32 bg-surface-container rounded-2xl p-4 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm" placeholder="Raison de la fermeture..."></textarea>
+        <textarea id="close-reason-input" bind:value={closeReason} class="w-full h-32 bg-surface-container rounded-lg p-4 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm" placeholder="Raison de la fermeture..."></textarea>
       </div>
       
       <div class="flex gap-4 mt-8 pt-6 border-t border-outline-variant/20">
@@ -1386,11 +1386,11 @@
 
 <!-- Ticket Delete Confirm Modal -->
 {#if showDeleteConfirmModal}
-  <div class="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
-    <div class="bg-surface border border-outline-variant/30 rounded-[3rem] w-full max-w-md shadow-2xl p-10 animate-in zoom-in-95 duration-300">
+  <div class="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60">
+    <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-md shadow-sm p-10 animate-in zoom-in-95 duration-300">
       <div class="flex items-center gap-4 mb-2 text-rose-500">
         <Papicon icon="delete" size={36} />
-        <h3 class="text-2xl font-black">Supprimer définitivement ?</h3>
+        <h3 class="text-2xl font-semibold">Supprimer définitivement ?</h3>
       </div>
       <p class="text-sm text-on-surface-variant/80 mb-6">Cette action va supprimer définitivement le salon sur Discord et générer une transcription autonome Kotbo.</p>
       

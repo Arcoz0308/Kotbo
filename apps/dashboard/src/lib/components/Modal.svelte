@@ -8,7 +8,7 @@
     onClose = () => {},
     title = '',
     subtitle = '',
-    size = 'md', // sm, md, lg, xl, full
+    size = 'md',
     showCloseButton = true,
     closeOnBackdropClick = true,
     closeOnEscape = true,
@@ -69,7 +69,7 @@
   >
     <!-- Backdrop -->
     <div
-      class="absolute inset-0 bg-black/60 backdrop-blur-sm"
+      class="absolute inset-0 bg-black/40"
       onclick={handleBackdropClick}
       onkeydown={handleKeydown}
       onkeypress={(e) => e.key === 'Enter' && handleBackdropClick(e as any)}
@@ -82,28 +82,28 @@
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="relative w-full {sizeClasses[size]} bg-surface-container-lowest rounded-4xl shadow-2xl overflow-hidden border border-outline-variant/30 flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200"
+      class="relative w-full {sizeClasses[size]} bg-surface-container-lowest rounded-xl shadow-lg overflow-hidden border border-outline-variant flex flex-col max-h-[90vh] animate-in fade-in slide-up duration-150"
       onclick={(e) => e.stopPropagation()}
     >
       <!-- Header -->
       {#if title || showCloseButton}
-        <header class="p-6 border-b border-outline-variant/30 flex items-center justify-between relative z-10">
+        <header class="px-5 py-4 border-b border-outline-variant flex items-center justify-between">
           <div class="flex-1">
             {#if title}
-              <h3 id="modal-title" class="text-xl font-black text-on-surface">{title}</h3>
+              <h3 id="modal-title" class="text-base font-semibold text-on-surface">{title}</h3>
             {/if}
             {#if subtitle}
-              <p class="text-sm text-on-surface-variant/80 mt-1">{subtitle}</p>
+              <p class="text-sm text-on-surface-variant mt-0.5">{subtitle}</p>
             {/if}
           </div>
           {#if showCloseButton}
             <button
               type="button"
               onclick={(e) => { open = false; onClose(e); }}
-              class="ml-4 h-9 w-9 flex items-center justify-center rounded-xl bg-surface-container-high/60 hover:bg-surface-container-high hover:scale-105 transition-all text-on-surface-variant hover:text-on-surface"
+              class="ml-3 h-8 w-8 flex items-center justify-center rounded-md bg-surface-container hover:bg-surface-container-high transition-colors text-on-surface-variant hover:text-on-surface"
               aria-label="Fermer"
             >
-              <Papicon icon="x" size={16} />
+              <Papicon icon="x" size={14} />
             </button>
           {/if}
         </header>

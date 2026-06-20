@@ -307,7 +307,7 @@
           <div class="space-y-6">
             <div class="space-y-2">
               <div class="h-3 w-32 rounded-full bg-on-surface/10"></div>
-              <div class="h-24 w-full rounded-2xl bg-on-surface/5"></div>
+              <div class="h-24 w-full rounded-lg bg-on-surface/5"></div>
             </div>
             
             <div class="space-y-4">
@@ -324,7 +324,7 @@
 
             <div class="space-y-2 pt-4">
               <div class="h-2 w-32 rounded-full bg-on-surface/5"></div>
-              <div class="h-32 w-full rounded-2xl bg-on-surface/5"></div>
+              <div class="h-32 w-full rounded-lg bg-on-surface/5"></div>
             </div>
 
             <div class="h-12 w-full rounded-xl bg-primary/10"></div>

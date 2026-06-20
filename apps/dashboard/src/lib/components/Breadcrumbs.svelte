@@ -3,17 +3,14 @@
   import Papicon from './Papicon.svelte';
   import { allPages } from '../config/pages';
 
-  // Dynamic breadcrumbs calculation based on the current Tinro router state
   const crumbs = $derived.by(() => {
     const path = $router.path;
     if (path === '/' || path === '/login' || !path) return [];
 
     const list = [{ name: 'Accueil', href: '/' }];
-    
-    // Split segments and filter out empty ones
+
     const segments = path.split('/').filter(Boolean);
-    
-    // Gérer les cas particuliers à plusieurs niveaux
+
     if (segments[0] === 'events') {
       list.push({ name: 'Événements', href: '/events' });
       if (segments[1] === 'edit' && segments[2]) {
@@ -29,7 +26,6 @@
       list.push({ name: 'Profil', href: path });
     } else if (segments[0] === 'module-settings' && segments[1]) {
       list.push({ name: 'Modules', href: '/modules' });
-      // Map legacy/settings paths
       const moduleNames: Record<string, string> = {
         regulation: 'Règlement',
         sanctions: 'Sanctions',
@@ -55,16 +51,14 @@
         list.push({ name: adminNames[segments[1]] || segments[1], href: path });
       }
     } else {
-      // Lookup page configuration
       const matchedPage = allPages.find(p => {
         const [pPath] = p.href.split('?');
         return pPath === `/${segments[0]}`;
       });
-      
+
       if (matchedPage) {
         list.push({ name: matchedPage.name, href: matchedPage.href });
       } else {
-        // Fallback title casing
         const name = segments[0].charAt(0).toUpperCase() + segments[0].slice(1).replace(/-/g, ' ');
         list.push({ name, href: `/${segments[0]}` });
       }
@@ -75,21 +69,21 @@
 </script>
 
 {#if crumbs.length > 0}
-  <nav class="flex items-center gap-2 text-xs font-bold text-on-surface-variant/50 mb-6 bg-surface-container-low/30 border border-outline-variant/10 px-4 py-2.5 rounded-xl w-fit shadow-xs backdrop-blur-xs select-none animate-in fade-in duration-300">
+  <nav class="flex items-center gap-1.5 text-xs text-on-surface-variant mb-5 select-none">
     {#each crumbs as crumb, i}
       {#if i > 0}
-        <span class="text-on-surface-variant/20 font-medium">/</span>
+        <span class="text-on-surface-variant/30">/</span>
       {/if}
-      
+
       {#if i === crumbs.length - 1}
-        <span class="text-primary font-black">{crumb.name}</span>
+        <span class="text-on-surface font-medium">{crumb.name}</span>
       {:else}
-        <a 
-          href={crumb.href} 
-          class="hover:text-primary transition-colors duration-200 flex items-center gap-1 text-on-surface-variant/75"
+        <a
+          href={crumb.href}
+          class="hover:text-on-surface transition-colors flex items-center gap-1"
         >
           {#if i === 0}
-            <Papicon icon="Home" size={12} class="mr-0.5" />
+            <Papicon icon="Home" size={12} />
           {/if}
           {crumb.name}
         </a>

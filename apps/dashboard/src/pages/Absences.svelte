@@ -390,7 +390,7 @@
 
   {#if isAdmin || isManager}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
-      <div class="bg-surface-container-low/30 p-8 rounded-[2.5rem] border border-outline-variant/10 animate-in fade-in duration-500">
+      <div class="bg-surface-container-low/30 p-8 rounded-xl border border-outline-variant/10 animate-in fade-in duration-500">
         {#if absenceConfig}
           <RolePermissionSettings 
             featureKey="absences" 
@@ -399,7 +399,7 @@
         {/if}
       </div>
 
-      <div class="bg-surface-container-low/30 p-8 rounded-[2.5rem] border border-outline-variant/10 animate-in fade-in duration-500 flex flex-col justify-between">
+      <div class="bg-surface-container-low/30 p-8 rounded-xl border border-outline-variant/10 animate-in fade-in duration-500 flex flex-col justify-between">
         <div class="space-y-6">
           <div>
             <h3 class="text-xl font-bold flex items-center gap-3">
@@ -462,7 +462,7 @@
     <div class="space-y-8 animate-in fade-in duration-500">
       <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <!-- Sidebar Skeleton -->
-        <div class="lg:col-span-1 h-175 bg-surface-container-low/40 backdrop-blur-3xl rounded-4xl border border-outline-variant/20 animate-pulse p-6 space-y-6">
+        <div class="lg:col-span-1 h-175 bg-surface-container-low/40 rounded-xl border border-outline-variant/20 animate-pulse p-6 space-y-6">
           <div class="h-6 w-3/4 bg-outline-variant/20 rounded-md"></div>
           <div class="space-y-3">
             {#each Array(8) as _}
@@ -475,7 +475,7 @@
         </div>
 
         <!-- Calendar Skeleton -->
-        <div class="lg:col-span-3 h-175 bg-surface-container-low/40 backdrop-blur-3xl rounded-[2.5rem] border border-outline-variant/20 animate-pulse flex flex-col p-8 space-y-6">
+        <div class="lg:col-span-3 h-175 bg-surface-container-low/40 rounded-xl border border-outline-variant/20 animate-pulse flex flex-col p-8 space-y-6">
           <div class="flex justify-between items-center">
             <div class="h-10 w-48 bg-outline-variant/20 rounded-xl"></div>
             <div class="flex gap-2">
@@ -485,7 +485,7 @@
           </div>
           <div class="flex-1 grid grid-cols-7 gap-4">
             {#each Array(7) as _}
-              <div class="h-full bg-outline-variant/5 rounded-2xl"></div>
+              <div class="h-full bg-outline-variant/5 rounded-lg"></div>
             {/each}
           </div>
         </div>
@@ -496,12 +496,12 @@
       <!-- Sidebar: Team Filtering -->
 
         <aside class="w-full lg:w-72 flex flex-col gap-6">
-          <div class="bg-surface-container-low p-6 rounded-4xl border border-outline-variant/30 flex flex-col gap-4">
+          <div class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/30 flex flex-col gap-4">
             <div class="flex items-center justify-between mb-2">
-              <h3 class="text-sm font-black uppercase tracking-widest text-on-surface-variant">Équipe</h3>
+              <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface-variant">Équipe</h3>
               <button 
                 onclick={toggleEveryone}
-                class="text-[10px] font-black uppercase px-2 py-1 rounded-md transition-all {selectedStaffIds.length === activeStaff.length ? 'bg-primary text-white' : 'bg-surface-container-high text-on-surface-variant'}"
+                class="text-[10px] font-semibold uppercase px-2 py-1 rounded-md transition-all {selectedStaffIds.length === activeStaff.length ? 'bg-primary text-white' : 'bg-surface-container-high text-on-surface-variant'}"
               >
                 {selectedStaffIds.length === activeStaff.length ? 'Tout décocher' : 'Tout cocher'}
               </button>
@@ -530,12 +530,12 @@
             </div>
           </div>
 
-          <div class="bg-surface-container-low p-6 rounded-4xl border border-outline-variant/30 flex flex-col gap-4">
+          <div class="bg-surface-container-low p-6 rounded-xl border border-outline-variant/30 flex flex-col gap-4">
             <div class="flex items-center gap-3 mb-1">
               <div class="w-8 h-8 bg-amber-500/10 rounded-lg flex items-center justify-center">
                 <Papicon icon="info" size={18} class="text-amber-600" />
               </div>
-              <span class="text-xs font-black text-on-surface-variant uppercase tracking-widest">Affichage</span>
+              <span class="text-xs font-semibold text-on-surface-variant uppercase tracking-widest">Affichage</span>
             </div>
             <div class="flex flex-col gap-2">
               <button 
@@ -652,17 +652,17 @@
   {#if decisionModalOpen}
     <div class="fixed inset-0 z-110 flex items-center justify-center p-4">
       <div 
-        class="absolute inset-0 bg-black/60 backdrop-blur-sm" 
+        class="absolute inset-0 bg-black/40" 
         onclick={() => decisionModalOpen = false}
         onkeydown={(e) => e.key === 'Escape' && (decisionModalOpen = false)}
         role="button"
         tabindex="-1"
       ></div>
       
-      <div class="relative w-full max-w-md bg-surface-container-lowest rounded-3xl shadow-2xl overflow-hidden border border-outline-variant/30 font-inter text-on-surface">
+      <div class="relative w-full max-w-md bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-outline-variant/30 font-inter text-on-surface">
         <div class="p-6 border-b border-outline-variant/30 flex items-center justify-between {decisionStatus === 'APPROVED' ? 'bg-emerald-500/5' : 'bg-red-500/5'}">
           <div>
-            <h3 class="text-xl font-black text-on-surface">
+            <h3 class="text-xl font-semibold text-on-surface">
               {decisionStatus === 'APPROVED' ? 'Approuver' : 'Refuser'} l'absence
             </h3>
             <p class="text-on-surface-variant text-xs mt-1">Gérez la demande de <strong>{selectedAbsenceForDecision?.staffMember?.username}</strong>.</p>
@@ -670,21 +670,21 @@
         </div>
 
         <div class="p-6 space-y-4">
-          <div class="p-4 bg-surface-container-low rounded-2xl border border-outline-variant/10">
-            <p class="text-[10px] font-black uppercase text-on-surface-variant mb-1">Motif :</p>
+          <div class="p-4 bg-surface-container-low rounded-lg border border-outline-variant/10">
+            <p class="text-[10px] font-semibold uppercase text-on-surface-variant mb-1">Motif :</p>
             <p class="text-sm font-medium text-on-surface italic">"{selectedAbsenceForDecision?.reason}"</p>
           </div>
 
-          <div class="flex gap-2 p-1 bg-surface-container rounded-2xl border border-outline-variant/20">
+          <div class="flex gap-2 p-1 bg-surface-container rounded-lg border border-outline-variant/20">
             <button 
               onclick={() => decisionStatus = 'APPROVED'}
-              class="flex-1 py-2 rounded-xl text-xs font-black transition-all {decisionStatus === 'APPROVED' ? 'bg-emerald-500 text-white shadow-lg' : 'text-on-surface-variant hover:bg-surface-hover'}"
+              class="flex-1 py-2 rounded-xl text-xs font-semibold transition-all {decisionStatus === 'APPROVED' ? 'bg-emerald-500 text-white shadow-lg' : 'text-on-surface-variant hover:bg-surface-hover'}"
             >
               Approuver
             </button>
             <button 
               onclick={() => decisionStatus = 'REJECTED'}
-              class="flex-1 py-2 rounded-xl text-xs font-black transition-all {decisionStatus === 'REJECTED' ? 'bg-red-500 text-white shadow-lg' : 'text-on-surface-variant hover:bg-surface-hover'}"
+              class="flex-1 py-2 rounded-xl text-xs font-semibold transition-all {decisionStatus === 'REJECTED' ? 'bg-red-500 text-white shadow-lg' : 'text-on-surface-variant hover:bg-surface-hover'}"
             >
               Refuser
             </button>
@@ -693,7 +693,7 @@
           <textarea 
             placeholder="Note optionnelle..." 
             bind:value={decisionNote}
-            class="w-full bg-surface-container px-4 py-3 rounded-2xl border border-outline-variant/30 focus:border-primary outline-none transition-all text-sm"
+            class="w-full bg-surface-container px-4 py-3 rounded-lg border border-outline-variant/30 focus:border-primary outline-none transition-all text-sm"
             rows="3"
           ></textarea>
 
@@ -704,7 +704,7 @@
             <button 
               onclick={confirmDecision}
               disabled={decisionSaving}
-              class="flex-1 py-3 {decisionStatus === 'APPROVED' ? 'bg-emerald-500' : 'bg-red-500'} text-white rounded-xl text-sm font-black shadow-lg shadow-primary/20 disabled:opacity-50 transition-all"
+              class="flex-1 py-3 {decisionStatus === 'APPROVED' ? 'bg-emerald-500' : 'bg-red-500'} text-white rounded-xl text-sm font-semibold  disabled:opacity-50 transition-all"
             >
               Confirmer
             </button>

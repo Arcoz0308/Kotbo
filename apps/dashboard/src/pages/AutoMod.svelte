@@ -168,14 +168,14 @@
 </script>
 
 <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-  <header class="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-surface-container-low/40 backdrop-blur-3xl p-8 rounded-4xl border border-outline-variant/30">
-    <div class="flex items-center gap-6">
-      <div class="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shadow-inner">
-        <Papicon icon="ShieldAlert" size={32} />
+  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
+    <div class="flex items-center gap-4">
+      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+        <Papicon icon="ShieldAlert" size={20} />
       </div>
       <div>
-        <h1 class="text-3xl font-black tracking-tight leading-tight">AutoMod</h1>
-        <p class="text-on-surface-variant/80 font-medium">Configurez les filtres de sécurité pour modérer automatiquement les comportements néfastes.</p>
+        <h1 class="text-lg font-semibold tracking-tight leading-tight">AutoMod</h1>
+        <p class="text-sm text-on-surface-variant/70 font-medium">Configurez les filtres de sécurité pour modérer automatiquement les comportements néfastes.</p>
       </div>
     </div>
   </header>
@@ -193,9 +193,9 @@
       <div class="space-y-8">
 
         <!-- Anti-Spam -->
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
           <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
-            <h3 class="text-lg font-black flex items-center gap-3">
+            <h3 class="text-lg font-semibold flex items-center gap-3">
               <Papicon icon="Clock" size={20} class="text-primary" />
               Filtre Anti-Spam
             </h3>
@@ -216,7 +216,7 @@
                   min="2"
                   max="20"
                   bind:value={config.spamLimit} 
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:outline-none"
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none"
                   disabled={!canManageSettings}
                 />
               </div>
@@ -229,7 +229,7 @@
                   min="1"
                   max="30"
                   bind:value={config.spamIntervalSeconds} 
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:outline-none"
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none"
                   disabled={!canManageSettings}
                 />
               </div>
@@ -239,7 +239,7 @@
                 <select 
                   id="spamAction"
                   bind:value={config.spamAction}
-                  class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm text-on-surface focus:outline-none"
+                  class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
                   disabled={!canManageSettings}
                 >
                   <option value="WARN">Avertissement (Warn)</option>
@@ -251,9 +251,9 @@
         </section>
 
         <!-- Anti-Links & Discord invites -->
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
           <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
-            <h3 class="text-lg font-black flex items-center gap-3">
+            <h3 class="text-lg font-semibold flex items-center gap-3">
               <Papicon icon="Link" size={20} class="text-secondary" />
               Filtre Anti-Liens / Invitations
             </h3>
@@ -271,7 +271,7 @@
                 <select 
                   id="linksAction"
                   bind:value={config.linksAction}
-                  class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm text-on-surface focus:outline-none"
+                  class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
                   disabled={!canManageSettings}
                 >
                   <option value="DELETE_AND_WARN">Supprimer & Avertir le membre</option>
@@ -285,7 +285,7 @@
                   id="whitelist"
                   bind:value={whitelistInput} 
                   placeholder="github.com&#10;google.com"
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:outline-none h-24 resize-none font-mono"
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none h-24 resize-none font-mono"
                   disabled={!canManageSettings}
                 ></textarea>
               </div>
@@ -294,9 +294,9 @@
         </section>
 
         <!-- Anti-Caps (MAJUSCULES) -->
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
           <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
-            <h3 class="text-lg font-black flex items-center gap-3">
+            <h3 class="text-lg font-semibold flex items-center gap-3">
               <Papicon icon="Font" size={20} class="text-tertiary" />
               Filtre Majuscules Excessives
             </h3>
@@ -317,7 +317,7 @@
                   min="20"
                   max="100"
                   bind:value={config.capsThresholdPercent} 
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:outline-none"
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none"
                   disabled={!canManageSettings}
                 />
               </div>
@@ -329,7 +329,7 @@
                   type="number" 
                   min="4"
                   bind:value={config.capsMinLength} 
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:outline-none"
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none"
                   disabled={!canManageSettings}
                 />
               </div>
@@ -341,9 +341,9 @@
       <!-- Right Column: Other filters & Bypasses -->
       <div class="space-y-8">
         <!-- Emojis Flood -->
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
           <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
-            <h3 class="text-lg font-black flex items-center gap-3">
+            <h3 class="text-lg font-semibold flex items-center gap-3">
               <Papicon icon="Emoji" size={20} class="text-amber-400" />
               Filtre Spam Émojis
             </h3>
@@ -362,7 +362,7 @@
                 type="number" 
                 min="1"
                 bind:value={config.emojisLimit} 
-                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:outline-none"
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none"
                 disabled={!canManageSettings}
               />
             </div>
@@ -370,9 +370,9 @@
         </section>
 
         <!-- Mentions Flood -->
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
           <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
-            <h3 class="text-lg font-black flex items-center gap-3">
+            <h3 class="text-lg font-semibold flex items-center gap-3">
               <Papicon icon="User" size={20} class="text-purple-400" />
               Filtre Spam Mentions (@)
             </h3>
@@ -391,7 +391,7 @@
                 type="number" 
                 min="1"
                 bind:value={config.mentionsLimit} 
-                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:outline-none"
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none"
                 disabled={!canManageSettings}
               />
             </div>
@@ -399,9 +399,9 @@
         </section>
 
         <!-- Anti-Ghost Ping -->
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
           <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
-            <h3 class="text-lg font-black flex items-center gap-3">
+            <h3 class="text-lg font-semibold flex items-center gap-3">
               <Papicon icon="Ghost" size={20} class="text-rose-400" />
               Filtre Anti-Ghost Ping
             </h3>
@@ -425,7 +425,7 @@
                 <select 
                   id="ghostPingAction"
                   bind:value={config.ghostPingAction}
-                  class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm text-on-surface focus:outline-none"
+                  class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
                   disabled={!canManageSettings}
                 >
                   <option value="ALERT">Simple Alerte (Message)</option>
@@ -437,9 +437,9 @@
         </section>
 
         <!-- Anti-Everyone/Here Troll -->
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
           <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
-            <h3 class="text-lg font-black flex items-center gap-3">
+            <h3 class="text-lg font-semibold flex items-center gap-3">
               <Papicon icon="ShieldAlert" size={20} class="text-red-400" />
               Filtre Anti-Mention Everyone & Here
             </h3>
@@ -461,7 +461,7 @@
                 <select 
                   id="antiEveryoneAction"
                   bind:value={config.antiEveryoneAction}
-                  class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm text-on-surface focus:outline-none"
+                  class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
                   disabled={!canManageSettings}
                 >
                   <option value="DELETE_ONLY">Suppression simple</option>
@@ -474,8 +474,8 @@
         </section>
 
         <!-- Exempte rules (Bypass) -->
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
-          <h3 class="text-xl font-black flex items-center gap-3 border-b border-outline-variant/15 pb-4">
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+          <h3 class="text-xl font-semibold flex items-center gap-3 border-b border-outline-variant/15 pb-4">
             <Papicon icon="Unlock" size={20} class="text-emerald-400" />
             Exceptions / Salons et Rôles Ignorés
           </h3>
@@ -492,7 +492,7 @@
                       bind:value={selectedBypassRole} 
                       options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} 
                       placeholder="Ajouter un rôle" 
-                      className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-3 py-2 text-xs focus:ring-1 focus:ring-primary/20 transition-all"
+                      className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-primary/20 transition-all"
                     />
                   </div>
                   <button 
@@ -531,7 +531,7 @@
                       bind:value={selectedBypassChannel} 
                       options={availableChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} 
                       placeholder="Ajouter un salon" 
-                      className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-3 py-2 text-xs focus:ring-1 focus:ring-primary/20 transition-all"
+                      className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-primary/20 transition-all"
                     />
                   </div>
                   <button 

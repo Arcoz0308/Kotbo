@@ -356,11 +356,11 @@
   {#if loading}
     <div class="flex flex-col gap-6 animate-pulse">
       {#each [1, 2] as _}
-        <div class="h-32 rounded-3xl bg-surface-container-low/60"></div>
+        <div class="h-32 rounded-xl bg-surface-container-low/60"></div>
       {/each}
     </div>
   {:else if loadError}
-    <div class="rounded-3xl bg-error/10 border border-error/20 p-6 text-error text-sm font-semibold">
+    <div class="rounded-xl bg-error/10 border border-error/20 p-6 text-error text-sm font-semibold">
       ⚠️ {loadError}
     </div>
   {:else}
@@ -368,10 +368,10 @@
       <!-- ============================================================ -->
       <!-- Section 1 — Toggle principal                                   -->
     <!-- ============================================================ -->
-    <section class="bg-surface-container-low/40 backdrop-blur-xl rounded-4xl border border-outline-variant/30 p-8 flex flex-col gap-6">
+    <section class="bg-surface-container-low/40 rounded-xl border border-outline-variant/30 p-8 flex flex-col gap-6">
       <div class="flex items-start justify-between gap-6">
         <div class="flex flex-col gap-1">
-          <h2 class="text-base font-black tracking-tight text-on-surface">Activation</h2>
+          <h2 class="text-base font-semibold tracking-tight text-on-surface">Activation</h2>
           <p class="text-sm text-on-surface-variant/70">
             Lorsqu'activé, le bot vérifie les pseudos à l'arrivée et lors des modifications.
             Un pseudo non conforme est remplacé par
@@ -385,8 +385,8 @@
         </div>
       </div>
 
-      <div class="p-4 rounded-2xl bg-surface-container/30 border border-outline-variant/20 flex flex-col gap-3">
-        <p class="text-xs font-black uppercase tracking-widest text-on-surface-variant/50">Ce que le bot surveille</p>
+      <div class="p-4 rounded-lg bg-surface-container/30 border border-outline-variant/20 flex flex-col gap-3">
+        <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/50">Ce que le bot surveille</p>
         <div class="flex flex-col gap-2">
           <div class="flex items-center justify-between gap-4 py-1.5 px-2 rounded-xl hover:bg-surface-container-high/30 transition-colors">
             <span class="text-sm text-on-surface-variant/80">Nouveaux membres rejoignant le serveur</span>
@@ -418,9 +418,9 @@
     <!-- ============================================================ -->
     <!-- Section 2 — Mots bannis                                       -->
     <!-- ============================================================ -->
-    <section class="bg-surface-container-low/40 backdrop-blur-xl rounded-4xl border border-outline-variant/30 p-8 flex flex-col gap-6">
+    <section class="bg-surface-container-low/40 rounded-xl border border-outline-variant/30 p-8 flex flex-col gap-6">
       <div class="flex flex-col gap-1">
-        <h2 class="text-base font-black tracking-tight text-on-surface">Mots bannis</h2>
+        <h2 class="text-base font-semibold tracking-tight text-on-surface">Mots bannis</h2>
         <p class="text-sm text-on-surface-variant/70">
           Gérez les mots déclenchant un renommage automatique. Les mots <strong>globaux</strong> sont partagés
           entre tous les serveurs et sont en lecture seule. Vos mots <strong>personnalisés</strong> sont
@@ -429,7 +429,7 @@
       </div>
 
       <!-- Tabs -->
-      <div class="flex gap-1 p-1 bg-surface-container/40 rounded-2xl w-fit">
+      <div class="flex gap-1 p-1 bg-surface-container/40 rounded-lg w-fit">
         {#each [{ key: 'custom', label: `Personnalisés (${customWords.length})` }, { key: 'global', label: `Globaux (${globalWords.length})` }] as tab}
           <button
             onclick={() => activeTab = tab.key as 'custom' | 'global'}
@@ -442,7 +442,7 @@
 
       {#if activeTab === 'custom'}
         {#if !checkCustom}
-          <div class="p-4 rounded-2xl bg-tertiary/10 border border-tertiary/20 flex items-center gap-3">
+          <div class="p-4 rounded-lg bg-tertiary/10 border border-tertiary/20 flex items-center gap-3">
             <span class="text-tertiary text-lg">⚠️</span>
             <p class="text-sm text-on-surface">
               <strong class="text-tertiary">Inactif</strong> — La surveillance des mots personnalisés est désactivée dans vos paramètres d'activation.
@@ -460,12 +460,12 @@
               onkeydown={handleKeydown}
               maxlength={100}
               placeholder="Entrer un mot ou fragment..."
-              class="w-full bg-surface-container/60 border border-outline-variant/30 rounded-2xl px-5 py-3.5 text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/20 transition-all"
+              class="w-full bg-surface-container/60 border border-outline-variant/30 rounded-lg px-5 py-3.5 text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/20 transition-all"
             />
           </div>
           <select
             bind:value={newCategory}
-            class="bg-surface-container/60 border border-outline-variant/30 rounded-2xl px-4 py-3.5 text-sm text-on-surface focus:outline-none focus:border-primary/60 transition-all"
+            class="bg-surface-container/60 border border-outline-variant/30 rounded-lg px-4 py-3.5 text-sm text-on-surface focus:outline-none focus:border-primary/60 transition-all"
           >
             {#each Object.entries(CATEGORIES) as [key, meta]}
               <option value={key}>{meta.label}</option>
@@ -474,7 +474,7 @@
           <button
             onclick={addWord}
             disabled={!newWord.trim() || wordAction.state.loading}
-            class="flex items-center gap-2 px-5 py-3.5 bg-primary text-white rounded-2xl text-sm font-bold transition-all hover:bg-primary/90 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+            class="flex items-center gap-2 px-5 py-3.5 bg-primary text-white rounded-lg text-sm font-bold transition-all hover:bg-primary/90 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Papicon icon="plus" size={16} />
             Ajouter
@@ -485,13 +485,13 @@
 
         <!-- Liste des mots personnalisés -->
         {#if customWords.length > 0}
-          <div class="rounded-2xl border border-outline-variant/20 overflow-hidden">
+          <div class="rounded-lg border border-outline-variant/20 overflow-hidden">
             <table class="w-full text-sm">
               <thead>
                 <tr class="bg-surface-container/40 text-left">
-                  <th class="px-5 py-3 text-xs font-black uppercase tracking-widest text-on-surface-variant/50">Mot</th>
-                  <th class="px-5 py-3 text-xs font-black uppercase tracking-widest text-on-surface-variant/50">Catégorie</th>
-                  <th class="px-5 py-3 text-xs font-black uppercase tracking-widest text-on-surface-variant/50 text-center">Actif</th>
+                  <th class="px-5 py-3 text-xs font-semibold uppercase tracking-widest text-on-surface-variant/50">Mot</th>
+                  <th class="px-5 py-3 text-xs font-semibold uppercase tracking-widest text-on-surface-variant/50">Catégorie</th>
+                  <th class="px-5 py-3 text-xs font-semibold uppercase tracking-widest text-on-surface-variant/50 text-center">Actif</th>
                   <th class="px-3 py-3"></th>
                 </tr>
               </thead>
@@ -535,7 +535,7 @@
       {:else}
         <!-- Liste globale (read-only) -->
         {#if globalWords.length > 0}
-          <div class="rounded-2xl border border-outline-variant/20 overflow-hidden">
+          <div class="rounded-lg border border-outline-variant/20 overflow-hidden">
             <div class="bg-surface-container/30 px-5 py-3 flex items-center gap-2 text-xs text-on-surface-variant/50 border-b border-outline-variant/10">
               <Papicon icon="lock" size={12} />
               <span>Ces mots sont gérés globalement et ne peuvent pas être modifiés ici.</span>
@@ -543,9 +543,9 @@
             <table class="w-full text-sm">
               <thead>
                 <tr class="bg-surface-container/40 text-left">
-                  <th class="px-5 py-3 text-xs font-black uppercase tracking-widest text-on-surface-variant/50">Mot</th>
-                  <th class="px-5 py-3 text-xs font-black uppercase tracking-widest text-on-surface-variant/50">Catégorie</th>
-                  <th class="px-5 py-3 text-xs font-black uppercase tracking-widest text-on-surface-variant/50 text-center">Actif</th>
+                  <th class="px-5 py-3 text-xs font-semibold uppercase tracking-widest text-on-surface-variant/50">Mot</th>
+                  <th class="px-5 py-3 text-xs font-semibold uppercase tracking-widest text-on-surface-variant/50">Catégorie</th>
+                  <th class="px-5 py-3 text-xs font-semibold uppercase tracking-widest text-on-surface-variant/50 text-center">Actif</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-outline-variant/10">
@@ -582,9 +582,9 @@
     <!-- ============================================================ -->
     <!-- Section 3 — Exceptions (Pseudos & Membres autorisés)          -->
     <!-- ============================================================ -->
-    <section class="bg-surface-container-low/40 backdrop-blur-xl rounded-4xl border border-outline-variant/30 p-8 flex flex-col gap-6">
+    <section class="bg-surface-container-low/40 rounded-xl border border-outline-variant/30 p-8 flex flex-col gap-6">
       <div class="flex flex-col gap-1">
-        <h2 class="text-base font-black tracking-tight text-on-surface">Exceptions de modération (Whitelist)</h2>
+        <h2 class="text-base font-semibold tracking-tight text-on-surface">Exceptions de modération (Whitelist)</h2>
         <p class="text-sm text-on-surface-variant/70">
           Gérez les pseudos et les membres qui doivent contourner la modération automatique pour éviter les faux positifs.
         </p>
@@ -608,19 +608,19 @@
               bind:value={newWhitelistItem}
               onkeydown={handleWhitelistKeydown}
               placeholder="Ex: xavier085409, fichier.py..."
-              class="flex-1 min-w-0 bg-surface-container/60 border border-outline-variant/30 rounded-2xl px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-primary/60 transition-all"
+              class="flex-1 min-w-0 bg-surface-container/60 border border-outline-variant/30 rounded-lg px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-primary/60 transition-all"
             />
             <button
               onclick={addWhitelistItem}
               disabled={!newWhitelistItem.trim() || exceptionAction.state.loading}
-              class="shrink-0 px-5 py-3 bg-primary text-white rounded-2xl text-sm font-bold transition-all hover:bg-primary/90 active:scale-95 disabled:opacity-40"
+              class="shrink-0 px-5 py-3 bg-primary text-white rounded-lg text-sm font-bold transition-all hover:bg-primary/90 active:scale-95 disabled:opacity-40"
             >
               Ajouter
             </button>
           </div>
 
           {#if whitelist.length > 0}
-            <div class="flex flex-wrap gap-2 p-4 rounded-2xl bg-surface-container/20 border border-outline-variant/10">
+            <div class="flex flex-wrap gap-2 p-4 rounded-lg bg-surface-container/20 border border-outline-variant/10">
               {#each whitelist as item}
                 <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-primary/10 text-primary border border-primary/20">
                   {item}
@@ -636,7 +636,7 @@
               {/each}
             </div>
           {:else}
-            <div class="p-6 rounded-2xl bg-surface-container/10 border border-dashed border-outline-variant/20 text-center text-xs text-on-surface-variant/40">
+            <div class="p-6 rounded-lg bg-surface-container/10 border border-dashed border-outline-variant/20 text-center text-xs text-on-surface-variant/40">
               Aucun pseudo autorisé configuré.
             </div>
           {/if}
@@ -657,19 +657,19 @@
               bind:value={newBypassItem}
               onkeydown={handleBypassKeydown}
               placeholder="Ex: 636012675402..."
-              class="flex-1 min-w-0 bg-surface-container/60 border border-outline-variant/30 rounded-2xl px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-primary/60 transition-all"
+              class="flex-1 min-w-0 bg-surface-container/60 border border-outline-variant/30 rounded-lg px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-primary/60 transition-all"
             />
             <button
               onclick={addBypassItem}
               disabled={!newBypassItem.trim() || exceptionAction.state.loading}
-              class="shrink-0 px-5 py-3 bg-primary text-white rounded-2xl text-sm font-bold transition-all hover:bg-primary/90 active:scale-95 disabled:opacity-40"
+              class="shrink-0 px-5 py-3 bg-primary text-white rounded-lg text-sm font-bold transition-all hover:bg-primary/90 active:scale-95 disabled:opacity-40"
             >
               Ajouter
             </button>
           </div>
 
           {#if bypass.length > 0}
-            <div class="flex flex-wrap gap-2 p-4 rounded-2xl bg-surface-container/20 border border-outline-variant/10">
+            <div class="flex flex-wrap gap-2 p-4 rounded-lg bg-surface-container/20 border border-outline-variant/10">
               {#each bypass as item}
                 <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-secondary/10 text-on-secondary-container border border-secondary/20 font-mono">
                   {item}
@@ -685,7 +685,7 @@
               {/each}
             </div>
           {:else}
-            <div class="p-6 rounded-2xl bg-surface-container/10 border border-dashed border-outline-variant/20 text-center text-xs text-on-surface-variant/40">
+            <div class="p-6 rounded-lg bg-surface-container/10 border border-dashed border-outline-variant/20 text-center text-xs text-on-surface-variant/40">
               Aucun membre exempté (les admins/bots sont déjà ignorés par défaut).
             </div>
           {/if}

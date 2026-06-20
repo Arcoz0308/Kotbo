@@ -17,25 +17,25 @@
 
 <div class="space-y-6">
   <!-- Population Chart -->
-  <div class="premium-card p-8 rounded-[2.5rem] space-y-8">
+  <div class="premium-card p-8 rounded-xl space-y-8">
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-4">
-        <div class="bg-emerald-500/10 p-3 rounded-2xl text-emerald-500">
+        <div class="bg-emerald-500/10 p-3 rounded-lg text-emerald-500">
           <Papicon icon="Users" size={24} />
         </div>
         <div>
-          <h3 class="text-xl font-black text-on-surface">Flux de Population</h3>
+          <h3 class="text-xl font-semibold text-on-surface">Flux de Population</h3>
           <p class="text-xs font-bold text-on-surface-variant/40">Arrivées vs Départs</p>
         </div>
       </div>
       <div class="flex gap-4">
         <div class="flex flex-col items-end">
-           <span class="text-sm font-black text-emerald-500">+{chartLabels.reduce((a, b) => a + (b.membersJoined || 0), 0)}</span>
-           <span class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40">Entrées</span>
+           <span class="text-sm font-semibold text-emerald-500">+{chartLabels.reduce((a, b) => a + (b.membersJoined || 0), 0)}</span>
+           <span class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Entrées</span>
         </div>
         <div class="flex flex-col items-end">
-           <span class="text-sm font-black text-rose-500">-{chartLabels.reduce((a, b) => a + (b.membersLeft || 0), 0)}</span>
-           <span class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40">Sorties</span>
+           <span class="text-sm font-semibold text-rose-500">-{chartLabels.reduce((a, b) => a + (b.membersLeft || 0), 0)}</span>
+           <span class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Sorties</span>
         </div>
       </div>
     </div>
@@ -92,16 +92,16 @@
 
   <!-- Invites Grid -->
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <div class="lg:col-span-2 premium-card p-8 rounded-[2.5rem] space-y-8">
+    <div class="lg:col-span-2 premium-card p-8 rounded-xl space-y-8">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
            <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
               <Papicon icon="MailOpen" size={20} />
            </div>
-           <h3 class="text-lg font-black text-on-surface">Codes d'Invitation Actifs</h3>
+           <h3 class="text-lg font-semibold text-on-surface">Codes d'Invitation Actifs</h3>
         </div>
         <div class="flex items-center gap-4">
-          <span class="px-3 py-1 rounded-full bg-surface-container-high text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60">{invites.length} codes</span>
+          <span class="px-3 py-1 rounded-full bg-surface-container-high text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">{invites.length} codes</span>
           <button 
             onclick={() => showAllInvites = !showAllInvites}
             class="p-2 rounded-xl bg-surface-container-high/40 hover:bg-surface-container-high text-on-surface-variant transition-colors"
@@ -115,16 +115,16 @@
         <table class="w-full text-left">
           <thead>
             <tr class="border-b border-outline-variant/10">
-              <th class="pb-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 px-2">Code</th>
-              <th class="pb-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">Créateur</th>
-              <th class="pb-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 text-right px-2">Utilisations</th>
+              <th class="pb-4 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 px-2">Code</th>
+              <th class="pb-4 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Créateur</th>
+              <th class="pb-4 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 text-right px-2">Utilisations</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-outline-variant/5">
             {#each (showAllInvites ? invites : invites.slice(0, 5)) as invite}
               <tr class="group hover:bg-primary/5 transition-all cursor-default">
                 <td class="py-4 px-2">
-                   <span class="font-black text-primary bg-primary/10 px-2 py-1 rounded-lg text-sm">{invite.code}</span>
+                   <span class="font-semibold text-primary bg-primary/10 px-2 py-1 rounded-lg text-sm">{invite.code}</span>
                 </td>
                 <td class="py-4 text-xs font-bold text-on-surface-variant">
                    <div class="flex items-center gap-2">
@@ -133,7 +133,7 @@
                    </div>
                 </td>
                 <td class="py-4 text-right px-2">
-                   <span class="font-black text-on-surface text-base">{invite.uses}</span>
+                   <span class="font-semibold text-on-surface text-base">{invite.uses}</span>
                 </td>
               </tr>
             {/each}
@@ -147,16 +147,16 @@
       </div>
     </div>
 
-    <div class="premium-card p-8 rounded-[2.5rem] flex flex-col justify-center items-center text-center space-y-6 group">
+    <div class="premium-card p-8 rounded-xl flex flex-col justify-center items-center text-center space-y-6 group">
       <div class="relative">
-        <div class="absolute -inset-4 bg-emerald-500/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
-        <div class="relative w-20 h-20 rounded-3xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 shadow-inner group-hover:rotate-6 transition-transform">
+        <div class="absolute -inset-4 bg-emerald-500/10 rounded-full blur-none hidden group-hover:scale-150 transition-transform duration-700"></div>
+        <div class="relative w-20 h-20 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 shadow-inner group-hover:rotate-6 transition-transform">
           <Papicon icon="ChartPieSlice" size={40} />
         </div>
       </div>
       <div>
-        <h4 class="text-4xl font-black text-on-surface tracking-tighter">{data?.totals?.retentionRate ?? '0'}%</h4>
-        <p class="text-[10px] font-black uppercase tracking-widest text-emerald-500 mt-1">Taux de Rétention</p>
+        <h4 class="text-lg font-semibold text-on-surface tracking-tighter">{data?.totals?.retentionRate ?? '0'}%</h4>
+        <p class="text-[10px] font-semibold uppercase tracking-widest text-emerald-500 mt-1">Taux de Rétention</p>
       </div>
       <p class="text-xs font-medium text-on-surface-variant/60 max-w-[200px] leading-relaxed">
         Proportion des nouveaux membres restés sur le serveur après 7 jours.
@@ -166,21 +166,21 @@
   <!-- Joins & Leaves -->
   <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
     <!-- Joins -->
-    <div class="premium-card p-8 rounded-[2.5rem] space-y-6">
+    <div class="premium-card p-8 rounded-xl space-y-6">
       <div class="flex items-center gap-3">
         <div class="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
           <Papicon icon="UserPlus" size={20} />
         </div>
-        <h3 class="text-lg font-black text-on-surface">Nouveaux Membres</h3>
+        <h3 class="text-lg font-semibold text-on-surface">Nouveaux Membres</h3>
       </div>
       
       <div class="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
         {#each (data?.recentJoins || []) as member}
-          <div class="flex items-center justify-between group p-2 hover:bg-emerald-500/5 rounded-2xl transition-all">
+          <div class="flex items-center justify-between group p-2 hover:bg-emerald-500/5 rounded-lg transition-all">
             <div class="flex items-center gap-3">
               <img src={getAvatar(member.avatarUrl)} alt="" class="w-10 h-10 rounded-xl shadow-sm" />
               <div>
-                <p class="text-sm font-black text-on-surface">@{member.name}</p>
+                <p class="text-sm font-semibold text-on-surface">@{member.name}</p>
                 <p class="text-[10px] font-bold text-on-surface-variant/60">Rejoint le {new Date(member.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
               </div>
             </div>
@@ -202,21 +202,21 @@
     </div>
 
     <!-- Leaves -->
-    <div class="premium-card p-8 rounded-[2.5rem] space-y-6">
+    <div class="premium-card p-8 rounded-xl space-y-6">
       <div class="flex items-center gap-3">
         <div class="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-500">
           <Papicon icon="UserMinus" size={20} />
         </div>
-        <h3 class="text-lg font-black text-on-surface">Départs Récents</h3>
+        <h3 class="text-lg font-semibold text-on-surface">Départs Récents</h3>
       </div>
       
       <div class="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
         {#each (data?.recentLeaves || []) as member}
-          <div class="flex items-center justify-between group p-2 hover:bg-rose-500/5 rounded-2xl transition-all">
+          <div class="flex items-center justify-between group p-2 hover:bg-rose-500/5 rounded-lg transition-all">
             <div class="flex items-center gap-3">
               <img src={getAvatar(member.avatarUrl)} alt="" class="w-10 h-10 rounded-xl shadow-sm grayscale opacity-60" />
               <div>
-                <p class="text-sm font-black text-on-surface">@{member.name}</p>
+                <p class="text-sm font-semibold text-on-surface">@{member.name}</p>
                 <p class="text-[10px] font-bold text-on-surface-variant/60">Parti le {new Date(member.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
               </div>
             </div>

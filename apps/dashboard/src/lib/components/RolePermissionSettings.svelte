@@ -69,12 +69,12 @@
 <div class="space-y-6">
   <div class="flex items-center justify-between border-b border-outline-variant/10 pb-4">
     <div>
-      <h3 class="text-sm font-black uppercase tracking-widest text-on-surface">{title}</h3>
+      <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface">{title}</h3>
       <p class="text-xs text-on-surface-variant/70 mt-1">{description}</p>
     </div>
     <button 
       onclick={addRole}
-      class="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-xl text-xs font-black uppercase tracking-widest hover:bg-primary/20 transition-all"
+      class="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-xl text-xs font-semibold uppercase tracking-widest hover:bg-primary/20 transition-all"
     >
       <Papicon icon="plus" size={14} />
       Ajouter un rôle
@@ -82,14 +82,14 @@
   </div>
 
   {#if localRoleAccess.length === 0}
-    <div class="py-10 text-center bg-surface-container-low/20 rounded-3xl border border-dashed border-outline-variant/20">
+    <div class="py-10 text-center bg-surface-container-low/20 rounded-xl border border-dashed border-outline-variant/20">
       <Papicon icon="lock" size={40} class="text-on-surface-variant/20 mb-3 mx-auto" />
       <p class="text-xs font-bold text-on-surface-variant/60">Aucune restriction spécifique. Le module utilise les permissions par défaut.</p>
     </div>
   {:else}
     <div class="space-y-3">
       {#each localRoleAccess as entry, i}
-        <div class="flex flex-col md:flex-row items-start md:items-center gap-4 p-5 bg-surface-container-low/40 rounded-3xl border border-outline-variant/10 group animate-in fade-in slide-in-from-right-4 duration-300">
+        <div class="flex flex-col md:flex-row items-start md:items-center gap-4 p-5 bg-surface-container-low/40 rounded-xl border border-outline-variant/10 group animate-in fade-in slide-in-from-right-4 duration-300">
           <div class="w-full md:w-64">
             <SearchableSelect bind:value={entry.roleId} options={availableRoles.map(role => ({ id: role.id, name: `@${role.name}` }))} placeholder="Sélectionner un rôle" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-4 py-2.5 text-sm" />
           </div>
@@ -101,7 +101,7 @@
                 class="flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all {entry[perm.key] ? 'bg-primary/10 border-primary/20 text-primary shadow-sm' : 'bg-transparent border-outline-variant/10 text-on-surface-variant/40 hover:border-outline-variant/30'}"
               >
                 <Papicon icon={perm.icon} size={14} />
-                <span class="text-[10px] font-black uppercase tracking-wider">{perm.label}</span>
+                <span class="text-[10px] font-semibold uppercase tracking-wider">{perm.label}</span>
               </button>
             {/each}
           </div>

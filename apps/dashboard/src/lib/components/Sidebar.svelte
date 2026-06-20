@@ -39,7 +39,7 @@
 
   const collapsed  = $derived(sidebarStore.collapsed);
   const mobileOpen = $derived(sidebarStore.mobileOpen ?? false);
-  const isCollapsed = $derived(collapsed && isDesktop); // only desk
+  const isCollapsed = $derived(collapsed && isDesktop);
 
   $effect(() => {
     if (typeof document === 'undefined') return;
@@ -47,7 +47,6 @@
     return () => document.body.classList.remove('overflow-hidden');
   });
 
-  // autoclose
   $effect(() => {
     $router.path;
     if (!isDesktop) sidebarStore.closeMobile?.();
@@ -280,8 +279,8 @@
 {#if !isDesktop && mobileOpen}
   <div
     role="presentation"
-    class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
-    transition:fade={{ duration: 200 }}
+    class="fixed inset-0 bg-black/30 z-40"
+    transition:fade={{ duration: 150 }}
     onclick={() => sidebarStore.closeMobile?.()}
   ></div>
 {/if}
@@ -291,14 +290,14 @@
   ontouchend={onTouchEnd}
   class="
     fixed left-0 top-0 h-dvh flex flex-col z-50
-    bg-surface-container-low/90 backdrop-blur-3xl
-    border-r border-outline-variant/30
-    will-change-transform transition-[transform,width] duration-300 ease-in-out
+    bg-surface-container-lowest
+    border-r border-outline-variant
+    will-change-transform transition-[transform,width] duration-200 ease-in-out
     w-72
-    {!isDesktop && mobileOpen ? 'translate-x-0 shadow-2xl' : ''}
+    {!isDesktop && mobileOpen ? 'translate-x-0 shadow-lg' : ''}
     {!isDesktop && !mobileOpen ? '-translate-x-full' : ''}
     lg:translate-x-0 lg:shadow-none
-    {isCollapsed ? 'lg:w-[4.5rem]' : 'lg:w-64'}
+    {isCollapsed ? 'lg:w-[4.5rem]' : 'lg:w-60'}
   "
 >
 
@@ -306,38 +305,36 @@
     type="button"
     onclick={() => sidebarStore.toggle()}
     class="
-      absolute -right-3.5 top-16 z-10
-      w-7 h-7 rounded-full border border-outline-variant/30
-      bg-surface-container-low shadow-md
+      absolute -right-3 top-14 z-10
+      w-6 h-6 rounded-full border border-outline-variant
+      bg-surface-container-lowest shadow-sm
       hidden lg:flex items-center justify-center
-      transition-all duration-300
-      hover:bg-primary/10 hover:border-primary/40 hover:scale-110
-      text-on-surface-variant hover:text-primary
+      transition-colors duration-150
+      hover:bg-surface-container hover:text-primary
+      text-on-surface-variant
     "
     aria-label={isCollapsed ? 'Étendre la sidebar' : 'Réduire la sidebar'}
   >
-    <div class="transition-transform duration-300 {isCollapsed ? 'rotate-180' : ''}">
-      <Papicon icon="chevrons-left" size={13} />
+    <div class="transition-transform duration-200 {isCollapsed ? 'rotate-180' : ''}">
+      <Papicon icon="chevrons-left" size={12} />
     </div>
   </button>
 
-  <div class="flex items-center gap-3 px-4 pt-5 pb-4 {isCollapsed ? 'lg:justify-center' : ''}">
-    <div class="relative w-9 h-9 shrink-0">
-      <div class="absolute inset-0 bg-primary/20 rounded-xl blur-md animate-pulse" aria-hidden="true"></div>
-      <img alt="Kotbo" src={LOGO_URL} class="relative w-full h-full object-cover rounded-xl" />
+  <div class="flex items-center gap-3 px-4 pt-4 pb-3 {isCollapsed ? 'lg:justify-center' : ''}">
+    <div class="w-8 h-8 shrink-0">
+      <img alt="Kotbo" src={LOGO_URL} class="w-full h-full object-cover rounded-lg" />
     </div>
 
     {#if !isCollapsed}
       <div class="flex flex-col min-w-0 flex-1">
-        <span class="text-[15px] font-black tracking-tight text-on-surface leading-none">Kotbo</span>
-        <span class="text-[10px] text-on-surface-variant/50 mt-0.5">Dashboard</span>
+        <span class="text-sm font-semibold text-on-surface leading-none">Kotbo</span>
+        <span class="text-[10px] text-on-surface-variant mt-0.5">Dashboard</span>
       </div>
 
-      <!-- Mobile close btn -->
       <button
         type="button"
         onclick={() => sidebarStore.closeMobile?.()}
-        class="flex items-center justify-center w-9 h-9 rounded-xl text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container/60 transition-colors lg:hidden"
+        class="flex items-center justify-center w-8 h-8 rounded-md text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors lg:hidden"
         aria-label="Fermer la navigation"
       >
         <Papicon icon="x" size={16} />
@@ -346,8 +343,7 @@
   </div>
 
   {#if !isCollapsed}
-    <div class="px-3 pb-3 flex items-center gap-1.5">
-      <!-- Search input -->
+    <div class="px-3 pb-2 flex items-center gap-1.5">
       <div class="relative flex-1">
         <input
           type="search"
@@ -357,28 +353,28 @@
           autocorrect="off"
           spellcheck={false}
           class="
-            w-full pl-9 pr-10 py-2.5 lg:py-2 text-xs rounded-xl
-            bg-surface-container/40 border border-outline-variant/20
-            text-on-surface placeholder:text-on-surface-variant/35
-            focus:outline-none focus:border-primary/40 focus:bg-surface-container/60
-            transition-all duration-200
+            w-full pl-8 pr-8 py-1.5 text-xs rounded-md
+            bg-surface-container border border-outline-variant
+            text-on-surface placeholder:text-on-surface-variant/50
+            focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20
+            transition-all duration-150
           "
         />
-        <div class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/35 pointer-events-none">
+        <div class="absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant/40 pointer-events-none">
           <Papicon icon="search" size={13} />
         </div>
         {#if searchQuery}
           <button
             type="button"
             onclick={() => (searchQuery = '')}
-            class="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-on-surface-variant/40 hover:text-on-surface transition-colors"
+            class="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-on-surface-variant/40 hover:text-on-surface transition-colors"
             aria-label="Effacer la recherche"
           >
             <Papicon icon="x" size={11} />
           </button>
         {:else}
-          <kbd class="absolute right-2.5 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded bg-on-surface/8 border border-outline-variant/10 text-[9px] font-black font-mono leading-none text-on-surface-variant/35 pointer-events-none hidden lg:block">
-            ⌘K
+          <kbd class="absolute right-2 top-1/2 -translate-y-1/2 px-1 py-0.5 rounded bg-surface-container-high text-[9px] font-medium font-mono leading-none text-on-surface-variant/40 pointer-events-none hidden lg:block">
+            /
           </kbd>
         {/if}
       </div>
@@ -388,16 +384,16 @@
         onclick={() => (showOnlyFavorites = !showOnlyFavorites)}
         aria-label="Filtrer par favoris"
         aria-pressed={showOnlyFavorites}
-        title={showOnlyFavorites ? 'Afficher tout le menu' : 'Afficher les favoris'}
+        title={showOnlyFavorites ? 'Afficher tout' : 'Favoris'}
         class="
-          flex items-center justify-center w-9 h-9 lg:w-8 lg:h-8 rounded-xl border
-          transition-all duration-200 shrink-0
+          flex items-center justify-center w-7 h-7 rounded-md border
+          transition-colors duration-150 shrink-0
           {showOnlyFavorites
-            ? 'bg-amber-500/10 border-amber-500/35 text-amber-500 hover:bg-amber-500/20'
-            : 'bg-surface-container/40 border-outline-variant/20 text-on-surface-variant/50 hover:text-on-surface hover:bg-surface-container/60'}
+            ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 text-amber-600 dark:text-amber-400'
+            : 'bg-surface-container border-outline-variant text-on-surface-variant/50 hover:text-on-surface hover:bg-surface-container-high'}
         "
       >
-        <Papicon icon="star" size={14} class={showOnlyFavorites ? 'fill-amber-500 text-amber-500' : ''} />
+        <Papicon icon="star" size={13} class={showOnlyFavorites ? 'fill-amber-500 text-amber-500' : ''} />
       </button>
     </div>
   {/if}
@@ -419,34 +415,30 @@
             aria-label={itemLabel(item)}
             aria-current={isActiveNavItem(item.href) ? 'page' : undefined}
             class="
-              relative flex items-center justify-center w-full py-2.5 rounded-xl
-              transition-all duration-200 group
+              relative flex items-center justify-center w-full py-2 rounded-md
+              transition-colors duration-150 group
               {isActiveNavItem(item.href)
                 ? 'text-primary bg-primary/8'
-                : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container/60'}
-              {isModuleDisabled(item.featureKey) ? 'opacity-50 grayscale' : ''}
+                : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}
+              {isModuleDisabled(item.featureKey) ? 'opacity-40' : ''}
             "
           >
             {#if isActiveNavItem(item.href)}
-              <div class="absolute left-0 top-2 bottom-2 w-1 bg-primary rounded-full" aria-hidden="true"></div>
+              <div class="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-primary rounded-full" aria-hidden="true"></div>
             {/if}
 
             <div class="relative">
-              <Papicon
-                icon={item.icon}
-                size={19}
-                class="transition-transform duration-200 {isActiveNavItem(item.href) ? '' : 'group-hover:scale-110'}"
-              />
+              <Papicon icon={item.icon} size={18} />
               {#if isPageWip(item)}
-                <span class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-500 ring-2 ring-surface-container-low" aria-label="WIP"></span>
+                <span class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-amber-500" aria-label="WIP"></span>
               {:else if isPageBeta(item)}
-                <span class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-purple-500 ring-2 ring-surface-container-low" aria-label="Bêta"></span>
+                <span class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-purple-500" aria-label="Bêta"></span>
               {/if}
             </div>
 
             {#if item.name === 'Inbox' && notificationsStore.unreadCount > 0}
               <div
-                class="absolute top-1 right-1 min-w-[14px] h-[14px] px-0.5 bg-primary text-white text-[8px] font-black rounded-full flex items-center justify-center"
+                class="absolute top-0.5 right-1 min-w-[14px] h-[14px] px-0.5 bg-primary text-white text-[8px] font-semibold rounded-full flex items-center justify-center"
                 aria-label="{notificationsStore.unreadCount} notifications non lues"
               >
                 {notificationsStore.unreadCount > 9 ? '9+' : notificationsStore.unreadCount}
@@ -457,7 +449,7 @@
 
       {:else}
         {#if gi > 0}
-          <div class="my-1 border-t border-outline-variant/20" role="separator"></div>
+          <div class="my-1.5 border-t border-outline-variant" role="separator"></div>
         {/if}
 
         <button
@@ -466,69 +458,67 @@
           aria-expanded={!isGroupCollapsed(group.key)}
           aria-controls="nav-group-{group.key}"
           class="
-            w-full flex items-center gap-2 px-2 py-2 mb-0.5 rounded-lg
-            transition-colors hover:bg-surface-container/40
+            w-full flex items-center gap-2 px-2 py-1.5 mb-0.5 rounded-md
+            transition-colors hover:bg-surface-container
             group/label sticky top-0 z-10
-            bg-surface-container-low/95 backdrop-blur-md
+            bg-surface-container-lowest
           "
         >
-          <span class="flex-1 text-left text-[10px] font-bold text-on-surface-variant/55 uppercase tracking-[0.18em]">
+          <span class="flex-1 text-left text-[11px] font-medium text-on-surface-variant uppercase tracking-wider">
             {group.label}
           </span>
           <div
             aria-hidden="true"
-            class="text-on-surface-variant/30 group-hover/label:text-on-surface-variant/60 transition-transform duration-200 {isGroupCollapsed(group.key) ? '-rotate-90' : ''}"
+            class="text-on-surface-variant/30 group-hover/label:text-on-surface-variant transition-transform duration-150 {isGroupCollapsed(group.key) ? '-rotate-90' : ''}"
           >
             <Papicon icon="chevron-down" size={11} />
           </div>
         </button>
 
-        <!-- Group items -->
         {#if !isGroupCollapsed(group.key)}
-          <div id="nav-group-{group.key}" class="space-y-0.5 mb-1">
+          <div id="nav-group-{group.key}" class="space-y-px mb-1">
             {#each group.items as item (item.href)}
               <div
                 class="
-                  relative flex items-center rounded-xl
-                  transition-all duration-200 group
+                  relative flex items-center rounded-md
+                  transition-colors duration-150 group
                   {isActiveNavItem(item.href)
-                    ? 'text-primary bg-primary/7 font-semibold'
-                    : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container/50'}
-                  {isModuleDisabled(item.featureKey) ? 'opacity-50' : ''}
+                    ? 'text-primary bg-primary/6 font-medium'
+                    : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'}
+                  {isModuleDisabled(item.featureKey) ? 'opacity-40' : ''}
                 "
               >
                 {#if isActiveNavItem(item.href)}
-                  <div class="absolute left-0 top-2 bottom-2 w-[3px] bg-primary rounded-full" aria-hidden="true"></div>
+                  <div class="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-primary rounded-full" aria-hidden="true"></div>
                 {/if}
 
                 <a
                   href={item.href}
                   aria-current={isActiveNavItem(item.href) ? 'page' : undefined}
-                  class="flex-1 flex items-center gap-3 pl-3 pr-2 py-3 lg:py-2.5 min-w-0"
+                  class="flex-1 flex items-center gap-2.5 pl-3 pr-2 py-2 min-w-0"
                 >
                   <Papicon
                     icon={item.icon}
-                    size={17}
-                    class="shrink-0 transition-colors duration-200 {isActiveNavItem(item.href) ? 'text-primary' : 'text-on-surface-variant/50 group-hover:text-on-surface/80'}"
+                    size={16}
+                    class="shrink-0 transition-colors duration-150 {isActiveNavItem(item.href) ? 'text-primary' : 'text-on-surface-variant/60 group-hover:text-on-surface/70'}"
                   />
                   <span class="flex-1 min-w-0 text-[13px] leading-none truncate">{item.name}</span>
                 </a>
 
-                <!-- badges + fav -->
-                <div class="flex items-center gap-1.5 pr-3 shrink-0">
+                <div class="flex items-center gap-1 pr-2 shrink-0">
                   {#if isPageWip(item)}
-                    <span class="px-1.5 py-0.5 rounded-[4px] text-[9px] font-bold tracking-wider uppercase bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                    <span class="px-1.5 py-0.5 rounded text-[9px] font-medium tracking-wide uppercase bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20">
                       WIP
                     </span>
                   {:else if isPageBeta(item)}
-                    <span class="px-1.5 py-0.5 rounded-[4px] text-[9px] font-bold tracking-wider uppercase bg-purple-500/10 text-purple-500 border border-purple-500/20">
+                    <span class="px-1.5 py-0.5 rounded text-[9px] font-medium tracking-wide uppercase bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-500/20">
                       BETA
                     </span>
                   {/if}
 
                   {#if item.name === 'Inbox' && notificationsStore.unreadCount > 0}
                     <div
-                      class="min-w-[18px] h-[18px] px-1 bg-primary text-white text-[9px] font-black rounded-full flex items-center justify-center"
+                      class="min-w-[16px] h-[16px] px-0.5 bg-primary text-white text-[9px] font-medium rounded-full flex items-center justify-center"
                       aria-label="{notificationsStore.unreadCount} messages non lus"
                     >
                       {notificationsStore.unreadCount > 99 ? '99+' : notificationsStore.unreadCount}
@@ -541,15 +531,15 @@
                     aria-label={favorites.includes(item.href) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
                     aria-pressed={favorites.includes(item.href)}
                     class="
-                      flex items-center justify-center w-7 h-7 rounded-lg
-                      transition-all duration-200
-                      text-on-surface-variant/30 hover:text-amber-500 hover:bg-amber-500/10
+                      flex items-center justify-center w-6 h-6 rounded
+                      transition-all duration-150
+                      text-on-surface-variant/30 hover:text-amber-500
                       {favorites.includes(item.href)
                         ? 'opacity-100 text-amber-500'
                         : 'opacity-0 group-hover:opacity-100 focus:opacity-100'}
                     "
                   >
-                    <Papicon icon="star" size={13} class={favorites.includes(item.href) ? 'fill-amber-500 text-amber-500' : ''} />
+                    <Papicon icon="star" size={12} class={favorites.includes(item.href) ? 'fill-amber-500 text-amber-500' : ''} />
                   </button>
                 </div>
               </div>
@@ -559,28 +549,22 @@
       {/if}
 
     {:else}
-      <!-- Empty state -->
       {#if !isCollapsed}
-        <div class="flex flex-col items-center py-10 text-center text-on-surface-variant/40 px-4">
+        <div class="flex flex-col items-center py-8 text-center text-on-surface-variant/50 px-4">
           {#if showOnlyFavorites}
-            <Papicon icon="star" size={24} class="mb-3 text-amber-500/50" />
-            <p class="text-xs leading-relaxed">
-              Aucun favori enregistré. Cliquez sur l'étoile d'un menu pour l'ajouter.
-            </p>
+            <Papicon icon="star" size={20} class="mb-2 text-amber-400" />
+            <p class="text-xs">Aucun favori. Cliquez sur l'étoile d'un menu pour l'ajouter.</p>
           {:else}
-            <Papicon icon="search" size={24} class="mb-3" />
-            <p class="text-xs">
-              Aucun résultat pour <span class="font-semibold">"{searchQuery}"</span>
-            </p>
+            <Papicon icon="search" size={20} class="mb-2" />
+            <p class="text-xs">Aucun résultat pour "{searchQuery}"</p>
           {/if}
         </div>
       {/if}
     {/each}
   </nav>
 
-  <div class="border-t border-outline-variant/20 {isCollapsed ? 'lg:px-2 py-3' : 'px-3 py-3'} space-y-1">
+  <div class="border-t border-outline-variant {isCollapsed ? 'lg:px-2 py-2' : 'px-3 py-2'} space-y-0.5">
 
-    <!-- Bot admin link -->
     {#if authStore.isBotAdmin}
       <a
         href="/admin"
@@ -589,46 +573,42 @@
         aria-label={isCollapsed ? 'Administration' : undefined}
         aria-current={isActiveNavItem('/admin') ? 'page' : undefined}
         class="
-          relative flex items-center rounded-xl
-          transition-all duration-200 group
-          {isCollapsed ? 'lg:justify-center py-2.5' : 'gap-3 px-3 py-3 lg:py-2'}
+          relative flex items-center rounded-md
+          transition-colors duration-150 group
+          {isCollapsed ? 'lg:justify-center py-2' : 'gap-2.5 px-3 py-2'}
           {isActiveNavItem('/admin')
-            ? 'text-amber-400 bg-amber-400/8'
-            : 'text-on-surface-variant/50 hover:text-amber-400 hover:bg-amber-400/8'}
+            ? 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/8'
+            : 'text-on-surface-variant hover:text-amber-600 dark:hover:text-amber-400 hover:bg-surface-container'}
         "
       >
-        <Papicon icon="lock" size={isCollapsed ? 19 : 17} class="shrink-0" />
+        <Papicon icon="lock" size={isCollapsed ? 18 : 16} class="shrink-0" />
         {#if !isCollapsed}
           <span class="text-[13px]">Administration</span>
         {/if}
       </a>
     {/if}
 
-    <!-- User profile -->
     <a
       href={profileHref}
       onmouseenter={(e) => showTooltip(e, authStore.user?.username ?? 'Mon Profil')}
       onmouseleave={hideTooltip}
       aria-current={isActiveNavItem(profileHref) ? 'page' : undefined}
-      class="flex items-center {isCollapsed ? 'lg:justify-center py-2' : 'gap-3 px-2 py-2'} rounded-xl transition-all duration-200 hover:bg-surface-container/60 group"
+      class="flex items-center {isCollapsed ? 'lg:justify-center py-2' : 'gap-2.5 px-2 py-2'} rounded-md transition-colors duration-150 hover:bg-surface-container group"
     >
-      <div class="relative shrink-0 w-8 h-8">
+      <div class="shrink-0 w-7 h-7">
         <img
           src={userAvatar}
           alt="Avatar de {authStore.user?.username ?? 'utilisateur'}"
           referrerpolicy="no-referrer"
-          class="w-full h-full rounded-lg object-cover ring-1 ring-outline-variant/30 transition-transform duration-200 group-hover:scale-105"
+          class="w-full h-full rounded-md object-cover ring-1 ring-outline-variant"
         />
-        {#if isActiveNavItem(profileHref)}
-          <div class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-primary rounded-full border-2 border-surface-container-low" aria-hidden="true"></div>
-        {/if}
       </div>
       {#if !isCollapsed}
         <div class="flex flex-col min-w-0">
-          <span class="text-[12px] font-semibold text-on-surface truncate leading-none">
+          <span class="text-[12px] font-medium text-on-surface truncate leading-none">
             {authStore.user?.username ?? '…'}
           </span>
-          <span class="text-[10px] text-on-surface-variant/50 mt-0.5">Mon profil</span>
+          <span class="text-[10px] text-on-surface-variant mt-0.5">Mon profil</span>
         </div>
       {/if}
     </a>
@@ -640,7 +620,7 @@
   <div
     use:portal
     role="tooltip"
-    class="fixed z-[100] -translate-y-1/2 pointer-events-none bg-surface-container-high text-on-surface border border-outline-variant/40 rounded-lg px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap shadow-lg tooltip-arrow animate-in fade-in"
+    class="fixed z-100 -translate-y-1/2 pointer-events-none bg-surface-container-highest text-on-surface border border-outline-variant rounded-md px-2 py-1 text-xs font-medium whitespace-nowrap shadow-sm animate-in fade-in"
     style="left: calc(4.5rem + 8px); top: {activeTooltip.top}px"
   >
     {activeTooltip.text}
@@ -650,17 +630,4 @@
 <style>
   .scrollbar-hide::-webkit-scrollbar { display: none; }
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-
-  .tooltip-arrow::before {
-    content: '';
-    position: absolute;
-    left: -5px;
-    top: 50%;
-    transform: translateY(-50%) rotate(45deg);
-    width: 8px;
-    height: 8px;
-    background: var(--surface-container-high);
-    border-left: 1px solid color-mix(in srgb, var(--outline-variant) 40%, transparent);
-    border-bottom: 1px solid color-mix(in srgb, var(--outline-variant) 40%, transparent);
-  }
 </style>

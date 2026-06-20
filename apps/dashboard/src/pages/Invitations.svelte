@@ -411,38 +411,38 @@
 
   <div class="space-y-6">
     {#if error}
-      <div class="p-4 rounded-2xl bg-red-500/10 text-red-500 text-sm font-bold">{error}</div>
+      <div class="p-4 rounded-lg bg-red-500/10 text-red-500 text-sm font-bold">{error}</div>
     {/if}
 
     <!-- Stats compactes -->
     <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
       {#if loading}
         {#each Array(5) as _}
-          <div class="premium-card p-4 rounded-2xl animate-pulse">
+          <div class="premium-card p-4 rounded-lg animate-pulse">
             <div class="h-3 w-16 bg-surface-container-high/50 rounded mb-2"></div>
             <div class="h-8 w-12 bg-surface-container-high/50 rounded"></div>
           </div>
         {/each}
       {:else}
-        <div class="premium-card p-4 rounded-2xl">
-          <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/50">Invitations</p>
-          <p class="text-2xl font-black text-primary">{totalInvites}</p>
+        <div class="premium-card p-4 rounded-lg">
+          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Invitations</p>
+          <p class="text-2xl font-semibold text-primary">{totalInvites}</p>
         </div>
-        <div class="premium-card p-4 rounded-2xl">
-          <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/50">Suspendues</p>
-          <p class="text-2xl font-black text-amber-500">{totalSuspended}</p>
+        <div class="premium-card p-4 rounded-lg">
+          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Suspendues</p>
+          <p class="text-2xl font-semibold text-amber-500">{totalSuspended}</p>
         </div>
-        <div class="premium-card p-4 rounded-2xl">
-          <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/50">Expirées</p>
-          <p class="text-2xl font-black text-slate-500">{totalExpired}</p>
+        <div class="premium-card p-4 rounded-lg">
+          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Expirées</p>
+          <p class="text-2xl font-semibold text-slate-500">{totalExpired}</p>
         </div>
-        <div class="premium-card p-4 rounded-2xl">
-          <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/50">Total joins</p>
-          <p class="text-2xl font-black text-emerald-500">{totalJoins}</p>
+        <div class="premium-card p-4 rounded-lg">
+          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Total joins</p>
+          <p class="text-2xl font-semibold text-emerald-500">{totalJoins}</p>
         </div>
-        <div class="premium-card p-4 rounded-2xl">
-          <p class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/50">Rétention</p>
-          <p class="text-2xl font-black text-cyan-500">{retentionRate}%</p>
+        <div class="premium-card p-4 rounded-lg">
+          <p class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Rétention</p>
+          <p class="text-2xl font-semibold text-cyan-500">{retentionRate}%</p>
         </div>
       {/if}
     </div>
@@ -458,7 +458,7 @@
         >
           <Papicon icon={tab.icon} size={16} />
           <span>{tab.label}</span>
-          <span class="px-1.5 py-0.5 rounded-full text-[10px] font-black {activeTab === tab.id
+          <span class="px-1.5 py-0.5 rounded-full text-[10px] font-semibold {activeTab === tab.id
             ? 'bg-primary/20 text-primary'
             : 'bg-surface-container-high/50 text-on-surface-variant/50'}">{tab.count}</span>
         </button>
@@ -467,7 +467,7 @@
 
     <!-- Contenu des onglets -->
     {#if activeTab === 'invites'}
-      <div class="premium-card p-6 rounded-3xl space-y-4">
+      <div class="premium-card p-6 rounded-xl space-y-4">
         <!-- Filtres et recherche -->
         <div class="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
           {#if loading}
@@ -529,7 +529,7 @@
           {:else}
             <table class="w-full">
               <thead>
-                <tr class="text-left text-[10px] font-black uppercase tracking-widest text-on-surface-variant/50 border-b border-outline-variant/10">
+                <tr class="text-left text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50 border-b border-outline-variant/10">
                   <th class="pb-3 pr-4">Code</th>
                   <th class="pb-3 pr-4">Créateur</th>
                   <th class="pb-3 pr-4">Statut</th>
@@ -545,7 +545,7 @@
                   {@const status = getInviteStatus(invite)}
                   <tr class="border-b border-outline-variant/5 hover:bg-surface-container-high/20 transition-colors">
                     <td class="py-3 pr-4">
-                      <code class="text-xs font-black text-primary dark:text-blue-300 bg-primary/10 dark:bg-blue-500/15 px-2 py-1 rounded-lg">{invite.code}</code>
+                      <code class="text-xs font-semibold text-primary dark:text-blue-300 bg-primary/10 dark:bg-blue-500/15 px-2 py-1 rounded-lg">{invite.code}</code>
                     </td>
                     <td class="py-3 pr-4">
                       <div class="flex flex-col">
@@ -555,25 +555,25 @@
                     </td>
                     <td class="py-3 pr-4">
                       <div class="flex gap-1 flex-wrap">
-                        <span class="px-2 py-0.5 rounded-full text-[9px] font-black {getStatusClass(status)}">
+                        <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold {getStatusClass(status)}">
                           {getStatusLabel(status)}
                         </span>
                         {#if invite.inviterSuspended}
-                          <span class="px-2 py-0.5 rounded-full text-[9px] font-black bg-red-500/10 text-red-500">Créateur suspendu</span>
+                          <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-500/10 text-red-500">Créateur suspendu</span>
                         {/if}
                         {#if isDormant(invite)}
-                          <span class="px-2 py-0.5 rounded-full text-[9px] font-black bg-slate-500/10 text-on-surface-variant/60">Dormant</span>
+                          <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-500/10 text-on-surface-variant/60">Dormant</span>
                         {/if}
                       </div>
                     </td>
                     <td class="py-3 pr-4 text-right">
-                      <span class="font-black text-emerald-500">{invite.joinedCount}</span>
+                      <span class="font-semibold text-emerald-500">{invite.joinedCount}</span>
                     </td>
                     <td class="py-3 pr-4 text-right">
-                      <span class="font-black text-orange-500">{invite.uses ?? 0}</span>
+                      <span class="font-semibold text-orange-500">{invite.uses ?? 0}</span>
                     </td>
                     <td class="py-3 pr-4 text-right">
-                      <span class="font-black {invite.retention >= 70 ? 'text-emerald-500' : invite.retention >= 40 ? 'text-amber-500' : 'text-red-500'}">{invite.retention}%</span>
+                      <span class="font-semibold {invite.retention >= 70 ? 'text-emerald-500' : invite.retention >= 40 ? 'text-amber-500' : 'text-red-500'}">{invite.retention}%</span>
                     </td>
                     <td class="py-3 pr-4 text-right text-[10px] text-on-surface-variant/60">
                       {formatRelative(invite.lastJoinedAt)}
@@ -588,7 +588,7 @@
                           <Papicon icon="MoreVertical" size={16} class="text-on-surface-variant/70" />
                         </button>
                         {#if actionMenuOpen === invite.code}
-                          <div class="absolute right-0 top-full mt-1 z-[9999] min-w-[160px] bg-surface-container rounded-xl shadow-xl border border-outline-variant/20 overflow-hidden">
+                          <div class="absolute right-0 top-full mt-1 z-[9999] min-w-[160px] bg-surface-container rounded-xl shadow-sm border border-outline-variant/20 overflow-hidden">
                             <button
                               class="w-full px-3 py-2 text-left text-xs font-bold hover:bg-surface-container-high/50 flex items-center gap-2 transition-colors"
                               onclick={() => { inviteDetailsModal.show(invite.code); closeActionMenu(); }}
@@ -644,13 +644,13 @@
         </div>
       </div>
     {:else if activeTab === 'top'}
-      <div class="premium-card p-6 rounded-3xl space-y-4">
+      <div class="premium-card p-6 rounded-xl space-y-4">
         <div class="flex items-center gap-3">
           <div class="p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
             <Papicon icon="Crown" size={18} />
           </div>
           <div>
-            <h3 class="text-lg font-black">Top créateurs</h3>
+            <h3 class="text-lg font-semibold">Top créateurs</h3>
             <p class="text-xs text-on-surface-variant/60">Classement par nombre de joins.</p>
           </div>
         </div>
@@ -658,7 +658,7 @@
         <div class="space-y-2">
           {#if loading}
             {#each Array(6) as _, index}
-              <div class="p-4 rounded-2xl bg-surface-container-high/20 border border-outline-variant/10 flex items-center justify-between animate-pulse">
+              <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/10 flex items-center justify-between animate-pulse">
                 <div class="flex items-center gap-3">
                   <div class="w-10 h-10 rounded-full bg-surface-container-high/30"></div>
                   <div class="space-y-2">
@@ -673,7 +673,7 @@
             {#each topInviters as inviter, index}
               {@const rank = index + 1}
               {@const avatarUrl = `https://cdn.discordapp.com/embed/avatars/${(inviter.inviterId?.slice(-4) || '0000') % 5}.png`}
-              <div class="p-4 rounded-2xl bg-surface-container-high/20 border border-outline-variant/10 flex items-center justify-between">
+              <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/10 flex items-center justify-between">
                 <div class="flex items-center gap-3">
                   <div class="relative">
                     <img
@@ -682,16 +682,16 @@
                       class="w-10 h-10 rounded-full object-cover"
                       loading="lazy"
                     />
-                    <span class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full {rank === 1 ? 'bg-yellow-500' : rank === 2 ? 'bg-gray-400' : rank === 3 ? 'bg-amber-600' : 'bg-surface-container-high'} text-[9px] font-black flex items-center justify-center border-2 border-surface-container">
+                    <span class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full {rank === 1 ? 'bg-yellow-500' : rank === 2 ? 'bg-gray-400' : rank === 3 ? 'bg-amber-600' : 'bg-surface-container-high'} text-[11px] font-semibold flex items-center justify-center border-2 border-surface-container">
                       {rank}
                     </span>
                   </div>
                   <div>
-                    <p class="text-sm font-black text-on-surface">{inviter.inviterTag}</p>
+                    <p class="text-sm font-semibold text-on-surface">{inviter.inviterTag}</p>
                     <p class="text-[10px] text-on-surface-variant/50">Dernier join: {formatRelative(inviter.lastJoinedAt)}</p>
                   </div>
                 </div>
-                <span class="text-lg font-black text-emerald-500">{inviter.joinedCount}</span>
+                <span class="text-lg font-semibold text-emerald-500">{inviter.joinedCount}</span>
               </div>
             {/each}
             {#if topInviters.length === 0}
@@ -703,13 +703,13 @@
     {:else if activeTab === 'suspensions'}
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- Formulaire de suspension -->
-        <div class="premium-card p-6 rounded-3xl space-y-4">
+        <div class="premium-card p-6 rounded-xl space-y-4">
           <div class="flex items-center gap-3">
             <div class="p-2 rounded-xl bg-amber-500/10 text-amber-500">
               <Papicon icon="UserMinus" size={18} />
             </div>
             <div>
-              <h3 class="text-lg font-black">Suspendre un créateur</h3>
+              <h3 class="text-lg font-semibold">Suspendre un créateur</h3>
               <p class="text-xs text-on-surface-variant/60">Bloque les nouvelles invites et peut purger en cascade.</p>
             </div>
           </div>
@@ -755,13 +755,13 @@
         </div>
 
         <!-- Liste des créateurs suspendus -->
-        <div class="premium-card p-6 rounded-3xl space-y-4">
+        <div class="premium-card p-6 rounded-xl space-y-4">
           <div class="flex items-center gap-3">
             <div class="p-2 rounded-xl bg-red-500/10 text-red-500">
               <Papicon icon="UserX" size={18} />
             </div>
             <div>
-              <h3 class="text-lg font-black">Créateurs suspendus</h3>
+              <h3 class="text-lg font-semibold">Créateurs suspendus</h3>
               <p class="text-xs text-on-surface-variant/60">Gestion des suspensions actives.</p>
             </div>
           </div>
@@ -769,7 +769,7 @@
           <div class="space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
             {#if loading}
               {#each Array(4) as _}
-                <div class="p-4 rounded-2xl bg-surface-container-high/20 border border-outline-variant/10 animate-pulse">
+                <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/10 animate-pulse">
                   <div class="flex items-start justify-between gap-3">
                     <div class="flex-1 space-y-2">
                       <div class="h-4 w-32 bg-surface-container-high/30 rounded"></div>
@@ -785,10 +785,10 @@
               {/each}
             {:else}
               {#each suspendedInviters as inviter}
-                <div class="p-4 rounded-2xl bg-surface-container-high/20 border border-outline-variant/10">
+                <div class="p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/10">
                   <div class="flex items-start justify-between gap-3">
                     <div class="flex-1">
-                      <p class="text-sm font-black text-on-surface">{inviter.userTag || inviter.userId}</p>
+                      <p class="text-sm font-semibold text-on-surface">{inviter.userTag || inviter.userId}</p>
                       <p class="text-[10px] text-on-surface-variant/50 mt-1">{inviter.reason || 'Aucune raison'}</p>
                       <p class="text-[10px] text-on-surface-variant/40">{formatDate(inviter.createdAt)}</p>
                     </div>
@@ -815,7 +815,6 @@
 <style>
   .premium-card {
     background: rgba(var(--color-surface-container-low), 0.4);
-    backdrop-filter: blur(24px);
     border: 1px solid rgba(var(--color-outline-variant), 0.1);
     transition: all 0.4s cubic-bezier(0.2, 1, 0.3, 1);
   }

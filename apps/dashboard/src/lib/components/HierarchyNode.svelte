@@ -25,20 +25,20 @@
 </script>
 
 <div class:root-node={isRoot} class="hierarchy-node flex flex-col items-center relative">
-  <div class="hierarchy-card w-full p-6 rounded-[2.5rem] bg-surface-container-low border border-outline-variant/10 shadow-xl transition-all duration-300 hover:shadow-2xl flex flex-col items-center text-center relative"
+  <div class="hierarchy-card w-full p-6 rounded-xl bg-surface-container-low border border-outline-variant/10 shadow-sm transition-all duration-300 hover:shadow-sm flex flex-col items-center text-center relative"
        style="border-top: 4px solid {node.color || 'var(--color-primary)'}">
-    <div class="w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-bold mb-3 shadow-md"
+    <div class="w-12 h-12 rounded-lg flex items-center justify-center text-xl font-bold mb-3 shadow-md"
          style="background-color: {node.color ? node.color + '15' : 'var(--color-primary-container)'}; color: {node.color || 'var(--color-primary)'}">
       {node.icon || '🔵'}
     </div>
-    <h3 class="text-base font-black text-on-surface">{node.name}</h3>
+    <h3 class="text-base font-semibold text-on-surface">{node.name}</h3>
     {#if node.description}
       <p class="text-xs text-on-surface-variant/75 mt-1 leading-relaxed max-w-60">{node.description}</p>
     {/if}
 
     {#if node.responsable && node.responsable.name}
       <div class="mt-4 px-4 py-1.5 rounded-full bg-surface-container-high border border-outline-variant/10 flex items-center gap-2">
-        <span class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/70">Resp :</span>
+        <span class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/70">Resp :</span>
         <span class="text-xs font-bold text-on-surface">{node.responsable.name}</span>
       </div>
     {/if}
@@ -52,13 +52,13 @@
     <div class="roles-stack w-full space-y-6">
       {#each node.roles as role}
         {@const roleMembers = getMembersForRole(node.members, role.name)}
-        <div class="role-card p-4 rounded-3xl bg-surface-container-low/40 border border-outline-variant/10 shadow-md flex flex-col relative"
+        <div class="role-card p-4 rounded-xl bg-surface-container-low/40 border border-outline-variant/10 shadow-md flex flex-col relative"
              style="border-left: 3px solid {role.color || node.color || '#999'}">
           <div class="flex items-center justify-between">
-            <h4 class="text-sm font-black text-on-surface flex items-center gap-2">
+            <h4 class="text-sm font-semibold text-on-surface flex items-center gap-2">
               {role.name}
               {#if role.isResponsable}
-                <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[8px] font-black uppercase tracking-wider">Chef</span>
+                <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[10px] font-semibold uppercase tracking-wider">Chef</span>
               {/if}
             </h4>
             <span class="text-[10px] font-bold text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded-md">
@@ -73,7 +73,7 @@
                   {#if member.avatarUrl}
                     <img src={member.avatarUrl} alt="" class="w-6 h-6 rounded-full object-cover shadow-xs border border-outline-variant/15" />
                   {:else}
-                    <div class="w-6 h-6 rounded-full bg-surface-container-high text-xs font-black flex items-center justify-center text-on-surface-variant">
+                    <div class="w-6 h-6 rounded-full bg-surface-container-high text-xs font-semibold flex items-center justify-center text-on-surface-variant">
                       {member.displayName?.charAt(0).toUpperCase() || member.username.charAt(0).toUpperCase()}
                     </div>
                   {/if}

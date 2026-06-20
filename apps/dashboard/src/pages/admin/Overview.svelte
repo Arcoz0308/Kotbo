@@ -80,10 +80,10 @@
   <div class="space-y-8 pb-12 animate-in fade-in slide-in-from-bottom-3 duration-600">
 
     <!-- Page header -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
       <div>
-        <h2 class="text-2xl font-black text-on-surface tracking-tight">Vue d'ensemble</h2>
-        <p class="text-sm text-on-surface-variant/50 mt-0.5 font-medium">Statistiques globales et santé du système Kotbo</p>
+        <h2 class="text-lg font-bold text-on-surface tracking-tight">Vue d'ensemble</h2>
+        <p class="text-sm text-on-surface-variant/50 font-medium">Statistiques globales et santé du système Kotbo</p>
       </div>
       {#if stats}
         <div class="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-black">

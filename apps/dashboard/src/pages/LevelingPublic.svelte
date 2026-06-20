@@ -79,23 +79,22 @@
   <div class="relative z-10 w-full max-w-4xl mx-auto space-y-10 animate-in fade-in duration-300">
 
     <!-- ─── En-tête style Feuille Index épuré ─── -->
-    <header class="relative flex flex-col sm:flex-row sm:items-center justify-between gap-6 bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 p-8 rounded-2xl shadow-sm overflow-hidden group">
-      <!-- Ruban adhésif subtil (masking tape) aux coins -->
+    <header class="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 p-5 rounded-lg shadow-sm overflow-hidden group">
       <div class="tape-accent"></div>
-      
-      <div class="flex items-center gap-5">
+
+      <div class="flex items-center gap-4">
         {#if guildIcon}
           <div class="relative shrink-0">
-            <img src={guildIcon} alt="{guildName} Logo" class="w-16 h-16 rounded-xl object-cover border border-slate-200 dark:border-slate-800" />
+            <img src={guildIcon} alt="{guildName} Logo" class="w-11 h-11 rounded-lg object-cover border border-slate-200 dark:border-slate-800" />
           </div>
         {:else}
-          <div class="relative w-16 h-16 bg-slate-50 dark:bg-[#0c1322] border border-slate-200 dark:border-slate-800 rounded-xl flex items-center justify-center font-bold text-xl text-slate-800 dark:text-slate-100 shrink-0">
+          <div class="relative w-11 h-11 bg-slate-50 dark:bg-[#0c1322] border border-slate-200 dark:border-slate-800 rounded-lg flex items-center justify-center font-bold text-sm text-slate-800 dark:text-slate-100 shrink-0">
             <span>{guildName.slice(0, 2).toUpperCase()}</span>
           </div>
         {/if}
-        
-        <div class="space-y-1 relative">
-          <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-800 dark:text-slate-100">
+
+        <div class="relative">
+          <h1 class="text-lg font-extrabold tracking-tight text-slate-800 dark:text-slate-100">
             {guildName}
           </h1>
           <div class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 font-semibold text-xs uppercase tracking-wider">
@@ -127,7 +126,7 @@
 
     {:else if errorMsg}
       <!-- Erreur épurée -->
-      <div class="bg-white dark:bg-[#111a2e] border border-red-200 dark:border-red-950 p-12 rounded-2xl text-center space-y-4 shadow-sm">
+      <div class="bg-white dark:bg-[#111a2e] border border-red-200 dark:border-red-950 p-12 rounded-lg text-center space-y-4 shadow-sm">
         <div class="w-12 h-12 bg-red-50 dark:bg-red-950/35 rounded-full flex items-center justify-center text-red-500 dark:text-red-400 mx-auto">
           <Papicon icon="AlertTriangle" size={20} />
         </div>
@@ -139,7 +138,7 @@
 
     {:else if !enabled}
       <!-- Module désactivé -->
-      <div class="bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 p-16 rounded-2xl text-center flex flex-col items-center space-y-4 shadow-sm">
+      <div class="bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 p-16 rounded-lg text-center flex flex-col items-center space-y-4 shadow-sm">
         <div class="w-14 h-14 rounded-full bg-slate-50 dark:bg-[#0c1322] flex items-center justify-center text-slate-400">
           <Papicon icon="Lock" size={24} />
         </div>
@@ -157,19 +156,19 @@
       {#if levels.length > 0}
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div class="clean-card rounded-xl p-5 text-center space-y-1">
-            <p class="text-2xl font-black text-slate-800 dark:text-slate-100">{levels.length}</p>
+            <p class="text-2xl font-semibold text-slate-800 dark:text-slate-100">{levels.length}</p>
             <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Membres Classés</p>
           </div>
           <div class="clean-card rounded-xl p-5 text-center space-y-1">
-            <p class="text-2xl font-black text-slate-800 dark:text-slate-100">{maxLevel}</p>
+            <p class="text-2xl font-semibold text-slate-800 dark:text-slate-100">{maxLevel}</p>
             <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Niveau Max</p>
           </div>
           <div class="clean-card rounded-xl p-5 text-center space-y-1">
-            <p class="text-2xl font-black text-slate-800 dark:text-slate-100">{avgLevel}</p>
+            <p class="text-2xl font-semibold text-slate-800 dark:text-slate-100">{avgLevel}</p>
             <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Niveau Moyen</p>
           </div>
           <div class="clean-card rounded-xl p-5 text-center space-y-1">
-            <p class="text-2xl font-black text-slate-800 dark:text-slate-100">{formatXp(totalXp)}</p>
+            <p class="text-2xl font-semibold text-slate-800 dark:text-slate-100">{formatXp(totalXp)}</p>
             <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">XP Cumulé</p>
           </div>
         </div>
@@ -190,7 +189,7 @@
               <div class="relative clean-card border-t-2 border-slate-300 dark:border-slate-600 rounded-xl p-6 flex flex-col justify-between order-2 sm:order-1">
                 <div class="flex items-start justify-between">
                   <div class="space-y-3 w-full">
-                    <span class="text-xl font-black text-slate-400/80">2nd</span>
+                    <span class="text-xl font-semibold text-slate-400/80">2nd</span>
                     <div class="flex items-center gap-3">
                       <img
                         src={levels[1].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/1.png'}
@@ -218,7 +217,7 @@
               <div class="relative clean-card border-t-2 border-amber-400 dark:border-amber-500 rounded-xl p-6 flex flex-col justify-between order-1 sm:order-2">
                 <div class="flex items-start justify-between">
                   <div class="space-y-3 w-full">
-                    <span class="text-2xl font-black text-amber-500 flex items-center gap-1.5">
+                    <span class="text-2xl font-semibold text-amber-500 flex items-center gap-1.5">
                       <span>1st</span>
                       <span class="text-amber-500"><Papicon icon="Crown" size={18} /></span>
                     </span>
@@ -229,7 +228,7 @@
                         class="w-14 h-14 rounded-full object-cover border border-slate-200 dark:border-slate-800"
                       />
                       <div class="min-w-0 flex-1">
-                        <p class="font-black text-slate-800 dark:text-slate-100 truncate text-base" title={levels[0].displayName}>
+                        <p class="font-semibold text-slate-800 dark:text-slate-100 truncate text-base" title={levels[0].displayName}>
                           {levels[0].displayName || levels[0].username || 'Inconnu'}
                         </p>
                         <p class="text-xs text-amber-500 dark:text-amber-400 font-bold">Niveau {levels[0].level}</p>
@@ -249,7 +248,7 @@
               <div class="relative clean-card border-t-2 border-amber-600 dark:border-amber-700/80 rounded-xl p-6 flex flex-col justify-between order-3">
                 <div class="flex items-start justify-between">
                   <div class="space-y-3 w-full">
-                    <span class="text-xl font-black text-amber-700/80 dark:text-amber-600">3rd</span>
+                    <span class="text-xl font-semibold text-amber-700/80 dark:text-amber-600">3rd</span>
                     <div class="flex items-center gap-3">
                       <img
                         src={levels[2].avatarUrl || 'https://cdn.discordapp.com/embed/avatars/2.png'}
@@ -277,7 +276,7 @@
       {/if}
 
       <!-- ─── Liste Principale Tableau Épuré ─── -->
-      <section class="bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
+      <section class="bg-white dark:bg-[#111a2e] border border-slate-200 dark:border-slate-800 rounded-lg p-6 sm:p-8 space-y-6 shadow-sm">
         
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
           <h3 class="text-base font-extrabold text-slate-800 dark:text-slate-100">
@@ -299,7 +298,7 @@
             {#if searchQuery}
               <button
                 onclick={() => searchQuery = ''}
-                class="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-slate-200 dark:bg-slate-750 hover:bg-red-100 dark:hover:bg-red-950/45 hover:text-red-750 dark:hover:text-red-300 text-slate-500 dark:text-slate-400 flex items-center justify-center text-[9px] font-bold transition-all"
+                class="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-slate-200 dark:bg-slate-750 hover:bg-red-100 dark:hover:bg-red-950/45 hover:text-red-750 dark:hover:text-red-300 text-slate-500 dark:text-slate-400 flex items-center justify-center text-[11px] font-bold transition-all"
               >✕</button>
             {/if}
           </div>

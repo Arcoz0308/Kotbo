@@ -53,7 +53,7 @@
           oninput={(e) => handleInput(index, e.currentTarget.value)}
           {placeholder}
           {disabled}
-          class="w-full rounded-2xl bg-surface-container-high pl-10 pr-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all"
+          class="w-full rounded-lg bg-surface-container-high pl-10 pr-4 py-3 text-xs font-bold text-on-surface border border-outline-variant/10 focus:border-primary/50 outline-hidden transition-all"
         />
       </div>
       
@@ -74,7 +74,7 @@
     <button
       type="button"
       onclick={addLink}
-      class="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-outline-variant/20 py-3 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all active:scale-[0.99]"
+      class="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-outline-variant/20 py-3 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all active:scale-[0.99]"
     >
       <Papicon icon="plus" size={14} />
       Ajouter une preuve

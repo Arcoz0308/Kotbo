@@ -96,16 +96,11 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding: 0.875rem 1.25rem;
-    background: color-mix(in srgb, var(--surface-container-high) 85%, transparent);
-    backdrop-filter: blur(24px) saturate(1.4);
-    -webkit-backdrop-filter: blur(24px) saturate(1.4);
-    border: 1px solid color-mix(in srgb, var(--outline-variant) 35%, transparent);
-    border-radius: 1.25rem;
-    box-shadow:
-      0 8px 32px rgba(0, 0, 0, 0.25),
-      0 2px 8px rgba(0, 0, 0, 0.15),
-      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    padding: 0.75rem 1rem;
+    background: var(--surface-container-highest);
+    border: 1px solid var(--outline-variant);
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
     pointer-events: all;
   }
 
@@ -184,17 +179,10 @@
   .unsaved-bar__btn--save {
     background: var(--primary);
     color: var(--on-primary);
-    box-shadow: 0 2px 12px color-mix(in srgb, var(--primary) 35%, transparent);
   }
 
   .unsaved-bar__btn--save:not(:disabled):hover {
-    filter: brightness(1.08);
-    transform: scale(1.03);
-    box-shadow: 0 4px 18px color-mix(in srgb, var(--primary) 45%, transparent);
-  }
-
-  .unsaved-bar__btn--save:not(:disabled):active {
-    transform: scale(0.97);
+    opacity: 0.9;
   }
 
   .unsaved-bar__spinner {

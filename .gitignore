@@ -8,3 +8,6 @@ build/
 .DS_Store
 .vscode/
 **/context.txt
+
+.claude/
+CLAUDE.md

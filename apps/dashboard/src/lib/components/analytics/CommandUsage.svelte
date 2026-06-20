@@ -9,13 +9,13 @@
 <div class="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <!-- Summary Card -->
-    <div class="lg:col-span-1 bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] flex flex-col justify-center items-center text-center space-y-4">
-      <div class="w-16 h-16 bg-primary/10 rounded-3xl flex items-center justify-center text-primary shadow-inner">
+    <div class="lg:col-span-1 bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl flex flex-col justify-center items-center text-center space-y-4">
+      <div class="w-16 h-16 bg-primary/10 rounded-xl flex items-center justify-center text-primary shadow-inner">
         <Papicon icon="Code" size={32} />
       </div>
       <div>
-        <h3 class="text-4xl font-black">{totalCount.toLocaleString()}</h3>
-        <p class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/50">Commandes Exécutées</p>
+        <h3 class="text-lg font-semibold">{totalCount.toLocaleString()}</h3>
+        <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/50">Commandes Exécutées</p>
       </div>
       <p class="text-xs text-on-surface-variant/40 max-w-[200px]">
         Utilisation globale des commandes du bot sur la période sélectionnée.
@@ -23,8 +23,8 @@
     </div>
 
     <!-- Usage List -->
-    <div class="lg:col-span-2 bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
-      <h3 class="text-xl font-black flex items-center gap-3">
+    <div class="lg:col-span-2 bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+      <h3 class="text-xl font-semibold flex items-center gap-3">
         <Papicon icon="ChartBar" size={20} class="text-primary" />
         Répartition des Commandes
       </h3>
@@ -38,7 +38,7 @@
                 <span class="text-sm font-bold text-on-surface">/{cmd.name}</span>
                 <span class="text-[10px] font-bold text-on-surface-variant/30">{percent.toFixed(1)}%</span>
               </div>
-              <span class="text-xs font-black text-primary">{cmd.count.toLocaleString()}</span>
+              <span class="text-xs font-semibold text-primary">{cmd.count.toLocaleString()}</span>
             </div>
             <div class="h-2 w-full bg-surface-container-high rounded-full overflow-hidden">
               <div 

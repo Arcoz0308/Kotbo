@@ -262,10 +262,10 @@
   {#if loading}
     <div class="flex flex-col gap-6 animate-pulse">
       <div class="h-12 w-48 bg-surface-container-low/60 rounded-xl"></div>
-      <div class="h-64 rounded-3xl bg-surface-container-low/60"></div>
+      <div class="h-64 rounded-xl bg-surface-container-low/60"></div>
     </div>
   {:else if loadError}
-    <div class="rounded-3xl bg-error/10 border border-error/20 p-6 text-error text-sm font-semibold">
+    <div class="rounded-xl bg-error/10 border border-error/20 p-6 text-error text-sm font-semibold">
       ⚠️ {loadError}
     </div>
   {:else}
@@ -273,7 +273,7 @@
     <div class="flex border-b border-outline-variant/20 mb-8 overflow-x-auto no-scrollbar">
       <button 
         onclick={() => activeTab = 'auto-thread'}
-        class="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] whitespace-nowrap transition-all relative {activeTab === 'auto-thread' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
+        class="px-6 py-4 text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap transition-all relative {activeTab === 'auto-thread' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
       >
         Auto-Thread
         {#if activeTab === 'auto-thread'}
@@ -283,7 +283,7 @@
 
       <button 
         onclick={() => activeTab = 'stats'}
-        class="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] whitespace-nowrap transition-all relative {activeTab === 'stats' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
+        class="px-6 py-4 text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap transition-all relative {activeTab === 'stats' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
       >
         Salons Stats
         {#if activeTab === 'stats'}
@@ -293,7 +293,7 @@
 
       <button 
         onclick={() => activeTab = 'temp-voice'}
-        class="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] whitespace-nowrap transition-all relative {activeTab === 'temp-voice' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
+        class="px-6 py-4 text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap transition-all relative {activeTab === 'temp-voice' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
       >
         Créer son salon
         {#if activeTab === 'temp-voice'}
@@ -303,7 +303,7 @@
 
       <button 
         onclick={() => activeTab = 'honeypot'}
-        class="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] whitespace-nowrap transition-all relative {activeTab === 'honeypot' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
+        class="px-6 py-4 text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap transition-all relative {activeTab === 'honeypot' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
       >
         Salon Honeypot
         {#if activeTab === 'honeypot'}
@@ -316,10 +316,10 @@
     <div class="grid grid-cols-1 gap-8">
       {#if activeTab === 'auto-thread'}
         <!-- AUTO-THREAD TAB -->
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
           <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h3 class="text-xl font-black flex items-center gap-3">
+              <h3 class="text-xl font-semibold flex items-center gap-3">
                 <Papicon icon="chat" size={20} class="text-primary" />
                 Salons éligibles aux fils
               </h3>
@@ -348,14 +348,14 @@
                 type="text"
                 bind:value={searchQuery}
                 placeholder="Rechercher un salon..."
-                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl pl-11 pr-5 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/20 transition-all outline-none"
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg pl-11 pr-5 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/30 focus:outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/20 transition-all outline-none"
               />
               <div class="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/50">
                 <Papicon icon="search" size={16} />
               </div>
             </div>
             
-            <div class="px-5 py-3 rounded-2xl bg-surface-container-high/20 border border-outline-variant/5 flex items-center gap-2 text-xs font-bold">
+            <div class="px-5 py-3 rounded-lg bg-surface-container-high/20 border border-outline-variant/5 flex items-center gap-2 text-xs font-bold">
               <span class="text-primary">{config.autoThreadChannels.length}</span>
               <span class="text-on-surface-variant/60">salon(s) sélectionné(s)</span>
             </div>
@@ -367,14 +367,14 @@
                 {@const isChecked = config.autoThreadChannels.includes(channel.id)}
                 <button
                   onclick={() => toggleChannel(channel.id)}
-                  class="flex items-center justify-between p-4 rounded-2xl border transition-all text-left group
+                  class="flex items-center justify-between p-4 rounded-lg border transition-all text-left group
                     {isChecked 
                       ? 'bg-primary/5 border-primary/30 text-primary hover:bg-primary/10' 
                       : 'bg-surface-container-high/10 border-outline-variant/5 hover:bg-surface-container-high/30'}"
                 >
                   <div class="flex items-center gap-3">
                     <div class="w-8 h-8 rounded-lg flex items-center justify-center {isChecked ? 'bg-primary/10' : 'bg-surface-container-highest'}">
-                      <span class="text-sm font-black opacity-60">#</span>
+                      <span class="text-sm font-semibold opacity-60">#</span>
                     </div>
                     <span class="text-sm font-semibold truncate max-w-[180px]">{channel.name}</span>
                   </div>
@@ -392,7 +392,7 @@
               {/each}
             </div>
           {:else}
-            <div class="flex flex-col items-center justify-center py-12 text-on-surface-variant/30 bg-surface-container-high/10 border border-dashed border-outline-variant/10 rounded-2xl gap-3">
+            <div class="flex flex-col items-center justify-center py-12 text-on-surface-variant/30 bg-surface-container-high/10 border border-dashed border-outline-variant/10 rounded-lg gap-3">
               <Papicon icon="search" size={32} class="opacity-30" />
               <p class="text-sm font-bold">Aucun salon ne correspond à votre recherche.</p>
             </div>
@@ -401,12 +401,12 @@
 
       {:else if activeTab === 'stats'}
         <!-- STATS CHANNELS TAB -->
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
           <InlineFeedback message={rescanAction.state.message} error={rescanAction.state.error} />
 
           <div class="flex items-center justify-between">
             <div>
-              <h3 class="text-xl font-black flex items-center gap-3">
+              <h3 class="text-xl font-semibold flex items-center gap-3">
                 <Papicon icon="bar-chart" size={20} class="text-primary" />
                 Salons de Statistiques
               </h3>
@@ -442,7 +442,7 @@
                     await handleSave();
                   }}
                   disabled={saveAction.state.loading || loading}
-                  class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-2xl transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                  class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Créer la catégorie
                 </button>
@@ -450,9 +450,9 @@
             </div>
 
             <!-- Historical Scraping Trigger -->
-            <div class="p-6 bg-primary/5 border border-primary/20 rounded-4xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div class="p-6 bg-primary/5 border border-primary/20 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div class="space-y-1">
-                <h4 class="text-sm font-black flex items-center gap-2 text-primary">
+                <h4 class="text-sm font-semibold flex items-center gap-2 text-primary">
                   <Papicon icon="history" size={16} />
                   Reconstruire les Statistiques Historiques
                 </h4>
@@ -467,7 +467,7 @@
                     await handleRescanStats(false);
                   }}
                   disabled={rescanAction.state.loading || loading}
-                  class="px-5 py-3 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold rounded-2xl transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed flex-1 md:flex-none"
+                  class="px-5 py-3 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed flex-1 md:flex-none"
                 >
                   Lancer le Scan
                 </button>
@@ -479,7 +479,7 @@
                     }
                   }}
                   disabled={rescanAction.state.loading || loading}
-                  class="px-5 py-3 bg-error/10 hover:bg-error/20 text-error border border-error/20 text-xs font-bold rounded-2xl transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed flex-1 md:flex-none"
+                  class="px-5 py-3 bg-error/10 hover:bg-error/20 text-error border border-error/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed flex-1 md:flex-none"
                 >
                   Forcer le Re-scan
                 </button>
@@ -488,7 +488,7 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
               <!-- Member Count -->
-              <div class="space-y-3 p-5 bg-surface-container-high/20 border border-outline-variant/5 rounded-3xl transition-all">
+              <div class="space-y-3 p-5 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl transition-all">
                 <div class="flex items-center justify-between">
                   <label for="stats-member-channel" class="text-xs font-bold text-on-surface/80 block">👤 Compteur de Membres</label>
                   <input 
@@ -514,7 +514,7 @@
                         await handleSave();
                       }}
                       disabled={saveAction.state.loading || loading}
-                      class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-2xl transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                      class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Créer le salon
                     </button>
@@ -523,13 +523,13 @@
                     type="text" 
                     bind:value={config.statsConfig.memberTemplate} 
                     placeholder="Template: Membres : {'{count}'}" 
-                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
                   />
                 {/if}
               </div>
 
               <!-- Bot Count -->
-              <div class="space-y-3 p-5 bg-surface-container-high/20 border border-outline-variant/5 rounded-3xl transition-all">
+              <div class="space-y-3 p-5 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl transition-all">
                 <div class="flex items-center justify-between">
                   <label for="stats-bot-channel" class="text-xs font-bold text-on-surface/80 block">🤖 Compteur de Bots</label>
                   <input 
@@ -555,7 +555,7 @@
                         await handleSave();
                       }}
                       disabled={saveAction.state.loading || loading}
-                      class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-2xl transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                      class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Créer le salon
                     </button>
@@ -564,13 +564,13 @@
                     type="text" 
                     bind:value={config.statsConfig.botTemplate} 
                     placeholder="Template: Bots : {'{count}'}" 
-                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
                   />
                 {/if}
               </div>
 
               <!-- Role Member Count -->
-              <div class="space-y-3 p-5 bg-surface-container-high/20 border border-outline-variant/5 rounded-3xl transition-all">
+              <div class="space-y-3 p-5 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl transition-all">
                 <div class="flex items-center justify-between">
                   <label for="stats-role-channel" class="text-xs font-bold text-on-surface/80 block">👑 Compteur par Rôle</label>
                   <input 
@@ -596,7 +596,7 @@
                         await handleSave();
                       }}
                       disabled={saveAction.state.loading || loading}
-                      class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-2xl transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                      class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Créer le salon
                     </button>
@@ -610,13 +610,13 @@
                     type="text" 
                     bind:value={config.statsConfig.roleTemplate} 
                     placeholder="Template: Staff : {'{count}'}" 
-                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
                   />
                 {/if}
               </div>
 
               <!-- Channels Count -->
-              <div class="space-y-3 p-5 bg-surface-container-high/20 border border-outline-variant/5 rounded-3xl transition-all">
+              <div class="space-y-3 p-5 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl transition-all">
                 <div class="flex items-center justify-between">
                   <label for="stats-channel-channel" class="text-xs font-bold text-on-surface/80 block">💬 Compteur de Salons</label>
                   <input 
@@ -642,7 +642,7 @@
                         await handleSave();
                       }}
                       disabled={saveAction.state.loading || loading}
-                      class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-2xl transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                      class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Créer le salon
                     </button>
@@ -651,13 +651,13 @@
                     type="text" 
                     bind:value={config.statsConfig.channelTemplate} 
                     placeholder="Template: Salons : {'{count}'}" 
-                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
                   />
                 {/if}
               </div>
 
               <!-- Categories Count -->
-              <div class="space-y-3 p-5 bg-surface-container-high/20 border border-outline-variant/5 rounded-3xl transition-all">
+              <div class="space-y-3 p-5 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl transition-all">
                 <div class="flex items-center justify-between">
                   <label for="stats-category-channel" class="text-xs font-bold text-on-surface/80 block">📁 Compteur de Catégories</label>
                   <input 
@@ -683,7 +683,7 @@
                         await handleSave();
                       }}
                       disabled={saveAction.state.loading || loading}
-                      class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-2xl transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                      class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Créer le salon
                     </button>
@@ -692,13 +692,13 @@
                     type="text" 
                     bind:value={config.statsConfig.categoryTemplate} 
                     placeholder="Template: Catégories : {'{count}'}" 
-                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
                   />
                 {/if}
               </div>
 
               <!-- Activity Count -->
-              <div class="space-y-3 p-5 bg-surface-container-high/20 border border-outline-variant/5 rounded-3xl transition-all">
+              <div class="space-y-3 p-5 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl transition-all">
                 <div class="flex items-center justify-between">
                   <label for="stats-activity-channel" class="text-xs font-bold text-on-surface/80 block">📈 Compteur d'Activité (24h)</label>
                   <input 
@@ -724,7 +724,7 @@
                         await handleSave();
                       }}
                       disabled={saveAction.state.loading || loading}
-                      class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-2xl transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                      class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Créer le salon
                     </button>
@@ -733,7 +733,7 @@
                     type="text" 
                     bind:value={config.statsConfig.activityTemplate} 
                     placeholder="Template: Actifs 24h : {'{count}'}" 
-                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
+                    class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
                   />
                 {/if}
               </div>
@@ -742,7 +742,7 @@
             <!-- Custom stats channels -->
             <div class="border-t border-outline-variant/10 pt-6 mt-6 space-y-4">
               <div>
-                <h4 class="text-sm font-black flex items-center gap-2">
+                <h4 class="text-sm font-semibold flex items-center gap-2">
                   <Papicon icon="plus-circle" size={16} class="text-primary" />
                   Salons de Statistiques Personnalisés
                 </h4>
@@ -755,9 +755,9 @@
 
               <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {#each config.statsConfig.customStats as custom, index}
-                  <div class="p-5 bg-surface-container-high/10 border border-outline-variant/5 rounded-3xl space-y-4 transition-all">
+                  <div class="p-5 bg-surface-container-high/10 border border-outline-variant/5 rounded-xl space-y-4 transition-all">
                     <div class="flex items-center justify-between border-b border-outline-variant/10 pb-3 mb-2">
-                      <span class="text-[10px] font-black uppercase tracking-wider text-primary">Compteur #{index + 1}</span>
+                      <span class="text-[10px] font-semibold uppercase tracking-wider text-primary">Compteur #{index + 1}</span>
                       <button
                         type="button"
                         onclick={() => {
@@ -788,7 +788,7 @@
                         <select
                           id="custom-type-{index}"
                           bind:value={custom.type}
-                          class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
+                          class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
                         >
                           <option value="members">👤 Membres Totaux</option>
                           <option value="bots">🤖 Bots Totaux</option>
@@ -823,13 +823,13 @@
                                 await handleSave();
                               }}
                               disabled={saveAction.state.loading || loading}
-                              class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-2xl transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                              class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               Créer
                             </button>
                           </div>
                         {:else}
-                          <div class="text-xs text-on-surface-variant/40 bg-surface-container-high/20 border border-outline-variant/10 rounded-2xl px-4 py-2.5">
+                          <div class="text-xs text-on-surface-variant/40 bg-surface-container-high/20 border border-outline-variant/10 rounded-lg px-4 py-2.5">
                             Compteur désactivé
                           </div>
                         {/if}
@@ -857,7 +857,7 @@
                             type="number"
                             bind:value={custom.goalTarget}
                             placeholder="Ex: 1000"
-                            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
+                            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
                           />
                         </div>
                       {/if}
@@ -870,9 +870,9 @@
                           type="text" 
                           bind:value={custom.template} 
                           placeholder={custom.type === 'goal' ? '🎯 Objectif : {count}/{goal}' : 'Template: Nom : {count}'} 
-                          class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
+                          class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
                         />
-                        <p class="text-[9px] text-on-surface-variant/40 mt-1">
+                        <p class="text-[11px] text-on-surface-variant/40 mt-1">
                           Le mot clé <code>{"{count}"}</code> sera remplacé par le nombre actuel.
                           {#if custom.type === 'goal'}
                             Le mot clé <code>{"{goal}"}</code> sera remplacé par le nombre cible.
@@ -898,7 +898,7 @@
                       }
                     ];
                   }}
-                  class="col-span-1 md:col-span-2 py-4 border border-dashed border-outline-variant/20 hover:border-primary/40 text-on-surface-variant/60 hover:text-primary transition-all rounded-3xl text-xs font-black flex items-center justify-center gap-2"
+                  class="col-span-1 md:col-span-2 py-4 border border-dashed border-outline-variant/20 hover:border-primary/40 text-on-surface-variant/60 hover:text-primary transition-all rounded-xl text-xs font-semibold flex items-center justify-center gap-2"
                 >
                   <Papicon icon="plus" size={16} />
                   Ajouter un compteur personnalisé
@@ -911,10 +911,10 @@
 
       {:else if activeTab === 'temp-voice'}
         <!-- DYNAMIC VOCAL CREATORS TAB -->
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
           <div class="flex items-center justify-between">
             <div>
-              <h3 class="text-xl font-black flex items-center gap-3">
+              <h3 class="text-xl font-semibold flex items-center gap-3">
                 <Papicon icon="volume-2" size={20} class="text-primary" />
                 Créer son salon (Salons Temporaires)
               </h3>
@@ -951,7 +951,7 @@
                       await handleSave();
                     }}
                     disabled={saveAction.state.loading || loading}
-                    class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-2xl transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Créer le salon
                   </button>
@@ -977,7 +977,7 @@
                       await handleSave();
                     }}
                     disabled={saveAction.state.loading || loading}
-                    class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-2xl transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Créer la catégorie
                   </button>
@@ -992,14 +992,14 @@
                   type="text" 
                   bind:value={config.tempVoiceNameTemplate} 
                   placeholder="Ex: 🔊 Salon de {'{user}'}" 
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-5 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/30 transition-all"
                 />
                 <p class="text-[10px] text-on-surface-variant/40 mt-1">Le mot clé `{"{user}"}` sera remplacé par le pseudonyme du membre.</p>
               </div>
 
               <!-- Description of Chat Control Embed -->
-              <div class="p-5 bg-primary/5 border border-primary/20 rounded-3xl mt-4">
-                <h4 class="text-xs font-black text-primary uppercase tracking-wider mb-2">ℹ️ Embed de gestion du salon</h4>
+              <div class="p-5 bg-primary/5 border border-primary/20 rounded-xl mt-4">
+                <h4 class="text-xs font-semibold text-primary uppercase tracking-wider mb-2">ℹ️ Embed de gestion du salon</h4>
                 <p class="text-xs text-on-surface-variant/80 leading-relaxed">
                   Dès la création du salon vocal temporaire, Kotbo enverra automatiquement un message embed interactif dans le chat textuel du salon vocal. Ce message permettra au créateur de gérer son salon à l'aide de boutons :
                   <br/><strong class="text-on-surface font-semibold">• Verrouiller / Déverrouiller</strong> (rendre le salon privé)
@@ -1014,10 +1014,10 @@
 
       {:else if activeTab === 'honeypot'}
         <!-- HONEYPOT TRAP TAB -->
-        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
           <div class="flex items-center justify-between">
             <div>
-              <h3 class="text-xl font-black flex items-center gap-3">
+              <h3 class="text-xl font-semibold flex items-center gap-3">
                 <Papicon icon="shield" size={20} class="text-primary" />
                 Salon Honeypot (Piège Anti-Spam)
               </h3>
@@ -1054,7 +1054,7 @@
                       await handleSave();
                     }}
                     disabled={saveAction.state.loading || loading}
-                    class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-2xl transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Créer le salon
                   </button>
@@ -1067,7 +1067,7 @@
                 <select
                   id="honeypot-sanction-select"
                   bind:value={config.honeypotSanction}
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30"
                 >
                   <option value="TIMEOUT">Exclusion Temporaire / Timeout (TO) — Par défaut</option>
                   <option value="BAN">Bannissement Définitif</option>
@@ -1079,7 +1079,7 @@
 
               {#if config.honeypotSanction === 'KICK'}
                 <!-- Honeypot Auto Reinvite toggle -->
-                <div class="flex items-center justify-between p-5 bg-surface-container-high/20 border border-outline-variant/5 rounded-3xl transition-all">
+                <div class="flex items-center justify-between p-5 bg-surface-container-high/20 border border-outline-variant/5 rounded-xl transition-all">
                   <div class="space-y-0.5">
                     <label for="honeypot-reinvite-toggle" class="text-xs font-bold text-on-surface/80 block">📨 Réinvitation automatique</label>
                     <p class="text-[10px] text-on-surface-variant/60">Envoyer automatiquement une invitation temporaire en DM à l'utilisateur exclu par le honeypot.</p>
@@ -1096,8 +1096,8 @@
               {/if}
 
               <!-- Alert Warning Card -->
-              <div class="p-5 bg-error/10 border border-error/20 text-error rounded-3xl space-y-3">
-                <h4 class="text-xs font-black uppercase tracking-wider flex items-center gap-2">
+              <div class="p-5 bg-error/10 border border-error/20 text-error rounded-xl space-y-3">
+                <h4 class="text-xs font-semibold uppercase tracking-wider flex items-center gap-2">
                   <Papicon icon="alert-triangle" size={16} />
                   Avertissement de Sécurité
                 </h4>

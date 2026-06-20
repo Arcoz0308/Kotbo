@@ -273,9 +273,9 @@
 
     return escaped
       // Headers
-      .replace(/^### (.*$)/gim, '<h5 class="text-sm font-black uppercase tracking-wider text-primary mt-4 mb-2">$1</h5>')
-      .replace(/^## (.*$)/gim, '<h4 class="text-base font-black text-on-surface mt-6 mb-3 border-b border-outline-variant/20 pb-1">$1</h4>')
-      .replace(/^# (.*$)/gim, '<h3 class="text-xl font-black text-on-surface mt-8 mb-4">$1</h3>')
+      .replace(/^### (.*$)/gim, '<h5 class="text-sm font-semibold uppercase tracking-wider text-primary mt-4 mb-2">$1</h5>')
+      .replace(/^## (.*$)/gim, '<h4 class="text-base font-semibold text-on-surface mt-6 mb-3 border-b border-outline-variant/20 pb-1">$1</h4>')
+      .replace(/^# (.*$)/gim, '<h3 class="text-xl font-semibold text-on-surface mt-8 mb-4">$1</h3>')
       // Bold & Italic
       .replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-primary">$1</strong>')
       .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
@@ -302,32 +302,32 @@
 
 <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
   <!-- Header -->
-  <header class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-surface-container-low/40 backdrop-blur-3xl p-8 rounded-4xl border border-outline-variant/30">
-    <div class="flex items-center gap-6">
-      <div class="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary shadow-inner">
-        <Papicon icon="rss" size={32} />
+  <header class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30">
+    <div class="flex items-center gap-4">
+      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+        <Papicon icon="rss" size={20} />
       </div>
       <div>
-        <h1 class="text-3xl font-black tracking-tight leading-tight">Actualités & RSS</h1>
-        <p class="text-on-surface-variant/80 font-medium">
+        <h1 class="text-lg font-semibold tracking-tight leading-tight">Actualités & RSS</h1>
+        <p class="text-sm text-on-surface-variant/70 font-medium">
           {isPublicView
             ? 'Consultez les dernières annonces publiées pour ce serveur.'
             : 'Rédigez des annonces, des patch notes et générez le flux RSS du serveur.'}
         </p>
       </div>
     </div>
-    <div class="flex gap-4">
+    <div class="flex gap-3">
       {#if showEditor}
-        <button 
+        <button
           onclick={() => showEditor = false}
-          class="px-6 py-3 bg-surface-container-high text-on-surface font-black uppercase tracking-widest text-xs rounded-2xl shadow hover:bg-surface-container-highest transition-all"
+          class="px-5 py-2.5 bg-surface-container-high text-on-surface font-semibold uppercase tracking-widest text-xs rounded-lg shadow hover:bg-surface-container-highest transition-all"
         >
           Retour à la liste
         </button>
       {:else if canEdit}
-        <button 
+        <button
           onclick={openCreate}
-          class="px-8 py-3 bg-primary text-on-primary font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-primary/20 hover:scale-105 transition-all"
+          class="px-6 py-2.5 bg-primary text-on-primary font-semibold uppercase tracking-widest text-xs rounded-lg hover:scale-105 transition-all"
         >
           Créer un article
         </button>
@@ -343,8 +343,8 @@
     <!-- EDITOR WORKSPACE -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <!-- Editor Form -->
-      <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
-        <h3 class="text-xl font-black flex items-center gap-3">
+      <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+        <h3 class="text-xl font-semibold flex items-center gap-3">
           <Papicon icon="edit" size={20} class="text-primary" />
           {isEditing ? 'Modifier l\'article' : 'Rédiger une actualité'}
         </h3>
@@ -358,7 +358,7 @@
               type="text" 
               bind:value={title} 
               placeholder="Ex: Mise à jour v1.4.0 ou Patch Notes de sécurité..."
-              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all outline-none"
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all outline-none"
             />
           </div>
 
@@ -372,7 +372,7 @@
                 list="categories-list"
                 bind:value={category} 
                 placeholder="Ex: Annonce, Patch Note..."
-                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all outline-none"
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all outline-none"
               />
               <datalist id="categories-list">
                 {#each categories as cat}
@@ -389,15 +389,15 @@
                 type="text"
                 bind:value={subcategory} 
                 placeholder="Ex: API, Frontend, Web..."
-                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all outline-none"
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all outline-none"
               />
             </div>
 
             <!-- Published checkbox -->
-            <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container-high/20 border border-outline-variant/5">
+            <div class="flex items-center justify-between p-4 rounded-lg bg-surface-container-high/20 border border-outline-variant/5">
               <div>
                 <p class="text-xs font-bold leading-tight">Publier immédiatement</p>
-                <p class="text-[9px] text-on-surface-variant/50">Visibilité publique & notification</p>
+                <p class="text-[11px] text-on-surface-variant/50">Visibilité publique & notification</p>
               </div>
               <input 
                 type="checkbox" 
@@ -407,7 +407,7 @@
             </div>
           </div>
 
-          <div class="space-y-2 rounded-2xl border border-outline-variant/10 bg-surface-container-high/20 p-4">
+          <div class="space-y-2 rounded-lg border border-outline-variant/10 bg-surface-container-high/20 p-4">
             <p class="text-[10px] font-bold text-on-surface-variant/70 uppercase tracking-widest">Mode d'envoi Discord</p>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <button
@@ -438,7 +438,7 @@
               type="text" 
               bind:value={imageUrl} 
               placeholder="https://example.com/image.png"
-              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all outline-none"
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all outline-none"
             />
           </div>
 
@@ -450,7 +450,7 @@
               bind:value={summary} 
               rows="2" 
               placeholder="Une description rapide de deux lignes..."
-              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all outline-none resize-none"
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 transition-all outline-none resize-none"
             ></textarea>
           </div>
 
@@ -462,7 +462,7 @@
               bind:value={content} 
               rows="12" 
               placeholder="Rédigez votre article ici..."
-              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-5 py-4 text-sm focus:ring-2 focus:ring-primary/30 transition-all outline-none font-mono"
+              class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-5 py-4 text-sm focus:ring-2 focus:ring-primary/30 transition-all outline-none font-mono"
             ></textarea>
           </div>
 
@@ -470,13 +470,13 @@
           <div class="pt-4 flex justify-end gap-4">
             <button 
               onclick={() => showEditor = false}
-              class="px-6 py-3 bg-surface-container-high text-on-surface font-bold text-sm rounded-2xl hover:bg-surface-container-highest transition-all"
+              class="px-6 py-3 bg-surface-container-high text-on-surface font-bold text-sm rounded-lg hover:bg-surface-container-highest transition-all"
             >
               Annuler
             </button>
             <button 
               onclick={handleSave}
-              class="px-8 py-3 bg-primary text-on-primary font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-primary/20 hover:scale-105 transition-all"
+              class="px-8 py-3 bg-primary text-on-primary font-semibold uppercase tracking-widest text-xs rounded-lg  hover:scale-105 transition-all"
             >
               {isEditing ? 'Mettre à jour' : 'Créer l\'article'}
             </button>
@@ -485,27 +485,27 @@
       </section>
 
       <!-- Live Preview -->
-      <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] flex flex-col h-full">
-        <h3 class="text-xl font-black flex items-center gap-3 mb-6 shrink-0">
+      <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl flex flex-col h-full">
+        <h3 class="text-xl font-semibold flex items-center gap-3 mb-6 shrink-0">
           <Papicon icon="eye" size={20} class="text-secondary" />
           Prévisualisation en direct
         </h3>
         
-        <div class="flex-1 bg-surface-container-high/20 border border-outline-variant/10 rounded-3xl p-8 overflow-y-auto max-h-150 custom-scrollbar prose prose-invert">
+        <div class="flex-1 bg-surface-container-high/20 border border-outline-variant/10 rounded-xl p-8 overflow-y-auto max-h-150 custom-scrollbar prose prose-invert">
           {#if imageUrl}
-            <img src={imageUrl} alt="Illustration" class="w-full h-48 object-cover rounded-2xl mb-6 border border-outline-variant/20" />
+            <img src={imageUrl} alt="Illustration" class="w-full h-48 object-cover rounded-lg mb-6 border border-outline-variant/20" />
           {/if}
           <div class="mb-4 flex flex-wrap gap-2">
-            <span class="px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded-full bg-primary/10 text-primary">
+            <span class="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider rounded-full bg-primary/10 text-primary">
               {category}
             </span>
             {#if subcategory}
-              <span class="px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded-full bg-secondary/10 text-secondary">
+              <span class="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider rounded-full bg-secondary/10 text-secondary">
                 {subcategory}
               </span>
             {/if}
           </div>
-          <h2 class="text-2xl font-black text-on-surface mb-2">{title || 'Titre de l\'article'}</h2>
+          <h2 class="text-2xl font-semibold text-on-surface mb-2">{title || 'Titre de l\'article'}</h2>
           {#if summary}
             <p class="text-sm font-medium text-on-surface-variant border-l-2 border-outline-variant/30 pl-4 py-1 italic mb-6">{summary}</p>
           {/if}
@@ -520,7 +520,7 @@
     <div class="flex border-b border-outline-variant/20 mb-8 shrink-0">
       <button 
         onclick={() => activeTab = 'articles'}
-        class="px-8 py-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative {activeTab === 'articles' ? 'text-primary font-bold' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
+        class="px-8 py-4 text-[10px] font-semibold uppercase tracking-wider transition-all relative {activeTab === 'articles' ? 'text-primary font-bold' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
       >
         Articles
         {#if activeTab === 'articles'}
@@ -530,7 +530,7 @@
       {#if !isPublicView}
         <button 
           onclick={() => activeTab = 'configs'}
-          class="px-8 py-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative {activeTab === 'configs' ? 'text-primary font-bold' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
+          class="px-8 py-4 text-[10px] font-semibold uppercase tracking-wider transition-all relative {activeTab === 'configs' ? 'text-primary font-bold' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
         >
           Flux & Salons par Catégorie
           {#if activeTab === 'configs'}
@@ -544,9 +544,9 @@
       <!-- LIST VIEW -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <!-- RSS feed copy link card (Wide on desktop) -->
-        <section class="lg:col-span-3 bg-linear-to-r from-primary/10 via-secondary/5 to-transparent border border-outline-variant/20 p-8 rounded-[2.5rem] flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <section class="lg:col-span-3 bg-linear-to-r from-primary/10 via-secondary/5 to-transparent border border-outline-variant/20 p-8 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div class="space-y-2">
-            <h3 class="text-lg font-black flex items-center gap-2.5">
+            <h3 class="text-lg font-semibold flex items-center gap-2.5">
               <Papicon icon="globe" size={20} class="text-primary" />
               Votre Flux RSS Public
             </h3>
@@ -554,7 +554,7 @@
               Ce flux RSS est généré dynamiquement à partir des articles marqués comme **publiés**. Vos membres peuvent s'y abonner sur Feedly, Inoreader, ou tout autre lecteur RSS.
             </p>
           </div>
-          <div class="flex items-center gap-2 bg-surface-container-low border border-outline-variant/25 px-5 py-3 rounded-2xl w-full md:w-auto md:min-w-100">
+          <div class="flex items-center gap-2 bg-surface-container-low border border-outline-variant/25 px-5 py-3 rounded-lg w-full md:w-auto md:min-w-100">
             <span class="text-xs font-mono text-on-surface truncate flex-1">{rssFeedUrl}</span>
             <button 
               onclick={copyRssUrl} 
@@ -567,7 +567,7 @@
         </section>
 
         <!-- Articles list table/cards -->
-        <section class="lg:col-span-3 bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6">
+        <section class="lg:col-span-3 bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
           <!-- Search & filters -->
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div class="relative flex-1 max-w-md">
@@ -578,7 +578,7 @@
                 type="text" 
                 bind:value={searchQuery} 
                 placeholder="Rechercher par titre, résumé ou auteur..." 
-                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl pl-11 pr-5 py-3 text-xs outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg pl-11 pr-5 py-3 text-xs outline-none focus:ring-2 focus:ring-primary/20 transition-all"
               />
             </div>
 
@@ -587,7 +587,7 @@
               <select 
                 id="filter-category" 
                 bind:value={categoryFilter} 
-                class="bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-2.5 text-xs outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                class="bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs outline-none focus:ring-2 focus:ring-primary/20 transition-all"
               >
                 <option value="ALL">Toutes catégories</option>
                 {#each categories as cat}
@@ -600,7 +600,7 @@
           {#if loading}
             <div class="space-y-4">
               {#each Array(3) as _}
-                <div class="p-6 bg-surface-container-high/20 border border-outline-variant/5 rounded-2xl flex items-center justify-between">
+                <div class="p-6 bg-surface-container-high/20 border border-outline-variant/5 rounded-lg flex items-center justify-between">
                   <div class="space-y-2 w-1/3">
                     <Skeleton width="100%" height="16px" />
                     <Skeleton width="60%" height="12px" />
@@ -613,43 +613,43 @@
           {:else if filteredArticles.length > 0}
             {#if isPublicView}
               <div class="space-y-6">
-                <div class="rounded-4xl border border-outline-variant/15 bg-surface-container-high/25 p-5 md:p-6">
+                <div class="rounded-xl border border-outline-variant/15 bg-surface-container-high/25 p-5 md:p-6">
                   <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div class="space-y-2">
                       <div class="flex items-center gap-2 text-primary">
                         <Papicon icon="globe" size={18} />
-                        <span class="text-[10px] font-black uppercase tracking-[0.2em]">Vue forum</span>
+                        <span class="text-[10px] font-semibold uppercase tracking-wider">Vue forum</span>
                       </div>
-                      <h4 class="text-lg font-black text-on-surface">Catégories, sous-catégories et derniers articles</h4>
+                      <h4 class="text-lg font-semibold text-on-surface">Catégories, sous-catégories et derniers articles</h4>
                       <p class="text-xs text-on-surface-variant/70 max-w-2xl">
                         Les articles sont regroupés par catégorie puis par sous-catégorie pour rappeler l’organisation d’un forum.
                       </p>
                     </div>
                     <div class="flex flex-wrap gap-2">
-                      <span class="px-3 py-1.5 rounded-full bg-primary/10 text-primary text-[10px] font-black uppercase tracking-wider">{filteredArticles.length} article{filteredArticles.length > 1 ? 's' : ''}</span>
-                      <span class="px-3 py-1.5 rounded-full bg-secondary/10 text-secondary text-[10px] font-black uppercase tracking-wider">{forumSections.length} catégorie{forumSections.length > 1 ? 's' : ''}</span>
+                      <span class="px-3 py-1.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold uppercase tracking-wider">{filteredArticles.length} article{filteredArticles.length > 1 ? 's' : ''}</span>
+                      <span class="px-3 py-1.5 rounded-full bg-secondary/10 text-secondary text-[10px] font-semibold uppercase tracking-wider">{forumSections.length} catégorie{forumSections.length > 1 ? 's' : ''}</span>
                     </div>
                   </div>
                 </div>
 
                 <div class="space-y-5">
                   {#each forumSections as section}
-                    <section class="overflow-hidden rounded-4xl border border-outline-variant/15 bg-surface-container-low/40 shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
+                    <section class="overflow-hidden rounded-xl border border-outline-variant/15 bg-surface-container-low/40 shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
                       <div class="flex flex-col gap-4 border-b border-outline-variant/10 bg-linear-to-r from-primary/10 via-secondary/5 to-transparent px-5 py-4 md:flex-row md:items-center md:justify-between">
                         <div class="space-y-1">
                           <div class="flex items-center gap-2">
-                            <span class="flex h-9 w-9 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+                            <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/15 text-primary">
                               <Papicon icon="folder" size={18} />
                             </span>
                             <div>
-                              <h5 class="text-base font-black text-on-surface">{section.categoryName}</h5>
+                              <h5 class="text-base font-semibold text-on-surface">{section.categoryName}</h5>
                               <p class="text-[11px] uppercase tracking-[0.18em] text-on-surface-variant/55">{section.totalCount} sujet{section.totalCount > 1 ? 's' : ''}</p>
                             </div>
                           </div>
                         </div>
                         <div class="flex flex-wrap gap-2">
                           {#each section.subcategories as subcategorySection}
-                            <span class="rounded-full border border-outline-variant/15 bg-surface-container-high/40 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/75">
+                            <span class="rounded-full border border-outline-variant/15 bg-surface-container-high/40 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/75">
                               {subcategorySection.subcategoryName} · {subcategorySection.totalCount}
                             </span>
                           {/each}
@@ -660,7 +660,7 @@
                         {#each section.subcategories as subcategorySection}
                           <div class="grid gap-4 px-5 py-4 md:grid-cols-[220px_minmax(0,1fr)] md:gap-6">
                             <div class="space-y-2">
-                              <div class="inline-flex items-center gap-2 rounded-full bg-secondary/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-secondary">
+                              <div class="inline-flex items-center gap-2 rounded-full bg-secondary/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-secondary">
                                 <Papicon icon="hash" size={14} />
                                 {subcategorySection.subcategoryName}
                               </div>
@@ -675,35 +675,35 @@
                                   <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                                     <div class="flex min-w-0 gap-4">
                                       {#if art.imageUrl}
-                                        <img src={art.imageUrl} alt="" class="h-16 w-16 shrink-0 rounded-2xl border border-outline-variant/10 object-cover" />
+                                        <img src={art.imageUrl} alt="" class="h-16 w-16 shrink-0 rounded-lg border border-outline-variant/10 object-cover" />
                                       {:else}
-                                        <div class="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                                        <div class="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                                           <Papicon icon="newspaper" size={24} />
                                         </div>
                                       {/if}
 
                                       <div class="min-w-0 space-y-2">
                                         <div class="flex flex-wrap items-center gap-2">
-                                          <span class="rounded-full bg-primary/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-primary">
+                                          <span class="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-primary">
                                             {art.category}
                                           </span>
                                           {#if art.subcategory}
-                                            <span class="rounded-full bg-secondary/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-secondary">
+                                            <span class="rounded-full bg-secondary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-secondary">
                                               {art.subcategory}
                                             </span>
                                           {/if}
                                           {#if art.published}
-                                            <span class="rounded-full bg-emerald-100 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400">
+                                            <span class="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400">
                                               Publié
                                             </span>
                                           {:else}
-                                            <span class="rounded-full bg-slate-100 px-2.5 py-1 text-[9px] font-black uppercase tracking-widest text-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
+                                            <span class="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-widest text-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
                                               Brouillon
                                             </span>
                                           {/if}
                                         </div>
 
-                                        <h6 class="text-base font-black text-on-surface transition-colors group-hover:text-primary">{art.title}</h6>
+                                        <h6 class="text-base font-semibold text-on-surface transition-colors group-hover:text-primary">{art.title}</h6>
                                         {#if art.summary}
                                           <p class="line-clamp-2 text-sm text-on-surface-variant/80">{art.summary}</p>
                                         {/if}
@@ -731,10 +731,10 @@
                 </div>
               </div>
             {:else}
-              <div class="overflow-x-auto rounded-3xl border border-outline-variant/10">
+              <div class="overflow-x-auto rounded-xl border border-outline-variant/10">
                 <table class="w-full border-collapse text-left">
                   <thead>
-                    <tr class="bg-surface-container-high/40 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60">
+                    <tr class="bg-surface-container-high/40 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60">
                       <th class="px-6 py-4">Article</th>
                       <th class="px-6 py-4">Catégorie</th>
                       <th class="px-6 py-4">Auteur</th>
@@ -767,11 +767,11 @@
                         </td>
                         <td class="px-6 py-5">
                           <div class="flex flex-col gap-1">
-                            <span class="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-full bg-primary/10 text-primary w-fit">
+                            <span class="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider rounded-full bg-primary/10 text-primary w-fit">
                               {art.category}
                             </span>
                             {#if art.subcategory}
-                              <span class="text-[9px] text-secondary font-bold uppercase tracking-wider ml-1">↳ {art.subcategory}</span>
+                              <span class="text-[11px] text-secondary font-bold uppercase tracking-wider ml-1">↳ {art.subcategory}</span>
                             {/if}
                           </div>
                         </td>
@@ -788,11 +788,11 @@
                         </td>
                         <td class="px-6 py-5">
                           {#if art.published}
-                            <span class="px-2.5 py-1 text-[9px] font-black uppercase tracking-widest rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400">
+                            <span class="px-2.5 py-1 text-[11px] font-semibold uppercase tracking-widest rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400">
                               Publié
                             </span>
                           {:else}
-                            <span class="px-2.5 py-1 text-[9px] font-black uppercase tracking-widest rounded-full bg-slate-100 text-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
+                            <span class="px-2.5 py-1 text-[11px] font-semibold uppercase tracking-widest rounded-full bg-slate-100 text-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
                               Brouillon
                             </span>
                           {/if}
@@ -824,16 +824,16 @@
               </div>
             {/if}
           {:else}
-            <div class="flex flex-col items-center justify-center py-20 border border-dashed border-outline-variant/30 rounded-3xl">
+            <div class="flex flex-col items-center justify-center py-20 border border-dashed border-outline-variant/30 rounded-xl">
               <div class="w-16 h-16 bg-surface-container-high/30 rounded-full flex items-center justify-center text-on-surface-variant/30 mb-4">
                 <Papicon icon="rss" size={32} />
               </div>
-              <h4 class="text-base font-black text-on-surface">Aucun article trouvé</h4>
+              <h4 class="text-base font-semibold text-on-surface">Aucun article trouvé</h4>
               <p class="text-xs text-on-surface-variant/60 font-medium mt-1">Commencez par rédiger votre première mise à jour ou patch note.</p>
               {#if canEdit}
                 <button 
                   onclick={openCreate}
-                  class="mt-6 px-6 py-2.5 bg-primary text-on-primary font-black uppercase tracking-widest text-[10px] rounded-xl hover:scale-105 transition-all"
+                  class="mt-6 px-6 py-2.5 bg-primary text-on-primary font-semibold uppercase tracking-widest text-[10px] rounded-xl hover:scale-105 transition-all"
                 >
                   Créer un article
                 </button>
@@ -845,26 +845,26 @@
     {:else}
       <!-- CONFIGS VIEW -->
       <div class="space-y-8 animate-in fade-in duration-300">
-        <section class="overflow-hidden rounded-4xl border border-outline-variant/15 bg-surface-container-low/40 shadow-[0_18px_60px_rgba(0,0,0,0.08)]">
+        <section class="overflow-hidden rounded-xl border border-outline-variant/15 bg-surface-container-low/40 shadow-[0_18px_60px_rgba(0,0,0,0.08)]">
           <div class="border-b border-outline-variant/10 bg-linear-to-r from-black/5 via-transparent to-primary/10 px-6 py-5 md:px-8 md:py-6">
             <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div class="space-y-3 max-w-3xl">
                 <div class="flex items-center gap-2 text-primary">
                   <Papicon icon="rss" size={18} />
-                  <span class="text-[10px] font-black uppercase tracking-[0.25em]">Configuration éditoriale</span>
+                  <span class="text-[10px] font-semibold uppercase tracking-wider">Configuration éditoriale</span>
                 </div>
                 <div class="space-y-2">
-                  <h3 class="text-2xl md:text-3xl font-black tracking-tight text-on-surface">Salons actualité et flux RSS</h3>
+                  <h3 class="text-2xl md:text-lg font-semibold tracking-tight text-on-surface">Salons actualité et flux RSS</h3>
                   <p class="text-sm text-on-surface-variant/75 leading-relaxed max-w-2xl">
                     Organisez chaque catégorie comme une rubrique de journal, avec des flux dédiés et des salons Discord associés.
                   </p>
                 </div>
               </div>
               <div class="flex flex-wrap gap-2">
-                <span class="rounded-full bg-surface-container-high/70 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant">
+                <span class="rounded-full bg-surface-container-high/70 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">
                   {categoryConfigs.length} liaison{categoryConfigs.length > 1 ? 's' : ''}
                 </span>
-                <span class="rounded-full bg-primary/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-primary">
+                <span class="rounded-full bg-primary/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
                   {dashboardStore.state.discordChannels?.length || 0} salons détectés
                 </span>
               </div>
@@ -876,7 +876,7 @@
             <section class="border-b border-outline-variant/10 bg-surface-container-low/20 p-6 md:p-8 lg:border-b-0 lg:border-r">
               <div class="space-y-6">
                 <div class="space-y-2">
-                  <h4 class="text-lg font-black tracking-tight text-on-surface flex items-center gap-3">
+                  <h4 class="text-lg font-semibold tracking-tight text-on-surface flex items-center gap-3">
                     <span class="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
                       <Papicon icon="plus" size={18} />
                     </span>
@@ -890,14 +890,14 @@
                 <div class="space-y-4">
                   <!-- Category Input -->
                   <div class="space-y-1.5">
-                    <label for="config-category" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-[0.2em]">Rubrique</label>
+                    <label for="config-category" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-wider">Rubrique</label>
                     <input
                       id="config-category"
                       type="text"
                       list="categories-config-list"
                       bind:value={configCategory}
                       placeholder="Ex: Monde, France, Tech..."
-                      class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-2xl px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all"
+                      class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all"
                     />
                     <datalist id="categories-config-list">
                       {#each categories as cat}
@@ -908,26 +908,26 @@
 
                   <!-- Subcategory Input -->
                   <div class="space-y-1.5">
-                    <label for="config-subcategory" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-[0.2em]">Sous-rubrique</label>
+                    <label for="config-subcategory" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-wider">Sous-rubrique</label>
                     <input
                       id="config-subcategory"
                       type="text"
                       bind:value={configSubcategory}
                       placeholder="Ex: Europe, API, Web..."
-                      class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-2xl px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all"
+                      class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all"
                     />
                   </div>
 
                   <!-- Discord Channel Selector -->
                   <div class="space-y-1.5">
-                    <label for="config-channel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-[0.2em]">Salon de diffusion</label>
-                    <SearchableSelect id="config-channel" bind:value={configChannelId} options={(dashboardStore.state.discordChannels || []).map(channel => ({ id: channel.id, name: `#${channel.name}` }))} placeholder="— Sélectionner un salon —" className="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-2xl px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all" />
+                    <label for="config-channel" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-wider">Salon de diffusion</label>
+                    <SearchableSelect id="config-channel" bind:value={configChannelId} options={(dashboardStore.state.discordChannels || []).map(channel => ({ id: channel.id, name: `#${channel.name}` }))} placeholder="— Sélectionner un salon —" className="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-5 py-3 text-sm focus:ring-2 focus:ring-primary/30 outline-none transition-all" />
                   </div>
 
                   <!-- Save Config Button -->
                   <button
                     onclick={handleSaveConfig}
-                    class="w-full mt-2 py-3 bg-on-surface text-surface font-black uppercase tracking-[0.2em] text-xs rounded-2xl hover:opacity-90 transition-all"
+                    class="w-full mt-2 py-3 bg-on-surface text-surface font-semibold uppercase tracking-wider text-xs rounded-lg hover:opacity-90 transition-all"
                   >
                     Enregistrer la rubrique
                   </button>
@@ -939,12 +939,12 @@
             <section class="bg-surface-container-low/10 p-6 md:p-8 space-y-6">
               <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                 <div class="space-y-1">
-                  <h4 class="text-lg font-black tracking-tight text-on-surface">Index des flux</h4>
+                  <h4 class="text-lg font-semibold tracking-tight text-on-surface">Index des flux</h4>
                   <p class="text-xs text-on-surface-variant/65 max-w-2xl">
                     Chaque ligne représente une rubrique éditoriale avec son salon de diffusion et son flux RSS public.
                   </p>
                 </div>
-                <div class="text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant/45">
+                <div class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/45">
                   Flux disponibles en lecture publique
                 </div>
               </div>
@@ -952,7 +952,7 @@
               {#if loadingConfigs}
                 <div class="space-y-4">
                   {#each Array(2) as _}
-                    <div class="rounded-3xl border border-outline-variant/10 bg-surface-container-high/30 p-5 md:p-6 space-y-4">
+                    <div class="rounded-xl border border-outline-variant/10 bg-surface-container-high/30 p-5 md:p-6 space-y-4">
                       <div class="space-y-2 w-1/2">
                         <Skeleton width="100%" height="18px" />
                         <Skeleton width="70%" height="12px" />
@@ -967,21 +967,21 @@
               {:else if categoryConfigs.length > 0}
                 <div class="space-y-4">
                   {#each categoryConfigs as config}
-                    <article class="rounded-3xl border border-outline-variant/10 bg-surface-container-high/25 p-5 md:p-6 transition-all hover:-translate-y-0.5 hover:bg-surface-container-high/35">
+                    <article class="rounded-xl border border-outline-variant/10 bg-surface-container-high/25 p-5 md:p-6 transition-all hover:-translate-y-0.5 hover:bg-surface-container-high/35">
                       <div class="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
                         <div class="space-y-3 min-w-0">
                           <div class="flex flex-wrap items-center gap-2">
-                            <span class="rounded-full bg-primary/10 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-primary">
+                            <span class="rounded-full bg-primary/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-primary">
                               {config.category}
                             </span>
                             {#if config.subcategory}
-                              <span class="rounded-full bg-secondary/10 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-secondary">
+                              <span class="rounded-full bg-secondary/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-secondary">
                                 {config.subcategory}
                               </span>
                             {/if}
                           </div>
                           <div class="space-y-1">
-                            <h5 class="text-base font-black text-on-surface">#{((dashboardStore.state.discordChannels || []).find(ch => ch.id === config.channelId)?.name) || 'salon-inconnu'}</h5>
+                            <h5 class="text-base font-semibold text-on-surface">#{((dashboardStore.state.discordChannels || []).find(ch => ch.id === config.channelId)?.name) || 'salon-inconnu'}</h5>
                             <p class="text-xs text-on-surface-variant/65">
                               Diffusion Discord liée à cette rubrique éditoriale.
                             </p>
@@ -989,13 +989,13 @@
                         </div>
 
                         <div class="flex flex-col gap-2 md:items-end">
-                          <span class="inline-flex w-fit items-center rounded-full border border-outline-variant/10 bg-surface-container-low px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant">
+                          <span class="inline-flex w-fit items-center rounded-full border border-outline-variant/10 bg-surface-container-low px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">
                             RSS dédié
                           </span>
                           {#if canEdit}
                             <button
                               onclick={() => handleDeleteConfig(config.id)}
-                              class="inline-flex items-center gap-2 rounded-full border border-outline-variant/10 bg-transparent px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-on-surface-variant hover:border-red-500/20 hover:text-red-500 transition-all"
+                              class="inline-flex items-center gap-2 rounded-full border border-outline-variant/10 bg-transparent px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant hover:border-red-500/20 hover:text-red-500 transition-all"
                               title="Supprimer"
                             >
                               <Papicon icon="trash" size={14} />
@@ -1005,8 +1005,8 @@
                         </div>
                       </div>
 
-                      <div class="mt-5 rounded-2xl border border-outline-variant/10 bg-surface-container-low/40 px-4 py-3">
-                        <p class="text-[10px] font-black uppercase tracking-[0.2em] text-on-surface-variant/45 mb-2">Flux public</p>
+                      <div class="mt-5 rounded-lg border border-outline-variant/10 bg-surface-container-low/40 px-4 py-3">
+                        <p class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/45 mb-2">Flux public</p>
                         <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                           <p class="font-mono text-[11px] text-on-surface break-all">
                             {API_BASE_URL}/api/public/rss/{currentGuildId}/{encodeURIComponent(config.category)}{config.subcategory ? `/${encodeURIComponent(config.subcategory)}` : ''}
@@ -1020,11 +1020,11 @@
                   {/each}
                 </div>
               {:else}
-                <div class="flex flex-col items-center justify-center py-20 border border-dashed border-outline-variant/30 rounded-3xl bg-surface-container-high/10">
+                <div class="flex flex-col items-center justify-center py-20 border border-dashed border-outline-variant/30 rounded-xl bg-surface-container-high/10">
                   <div class="w-16 h-16 bg-surface-container-high/30 rounded-full flex items-center justify-center text-on-surface-variant/30 mb-4">
                     <Papicon icon="rss" size={32} />
                   </div>
-                  <h4 class="text-base font-black text-on-surface">Aucune rubrique configurée</h4>
+                  <h4 class="text-base font-semibold text-on-surface">Aucune rubrique configurée</h4>
                   <p class="text-xs text-on-surface-variant/60 font-medium mt-1 text-center max-w-md">Créez la première liaison à gauche pour activer la diffusion éditoriale et le flux RSS public.</p>
                 </div>
               {/if}

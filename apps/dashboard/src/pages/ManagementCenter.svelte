@@ -207,19 +207,19 @@
 
 <div class="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
   <!-- Top Bar: Header & Nav -->
-  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/30 p-4 md:p-6 rounded-[2.5rem] border border-outline-variant/10 shadow-sm">
+  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/30 p-5 rounded-xl border border-outline-variant/10">
     <div class="flex items-center gap-4">
-      <div class="p-3 rounded-2xl bg-primary/10 text-primary shadow-inner">
-        <Papicon icon="Gear" size={28} />
+      <div class="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+        <Papicon icon="Gear" size={20} />
       </div>
       <div>
-        <h1 class="text-2xl font-black tracking-tight leading-tight">Centre de Gestion</h1>
-        <p class="text-on-surface-variant/60 text-xs font-medium">Administration système & modules</p>
+        <h1 class="text-lg font-semibold tracking-tight leading-tight">Centre de Gestion</h1>
+        <p class="text-sm text-on-surface-variant/60 font-medium">Administration système & modules</p>
       </div>
     </div>
 
     <!-- Compact Horizontal Tabs -->
-    <nav class="flex items-center gap-1 bg-surface-container-high/40 p-1.5 rounded-2xl border border-outline-variant/5 overflow-x-auto no-scrollbar">
+    <nav class="flex items-center gap-1 bg-surface-container-high/40 p-1.5 rounded-lg border border-outline-variant/5 overflow-x-auto no-scrollbar">
       {#each categories as cat}
         <button
           class="flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 group whitespace-nowrap
@@ -229,7 +229,7 @@
           onclick={() => activeCategory = cat.id}
         >
           <Papicon icon={cat.icon} size={16} />
-          <span class="font-black text-[10px] uppercase tracking-widest">{cat.label}</span>
+          <span class="font-semibold text-[10px] uppercase tracking-widest">{cat.label}</span>
         </button>
       {/each}
     </nav>
@@ -240,7 +240,7 @@
   {#if loading}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {#each Array(6) as _}
-        <div class="p-6 rounded-3xl bg-surface-container/30 border border-outline-variant/5 space-y-4">
+        <div class="p-6 rounded-xl bg-surface-container/30 border border-outline-variant/5 space-y-4">
           <div class="flex items-center gap-3">
             <Skeleton width="40px" height="40px" radius="12px" />
             <div class="space-y-2">
@@ -253,12 +253,12 @@
       {/each}
     </div>
   {:else if !canManageSettings}
-    <div class="p-12 rounded-[3rem] bg-error/5 border border-error/10 text-center space-y-4">
+    <div class="p-12 rounded-xl bg-error/5 border border-error/10 text-center space-y-4">
       <div class="w-16 h-16 bg-error/10 rounded-full flex items-center justify-center mx-auto text-error">
         <Papicon icon="ShieldWarning" size={32} />
       </div>
       <div class="space-y-2">
-        <h2 class="text-xl font-black text-error">Accès Réservé</h2>
+        <h2 class="text-xl font-semibold text-error">Accès Réservé</h2>
         <p class="text-on-surface-variant text-sm max-w-xs mx-auto">Permissions administratives requises pour cet espace.</p>
       </div>
     </div>

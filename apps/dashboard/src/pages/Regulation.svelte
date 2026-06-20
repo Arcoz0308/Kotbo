@@ -507,7 +507,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         onClick={() => dashboardStore.refresh()}
         loading={guildState.loading}
         label="Actualiser"
-        className="flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest bg-on-surface text-surface shadow-xl hover:scale-105 transition-all duration-300"
+        className="flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-semibold uppercase tracking-widest bg-on-surface text-surface shadow-sm hover:scale-105 transition-all duration-300"
         iconClass="text-lg"
       />
     </div>
@@ -526,17 +526,17 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
   <!-- Config & Stats -->
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-    <div class="bg-surface-container-low/30 p-6 rounded-4xl border border-outline-variant/10 space-y-4">
+    <div class="bg-surface-container-low/30 p-6 rounded-xl border border-outline-variant/10 space-y-4">
       <div class="flex items-center gap-3">
         <div class="bg-primary/10 p-2 rounded-xl text-primary">
           <Papicon icon="Hash" size={18} />
         </div>
-        <h3 class="text-sm font-black uppercase tracking-widest text-on-surface">Salon de publication</h3>
+        <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface">Salon de publication</h3>
       </div>
       <div class="space-y-4">
-        <div class="flex flex-col gap-2 p-4 bg-surface-container-high/40 rounded-2xl border border-outline-variant/10">
-          <span class="text-xs font-black uppercase tracking-widest text-on-surface-variant/60">Actuel</span>
-          <span class="text-sm font-black text-primary bg-primary/5 px-3 py-2 rounded-lg break-all">{regulationChannelLabel}</span>
+        <div class="flex flex-col gap-2 p-4 bg-surface-container-high/40 rounded-lg border border-outline-variant/10">
+          <span class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/60">Actuel</span>
+          <span class="text-sm font-semibold text-primary bg-primary/5 px-3 py-2 rounded-lg break-all">{regulationChannelLabel}</span>
         </div>
         {#if canManageSettings}
           <div class="space-y-2">
@@ -546,19 +546,19 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       </div>
     </div>
 
-    <div class="bg-surface-container-low/30 p-6 rounded-4xl border border-outline-variant/10 space-y-4">
+    <div class="bg-surface-container-low/30 p-6 rounded-xl border border-outline-variant/10 space-y-4">
       <div class="flex items-center gap-3">
         <div class="bg-primary/10 p-2 rounded-xl text-primary">
           <Papicon icon="Bell" size={18} />
         </div>
-        <h3 class="text-sm font-black uppercase tracking-widest text-on-surface">Notifications MP</h3>
+        <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface">Notifications MP</h3>
       </div>
       <div class="space-y-4">
         {#if featureConfig && canManageSettings}
-          <div class="flex items-center justify-between p-4 bg-surface-container-high/40 rounded-2xl border border-outline-variant/10">
+          <div class="flex items-center justify-between p-4 bg-surface-container-high/40 rounded-lg border border-outline-variant/10">
             <div class="space-y-0.5">
               <span class="text-sm font-bold text-on-surface">Activer les MP</span>
-              <p class="text-[9px] text-on-surface-variant/60 leading-tight">Notifier par message privé</p>
+              <p class="text-[11px] text-on-surface-variant/60 leading-tight">Notifier par message privé</p>
             </div>
             <ToggleSwitch 
               checked={featureConfig.notifyViaDM ?? false}
@@ -567,10 +567,10 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             />
           </div>
 
-          <div class="flex items-center justify-between p-4 bg-surface-container-high/40 rounded-2xl border border-outline-variant/10 {!(featureConfig.notifyViaDM ?? false) ? 'opacity-40 pointer-events-none' : ''}">
+          <div class="flex items-center justify-between p-4 bg-surface-container-high/40 rounded-lg border border-outline-variant/10 {!(featureConfig.notifyViaDM ?? false) ? 'opacity-40 pointer-events-none' : ''}">
             <div class="space-y-0.5">
               <span class="text-sm font-bold text-on-surface">Staff uniquement</span>
-              <p class="text-[9px] text-on-surface-variant/60 leading-tight">Restreindre l'envoi de MP aux staffs uniquement</p>
+              <p class="text-[11px] text-on-surface-variant/60 leading-tight">Restreindre l'envoi de MP aux staffs uniquement</p>
             </div>
             <ToggleSwitch 
               checked={featureConfig.notifyOnlyStaffRoles ?? false}
@@ -579,20 +579,20 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             />
           </div>
         {:else if loadingConfig}
-          <div class="h-24 rounded-2xl bg-surface-container-high/20 animate-pulse"></div>
+          <div class="h-24 rounded-lg bg-surface-container-high/20 animate-pulse"></div>
         {/if}
       </div>
     </div>
 
-    <div class="bg-surface-container-low/30 p-6 rounded-4xl border border-outline-variant/10 space-y-4">
+    <div class="bg-surface-container-low/30 p-6 rounded-xl border border-outline-variant/10 space-y-4">
       <div class="flex items-center gap-3">
         <div class="bg-secondary/10 p-2 rounded-xl text-secondary">
           <Papicon icon="PaperPlaneTilt" size={18} />
         </div>
-        <h3 class="text-sm font-black uppercase tracking-widest text-on-surface">État du message</h3>
+        <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface">État du message</h3>
       </div>
       <div class="space-y-4">
-        <div class="p-4 bg-surface-container-high/40 rounded-2xl border border-outline-variant/10">
+        <div class="p-4 bg-surface-container-high/40 rounded-lg border border-outline-variant/10">
           <p class="text-sm font-bold text-on-surface leading-relaxed">{publicationStatusLabel}</p>
           <p class="mt-1 text-[10px] font-medium text-on-surface-variant/60 uppercase tracking-wider">Synchronisation automatique active</p>
         </div>
@@ -600,26 +600,26 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
           onClick={handlePublishRegulation}
           disabled={!canManageSettings || publishing || reordering || regulationRules.length === 0}
           variant="primary"
-          className="w-full py-4 rounded-xl shadow-lg shadow-primary/10"
+          className="w-full py-4 rounded-xl "
           icon={guildState.regulationMessageId ? 'ArrowsCounterClockwise' : 'Megaphone'}
           label={publishing ? 'Publication en cours...' : guildState.regulationMessageId ? 'Actualiser le message' : 'Publier le règlement'}
         />
       </div>
     </div>
 
-    <div class="bg-surface-container-low/30 p-6 rounded-4xl border border-outline-variant/10 space-y-4">
+    <div class="bg-surface-container-low/30 p-6 rounded-xl border border-outline-variant/10 space-y-4">
       <div class="flex items-center gap-3">
         <div class="bg-primary/10 p-2 rounded-xl text-primary">
           <Papicon icon="ShieldCheck" size={18} />
         </div>
-        <h3 class="text-sm font-black uppercase tracking-widest text-on-surface">Vérification</h3>
+        <h3 class="text-sm font-semibold uppercase tracking-widest text-on-surface">Vérification</h3>
       </div>
       <div class="space-y-4">
         {#if canManageSettings}
-          <div class="flex items-center justify-between p-4 bg-surface-container-high/40 rounded-2xl border border-outline-variant/10">
+          <div class="flex items-center justify-between p-4 bg-surface-container-high/40 rounded-lg border border-outline-variant/10">
             <div class="space-y-0.5">
               <span class="text-sm font-bold text-on-surface">Vérification</span>
-              <p class="text-[9px] text-on-surface-variant/60 leading-tight">Activer le bouton règlement</p>
+              <p class="text-[11px] text-on-surface-variant/60 leading-tight">Activer le bouton règlement</p>
             </div>
             <ToggleSwitch 
               checked={guildState.regulationVerificationEnabled}
@@ -630,7 +630,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
           {#if guildState.regulationVerificationEnabled}
             <div class="space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
-              <label class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60 ml-1" for="regulation-role-select">Rôle attribué</label>
+              <label class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60 ml-1" for="regulation-role-select">Rôle attribué</label>
               <SearchableSelect 
                 id="regulation-role-select" 
                 bind:value={guildState.regulationRoleId} 
@@ -642,10 +642,10 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               />
             </div>
 
-            <div class="flex items-center justify-between p-4 bg-surface-container-high/40 rounded-2xl border border-outline-variant/10 animate-in fade-in slide-in-from-top-1 duration-200">
+            <div class="flex items-center justify-between p-4 bg-surface-container-high/40 rounded-lg border border-outline-variant/10 animate-in fade-in slide-in-from-top-1 duration-200">
               <div class="space-y-0.5">
                 <span class="text-sm font-bold text-on-surface">Verrouiller</span>
-                <p class="text-[9px] text-on-surface-variant/60 leading-tight">Masquer les autres salons</p>
+                <p class="text-[11px] text-on-surface-variant/60 leading-tight">Masquer les autres salons</p>
               </div>
               <ToggleSwitch 
                 checked={guildState.regulationLockEnabled}
@@ -660,7 +660,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   </div>
 
   {#if featureConfig && canManageSettings}
-    <div class="bg-surface-container-low/30 p-8 rounded-4xl border border-outline-variant/10 mt-8 animate-in fade-in duration-500">
+    <div class="bg-surface-container-low/30 p-8 rounded-xl border border-outline-variant/10 mt-8 animate-in fade-in duration-500">
       <RolePermissionSettings 
         featureKey="regulation" 
         roleAccess={featureConfig.roleAccessByRole} 
@@ -673,11 +673,11 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   <div class="space-y-6">
     <div class="flex items-center justify-between px-2">
       <div class="flex items-center gap-3">
-        <div class="bg-primary p-2 rounded-xl text-on-primary shadow-lg shadow-primary/20">
+        <div class="bg-primary p-2 rounded-xl text-on-primary ">
           <Papicon icon="ListBullets" size={20} />
         </div>
         <div>
-          <h3 class="text-xl font-black text-on-surface tracking-tight">Articles du règlement</h3>
+          <h3 class="text-xl font-semibold text-on-surface tracking-tight">Articles du règlement</h3>
           <p class="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">Gérez la structure de votre serveur</p>
         </div>
       </div>
@@ -687,12 +687,12 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
         variant="primary"
         icon="Plus"
         label="Nouvel Article"
-        className="px-6 py-3 rounded-xl shadow-xl shadow-primary/20"
+        className="px-6 py-3 rounded-xl shadow-sm shadow-primary/20"
       />
     </div>
 
     {#if feedbackMessage}
-      <div class="animate-in zoom-in-95 duration-300 rounded-2xl px-6 py-4 text-sm font-bold flex items-center gap-3 {feedbackIsError ? 'bg-error-container/10 text-error border border-error/20' : 'bg-primary/5 text-primary border border-primary/20'}">
+      <div class="animate-in zoom-in-95 duration-300 rounded-lg px-6 py-4 text-sm font-bold flex items-center gap-3 {feedbackIsError ? 'bg-error-container/10 text-error border border-error/20' : 'bg-primary/5 text-primary border border-primary/20'}">
         <Papicon icon={feedbackIsError ? "WarningCircle" : "CheckCircle"} size={20} />
         {feedbackMessage}
       </div>
@@ -701,15 +701,15 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
     <div class="grid grid-cols-1 gap-4">
       {#if guildState.loading && regulationRules.length === 0}
         {#each Array(4) as _}
-          <div class="h-32 rounded-4xl bg-surface-container-low/30 border border-outline-variant/10 animate-pulse"></div>
+          <div class="h-32 rounded-xl bg-surface-container-low/30 border border-outline-variant/10 animate-pulse"></div>
         {/each}
       {:else if regulationRules.length === 0}
-        <div class="flex flex-col items-center justify-center py-20 bg-surface-container-low/20 rounded-[3rem] border border-dashed border-outline-variant/20 text-center space-y-4">
+        <div class="flex flex-col items-center justify-center py-20 bg-surface-container-low/20 rounded-xl border border-dashed border-outline-variant/20 text-center space-y-4">
           <div class="bg-surface-container-high p-6 rounded-full text-on-surface-variant/20">
             <Papicon icon="Files" size={48} />
           </div>
           <div class="space-y-1">
-            <h4 class="text-xl font-black text-on-surface">Aucun article configuré</h4>
+            <h4 class="text-xl font-semibold text-on-surface">Aucun article configuré</h4>
             <p class="text-on-surface-variant/60 max-w-sm">Commencez par créer le premier article pour définir les règles de votre communauté.</p>
           </div>
           <ActionButton onClick={openCreateModal} disabled={!canManageSettings} variant="primary" icon="Plus" label="Créer le premier article" className="px-8 py-3 rounded-xl" />
@@ -717,7 +717,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       {:else}
         {#each regulationRules as rule}
           <article
-            class="group relative overflow-hidden bg-surface-container-low/40 hover:bg-surface-container-low/60 rounded-[2.5rem] border border-outline-variant/10 p-6 md:p-8 transition-all duration-500 {draggingRuleId === rule.id ? 'opacity-40 scale-95' : 'hover:scale-[1.01] hover:shadow-2xl hover:shadow-surface-container-high/50'} {dragOverRuleId === rule.id ? 'ring-2 ring-primary border-primary/30' : ''} {canManageSettings ? 'cursor-grab active:cursor-grabbing' : ''}"
+            class="group relative overflow-hidden bg-surface-container-low/40 hover:bg-surface-container-low/60 rounded-xl border border-outline-variant/10 p-6 md:p-8 transition-all duration-500 {draggingRuleId === rule.id ? 'opacity-40 scale-95' : 'hover:scale-[1.01] hover:shadow-sm hover:shadow-surface-container-high/50'} {dragOverRuleId === rule.id ? 'ring-2 ring-primary border-primary/30' : ''} {canManageSettings ? 'cursor-grab active:cursor-grabbing' : ''}"
             draggable={canManageSettings}
             ondragstart={(event) => handleRuleDragStart(event, rule.id)}
             ondragend={handleRuleDragEnd}
@@ -727,7 +727,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
             <div class="relative flex flex-col md:flex-row gap-8 items-start">
               <!-- Sort & Status -->
               <div class="flex md:flex-col items-center gap-3 shrink-0">
-                <div class="w-12 h-12 rounded-2xl bg-surface-container-high flex items-center justify-center text-xl font-black text-primary border border-outline-variant/10 shadow-inner">
+                <div class="w-12 h-12 rounded-lg bg-surface-container-high flex items-center justify-center text-xl font-semibold text-primary border border-outline-variant/10 shadow-inner">
                   {rule.sortOrder + 1}
                 </div>
                 <div class="h-px w-4 md:w-px md:h-8 bg-outline-variant/20"></div>
@@ -743,17 +743,17 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                     {#if rule.emoji}
                       <span class="text-2xl drop-shadow-sm">{rule.emoji}</span>
                     {/if}
-                    <h4 class="text-2xl font-black text-on-surface tracking-tight group-hover:text-primary transition-colors">{rule.title}</h4>
+                    <h4 class="text-2xl font-semibold text-on-surface tracking-tight group-hover:text-primary transition-colors">{rule.title}</h4>
                   </div>
                   <p class="text-on-surface-variant/70 text-base leading-relaxed whitespace-pre-wrap max-w-4xl">{rule.description}</p>
                 </div>
                 
                 <div class="flex flex-wrap items-center gap-2">
-                   <span class="px-3 py-1 rounded-lg bg-surface-container-high/60 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60 border border-outline-variant/5">
+                   <span class="px-3 py-1 rounded-lg bg-surface-container-high/60 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60 border border-outline-variant/5">
                     {rule.enabled ? 'Visible' : 'Masqué'}
                    </span>
                    {#if canManageSettings}
-                    <span class="px-3 py-1 rounded-lg bg-primary/5 text-[10px] font-black uppercase tracking-widest text-primary/60 border border-primary/10 animate-pulse">
+                    <span class="px-3 py-1 rounded-lg bg-primary/5 text-[10px] font-semibold uppercase tracking-widest text-primary/60 border border-primary/10 animate-pulse">
                       Glisser pour réorganiser
                     </span>
                    {/if}
@@ -762,7 +762,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
               <!-- Actions -->
               {#if canManageSettings}
-                <div class="flex items-center gap-2 self-end md:self-start bg-surface-container-high/40 p-2 rounded-2xl border border-outline-variant/10 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all duration-300 -translate-y-2 group-hover:translate-y-0">
+                <div class="flex items-center gap-2 self-end md:self-start bg-surface-container-high/40 p-2 rounded-lg border border-outline-variant/10 opacity-0 group-hover:opacity-100 transition-all duration-300 -translate-y-2 group-hover:translate-y-0">
                   <button 
                     onclick={() => openEditModal(rule)}
                     class="p-3 rounded-xl hover:bg-primary/10 hover:text-primary text-on-surface-variant/60 transition-all"
@@ -787,14 +787,14 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                  <button 
                   onclick={() => moveRuleByOffset(rule.id, -1)}
                   disabled={reordering || rule.sortOrder === 0}
-                  class="flex-1 py-3 rounded-xl bg-surface-container-high/60 text-xs font-black uppercase tracking-widest disabled:opacity-30"
+                  class="flex-1 py-3 rounded-xl bg-surface-container-high/60 text-xs font-semibold uppercase tracking-widest disabled:opacity-30"
                  >
                   Monter
                  </button>
                  <button 
                   onclick={() => moveRuleByOffset(rule.id, 1)}
                   disabled={reordering || rule.sortOrder === regulationRules.length - 1}
-                  class="flex-1 py-3 rounded-xl bg-surface-container-high/60 text-xs font-black uppercase tracking-widest disabled:opacity-30"
+                  class="flex-1 py-3 rounded-xl bg-surface-container-high/60 text-xs font-semibold uppercase tracking-widest disabled:opacity-30"
                  >
                   Descendre
                  </button>
@@ -809,18 +809,18 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 {#if modalOpen}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div class="modal-backdrop backdrop-blur-md bg-surface/30" role="dialog" aria-modal="true" aria-labelledby="regulation-modal-title" tabindex="-1" onclick={closeModal}>
+  <div class="modal-backdrop bg-surface/30" role="dialog" aria-modal="true" aria-labelledby="regulation-modal-title" tabindex="-1" onclick={closeModal}>
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="modal-panel modal-panel-lg space-y-6 rounded-[3rem]! border border-outline-variant/10 shadow-2xl bg-surface-container-low!" onclick={(e) => e.stopPropagation()}>
+    <div class="modal-panel modal-panel-lg space-y-6 rounded-xl! border border-outline-variant/10 shadow-sm bg-surface-container-low!" onclick={(e) => e.stopPropagation()}>
       <div class="flex items-start justify-between gap-4">
         <div class="flex items-center gap-4">
-          <div class="bg-primary/10 p-3 rounded-2xl text-primary">
+          <div class="bg-primary/10 p-3 rounded-lg text-primary">
             <Papicon icon={modalMode === 'create' ? "PlusCircle" : "PencilSimple"} size={24} />
           </div>
           <div>
-            <p class="text-[10px] font-black uppercase tracking-[0.25em] text-on-surface-variant/60">{modalMode === 'create' ? 'Configuration' : 'Édition'}</p>
-            <h3 id="regulation-modal-title" class="text-2xl font-black text-on-surface tracking-tight">{modalMode === 'create' ? 'Nouvel Article' : 'Modifier l’Article'}</h3>
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/60">{modalMode === 'create' ? 'Configuration' : 'Édition'}</p>
+            <h3 id="regulation-modal-title" class="text-2xl font-semibold text-on-surface tracking-tight">{modalMode === 'create' ? 'Nouvel Article' : 'Modifier l’Article'}</h3>
           </div>
         </div>
         <button onclick={closeModal} class="p-2 rounded-xl hover:bg-surface-container-high transition-colors text-on-surface-variant/40">
@@ -830,18 +830,18 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div class="space-y-2">
-          <label for="regulation-title" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60 ml-1">Titre de la règle</label>
-          <FormInput id="regulation-title" type="text" bind:value={draftTitle} className="w-full rounded-2xl px-5 py-4 bg-surface-container-high/60 border border-outline-variant/10 font-bold text-on-surface focus:ring-2 focus:ring-primary/40 transition-all" placeholder="Ex: Respect et courtoisie" />
+          <label for="regulation-title" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60 ml-1">Titre de la règle</label>
+          <FormInput id="regulation-title" type="text" bind:value={draftTitle} className="w-full rounded-lg px-5 py-4 bg-surface-container-high/60 border border-outline-variant/10 font-bold text-on-surface focus:ring-2 focus:ring-primary/40 transition-all" placeholder="Ex: Respect et courtoisie" />
         </div>
         <div class="space-y-2">
-          <label for="regulation-emoji" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60 ml-1">Emoji (Optionnel)</label>
+          <label for="regulation-emoji" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60 ml-1">Emoji (Optionnel)</label>
           <div class="flex gap-2">
-            <FormInput id="regulation-emoji" type="text" bind:value={draftEmoji} className="w-full rounded-2xl px-5 py-4 bg-surface-container-high/60 border border-outline-variant/10 font-bold text-on-surface focus:ring-2 focus:ring-primary/40 transition-all" placeholder="📌 ou <:custom:123>" />
+            <FormInput id="regulation-emoji" type="text" bind:value={draftEmoji} className="w-full rounded-lg px-5 py-4 bg-surface-container-high/60 border border-outline-variant/10 font-bold text-on-surface focus:ring-2 focus:ring-primary/40 transition-all" placeholder="📌 ou <:custom:123>" />
             <EmojiPicker bind:value={draftEmoji} />
           </div>
         </div>
         <div class="md:col-span-2">
-          <label class="group flex items-center gap-4 rounded-4xl border border-outline-variant/10 bg-surface-container-high/40 p-6 cursor-pointer hover:bg-surface-container-high/60 transition-all">
+          <label class="group flex items-center gap-4 rounded-xl border border-outline-variant/10 bg-surface-container-high/40 p-6 cursor-pointer hover:bg-surface-container-high/60 transition-all">
             <div class="relative flex items-center justify-center">
               <input type="checkbox" bind:checked={draftEnabled} class="peer h-6 w-6 rounded-lg border-2 border-outline-variant/20 text-primary focus:ring-primary/40 transition-all appearance-none checked:bg-primary checked:border-primary" />
               <div class="absolute pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity text-on-primary">
@@ -849,7 +849,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
               </div>
             </div>
             <div class="flex-1">
-              <span class="block text-sm font-black text-on-surface tracking-tight">Article actif et visible</span>
+              <span class="block text-sm font-semibold text-on-surface tracking-tight">Article actif et visible</span>
               <span class="block text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest mt-0.5">Visibilité publique et synchronisation</span>
             </div>
           </label>
@@ -857,27 +857,27 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       </div>
 
       <div class="space-y-2">
-        <label for="regulation-description" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60 ml-1">Description détaillée (Markdown supporté)</label>
+        <label for="regulation-description" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60 ml-1">Description détaillée (Markdown supporté)</label>
         <FormTextarea
           id="regulation-description"
           bind:value={draftDescription}
           rows={5}
-          className="w-full rounded-4xl px-6 py-5 bg-surface-container-high/60 border border-outline-variant/10 font-medium text-on-surface leading-relaxed focus:ring-2 focus:ring-primary/40 transition-all"
+          className="w-full rounded-xl px-6 py-5 bg-surface-container-high/60 border border-outline-variant/10 font-medium text-on-surface leading-relaxed focus:ring-2 focus:ring-primary/40 transition-all"
           placeholder="Décris précisément la règle..."
         />
       </div>
 
       <!-- Preview -->
-      <div class="relative overflow-hidden rounded-4xl bg-primary/5 p-6 border border-primary/10">
+      <div class="relative overflow-hidden rounded-xl bg-primary/5 p-6 border border-primary/10">
         <div class="absolute top-0 right-0 p-4 opacity-10 text-primary">
            <Papicon icon="Eye" size={48} />
         </div>
-        <p class="text-[10px] font-black uppercase tracking-[0.25em] text-primary/60 mb-3">Aperçu en temps réel</p>
+        <p class="text-[10px] font-semibold uppercase tracking-wider text-primary/60 mb-3">Aperçu en temps réel</p>
         <div class="flex items-center gap-3 mb-2">
           {#if draftEmoji}
             <span class="text-xl">{draftEmoji}</span>
           {/if}
-          <p class="text-lg font-black text-on-surface tracking-tight">{draftTitle || 'Titre de l’article'}</p>
+          <p class="text-lg font-semibold text-on-surface tracking-tight">{draftTitle || 'Titre de l’article'}</p>
         </div>
         <p class="whitespace-pre-wrap text-sm font-medium text-on-surface-variant leading-relaxed">{draftDescription || 'La description apparaîtra ici...'}</p>
       </div>
@@ -885,14 +885,14 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
       <div class="flex items-center justify-end gap-3 pt-2">
         <button 
           onclick={closeModal} 
-          class="px-8 py-4 rounded-xl text-xs font-black uppercase tracking-widest text-on-surface-variant hover:bg-surface-container-high transition-all"
+          class="px-8 py-4 rounded-xl text-xs font-semibold uppercase tracking-widest text-on-surface-variant hover:bg-surface-container-high transition-all"
         >
           Annuler
         </button>
         <ActionButton
           onClick={saveRule}
           variant="primary"
-          className="px-10 py-4 rounded-xl shadow-xl shadow-primary/20"
+          className="px-10 py-4 rounded-xl shadow-sm shadow-primary/20"
           label={saving ? 'Enregistrement...' : modalMode === 'create' ? 'Créer l’Article' : 'Sauvegarder'}
           disabled={saving || !canManageSettings}
         />
@@ -904,39 +904,39 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 {#if deletingRule}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div class="modal-backdrop backdrop-blur-sm bg-error/10" role="dialog" aria-modal="true" aria-labelledby="delete-rule-title" tabindex="-1" onclick={closeDeleteModal}>
+  <div class="modal-backdrop bg-error/10" role="dialog" aria-modal="true" aria-labelledby="delete-rule-title" tabindex="-1" onclick={closeDeleteModal}>
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="modal-panel max-w-lg rounded-[3rem]! border border-error/20 shadow-2xl bg-surface! space-y-6 p-8" onclick={(e) => e.stopPropagation()}>
+    <div class="modal-panel max-w-lg rounded-xl! border border-error/20 shadow-sm bg-surface! space-y-6 p-8" onclick={(e) => e.stopPropagation()}>
       <div class="flex flex-col items-center text-center space-y-4">
         <div class="bg-error/10 p-5 rounded-full text-error">
           <Papicon icon="Warning" size={40} />
         </div>
         <div>
-          <p class="text-[10px] font-black uppercase tracking-[0.25em] text-error/60">Action Irréversible</p>
-          <h3 id="delete-rule-title" class="text-2xl font-black text-on-surface tracking-tight">Supprimer l’Article ?</h3>
+          <p class="text-[10px] font-semibold uppercase tracking-wider text-error/60">Action Irréversible</p>
+          <h3 id="delete-rule-title" class="text-2xl font-semibold text-on-surface tracking-tight">Supprimer l’Article ?</h3>
         </div>
         <p class="text-sm font-bold text-on-surface-variant leading-relaxed">
-          Voulez-vous vraiment supprimer <span class="text-on-surface font-black">{deletingRule.emoji ? `${deletingRule.emoji} ` : ''}{deletingRule.title}</span> ?
+          Voulez-vous vraiment supprimer <span class="text-on-surface font-semibold">{deletingRule.emoji ? `${deletingRule.emoji} ` : ''}{deletingRule.title}</span> ?
           Cette action retirera l’article de tous les futurs rapports.
         </p>
       </div>
 
       <div class="space-y-3">
-        <label for="delete-rule-confirm" class="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/60 ml-1 text-center block w-full">Tapez <span class="text-error">SUPPRIMER</span> pour confirmer</label>
+        <label for="delete-rule-confirm" class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/60 ml-1 text-center block w-full">Tapez <span class="text-error">SUPPRIMER</span> pour confirmer</label>
         <FormInput
           id="delete-rule-confirm"
           type="text"
           bind:value={deleteConfirmationText}
           autocomplete="off"
-          className="w-full rounded-2xl px-5 py-4 bg-surface-container-high/60 border border-error/10 font-black text-center text-on-surface focus:ring-2 focus:ring-error/40 transition-all"
+          className="w-full rounded-lg px-5 py-4 bg-surface-container-high/60 border border-error/10 font-semibold text-center text-on-surface focus:ring-2 focus:ring-error/40 transition-all"
           placeholder="SUPPRIMER"
         />
       </div>
 
       <div class="flex flex-col gap-2">
-        <ActionButton onClick={confirmDeleteRule} variant="danger" label={saving ? 'Suppression...' : 'Confirmer la Suppression'} disabled={saving} className="w-full py-4 rounded-xl shadow-xl shadow-error/20" />
-        <button onclick={closeDeleteModal} class="w-full py-4 rounded-xl text-xs font-black uppercase tracking-widest text-on-surface-variant hover:bg-surface-container-high transition-all">Annuler</button>
+        <ActionButton onClick={confirmDeleteRule} variant="danger" label={saving ? 'Suppression...' : 'Confirmer la Suppression'} disabled={saving} className="w-full py-4 rounded-xl shadow-sm shadow-error/20" />
+        <button onclick={closeDeleteModal} class="w-full py-4 rounded-xl text-xs font-semibold uppercase tracking-widest text-on-surface-variant hover:bg-surface-container-high transition-all">Annuler</button>
       </div>
     </div>
   </div>
@@ -945,34 +945,34 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 {#if showVerificationWarningModal}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div class="modal-backdrop backdrop-blur-sm bg-amber-500/10" role="dialog" aria-modal="true" aria-labelledby="verification-warning-title" tabindex="-1" onclick={cancelVerificationToggle}>
+  <div class="modal-backdrop bg-amber-500/10" role="dialog" aria-modal="true" aria-labelledby="verification-warning-title" tabindex="-1" onclick={cancelVerificationToggle}>
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="modal-panel max-w-lg rounded-[3rem]! border border-amber-500/20 shadow-2xl bg-surface! space-y-6 p-8" onclick={(e) => e.stopPropagation()}>
+    <div class="modal-panel max-w-lg rounded-xl! border border-amber-500/20 shadow-sm bg-surface! space-y-6 p-8" onclick={(e) => e.stopPropagation()}>
       <div class="flex flex-col items-center text-center space-y-4">
         <div class="bg-amber-500/10 p-5 rounded-full text-amber-500">
           <Papicon icon="Warning" size={40} />
         </div>
         <div>
-          <p class="text-[10px] font-black uppercase tracking-[0.25em] text-amber-500/60">Attention de sécurité</p>
-          <h3 id="verification-warning-title" class="text-2xl font-black text-on-surface tracking-tight">Activer la vérification ?</h3>
+          <p class="text-[10px] font-semibold uppercase tracking-wider text-amber-500/60">Attention de sécurité</p>
+          <h3 id="verification-warning-title" class="text-2xl font-semibold text-on-surface tracking-tight">Activer la vérification ?</h3>
         </div>
         <p class="text-sm font-bold text-on-surface-variant leading-relaxed">
-          L'activation de la vérification par règlement peut causer des conflits de permissions Discord et donner par mégarde un accès de lecture à <span class="text-amber-500 font-black">@everyone</span> sur certains salons privés.
+          L'activation de la vérification par règlement peut causer des conflits de permissions Discord et donner par mégarde un accès de lecture à <span class="text-amber-500 font-semibold">@everyone</span> sur certains salons privés.
         </p>
         <p class="text-xs font-semibold text-on-surface-variant/70 leading-relaxed">
-          Assurez-vous que vos salons privés refusent explicitement l'autorisation de lire les messages pour le rôle <span class="font-black">@everyone</span>.
+          Assurez-vous que vos salons privés refusent explicitement l'autorisation de lire les messages pour le rôle <span class="font-semibold">@everyone</span>.
         </p>
       </div>
 
       <div class="flex flex-col gap-2">
         <button
           onclick={confirmVerificationToggle}
-          class="w-full py-4 bg-amber-500 text-white rounded-xl text-xs font-black uppercase tracking-wider hover:scale-[1.02] active:scale-95 transition-all shadow-lg shadow-amber-500/20"
+          class="w-full py-4 bg-amber-500 text-white rounded-xl text-xs font-semibold uppercase tracking-wider hover: active:scale-95 transition-all shadow-lg shadow-amber-500/20"
         >
           Activer quand même
         </button>
-        <button onclick={cancelVerificationToggle} class="w-full py-4 rounded-xl text-xs font-black uppercase tracking-widest text-on-surface-variant hover:bg-surface-container-high transition-all">Annuler</button>
+        <button onclick={cancelVerificationToggle} class="w-full py-4 rounded-xl text-xs font-semibold uppercase tracking-widest text-on-surface-variant hover:bg-surface-container-high transition-all">Annuler</button>
       </div>
     </div>
   </div>

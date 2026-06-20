@@ -121,63 +121,63 @@
 <div class="space-y-6">
   <!-- Key Metrics -->
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-    <div class="premium-card p-6 rounded-4xl space-y-3">
+    <div class="premium-card p-6 rounded-xl space-y-3">
       <div class="flex items-center justify-between">
         <Papicon icon="LogIn" size={20} class="text-emerald-500" />
-        <span class="text-[9px] font-bold text-on-surface-variant/40 uppercase">Arrivées</span>
+        <span class="text-[11px] font-bold text-on-surface-variant/40 uppercase">Arrivées</span>
       </div>
-      <p class="text-2xl font-black text-on-surface">{data.metrics.totalJoins}</p>
-      <p class="text-[9px] font-bold text-on-surface-variant/60">membres rejoints</p>
+      <p class="text-2xl font-semibold text-on-surface">{data.metrics.totalJoins}</p>
+      <p class="text-[11px] font-bold text-on-surface-variant/60">membres rejoints</p>
     </div>
 
-    <div class="premium-card p-6 rounded-4xl space-y-3">
+    <div class="premium-card p-6 rounded-xl space-y-3">
       <div class="flex items-center justify-between">
         <Papicon icon="LogOut" size={20} class="text-red-500" />
-        <span class="text-[9px] font-bold text-on-surface-variant/40 uppercase">Départs</span>
+        <span class="text-[11px] font-bold text-on-surface-variant/40 uppercase">Départs</span>
       </div>
-      <p class="text-2xl font-black text-on-surface">{data.metrics.totalLeaves}</p>
-      <p class="text-[9px] font-bold text-on-surface-variant/60">membres partis</p>
+      <p class="text-2xl font-semibold text-on-surface">{data.metrics.totalLeaves}</p>
+      <p class="text-[11px] font-bold text-on-surface-variant/60">membres partis</p>
     </div>
 
-    <div class="premium-card p-6 rounded-4xl space-y-3 {data.metrics.netGrowth > 0 ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-red-500/5 border-red-500/20'}">
+    <div class="premium-card p-6 rounded-xl space-y-3 {data.metrics.netGrowth > 0 ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-red-500/5 border-red-500/20'}">
       <div class="flex items-center justify-between">
         <Papicon icon={data.metrics.netGrowth > 0 ? 'TrendingUp' : 'TrendingDown'} size={20} class={data.metrics.netGrowth > 0 ? 'text-emerald-500' : 'text-red-500'} />
-        <span class="text-[9px] font-bold text-on-surface-variant/40 uppercase">Croissance</span>
+        <span class="text-[11px] font-bold text-on-surface-variant/40 uppercase">Croissance</span>
       </div>
-      <p class="text-2xl font-black {data.metrics.netGrowth > 0 ? 'text-emerald-500' : 'text-red-500'}">{data.metrics.netGrowth > 0 ? '+' : ''}{data.metrics.netGrowth}</p>
-      <p class="text-[9px] font-bold text-on-surface-variant/60">croissance nette</p>
+      <p class="text-2xl font-semibold {data.metrics.netGrowth > 0 ? 'text-emerald-500' : 'text-red-500'}">{data.metrics.netGrowth > 0 ? '+' : ''}{data.metrics.netGrowth}</p>
+      <p class="text-[11px] font-bold text-on-surface-variant/60">croissance nette</p>
     </div>
 
-    <div class="premium-card p-6 rounded-4xl space-y-3">
+    <div class="premium-card p-6 rounded-xl space-y-3">
       <div class="flex items-center justify-between">
         <Papicon icon="Users" size={20} class="text-blue-500" />
-        <span class="text-[9px] font-bold text-on-surface-variant/40 uppercase">Moyenne</span>
+        <span class="text-[11px] font-bold text-on-surface-variant/40 uppercase">Moyenne</span>
       </div>
-      <p class="text-2xl font-black text-on-surface">{data.metrics.avgActiveMembers}</p>
-      <p class="text-[9px] font-bold text-on-surface-variant/60">membres actifs/jour</p>
+      <p class="text-2xl font-semibold text-on-surface">{data.metrics.avgActiveMembers}</p>
+      <p class="text-[11px] font-bold text-on-surface-variant/60">membres actifs/jour</p>
     </div>
 
-    <div class="premium-card p-6 rounded-4xl space-y-3">
+    <div class="premium-card p-6 rounded-xl space-y-3">
       <div class="flex items-center justify-between">
         <Papicon icon="percent" size={20} class="text-purple-500" />
-        <span class="text-[9px] font-bold text-on-surface-variant/40 uppercase">Actuellement</span>
+        <span class="text-[11px] font-bold text-on-surface-variant/40 uppercase">Actuellement</span>
       </div>
-      <p class="text-2xl font-black text-on-surface">{data.metrics.currentRetention}%</p>
-      <p class="text-[9px] font-bold text-on-surface-variant/60">taux de rétention</p>
+      <p class="text-2xl font-semibold text-on-surface">{data.metrics.currentRetention}%</p>
+      <p class="text-[11px] font-bold text-on-surface-variant/60">taux de rétention</p>
     </div>
   </div>
 
   <!-- Charts -->
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <!-- Growth Chart -->
-    <div class="premium-card p-8 rounded-[2.5rem] space-y-6">
+    <div class="premium-card p-8 rounded-xl space-y-6">
       <div class="flex items-center gap-4">
-        <div class="bg-primary/10 p-3 rounded-2xl text-primary">
+        <div class="bg-primary/10 p-3 rounded-lg text-primary">
           <Papicon icon="Chart" size={24} />
         </div>
         <div>
-          <h4 class="font-black text-on-surface">Croissance sur temps</h4>
-          <p class="text-[9px] font-bold text-on-surface-variant/40">Rejoins - Départs</p>
+          <h4 class="font-semibold text-on-surface">Croissance sur temps</h4>
+          <p class="text-[11px] font-bold text-on-surface-variant/40">Rejoins - Départs</p>
         </div>
       </div>
       <div class="h-[300px]">
@@ -186,14 +186,14 @@
     </div>
 
     <!-- Retention Chart -->
-    <div class="premium-card p-8 rounded-[2.5rem] space-y-6">
+    <div class="premium-card p-8 rounded-xl space-y-6">
       <div class="flex items-center gap-4">
-        <div class="bg-secondary/10 p-3 rounded-2xl text-secondary">
+        <div class="bg-secondary/10 p-3 rounded-lg text-secondary">
           <Papicon icon="Target" size={24} />
         </div>
         <div>
-          <h4 class="font-black text-on-surface">Taux de rétention</h4>
-          <p class="text-[9px] font-bold text-on-surface-variant/40">% de membres actifs quotidiens</p>
+          <h4 class="font-semibold text-on-surface">Taux de rétention</h4>
+          <p class="text-[11px] font-bold text-on-surface-variant/40">% de membres actifs quotidiens</p>
         </div>
       </div>
       <div class="h-[300px]">
@@ -203,14 +203,14 @@
   </div>
 
   <!-- Activity Chart -->
-  <div class="premium-card p-8 rounded-[2.5rem] space-y-6">
+  <div class="premium-card p-8 rounded-xl space-y-6">
     <div class="flex items-center gap-4">
-      <div class="bg-emerald-500/10 p-3 rounded-2xl text-emerald-500">
+      <div class="bg-emerald-500/10 p-3 rounded-lg text-emerald-500">
         <Papicon icon="Activity" size={24} />
       </div>
       <div>
-        <h4 class="font-black text-on-surface">Activité des membres</h4>
-        <p class="text-[9px] font-bold text-on-surface-variant/40">Membres actifs par jour</p>
+        <h4 class="font-semibold text-on-surface">Activité des membres</h4>
+        <p class="text-[11px] font-bold text-on-surface-variant/40">Membres actifs par jour</p>
       </div>
     </div>
     <div class="h-[300px]">

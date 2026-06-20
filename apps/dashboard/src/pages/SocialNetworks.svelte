@@ -211,20 +211,18 @@
 
 <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
   <!-- Header Card -->
-  <header class="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-surface-container-low/40 backdrop-blur-3xl p-8 rounded-4xl border border-outline-variant/30 relative overflow-hidden group">
-    <div class="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-[80px] group-hover:bg-primary/20 transition-all duration-700"></div>
-    
-    <div class="flex items-center gap-6 relative">
-      <div class="w-16 h-16 bg-linear-to-br from-primary to-primary-container rounded-2xl flex items-center justify-center text-primary shadow-inner">
-        <Papicon icon="Share" size={32} />
+  <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-low/40 p-5 rounded-xl border border-outline-variant/30 relative overflow-hidden group">
+    <div class="flex items-center gap-4 relative">
+      <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+        <Papicon icon="Share" size={20} />
       </div>
       <div>
-        <h1 class="text-3xl font-black tracking-tight leading-tight">Réseaux Sociaux</h1>
-        <p class="text-on-surface-variant/80 font-medium font-headline">Abonnez-vous à des chaînes YouTube et Twitch et configurez leurs alertes Discord.</p>
+        <h1 class="text-lg font-semibold tracking-tight leading-tight">Réseaux Sociaux</h1>
+        <p class="text-sm text-on-surface-variant/70 font-medium">Abonnez-vous à des chaînes YouTube et Twitch et configurez leurs alertes Discord.</p>
       </div>
     </div>
 
-    <div class="flex items-center gap-3 px-4 py-2 rounded-2xl border border-outline-variant/10 bg-surface-container-high/35 text-xs font-black uppercase tracking-widest text-on-surface-variant/70">
+    <div class="flex items-center gap-3 px-4 py-2 rounded-lg border border-outline-variant/10 bg-surface-container-high/35 text-xs font-semibold uppercase tracking-widest text-on-surface-variant/70">
       <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
       <span>Module actif</span>
     </div>
@@ -232,10 +230,10 @@
     <!-- Active State & Tab Switcher Info -->
     <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 relative">
       <!-- Tab switcher -->
-      <div class="flex bg-surface-container-high/40 p-1.5 rounded-2xl border border-outline-variant/20">
+      <div class="flex bg-surface-container-high/40 p-1.5 rounded-lg border border-outline-variant/20">
         <button
           onclick={() => activeTab = 'youtube'}
-          class="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 flex items-center gap-2 {activeTab === 'youtube' ? 'bg-red-600 text-white shadow-lg shadow-red-600/20 scale-[1.03]' : 'text-on-surface-variant/70 hover:text-on-surface'}"
+          class="px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all duration-300 flex items-center gap-2 {activeTab === 'youtube' ? 'bg-red-600 text-white shadow-lg shadow-red-600/20 scale-[1.03]' : 'text-on-surface-variant/70 hover:text-on-surface'}"
         >
           <!-- YouTube Logo SVG -->
           <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -245,7 +243,7 @@
         </button>
         <button
           onclick={() => activeTab = 'twitch'}
-          class="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 flex items-center gap-2 {activeTab === 'twitch' ? 'bg-[#9146FF] text-white shadow-lg shadow-[#9146FF]/20 scale-[1.03]' : 'text-on-surface-variant/70 hover:text-on-surface'}"
+          class="px-5 py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all duration-300 flex items-center gap-2 {activeTab === 'twitch' ? 'bg-[#9146FF] text-white shadow-lg shadow-[#9146FF]/20 scale-[1.03]' : 'text-on-surface-variant/70 hover:text-on-surface'}"
         >
           <!-- Twitch Logo SVG -->
           <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -258,7 +256,7 @@
   </header>
 
   <!-- Module Enable/Disable Notice & Quick toggle -->
-  <div class="bg-surface-container-low/40 p-6 rounded-3xl border border-outline-variant/20 flex flex-col md:flex-row md:items-center justify-between gap-6">
+  <div class="bg-surface-container-low/40 p-6 rounded-xl border border-outline-variant/20 flex flex-col md:flex-row md:items-center justify-between gap-6">
     <div class="space-y-1">
       <div class="flex items-center gap-2">
         <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -266,9 +264,9 @@
       </div>
       <p class="text-xs text-on-surface-variant/80">YouTube & Twitch sont gérés par les tâches de fond. Veillez à ce que les modules correspondants soient activés dans le <a href="/modules" class="text-primary hover:underline font-bold">Catalogue Système</a>.</p>
     </div>
-    <div class="flex items-center gap-4 bg-surface-container-high/40 px-5 py-3 rounded-2xl border border-outline-variant/10">
-      <span class="text-[10px] font-black uppercase tracking-widest text-primary">Modules Actifs</span>
-      <span class="px-2.5 py-1 bg-emerald-500/10 text-emerald-500 rounded-lg text-[10px] font-black uppercase">En ligne</span>
+    <div class="flex items-center gap-4 bg-surface-container-high/40 px-5 py-3 rounded-lg border border-outline-variant/10">
+      <span class="text-[10px] font-semibold uppercase tracking-widest text-primary">Modules Actifs</span>
+      <span class="px-2.5 py-1 bg-emerald-500/10 text-emerald-500 rounded-lg text-[10px] font-semibold uppercase">En ligne</span>
     </div>
   </div>
 
@@ -277,11 +275,11 @@
 
   {#if loading}
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      <div class="lg:col-span-1 p-8 bg-surface-container-low/30 border border-outline-variant/10 rounded-[2.5rem] space-y-6">
+      <div class="lg:col-span-1 p-8 bg-surface-container-low/30 border border-outline-variant/10 rounded-xl space-y-6">
         <Skeleton width="60%" height="24px" />
         <Skeleton width="100%" height="180px" />
       </div>
-      <div class="lg:col-span-2 p-8 bg-surface-container-low/30 border border-outline-variant/10 rounded-[2.5rem] space-y-6">
+      <div class="lg:col-span-2 p-8 bg-surface-container-low/30 border border-outline-variant/10 rounded-xl space-y-6">
         <Skeleton width="40%" height="24px" />
         <Skeleton width="100%" height="80px" />
         <Skeleton width="100%" height="80px" />
@@ -293,8 +291,8 @@
       <!-- ADD FORM COLUMN -->
       <div class="lg:col-span-1">
         {#if activeTab === 'youtube'}
-          <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6 sticky top-8 shadow-sm">
-            <h3 class="text-lg font-black flex items-center gap-2.5 text-red-500">
+          <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 sticky top-8 shadow-sm">
+            <h3 class="text-lg font-semibold flex items-center gap-2.5 text-red-500">
               <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path d="M23.498 6.163a3.003 3.003 0 0 0-2.11-2.11C19.518 3.545 12 3.545 12 3.545s-7.518 0-9.388.508a3.003 3.003 0 0 0-2.11 2.11C0 8.033 0 12 0 12s0 3.967.502 5.837a3.003 3.003 0 0 0 2.11 2.11c1.87.508 9.388.508 9.388.508s7.518 0 9.388-.508a3.002 3.002 0 0 0 2.11-2.11C24 15.967 24 12 24 12s0-3.967-.502-5.837zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
               </svg>
@@ -310,26 +308,26 @@
                   type="text"
                   placeholder="ex: https://youtube.com/@cyprien ou Cyprien"
                   bind:value={ytForm.query}
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
                 />
               </div>
 
               <!-- Default Lives channel -->
               <div class="space-y-1.5">
                 <label for="yt-live-chan" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon des Lives (En direct)</label>
-                <SearchableSelect id="yt-live-chan" bind:value={ytForm.liveChannelId} options={availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder="— Par défaut (Salon Public) —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-red-600/30 transition-all" />
+                <SearchableSelect id="yt-live-chan" bind:value={ytForm.liveChannelId} options={availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder="— Par défaut (Salon Public) —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-red-600/30 transition-all" />
               </div>
 
               <!-- Default Shorts channel -->
               <div class="space-y-1.5">
                 <label for="yt-short-chan" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon des Shorts</label>
-                <SearchableSelect id="yt-short-chan" bind:value={ytForm.shortChannelId} options={availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder="— Par défaut (Même que vidéos) —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-red-600/30 transition-all" />
+                <SearchableSelect id="yt-short-chan" bind:value={ytForm.shortChannelId} options={availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder="— Par défaut (Même que vidéos) —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-red-600/30 transition-all" />
               </div>
 
               <!-- Default Videos channel -->
               <div class="space-y-1.5">
                 <label for="yt-video-chan" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon des Vidéos</label>
-                <SearchableSelect id="yt-video-chan" bind:value={ytForm.videoChannelId} options={availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder="— Par défaut (Salon Public) —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-red-600/30 transition-all" />
+                <SearchableSelect id="yt-video-chan" bind:value={ytForm.videoChannelId} options={availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder="— Par défaut (Salon Public) —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-red-600/30 transition-all" />
               </div>
 
               <!-- Custom Messages Section -->
@@ -338,7 +336,7 @@
                 
                 <div class="space-y-3">
                   <div class="space-y-1.5">
-                    <label for="yt-live-msg" class="text-[9px] font-bold text-on-surface-variant/50 ml-2">Message Live</label>
+                    <label for="yt-live-msg" class="text-[11px] font-bold text-on-surface-variant/50 ml-2">Message Live</label>
                     <input
                       id="yt-live-msg"
                       type="text"
@@ -346,11 +344,11 @@
                       bind:value={ytForm.liveMessage}
                       class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-600/30 transition-all text-on-surface"
                     />
-                    <p class="text-[8px] text-on-surface-variant/40 ml-2">Variables: [title], [channel]</p>
+                    <p class="text-[10px] text-on-surface-variant/40 ml-2">Variables: [title], [channel]</p>
                   </div>
 
                   <div class="space-y-1.5">
-                    <label for="yt-video-msg" class="text-[9px] font-bold text-on-surface-variant/50 ml-2">Message Vidéo</label>
+                    <label for="yt-video-msg" class="text-[11px] font-bold text-on-surface-variant/50 ml-2">Message Vidéo</label>
                     <input
                       id="yt-video-msg"
                       type="text"
@@ -361,7 +359,7 @@
                   </div>
 
                   <div class="space-y-1.5">
-                    <label for="yt-short-msg" class="text-[9px] font-bold text-on-surface-variant/50 ml-2">Message Short</label>
+                    <label for="yt-short-msg" class="text-[11px] font-bold text-on-surface-variant/50 ml-2">Message Short</label>
                     <input
                       id="yt-short-msg"
                       type="text"
@@ -379,7 +377,7 @@
                 
                 <div class="space-y-3">
                   <div class="space-y-1.5">
-                    <label for="yt-live-mention" class="text-[9px] font-bold text-on-surface-variant/50 ml-2">Mention Live</label>
+                    <label for="yt-live-mention" class="text-[11px] font-bold text-on-surface-variant/50 ml-2">Mention Live</label>
                     <input
                       id="yt-live-mention"
                       type="text"
@@ -390,7 +388,7 @@
                   </div>
 
                   <div class="space-y-1.5">
-                    <label for="yt-video-mention" class="text-[9px] font-bold text-on-surface-variant/50 ml-2">Mention Vidéo</label>
+                    <label for="yt-video-mention" class="text-[11px] font-bold text-on-surface-variant/50 ml-2">Mention Vidéo</label>
                     <input
                       id="yt-video-mention"
                       type="text"
@@ -401,7 +399,7 @@
                   </div>
 
                   <div class="space-y-1.5">
-                    <label for="yt-short-mention" class="text-[9px] font-bold text-on-surface-variant/50 ml-2">Mention Short</label>
+                    <label for="yt-short-mention" class="text-[11px] font-bold text-on-surface-variant/50 ml-2">Mention Short</label>
                     <input
                       id="yt-short-mention"
                       type="text"
@@ -417,15 +415,15 @@
               <button
                 onclick={handleAddYoutube}
                 disabled={!canManage}
-                class="w-full mt-4 py-3.5 bg-red-600 hover:bg-red-700 text-white font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-red-600/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
+                class="w-full mt-4 py-3.5 bg-red-600 hover:bg-red-700 text-white font-semibold uppercase tracking-widest text-xs rounded-lg shadow-lg shadow-red-600/20 hover: active:scale-[0.98] transition-all disabled:opacity-50"
               >
                 Ajouter la chaîne
               </button>
             </div>
           </div>
         {:else}
-          <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6 sticky top-8 shadow-sm">
-            <h3 class="text-lg font-black flex items-center gap-2.5 text-[#9146FF]">
+          <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 sticky top-8 shadow-sm">
+            <h3 class="text-lg font-semibold flex items-center gap-2.5 text-[#9146FF]">
               <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/>
               </svg>
@@ -441,27 +439,27 @@
                   type="text"
                   placeholder="ex: xqc ou https://twitch.tv/xqc"
                   bind:value={twitchForm.query}
-                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#9146FF]/30 transition-all text-on-surface"
+                  class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#9146FF]/30 transition-all text-on-surface"
                 />
               </div>
 
               <!-- Live Channel Dropdown -->
               <div class="space-y-1.5">
                 <label for="twitch-live-chan" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon des Lives (En direct)</label>
-                <SearchableSelect id="twitch-live-chan" bind:value={twitchForm.liveChannelId} options={availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder="— Par défaut (Salon Public) —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#9146FF]/30 transition-all" />
+                <SearchableSelect id="twitch-live-chan" bind:value={twitchForm.liveChannelId} options={availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder="— Par défaut (Salon Public) —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-[#9146FF]/30 transition-all" />
               </div>
 
               <!-- Other Event Channel Dropdown -->
               <div class="space-y-1.5">
                 <label for="twitch-other-chan" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Salon des Fins de Stream (Optionnel)</label>
-                <SearchableSelect id="twitch-other-chan" bind:value={twitchForm.otherChannelId} options={availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#9146FF]/30 transition-all" />
+                <SearchableSelect id="twitch-other-chan" bind:value={twitchForm.otherChannelId} options={availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder="— Aucun —" className="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-[#9146FF]/30 transition-all" />
               </div>
 
               <!-- Submit button -->
               <button
                 onclick={handleAddTwitch}
                 disabled={!canManage}
-                class="w-full mt-4 py-3.5 bg-[#9146FF] hover:bg-[#772ce8] text-white font-black uppercase tracking-widest text-xs rounded-2xl shadow-lg shadow-[#9146FF]/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
+                class="w-full mt-4 py-3.5 bg-[#9146FF] hover:bg-[#772ce8] text-white font-semibold uppercase tracking-widest text-xs rounded-lg shadow-lg shadow-[#9146FF]/20 hover: active:scale-[0.98] transition-all disabled:opacity-50"
               >
                 Suivre le streamer
               </button>
@@ -472,11 +470,11 @@
 
       <!-- LIST COLUMN -->
       <div class="lg:col-span-2 space-y-6">
-        <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-[2.5rem] space-y-6 min-h-100">
+        <div class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 min-h-100">
           
           {#if activeTab === 'youtube'}
             <div class="flex items-center justify-between border-b border-outline-variant/20 pb-4">
-              <h3 class="text-xl font-black flex items-center gap-2">
+              <h3 class="text-xl font-semibold flex items-center gap-2">
                 <svg class="w-5 h-5 fill-red-600" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path d="M23.498 6.163a3.003 3.003 0 0 0-2.11-2.11C19.518 3.545 12 3.545 12 3.545s-7.518 0-9.388.508a3.003 3.003 0 0 0-2.11 2.11C0 8.033 0 12 0 12s0 3.967.502 5.837a3.003 3.003 0 0 0 2.11 2.11c1.87.508 9.388.508 9.388.508s7.518 0 9.388-.508a3.002 3.002 0 0 0 2.11-2.11C24 15.967 24 12 24 12s0-3.967-.502-5.837zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
                 </svg>
@@ -493,7 +491,7 @@
             {:else}
               <div class="divide-y divide-outline-variant/10 space-y-6 divide-none">
                 {#each youtubeFollows as follow (follow.id)}
-                  <div class="p-6 rounded-3xl bg-surface-container-high/15 border border-outline-variant/5 hover:border-outline-variant/10 transition-all">
+                  <div class="p-6 rounded-xl bg-surface-container-high/15 border border-outline-variant/5 hover:border-outline-variant/10 transition-all">
                     <!-- Header -->
                     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                       <div class="space-y-1">
@@ -528,27 +526,27 @@
                     <!-- Channel Configuration -->
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                       <div class="space-y-1">
-                        <span class="text-[9px] font-bold text-on-surface-variant/50 uppercase">Lives</span>
+                        <span class="text-[11px] font-bold text-on-surface-variant/50 uppercase">Lives</span>
                         <SearchableSelect bind:value={follow.liveChannelId} options={availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder="— Par défaut —" className="w-full bg-surface-container/60 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
                       </div>
 
                       <div class="space-y-1">
-                        <span class="text-[9px] font-bold text-on-surface-variant/50 uppercase">Shorts</span>
+                        <span class="text-[11px] font-bold text-on-surface-variant/50 uppercase">Shorts</span>
                         <SearchableSelect bind:value={follow.shortChannelId} options={availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder="— Par défaut —" className="w-full bg-surface-container/60 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
                       </div>
 
                       <div class="space-y-1">
-                        <span class="text-[9px] font-bold text-on-surface-variant/50 uppercase">Vidéos</span>
+                        <span class="text-[11px] font-bold text-on-surface-variant/50 uppercase">Vidéos</span>
                         <SearchableSelect bind:value={follow.videoChannelId} options={availableChannels.map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder="— Par défaut —" className="w-full bg-surface-container/60 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
                       </div>
                     </div>
 
                     <!-- Custom Messages -->
-                    <div class="mb-6 p-4 rounded-2xl bg-surface-container/30 border border-outline-variant/5">
+                    <div class="mb-6 p-4 rounded-lg bg-surface-container/30 border border-outline-variant/5">
                       <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest mb-3">Messages personnalisés</p>
                       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div class="space-y-1">
-                          <label class="text-[9px] font-bold text-on-surface-variant/50">Live</label>
+                          <label class="text-[11px] font-bold text-on-surface-variant/50">Live</label>
                           <input
                             type="text"
                             bind:value={follow.liveMessage}
@@ -557,7 +555,7 @@
                           />
                         </div>
                         <div class="space-y-1">
-                          <label class="text-[9px] font-bold text-on-surface-variant/50">Vidéo</label>
+                          <label class="text-[11px] font-bold text-on-surface-variant/50">Vidéo</label>
                           <input
                             type="text"
                             bind:value={follow.videoMessage}
@@ -566,7 +564,7 @@
                           />
                         </div>
                         <div class="space-y-1">
-                          <label class="text-[9px] font-bold text-on-surface-variant/50">Short</label>
+                          <label class="text-[11px] font-bold text-on-surface-variant/50">Short</label>
                           <input
                             type="text"
                             bind:value={follow.shortMessage}
@@ -578,11 +576,11 @@
                     </div>
 
                     <!-- Mentions -->
-                    <div class="p-4 rounded-2xl bg-surface-container/30 border border-outline-variant/5">
+                    <div class="p-4 rounded-lg bg-surface-container/30 border border-outline-variant/5">
                       <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest mb-3">Mentions</p>
                       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div class="space-y-1">
-                          <label class="text-[9px] font-bold text-on-surface-variant/50">Live</label>
+                          <label class="text-[11px] font-bold text-on-surface-variant/50">Live</label>
                           <input
                             type="text"
                             bind:value={follow.liveMention}
@@ -591,7 +589,7 @@
                           />
                         </div>
                         <div class="space-y-1">
-                          <label class="text-[9px] font-bold text-on-surface-variant/50">Vidéo</label>
+                          <label class="text-[11px] font-bold text-on-surface-variant/50">Vidéo</label>
                           <input
                             type="text"
                             bind:value={follow.videoMention}
@@ -600,7 +598,7 @@
                           />
                         </div>
                         <div class="space-y-1">
-                          <label class="text-[9px] font-bold text-on-surface-variant/50">Short</label>
+                          <label class="text-[11px] font-bold text-on-surface-variant/50">Short</label>
                           <input
                             type="text"
                             bind:value={follow.shortMention}
@@ -617,7 +615,7 @@
           {:else}
             <!-- TWITCH LIST -->
             <div class="flex items-center justify-between border-b border-outline-variant/20 pb-4">
-              <h3 class="text-xl font-black flex items-center gap-2">
+              <h3 class="text-xl font-semibold flex items-center gap-2">
                 <svg class="w-5 h-5 fill-[#9146FF]" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/>
                 </svg>
@@ -634,7 +632,7 @@
             {:else}
               <div class="divide-y divide-outline-variant/10 space-y-6 divide-none">
                 {#each twitchFollows as follow (follow.id)}
-                  <div class="p-6 rounded-3xl bg-surface-container-high/15 border border-outline-variant/5 hover:border-outline-variant/10 transition-all flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div class="p-6 rounded-xl bg-surface-container-high/15 border border-outline-variant/5 hover:border-outline-variant/10 transition-all flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div class="space-y-1">
                       <h4 class="font-bold text-base flex items-center gap-2">
                         {#if follow.isLive}
@@ -655,12 +653,12 @@
                     <!-- Config channels inline -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 max-w-md">
                       <div class="space-y-1">
-                        <span class="text-[9px] font-bold text-on-surface-variant/50 uppercase">Salon Lives</span>
+                        <span class="text-[11px] font-bold text-on-surface-variant/50 uppercase">Salon Lives</span>
                         <SearchableSelect bind:value={follow.liveChannelId} options={(availableChannels || []).map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder="— Par défaut —" className="w-full bg-surface-container/60 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
                       </div>
 
                       <div class="space-y-1">
-                        <span class="text-[9px] font-bold text-on-surface-variant/50 uppercase">Salon Fin de Stream</span>
+                        <span class="text-[11px] font-bold text-on-surface-variant/50 uppercase">Salon Fin de Stream</span>
                         <SearchableSelect bind:value={follow.otherChannelId} options={(availableChannels || []).map(ch => ({ id: ch.id, name: '#' + ch.name }))} placeholder="— Aucun —" className="w-full bg-surface-container/60 border border-outline-variant/10 rounded-xl px-3 py-2 text-xs" />
                       </div>
                     </div>

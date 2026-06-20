@@ -117,37 +117,36 @@
 <div class="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20 max-w-7xl mx-auto px-4 md:px-8">
   
   <!-- Header Section -->
-  <div class="relative overflow-hidden bg-surface-container-low/30 p-8 md:p-12 rounded-[3.5rem] border border-outline-variant/10 group">
-    <div class="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors duration-1000"></div>
-    <div class="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/4 w-64 h-64 bg-secondary/5 rounded-full blur-2xl group-hover:bg-secondary/10 transition-colors duration-1000"></div>
-    
-    <div class="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
-      <div class="space-y-2">
-        <div class="flex items-center gap-3">
-           <div class="bg-primary/10 p-2 rounded-xl text-primary">
-              <Papicon icon="Package" size={20} />
-           </div>
-           <span class="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Modules & Extensions</span>
+  <div class="relative overflow-hidden bg-surface-container-low/30 p-5 md:p-6 rounded-xl border border-outline-variant/10 group">
+    <div class="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-64 h-64 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors duration-1000"></div>
+
+    <div class="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div class="flex items-center gap-4">
+        <div class="bg-primary/10 p-2 rounded-xl text-primary">
+          <Papicon icon="Package" size={20} />
         </div>
-        <h2 class="text-3xl md:text-5xl font-black tracking-tight text-on-surface font-headline leading-tight">
-          Catalogue <span class="text-primary">Système</span>
-        </h2>
-        <p class="text-on-surface-variant/60 text-base max-w-md">Personnalisez votre instance Kotbo en activant les modules adaptés à votre communauté.</p>
+        <div>
+          <span class="text-[10px] font-semibold uppercase tracking-widest text-primary">Modules & Extensions</span>
+          <h2 class="text-lg font-semibold tracking-tight text-on-surface font-headline leading-tight">
+            Catalogue <span class="text-primary">Système</span>
+          </h2>
+          <p class="text-on-surface-variant/60 text-sm max-w-md">Personnalisez votre instance Kotbo en activant les modules adaptés à votre communauté.</p>
+        </div>
       </div>
 
-      <div class="flex flex-col items-end gap-4 w-full md:w-auto">
-        <div class="flex gap-1.5 bg-surface-container-high/40 p-2 rounded-2xl border border-outline-variant/10 backdrop-blur-sm overflow-x-auto no-scrollbar">
+      <div class="flex flex-col items-end gap-3 w-full md:w-auto">
+        <div class="flex gap-1 bg-surface-container-high/40 p-1.5 rounded-lg border border-outline-variant/10 overflow-x-auto no-scrollbar">
           {#each ['Tous', 'Actifs', 'Inactifs', 'Erreurs'] as f}
-            <button 
-              onclick={() => filter = f} 
-              class="px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap {filter === f ? 'bg-primary text-on-primary shadow-xl scale-[1.02]' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
+            <button
+              onclick={() => filter = f}
+              class="px-4 py-2 rounded-lg text-[10px] font-semibold uppercase tracking-widest transition-all duration-300 whitespace-nowrap {filter === f ? 'bg-primary text-on-primary shadow-sm ' : 'text-on-surface-variant/60 hover:text-on-surface hover:bg-surface-container-high'}"
             >
               {f}
             </button>
           {/each}
         </div>
-        
-        <div class="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 bg-surface-container-low/40 px-5 py-2.5 rounded-xl border border-outline-variant/5">
+
+        <div class="flex items-center gap-3 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40 bg-surface-container-low/40 px-4 py-2 rounded-lg border border-outline-variant/5">
            <div class="flex items-center gap-2">
               <span class="w-2 h-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/20"></span>
               <span>{activeCount} Actifs</span>
@@ -165,39 +164,39 @@
   <div class="space-y-6">
     <div class="flex items-center gap-4 px-2">
       <div class="h-px flex-1 bg-gradient-to-r from-transparent via-outline-variant/20 to-transparent"></div>
-      <h3 class="text-[11px] font-black uppercase tracking-[0.4em] text-on-surface-variant/40">Presets de Configuration</h3>
+      <h3 class="text-[11px] font-semibold uppercase tracking-[0.4em] text-on-surface-variant/40">Presets de Configuration</h3>
       <div class="h-px flex-1 bg-gradient-to-r from-transparent via-outline-variant/20 to-transparent"></div>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
       {#each presets as preset}
-        <div class="relative overflow-hidden bg-surface-container-low/40 rounded-[2.5rem] border border-outline-variant/10 p-8 group hover:bg-surface-container-low transition-all duration-500">
+        <div class="relative overflow-hidden bg-surface-container-low/40 rounded-xl border border-outline-variant/10 p-8 group hover:bg-surface-container-low transition-all duration-500">
           <div class={`absolute top-0 right-0 p-12 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity duration-700 text-on-surface`}>
              <Papicon icon={preset.icon} size={120} />
           </div>
           
           <div class="relative space-y-6">
             <div class="flex justify-between items-start">
-               <div class={`p-4 rounded-2xl bg-primary/10 text-primary shadow-inner`}>
+               <div class={`p-4 rounded-lg bg-primary/10 text-primary shadow-inner`}>
                   <Papicon icon={preset.icon} size={28} />
                </div>
-               <span class={`px-3 py-1.5 rounded-lg bg-surface-container-high text-on-surface-variant text-[9px] font-black uppercase tracking-widest border border-outline-variant/10`}>
+               <span class={`px-3 py-1.5 rounded-lg bg-surface-container-high text-on-surface-variant text-[11px] font-semibold uppercase tracking-widest border border-outline-variant/10`}>
                  {preset.badge}
                </span>
             </div>
 
             <div>
-              <h4 class="text-xl font-black text-on-surface tracking-tight">{preset.title}</h4>
+              <h4 class="text-xl font-semibold text-on-surface tracking-tight">{preset.title}</h4>
               <p class="mt-2 text-sm text-on-surface-variant/60 leading-relaxed line-clamp-2">{preset.description}</p>
             </div>
 
             <button
               onclick={() => applyPreset(preset.key)}
               disabled={!canApplyPreset || applyingPreset}
-              class={`w-full py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all duration-300
+              class={`w-full py-4 rounded-lg text-[10px] font-semibold uppercase tracking-widest transition-all duration-300
                 ${!canApplyPreset || applyingPreset 
                   ? 'bg-surface-container-high text-on-surface-variant/40 cursor-not-allowed' 
-                  : `bg-primary text-on-primary hover:scale-[1.02] shadow-xl shadow-primary/20 hover:shadow-primary/30 active:scale-95`}`}
+                  : `bg-primary text-on-primary hover: shadow-sm shadow-primary/20 hover:shadow-primary/30 active:scale-95`}`}
             >
               {applyingPreset ? 'Application...' : 'Appliquer le preset'}
             </button>
@@ -210,21 +209,21 @@
   <!-- Modules Grid -->
   <div class="space-y-6">
     <div class="flex items-center justify-between px-2">
-      <h3 class="text-[11px] font-black uppercase tracking-[0.4em] text-on-surface-variant/40">Tous les Modules</h3>
+      <h3 class="text-[11px] font-semibold uppercase tracking-[0.4em] text-on-surface-variant/40">Tous les Modules</h3>
       <span class="text-[10px] font-bold text-on-surface-variant/30">{filteredModules.length} extensions disponibles</span>
     </div>
 
     {#if dashboardStore.state.loading && dashboardStore.state.modules.length === 0}
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {#each Array(8) as _}
-          <div class="h-64 rounded-[2.5rem] bg-surface-container-low/20 animate-pulse border border-outline-variant/5"></div>
+          <div class="h-64 rounded-xl bg-surface-container-low/20 animate-pulse border border-outline-variant/5"></div>
         {/each}
       </div>
     {:else}
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {#each filteredModules as module}
           <div 
-            class="group relative bg-surface-container-low/30 rounded-[2.5rem] border border-outline-variant/10 p-7 hover:bg-surface-container-low transition-all duration-500 hover:shadow-2xl hover:shadow-surface/20 {module.status === 'inactive' ? 'opacity-65 grayscale' : ''}"
+            class="group relative bg-surface-container-low/30 rounded-xl border border-outline-variant/10 p-7 hover:bg-surface-container-low transition-all duration-500 hover:shadow-sm hover:shadow-surface/20 {module.status === 'inactive' ? 'opacity-65 grayscale' : ''}"
             in:fly={{ y: 20, duration: 400 }}
           >
             <!-- Status Badge -->
@@ -237,20 +236,20 @@
             </div>
 
             <div class="space-y-5">
-              <div class={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner transition-transform group-hover:scale-110 duration-500
+              <div class={`w-14 h-14 rounded-lg flex items-center justify-center shadow-inner transition-transform group- duration-500
                 ${module.status === 'active' ? 'bg-primary/10 text-primary' : module.status === 'error' ? 'bg-error/10 text-error' : 'bg-surface-container-highest text-on-surface-variant/40'}`}>
                 <Papicon icon={getModuleIcon(module.id)} size={28} />
               </div>
 
               <div>
-                <h3 class="text-lg font-black text-on-surface tracking-tight group-hover:text-primary transition-colors">{module.name}</h3>
+                <h3 class="text-lg font-semibold text-on-surface tracking-tight group-hover:text-primary transition-colors">{module.name}</h3>
                 <p class="mt-2 text-xs text-on-surface-variant/50 leading-relaxed line-clamp-3 font-medium">{module.description}</p>
               </div>
 
               <div class="pt-2 flex items-center justify-between">
                 <div class="flex items-center gap-2">
                    <div class={`w-1.5 h-1.5 rounded-full ${module.status === 'active' ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50 animate-pulse' : module.status === 'error' ? 'bg-error shadow-sm shadow-error/50' : 'bg-on-surface-variant/20'}`}></div>
-                   <span class="text-[9px] font-black uppercase tracking-widest text-on-surface-variant/40">
+                   <span class="text-[11px] font-semibold uppercase tracking-widest text-on-surface-variant/40">
                      {module.status === 'active' ? 'Actif' : module.status === 'error' ? 'Erreur' : 'Inactif'}
                    </span>
                 </div>
@@ -258,7 +257,7 @@
                 <a 
 
                   href={getModulePage(module.id)} 
-                  class="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-primary hover:gap-2.5 transition-all"
+                  class="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-widest text-primary hover:gap-2.5 transition-all"
                 >
                   Détails <Papicon icon="ArrowRight" size={10} />
                 </a>
@@ -266,7 +265,7 @@
 
               {#if module.isFixed}
                 <div class="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 px-4 py-1 rounded-full bg-surface-container-high border border-outline-variant/10 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
-                   <span class="text-[8px] font-black uppercase tracking-[0.2em] text-on-surface-variant/40">Module Essentiel</span>
+                   <span class="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/40">Module Essentiel</span>
                 </div>
               {/if}
             </div>
@@ -278,27 +277,27 @@
 
   <!-- Bottom Stats / Status -->
   <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-    <div class="md:col-span-2 bg-slate-900 rounded-[3rem] p-10 text-white flex flex-col justify-between shadow-2xl relative overflow-hidden group border border-white/5">
-      <div class="absolute top-0 right-0 p-12 opacity-5 group-hover:scale-110 group-hover:opacity-10 transition-all duration-1000">
+    <div class="md:col-span-2 bg-slate-900 rounded-xl p-10 text-white flex flex-col justify-between shadow-sm relative overflow-hidden group border border-white/5">
+      <div class="absolute top-0 right-0 p-12 opacity-5 group- group-hover:opacity-10 transition-all duration-1000">
         <Papicon icon="HardDrive" size={120} />
       </div>
       
       <div class="relative space-y-2">
         <div class="flex items-center gap-2 opacity-60">
            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-           <span class="text-[10px] font-black uppercase tracking-[0.2em]">État du Cluster</span>
+           <span class="text-[10px] font-semibold uppercase tracking-wider">État du Cluster</span>
         </div>
-        <p class="text-3xl font-black font-headline tracking-tight leading-tight">
+        <p class="text-lg font-semibold font-headline tracking-tight leading-tight">
           Instance {dashboardStore.state.loading ? '...' : (errorCount > 0 ? 'Partiellement Dégradée' : '100% Opérationnelle')}
         </p>
       </div>
 
       <div class="relative mt-8 flex items-center gap-6">
-        <div class="flex items-center gap-3 bg-white/5 px-4 py-2.5 rounded-2xl border border-white/10">
+        <div class="flex items-center gap-3 bg-white/5 px-4 py-2.5 rounded-lg border border-white/10">
           <div class="flex -space-x-1.5">
-            <div class="w-8 h-8 rounded-full border-2 border-slate-900 bg-emerald-500 flex items-center justify-center text-[10px] font-black">{activeCount}</div>
-            <div class="w-8 h-8 rounded-full border-2 border-slate-900 bg-amber-500 flex items-center justify-center text-[10px] font-black">{inactiveCount}</div>
-            <div class="w-8 h-8 rounded-full border-2 border-slate-900 bg-red-500 flex items-center justify-center text-[10px] font-black">{errorCount}</div>
+            <div class="w-8 h-8 rounded-full border-2 border-slate-900 bg-emerald-500 flex items-center justify-center text-[10px] font-semibold">{activeCount}</div>
+            <div class="w-8 h-8 rounded-full border-2 border-slate-900 bg-amber-500 flex items-center justify-center text-[10px] font-semibold">{inactiveCount}</div>
+            <div class="w-8 h-8 rounded-full border-2 border-slate-900 bg-red-500 flex items-center justify-center text-[10px] font-semibold">{errorCount}</div>
           </div>
           <span class="text-[10px] font-bold opacity-60 uppercase tracking-widest">Répartition</span>
         </div>
@@ -308,23 +307,23 @@
       </div>
     </div>
     
-    <div class="bg-primary/5 dark:bg-primary/10 rounded-[3rem] p-10 flex flex-col justify-between border border-primary/10 hover:bg-primary/10 transition-colors duration-500">
-      <div class="bg-primary/10 w-12 h-12 rounded-2xl flex items-center justify-center text-primary shadow-inner">
+    <div class="bg-primary/5 dark:bg-primary/10 rounded-xl p-10 flex flex-col justify-between border border-primary/10 hover:bg-primary/10 transition-colors duration-500">
+      <div class="bg-primary/10 w-12 h-12 rounded-lg flex items-center justify-center text-primary shadow-inner">
          <Papicon icon="Lightning" size={24} />
       </div>
       <div>
-        <p class="text-4xl font-black text-primary font-headline tracking-tighter">{dashboardStore.state.analytics.totalAutomations || 0}</p>
-        <p class="text-[9px] font-black text-primary/60 uppercase tracking-[0.2em] mt-2">Interactions Totales</p>
+        <p class="text-lg font-semibold text-primary font-headline tracking-tighter">{dashboardStore.state.analytics.totalAutomations || 0}</p>
+        <p class="text-[11px] font-semibold text-primary/60 uppercase tracking-wider mt-2">Interactions Totales</p>
       </div>
     </div>
     
-    <div class="bg-surface-container-low/40 rounded-[3rem] p-10 flex flex-col justify-between border border-outline-variant/10 hover:bg-surface-container-low transition-colors duration-500">
-      <div class="bg-surface-container-highest w-12 h-12 rounded-2xl flex items-center justify-center text-on-surface-variant/40 shadow-inner">
+    <div class="bg-surface-container-low/40 rounded-xl p-10 flex flex-col justify-between border border-outline-variant/10 hover:bg-surface-container-low transition-colors duration-500">
+      <div class="bg-surface-container-highest w-12 h-12 rounded-lg flex items-center justify-center text-on-surface-variant/40 shadow-inner">
          <Papicon icon="CloudArrowUp" size={24} />
       </div>
       <div>
-        <p class="text-4xl font-black text-on-surface font-headline tracking-tighter">Sync</p>
-        <p class="text-[9px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em] mt-2">Dernière Pulsation: {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
+        <p class="text-lg font-semibold text-on-surface font-headline tracking-tighter">Sync</p>
+        <p class="text-[11px] font-semibold text-on-surface-variant/40 uppercase tracking-wider mt-2">Dernière Pulsation: {new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
       </div>
     </div>
   </div>
