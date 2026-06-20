@@ -1,32 +1,141 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
+import crypto from 'node:crypto';
 import { Client } from 'discord.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { json } from '../shared.js';
-import { verifyMcpKey, verifyMcpKeyByClientCredentials } from './mcpKeyService.js';
+import { verifyMcpKey } from './mcpKeyService.js';
 import { registerMcpTools } from './mcpTools.js';
 
+// ── In-memory OAuth state (ephemeral, single-instance) ────────────────────
+
+type OAuthClient = {
+  clientId: string;
+  redirectUris: string[];
+  clientName: string;
+  guildId: string;
+};
+
+type AuthCode = {
+  clientId: string;
+  redirectUri: string;
+  codeChallenge: string;
+  codeChallengeMethod: string;
+  guildId: string;
+  rawKey: string;       // returned as access_token after PKCE exchange
+  expiresAt: number;
+};
+
+const oauthClients = new Map<string, OAuthClient>();
+const authCodes    = new Map<string, AuthCode>();
+
+// Clean expired codes every 15 min
+setInterval(() => {
+  const now = Date.now();
+  for (const [code, ac] of authCodes) {
+    if (ac.expiresAt < now) authCodes.delete(code);
+  }
+}, 15 * 60 * 1000);
+
+// ── Rate limiter (shared, cleaned by dashboardApi.ts) ─────────────────────
 export const mcpRateLimiter = new Map<string, number[]>();
 
-function checkRateLimit(keyId: string, maxRequests: number, windowMs: number): boolean {
+function checkRateLimit(keyId: string): boolean {
   const now = Date.now();
-  const timestamps = (mcpRateLimiter.get(keyId) ?? []).filter((t) => now - t < windowMs);
-  if (timestamps.length >= maxRequests) return false;
-  timestamps.push(now);
-  mcpRateLimiter.set(keyId, timestamps);
+  const ts = (mcpRateLimiter.get(keyId) ?? []).filter((t) => now - t < 60_000);
+  if (ts.length >= 100) return false;
+  ts.push(now);
+  mcpRateLimiter.set(keyId, ts);
   return true;
 }
 
-// Parse application/x-www-form-urlencoded body
+// ── Helpers ───────────────────────────────────────────────────────────────
+
 function parseFormBody(body: string): Record<string, string> {
   return Object.fromEntries(new URLSearchParams(body).entries());
 }
 
-function oauthError(res: ServerResponse, status: number, error: string, description?: string) {
+function oauthError(res: ServerResponse, status: number, error: string, desc?: string) {
   res.setHeader('Content-Type', 'application/json');
   res.statusCode = status;
-  res.end(JSON.stringify({ error, error_description: description ?? error }));
+  res.end(JSON.stringify({ error, ...(desc ? { error_description: desc } : {}) }));
 }
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function publicBase(req: IncomingMessage, url: URL, guildId: string): string {
+  const proto = (req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0]?.trim()
+    ?? url.protocol.replace(':', '');
+  const host = (req.headers['x-forwarded-host'] as string | undefined) ?? url.host;
+  return `${proto}://${host}/api/mcp/${guildId}`;
+}
+
+function verifyPKCE(verifier: string, challenge: string, method: string): boolean {
+  if (method === 'S256') {
+    const hash = crypto.createHash('sha256').update(verifier).digest('base64url');
+    return hash === challenge;
+  }
+  return verifier === challenge; // plain
+}
+
+// ── Authorization HTML page ───────────────────────────────────────────────
+
+function authPage(opts: {
+  guildId: string; clientName: string; clientId: string;
+  redirectUri: string; state: string; codeChallenge: string;
+  codeChallengeMethod: string; error?: string;
+}): string {
+  const e = escapeHtml;
+  return `<!DOCTYPE html><html lang="fr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kotbo — Autorisation MCP</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f1117;color:#e5e7eb;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem}
+.card{background:#1a1d23;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:2rem;width:100%;max-width:400px}
+h1{font-size:1.375rem;font-weight:800;color:#fff;margin-bottom:.25rem}
+.sub{font-size:.8125rem;color:#6b7280;margin-bottom:1.5rem}
+.app{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:.875rem 1rem;margin-bottom:1.5rem}
+.app-name{font-size:.875rem;font-weight:600;color:#fff}
+.app-desc{font-size:.75rem;color:#6b7280;margin-top:.25rem}
+label{display:block;font-size:.8125rem;font-weight:500;color:#9ca3af;margin-bottom:.375rem}
+input[type=password]{width:100%;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:.625rem .875rem;color:#fff;font-size:.875rem;font-family:monospace;outline:none;transition:border-color .15s}
+input[type=password]:focus{border-color:rgba(99,102,241,.5)}
+.err{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);border-radius:8px;padding:.625rem .875rem;font-size:.8125rem;color:#f87171;margin-bottom:1rem}
+button{width:100%;padding:.75rem;background:#6366f1;border:none;border-radius:8px;color:#fff;font-size:.9375rem;font-weight:600;cursor:pointer;margin-top:1rem;transition:background .15s}
+button:hover{background:#5558e3}
+.hint{font-size:.75rem;color:#4b5563;margin-top:1rem;text-align:center;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Kotbo</h1>
+  <p class="sub">Serveur MCP — autorisation d'accès</p>
+  <div class="app">
+    <div class="app-name">${e(opts.clientName)}</div>
+    <div class="app-desc">Cet agent IA souhaite accéder aux données de ton serveur Discord via Kotbo.</div>
+  </div>
+  ${opts.error ? `<div class="err">${e(opts.error)}</div>` : ''}
+  <form method="POST">
+    <input type="hidden" name="client_id" value="${e(opts.clientId)}">
+    <input type="hidden" name="redirect_uri" value="${e(opts.redirectUri)}">
+    <input type="hidden" name="state" value="${e(opts.state)}">
+    <input type="hidden" name="code_challenge" value="${e(opts.codeChallenge)}">
+    <input type="hidden" name="code_challenge_method" value="${e(opts.codeChallengeMethod)}">
+    <label for="api_key">Clé MCP Kotbo</label>
+    <input type="password" id="api_key" name="api_key" placeholder="mcp_…" required autocomplete="off" autofocus>
+    <button type="submit">Autoriser l'accès</button>
+  </form>
+  <p class="hint">Trouve ta clé dans <strong>Kotbo → Paramètres → API MCP</strong><br>puis clique sur une clé pour voir son Client Secret.</p>
+</div>
+</body></html>`;
+}
+
+// ── Main handler ──────────────────────────────────────────────────────────
 
 export async function handleMCPRoutes(
   req: IncomingMessage & { bodyText?: string },
@@ -44,120 +153,182 @@ export async function handleMCPRoutes(
   }
 
   const method = req.method ?? 'GET';
-  const subPath = parts.slice(3).join('/'); // e.g. "oauth/token", ".well-known/oauth-authorization-server"
+  const subPath = parts.slice(3).join('/');
+  const base = publicBase(req, url, guildId);
 
-  // ── OAuth metadata discovery ───────────────────────────────────────────────
-  // GET /api/mcp/:guildId/.well-known/oauth-authorization-server
-  if (subPath === '.well-known/oauth-authorization-server' && method === 'GET') {
-    const proto = (req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0]?.trim() ?? url.protocol.replace(':', '');
-    const host = (req.headers['x-forwarded-host'] as string | undefined) ?? url.host;
-    const base = `${proto}://${host}/api/mcp/${guildId}`;
+  // ── Protected Resource Metadata (RFC 9728) ─────────────────────────────
+  if (subPath === '.well-known/oauth-protected-resource' && method === 'GET') {
     json(res, 200, {
-      issuer: base,
-      authorization_endpoint: `${base}/oauth/authorize`,
-      token_endpoint: `${base}/oauth/token`,
-      grant_types_supported: ['client_credentials'],
-      token_endpoint_auth_methods_supported: ['client_secret_post', 'client_secret_basic'],
-      response_types_supported: ['token'],
+      resource: base,
+      authorization_servers: [base],
+      bearer_methods_supported: ['header'],
       scopes_supported: ['mcp'],
     });
     return true;
   }
 
-  // ── OAuth token endpoint ───────────────────────────────────────────────────
-  // POST /api/mcp/:guildId/oauth/token
-  if (subPath === 'oauth/token' && method === 'POST') {
-    const body = req.bodyText ?? '';
-    const contentType = req.headers['content-type'] ?? '';
+  // ── Authorization Server Metadata (RFC 8414) ───────────────────────────
+  if (subPath === '.well-known/oauth-authorization-server' && method === 'GET') {
+    json(res, 200, {
+      issuer: base,
+      authorization_endpoint: `${base}/oauth/authorize`,
+      token_endpoint: `${base}/oauth/token`,
+      registration_endpoint: `${base}/oauth/register`,
+      response_types_supported: ['code'],
+      code_challenge_methods_supported: ['S256'],
+      grant_types_supported: ['authorization_code', 'refresh_token'],
+      token_endpoint_auth_methods_supported: ['client_secret_post', 'none'],
+      scopes_supported: ['mcp'],
+    });
+    return true;
+  }
 
-    let clientId: string | undefined;
-    let clientSecret: string | undefined;
-    let grantType: string | undefined;
+  // ── Dynamic Client Registration (RFC 7591) ─────────────────────────────
+  if (subPath === 'oauth/register' && method === 'POST') {
+    let body: Record<string, unknown> = {};
+    try { body = JSON.parse(req.bodyText ?? '{}') as Record<string, unknown>; } catch { /* ok */ }
 
-    if (contentType.includes('application/x-www-form-urlencoded')) {
-      const params = parseFormBody(body);
-      clientId = params['client_id'];
-      clientSecret = params['client_secret'];
-      grantType = params['grant_type'];
-    } else if (contentType.includes('application/json')) {
-      try {
-        const parsed = JSON.parse(body) as Record<string, string>;
-        clientId = parsed['client_id'];
-        clientSecret = parsed['client_secret'];
-        grantType = parsed['grant_type'];
-      } catch {
-        oauthError(res, 400, 'invalid_request', 'Corps JSON invalide');
-        return true;
-      }
-    } else {
-      // Try form-encoded as fallback
-      const params = parseFormBody(body);
-      clientId = params['client_id'];
-      clientSecret = params['client_secret'];
-      grantType = params['grant_type'];
-    }
+    const clientId    = crypto.randomUUID();
+    const redirectUris = (body.redirect_uris as string[] | undefined) ?? [];
+    const clientName  = (body.client_name as string | undefined) ?? 'Unknown Client';
 
-    // Also check Authorization header for Basic auth (client_secret_basic)
-    if (!clientId || !clientSecret) {
-      const authHeader = req.headers['authorization'];
-      if (typeof authHeader === 'string' && authHeader.startsWith('Basic ')) {
-        const decoded = Buffer.from(authHeader.slice(6), 'base64').toString('utf-8');
-        const [id, secret] = decoded.split(':', 2);
-        clientId = clientId || id;
-        clientSecret = clientSecret || secret;
-      }
-    }
+    oauthClients.set(clientId, { clientId, redirectUris, clientName, guildId });
 
-    if (grantType !== 'client_credentials') {
-      oauthError(res, 400, 'unsupported_grant_type', 'Seul client_credentials est supporté');
+    res.setHeader('Content-Type', 'application/json');
+    res.statusCode = 201;
+    res.end(JSON.stringify({
+      client_id: clientId,
+      client_id_issued_at: Math.floor(Date.now() / 1000),
+      redirect_uris: redirectUris,
+      client_name: clientName,
+      grant_types: ['authorization_code'],
+      response_types: ['code'],
+      token_endpoint_auth_method: 'none',
+    }));
+    return true;
+  }
+
+  // ── Authorization endpoint — GET (show login form) ─────────────────────
+  if (subPath === 'oauth/authorize' && method === 'GET') {
+    const p = url.searchParams;
+    const clientId            = p.get('client_id') ?? '';
+    const redirectUri         = p.get('redirect_uri') ?? '';
+    const state               = p.get('state') ?? '';
+    const codeChallenge       = p.get('code_challenge') ?? '';
+    const codeChallengeMethod = p.get('code_challenge_method') ?? 'S256';
+
+    if (!clientId || !redirectUri || !codeChallenge) {
+      json(res, 400, { error: 'invalid_request', error_description: 'client_id, redirect_uri et code_challenge requis' });
       return true;
     }
-    if (!clientId || !clientSecret) {
-      oauthError(res, 400, 'invalid_request', 'client_id et client_secret requis');
+
+    const clientName = oauthClients.get(clientId)?.clientName ?? 'Agent IA';
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.statusCode = 200;
+    res.end(authPage({ guildId, clientName, clientId, redirectUri, state, codeChallenge, codeChallengeMethod }));
+    return true;
+  }
+
+  // ── Authorization endpoint — POST (form submit, validate key, issue code) ─
+  if (subPath === 'oauth/authorize' && method === 'POST') {
+    const p = parseFormBody(req.bodyText ?? '');
+    const { client_id, redirect_uri, state, code_challenge, code_challenge_method, api_key } = p;
+
+    if (!client_id || !redirect_uri || !code_challenge || !api_key) {
+      json(res, 400, { error: 'invalid_request' });
       return true;
     }
 
-    const mcpKey = await verifyMcpKeyByClientCredentials(clientId, clientSecret, guildId);
+    const mcpKey = await verifyMcpKey(api_key, guildId);
     if (!mcpKey) {
-      oauthError(res, 401, 'invalid_client', 'Identifiants invalides ou clé inactive');
+      const clientName = oauthClients.get(client_id)?.clientName ?? 'Agent IA';
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.statusCode = 200;
+      res.end(authPage({
+        guildId, clientName, clientId: client_id, redirectUri: redirect_uri,
+        state: state ?? '', codeChallenge: code_challenge,
+        codeChallengeMethod: code_challenge_method ?? 'S256',
+        error: 'Clé MCP invalide ou inactive. Vérifie que tu as copié la clé complète (mcp_…).',
+      }));
       return true;
     }
 
-    // access_token = the raw full key (reused as Bearer on subsequent MCP calls)
-    // We don't store it plain — but client_secret IS the full key, so we return it as the token
+    const code = crypto.randomBytes(32).toString('hex');
+    authCodes.set(code, {
+      clientId: client_id,
+      redirectUri: redirect_uri,
+      codeChallenge: code_challenge,
+      codeChallengeMethod: code_challenge_method ?? 'S256',
+      guildId,
+      rawKey: api_key,
+      expiresAt: Date.now() + 10 * 60 * 1000,
+    });
+
+    const dest = new URL(redirect_uri);
+    dest.searchParams.set('code', code);
+    if (state) dest.searchParams.set('state', state);
+
+    res.setHeader('Location', dest.toString());
+    res.statusCode = 302;
+    res.end();
+    return true;
+  }
+
+  // ── Token endpoint — POST (exchange code + PKCE verifier) ─────────────
+  if (subPath === 'oauth/token' && method === 'POST') {
+    const ct = req.headers['content-type'] ?? '';
+    let p: Record<string, string>;
+    if (ct.includes('application/json')) {
+      try { p = JSON.parse(req.bodyText ?? '{}') as Record<string, string>; }
+      catch { oauthError(res, 400, 'invalid_request'); return true; }
+    } else {
+      p = parseFormBody(req.bodyText ?? '');
+    }
+
+    const { grant_type, code, code_verifier, redirect_uri, client_id } = p;
+
+    if (grant_type !== 'authorization_code') {
+      oauthError(res, 400, 'unsupported_grant_type', 'Seul authorization_code est supporté');
+      return true;
+    }
+    if (!code || !code_verifier || !redirect_uri) {
+      oauthError(res, 400, 'invalid_request', 'code, code_verifier et redirect_uri requis');
+      return true;
+    }
+
+    const ac = authCodes.get(code);
+    if (!ac || ac.expiresAt < Date.now()) {
+      oauthError(res, 400, 'invalid_grant', 'Code invalide ou expiré');
+      return true;
+    }
+    if (ac.guildId !== guildId) {
+      oauthError(res, 400, 'invalid_grant', 'Code invalide pour ce serveur');
+      return true;
+    }
+    if (redirect_uri !== ac.redirectUri) {
+      oauthError(res, 400, 'invalid_grant', 'redirect_uri ne correspond pas');
+      return true;
+    }
+    if (!verifyPKCE(code_verifier, ac.codeChallenge, ac.codeChallengeMethod)) {
+      oauthError(res, 400, 'invalid_grant', 'PKCE code_verifier invalide');
+      return true;
+    }
+
+    authCodes.delete(code); // single-use
+
     res.setHeader('Content-Type', 'application/json');
     res.statusCode = 200;
     res.end(JSON.stringify({
-      access_token: clientSecret, // the full mcp_ key
+      access_token: ac.rawKey,
       token_type: 'Bearer',
-      expires_in: 7776000, // 90 days
+      expires_in: 7776000,
       scope: 'mcp',
     }));
     return true;
   }
 
-  // ── OAuth authorize endpoint (minimal — spec compliance) ───────────────────
-  // GET /api/mcp/:guildId/oauth/authorize
-  if (subPath === 'oauth/authorize' && method === 'GET') {
-    const redirectUri = url.searchParams.get('redirect_uri');
-    const state = url.searchParams.get('state');
-    if (redirectUri) {
-      const redirect = new URL(redirectUri);
-      redirect.searchParams.set('error', 'invalid_request');
-      redirect.searchParams.set('error_description', 'Utilise le flow client_credentials sur /oauth/token');
-      if (state) redirect.searchParams.set('state', state);
-      res.setHeader('Location', redirect.toString());
-      res.statusCode = 302;
-      res.end();
-    } else {
-      json(res, 400, { error: 'Ce serveur MCP utilise client_credentials, pas authorization_code.' });
-    }
-    return true;
-  }
-
-  // ── MCP calls ─────────────────────────────────────────────────────────────
-  // POST /api/mcp/:guildId  (main JSON-RPC endpoint)
-  if (subPath === '' || subPath === undefined) {
+  // ── MCP JSON-RPC (main endpoint) ──────────────────────────────────────
+  if (subPath === '') {
     if (method !== 'POST') {
       json(res, 405, { error: 'Méthode non autorisée. Utilisez POST.' });
       return true;
@@ -169,20 +340,22 @@ export async function handleMCPRoutes(
       : null;
 
     if (!rawKey) {
-      res.setHeader('WWW-Authenticate', `Bearer realm="${guildId}", error="invalid_token"`);
-      json(res, 401, { error: 'Clé MCP manquante. Utilisez Authorization: Bearer mcp_...' });
+      res.setHeader('WWW-Authenticate',
+        `Bearer realm="kotbo", resource_metadata="${base}/.well-known/oauth-protected-resource"`);
+      json(res, 401, { error: 'Authorization manquante' });
       return true;
     }
 
     const mcpKey = await verifyMcpKey(rawKey, guildId);
     if (!mcpKey) {
-      res.setHeader('WWW-Authenticate', `Bearer realm="${guildId}", error="invalid_token", error_description="Clé invalide ou inactive"`);
-      json(res, 401, { error: 'Clé MCP invalide ou inactive.' });
+      res.setHeader('WWW-Authenticate',
+        `Bearer realm="kotbo", error="invalid_token", resource_metadata="${base}/.well-known/oauth-protected-resource"`);
+      json(res, 401, { error: 'Clé MCP invalide ou inactive' });
       return true;
     }
 
-    if (!checkRateLimit(mcpKey.id, 100, 60_000)) {
-      json(res, 429, { error: 'Trop de requêtes. Limite: 100 req/minute par clé.' });
+    if (!checkRateLimit(mcpKey.id)) {
+      json(res, 429, { error: 'Trop de requêtes (100 req/min max)' });
       return true;
     }
 

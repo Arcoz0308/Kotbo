@@ -34,7 +34,8 @@ export async function handlePublicRoutes(
     return true;
   }
 
-  // GET /.well-known/oauth-authorization-server — MCP OAuth discovery (root-level)
+  // GET /.well-known/oauth-authorization-server — fallback discovery (root)
+  // Claude.ai uses the guild-specific endpoint; this is just for spec compliance
   if (url.pathname === '/.well-known/oauth-authorization-server' && method === 'GET') {
     const proto = (req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0]?.trim() ?? url.protocol.replace(':', '');
     const host = (req.headers['x-forwarded-host'] as string | undefined) ?? url.host;
@@ -43,9 +44,11 @@ export async function handlePublicRoutes(
       issuer: base,
       authorization_endpoint: `${base}/api/mcp/{guildId}/oauth/authorize`,
       token_endpoint: `${base}/api/mcp/{guildId}/oauth/token`,
-      grant_types_supported: ['client_credentials'],
-      token_endpoint_auth_methods_supported: ['client_secret_post', 'client_secret_basic'],
-      response_types_supported: ['token'],
+      registration_endpoint: `${base}/api/mcp/{guildId}/oauth/register`,
+      response_types_supported: ['code'],
+      code_challenge_methods_supported: ['S256'],
+      grant_types_supported: ['authorization_code', 'refresh_token'],
+      token_endpoint_auth_methods_supported: ['client_secret_post', 'none'],
       scopes_supported: ['mcp'],
     });
     return true;
