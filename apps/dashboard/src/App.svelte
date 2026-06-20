@@ -83,6 +83,7 @@
   import UserSettings from "./pages/UserSettings.svelte";
   import Backups from "./pages/Backups.svelte";
   import Schedules from "./pages/Schedules.svelte";
+  import MCPSettings from "./pages/MCPSettings.svelte";
   import FunSettings from "./pages/FunSettings.svelte";
 
   const isPublicPage = $derived(
@@ -153,6 +154,7 @@
     if (path.startsWith("/social-networks")) return "social_networks";
     if (path.startsWith("/backups")) return "settings";
     if (path.startsWith("/schedules")) return "settings";
+    if (path.startsWith("/mcp-settings")) return "settings";
     if (path.startsWith("/fun")) return "fun";
     if (path.startsWith("/admin")) return "centralized_config";
     return null;
@@ -538,7 +540,9 @@
       <Route path="/schedules">
         <Schedules />
       </Route>
-
+      <Route path="/mcp-settings">
+        <MCPSettings />
+      </Route>
 
       <Route path="/events">
         <Events />
@@ -656,6 +660,9 @@
               </Route>
               <Route path="/schedules">
                 <Schedules />
+              </Route>
+              <Route path="/mcp-settings">
+                <MCPSettings />
               </Route>
               <Route path="/automations">
                 <ModuleCatalog />

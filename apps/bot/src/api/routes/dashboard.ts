@@ -24,6 +24,7 @@ import { handleEventsRoutes } from './dashboard/events.js';
 import { handleGeneralistModulesRoutes } from './dashboard/generalistModules.js';
 import { handleBackupRoutes } from './dashboard/backups.js';
 import { handleScheduleRoutes } from './dashboard/schedules.js';
+import { handleMCPKeyRoutes } from './dashboard/mcp.js';
 
 export async function handleDashboardRoutes(
   req: IncomingMessage,
@@ -171,6 +172,10 @@ export async function handleDashboardRoutes(
       return true;
     }
     if (await handleScheduleRoutes(req, res, parts, url, client, user)) {
+      if (method !== 'GET') await cache.invalidateGuild(guildId);
+      return true;
+    }
+    if (await handleMCPKeyRoutes(req, res, parts, url, client, user, guildId, access)) {
       if (method !== 'GET') await cache.invalidateGuild(guildId);
       return true;
     }

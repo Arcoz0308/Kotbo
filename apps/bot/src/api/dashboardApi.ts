@@ -35,6 +35,7 @@ import { handleReportFeedbackRoute } from './routes/feedback.js';
 import { handleUserRoutes } from './routes/user.js';
 import { handleAdminRoutes } from './routes/admin.js';
 import { handleDashboardRoutes } from './routes/dashboard.js';
+import { handleMCPRoutes, mcpRateLimiter } from './mcp/mcpServer.js';
 
 export type { DashboardSanctionType };
 
@@ -127,6 +128,7 @@ export const startDashboardApi = (client: Client) => {
     cleanLimiter(configRateLimiter, 60 * 1000);
     cleanLimiter(errorReportRateLimiter, 15 * 60 * 1000);
     cleanLimiter(feedbackReportRateLimiter, 15 * 60 * 1000);
+    cleanLimiter(mcpRateLimiter, 60 * 1000);
   }, 10 * 60 * 1000).unref();
 
   const server = Bun.serve<WebSocketData>({
@@ -254,6 +256,9 @@ export const startDashboardApi = (client: Client) => {
               return;
             }
             if (await handleAdminRoutes(req, res, parts, url, client)) {
+              return;
+            }
+            if (await handleMCPRoutes(req, res, parts, url, client)) {
               return;
             }
             if (await handleDashboardRoutes(req, res, parts, url, client)) {
