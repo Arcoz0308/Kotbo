@@ -1,0 +1,31 @@
+// ============================================================================
+// MCP (MODEL CONTEXT PROTOCOL) — ACCÈS MACHINE-TO-MACHINE POUR AGENTS IA
+// ============================================================================
+
+enum McpKeyPermission {
+  READ_STATS
+  READ_MEMBERS
+  READ_SANCTIONS
+  READ_STAFF
+  READ_TICKETS
+  WRITE_SANCTIONS
+}
+
+model McpApiKey {
+  id          String   @id @default(cuid())
+  guildId     String
+  guild       Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  name        String
+  keyHash     String   @unique
+  displayKey  String
+  permissions McpKeyPermission[]
+  isActive    Boolean  @default(true)
+  lastUsedAt  DateTime?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([guildId, isActive])
+  @@map("mcp_api_keys")
+}

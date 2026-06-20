@@ -216,6 +216,8 @@ model Guild {
   staffTasks StaffTask[]
   staffCalls StaffCall[]
 
+  mcpApiKeys McpApiKey[]
+
   @@map("guilds")
 }
 

@@ -1,0 +1,91 @@
+import { IncomingMessage, ServerResponse } from 'node:http';
+import { Client } from 'discord.js';
+import { json, readJsonBody, type AuthClaims, type DashboardAccess } from '../../shared.js';
+import { logger } from '../../../utils/logger.js';
+import { createMcpKey, getMcpKeys, deactivateMcpKey } from '../../mcp/mcpKeyService.js';
+import type { McpKeyPermission } from '@prisma/client';
+
+const VALID_PERMISSIONS: McpKeyPermission[] = [
+  'READ_STATS',
+  'READ_MEMBERS',
+  'READ_SANCTIONS',
+  'READ_STAFF',
+  'READ_TICKETS',
+  'WRITE_SANCTIONS',
+];
+
+export async function handleMCPKeyRoutes(
+  req: IncomingMessage,
+  res: ServerResponse,
+  parts: string[],
+  _url: URL,
+  _client: Client,
+  _user: AuthClaims,
+  guildId: string,
+  access: DashboardAccess
+): Promise<boolean> {
+  if (parts[4] !== 'mcp-keys') return false;
+
+  const method = req.method;
+
+  if (!access.canManageSettings) {
+    json(res, 403, { error: 'Réservé aux administrateurs du dashboard.' });
+    return true;
+  }
+
+  // GET /api/dashboard/guilds/:guildId/mcp-keys
+  if (parts.length === 5 && method === 'GET') {
+    try {
+      const keys = await getMcpKeys(guildId);
+      json(res, 200, keys);
+    } catch (error) {
+      logger.error('MCPKeyRoutes', 'Error fetching MCP keys:', error);
+      json(res, 500, { error: 'Erreur lors de la récupération des clés MCP' });
+    }
+    return true;
+  }
+
+  // POST /api/dashboard/guilds/:guildId/mcp-keys
+  if (parts.length === 5 && method === 'POST') {
+    try {
+      const body = await readJsonBody<{ name?: string; permissions?: string[] }>(req);
+      if (!body?.name || typeof body.name !== 'string' || !body.name.trim()) {
+        json(res, 400, { error: 'Le champ "name" est requis.' });
+        return true;
+      }
+
+      const permissions: McpKeyPermission[] = (body.permissions ?? ['READ_STATS', 'READ_MEMBERS', 'READ_SANCTIONS'])
+        .filter((p): p is McpKeyPermission => VALID_PERMISSIONS.includes(p as McpKeyPermission));
+
+      const created = await createMcpKey(guildId, body.name.trim(), permissions);
+      json(res, 201, {
+        id: created.id,
+        name: created.name,
+        displayKey: created.displayKey,
+        permissions: created.permissions,
+        isActive: created.isActive,
+        createdAt: created.createdAt,
+        fullKey: created.fullKey,
+      });
+    } catch (error) {
+      logger.error('MCPKeyRoutes', 'Error creating MCP key:', error);
+      json(res, 500, { error: 'Erreur lors de la création de la clé MCP' });
+    }
+    return true;
+  }
+
+  // DELETE /api/dashboard/guilds/:guildId/mcp-keys/:keyId
+  if (parts.length === 6 && method === 'DELETE') {
+    const keyId = parts[5];
+    try {
+      await deactivateMcpKey(guildId, keyId);
+      json(res, 200, { ok: true });
+    } catch (error) {
+      logger.error('MCPKeyRoutes', 'Error deactivating MCP key:', error);
+      json(res, 500, { error: 'Erreur lors de la suppression de la clé MCP' });
+    }
+    return true;
+  }
+
+  return false;
+}

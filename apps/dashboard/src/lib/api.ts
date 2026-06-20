@@ -2114,3 +2114,17 @@ export async function updateSanctionTables(tables, guildId = authStore.selectedG
   });
 }
 
+// ── MCP API Keys ────────────────────────────────────────────────────────────
+
+export async function fetchMcpKeys(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/mcp-keys', { method: 'GET', guildId, errorContext: 'API Error (Fetch MCP Keys):' });
+}
+
+export async function createMcpKey(payload: { name: string; permissions: string[] }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/mcp-keys', { method: 'POST', payload, guildId, errorContext: 'API Error (Create MCP Key):' });
+}
+
+export async function deleteMcpKey(keyId: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/mcp-keys/${keyId}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete MCP Key):' });
+}
+
