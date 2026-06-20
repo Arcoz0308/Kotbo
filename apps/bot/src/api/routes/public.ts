@@ -36,7 +36,9 @@ export async function handlePublicRoutes(
 
   // GET /.well-known/oauth-authorization-server — MCP OAuth discovery (root-level)
   if (url.pathname === '/.well-known/oauth-authorization-server' && method === 'GET') {
-    const base = `${url.protocol}//${url.host}`;
+    const proto = (req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0]?.trim() ?? url.protocol.replace(':', '');
+    const host = (req.headers['x-forwarded-host'] as string | undefined) ?? url.host;
+    const base = `${proto}://${host}`;
     json(res, 200, {
       issuer: base,
       authorization_endpoint: `${base}/api/mcp/{guildId}/oauth/authorize`,

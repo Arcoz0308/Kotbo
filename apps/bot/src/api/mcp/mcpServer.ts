@@ -49,7 +49,9 @@ export async function handleMCPRoutes(
   // ── OAuth metadata discovery ───────────────────────────────────────────────
   // GET /api/mcp/:guildId/.well-known/oauth-authorization-server
   if (subPath === '.well-known/oauth-authorization-server' && method === 'GET') {
-    const base = `${url.protocol}//${url.host}/api/mcp/${guildId}`;
+    const proto = (req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0]?.trim() ?? url.protocol.replace(':', '');
+    const host = (req.headers['x-forwarded-host'] as string | undefined) ?? url.host;
+    const base = `${proto}://${host}/api/mcp/${guildId}`;
     json(res, 200, {
       issuer: base,
       authorization_endpoint: `${base}/oauth/authorize`,
@@ -167,12 +169,14 @@ export async function handleMCPRoutes(
       : null;
 
     if (!rawKey) {
+      res.setHeader('WWW-Authenticate', `Bearer realm="${guildId}", error="invalid_token"`);
       json(res, 401, { error: 'Clé MCP manquante. Utilisez Authorization: Bearer mcp_...' });
       return true;
     }
 
     const mcpKey = await verifyMcpKey(rawKey, guildId);
     if (!mcpKey) {
+      res.setHeader('WWW-Authenticate', `Bearer realm="${guildId}", error="invalid_token", error_description="Clé invalide ou inactive"`);
       json(res, 401, { error: 'Clé MCP invalide ou inactive.' });
       return true;
     }

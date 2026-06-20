@@ -46,11 +46,11 @@
   let deletingKeyId = $state<string | null>(null);
   let deletingKeyName = $state('');
 
-  // Copy state per field
+  // Copy state
   let copiedField = $state<string | null>(null);
 
-  // Guide tab
-  let guideTab = $state<'claude' | 'claudedesktop' | 'api'>('claude');
+  // Expanded row for credentials
+  let expandedKeyId = $state<string | null>(null);
 
   const guildId = $derived(authStore.selectedGuildId ?? '');
   const endpointUrl = $derived(guildId ? `${API_BASE_URL}/api/mcp/${guildId}` : '');
@@ -118,6 +118,7 @@
     try {
       await deleteMcpKey(deletingKeyId);
       keys = keys.filter((k) => k.id !== deletingKeyId);
+      if (expandedKeyId === deletingKeyId) expandedKeyId = null;
       toast.success('Clé MCP révoquée');
     } catch {
       toast.error('Erreur lors de la suppression');
@@ -128,288 +129,188 @@
   }
 
   function formatDate(iso: string | null) {
-    if (!iso) return 'Jamais utilisée';
+    if (!iso) return '—';
     return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
   }
 
   function permLabel(perm: string) {
     return PERMISSIONS.find((p) => p.value === perm)?.label ?? perm;
   }
-
-  const claudeDesktopConfig = $derived(`{
-  "mcpServers": {
-    "kotbo": {
-      "command": "npx",
-      "args": [
-        "mcp-remote",
-        "${endpointUrl || 'https://votre-api.com/api/mcp/GUILD_ID'}",
-        "--header",
-        "Authorization: Bearer mcp_VOTRE_CLE"
-      ]
-    }
-  }
-}`);
 </script>
 
-<div class="flex gap-6 max-w-6xl">
+<div class="max-w-4xl space-y-6">
 
-  <!-- ══════════════════════════ COLONNE GAUCHE ══════════════════════════ -->
-  <div class="flex-1 min-w-0 space-y-6">
-
-    <!-- Header -->
+  <!-- Header -->
+  <div class="flex items-start justify-between">
     <div>
       <div class="flex items-center gap-2 mb-1">
         <h1 class="text-xl font-bold text-white">MCP — Model Context Protocol</h1>
         <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-primary/20 text-primary border border-primary/30">BETA</span>
       </div>
       <p class="text-sm text-gray-400">
-        Connecte ton bot à une IA (Claude, ChatGPT…) pour qu'elle interroge et pilote ton serveur Discord.
+        Connecte une IA (Claude, ChatGPT…) à ton bot pour interroger et piloter ton serveur Discord.
       </p>
     </div>
-
-    <!-- Endpoint -->
-    <div class="bg-[#1a1d23] border border-white/8 rounded-xl p-4 space-y-2.5">
-      <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Endpoint MCP</p>
-      <div class="flex items-center gap-2">
-        <code class="flex-1 bg-black/40 border border-white/8 rounded-lg px-3 py-2 text-sm text-gray-200 font-mono break-all">
-          {endpointUrl || '— sélectionne un serveur —'}
-        </code>
-        {#if endpointUrl}
-          <button
-            onclick={() => copy(endpointUrl, 'endpoint')}
-            class="shrink-0 px-3 py-2 rounded-lg border border-white/10 text-xs text-gray-400 hover:text-white hover:border-white/20 transition-colors"
-          >
-            {copiedField === 'endpoint' ? '✓ Copié' : 'Copier'}
-          </button>
-        {/if}
-      </div>
-    </div>
-
-    <!-- Keys section -->
-    <div class="space-y-3">
-      <div class="flex items-center justify-between">
-        <h2 class="text-sm font-semibold text-white">Clés d'accès</h2>
-        <button
-          onclick={() => { createOpen = true; createdKey = null; }}
-          class="flex items-center gap-1.5 px-3 py-1.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-medium transition-colors shadow-sm shadow-primary/20"
-        >
-          <Papicon icon="plus" size={13} />
-          Nouvelle clé
-        </button>
-      </div>
-
-      {#if loading}
-        <div class="flex items-center justify-center py-10 text-gray-600">
-          <Papicon icon="loader-2" size={18} class="animate-spin mr-2" />
-          <span class="text-sm">Chargement…</span>
-        </div>
-      {:else if keys.length === 0}
-        <div class="bg-[#1a1d23] border border-white/8 rounded-xl p-8 text-center space-y-2">
-          <Papicon icon="key" size={28} class="text-gray-700 mx-auto" />
-          <p class="text-sm text-gray-500">Aucune clé configurée.</p>
-          <p class="text-xs text-gray-700">Crée une clé pour connecter ton agent IA.</p>
-        </div>
-      {:else}
-        <div class="bg-[#1a1d23] border border-white/8 rounded-xl overflow-hidden">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="border-b border-white/6 text-gray-600 text-xs">
-                <th class="text-left px-4 py-2.5 font-medium">Nom</th>
-                <th class="text-left px-4 py-2.5 font-medium">Client ID</th>
-                <th class="text-left px-4 py-2.5 font-medium">Permissions</th>
-                <th class="text-left px-4 py-2.5 font-medium">Dernière utilisation</th>
-                <th class="px-3 py-2.5 w-8"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each keys as key (key.id)}
-                <tr class="border-b border-white/4 last:border-0 hover:bg-white/[0.02] transition-colors">
-                  <td class="px-4 py-3 font-medium text-white text-sm">{key.name}</td>
-                  <td class="px-4 py-3 font-mono text-xs text-gray-500">{key.id.slice(0, 12)}…</td>
-                  <td class="px-4 py-3">
-                    <div class="flex flex-wrap gap-1">
-                      {#each key.permissions as perm}
-                        <span class="px-1.5 py-0.5 rounded text-[10px] font-medium
-                          {perm === 'WRITE_SANCTIONS' ? 'bg-red-500/15 text-red-400' : 'bg-primary/12 text-primary/80'}">
-                          {permLabel(perm)}
-                        </span>
-                      {/each}
-                    </div>
-                  </td>
-                  <td class="px-4 py-3 text-xs text-gray-600">{formatDate(key.lastUsedAt)}</td>
-                  <td class="px-3 py-3">
-                    <button
-                      onclick={() => confirmDelete(key)}
-                      class="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                      title="Révoquer"
-                    >
-                      <Papicon icon="trash-2" size={13} />
-                    </button>
-                  </td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
-      {/if}
-    </div>
+    <button
+      onclick={() => { createOpen = true; createdKey = null; }}
+      class="shrink-0 flex items-center gap-1.5 px-3.5 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium transition-colors shadow-sm shadow-primary/20"
+    >
+      <Papicon icon="plus" size={14} />
+      Nouvelle clé
+    </button>
   </div>
 
-  <!-- ══════════════════════════ COLONNE DROITE — GUIDE ═════════════════ -->
-  <div class="w-80 shrink-0 space-y-4">
-    <div class="bg-[#1a1d23] border border-white/8 rounded-xl overflow-hidden">
+  <!-- Endpoint -->
+  <div class="bg-[#1a1d23] border border-white/8 rounded-xl p-4">
+    <p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2.5">Endpoint MCP</p>
+    <div class="flex items-center gap-2">
+      <code class="flex-1 bg-black/40 border border-white/8 rounded-lg px-3 py-2.5 text-sm text-gray-200 font-mono break-all">
+        {endpointUrl || '— sélectionne un serveur —'}
+      </code>
+      {#if endpointUrl}
+        <button
+          onclick={() => copy(endpointUrl, 'endpoint')}
+          class="shrink-0 px-3 py-2.5 rounded-lg border border-white/10 text-xs text-gray-400 hover:text-white hover:border-white/20 transition-colors"
+        >
+          {copiedField === 'endpoint' ? '✓ Copié' : 'Copier'}
+        </button>
+      {/if}
+    </div>
+    <p class="text-xs text-gray-600 mt-2">
+      Colle cette URL dans ton client IA. Le serveur supporte OAuth 2.0 (client_credentials) et Bearer token.
+    </p>
+  </div>
 
-      <!-- Tab header -->
-      <div class="border-b border-white/8 flex text-xs">
-        <button
-          onclick={() => guideTab = 'claude'}
-          class="flex-1 px-3 py-2.5 font-medium transition-colors
-            {guideTab === 'claude' ? 'text-white border-b-2 border-primary bg-primary/5' : 'text-gray-500 hover:text-gray-300'}"
-        >
-          Claude.ai
-        </button>
-        <button
-          onclick={() => guideTab = 'claudedesktop'}
-          class="flex-1 px-3 py-2.5 font-medium transition-colors
-            {guideTab === 'claudedesktop' ? 'text-white border-b-2 border-primary bg-primary/5' : 'text-gray-500 hover:text-gray-300'}"
-        >
-          Desktop
-        </button>
-        <button
-          onclick={() => guideTab = 'api'}
-          class="flex-1 px-3 py-2.5 font-medium transition-colors
-            {guideTab === 'api' ? 'text-white border-b-2 border-primary bg-primary/5' : 'text-gray-500 hover:text-gray-300'}"
-        >
-          API / curl
-        </button>
+  <!-- Keys -->
+  <div class="space-y-2">
+    <h2 class="text-sm font-semibold text-white">Clés d'accès</h2>
+
+    {#if loading}
+      <div class="flex items-center justify-center py-12 text-gray-600 bg-[#1a1d23] border border-white/8 rounded-xl">
+        <Papicon icon="loader-2" size={18} class="animate-spin mr-2" />
+        <span class="text-sm">Chargement…</span>
       </div>
 
-      <!-- Tab content -->
-      <div class="p-4 space-y-4 text-xs text-gray-400">
+    {:else if keys.length === 0}
+      <div class="bg-[#1a1d23] border border-white/8 rounded-xl p-10 text-center space-y-2">
+        <Papicon icon="key" size={30} class="text-gray-700 mx-auto" />
+        <p class="text-sm text-gray-500">Aucune clé configurée.</p>
+        <p class="text-xs text-gray-700">Crée une clé pour connecter ton agent IA.</p>
+      </div>
 
-        {#if guideTab === 'claude'}
-          <!-- Claude.ai guide -->
-          <div class="flex items-center gap-2">
-            <div class="w-6 h-6 rounded-full bg-orange-500/20 text-orange-400 flex items-center justify-center text-[10px] font-bold shrink-0">1</div>
-            <p>Crée une clé ci-contre → note le <span class="text-white font-mono">Client ID</span> et le <span class="text-white font-mono">Client Secret</span>.</p>
-          </div>
-          <div class="flex items-center gap-2">
-            <div class="w-6 h-6 rounded-full bg-orange-500/20 text-orange-400 flex items-center justify-center text-[10px] font-bold shrink-0">2</div>
-            <p>Sur <strong class="text-gray-300">claude.ai</strong> → <strong class="text-gray-300">Paramètres → Connecteurs → Ajouter</strong></p>
-          </div>
-          <div class="flex items-center gap-2">
-            <div class="w-6 h-6 rounded-full bg-orange-500/20 text-orange-400 flex items-center justify-center text-[10px] font-bold shrink-0">3</div>
-            <p>Colle l'URL du serveur MCP :</p>
-          </div>
-          <div class="relative">
-            <code class="block bg-black/40 border border-white/8 rounded-lg p-2.5 font-mono text-[10px] text-gray-300 break-all leading-relaxed">
-              {endpointUrl || 'https://votre-api.com/api/mcp/GUILD_ID'}
-            </code>
-            {#if endpointUrl}
-              <button onclick={() => copy(endpointUrl, 'guide-endpoint')} class="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded text-[9px] border border-white/10 text-gray-500 hover:text-white bg-black/30 transition-colors">
-                {copiedField === 'guide-endpoint' ? '✓' : 'Copier'}
-              </button>
+    {:else}
+      <div class="bg-[#1a1d23] border border-white/8 rounded-xl overflow-hidden">
+        {#each keys as key, i (key.id)}
+          <!-- Key row -->
+          <div class="border-b border-white/5 last:border-0">
+            <div
+              class="flex items-center gap-4 px-4 py-3.5 hover:bg-white/[0.02] transition-colors cursor-pointer"
+              onclick={() => expandedKeyId = expandedKeyId === key.id ? null : key.id}
+            >
+              <!-- Status dot -->
+              <div class="w-2 h-2 rounded-full bg-green-400 shrink-0"></div>
+
+              <!-- Name -->
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-white">{key.name}</p>
+                <p class="text-xs text-gray-600 mt-0.5">
+                  Dernière utilisation : {formatDate(key.lastUsedAt)}
+                </p>
+              </div>
+
+              <!-- Permissions -->
+              <div class="hidden sm:flex flex-wrap gap-1 max-w-xs">
+                {#each key.permissions as perm}
+                  <span class="px-1.5 py-0.5 rounded text-[10px] font-medium
+                    {perm === 'WRITE_SANCTIONS' ? 'bg-red-500/15 text-red-400' : 'bg-primary/12 text-primary/80'}">
+                    {permLabel(perm)}
+                  </span>
+                {/each}
+              </div>
+
+              <!-- Chevron + delete -->
+              <div class="flex items-center gap-2 shrink-0">
+                <button
+                  onclick={(e) => { e.stopPropagation(); confirmDelete(key); }}
+                  class="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                  title="Révoquer"
+                >
+                  <Papicon icon="trash-2" size={13} />
+                </button>
+                <Papicon
+                  icon="chevron-down"
+                  size={14}
+                  class="text-gray-600 transition-transform duration-200 {expandedKeyId === key.id ? 'rotate-180' : ''}"
+                />
+              </div>
+            </div>
+
+            <!-- Expanded credentials -->
+            {#if expandedKeyId === key.id}
+              <div class="px-4 pb-4 pt-1 border-t border-white/5 bg-black/20 space-y-3">
+                <!-- Client ID -->
+                <div class="space-y-1">
+                  <p class="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Client ID</p>
+                  <div class="flex items-center gap-2">
+                    <code class="flex-1 bg-black/40 border border-white/8 rounded-lg px-3 py-2 text-xs font-mono text-gray-300 break-all">
+                      {key.id}
+                    </code>
+                    <button
+                      onclick={() => copy(key.id, `id-${key.id}`)}
+                      class="shrink-0 px-2.5 py-2 rounded-lg border border-white/10 text-xs text-gray-400 hover:text-white transition-colors"
+                    >
+                      {copiedField === `id-${key.id}` ? '✓' : 'Copier'}
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Client Secret (display key) -->
+                <div class="space-y-1">
+                  <p class="text-[11px] font-medium text-gray-500 uppercase tracking-wide">
+                    Client Secret <span class="text-gray-700 normal-case font-normal">(affiché en clair à la création uniquement)</span>
+                  </p>
+                  <div class="flex items-center gap-2">
+                    <code class="flex-1 bg-black/40 border border-white/8 rounded-lg px-3 py-2 text-xs font-mono text-gray-600 break-all">
+                      {key.displayKey}
+                    </code>
+                  </div>
+                </div>
+
+                <!-- Endpoint for this guild -->
+                <div class="space-y-1">
+                  <p class="text-[11px] font-medium text-gray-500 uppercase tracking-wide">URL endpoint</p>
+                  <div class="flex items-center gap-2">
+                    <code class="flex-1 bg-black/40 border border-white/8 rounded-lg px-3 py-2 text-xs font-mono text-gray-300 break-all">
+                      {endpointUrl}
+                    </code>
+                    <button
+                      onclick={() => copy(endpointUrl, `url-${key.id}`)}
+                      class="shrink-0 px-2.5 py-2 rounded-lg border border-white/10 text-xs text-gray-400 hover:text-white transition-colors"
+                    >
+                      {copiedField === `url-${key.id}` ? '✓' : 'Copier'}
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Permissions list -->
+                <div class="space-y-1">
+                  <p class="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Permissions</p>
+                  <div class="flex flex-wrap gap-1.5">
+                    {#each key.permissions as perm}
+                      <span class="px-2 py-1 rounded-lg text-xs font-medium
+                        {perm === 'WRITE_SANCTIONS' ? 'bg-red-500/15 text-red-400 border border-red-500/20' : 'bg-primary/10 text-primary/80 border border-primary/15'}">
+                        {permLabel(perm)}
+                        <span class="text-gray-600 font-normal ml-1">— {PERMISSIONS.find(p => p.value === perm)?.desc}</span>
+                      </span>
+                    {/each}
+                  </div>
+                </div>
+              </div>
             {/if}
           </div>
-          <div class="flex items-center gap-2">
-            <div class="w-6 h-6 rounded-full bg-orange-500/20 text-orange-400 flex items-center justify-center text-[10px] font-bold shrink-0">4</div>
-            <p>Claude.ai te demande un <strong class="text-gray-300">Client ID</strong> et un <strong class="text-gray-300">Client Secret</strong> → colle ceux de ta clé.</p>
-          </div>
-          <div class="flex items-center gap-2">
-            <div class="w-6 h-6 rounded-full bg-orange-500/20 text-orange-400 flex items-center justify-center text-[10px] font-bold shrink-0">5</div>
-            <p>C'est bon ! Tu peux maintenant demander à Claude des infos sur ton serveur Discord.</p>
-          </div>
-          <div class="mt-1 p-2.5 bg-blue-500/8 border border-blue-500/20 rounded-lg text-blue-300/80 text-[10px] leading-relaxed">
-            💡 Le <strong>Client ID</strong> s'affiche dans la colonne "Client ID" du tableau. Le <strong>Client Secret</strong> n'est visible qu'à la création.
-          </div>
-
-        {:else if guideTab === 'claudedesktop'}
-          <!-- Claude Desktop guide -->
-          <div class="flex items-center gap-2">
-            <div class="w-6 h-6 rounded-full bg-violet-500/20 text-violet-400 flex items-center justify-center text-[10px] font-bold shrink-0">1</div>
-            <p>Installe <code class="text-gray-300">mcp-remote</code> si besoin :</p>
-          </div>
-          <div class="relative">
-            <code class="block bg-black/40 border border-white/8 rounded-lg p-2.5 font-mono text-[10px] text-gray-300">
-              npm install -g mcp-remote
-            </code>
-            <button onclick={() => copy('npm install -g mcp-remote', 'install')} class="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded text-[9px] border border-white/10 text-gray-500 hover:text-white bg-black/30 transition-colors">
-              {copiedField === 'install' ? '✓' : 'Copier'}
-            </button>
-          </div>
-          <div class="flex items-center gap-2">
-            <div class="w-6 h-6 rounded-full bg-violet-500/20 text-violet-400 flex items-center justify-center text-[10px] font-bold shrink-0">2</div>
-            <p>Ouvre <code class="text-gray-300">claude_desktop_config.json</code> et ajoute :</p>
-          </div>
-          <div class="relative">
-            <pre class="bg-black/40 border border-white/8 rounded-lg p-2.5 font-mono text-[10px] text-gray-300 overflow-x-auto whitespace-pre-wrap break-all leading-relaxed">{claudeDesktopConfig}</pre>
-            <button onclick={() => copy(claudeDesktopConfig, 'desktop-config')} class="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded text-[9px] border border-white/10 text-gray-500 hover:text-white bg-black/30 transition-colors">
-              {copiedField === 'desktop-config' ? '✓' : 'Copier'}
-            </button>
-          </div>
-          <div class="flex items-center gap-2">
-            <div class="w-6 h-6 rounded-full bg-violet-500/20 text-violet-400 flex items-center justify-center text-[10px] font-bold shrink-0">3</div>
-            <p>Remplace <code class="text-gray-300">mcp_VOTRE_CLE</code> par ton Client Secret et redémarre Claude Desktop.</p>
-          </div>
-          <div class="p-2.5 bg-violet-500/8 border border-violet-500/20 rounded-lg text-violet-300/80 text-[10px] leading-relaxed">
-            📁 Config : <code>%APPDATA%\Claude\claude_desktop_config.json</code> (Windows) ou <code>~/.config/claude/claude_desktop_config.json</code> (Linux/Mac)
-          </div>
-
-        {:else}
-          <!-- API / curl guide -->
-          <p class="text-gray-500">Teste directement avec <code class="text-gray-300">curl</code> :</p>
-
-          <div class="space-y-1.5">
-            <p class="text-[10px] text-gray-600 uppercase tracking-wide font-medium">Lister les outils disponibles</p>
-            <div class="relative">
-              <pre class="bg-black/40 border border-white/8 rounded-lg p-2.5 font-mono text-[10px] text-gray-300 overflow-x-auto whitespace-pre-wrap break-all leading-relaxed">curl -X POST {endpointUrl || 'URL_ENDPOINT'} \
-  -H "Authorization: Bearer mcp_CLE" \
-  -H "Content-Type: application/json" \
-  -d '{`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`}'</pre>
-            </div>
-          </div>
-
-          <div class="space-y-1.5">
-            <p class="text-[10px] text-gray-600 uppercase tracking-wide font-medium">Obtenir un token OAuth (pour Claude.ai)</p>
-            <div class="relative">
-              <pre class="bg-black/40 border border-white/8 rounded-lg p-2.5 font-mono text-[10px] text-gray-300 overflow-x-auto whitespace-pre-wrap break-all leading-relaxed">curl -X POST {endpointUrl || 'URL_ENDPOINT'}/oauth/token \
-  -d "grant_type=client_credentials" \
-  -d "client_id=TON_CLIENT_ID" \
-  -d "client_secret=mcp_CLE"</pre>
-            </div>
-          </div>
-
-          <div class="space-y-1.5">
-            <p class="text-[10px] text-gray-600 uppercase tracking-wide font-medium">Appeler un outil (ex: stats)</p>
-            <div class="relative">
-              <pre class="bg-black/40 border border-white/8 rounded-lg p-2.5 font-mono text-[10px] text-gray-300 overflow-x-auto whitespace-pre-wrap break-all leading-relaxed">curl -X POST {endpointUrl || 'URL_ENDPOINT'} \
-  -H "Authorization: Bearer mcp_CLE" \
-  -H "Content-Type: application/json" \
-  -d '{`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_guild_stats","arguments":{"period_days":7}}}`}'</pre>
-            </div>
-          </div>
-
-          <div class="p-2.5 bg-gray-500/8 border border-white/8 rounded-lg text-gray-400 text-[10px] leading-relaxed">
-            🤖 <strong class="text-gray-300">ChatGPT</strong> ne supporte pas encore MCP nativement. Tu peux l'utiliser via un GPT personnalisé avec une action HTTP pointant vers cet endpoint.
-          </div>
-        {/if}
-
+        {/each}
       </div>
-    </div>
-
-    <!-- Permissions reference -->
-    <div class="bg-[#1a1d23] border border-white/8 rounded-xl p-4 space-y-2">
-      <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Permissions disponibles</p>
-      {#each PERMISSIONS as perm}
-        <div class="flex items-start gap-2">
-          <span class="mt-0.5 w-1.5 h-1.5 rounded-full shrink-0 {perm.value === 'WRITE_SANCTIONS' ? 'bg-red-400' : 'bg-primary'} mt-1.5"></span>
-          <div>
-            <span class="text-xs text-white">{perm.label}</span>
-            <span class="text-[10px] text-gray-600 ml-1">— {perm.desc}</span>
-          </div>
-        </div>
-      {/each}
-    </div>
+    {/if}
   </div>
 </div>
 
@@ -429,10 +330,10 @@
         <div class="flex items-center gap-1.5 text-xs font-medium text-gray-400">
           <Papicon icon="hash" size={12} />
           Client ID
-          <span class="text-gray-600 font-normal">(à coller dans "Client ID")</span>
+          <span class="text-gray-600 font-normal">(à coller dans "Client ID" ou "App ID")</span>
         </div>
         <div class="flex items-center gap-2">
-          <code class="flex-1 bg-black/40 border border-white/8 rounded-lg px-3 py-2 text-xs font-mono text-gray-200 break-all">
+          <code class="flex-1 bg-black/40 border border-white/8 rounded-lg px-3 py-2.5 text-xs font-mono text-gray-200 break-all">
             {createdKey.clientId}
           </code>
           <button
@@ -449,10 +350,10 @@
         <div class="flex items-center gap-1.5 text-xs font-medium text-gray-400">
           <Papicon icon="key" size={12} />
           Client Secret
-          <span class="text-gray-600 font-normal">(à coller dans "Client Secret")</span>
+          <span class="text-gray-600 font-normal">(à coller dans "Client Secret" ou "Token")</span>
         </div>
         <div class="flex items-center gap-2">
-          <code class="flex-1 bg-black/40 border border-primary/20 rounded-lg px-3 py-2 text-xs font-mono text-green-400 break-all">
+          <code class="flex-1 bg-black/40 border border-primary/25 rounded-lg px-3 py-2.5 text-xs font-mono text-green-400 break-all">
             {createdKey.clientSecret}
           </code>
           <button
@@ -460,6 +361,25 @@
             class="shrink-0 px-2.5 py-2 rounded-lg border border-white/10 text-xs text-gray-400 hover:text-white transition-colors"
           >
             {copiedField === 'new-secret' ? '✓' : 'Copier'}
+          </button>
+        </div>
+      </div>
+
+      <!-- Endpoint -->
+      <div class="space-y-1.5">
+        <div class="flex items-center gap-1.5 text-xs font-medium text-gray-400">
+          <Papicon icon="globe" size={12} />
+          URL du serveur MCP
+        </div>
+        <div class="flex items-center gap-2">
+          <code class="flex-1 bg-black/40 border border-white/8 rounded-lg px-3 py-2.5 text-xs font-mono text-gray-300 break-all">
+            {endpointUrl}
+          </code>
+          <button
+            onclick={() => copy(endpointUrl, 'new-url')}
+            class="shrink-0 px-2.5 py-2 rounded-lg border border-white/10 text-xs text-gray-400 hover:text-white transition-colors"
+          >
+            {copiedField === 'new-url' ? '✓' : 'Copier'}
           </button>
         </div>
       </div>
@@ -472,25 +392,30 @@
   {:else}
     <div class="space-y-5">
       <div>
-        <label class="block text-sm font-medium text-gray-300 mb-1.5">Nom de la clé</label>
+        <label for="key-name" class="block text-sm font-medium text-gray-300 mb-1.5">Nom de la clé</label>
         <input
+          id="key-name"
           type="text"
           bind:value={newKeyName}
           placeholder="Ex: Claude.ai, Claude Desktop…"
           maxlength={64}
-          class="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-primary/50 transition-colors"
+          class="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-primary/50 transition-colors"
         />
       </div>
 
       <div>
-        <label class="block text-sm font-medium text-gray-300 mb-2">Permissions</label>
+        <p class="text-sm font-medium text-gray-300 mb-2">Permissions</p>
         <div class="space-y-1.5">
           {#each PERMISSIONS as perm}
-            <label class="flex items-start gap-3 p-2.5 rounded-lg border cursor-pointer transition-all
-              {newKeyPerms.includes(perm.value)
-                ? perm.value === 'WRITE_SANCTIONS' ? 'border-red-500/30 bg-red-500/5' : 'border-primary/25 bg-primary/5'
-                : 'border-white/6 hover:border-white/12'}">
+            <label
+              for="perm-{perm.value}"
+              class="flex items-start gap-3 p-2.5 rounded-lg border cursor-pointer transition-all
+                {newKeyPerms.includes(perm.value)
+                  ? perm.value === 'WRITE_SANCTIONS' ? 'border-red-500/30 bg-red-500/5' : 'border-primary/25 bg-primary/5'
+                  : 'border-white/6 hover:border-white/12'}"
+            >
               <input
+                id="perm-{perm.value}"
                 type="checkbox"
                 checked={newKeyPerms.includes(perm.value)}
                 onchange={() => togglePerm(perm.value)}
