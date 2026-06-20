@@ -189,34 +189,41 @@ export const startDashboardApi = (client: Client) => {
         const res = new BunServerResponse(req, resolve);
 
         void (async () => {
-          // CORS whitelist verification
-          const allowedOrigins = new Set([
-            DASHBOARD_URL.replace(/\/$/, ''),
-            'http://localhost:5173',
-            'http://localhost:3000'
-          ]);
-          const isAllowedDevOrigin = (candidate: string) => {
-            try {
-              const parsed = new URL(candidate);
-              if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
-              return parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
-            } catch {
-              return false;
-            }
-          };
+          // MCP endpoints are public APIs — allow any origin
+          const isMcpPath = url.pathname.startsWith('/api/mcp/') || url.pathname === '/.well-known/oauth-authorization-server';
 
-          const origin = req.headers.origin;
-          const originStr = Array.isArray(origin) ? origin[0] : origin;
-          if (originStr) {
-            const sanitizedOrigin = originStr.replace(/\/$/, '');
-            if (allowedOrigins.has(sanitizedOrigin) || isAllowedDevOrigin(sanitizedOrigin)) {
-              res.setHeader('Access-Control-Allow-Origin', originStr);
-              res.setHeader('Access-Control-Allow-Credentials', 'true');
+          if (isMcpPath) {
+            res.setHeader('Access-Control-Allow-Origin', '*');
+          } else {
+            // CORS whitelist verification
+            const allowedOrigins = new Set([
+              DASHBOARD_URL.replace(/\/$/, ''),
+              'http://localhost:5173',
+              'http://localhost:3000'
+            ]);
+            const isAllowedDevOrigin = (candidate: string) => {
+              try {
+                const parsed = new URL(candidate);
+                if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+                return parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1';
+              } catch {
+                return false;
+              }
+            };
+
+            const origin = req.headers.origin;
+            const originStr = Array.isArray(origin) ? origin[0] : origin;
+            if (originStr) {
+              const sanitizedOrigin = originStr.replace(/\/$/, '');
+              if (allowedOrigins.has(sanitizedOrigin) || isAllowedDevOrigin(sanitizedOrigin)) {
+                res.setHeader('Access-Control-Allow-Origin', originStr);
+                res.setHeader('Access-Control-Allow-Credentials', 'true');
+              } else {
+                res.setHeader('Access-Control-Allow-Origin', DASHBOARD_URL);
+              }
             } else {
               res.setHeader('Access-Control-Allow-Origin', DASHBOARD_URL);
             }
-          } else {
-            res.setHeader('Access-Control-Allow-Origin', DASHBOARD_URL);
           }
           res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
           res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, Pragma, X-Kotbo-API-Key, X-API-Key');
