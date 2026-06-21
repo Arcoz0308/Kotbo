@@ -897,6 +897,26 @@ describe('Modular Routers Unit Tests', () => {
         isActive: true,
       } as any));
 
+      const initializeResponse = await requestMcpOverHttp(
+        {
+          jsonrpc: '2.0',
+          id: 4,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2025-06-18',
+            capabilities: {},
+            clientInfo: { name: 'Claude', version: 'httpx' },
+          },
+        },
+        { 'user-agent': 'Claude MCP Connector', accept: '*/*' },
+        `/api/mcp-direct/112233445566778899/${directToken}`
+      );
+      expect(initializeResponse.status).toBe(200);
+      const initializeData = JSON.parse(initializeResponse.body);
+      expect(initializeData.result.protocolVersion).toBe('2025-06-18');
+      expect(initializeData.result.capabilities.tools).toEqual({});
+      expect(initializeData.result.serverInfo.name).toBe('kotbo');
+
       const response = await requestMcpOverHttp(
         {
           jsonrpc: '2.0',

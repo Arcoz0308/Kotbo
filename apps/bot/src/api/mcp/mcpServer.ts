@@ -268,6 +268,23 @@ function jsonRpcId(body: unknown): unknown {
   return (body as { id?: unknown }).id ?? null;
 }
 
+function initializeProtocolVersion(body: unknown): string {
+  if (!body || Array.isArray(body) || typeof body !== 'object') return '2025-06-18';
+  const params = (body as { params?: unknown }).params;
+  if (!params || Array.isArray(params) || typeof params !== 'object') return '2025-06-18';
+  const protocolVersion = (params as { protocolVersion?: unknown }).protocolVersion;
+  return typeof protocolVersion === 'string' && protocolVersion ? protocolVersion : '2025-06-18';
+}
+
+function initializeClientInfo(body: unknown): Record<string, unknown> | null {
+  if (!body || Array.isArray(body) || typeof body !== 'object') return null;
+  const params = (body as { params?: unknown }).params;
+  if (!params || Array.isArray(params) || typeof params !== 'object') return null;
+  const clientInfo = (params as { clientInfo?: unknown }).clientInfo;
+  if (!clientInfo || Array.isArray(clientInfo) || typeof clientInfo !== 'object') return null;
+  return clientInfo as Record<string, unknown>;
+}
+
 function looksLikeClaude(req: IncomingMessage): boolean {
   const ua = Array.isArray(req.headers['user-agent']) ? req.headers['user-agent'].join(' ') : req.headers['user-agent'] ?? '';
   return /claude|anthropic/i.test(ua);
@@ -313,6 +330,26 @@ function sendToolsListCompat(server: McpServer, parsedBody: unknown, res: Server
     result: { tools },
     jsonrpc: '2.0',
     id: jsonRpcId(parsedBody),
+  }));
+}
+
+function sendInitializeCompat(parsedBody: unknown, res: ServerResponse) {
+  res.setHeader('Content-Type', 'application/json');
+  res.statusCode = 200;
+  res.end(JSON.stringify({
+    jsonrpc: '2.0',
+    id: jsonRpcId(parsedBody),
+    result: {
+      protocolVersion: initializeProtocolVersion(parsedBody),
+      capabilities: {
+        tools: {},
+      },
+      serverInfo: {
+        name: 'kotbo',
+        version: '1.0.0',
+      },
+      instructions: 'Kotbo exposes Discord server tools through MCP.',
+    },
   }));
 }
 
@@ -1051,6 +1088,18 @@ export async function handleMCPRoutes(
         previousContentType,
         contentType: req.headers['content-type'],
       });
+    }
+
+    if (directToken && jsonRpcMethod(parsedBody) === 'initialize') {
+      mcpLog(req, 'mcp_initialize_direct_compat', {
+        guildId,
+        keyId,
+        protocolVersion: initializeProtocolVersion(parsedBody),
+        clientInfo: initializeClientInfo(parsedBody),
+      });
+      sendInitializeCompat(parsedBody, res);
+      mcpLog(req, 'mcp_jsonrpc_response', { guildId, keyId, method: jsonRpcMethod(parsedBody), statusCode: res.statusCode });
+      return true;
     }
 
     try {
