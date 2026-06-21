@@ -353,6 +353,42 @@ function sendInitializeCompat(parsedBody: unknown, res: ServerResponse) {
   }));
 }
 
+type McpServerInternals = {
+  _registeredTools: Record<string, { handler: unknown; inputSchema: unknown; enabled?: boolean }>;
+  validateToolInput(tool: unknown, args: unknown, name: string): Promise<unknown>;
+  executeToolHandler(tool: unknown, args: unknown, extra: Record<string, unknown>): Promise<unknown>;
+};
+
+async function sendToolCallCompat(server: McpServer, parsedBody: unknown, res: ServerResponse) {
+  const params = (parsedBody as { params?: Record<string, unknown> })?.params ?? {};
+  const toolName = typeof params.name === 'string' ? params.name : '';
+  const toolArgs = (params.arguments as Record<string, unknown>) ?? {};
+
+  const srv = server as unknown as McpServerInternals;
+  const tool = srv._registeredTools[toolName];
+
+  const reply = (body: Record<string, unknown>) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.statusCode = 200;
+    res.end(JSON.stringify(body));
+  };
+
+  if (!tool || tool.enabled === false) {
+    reply({ jsonrpc: '2.0', id: jsonRpcId(parsedBody), error: { code: -32601, message: `Tool not found: ${toolName}` } });
+    return;
+  }
+
+  try {
+    const validatedArgs = await srv.validateToolInput(tool, toolArgs, toolName);
+    const result = await srv.executeToolHandler(tool, validatedArgs, {});
+    reply({ jsonrpc: '2.0', id: jsonRpcId(parsedBody), result });
+  } catch (error: unknown) {
+    const code = (error as { code?: number })?.code ?? -32603;
+    const message = error instanceof Error ? error.message : String(error);
+    reply({ jsonrpc: '2.0', id: jsonRpcId(parsedBody), error: { code, message } });
+  }
+}
+
 async function handleTransportRequestWithCompat(
   transport: StreamableHTTPServerTransport,
   server: McpServer,
@@ -360,8 +396,29 @@ async function handleTransportRequestWithCompat(
   res: ServerResponse,
   parsedBody: unknown
 ) {
-  if (jsonRpcMethod(parsedBody) === 'tools/list') {
+  const method = jsonRpcMethod(parsedBody);
+
+  if (method === 'tools/list') {
     sendToolsListCompat(server, parsedBody, res);
+    return;
+  }
+
+  if (method === 'tools/call') {
+    await sendToolCallCompat(server, parsedBody, res);
+    return;
+  }
+
+  if (method === 'ping') {
+    res.setHeader('Content-Type', 'application/json');
+    res.statusCode = 200;
+    res.end(JSON.stringify({ jsonrpc: '2.0', id: jsonRpcId(parsedBody), result: {} }));
+    return;
+  }
+
+  // Notifications are fire-and-forget (no id), just acknowledge.
+  if (method?.startsWith('notifications/')) {
+    res.statusCode = 202;
+    res.end();
     return;
   }
 
