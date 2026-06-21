@@ -95,3 +95,18 @@ export const verifyMcpKeyByClientCredentials = async (
 
   return key;
 };
+
+export const getActiveMcpKeyById = async (keyId: string, guildId: string) => {
+  const key = await prisma.mcpApiKey.findFirst({
+    where: { id: keyId, guildId, isActive: true },
+  });
+
+  if (!key) return null;
+
+  await prisma.mcpApiKey.update({
+    where: { id: key.id },
+    data: { lastUsedAt: new Date() },
+  });
+
+  return key;
+};

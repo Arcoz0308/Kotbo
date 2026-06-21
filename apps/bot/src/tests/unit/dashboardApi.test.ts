@@ -1,5 +1,6 @@
 import { describe, expect, test, mock, beforeEach } from 'bun:test';
 import path from 'node:path';
+import nodeCrypto from 'node:crypto';
 import { createServer, IncomingMessage, ServerResponse } from 'node:http';
 import { Socket, type AddressInfo } from 'node:net';
 import jwt from 'jsonwebtoken';
@@ -100,6 +101,7 @@ mock.module(activationJsPath, () => mockActivation);
 const mockMcpKeyService = {
   verifyMcpKey: mock(() => Promise.resolve(null)),
   verifyMcpKeyByClientCredentials: mock(() => Promise.resolve(null)),
+  getActiveMcpKeyById: mock(() => Promise.resolve(null)),
   createMcpKey: mock(() => Promise.resolve({})),
   getMcpKeys: mock(() => Promise.resolve([])),
   deactivateMcpKey: mock(() => Promise.resolve({ count: 1 })),
@@ -375,6 +377,7 @@ describe('Modular Routers Unit Tests', () => {
     mockDb.dashboardFeatureConfig.update.mockClear();
     mockMcpKeyService.verifyMcpKey.mockClear();
     mockMcpKeyService.verifyMcpKeyByClientCredentials.mockClear();
+    mockMcpKeyService.getActiveMcpKeyById.mockClear();
     mockMcpKeyService.createMcpKey.mockClear();
     mockMcpKeyService.getMcpKeys.mockClear();
     mockMcpKeyService.deactivateMcpKey.mockClear();
@@ -477,7 +480,7 @@ describe('Modular Routers Unit Tests', () => {
       expect(data.authorization_endpoint).toBe('https://api-kotbo.example/api/mcp/112233445566778899/oauth/authorize');
       expect(data.token_endpoint).toBe('https://api-kotbo.example/api/mcp/112233445566778899/oauth/token');
       expect(data.authorization_endpoint).not.toContain('{guildId}');
-      expect(data.grant_types_supported).toEqual(['authorization_code']);
+      expect(data.grant_types_supported).toEqual(['authorization_code', 'refresh_token']);
       expect(data.token_endpoint_auth_methods_supported[0]).toBe('none');
       expect(data.client_id_metadata_document_supported).toBe(true);
     });
@@ -689,6 +692,102 @@ describe('Modular Routers Unit Tests', () => {
       const data = JSON.parse(res.body);
       expect(data.access_token).toBe(clientSecret);
       expect(data.token_type).toBe('Bearer');
+    });
+
+    test('OAuth authorization_code returns JWT access token and refresh token accepted by MCP endpoint', async () => {
+      const keyId = 'mcp-key-id';
+      const rawKey = 'mcp_test_secret';
+      const clientId = 'oauth-client-id';
+      const redirectUri = 'https://claude.ai/api/mcp/auth_callback';
+      const codeVerifier = 'test-verifier';
+      const codeChallenge = nodeCrypto.createHash('sha256').update(codeVerifier).digest('base64url');
+      const resource = 'https://api-kotbo.example/api/mcp/112233445566778899';
+
+      mockMcpKeyService.verifyMcpKey.mockImplementation(() => Promise.resolve({
+        id: keyId,
+        guildId: '112233445566778899',
+        permissions: ['READ_STATS'],
+        isActive: true,
+      } as any));
+      mockMcpKeyService.getActiveMcpKeyById.mockImplementation(() => Promise.resolve({
+        id: keyId,
+        guildId: '112233445566778899',
+        permissions: ['READ_STATS'],
+        isActive: true,
+      } as any));
+
+      const authorizeReq = createMockRequest({
+        method: 'POST',
+        url: `/api/mcp/112233445566778899/oauth/authorize?resource=${encodeURIComponent(resource)}`,
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          'x-forwarded-proto': 'https',
+          'x-forwarded-host': 'api-kotbo.example',
+        },
+        body: new URLSearchParams({
+          client_id: clientId,
+          redirect_uri: redirectUri,
+          state: 'state',
+          code_challenge: codeChallenge,
+          code_challenge_method: 'S256',
+          api_key: rawKey,
+          resource,
+        }).toString(),
+      });
+      const authorizeRes = createMockResponse();
+      await handleMCPRoutes(
+        authorizeReq as IncomingMessage & { bodyText?: string },
+        authorizeRes,
+        splitPath(new URL(authorizeReq.url!, 'http://localhost').pathname),
+        new URL(authorizeReq.url!, 'http://localhost'),
+        mockClient
+      );
+      const callbackUrl = new URL(String(authorizeRes.getHeader('location')));
+      const code = callbackUrl.searchParams.get('code')!;
+
+      const tokenReq = createMockRequest({
+        method: 'POST',
+        url: '/api/mcp/112233445566778899/oauth/token',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          'x-forwarded-proto': 'https',
+          'x-forwarded-host': 'api-kotbo.example',
+        },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          client_id: clientId,
+          code,
+          code_verifier: codeVerifier,
+          redirect_uri: redirectUri,
+          resource,
+        }).toString(),
+      });
+      const tokenRes = createMockResponse();
+      await handleMCPRoutes(
+        tokenReq as IncomingMessage & { bodyText?: string },
+        tokenRes,
+        splitPath(new URL(tokenReq.url!, 'http://localhost').pathname),
+        new URL(tokenReq.url!, 'http://localhost'),
+        mockClient
+      );
+      expect(tokenRes.statusCode).toBe(200);
+      const tokenData = JSON.parse(tokenRes.body);
+      expect(tokenData.access_token).not.toBe(rawKey);
+      expect(tokenData.refresh_token).toStartWith('kotbo_rt_');
+      expect(tokenData.token_type).toBe('Bearer');
+
+      const response = await requestMcpOverHttp(
+        {
+          jsonrpc: '2.0',
+          id: 4,
+          method: 'tools/list',
+          params: {},
+        },
+        { authorization: `Bearer ${tokenData.access_token}` }
+      );
+
+      expect(response.status).toBe(200);
+      expect(mockMcpKeyService.getActiveMcpKeyById).toHaveBeenCalledWith(keyId, '112233445566778899');
     });
   });
 

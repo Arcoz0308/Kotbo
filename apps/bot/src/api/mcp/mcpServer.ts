@@ -1,12 +1,13 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
 import crypto from 'node:crypto';
+import jwt from 'jsonwebtoken';
 import { Client } from 'discord.js';
 import type { McpKeyPermission } from '@prisma/client';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { JWT_SECRET, json } from '../shared.js';
-import { verifyMcpKey, verifyMcpKeyByClientCredentials } from './mcpKeyService.js';
+import { getActiveMcpKeyById, verifyMcpKey, verifyMcpKeyByClientCredentials } from './mcpKeyService.js';
 import { registerMcpTools } from './mcpTools.js';
 import { logger } from '../../utils/logger.js';
 
@@ -25,9 +26,25 @@ type AuthCode = {
   codeChallenge: string;
   codeChallengeMethod: string;
   guildId: string;
-  rawKey: string;       // returned as access_token after PKCE exchange
+  keyId: string;
   expiresAt: number;
   resource?: string;
+};
+
+type RefreshTokenPayload = {
+  clientId: string;
+  guildId: string;
+  keyId: string;
+  resource: string;
+  expiresAt: number;
+};
+
+type McpAccessTokenClaims = {
+  sub: string;
+  guildId: string;
+  scope?: string;
+  aud?: string;
+  iss?: string;
 };
 
 const oauthClients = new Map<string, OAuthClient>();
@@ -169,6 +186,10 @@ function oauthCodeKey(): Buffer {
   return crypto.createHash('sha256').update(secret).digest();
 }
 
+function oauthJwtSecret(): string {
+  return process.env.MCP_OAUTH_JWT_SECRET || process.env.MCP_OAUTH_CODE_SECRET || JWT_SECRET || process.env.JWT_SECRET || 'kotbo-mcp-dev-secret';
+}
+
 export function isValidMcpGuildId(guildId: string): boolean {
   return /^\d{15,20}$/.test(guildId);
 }
@@ -191,11 +212,11 @@ export function mcpAuthorizationServerMetadata(base: string) {
     registration_endpoint: `${base}/oauth/register`,
     response_types_supported: ['code'],
     code_challenge_methods_supported: ['S256'],
-    grant_types_supported: ['authorization_code'],
+    grant_types_supported: ['authorization_code', 'refresh_token'],
     token_endpoint_auth_methods_supported: ['none', 'client_secret_post', 'client_secret_basic'],
     client_id_metadata_document_supported: true,
     authorization_response_iss_parameter_supported: true,
-    scopes_supported: ['mcp'],
+    scopes_supported: ['mcp', 'offline_access'],
   };
 }
 
@@ -350,6 +371,69 @@ function normalizeMcpTransportContentTypeHeader(req: IncomingMessage, method: st
   return null;
 }
 
+function makeAccessToken(opts: {
+  guildId: string;
+  keyId: string;
+  issuer: string;
+  audience: string;
+  scope?: string;
+}) {
+  return jwt.sign(
+    {
+      guildId: opts.guildId,
+      scope: opts.scope ?? 'mcp',
+    },
+    oauthJwtSecret(),
+    {
+      subject: opts.keyId,
+      issuer: opts.issuer,
+      audience: opts.audience,
+      expiresIn: '90d',
+    }
+  );
+}
+
+function sealRefreshToken(payload: RefreshTokenPayload): string {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', oauthCodeKey(), iv);
+  const plaintext = Buffer.from(JSON.stringify(payload), 'utf8');
+  const encrypted = Buffer.concat([cipher.update(plaintext), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `kotbo_rt_${Buffer.concat([iv, tag, encrypted]).toString('base64url')}`;
+}
+
+function openRefreshToken(refreshToken: string): RefreshTokenPayload | null {
+  if (!refreshToken.startsWith('kotbo_rt_')) return null;
+
+  try {
+    const packed = Buffer.from(refreshToken.slice('kotbo_rt_'.length), 'base64url');
+    if (packed.length <= 28) return null;
+
+    const iv = packed.subarray(0, 12);
+    const tag = packed.subarray(12, 28);
+    const encrypted = packed.subarray(28);
+    const decipher = crypto.createDecipheriv('aes-256-gcm', oauthCodeKey(), iv);
+    decipher.setAuthTag(tag);
+    const plaintext = Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8');
+    return JSON.parse(plaintext) as RefreshTokenPayload;
+  } catch {
+    return null;
+  }
+}
+
+async function verifyOAuthAccessToken(token: string, guildId: string, audience: string) {
+  try {
+    const claims = jwt.verify(token, oauthJwtSecret(), {
+      audience,
+    }) as McpAccessTokenClaims;
+
+    if (claims.guildId !== guildId || typeof claims.sub !== 'string') return null;
+    return getActiveMcpKeyById(claims.sub, guildId);
+  } catch {
+    return null;
+  }
+}
+
 function sealAuthCode(payload: AuthCode): string {
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv('aes-256-gcm', oauthCodeKey(), iv);
@@ -497,7 +581,7 @@ export async function handleMCPRoutes(
       client_id_issued_at: Math.floor(Date.now() / 1000),
       redirect_uris: redirectUris,
       client_name: clientName,
-      grant_types: ['authorization_code'],
+      grant_types: ['authorization_code', 'refresh_token'],
       response_types: ['code'],
       token_endpoint_auth_method: 'none',
     }));
@@ -566,7 +650,7 @@ export async function handleMCPRoutes(
       codeChallenge: code_challenge,
       codeChallengeMethod: code_challenge_method ?? 'S256',
       guildId,
-      rawKey: cleanApiKey,
+      keyId: mcpKey.id,
       expiresAt: Date.now() + 10 * 60 * 1000,
       resource,
     };
@@ -610,6 +694,39 @@ export async function handleMCPRoutes(
       resource: resource ?? null,
     });
 
+    if (grant_type === 'refresh_token') {
+      const refreshToken = p.refresh_token;
+      if (!refreshToken) {
+        oauthError(req, res, 400, 'invalid_request', 'refresh_token requis');
+        return true;
+      }
+
+      const rt = openRefreshToken(refreshToken);
+      if (!rt || rt.expiresAt < Date.now() || rt.guildId !== guildId) {
+        oauthError(req, res, 400, 'invalid_grant', 'refresh_token invalide ou expiré');
+        return true;
+      }
+
+      const mcpKey = await getActiveMcpKeyById(rt.keyId, guildId);
+      if (!mcpKey) {
+        oauthError(req, res, 400, 'invalid_grant', 'Clé MCP inactive');
+        return true;
+      }
+
+      const audience = resource ?? rt.resource ?? base;
+      mcpLog(req, 'token_refresh_success', { guildId, clientId: rt.clientId, keyId: rt.keyId, resource: audience });
+      res.setHeader('Content-Type', 'application/json');
+      res.statusCode = 200;
+      res.end(JSON.stringify({
+        access_token: makeAccessToken({ guildId, keyId: rt.keyId, issuer: base, audience }),
+        refresh_token: refreshToken,
+        token_type: 'Bearer',
+        expires_in: 7776000,
+        scope: 'mcp',
+      }));
+      return true;
+    }
+
     if (grant_type === 'client_credentials') {
       if (!clientId || !clientSecret) {
         oauthError(req, res, 400, 'invalid_request', 'client_id et client_secret requis');
@@ -635,7 +752,7 @@ export async function handleMCPRoutes(
     }
 
     if (grant_type !== 'authorization_code') {
-      oauthError(req, res, 400, 'unsupported_grant_type', 'authorization_code et client_credentials sont supportés');
+      oauthError(req, res, 400, 'unsupported_grant_type', 'authorization_code, refresh_token et client_credentials sont supportés');
       return true;
     }
     if (!code || !code_verifier || !redirect_uri) {
@@ -670,12 +787,21 @@ export async function handleMCPRoutes(
     }
 
     authCodes.delete(code); // single-use
-    mcpLog(req, 'token_authorization_code_success', { guildId, clientId: ac.clientId, resource: resource ?? null });
+    const tokenAudience = resource ?? ac.resource ?? base;
+    const refreshToken = sealRefreshToken({
+      clientId: ac.clientId,
+      guildId,
+      keyId: ac.keyId,
+      resource: tokenAudience,
+      expiresAt: Date.now() + 180 * 24 * 60 * 60 * 1000,
+    });
+    mcpLog(req, 'token_authorization_code_success', { guildId, clientId: ac.clientId, keyId: ac.keyId, resource: tokenAudience });
 
     res.setHeader('Content-Type', 'application/json');
     res.statusCode = 200;
     res.end(JSON.stringify({
-      access_token: ac.rawKey,
+      access_token: makeAccessToken({ guildId, keyId: ac.keyId, issuer: base, audience: tokenAudience }),
+      refresh_token: refreshToken,
       token_type: 'Bearer',
       expires_in: 7776000,
       scope: 'mcp',
@@ -719,7 +845,9 @@ export async function handleMCPRoutes(
     let keyId: string | null = null;
 
     if (rawKey) {
-      const mcpKey = await verifyMcpKey(rawKey, guildId);
+      const mcpKey = rawKey.startsWith('mcp_')
+        ? await verifyMcpKey(rawKey, guildId)
+        : await verifyOAuthAccessToken(rawKey, guildId, base);
       if (!mcpKey) {
         mcpLog(req, 'mcp_bearer_invalid', { guildId });
         res.setHeader('WWW-Authenticate', authChallenge(req, url, guildId, 'invalid_token', 'Clé MCP invalide ou inactive'));
@@ -729,7 +857,7 @@ export async function handleMCPRoutes(
 
       permissions = mcpKey.permissions;
       keyId = mcpKey.id;
-      mcpLog(req, 'mcp_bearer_valid', { guildId, keyId, method: jsonRpcMethod(parsedBody), permissions });
+      mcpLog(req, 'mcp_bearer_valid', { guildId, keyId, tokenKind: rawKey.startsWith('mcp_') ? 'mcp_key' : 'oauth_jwt', method: jsonRpcMethod(parsedBody), permissions });
     } else if (basicCredentials) {
       const mcpKey = await verifyMcpKeyByClientCredentials(basicCredentials.clientId, basicCredentials.clientSecret, guildId);
       if (!mcpKey) {
