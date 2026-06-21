@@ -10,31 +10,58 @@ import {
   registerTimeoutSanction,
 } from '../../services/moderation/sanctionService.js';
 
+type McpToolHandler = (args: any) => Promise<ReturnType<typeof ok> | ReturnType<typeof err>> | ReturnType<typeof ok> | ReturnType<typeof err>;
+
 const ok = (data: unknown) => ({
   content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }],
 });
 
-const err = (msg: string) => ({
+const err = (msg: string, meta?: Record<string, unknown>) => ({
   content: [{ type: 'text' as const, text: JSON.stringify({ error: msg }) }],
   isError: true,
+  ...(meta ? { _meta: meta } : {}),
 });
+
+const oauthSecuritySchemes = [{ type: 'oauth2', scopes: ['mcp'] }];
+
+const toolMeta = {
+  securitySchemes: oauthSecuritySchemes,
+};
 
 export function registerMcpTools(
   server: McpServer,
   guildId: string,
   permissions: McpKeyPermission[],
-  client: Client
+  client: Client,
+  options: { listAllTools?: boolean; wwwAuthenticate?: string } = {}
 ) {
   const has = (p: McpKeyPermission) => permissions.includes(p);
+  const shouldRegister = (p: McpKeyPermission) => options.listAllTools || has(p);
+  const guard = (permission: McpKeyPermission, handler: McpToolHandler): McpToolHandler => {
+    return async (args: any) => {
+      if (!has(permission)) {
+        return err(`Autorisation MCP requise: permission ${permission}.`, {
+          'mcp/www_authenticate': [
+            options.wwwAuthenticate ?? 'Bearer error="insufficient_scope", error_description="Autorisation MCP Kotbo requise"',
+          ],
+        });
+      }
+
+      return handler(args);
+    };
+  };
 
   // ── READ_STATS ────────────────────────────────────────────────────────────
 
-  if (has('READ_STATS')) {
-    server.tool(
+  if (shouldRegister('READ_STATS')) {
+    server.registerTool(
       'get_guild_stats',
-      'Récupère les statistiques du serveur Discord (membres, messages, sanctions) sur une période donnée.',
-      { period_days: z.number().int().min(1).max(90).default(30).describe('Nombre de jours à analyser (1-90)') },
-      async ({ period_days }) => {
+      {
+        description: 'Récupère les statistiques du serveur Discord (membres, messages, sanctions) sur une période donnée.',
+        inputSchema: { period_days: z.number().int().min(1).max(90).default(30).describe('Nombre de jours à analyser (1-90)') },
+        _meta: toolMeta,
+      },
+      guard('READ_STATS', async ({ period_days }) => {
         const since = new Date();
         since.setDate(since.getDate() - period_days);
         const sinceKey = since.toISOString().slice(0, 10);
@@ -71,21 +98,24 @@ export function registerMcpTools(
             sanctions: s.sanctionsCount,
           })),
         });
-      }
+      })
     );
   }
 
   // ── READ_MEMBERS ──────────────────────────────────────────────────────────
 
-  if (has('READ_MEMBERS')) {
-    server.tool(
+  if (shouldRegister('READ_MEMBERS')) {
+    server.registerTool(
       'get_recent_messages',
-      'Récupère les messages récents d\'un salon Discord (lecture en direct via l\'API Discord).',
       {
-        channel_id: z.string().describe('ID du salon Discord'),
-        limit: z.number().int().min(1).max(100).default(20).describe('Nombre de messages (1-100)'),
+        description: 'Récupère les messages récents d\'un salon Discord (lecture en direct via l\'API Discord).',
+        inputSchema: {
+          channel_id: z.string().describe('ID du salon Discord'),
+          limit: z.number().int().min(1).max(100).default(20).describe('Nombre de messages (1-100)'),
+        },
+        _meta: toolMeta,
       },
-      async ({ channel_id, limit }) => {
+      guard('READ_MEMBERS', async ({ channel_id, limit }) => {
         const discordGuild = client.guilds.cache.get(guildId);
         if (!discordGuild) return err('Serveur Discord introuvable');
 
@@ -105,14 +135,17 @@ export function registerMcpTools(
             createdAt: m.createdAt.toISOString(),
           }))
         );
-      }
+      })
     );
 
-    server.tool(
+    server.registerTool(
       'get_member_profile',
-      'Récupère le profil d\'un membre du serveur (activité, historique, informations Discord).',
-      { member_id: z.string().describe('ID Discord du membre') },
-      async ({ member_id }) => {
+      {
+        description: 'Récupère le profil d\'un membre du serveur (activité, historique, informations Discord).',
+        inputSchema: { member_id: z.string().describe('ID Discord du membre') },
+        _meta: toolMeta,
+      },
+      guard('READ_MEMBERS', async ({ member_id }) => {
         const [profile, discordMember] = await Promise.all([
           prisma.memberProfile.findUnique({
             where: { guildId_userId: { guildId, userId: member_id } },
@@ -145,17 +178,20 @@ export function registerMcpTools(
               }
             : null,
         });
-      }
+      })
     );
 
-    server.tool(
+    server.registerTool(
       'search_members',
-      'Recherche des membres par nom d\'utilisateur ou nom d\'affichage.',
       {
-        query: z.string().describe('Terme de recherche (username, displayName ou userId)'),
-        limit: z.number().int().min(1).max(50).default(20),
+        description: 'Recherche des membres par nom d\'utilisateur ou nom d\'affichage.',
+        inputSchema: {
+          query: z.string().describe('Terme de recherche (username, displayName ou userId)'),
+          limit: z.number().int().min(1).max(50).default(20),
+        },
+        _meta: toolMeta,
       },
-      async ({ query, limit }) => {
+      guard('READ_MEMBERS', async ({ query, limit }) => {
         const members = await prisma.memberProfile.findMany({
           where: {
             guildId,
@@ -187,24 +223,27 @@ export function registerMcpTools(
         }));
 
         return ok(enriched);
-      }
+      })
     );
   }
 
   // ── READ_SANCTIONS ────────────────────────────────────────────────────────
 
-  if (has('READ_SANCTIONS')) {
-    server.tool(
+  if (shouldRegister('READ_SANCTIONS')) {
+    server.registerTool(
       'get_sanctions',
-      'Liste les sanctions du serveur avec filtres optionnels.',
       {
-        member_id: z.string().optional().describe('Filtrer par ID du membre sanctionné'),
-        type: z.enum(['WARN', 'KICK', 'TIMEOUT', 'TEMP_BAN', 'BAN', 'SOFTBAN']).optional(),
-        status: z.enum(['ACTIVE', 'RESOLVED', 'FAILED']).optional(),
-        limit: z.number().int().min(1).max(100).default(50),
-        offset: z.number().int().min(0).default(0),
+        description: 'Liste les sanctions du serveur avec filtres optionnels.',
+        inputSchema: {
+          member_id: z.string().optional().describe('Filtrer par ID du membre sanctionné'),
+          type: z.enum(['WARN', 'KICK', 'TIMEOUT', 'TEMP_BAN', 'BAN', 'SOFTBAN']).optional(),
+          status: z.enum(['ACTIVE', 'RESOLVED', 'FAILED']).optional(),
+          limit: z.number().int().min(1).max(100).default(50),
+          offset: z.number().int().min(0).default(0),
+        },
+        _meta: toolMeta,
       },
-      async ({ member_id, type, status, limit, offset }) => {
+      guard('READ_SANCTIONS', async ({ member_id, type, status, limit, offset }) => {
         const [sanctions, total] = await Promise.all([
           prisma.sanction.findMany({
             where: {
@@ -244,14 +283,17 @@ export function registerMcpTools(
             resolvedAt: s.resolvedAt?.toISOString(),
           })),
         });
-      }
+      })
     );
 
-    server.tool(
+    server.registerTool(
       'get_sanction_history',
-      'Récupère l\'historique complet des sanctions pour un membre spécifique.',
-      { member_id: z.string().describe('ID Discord du membre') },
-      async ({ member_id }) => {
+      {
+        description: 'Récupère l\'historique complet des sanctions pour un membre spécifique.',
+        inputSchema: { member_id: z.string().describe('ID Discord du membre') },
+        _meta: toolMeta,
+      },
+      guard('READ_SANCTIONS', async ({ member_id }) => {
         const [sanctions, reports] = await Promise.all([
           prisma.sanction.findMany({
             where: { guildId, targetUserId: member_id },
@@ -293,20 +335,23 @@ export function registerMcpTools(
             createdAt: r.createdAt.toISOString(),
           })),
         });
-      }
+      })
     );
   }
 
   // ── READ_STAFF ────────────────────────────────────────────────────────────
 
-  if (has('READ_STAFF')) {
-    server.tool(
+  if (shouldRegister('READ_STAFF')) {
+    server.registerTool(
       'get_staff_list',
-      'Récupère la liste des membres du staff du serveur.',
       {
-        include_inactive: z.boolean().default(false).describe('Inclure les membres inactifs'),
+        description: 'Récupère la liste des membres du staff du serveur.',
+        inputSchema: {
+          include_inactive: z.boolean().default(false).describe('Inclure les membres inactifs'),
+        },
+        _meta: toolMeta,
       },
-      async ({ include_inactive }) => {
+      guard('READ_STAFF', async ({ include_inactive }) => {
         const staffMembers = await prisma.staffMember.findMany({
           where: {
             guildId,
@@ -337,14 +382,17 @@ export function registerMcpTools(
             })),
           }))
         );
-      }
+      })
     );
 
-    server.tool(
+    server.registerTool(
       'get_staff_member',
-      'Récupère le profil détaillé d\'un membre du staff.',
-      { member_id: z.string().describe('ID Discord du membre du staff') },
-      async ({ member_id }) => {
+      {
+        description: 'Récupère le profil détaillé d\'un membre du staff.',
+        inputSchema: { member_id: z.string().describe('ID Discord du membre du staff') },
+        _meta: toolMeta,
+      },
+      guard('READ_STAFF', async ({ member_id }) => {
         const staff = await prisma.staffMember.findUnique({
           where: { guildId_userId: { guildId, userId: member_id } },
           include: {
@@ -375,22 +423,25 @@ export function registerMcpTools(
             voiceMinutes: a.voiceMinutes,
           })),
         });
-      }
+      })
     );
   }
 
   // ── READ_TICKETS ──────────────────────────────────────────────────────────
 
-  if (has('READ_TICKETS')) {
-    server.tool(
+  if (shouldRegister('READ_TICKETS')) {
+    server.registerTool(
       'get_tickets',
-      'Liste les tickets de support du serveur.',
       {
-        status: z.enum(['OPEN', 'CLAIMED', 'CLOSED']).optional(),
-        limit: z.number().int().min(1).max(50).default(20),
-        offset: z.number().int().min(0).default(0),
+        description: 'Liste les tickets de support du serveur.',
+        inputSchema: {
+          status: z.enum(['OPEN', 'CLAIMED', 'CLOSED']).optional(),
+          limit: z.number().int().min(1).max(50).default(20),
+          offset: z.number().int().min(0).default(0),
+        },
+        _meta: toolMeta,
       },
-      async ({ status, limit, offset }) => {
+      guard('READ_TICKETS', async ({ status, limit, offset }) => {
         const [tickets, total] = await Promise.all([
           prisma.ticket.findMany({
             where: {
@@ -422,30 +473,33 @@ export function registerMcpTools(
             closedAt: t.closedAt?.toISOString() ?? null,
           })),
         });
-      }
+      })
     );
   }
 
   // ── WRITE_SANCTIONS ───────────────────────────────────────────────────────
 
-  if (has('WRITE_SANCTIONS')) {
-    server.tool(
+  if (shouldRegister('WRITE_SANCTIONS')) {
+    server.registerTool(
       'apply_sanction',
-      'Applique une sanction à un membre du serveur Discord. Requiert la permission WRITE_SANCTIONS.',
       {
-        member_id: z.string().describe('ID Discord du membre à sanctionner'),
-        type: z.enum(['WARN', 'KICK', 'TIMEOUT', 'TEMP_BAN', 'BAN', 'SOFTBAN']),
-        reason: z.string().min(1).max(512).describe('Raison de la sanction'),
-        duration_seconds: z
-          .number()
-          .int()
-          .positive()
-          .max(2332800)
-          .optional()
-          .describe('Durée en secondes (obligatoire pour TIMEOUT et TEMP_BAN, max 27 jours)'),
-        key_name: z.string().optional().describe('Nom de la clé MCP (pour l\'audit)'),
+        description: 'Applique une sanction à un membre du serveur Discord. Requiert la permission WRITE_SANCTIONS.',
+        inputSchema: {
+          member_id: z.string().describe('ID Discord du membre à sanctionner'),
+          type: z.enum(['WARN', 'KICK', 'TIMEOUT', 'TEMP_BAN', 'BAN', 'SOFTBAN']),
+          reason: z.string().min(1).max(512).describe('Raison de la sanction'),
+          duration_seconds: z
+            .number()
+            .int()
+            .positive()
+            .max(2332800)
+            .optional()
+            .describe('Durée en secondes (obligatoire pour TIMEOUT et TEMP_BAN, max 27 jours)'),
+          key_name: z.string().optional().describe('Nom de la clé MCP (pour l\'audit)'),
+        },
+        _meta: toolMeta,
       },
-      async ({ member_id, type, reason, duration_seconds, key_name }) => {
+      guard('WRITE_SANCTIONS', async ({ member_id, type, reason, duration_seconds, key_name }) => {
         if ((type === 'TIMEOUT' || type === 'TEMP_BAN') && !duration_seconds) {
           return err(`duration_seconds est obligatoire pour le type ${type}`);
         }
@@ -508,7 +562,7 @@ export function registerMcpTools(
           const msg = e instanceof Error ? e.message : String(e);
           return err(`Erreur lors de l'application de la sanction : ${msg}`);
         }
-      }
+      })
     );
   }
 }

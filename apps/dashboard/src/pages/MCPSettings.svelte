@@ -59,47 +59,75 @@
   const aiGuides = $derived({
     claude: {
       name: 'Claude',
-      badge: 'Claude',
+      shortName: 'Claude',
+      logoUrl: 'https://claude.ai/favicon.ico',
       color: 'text-[#d97757]',
       bg: 'bg-[#d97757]/12',
       border: 'border-[#d97757]/25',
       setupUrl: 'https://claude.ai/settings/connectors',
-      note: 'Claude demande uniquement l URL MCP. L autorisation s ouvre ensuite dans le navigateur Kotbo.',
+      docsUrl: 'https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp',
+      primaryAction: 'Ouvrir Connectors',
+      note: 'Claude utilise les Custom connectors en remote MCP. Le serveur doit être public, puis Claude ouvre le flow OAuth Kotbo pour saisir ta clé MCP.',
+      fields: [
+        { label: 'Name', value: 'Kotbo' },
+        { label: 'URL', value: 'URL MCP du serveur' },
+        { label: 'Advanced settings', value: 'Laisse vide sauf si Claude demande explicitement un client ID/secret.' },
+      ],
       steps: [
-        'Ouvre Claude > Settings > Connectors.',
-        'Ajoute un Custom connector de type Web.',
-        'Colle l URL MCP du serveur.',
-        'Clique Connect puis colle ta clé MCP Kotbo sur la page d autorisation.',
+        'Ouvre Claude puis va dans Customize > Connectors.',
+        'Clique sur le bouton + puis choisis Add custom connector.',
+        'Nom : Kotbo. URL : colle l URL MCP affichée ici.',
+        'Valide avec Add, puis clique Connect sur le connecteur Kotbo.',
+        'Quand la page Kotbo s ouvre, colle ta clé MCP complète, celle qui commence par mcp_.',
       ],
     },
     chatgpt: {
       name: 'ChatGPT',
-      badge: 'ChatGPT',
+      shortName: 'ChatGPT',
+      logoUrl: 'https://chatgpt.com/favicon.ico',
       color: 'text-emerald-300',
       bg: 'bg-emerald-400/10',
       border: 'border-emerald-400/25',
-      setupUrl: 'https://chatgpt.com/#settings/ConnectorSettings',
-      note: 'ChatGPT utilise le remote MCP avec OAuth. Il lit les metadonnees puis lance le flow PKCE.',
+      setupUrl: 'https://chatgpt.com/#settings/Apps',
+      docsUrl: 'https://developers.openai.com/api/docs/guides/developer-mode',
+      primaryAction: 'Ouvrir ChatGPT Apps',
+      note: 'ChatGPT passe par Developer mode pour créer une app depuis un serveur MCP distant. Kotbo expose OAuth, PKCE et mixed authentication pour que ChatGPT puisse initialiser, lister les tools, puis demander l auth au premier appel.',
+      fields: [
+        { label: 'App name', value: 'Kotbo' },
+        { label: 'MCP server URL', value: 'URL MCP du serveur' },
+        { label: 'Authentication', value: 'OAuth ou Mixed Authentication. Ne mets pas client_credentials.' },
+      ],
       steps: [
-        'Ouvre ChatGPT > Settings > Apps & Connectors.',
-        'Cree une app ou un connecteur personnalise.',
-        'Colle l URL MCP du serveur comme Server URL.',
-        'Au premier usage, autorise Kotbo puis colle ta clé MCP dans la page ouverte.',
+        'Ouvre ChatGPT sur le web avec un compte compatible, puis Settings > Apps > Advanced settings.',
+        'Active Developer mode si ce n est pas déjà fait.',
+        'Clique Create app et choisis un serveur MCP distant.',
+        'Nom : Kotbo. Server URL : colle l URL MCP affichée ici.',
+        'Sélectionne OAuth ou Mixed Authentication. Au premier usage, ChatGPT ouvrira la page Kotbo pour saisir ta clé MCP.',
       ],
     },
     gemini: {
       name: 'Gemini',
-      badge: 'Gemini',
+      shortName: 'Gemini',
+      logoUrl: 'https://gemini.google.com/favicon.ico',
       color: 'text-sky-300',
       bg: 'bg-sky-400/10',
       border: 'border-sky-400/25',
       setupUrl: 'https://ai.google.dev/gemini-api/docs/interactions/deep-research',
-      note: 'Gemini expose le remote MCP via l API Deep Research. Pour l instant, la configuration se fait surtout cote API.',
+      docsUrl: 'https://ai.google.dev/gemini-api/docs/interactions/deep-research',
+      primaryAction: 'Ouvrir la doc Gemini',
+      note: 'Gemini expose le remote MCP via l API Deep Research. La configuration se fait côté API avec un tool mcp_server contenant le name, l url, et si besoin un header Authorization.',
+      fields: [
+        { label: 'type', value: 'mcp_server' },
+        { label: 'name', value: 'Kotbo' },
+        { label: 'url', value: 'URL MCP du serveur' },
+        { label: 'headers', value: 'Authorization: Bearer mcp_... si ton client ne lance pas OAuth automatiquement.' },
+      ],
       steps: [
-        'Dans ta configuration Gemini Deep Research, ajoute un outil mcp_server.',
-        'Renseigne name = kotbo et url = l URL MCP du serveur.',
-        'Si ton client demande un token, utilise le Client Secret MCP comme Bearer token.',
-        'Sinon laisse Gemini lancer le flow OAuth et colle ta clé MCP quand Kotbo le demande.',
+        'Dans ton appel Gemini Deep Research, ajoute un tool avec type = mcp_server.',
+        'Renseigne name = Kotbo et url = l URL MCP affichée ici.',
+        'Si ton environnement supporte OAuth remote MCP, laisse Gemini suivre le flow Kotbo.',
+        'Sinon ajoute headers.Authorization = Bearer suivi de ta clé MCP complète.',
+        'Optionnel : utilise allowed_tools pour limiter les actions sensibles comme apply_sanction.',
       ],
     },
   });
@@ -253,7 +281,7 @@
       {/if}
     </div>
     <p class="text-xs text-gray-600 mt-2">
-      Colle cette URL dans ton client IA. Le serveur supporte OAuth 2.0 (client_credentials) et Bearer token.
+      Colle cette URL dans ton client IA. Le serveur supporte OAuth 2.0 avec PKCE pour Claude/ChatGPT, et Bearer token pour les clients MCP qui le demandent.
     </p>
   </div>
 
@@ -521,29 +549,34 @@
 </Modal>
 
 <!-- ── AI setup helper ───────────────────────────────────────────────────── -->
-<Modal bind:open={helpOpen} onClose={() => { helpOpen = false; }} title="Connecter une IA">
-  <div class="space-y-5">
-    <div class="grid grid-cols-3 gap-2">
+<Modal bind:open={helpOpen} onClose={() => { helpOpen = false; }} title="Connecter Kotbo à une IA" size="xl">
+  <div class="space-y-5 p-5">
+    <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
       {#each Object.entries(aiGuides) as [id, guide]}
         <button
           onclick={() => selectAiGuide(id)}
-          class="min-h-20 rounded-lg border p-2.5 text-left transition-colors
+          class="min-h-24 rounded-lg border p-3 text-left transition-colors
             {selectedAi === id ? `${guide.bg} ${guide.border}` : 'border-white/8 bg-black/20 hover:border-white/16'}"
         >
-          <div class="flex h-full flex-col justify-between">
-            <div class="h-7 w-7 rounded-lg border border-white/10 bg-black/25 flex items-center justify-center text-[10px] font-bold text-white">
-              {guide.badge.slice(0, 2)}
+          <div class="flex h-full items-start gap-3">
+            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white">
+              <img src={guide.logoUrl} alt="Logo {guide.name}" class="h-6 w-6 object-contain" loading="lazy" />
             </div>
-            <span class="text-sm font-semibold {selectedAi === id ? guide.color : 'text-gray-300'}">{guide.name}</span>
+            <div class="min-w-0">
+              <span class="block text-sm font-semibold {selectedAi === id ? guide.color : 'text-gray-200'}">{guide.name}</span>
+              <span class="mt-1 block text-xs leading-relaxed text-gray-500">
+                {id === 'claude' ? 'Custom connector remote MCP' : id === 'chatgpt' ? 'Developer Mode Apps' : 'Deep Research API MCP'}
+              </span>
+            </div>
           </div>
         </button>
       {/each}
     </div>
 
-    <div class="rounded-lg border {currentGuide.border} {currentGuide.bg} p-3">
+    <div class="rounded-lg border {currentGuide.border} {currentGuide.bg} p-4">
       <div class="flex items-start gap-3">
-        <div class="h-9 w-9 rounded-lg border border-white/10 bg-black/25 flex items-center justify-center text-xs font-bold text-white">
-          {currentGuide.badge.slice(0, 2)}
+        <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white">
+          <img src={currentGuide.logoUrl} alt="Logo {currentGuide.name}" class="h-7 w-7 object-contain" loading="lazy" />
         </div>
         <div class="min-w-0">
           <p class="text-sm font-semibold {currentGuide.color}">{currentGuide.name}</p>
@@ -552,53 +585,89 @@
       </div>
     </div>
 
-    <div class="space-y-2">
-      <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">A copier</p>
-      <div class="flex items-center gap-2">
-        <code class="flex-1 bg-black/40 border border-white/8 rounded-lg px-3 py-2.5 text-xs font-mono text-gray-200 break-all">
-          {endpointUrl || 'Selectionne un serveur pour obtenir l URL MCP'}
-        </code>
-        <button
-          disabled={!endpointUrl}
-          onclick={() => copy(endpointUrl, 'help-endpoint')}
-          class="shrink-0 px-2.5 py-2 rounded-lg border border-white/10 text-xs text-gray-400 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          {copiedField === 'help-endpoint' ? 'Copie' : 'URL'}
-        </button>
+    <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
+      <div class="space-y-4">
+        <div class="space-y-2">
+          <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Tutoriel {currentGuide.name}</p>
+          <ol class="space-y-2">
+            {#each currentGuide.steps as step, index}
+              <li class="flex gap-2 text-sm text-gray-300">
+                <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/8 text-[11px] text-gray-400">{index + 1}</span>
+                <span class="leading-relaxed">{step}</span>
+              </li>
+            {/each}
+          </ol>
+        </div>
+
+        <div class="flex flex-col gap-2 sm:flex-row">
+          <a
+            href={currentGuide.setupUrl}
+            target="_blank"
+            rel="noreferrer"
+            class="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary/90"
+          >
+            <Papicon icon="external-link" size={14} />
+            {currentGuide.primaryAction}
+          </a>
+          <a
+            href={currentGuide.docsUrl}
+            target="_blank"
+            rel="noreferrer"
+            class="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 px-3 py-2.5 text-sm text-gray-300 transition-colors hover:text-white"
+          >
+            <Papicon icon="book-open" size={14} />
+            Doc officielle
+          </a>
+        </div>
       </div>
-      <p class="text-xs text-gray-600">
-        La clé MCP complete est visible uniquement juste apres creation. Si tu ne l as plus, cree une nouvelle clé.
-      </p>
-    </div>
 
-    <div class="space-y-2">
-      <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Tutoriel {currentGuide.name}</p>
-      <ol class="space-y-2">
-        {#each currentGuide.steps as step, index}
-          <li class="flex gap-2 text-sm text-gray-300">
-            <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/8 text-[11px] text-gray-400">{index + 1}</span>
-            <span class="leading-relaxed">{step}</span>
-          </li>
-        {/each}
-      </ol>
-    </div>
+      <div class="space-y-3">
+        <div class="rounded-lg border border-white/8 bg-black/20 p-3">
+          <div class="mb-2 flex items-center justify-between gap-2">
+            <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">URL MCP</p>
+            <button
+              disabled={!endpointUrl}
+              onclick={() => copy(endpointUrl, 'help-endpoint')}
+              class="shrink-0 rounded-md border border-white/10 px-2 py-1 text-xs text-gray-400 transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {copiedField === 'help-endpoint' ? 'Copié' : 'Copier'}
+            </button>
+          </div>
+          <code class="block rounded-lg border border-white/8 bg-black/40 px-3 py-2.5 font-mono text-xs text-gray-200 break-all">
+            {endpointUrl || 'Sélectionne un serveur pour obtenir l URL MCP'}
+          </code>
+        </div>
 
-    <div class="flex items-center gap-2">
-      <a
-        href={currentGuide.setupUrl}
-        target="_blank"
-        rel="noreferrer"
-        class="flex-1 text-center px-3 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors"
-      >
-        Ouvrir {currentGuide.name}
-      </a>
-      <button
-        onclick={() => copy(endpointUrl, 'help-url-bottom')}
-        disabled={!endpointUrl}
-        class="px-3 py-2.5 rounded-lg border border-white/10 text-sm text-gray-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-      >
-        {copiedField === 'help-url-bottom' ? 'Copie' : 'Copier URL'}
-      </button>
+        <div class="rounded-lg border border-white/8 bg-black/20 p-3">
+          <p class="mb-2 text-xs font-medium text-gray-500 uppercase tracking-wide">Champs à remplir</p>
+          <div class="space-y-2">
+            {#each currentGuide.fields as field}
+              <div class="rounded-lg border border-white/6 bg-black/25 px-3 py-2">
+                <p class="text-[11px] font-medium text-gray-500">{field.label}</p>
+                <p class="mt-0.5 text-xs leading-relaxed text-gray-300">{field.value}</p>
+              </div>
+            {/each}
+          </div>
+        </div>
+
+        {#if selectedAi === 'gemini'}
+          <div class="rounded-lg border border-sky-400/20 bg-sky-400/8 p-3">
+            <p class="mb-2 text-xs font-medium text-sky-300">Exemple Gemini</p>
+            <pre class="overflow-x-auto rounded-lg border border-white/8 bg-black/40 p-3 text-[11px] leading-relaxed text-gray-300">{`{
+  "type": "mcp_server",
+  "name": "Kotbo",
+  "url": "${endpointUrl || 'https://api-kotbo.example/api/mcp/GUILD_ID'}",
+  "headers": {
+    "Authorization": "Bearer mcp_..."
+  }
+}`}</pre>
+          </div>
+        {/if}
+
+        <p class="text-xs leading-relaxed text-gray-600">
+          La clé MCP complète est visible uniquement juste après création. Si tu ne l as plus, crée une nouvelle clé.
+        </p>
+      </div>
     </div>
   </div>
 </Modal>

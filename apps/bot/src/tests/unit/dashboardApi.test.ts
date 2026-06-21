@@ -1,7 +1,7 @@
 import { describe, expect, test, mock, beforeEach } from 'bun:test';
 import path from 'node:path';
-import { IncomingMessage, ServerResponse } from 'node:http';
-import { Socket } from 'node:net';
+import { createServer, IncomingMessage, ServerResponse } from 'node:http';
+import { Socket, type AddressInfo } from 'node:net';
 import jwt from 'jsonwebtoken';
 import { type Client } from 'discord.js';
 
@@ -111,7 +111,17 @@ mock.module(mcpKeyServicePath, () => mockMcpKeyService);
 mock.module(mcpKeyServiceJsPath, () => mockMcpKeyService);
 
 const mockMcpTools = {
-  registerMcpTools: mock(() => undefined),
+  registerMcpTools: mock((server: any) => {
+    server.registerTool(
+      'test_tool',
+      {
+        description: 'Test tool',
+        inputSchema: {},
+        _meta: { securitySchemes: [{ type: 'oauth2', scopes: ['mcp'] }] },
+      },
+      async () => ({ content: [{ type: 'text', text: '{}' }] })
+    );
+  }),
 };
 const mcpToolsPath = path.resolve(import.meta.dir, '../../api/mcp/mcpTools.ts');
 const mcpToolsJsPath = path.resolve(import.meta.dir, '../../api/mcp/mcpTools.js');
@@ -275,6 +285,55 @@ const mockClient = {
   },
 } as unknown as Client;
 
+async function requestMcpOverHttp(body: unknown) {
+  const server = createServer(async (req, res) => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) {
+      chunks.push(Buffer.from(chunk));
+    }
+
+    (req as IncomingMessage & { bodyText?: string }).bodyText = Buffer.concat(chunks).toString('utf8');
+    const url = new URL(req.url!, `http://${req.headers.host}`);
+    const handled = await handleMCPRoutes(
+      req as IncomingMessage & { bodyText?: string },
+      res,
+      splitPath(url.pathname),
+      url,
+      mockClient
+    );
+    if (!handled) {
+      res.statusCode = 404;
+      res.end(JSON.stringify({ error: 'not_found' }));
+    }
+  });
+
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+
+  try {
+    const address = server.address() as AddressInfo;
+    const response = await fetch(`http://127.0.0.1:${address.port}/api/mcp/112233445566778899`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+        'x-forwarded-proto': 'https',
+        'x-forwarded-host': 'api-kotbo.example',
+      },
+      body: JSON.stringify(body),
+    });
+
+    return {
+      status: response.status,
+      body: await response.text(),
+      headers: response.headers,
+    };
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((err) => err ? reject(err) : resolve());
+    });
+  }
+}
+
 describe('Modular Routers Unit Tests', () => {
   let testUserToken: string;
 
@@ -318,6 +377,7 @@ describe('Modular Routers Unit Tests', () => {
     mockMcpKeyService.createMcpKey.mockClear();
     mockMcpKeyService.getMcpKeys.mockClear();
     mockMcpKeyService.deactivateMcpKey.mockClear();
+    mockMcpTools.registerMcpTools.mockClear();
 
     mockActivation.isGuildActivated.mockClear();
     mockActivation.activateGuild.mockClear();
@@ -416,6 +476,9 @@ describe('Modular Routers Unit Tests', () => {
       expect(data.authorization_endpoint).toBe('https://api-kotbo.example/api/mcp/112233445566778899/oauth/authorize');
       expect(data.token_endpoint).toBe('https://api-kotbo.example/api/mcp/112233445566778899/oauth/token');
       expect(data.authorization_endpoint).not.toContain('{guildId}');
+      expect(data.grant_types_supported).toEqual(['authorization_code']);
+      expect(data.token_endpoint_auth_methods_supported[0]).toBe('none');
+      expect(data.client_id_metadata_document_supported).toBe(true);
     });
   });
 
@@ -468,6 +531,57 @@ describe('Modular Routers Unit Tests', () => {
       expect(res.statusCode).toBe(401);
       expect(res.getHeader('www-authenticate')).toContain('Bearer realm="kotbo"');
       expect(res.getHeader('www-authenticate')).toContain('resource_metadata="https://api-kotbo.example/.well-known/oauth-protected-resource/api/mcp/112233445566778899"');
+    });
+
+    test('POST initialize without token is allowed for MCP client discovery', async () => {
+      const response = await requestMcpOverHttp({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2025-06-18',
+          capabilities: {},
+          clientInfo: { name: 'ChatGPT', version: 'test' },
+        },
+      });
+
+      expect(response.status).toBe(200);
+      const data = JSON.parse(response.body);
+      expect(data.result.serverInfo.name).toBe('kotbo');
+      expect(mockMcpKeyService.verifyMcpKey).not.toHaveBeenCalled();
+      expect(mockMcpTools.registerMcpTools).toHaveBeenCalledWith(
+        expect.anything(),
+        '112233445566778899',
+        [],
+        mockClient,
+        expect.objectContaining({ listAllTools: true })
+      );
+    });
+
+    test('POST tools/list without token lists public tool descriptors instead of HTTP 401', async () => {
+      const response = await requestMcpOverHttp({
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'tools/list',
+        params: {},
+      });
+
+      expect(response.status).toBe(200);
+      const data = JSON.parse(response.body);
+      expect(data.result.tools).toEqual([
+        expect.objectContaining({
+          name: 'test_tool',
+          _meta: { securitySchemes: [{ type: 'oauth2', scopes: ['mcp'] }] },
+        }),
+      ]);
+      expect(response.headers.get('www-authenticate')).toBeNull();
+      expect(mockMcpTools.registerMcpTools).toHaveBeenCalledWith(
+        expect.anything(),
+        '112233445566778899',
+        [],
+        mockClient,
+        expect.objectContaining({ listAllTools: true })
+      );
     });
 
     test('OAuth token endpoint supports client_credentials with MCP key client ID and secret', async () => {

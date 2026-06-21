@@ -1,6 +1,7 @@
 import { IncomingMessage, ServerResponse } from 'node:http';
 import crypto from 'node:crypto';
 import { Client } from 'discord.js';
+import type { McpKeyPermission } from '@prisma/client';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { JWT_SECRET, json } from '../shared.js';
@@ -62,13 +63,20 @@ function oauthError(res: ServerResponse, status: number, error: string, desc?: s
   res.end(JSON.stringify({ error, ...(desc ? { error_description: desc } : {}) }));
 }
 
-function authChallenge(req: IncomingMessage, url: URL, guildId: string, error?: string): string {
+function authParam(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function authChallenge(req: IncomingMessage, url: URL, guildId: string, error?: string, errorDescription?: string): string {
   const params = [
     'Bearer realm="kotbo"',
     'scope="mcp"',
     `resource_metadata="${standardProtectedResourceMetadataUrl(req, url, guildId)}"`,
   ];
-  if (error) params.splice(1, 0, `error="${error}"`);
+  if (error) {
+    params.splice(1, 0, `error="${authParam(error)}"`);
+    params.splice(2, 0, `error_description="${authParam(errorDescription ?? 'Autorisation MCP Kotbo requise')}"`);
+  }
   return params.join(', ');
 }
 
@@ -117,8 +125,9 @@ export function mcpAuthorizationServerMetadata(base: string) {
     registration_endpoint: `${base}/oauth/register`,
     response_types_supported: ['code'],
     code_challenge_methods_supported: ['S256'],
-    grant_types_supported: ['authorization_code', 'client_credentials'],
-    token_endpoint_auth_methods_supported: ['client_secret_post', 'client_secret_basic', 'none'],
+    grant_types_supported: ['authorization_code'],
+    token_endpoint_auth_methods_supported: ['none', 'client_secret_post', 'client_secret_basic'],
+    client_id_metadata_document_supported: true,
     scopes_supported: ['mcp'],
   };
 }
@@ -460,39 +469,6 @@ export async function handleMCPRoutes(
 
   // ── MCP JSON-RPC / Streamable HTTP (main endpoint) ─────────────────────
   if (subPath === '') {
-    const authHeader = req.headers['authorization'];
-    const rawKey = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
-      ? authHeader.slice(7).trim()
-      : null;
-
-    if (!rawKey) {
-      res.setHeader('WWW-Authenticate', authChallenge(req, url, guildId));
-      json(res, 401, { error: 'Authorization manquante' });
-      return true;
-    }
-
-    const mcpKey = await verifyMcpKey(rawKey, guildId);
-    if (!mcpKey) {
-      res.setHeader('WWW-Authenticate', authChallenge(req, url, guildId, 'invalid_token'));
-      json(res, 401, { error: 'Clé MCP invalide ou inactive' });
-      return true;
-    }
-
-    if (!checkRateLimit(mcpKey.id)) {
-      json(res, 429, { error: 'Trop de requêtes (100 req/min max)' });
-      return true;
-    }
-
-    const server = new McpServer({ name: 'kotbo', version: '1.0.0' });
-    registerMcpTools(server, guildId, mcpKey.permissions, client);
-
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined,
-      enableJsonResponse: true,
-    });
-
-    await server.connect(transport);
-
     let parsedBody: unknown;
     if (method !== 'GET' && method !== 'HEAD') {
       try {
@@ -502,6 +478,50 @@ export async function handleMCPRoutes(
         return true;
       }
     }
+
+    const authHeader = req.headers['authorization'];
+    const rawKey = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+      ? authHeader.slice(7).trim()
+      : null;
+
+    if (!rawKey && (method === 'GET' || method === 'HEAD')) {
+      res.setHeader('WWW-Authenticate', authChallenge(req, url, guildId));
+      json(res, 401, { error: 'Authorization manquante' });
+      return true;
+    }
+
+    let permissions: McpKeyPermission[] = [];
+    let keyId: string | null = null;
+
+    if (rawKey) {
+      const mcpKey = await verifyMcpKey(rawKey, guildId);
+      if (!mcpKey) {
+        res.setHeader('WWW-Authenticate', authChallenge(req, url, guildId, 'invalid_token', 'Clé MCP invalide ou inactive'));
+        json(res, 401, { error: 'Clé MCP invalide ou inactive' });
+        return true;
+      }
+
+      permissions = mcpKey.permissions;
+      keyId = mcpKey.id;
+    }
+
+    if (keyId && !checkRateLimit(keyId)) {
+      json(res, 429, { error: 'Trop de requêtes (100 req/min max)' });
+      return true;
+    }
+
+    const server = new McpServer({ name: 'kotbo', version: '1.0.0' });
+    registerMcpTools(server, guildId, permissions, client, {
+      listAllTools: !rawKey,
+      wwwAuthenticate: authChallenge(req, url, guildId, 'insufficient_scope', 'Autorisation MCP Kotbo requise'),
+    });
+
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: undefined,
+      enableJsonResponse: true,
+    });
+
+    await server.connect(transport);
 
     await transport.handleRequest(req, res, parsedBody);
     return true;
