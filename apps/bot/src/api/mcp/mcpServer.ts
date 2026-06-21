@@ -8,6 +8,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { JWT_SECRET, json } from '../shared.js';
 import { verifyMcpKey, verifyMcpKeyByClientCredentials } from './mcpKeyService.js';
 import { registerMcpTools } from './mcpTools.js';
+import { logger } from '../../utils/logger.js';
 
 // ── In-memory OAuth state (ephemeral, single-instance) ────────────────────
 
@@ -59,9 +60,20 @@ function parseFormBody(body: string): Record<string, string> {
 }
 
 function oauthError(res: ServerResponse, status: number, error: string, desc?: string) {
+  logger.warn('MCPAuth', `oauth_error status=${status} error=${error} desc=${desc ?? ''}`);
   res.setHeader('Content-Type', 'application/json');
   res.statusCode = status;
   res.end(JSON.stringify({ error, ...(desc ? { error_description: desc } : {}) }));
+}
+
+function mcpLog(req: IncomingMessage, event: string, data: Record<string, unknown> = {}) {
+  const ua = Array.isArray(req.headers['user-agent']) ? req.headers['user-agent'].join(' ') : req.headers['user-agent'] ?? '';
+  logger.info('MCPAuth', `${event} ${JSON.stringify({
+    method: req.method,
+    url: req.url,
+    ua: ua.slice(0, 120),
+    ...data,
+  })}`);
 }
 
 function authParam(value: string): string {
@@ -373,6 +385,7 @@ export async function handleMCPRoutes(
     const clientName  = (body.client_name as string | undefined) ?? 'Unknown Client';
 
     oauthClients.set(clientId, { clientId, redirectUris, clientName, guildId });
+    mcpLog(req, 'dcr_registered', { guildId, clientId, redirectUris, clientName });
 
     res.setHeader('Content-Type', 'application/json');
     res.statusCode = 201;
@@ -399,10 +412,12 @@ export async function handleMCPRoutes(
     const resource            = p.get('resource') ?? undefined;
 
     if (!clientId || !redirectUri || !codeChallenge) {
+      mcpLog(req, 'authorize_get_invalid', { guildId, hasClientId: !!clientId, hasRedirectUri: !!redirectUri, hasCodeChallenge: !!codeChallenge });
       json(res, 400, { error: 'invalid_request', error_description: 'client_id, redirect_uri et code_challenge requis' });
       return true;
     }
 
+    mcpLog(req, 'authorize_get_page', { guildId, clientId, redirectUri, resource: resource ?? null });
     const clientName = oauthClients.get(clientId)?.clientName ?? 'Agent IA';
     res.setHeader('Content-Security-Policy',
       "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' https://claude.ai https://chatgpt.com https://chat.openai.com https://gemini.google.com; base-uri 'none'; frame-ancestors 'none'");
@@ -418,6 +433,7 @@ export async function handleMCPRoutes(
     const { client_id, redirect_uri, state, code_challenge, code_challenge_method, api_key, resource } = p;
 
     if (!client_id || !redirect_uri || !code_challenge || !api_key) {
+      mcpLog(req, 'authorize_post_invalid', { guildId, hasClientId: !!client_id, hasRedirectUri: !!redirect_uri, hasCodeChallenge: !!code_challenge, hasApiKey: !!api_key });
       json(res, 400, { error: 'invalid_request' });
       return true;
     }
@@ -425,6 +441,7 @@ export async function handleMCPRoutes(
     const cleanApiKey = api_key.trim();
     const mcpKey = await verifyMcpKey(cleanApiKey, guildId);
     if (!mcpKey) {
+      mcpLog(req, 'authorize_post_bad_key', { guildId, clientId: client_id, redirectUri: redirect_uri });
       const clientName = oauthClients.get(client_id)?.clientName ?? 'Agent IA';
       res.setHeader('Content-Security-Policy',
         "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' https://claude.ai https://chatgpt.com https://chat.openai.com https://gemini.google.com; base-uri 'none'; frame-ancestors 'none'");
@@ -452,6 +469,7 @@ export async function handleMCPRoutes(
     };
     const code = sealAuthCode(authCode);
     authCodes.set(code, authCode);
+    mcpLog(req, 'authorize_post_code_issued', { guildId, clientId: client_id, redirectUri: redirect_uri, resource: resource ?? null, keyId: mcpKey.id, permissions: mcpKey.permissions });
 
     const dest = new URL(redirect_uri);
     dest.searchParams.set('code', code);
@@ -479,6 +497,15 @@ export async function handleMCPRoutes(
     const { grant_type, code, code_verifier, redirect_uri, resource } = p;
     const clientId = basicCredentials?.clientId ?? p.client_id;
     const clientSecret = basicCredentials?.clientSecret ?? p.client_secret;
+    mcpLog(req, 'token_request', {
+      guildId,
+      grantType: grant_type,
+      clientId: clientId ?? null,
+      hasCode: !!code,
+      hasVerifier: !!code_verifier,
+      redirectUri: redirect_uri ?? null,
+      resource: resource ?? null,
+    });
 
     if (grant_type === 'client_credentials') {
       if (!clientId || !clientSecret) {
@@ -491,6 +518,7 @@ export async function handleMCPRoutes(
         oauthError(res, 401, 'invalid_client', 'Client ID ou secret invalide');
         return true;
       }
+      mcpLog(req, 'token_client_credentials_success', { guildId, clientId, keyId: mcpKey.id });
 
       res.setHeader('Content-Type', 'application/json');
       res.statusCode = 200;
@@ -539,6 +567,7 @@ export async function handleMCPRoutes(
     }
 
     authCodes.delete(code); // single-use
+    mcpLog(req, 'token_authorization_code_success', { guildId, clientId: ac.clientId, resource: resource ?? null });
 
     res.setHeader('Content-Type', 'application/json');
     res.statusCode = 200;
@@ -570,12 +599,14 @@ export async function handleMCPRoutes(
     const basicCredentials = readBasicClientCredentials(authHeader);
 
     if (!rawKey && !basicCredentials && (method === 'GET' || method === 'HEAD')) {
+      mcpLog(req, 'mcp_get_auth_challenge', { guildId });
       res.setHeader('WWW-Authenticate', authChallenge(req, url, guildId));
       json(res, 401, { error: 'Authorization manquante' });
       return true;
     }
 
     if (!rawKey && !basicCredentials && jsonRpcMethod(parsedBody) === 'tools/call' && looksLikeClaude(req)) {
+      mcpLog(req, 'mcp_tools_call_claude_401', { guildId, tool: (parsedBody as any)?.params?.name ?? null });
       res.setHeader('WWW-Authenticate', authChallenge(req, url, guildId, 'insufficient_scope', 'Autorisation MCP Kotbo requise'));
       json(res, 401, { error: 'authorization_required', error_description: 'Autorisation MCP Kotbo requise' });
       return true;
@@ -587,6 +618,7 @@ export async function handleMCPRoutes(
     if (rawKey) {
       const mcpKey = await verifyMcpKey(rawKey, guildId);
       if (!mcpKey) {
+        mcpLog(req, 'mcp_bearer_invalid', { guildId });
         res.setHeader('WWW-Authenticate', authChallenge(req, url, guildId, 'invalid_token', 'Clé MCP invalide ou inactive'));
         json(res, 401, { error: 'Clé MCP invalide ou inactive' });
         return true;
@@ -594,9 +626,11 @@ export async function handleMCPRoutes(
 
       permissions = mcpKey.permissions;
       keyId = mcpKey.id;
+      mcpLog(req, 'mcp_bearer_valid', { guildId, keyId, method: jsonRpcMethod(parsedBody), permissions });
     } else if (basicCredentials) {
       const mcpKey = await verifyMcpKeyByClientCredentials(basicCredentials.clientId, basicCredentials.clientSecret, guildId);
       if (!mcpKey) {
+        mcpLog(req, 'mcp_basic_invalid', { guildId, clientId: basicCredentials.clientId });
         res.setHeader('WWW-Authenticate', authChallenge(req, url, guildId, 'invalid_token', 'Client MCP invalide ou inactif'));
         json(res, 401, { error: 'Client MCP invalide ou inactif' });
         return true;
@@ -604,6 +638,7 @@ export async function handleMCPRoutes(
 
       permissions = mcpKey.permissions;
       keyId = mcpKey.id;
+      mcpLog(req, 'mcp_basic_valid', { guildId, keyId, method: jsonRpcMethod(parsedBody), permissions });
     }
 
     if (keyId && !checkRateLimit(keyId)) {

@@ -42,6 +42,9 @@
   let createdKey = $state<CreatedKey | null>(null);
   let helpOpen = $state(false);
   let selectedAi = $state<'claude' | 'chatgpt' | 'gemini'>('claude');
+  let diagOpen = $state(false);
+  let diagRunning = $state(false);
+  let diagResults = $state<Array<{ name: string; ok: boolean; status?: number; detail: string }>>([]);
 
   // Delete modal
   let deleteOpen = $state(false);
@@ -225,6 +228,91 @@
     expandedKeyId = expandedKeyId === keyId ? null : keyId;
   }
 
+  async function runMcpDiagnostics() {
+    if (!endpointUrl) return;
+    diagOpen = true;
+    diagRunning = true;
+    diagResults = [];
+
+    const add = (name: string, ok: boolean, status: number | undefined, detail: string) => {
+      const entry = { name, ok, status, detail };
+      diagResults = [...diagResults, entry];
+      const log = ok ? console.info : console.warn;
+      log('[MCP diagnostic]', entry);
+    };
+
+    const safeJson = async (response: Response) => {
+      const text = await response.text();
+      try {
+        return JSON.stringify(JSON.parse(text), null, 2).slice(0, 1200);
+      } catch {
+        return text.slice(0, 1200);
+      }
+    };
+
+    const guildPath = `/api/mcp/${guildId}`;
+    const prmUrl = `${API_BASE_URL}/.well-known/oauth-protected-resource${guildPath}`;
+    const asUrl = `${API_BASE_URL}/.well-known/oauth-authorization-server${guildPath}`;
+    const commonHeaders = {
+      'content-type': 'application/json',
+      accept: 'application/json, text/event-stream',
+    };
+
+    try {
+      const response = await fetch(endpointUrl, { method: 'GET' });
+      add('GET endpoint sans token', response.status === 401, response.status, `WWW-Authenticate: ${response.headers.get('www-authenticate') ?? 'absent'}\n${await safeJson(response)}`);
+    } catch (error) {
+      add('GET endpoint sans token', false, undefined, error instanceof Error ? error.message : String(error));
+    }
+
+    try {
+      const response = await fetch(prmUrl);
+      add('Protected Resource Metadata', response.ok, response.status, await safeJson(response));
+    } catch (error) {
+      add('Protected Resource Metadata', false, undefined, error instanceof Error ? error.message : String(error));
+    }
+
+    try {
+      const response = await fetch(asUrl);
+      add('Authorization Server Metadata', response.ok, response.status, await safeJson(response));
+    } catch (error) {
+      add('Authorization Server Metadata', false, undefined, error instanceof Error ? error.message : String(error));
+    }
+
+    try {
+      const response = await fetch(endpointUrl, {
+        method: 'POST',
+        headers: commonHeaders,
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2025-06-18',
+            capabilities: {},
+            clientInfo: { name: 'kotbo-dashboard-diagnostic', version: '1' },
+          },
+        }),
+      });
+      add('JSON-RPC initialize sans token', response.ok, response.status, await safeJson(response));
+    } catch (error) {
+      add('JSON-RPC initialize sans token', false, undefined, error instanceof Error ? error.message : String(error));
+    }
+
+    try {
+      const response = await fetch(endpointUrl, {
+        method: 'POST',
+        headers: commonHeaders,
+        body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }),
+      });
+      add('JSON-RPC tools/list sans token', response.ok, response.status, await safeJson(response));
+    } catch (error) {
+      add('JSON-RPC tools/list sans token', false, undefined, error instanceof Error ? error.message : String(error));
+    } finally {
+      diagRunning = false;
+    }
+  }
+
   function handleKeyRowKeyboard(event: KeyboardEvent, keyId: string) {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
@@ -277,6 +365,12 @@
           class="shrink-0 px-3 py-2.5 rounded-lg border border-white/10 text-xs text-gray-400 hover:text-white hover:border-white/20 transition-colors"
         >
           {copiedField === 'endpoint' ? '✓ Copié' : 'Copier'}
+        </button>
+        <button
+          onclick={runMcpDiagnostics}
+          class="shrink-0 px-3 py-2.5 rounded-lg border border-amber-400/25 text-xs text-amber-300 hover:text-amber-200 hover:border-amber-400/40 transition-colors"
+        >
+          Diagnostic
         </button>
       {/if}
     </div>
@@ -669,6 +763,39 @@
         </p>
       </div>
     </div>
+  </div>
+</Modal>
+
+<Modal bind:open={diagOpen} onClose={() => { diagOpen = false; }} title="Diagnostic MCP" size="xl">
+  <div class="space-y-3 p-5">
+    <div class="flex items-center justify-between gap-3">
+      <p class="text-sm text-gray-400">Tests publics depuis ton navigateur vers l'endpoint MCP. Les résultats sont aussi dans la console.</p>
+      <button
+        onclick={runMcpDiagnostics}
+        disabled={diagRunning || !endpointUrl}
+        class="px-3 py-2 rounded-lg border border-white/10 text-sm text-gray-300 hover:text-white disabled:opacity-40"
+      >
+        {diagRunning ? 'Test...' : 'Relancer'}
+      </button>
+    </div>
+
+    {#if diagResults.length === 0}
+      <div class="rounded-lg border border-white/8 bg-black/20 p-6 text-sm text-gray-500">
+        {diagRunning ? 'Diagnostic en cours...' : 'Aucun diagnostic lancé.'}
+      </div>
+    {:else}
+      <div class="space-y-2">
+        {#each diagResults as result}
+          <div class="rounded-lg border {result.ok ? 'border-emerald-400/20 bg-emerald-400/5' : 'border-red-400/20 bg-red-400/5'} p-3">
+            <div class="flex items-center justify-between gap-3">
+              <p class="text-sm font-semibold {result.ok ? 'text-emerald-300' : 'text-red-300'}">{result.name}</p>
+              <span class="text-xs text-gray-500">HTTP {result.status ?? 'ERR'}</span>
+            </div>
+            <pre class="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-black/35 p-3 text-xs leading-relaxed text-gray-300">{result.detail}</pre>
+          </div>
+        {/each}
+      </div>
+    {/if}
   </div>
 </Modal>
 
