@@ -1057,6 +1057,14 @@ export async function handleMCPRoutes(
       return true;
     }
 
+    // Unauthenticated POST with no JSON-RPC method (probe/empty body): return 401 instead of 415/400.
+    if (!keyId && method === 'POST' && !jsonRpcMethod(parsedBody)) {
+      mcpLog(req, 'mcp_probe_no_auth', { guildId }, 'warn');
+      res.setHeader('WWW-Authenticate', authChallenge(req, url, guildId));
+      json(res, 401, { error: 'authorization_required', error_description: 'Authentification requise' });
+      return true;
+    }
+
     const server = new McpServer({ name: 'kotbo', version: '1.0.0' });
     registerMcpTools(server, guildId, permissions, client, {
       listAllTools: !directToken && !rawKey && !basicCredentials,
@@ -1090,8 +1098,8 @@ export async function handleMCPRoutes(
       });
     }
 
-    if (directToken && jsonRpcMethod(parsedBody) === 'initialize') {
-      mcpLog(req, 'mcp_initialize_direct_compat', {
+    if (jsonRpcMethod(parsedBody) === 'initialize') {
+      mcpLog(req, 'mcp_initialize_compat', {
         guildId,
         keyId,
         protocolVersion: initializeProtocolVersion(parsedBody),
