@@ -110,3 +110,9 @@ export const getActiveMcpKeyById = async (keyId: string, guildId: string) => {
 
   return key;
 };
+
+export const findActiveMcpKeyById = async (keyId: string, guildId: string) => {
+  return prisma.mcpApiKey.findFirst({
+    where: { id: keyId, guildId, isActive: true },
+  });
+};

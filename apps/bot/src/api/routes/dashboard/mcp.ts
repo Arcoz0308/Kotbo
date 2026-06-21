@@ -2,8 +2,8 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client } from 'discord.js';
 import { json, readJsonBody, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import { logger } from '../../../utils/logger.js';
-import { getMcpConnectionLogs } from '../../mcp/mcpServer.js';
-import { createMcpKey, getMcpKeys, deactivateMcpKey } from '../../mcp/mcpKeyService.js';
+import { getMcpConnectionLogs, makeMcpDirectUrl } from '../../mcp/mcpServer.js';
+import { createMcpKey, getMcpKeys, deactivateMcpKey, findActiveMcpKeyById } from '../../mcp/mcpKeyService.js';
 import type { McpKeyPermission } from '@prisma/client';
 
 const VALID_PERMISSIONS: McpKeyPermission[] = [
@@ -78,6 +78,24 @@ export async function handleMCPKeyRoutes(
     } catch (error) {
       logger.error('MCPKeyRoutes', 'Error creating MCP key:', error);
       json(res, 500, { error: 'Erreur lors de la création de la clé MCP' });
+    }
+    return true;
+  }
+
+  // GET /api/dashboard/guilds/:guildId/mcp-keys/:keyId/direct-url
+  if (parts.length === 7 && parts[4] === 'mcp-keys' && parts[6] === 'direct-url' && method === 'GET') {
+    const keyId = parts[5];
+    try {
+      const key = await findActiveMcpKeyById(keyId, guildId);
+      if (!key) {
+        json(res, 404, { error: 'Clé MCP introuvable ou inactive' });
+        return true;
+      }
+
+      json(res, 200, makeMcpDirectUrl(req, _url, guildId, key.id));
+    } catch (error) {
+      logger.error('MCPKeyRoutes', 'Error creating MCP direct URL:', error);
+      json(res, 500, { error: 'Erreur lors de la génération de l URL MCP directe' });
     }
     return true;
   }

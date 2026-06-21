@@ -43,6 +43,7 @@ type McpAccessTokenClaims = {
   sub: string;
   guildId: string;
   scope?: string;
+  typ?: string;
   aud?: string;
   iss?: string;
 };
@@ -64,6 +65,7 @@ export type McpConnectionLog = {
 
 const mcpConnectionLogs: McpConnectionLog[] = [];
 const MCP_CONNECTION_LOG_LIMIT = 500;
+const MCP_DIRECT_TOKEN_TTL_SECONDS = 180 * 24 * 60 * 60;
 
 // Clean expired codes every 15 min
 setInterval(() => {
@@ -107,8 +109,12 @@ export function getMcpConnectionLogs(guildId: string, limit = 150): McpConnectio
 
 function inferMcpGuildId(req: IncomingMessage): string {
   const path = (req.url ?? '').split('?')[0] ?? '';
-  const match = path.match(/\/api\/mcp\/(\d{15,20})(?:\/|$)/);
+  const match = path.match(/\/api\/(?:mcp|mcp-direct)\/(\d{15,20})(?:\/|$)/);
   return match?.[1] ?? 'unknown';
+}
+
+function sanitizeMcpUrl(rawUrl: string | undefined): string {
+  return (rawUrl ?? '').replace(/(\/api\/mcp-direct\/\d{15,20}\/)[^/?#]+/g, '$1[token]');
 }
 
 function oauthError(req: IncomingMessage, res: ServerResponse, status: number, error: string, desc?: string) {
@@ -118,12 +124,21 @@ function oauthError(req: IncomingMessage, res: ServerResponse, status: number, e
   res.end(JSON.stringify({ error, ...(desc ? { error_description: desc } : {}) }));
 }
 
+function sendOAuthTokenResponse(res: ServerResponse, body: Record<string, unknown>) {
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Pragma', 'no-cache');
+  res.statusCode = 200;
+  res.end(JSON.stringify(body));
+}
+
 function mcpLog(req: IncomingMessage, event: string, data: Record<string, unknown> = {}, level: 'info' | 'warn' | 'error' = 'info') {
   const ua = Array.isArray(req.headers['user-agent']) ? req.headers['user-agent'].join(' ') : req.headers['user-agent'] ?? '';
   const guildId = typeof data.guildId === 'string' ? data.guildId : inferMcpGuildId(req);
+  const safeUrl = sanitizeMcpUrl(req.url);
   const payload = {
     method: req.method,
-    url: req.url,
+    url: safeUrl,
     ua: ua.slice(0, 120),
     guildId,
     ...data,
@@ -136,7 +151,7 @@ function mcpLog(req: IncomingMessage, event: string, data: Record<string, unknow
     guildId,
     event,
     method: req.method ?? 'GET',
-    url: req.url ?? '',
+    url: safeUrl,
     ua: ua.slice(0, 120),
     data,
   });
@@ -168,10 +183,14 @@ function escapeHtml(s: string): string {
 }
 
 function publicBase(req: IncomingMessage, url: URL, guildId: string): string {
+  return `${publicOrigin(req, url)}/api/mcp/${guildId}`;
+}
+
+function publicOrigin(req: IncomingMessage, url: URL): string {
   const proto = (req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0]?.trim()
     ?? url.protocol.replace(':', '');
   const host = (req.headers['x-forwarded-host'] as string | undefined) ?? url.host;
-  return `${proto}://${host}/api/mcp/${guildId}`;
+  return `${proto}://${host}`;
 }
 
 function standardProtectedResourceMetadataUrl(req: IncomingMessage, url: URL, guildId: string): string {
@@ -404,6 +423,48 @@ function makeAccessToken(opts: {
   );
 }
 
+export function makeMcpDirectUrl(req: IncomingMessage, url: URL, guildId: string, keyId: string) {
+  const token = makeMcpDirectToken(guildId, keyId);
+  return {
+    directUrl: `${publicOrigin(req, url)}/api/mcp-direct/${guildId}/${token}`,
+    expiresAt: new Date(Date.now() + MCP_DIRECT_TOKEN_TTL_SECONDS * 1000).toISOString(),
+  };
+}
+
+export function makeMcpDirectToken(guildId: string, keyId: string) {
+  return jwt.sign(
+    {
+      guildId,
+      typ: 'mcp_direct',
+      scope: 'mcp',
+    },
+    oauthJwtSecret(),
+    {
+      subject: keyId,
+      issuer: 'kotbo-mcp-direct',
+      audience: 'kotbo-mcp-direct',
+      expiresIn: MCP_DIRECT_TOKEN_TTL_SECONDS,
+    }
+  );
+}
+
+async function verifyMcpDirectToken(token: string, guildId: string) {
+  try {
+    const claims = jwt.verify(token, oauthJwtSecret(), {
+      issuer: 'kotbo-mcp-direct',
+      audience: 'kotbo-mcp-direct',
+    }) as McpAccessTokenClaims;
+
+    if (claims.typ !== 'mcp_direct' || claims.guildId !== guildId || typeof claims.sub !== 'string') {
+      return null;
+    }
+
+    return getActiveMcpKeyById(claims.sub, guildId);
+  } catch {
+    return null;
+  }
+}
+
 function sealRefreshToken(payload: RefreshTokenPayload): string {
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv('aes-256-gcm', oauthCodeKey(), iv);
@@ -537,7 +598,9 @@ export async function handleMCPRoutes(
   url: URL,
   client: Client
 ): Promise<boolean> {
-  if (parts[0] !== 'api' || parts[1] !== 'mcp') return false;
+  const isStandardMcp = parts[0] === 'api' && parts[1] === 'mcp';
+  const isDirectMcp = parts[0] === 'api' && parts[1] === 'mcp-direct';
+  if (!isStandardMcp && !isDirectMcp) return false;
 
   const guildId = parts[2];
   if (!guildId) {
@@ -553,8 +616,15 @@ export async function handleMCPRoutes(
   }
 
   const method = req.method ?? 'GET';
-  const subPath = parts.slice(3).join('/');
+  const directToken = isDirectMcp ? parts[3] : null;
+  const subPath = parts.slice(isDirectMcp ? 4 : 3).join('/');
   const base = publicBase(req, url, guildId);
+
+  if (isDirectMcp && !directToken) {
+    mcpLog(req, 'mcp_direct_missing_token', { guildId }, 'warn');
+    json(res, 401, { error: 'direct_token_required' });
+    return true;
+  }
 
   // ── Protected Resource Metadata (RFC 9728) ─────────────────────────────
   if (subPath === '.well-known/oauth-protected-resource' && method === 'GET') {
@@ -726,15 +796,13 @@ export async function handleMCPRoutes(
 
       const audience = resource ?? rt.resource ?? base;
       mcpLog(req, 'token_refresh_success', { guildId, clientId: rt.clientId, keyId: rt.keyId, resource: audience });
-      res.setHeader('Content-Type', 'application/json');
-      res.statusCode = 200;
-      res.end(JSON.stringify({
+      sendOAuthTokenResponse(res, {
         access_token: makeAccessToken({ guildId, keyId: rt.keyId, issuer: base, audience }),
         refresh_token: refreshToken,
         token_type: 'Bearer',
         expires_in: 7776000,
         scope: 'mcp',
-      }));
+      });
       return true;
     }
 
@@ -751,14 +819,12 @@ export async function handleMCPRoutes(
       }
       mcpLog(req, 'token_client_credentials_success', { guildId, clientId, keyId: mcpKey.id });
 
-      res.setHeader('Content-Type', 'application/json');
-      res.statusCode = 200;
-      res.end(JSON.stringify({
+      sendOAuthTokenResponse(res, {
         access_token: clientSecret,
         token_type: 'Bearer',
         expires_in: 7776000,
         scope: 'mcp',
-      }));
+      });
       return true;
     }
 
@@ -808,15 +874,13 @@ export async function handleMCPRoutes(
     });
     mcpLog(req, 'token_authorization_code_success', { guildId, clientId: ac.clientId, keyId: ac.keyId, resource: tokenAudience });
 
-    res.setHeader('Content-Type', 'application/json');
-    res.statusCode = 200;
-    res.end(JSON.stringify({
+    sendOAuthTokenResponse(res, {
       access_token: makeAccessToken({ guildId, keyId: ac.keyId, issuer: base, audience: tokenAudience }),
       refresh_token: refreshToken,
       token_type: 'Bearer',
       expires_in: 7776000,
       scope: 'mcp',
-    }));
+    });
     return true;
   }
 
@@ -838,14 +902,14 @@ export async function handleMCPRoutes(
       : null;
     const basicCredentials = readBasicClientCredentials(authHeader);
 
-    if (!rawKey && !basicCredentials && (method === 'GET' || method === 'HEAD')) {
+    if (!directToken && !rawKey && !basicCredentials && (method === 'GET' || method === 'HEAD')) {
       mcpLog(req, 'mcp_get_auth_challenge', { guildId });
       res.setHeader('WWW-Authenticate', authChallenge(req, url, guildId));
       json(res, 401, { error: 'Authorization manquante' });
       return true;
     }
 
-    if (!rawKey && !basicCredentials && jsonRpcMethod(parsedBody) === 'tools/call' && looksLikeClaude(req)) {
+    if (!directToken && !rawKey && !basicCredentials && jsonRpcMethod(parsedBody) === 'tools/call' && looksLikeClaude(req)) {
       mcpLog(req, 'mcp_tools_call_claude_401', { guildId, tool: (parsedBody as any)?.params?.name ?? null });
       res.setHeader('WWW-Authenticate', authChallenge(req, url, guildId, 'insufficient_scope', 'Autorisation MCP Kotbo requise'));
       json(res, 401, { error: 'authorization_required', error_description: 'Autorisation MCP Kotbo requise' });
@@ -855,7 +919,18 @@ export async function handleMCPRoutes(
     let permissions: McpKeyPermission[] = [];
     let keyId: string | null = null;
 
-    if (rawKey) {
+    if (directToken) {
+      const mcpKey = await verifyMcpDirectToken(directToken, guildId);
+      if (!mcpKey) {
+        mcpLog(req, 'mcp_direct_invalid', { guildId }, 'warn');
+        json(res, 401, { error: 'URL MCP directe invalide ou expirée' });
+        return true;
+      }
+
+      permissions = mcpKey.permissions;
+      keyId = mcpKey.id;
+      mcpLog(req, 'mcp_direct_valid', { guildId, keyId, method: jsonRpcMethod(parsedBody), permissions });
+    } else if (rawKey) {
       const mcpKey = rawKey.startsWith('mcp_')
         ? await verifyMcpKey(rawKey, guildId)
         : await verifyOAuthAccessToken(rawKey, guildId, base);
@@ -890,7 +965,7 @@ export async function handleMCPRoutes(
 
     const server = new McpServer({ name: 'kotbo', version: '1.0.0' });
     registerMcpTools(server, guildId, permissions, client, {
-      listAllTools: !rawKey && !basicCredentials,
+      listAllTools: !directToken && !rawKey && !basicCredentials,
       wwwAuthenticate: authChallenge(req, url, guildId, 'insufficient_scope', 'Autorisation MCP Kotbo requise'),
     });
 

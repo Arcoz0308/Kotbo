@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { toast } from '../lib/stores/toast.svelte';
-  import { API_BASE_URL, fetchMcpKeys, createMcpKey, deleteMcpKey, fetchMcpLogs } from '../lib/api';
+  import { API_BASE_URL, fetchMcpKeys, createMcpKey, deleteMcpKey, fetchMcpDirectUrl, fetchMcpLogs } from '../lib/api';
   import Modal from '../lib/components/Modal.svelte';
   import ConfirmModal from '../lib/components/ConfirmModal.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -29,6 +29,7 @@
     clientId: string;
     clientSecret: string;
     name: string;
+    directUrl?: string;
   };
 
   type McpLogEntry = {
@@ -57,6 +58,8 @@
   let diagOpen = $state(false);
   let diagRunning = $state(false);
   let diagLogs = $state<McpLogEntry[]>([]);
+  let directUrls = $state<Record<string, { url: string; expiresAt: string }>>({});
+  let directUrlLoadingKeyId = $state<string | null>(null);
 
   // Delete modal
   let deleteOpen = $state(false);
@@ -85,15 +88,15 @@
       note: 'Claude utilise les Custom connectors en remote MCP. Le serveur doit être public, puis Claude ouvre le flow OAuth Kotbo pour saisir ta clé MCP.',
       fields: [
         { label: 'Name', value: 'Kotbo' },
-        { label: 'URL', value: 'URL MCP du serveur' },
-        { label: 'Advanced settings', value: 'Laisse vide sauf si Claude demande explicitement un client ID/secret.' },
+        { label: 'URL', value: 'URL MCP directe Claude si OAuth bloque, sinon URL MCP standard' },
+        { label: 'Advanced settings', value: 'Laisse vide avec l URL directe. Pour OAuth standard, laisse vide aussi sauf demande explicite.' },
       ],
       steps: [
         'Ouvre Claude puis va dans Customize > Connectors.',
         'Clique sur le bouton + puis choisis Add custom connector.',
-        'Nom : Kotbo. URL : colle l URL MCP affichée ici.',
-        'Valide avec Add, puis clique Connect sur le connecteur Kotbo.',
-        'Quand la page Kotbo s ouvre, colle ta clé MCP complète, celle qui commence par mcp_.',
+        'Ouvre une clé MCP ci-dessous et clique URL directe Claude, puis copie cette URL.',
+        'Nom : Kotbo. URL : colle l URL directe Claude. Ne remplis pas Client ID ni Client Secret.',
+        'Valide avec Add. Si tu utilises l URL MCP standard à la place, clique Connect puis colle ta clé mcp_ sur la page Kotbo.',
       ],
     },
     chatgpt: {
@@ -106,7 +109,7 @@
       setupUrl: 'https://chatgpt.com/#settings/Apps',
       docsUrl: 'https://developers.openai.com/api/docs/guides/developer-mode',
       primaryAction: 'Ouvrir ChatGPT Apps',
-      note: 'ChatGPT passe par Developer mode pour créer une app depuis un serveur MCP distant. Kotbo expose OAuth, PKCE et mixed authentication pour que ChatGPT puisse initialiser, lister les tools, puis demander l auth au premier appel.',
+      note: 'ChatGPT passe par Developer mode pour créer une app depuis un serveur MCP distant. Kotbo expose OAuth, PKCE, resource metadata et Bearer token comme attendu par les Apps MCP.',
       fields: [
         { label: 'App name', value: 'Kotbo' },
         { label: 'MCP server URL', value: 'URL MCP du serveur' },
@@ -130,11 +133,11 @@
       setupUrl: 'https://ai.google.dev/gemini-api/docs/interactions/deep-research',
       docsUrl: 'https://ai.google.dev/gemini-api/docs/interactions/deep-research',
       primaryAction: 'Ouvrir la doc Gemini',
-      note: 'Gemini expose le remote MCP via l API Deep Research. La configuration se fait côté API avec un tool mcp_server contenant le name, l url, et si besoin un header Authorization.',
+      note: 'Gemini utilise surtout MCP côté API. Utilise l URL MCP standard avec un header Bearer, ou l URL directe si ton environnement ne sait pas envoyer de header.',
       fields: [
         { label: 'type', value: 'mcp_server' },
         { label: 'name', value: 'Kotbo' },
-        { label: 'url', value: 'URL MCP du serveur' },
+        { label: 'url', value: 'URL MCP standard ou URL directe' },
         { label: 'headers', value: 'Authorization: Bearer mcp_... si ton client ne lance pas OAuth automatiquement.' },
       ],
       steps: [
@@ -178,6 +181,10 @@
       if (result?.fullKey) {
         createdKey = { clientId: result.id, clientSecret: result.fullKey, name: result.name };
         keys = [{ id: result.id, name: result.name, displayKey: result.displayKey, permissions: result.permissions, lastUsedAt: null, createdAt: result.createdAt }, ...keys];
+        const directUrl = await loadDirectUrl(result.id, false);
+        if (directUrl) {
+          createdKey = { ...createdKey, directUrl };
+        }
         newKeyName = '';
         newKeyPerms = ['READ_STATS', 'READ_MEMBERS', 'READ_SANCTIONS'];
       }
@@ -200,6 +207,29 @@
     setTimeout(() => { copiedField = null; }, 2000);
   }
 
+  async function loadDirectUrl(keyId: string, copyAfterLoad = true) {
+    if (!guildId) return null;
+    directUrlLoadingKeyId = keyId;
+    try {
+      const result = await fetchMcpDirectUrl(keyId, guildId);
+      if (result?.directUrl) {
+        directUrls = {
+          ...directUrls,
+          [keyId]: { url: result.directUrl, expiresAt: result.expiresAt },
+        };
+        if (copyAfterLoad) {
+          await copy(result.directUrl, `direct-${keyId}`);
+        }
+        return result.directUrl as string;
+      }
+    } catch {
+      toast.error('Impossible de générer l URL MCP directe');
+    } finally {
+      directUrlLoadingKeyId = null;
+    }
+    return null;
+  }
+
   function confirmDelete(key: McpKey) {
     deletingKeyId = key.id;
     deletingKeyName = key.name;
@@ -211,6 +241,8 @@
     try {
       await deleteMcpKey(deletingKeyId);
       keys = keys.filter((k) => k.id !== deletingKeyId);
+      delete directUrls[deletingKeyId];
+      directUrls = { ...directUrls };
       if (expandedKeyId === deletingKeyId) expandedKeyId = null;
       toast.success('Clé MCP révoquée');
     } catch {
@@ -447,6 +479,33 @@
                   </div>
                 </div>
 
+                <!-- Direct signed endpoint for Claude fallback -->
+                <div class="space-y-1 rounded-lg border border-amber-400/15 bg-amber-400/5 p-3">
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p class="text-[11px] font-medium text-amber-300 uppercase tracking-wide">URL directe Claude</p>
+                      <p class="mt-0.5 text-xs text-amber-200/70">
+                        À utiliser si Claude termine OAuth puis affiche encore "Authorization failed".
+                      </p>
+                    </div>
+                    <button
+                      onclick={() => directUrls[key.id]?.url ? copy(directUrls[key.id].url, `direct-${key.id}`) : loadDirectUrl(key.id)}
+                      disabled={directUrlLoadingKeyId === key.id}
+                      class="shrink-0 px-2.5 py-2 rounded-lg border border-amber-400/25 text-xs text-amber-200 hover:border-amber-400/40 hover:text-amber-100 disabled:opacity-50 transition-colors"
+                    >
+                      {directUrlLoadingKeyId === key.id ? 'Génération...' : copiedField === `direct-${key.id}` ? 'Copié' : directUrls[key.id]?.url ? 'Copier' : 'Générer'}
+                    </button>
+                  </div>
+                  {#if directUrls[key.id]?.url}
+                    <code class="mt-2 block bg-black/40 border border-white/8 rounded-lg px-3 py-2 text-xs font-mono text-gray-200 break-all">
+                      {directUrls[key.id].url}
+                    </code>
+                    <p class="mt-1 text-[11px] text-gray-600">
+                      Expire le {new Date(directUrls[key.id].expiresAt).toLocaleDateString('fr-FR')}. Révoquer la clé coupe aussi cette URL.
+                    </p>
+                  {/if}
+                </div>
+
                 <!-- Permissions list -->
                 <div class="space-y-1">
                   <p class="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Permissions</p>
@@ -538,6 +597,29 @@
           </button>
         </div>
       </div>
+
+      {#if createdKey.directUrl}
+        <div class="space-y-1.5 rounded-lg border border-amber-400/20 bg-amber-400/5 p-3">
+          <div class="flex items-center gap-1.5 text-xs font-medium text-amber-300">
+            <Papicon icon="link" size={12} />
+            URL directe Claude
+          </div>
+          <div class="flex items-center gap-2">
+            <code class="flex-1 bg-black/40 border border-white/8 rounded-lg px-3 py-2.5 text-xs font-mono text-gray-200 break-all">
+              {createdKey.directUrl}
+            </code>
+            <button
+              onclick={() => copy(createdKey!.directUrl!, 'new-direct-url')}
+              class="shrink-0 px-2.5 py-2 rounded-lg border border-white/10 text-xs text-gray-400 hover:text-white transition-colors"
+            >
+              {copiedField === 'new-direct-url' ? '✓' : 'Copier'}
+            </button>
+          </div>
+          <p class="text-[11px] leading-relaxed text-amber-200/70">
+            Pour Claude : colle cette URL comme serveur MCP et laisse les champs OAuth avancés vides.
+          </p>
+        </div>
+      {/if}
 
       <button onclick={closeCreateModal} class="w-full py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
         J'ai tout copié, fermer

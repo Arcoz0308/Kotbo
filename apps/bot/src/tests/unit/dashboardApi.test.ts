@@ -102,6 +102,7 @@ const mockMcpKeyService = {
   verifyMcpKey: mock(() => Promise.resolve(null)),
   verifyMcpKeyByClientCredentials: mock(() => Promise.resolve(null)),
   getActiveMcpKeyById: mock(() => Promise.resolve(null)),
+  findActiveMcpKeyById: mock(() => Promise.resolve(null)),
   createMcpKey: mock(() => Promise.resolve({})),
   getMcpKeys: mock(() => Promise.resolve([])),
   deactivateMcpKey: mock(() => Promise.resolve({ count: 1 })),
@@ -143,7 +144,7 @@ import { handleReportErrorRoute } from '../../api/routes/error.js';
 import { handleUserRoutes } from '../../api/routes/user.js';
 import { handleAdminRoutes } from '../../api/routes/admin.js';
 import { handleDashboardRoutes } from '../../api/routes/dashboard.js';
-import { handleMCPRoutes } from '../../api/mcp/mcpServer.js';
+import { getMcpConnectionLogs, handleMCPRoutes, makeMcpDirectToken } from '../../api/mcp/mcpServer.js';
 
 // Helper mock req/res functions
 function createMockRequest(options: {
@@ -287,7 +288,7 @@ const mockClient = {
   },
 } as unknown as Client;
 
-async function requestMcpOverHttp(body: unknown, extraHeaders: Record<string, string> = {}) {
+async function requestMcpOverHttp(body: unknown, extraHeaders: Record<string, string> = {}, requestPath = '/api/mcp/112233445566778899') {
   const server = createServer(async (req, res) => {
     const chunks: Buffer[] = [];
     for await (const chunk of req) {
@@ -313,7 +314,7 @@ async function requestMcpOverHttp(body: unknown, extraHeaders: Record<string, st
 
   try {
     const address = server.address() as AddressInfo;
-    const response = await fetch(`http://127.0.0.1:${address.port}/api/mcp/112233445566778899`, {
+    const response = await fetch(`http://127.0.0.1:${address.port}${requestPath}`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -434,6 +435,7 @@ describe('Modular Routers Unit Tests', () => {
     mockMcpKeyService.verifyMcpKey.mockClear();
     mockMcpKeyService.verifyMcpKeyByClientCredentials.mockClear();
     mockMcpKeyService.getActiveMcpKeyById.mockClear();
+    mockMcpKeyService.findActiveMcpKeyById.mockClear();
     mockMcpKeyService.createMcpKey.mockClear();
     mockMcpKeyService.getMcpKeys.mockClear();
     mockMcpKeyService.deactivateMcpKey.mockClear();
@@ -861,6 +863,42 @@ describe('Modular Routers Unit Tests', () => {
 
       expect(response.status).toBe(200);
       expect(mockMcpKeyService.getActiveMcpKeyById).toHaveBeenCalledWith(keyId, '112233445566778899');
+    });
+
+    test('signed direct MCP URL authenticates without OAuth and hides token in logs', async () => {
+      const keyId = 'direct-key-id';
+      const directToken = makeMcpDirectToken('112233445566778899', keyId);
+      mockMcpKeyService.getActiveMcpKeyById.mockImplementation(() => Promise.resolve({
+        id: keyId,
+        guildId: '112233445566778899',
+        permissions: ['READ_STATS'],
+        isActive: true,
+      } as any));
+
+      const response = await requestMcpOverHttp(
+        {
+          jsonrpc: '2.0',
+          id: 5,
+          method: 'tools/list',
+          params: {},
+        },
+        { 'user-agent': 'Claude MCP Connector' },
+        `/api/mcp-direct/112233445566778899/${directToken}`
+      );
+
+      expect(response.status).toBe(200);
+      expect(mockMcpKeyService.getActiveMcpKeyById).toHaveBeenCalledWith(keyId, '112233445566778899');
+      expect(mockMcpTools.registerMcpTools).toHaveBeenCalledWith(
+        expect.anything(),
+        '112233445566778899',
+        ['READ_STATS'],
+        mockClient,
+        expect.objectContaining({ listAllTools: false })
+      );
+
+      const logs = getMcpConnectionLogs('112233445566778899', 20);
+      expect(JSON.stringify(logs)).not.toContain(directToken);
+      expect(logs.some((entry) => entry.url.includes('/api/mcp-direct/112233445566778899/[token]'))).toBeTrue();
     });
   });
 
