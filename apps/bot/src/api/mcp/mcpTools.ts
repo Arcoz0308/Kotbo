@@ -11,6 +11,7 @@ import {
 } from '../../services/moderation/sanctionService.js';
 
 type McpToolHandler = (args: any) => Promise<ReturnType<typeof ok> | ReturnType<typeof err>> | ReturnType<typeof ok> | ReturnType<typeof err>;
+type ToolSecurityScheme = { type: 'noauth' } | { type: 'oauth2'; scopes: string[] };
 
 const ok = (data: unknown) => ({
   content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }],
@@ -23,23 +24,21 @@ const err = (msg: string, meta?: Record<string, unknown>) => ({
 });
 
 const oauthSecuritySchemes = [
-  { type: 'noauth' },
   { type: 'oauth2', scopes: ['mcp'] },
-];
-
-const toolMeta = {
-  securitySchemes: oauthSecuritySchemes,
-};
+] satisfies ToolSecurityScheme[];
 
 export function registerMcpTools(
   server: McpServer,
   guildId: string,
   permissions: McpKeyPermission[],
   client: Client,
-  options: { listAllTools?: boolean; wwwAuthenticate?: string } = {}
+  options: { listAllTools?: boolean; wwwAuthenticate?: string; securitySchemes?: ToolSecurityScheme[] } = {}
 ) {
   const has = (p: McpKeyPermission) => permissions.includes(p);
   const shouldRegister = (p: McpKeyPermission) => options.listAllTools || has(p);
+  const toolMeta = {
+    securitySchemes: options.securitySchemes ?? oauthSecuritySchemes,
+  };
   const guard = (permission: McpKeyPermission, handler: McpToolHandler): McpToolHandler => {
     return async (args: any) => {
       if (!has(permission)) {

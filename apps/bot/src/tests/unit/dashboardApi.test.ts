@@ -114,13 +114,14 @@ mock.module(mcpKeyServicePath, () => mockMcpKeyService);
 mock.module(mcpKeyServiceJsPath, () => mockMcpKeyService);
 
 const mockMcpTools = {
-  registerMcpTools: mock((server: any) => {
+  registerMcpTools: mock((server: any, _guildId: string, _permissions: string[], _client: Client, options?: { securitySchemes?: unknown }) => {
+    const securitySchemes = options?.securitySchemes ?? [{ type: 'oauth2', scopes: ['mcp'] }];
     server.registerTool(
       'test_tool',
       {
         description: 'Test tool',
         inputSchema: {},
-        _meta: { securitySchemes: [{ type: 'oauth2', scopes: ['mcp'] }] },
+        _meta: { securitySchemes },
       },
       async () => ({ content: [{ type: 'text', text: '{}' }] })
     );
@@ -893,12 +894,34 @@ describe('Modular Routers Unit Tests', () => {
         '112233445566778899',
         ['READ_STATS'],
         mockClient,
-        expect.objectContaining({ listAllTools: false })
+        expect.objectContaining({ listAllTools: false, securitySchemes: [{ type: 'noauth' }] })
       );
+      const data = JSON.parse(response.body);
+      expect(data.result.tools[0].securitySchemes).toEqual([{ type: 'noauth' }]);
+      expect(JSON.stringify(data.result.tools[0])).not.toContain('oauth2');
 
       const logs = getMcpConnectionLogs('112233445566778899', 20);
       expect(JSON.stringify(logs)).not.toContain(directToken);
       expect(logs.some((entry) => entry.url.includes('/api/mcp-direct/112233445566778899/[token]'))).toBeTrue();
+    });
+
+    test('signed direct MCP URL does not expose OAuth registration subroutes', async () => {
+      const directToken = makeMcpDirectToken('112233445566778899', 'direct-key-id');
+      const req = createMockRequest({
+        method: 'POST',
+        url: `/api/mcp-direct/112233445566778899/${directToken}/oauth/register`,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ client_name: 'Claude' }),
+      });
+      const res = createMockResponse();
+      const parts = splitPath(new URL(req.url!, 'http://localhost').pathname);
+      const url = new URL(req.url!, 'http://localhost');
+
+      const handled = await handleMCPRoutes(req as IncomingMessage & { bodyText?: string }, res, parts, url, mockClient);
+      expect(handled).toBeTrue();
+      expect(res.statusCode).toBe(404);
+      const data = JSON.parse(res.body);
+      expect(data.error).toBe('not_found');
     });
   });
 

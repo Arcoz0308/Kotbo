@@ -626,6 +626,12 @@ export async function handleMCPRoutes(
     return true;
   }
 
+  if (isDirectMcp && subPath !== '') {
+    mcpLog(req, 'mcp_direct_subpath_rejected', { guildId, subPath }, 'warn');
+    json(res, 404, { error: 'not_found' });
+    return true;
+  }
+
   // ── Protected Resource Metadata (RFC 9728) ─────────────────────────────
   if (subPath === '.well-known/oauth-protected-resource' && method === 'GET') {
     json(res, 200, mcpProtectedResourceMetadata(base));
@@ -966,7 +972,8 @@ export async function handleMCPRoutes(
     const server = new McpServer({ name: 'kotbo', version: '1.0.0' });
     registerMcpTools(server, guildId, permissions, client, {
       listAllTools: !directToken && !rawKey && !basicCredentials,
-      wwwAuthenticate: authChallenge(req, url, guildId, 'insufficient_scope', 'Autorisation MCP Kotbo requise'),
+      wwwAuthenticate: directToken ? undefined : authChallenge(req, url, guildId, 'insufficient_scope', 'Autorisation MCP Kotbo requise'),
+      securitySchemes: directToken ? [{ type: 'noauth' }] : undefined,
     });
 
     const transport = new StreamableHTTPServerTransport({
