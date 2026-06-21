@@ -337,6 +337,16 @@ function setIncomingHeader(req: IncomingMessage, name: string, value: string) {
   }
 }
 
+function getRawIncomingHeader(req: IncomingMessage, name: string): string | null {
+  const lowerName = name.toLowerCase();
+  for (let i = 0; i < req.rawHeaders.length; i += 2) {
+    if (req.rawHeaders[i]?.toLowerCase() === lowerName) {
+      return req.rawHeaders[i + 1] ?? null;
+    }
+  }
+  return null;
+}
+
 function normalizeMcpTransportAcceptHeader(req: IncomingMessage, method: string): string | null {
   const current = Array.isArray(req.headers.accept) ? req.headers.accept.join(', ') : req.headers.accept;
 
@@ -362,13 +372,14 @@ function normalizeMcpTransportContentTypeHeader(req: IncomingMessage, method: st
   const current = Array.isArray(req.headers['content-type'])
     ? req.headers['content-type'].join(', ')
     : req.headers['content-type'];
+  const rawCurrent = getRawIncomingHeader(req, 'Content-Type');
 
-  if (!current?.includes('application/json')) {
-    setIncomingHeader(req, 'Content-Type', 'application/json');
-    return current ?? null;
+  setIncomingHeader(req, 'Content-Type', 'application/json');
+  if (current?.includes('application/json') && rawCurrent?.includes('application/json')) {
+    return null;
   }
 
-  return null;
+  return JSON.stringify({ header: current ?? null, rawHeader: rawCurrent });
 }
 
 function makeAccessToken(opts: {

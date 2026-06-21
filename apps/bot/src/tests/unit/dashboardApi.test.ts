@@ -337,6 +337,62 @@ async function requestMcpOverHttp(body: unknown, extraHeaders: Record<string, st
   }
 }
 
+async function requestMcpWithMismatchedRawContentType(body: unknown) {
+  const server = createServer(async (req, res) => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) {
+      chunks.push(Buffer.from(chunk));
+    }
+
+    (req as IncomingMessage & { bodyText?: string }).bodyText = Buffer.concat(chunks).toString('utf8');
+    req.headers['content-type'] = 'application/json';
+    for (let i = 0; i < req.rawHeaders.length; i += 2) {
+      if (req.rawHeaders[i]?.toLowerCase() === 'content-type') {
+        req.rawHeaders[i + 1] = 'text/plain';
+      }
+    }
+
+    const url = new URL(req.url!, `http://${req.headers.host}`);
+    const handled = await handleMCPRoutes(
+      req as IncomingMessage & { bodyText?: string },
+      res,
+      splitPath(url.pathname),
+      url,
+      mockClient
+    );
+    if (!handled) {
+      res.statusCode = 404;
+      res.end(JSON.stringify({ error: 'not_found' }));
+    }
+  });
+
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+
+  try {
+    const address = server.address() as AddressInfo;
+    const response = await fetch(`http://127.0.0.1:${address.port}/api/mcp/112233445566778899`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+        'x-forwarded-proto': 'https',
+        'x-forwarded-host': 'api-kotbo.example',
+      },
+      body: JSON.stringify(body),
+    });
+
+    return {
+      status: response.status,
+      body: await response.text(),
+      headers: response.headers,
+    };
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((err) => err ? reject(err) : resolve());
+    });
+  }
+}
+
 describe('Modular Routers Unit Tests', () => {
   let testUserToken: string;
 
@@ -608,6 +664,23 @@ describe('Modular Routers Unit Tests', () => {
         },
         { accept: '*/*', 'content-type': 'text/plain', 'user-agent': 'python-httpx/0.28.1' }
       );
+
+      expect(response.status).toBe(200);
+      const data = JSON.parse(response.body);
+      expect(data.result.serverInfo.name).toBe('kotbo');
+    });
+
+    test('POST initialize normalizes raw content-type even when parsed header looks valid', async () => {
+      const response = await requestMcpWithMismatchedRawContentType({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2025-06-18',
+          capabilities: {},
+          clientInfo: { name: 'Claude', version: 'raw-header-mismatch' },
+        },
+      });
 
       expect(response.status).toBe(200);
       const data = JSON.parse(response.body);
