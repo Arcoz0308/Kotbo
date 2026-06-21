@@ -12,7 +12,10 @@ const VALID_PERMISSIONS: McpKeyPermission[] = [
   'READ_SANCTIONS',
   'READ_STAFF',
   'READ_TICKETS',
+  'READ_COMMUNITY',
   'WRITE_SANCTIONS',
+  'WRITE_MESSAGES',
+  'WRITE_TICKETS',
 ];
 
 export async function handleMCPKeyRoutes(

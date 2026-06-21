@@ -13,7 +13,10 @@
     { value: 'READ_SANCTIONS',  label: 'Sanctions',        desc: 'Liste et historique' },
     { value: 'READ_STAFF',      label: 'Staff',            desc: 'Liste et profils du staff' },
     { value: 'READ_TICKETS',    label: 'Tickets',          desc: 'Liste des tickets ouverts' },
-    { value: 'WRITE_SANCTIONS', label: 'Sanctionner',      desc: '⚠ Appliquer des sanctions via IA' },
+    { value: 'READ_COMMUNITY',  label: 'Communauté',       desc: 'Classements, suggestions, événements, giveaways' },
+    { value: 'WRITE_SANCTIONS', label: 'Sanctionner',      desc: '⚠ Appliquer / lever des sanctions via IA' },
+    { value: 'WRITE_MESSAGES',  label: 'Envoyer messages', desc: '⚠ Poster des messages dans un salon en tant que bot' },
+    { value: 'WRITE_TICKETS',   label: 'Gérer tickets',    desc: '⚠ Répondre et fermer des tickets via IA' },
   ] as const;
 
   type McpKey = {
@@ -409,7 +412,7 @@
               <div class="hidden sm:flex flex-wrap gap-1 max-w-xs">
                 {#each key.permissions as perm}
                   <span class="px-1.5 py-0.5 rounded text-[10px] font-medium
-                    {perm === 'WRITE_SANCTIONS' ? 'bg-red-500/15 text-red-400' : 'bg-primary/12 text-primary/80'}">
+                    {perm.startsWith('WRITE_') ? 'bg-red-500/15 text-red-400' : 'bg-primary/12 text-primary/80'}">
                     {permLabel(perm)}
                   </span>
                 {/each}
@@ -512,7 +515,7 @@
                   <div class="flex flex-wrap gap-1.5">
                     {#each key.permissions as perm}
                       <span class="px-2 py-1 rounded-lg text-xs font-medium
-                        {perm === 'WRITE_SANCTIONS' ? 'bg-red-500/15 text-red-400 border border-red-500/20' : 'bg-primary/10 text-primary/80 border border-primary/15'}">
+                        {perm.startsWith('WRITE_') ? 'bg-red-500/15 text-red-400 border border-red-500/20' : 'bg-primary/10 text-primary/80 border border-primary/15'}">
                         {permLabel(perm)}
                         <span class="text-gray-600 font-normal ml-1">— {PERMISSIONS.find(p => p.value === perm)?.desc}</span>
                       </span>
@@ -648,7 +651,7 @@
               for="perm-{perm.value}"
               class="flex items-start gap-3 p-2.5 rounded-lg border cursor-pointer transition-all
                 {newKeyPerms.includes(perm.value)
-                  ? perm.value === 'WRITE_SANCTIONS' ? 'border-red-500/30 bg-red-500/5' : 'border-primary/25 bg-primary/5'
+                  ? perm.value.startsWith('WRITE_') ? 'border-red-500/30 bg-red-500/5' : 'border-primary/25 bg-primary/5'
                   : 'border-white/6 hover:border-white/12'}"
             >
               <input

@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { Client, TextChannel } from 'discord.js';
+import { Client, TextChannel, ChannelType } from 'discord.js';
 import type { McpKeyPermission, SanctionType, SanctionStatus } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import {
@@ -9,6 +9,7 @@ import {
   registerBanSanction,
   registerTimeoutSanction,
 } from '../../services/moderation/sanctionService.js';
+import { renameChannelToClosed } from '../../services/features/ticketService.js';
 
 type McpToolHandler = (args: any) => Promise<ReturnType<typeof ok> | ReturnType<typeof err>> | ReturnType<typeof ok> | ReturnType<typeof err>;
 type ToolSecurityScheme = { type: 'noauth' } | { type: 'oauth2'; scopes: string[] };
@@ -22,6 +23,141 @@ const err = (msg: string, meta?: Record<string, unknown>) => ({
   isError: true,
   ...(meta ? { _meta: meta } : {}),
 });
+
+// Renvoie une "erreur" structurée listant les candidats possibles quand une
+// recherche par nom est ambiguë, pour que l'agent (ou l'utilisateur) puisse
+// préciser sans avoir à connaître les IDs à l'avance.
+const ambiguous = (raw: string, kind: string, candidates: unknown[]) => ({
+  content: [
+    {
+      type: 'text' as const,
+      text: JSON.stringify(
+        {
+          error: `Plusieurs ${kind} correspondent à « ${raw} ».`,
+          hint: 'Rappelle le même outil en reprenant le nom exact (ou l\'ID) d\'un des candidats ci-dessous.',
+          candidates,
+        },
+        null,
+        2
+      ),
+    },
+  ],
+  isError: true,
+});
+
+const MENTION_USER = /^<@!?(\d+)>$/;
+const MENTION_CHANNEL = /^<#(\d+)>$/;
+const SNOWFLAKE = /^\d{16,20}$/;
+
+type MemberResolution =
+  | { ok: true; userId: string; label: string }
+  | { ok: false; response: ReturnType<typeof err> };
+
+// Accepte un ID Discord, une mention <@id>, ou un nom (username / displayName /
+// globalName / tag) et le résout vers un userId unique. En cas d'ambiguïté ou
+// d'absence de résultat, renvoie une réponse d'erreur exploitable directement.
+async function resolveMember(guildId: string, raw: string): Promise<MemberResolution> {
+  const input = raw.trim();
+
+  const mention = input.match(MENTION_USER);
+  const directId = mention ? mention[1] : SNOWFLAKE.test(input) ? input : null;
+  if (directId) {
+    return { ok: true, userId: directId, label: directId };
+  }
+
+  const name = input.replace(/^@/, '');
+  const matches = await prisma.memberProfile.findMany({
+    where: {
+      guildId,
+      OR: [
+        { username: { contains: name, mode: 'insensitive' } },
+        { displayName: { contains: name, mode: 'insensitive' } },
+        { globalName: { contains: name, mode: 'insensitive' } },
+        { userTag: { contains: name, mode: 'insensitive' } },
+      ],
+    },
+    take: 10,
+    orderBy: { lastSeenAt: 'desc' },
+    select: { userId: true, username: true, displayName: true, globalName: true, userTag: true },
+  });
+
+  const lower = name.toLowerCase();
+  const exact = matches.filter(
+    (m) =>
+      m.username?.toLowerCase() === lower ||
+      m.displayName?.toLowerCase() === lower ||
+      m.globalName?.toLowerCase() === lower ||
+      m.userTag?.toLowerCase() === lower
+  );
+
+  const pick = exact.length === 1 ? exact[0] : matches.length === 1 ? matches[0] : null;
+  if (pick) {
+    return { ok: true, userId: pick.userId, label: pick.displayName ?? pick.username ?? pick.userId };
+  }
+
+  if (matches.length === 0) {
+    return {
+      ok: false,
+      response: err(`Aucun membre ne correspond à « ${raw} ». Vérifie l'orthographe ou utilise search_members.`),
+    };
+  }
+
+  return {
+    ok: false,
+    response: ambiguous(
+      raw,
+      'membres',
+      matches.map((m) => ({
+        userId: m.userId,
+        username: m.username,
+        displayName: m.displayName,
+      }))
+    ),
+  };
+}
+
+type ChannelResolution =
+  | { ok: true; channel: TextChannel }
+  | { ok: false; response: ReturnType<typeof err> };
+
+// Accepte un ID de salon, une mention <#id>, ou un nom de salon (avec ou sans #)
+// et le résout vers un salon textuel unique.
+function resolveChannel(guildId: string, client: Client, raw: string): ChannelResolution {
+  const guild = client.guilds.cache.get(guildId);
+  if (!guild) return { ok: false, response: err('Serveur Discord introuvable') };
+
+  const input = raw.trim();
+  const mention = input.match(MENTION_CHANNEL);
+  const directId = mention ? mention[1] : SNOWFLAKE.test(input) ? input : null;
+  if (directId) {
+    const ch = guild.channels.cache.get(directId);
+    if (!ch) return { ok: false, response: err('Salon introuvable') };
+    if (!ch.isTextBased()) return { ok: false, response: err('Ce salon n\'est pas un salon textuel') };
+    return { ok: true, channel: ch as TextChannel };
+  }
+
+  const name = input.replace(/^#/, '').toLowerCase();
+  const textChannels = guild.channels.cache.filter((c) => c.isTextBased());
+
+  let matches = textChannels.filter((c) => c.name.toLowerCase() === name);
+  if (matches.size === 0) matches = textChannels.filter((c) => c.name.toLowerCase().includes(name));
+
+  if (matches.size === 0) {
+    return { ok: false, response: err(`Aucun salon ne correspond à « ${raw} ».`) };
+  }
+  if (matches.size > 1) {
+    return {
+      ok: false,
+      response: ambiguous(
+        raw,
+        'salons',
+        matches.map((c) => ({ id: c.id, name: c.name })).slice(0, 10)
+      ),
+    };
+  }
+
+  return { ok: true, channel: matches.first() as TextChannel };
+}
 
 const oauthSecuritySchemes = [
   { type: 'oauth2', scopes: ['mcp'] },
@@ -52,6 +188,23 @@ export function registerMcpTools(
       return handler(args);
     };
   };
+
+  // Journalise une action MCP dans l'audit log du dashboard.
+  const audit = (keyName: string | undefined, action: string, context: string, details: string) =>
+    prisma.dashboardAuditLog
+      .create({
+        data: {
+          guildId,
+          user: `MCP[${keyName ?? 'agent'}]`,
+          action,
+          context,
+          module: 'MCP',
+          eventType: 'Action',
+          details,
+          dateIso: new Date(),
+        },
+      })
+      .catch(() => undefined);
 
   // ── READ_STATS ────────────────────────────────────────────────────────────
 
@@ -112,20 +265,16 @@ export function registerMcpTools(
       {
         description: 'Récupère les messages récents d\'un salon Discord (lecture en direct via l\'API Discord).',
         inputSchema: {
-          channel_id: z.string().describe('ID du salon Discord'),
+          channel: z.string().describe('Nom du salon (ex: « general », avec ou sans #), mention <#id> ou ID'),
           limit: z.number().int().min(1).max(100).default(20).describe('Nombre de messages (1-100)'),
         },
         _meta: toolMeta,
       },
-      guard('READ_MEMBERS', async ({ channel_id, limit }) => {
-        const discordGuild = client.guilds.cache.get(guildId);
-        if (!discordGuild) return err('Serveur Discord introuvable');
+      guard('READ_MEMBERS', async ({ channel, limit }) => {
+        const resolved = resolveChannel(guildId, client, channel);
+        if (!resolved.ok) return resolved.response;
 
-        const channel = discordGuild.channels.cache.get(channel_id);
-        if (!channel) return err('Salon introuvable');
-        if (!channel.isTextBased()) return err('Ce salon n\'est pas un salon textuel');
-
-        const messages = await (channel as TextChannel).messages.fetch({ limit }).catch(() => null);
+        const messages = await resolved.channel.messages.fetch({ limit }).catch(() => null);
         if (!messages) return err('Impossible de lire les messages (permissions insuffisantes)');
 
         return ok(
@@ -144,10 +293,14 @@ export function registerMcpTools(
       'get_member_profile',
       {
         description: 'Récupère le profil d\'un membre du serveur (activité, historique, informations Discord).',
-        inputSchema: { member_id: z.string().describe('ID Discord du membre') },
+        inputSchema: { member: z.string().describe('Nom, surnom, @mention ou ID Discord du membre') },
         _meta: toolMeta,
       },
-      guard('READ_MEMBERS', async ({ member_id }) => {
+      guard('READ_MEMBERS', async ({ member }) => {
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+        const member_id = resolved.userId;
+
         const [profile, discordMember] = await Promise.all([
           prisma.memberProfile.findUnique({
             where: { guildId_userId: { guildId, userId: member_id } },
@@ -237,7 +390,7 @@ export function registerMcpTools(
       {
         description: 'Liste les sanctions du serveur avec filtres optionnels.',
         inputSchema: {
-          member_id: z.string().optional().describe('Filtrer par ID du membre sanctionné'),
+          member: z.string().optional().describe('Filtrer par membre : nom, surnom, @mention ou ID'),
           type: z.enum(['WARN', 'KICK', 'TIMEOUT', 'TEMP_BAN', 'BAN', 'SOFTBAN']).optional(),
           status: z.enum(['ACTIVE', 'RESOLVED', 'FAILED']).optional(),
           limit: z.number().int().min(1).max(100).default(50),
@@ -245,7 +398,14 @@ export function registerMcpTools(
         },
         _meta: toolMeta,
       },
-      guard('READ_SANCTIONS', async ({ member_id, type, status, limit, offset }) => {
+      guard('READ_SANCTIONS', async ({ member, type, status, limit, offset }) => {
+        let member_id: string | undefined;
+        if (member) {
+          const resolved = await resolveMember(guildId, member);
+          if (!resolved.ok) return resolved.response;
+          member_id = resolved.userId;
+        }
+
         const [sanctions, total] = await Promise.all([
           prisma.sanction.findMany({
             where: {
@@ -292,10 +452,14 @@ export function registerMcpTools(
       'get_sanction_history',
       {
         description: 'Récupère l\'historique complet des sanctions pour un membre spécifique.',
-        inputSchema: { member_id: z.string().describe('ID Discord du membre') },
+        inputSchema: { member: z.string().describe('Nom, surnom, @mention ou ID Discord du membre') },
         _meta: toolMeta,
       },
-      guard('READ_SANCTIONS', async ({ member_id }) => {
+      guard('READ_SANCTIONS', async ({ member }) => {
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+        const member_id = resolved.userId;
+
         const [sanctions, reports] = await Promise.all([
           prisma.sanction.findMany({
             where: { guildId, targetUserId: member_id },
@@ -391,10 +555,14 @@ export function registerMcpTools(
       'get_staff_member',
       {
         description: 'Récupère le profil détaillé d\'un membre du staff.',
-        inputSchema: { member_id: z.string().describe('ID Discord du membre du staff') },
+        inputSchema: { member: z.string().describe('Nom, surnom, @mention ou ID Discord du membre du staff') },
         _meta: toolMeta,
       },
-      guard('READ_STAFF', async ({ member_id }) => {
+      guard('READ_STAFF', async ({ member }) => {
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+        const member_id = resolved.userId;
+
         const staff = await prisma.staffMember.findUnique({
           where: { guildId_userId: { guildId, userId: member_id } },
           include: {
@@ -487,7 +655,7 @@ export function registerMcpTools(
       {
         description: 'Applique une sanction à un membre du serveur Discord. Requiert la permission WRITE_SANCTIONS.',
         inputSchema: {
-          member_id: z.string().describe('ID Discord du membre à sanctionner'),
+          member: z.string().describe('Nom, surnom, @mention ou ID Discord du membre à sanctionner'),
           type: z.enum(['WARN', 'KICK', 'TIMEOUT', 'TEMP_BAN', 'BAN', 'SOFTBAN']),
           reason: z.string().min(1).max(512).describe('Raison de la sanction'),
           duration_seconds: z
@@ -501,10 +669,14 @@ export function registerMcpTools(
         },
         _meta: toolMeta,
       },
-      guard('WRITE_SANCTIONS', async ({ member_id, type, reason, duration_seconds, key_name }) => {
+      guard('WRITE_SANCTIONS', async ({ member, type, reason, duration_seconds, key_name }) => {
         if ((type === 'TIMEOUT' || type === 'TEMP_BAN') && !duration_seconds) {
           return err(`duration_seconds est obligatoire pour le type ${type}`);
         }
+
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+        const member_id = resolved.userId;
 
         const discordGuild = client.guilds.cache.get(guildId);
         if (!discordGuild) return err('Serveur Discord introuvable');
@@ -564,6 +736,429 @@ export function registerMcpTools(
           const msg = e instanceof Error ? e.message : String(e);
           return err(`Erreur lors de l'application de la sanction : ${msg}`);
         }
+      })
+    );
+
+    server.registerTool(
+      'revoke_sanction',
+      {
+        description:
+          'Lève une sanction active d\'un membre : déban et/ou retrait du timeout. Requiert la permission WRITE_SANCTIONS.',
+        inputSchema: {
+          member: z.string().describe('Nom, surnom, @mention ou ID Discord du membre'),
+          type: z
+            .enum(['BAN', 'TIMEOUT'])
+            .optional()
+            .describe('Type de sanction à lever (si omis, lève tout ce qui est actif)'),
+          reason: z.string().max(512).optional().describe('Raison de la levée (audit)'),
+          key_name: z.string().optional().describe('Nom de la clé MCP (pour l\'audit)'),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_SANCTIONS', async ({ member, type, reason, key_name }) => {
+        const resolved = await resolveMember(guildId, member);
+        if (!resolved.ok) return resolved.response;
+        const userId = resolved.userId;
+
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) return err('Serveur Discord introuvable');
+
+        const motif = reason ?? 'Levée via MCP';
+        const actions: string[] = [];
+
+        if (!type || type === 'BAN') {
+          const ban = await guild.bans.fetch(userId).catch(() => null);
+          if (ban) {
+            const done = await guild.members.unban(userId, motif).then(() => true).catch(() => false);
+            if (done) actions.push('unban');
+          }
+        }
+
+        if (!type || type === 'TIMEOUT') {
+          const target = await guild.members.fetch(userId).catch(() => null);
+          if (target?.isCommunicationDisabled()) {
+            const done = await target.timeout(null, motif).then(() => true).catch(() => false);
+            if (done) actions.push('untimeout');
+          }
+        }
+
+        if (actions.length === 0) {
+          return err('Aucune sanction active à lever pour ce membre (ni ban ni timeout en cours).');
+        }
+
+        const revokedTypes: SanctionType[] = actions.includes('unban')
+          ? (['BAN', 'TEMP_BAN'] as SanctionType[])
+          : [];
+        if (actions.includes('untimeout')) revokedTypes.push('TIMEOUT' as SanctionType);
+
+        await prisma.sanction.updateMany({
+          where: { guildId, targetUserId: userId, status: 'ACTIVE', type: { in: revokedTypes } },
+          data: { status: 'RESOLVED' as SanctionStatus, resolvedAt: new Date() },
+        });
+
+        await audit(
+          key_name,
+          'Levée de sanction MCP',
+          `Cible: ${resolved.label} (${userId})`,
+          `Actions: ${actions.join(', ')} | Raison: ${motif}`
+        );
+
+        return ok({ ok: true, userId, actions });
+      })
+    );
+  }
+
+  // ── READ_STATS : navigation du serveur ────────────────────────────────────
+
+  if (shouldRegister('READ_STATS')) {
+    server.registerTool(
+      'list_channels',
+      {
+        description:
+          'Liste les salons du serveur (nom, type, ID). Pratique pour retrouver un salon par son nom plutôt que par ID.',
+        inputSchema: {
+          query: z.string().optional().describe('Filtre optionnel sur le nom du salon'),
+          type: z.enum(['text', 'voice', 'category', 'all']).default('all').describe('Type de salon à lister'),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_STATS', async ({ query, type }) => {
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) return err('Serveur Discord introuvable');
+
+        const kindOf = (c: { type: ChannelType; isTextBased: () => boolean; isVoiceBased: () => boolean }) =>
+          c.type === ChannelType.GuildCategory ? 'category' : c.isVoiceBased() ? 'voice' : c.isTextBased() ? 'text' : 'other';
+
+        let channels = [...guild.channels.cache.values()];
+        if (query) {
+          const q = query.toLowerCase();
+          channels = channels.filter((c) => c.name.toLowerCase().includes(q));
+        }
+        if (type !== 'all') channels = channels.filter((c) => kindOf(c) === type);
+
+        return ok(
+          channels
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((c) => ({ id: c.id, name: c.name, type: kindOf(c), parentId: c.parentId }))
+        );
+      })
+    );
+
+    server.registerTool(
+      'list_roles',
+      {
+        description: 'Liste les rôles du serveur (nom, ID, couleur, position, mentionnable).',
+        inputSchema: { query: z.string().optional().describe('Filtre optionnel sur le nom du rôle') },
+        _meta: toolMeta,
+      },
+      guard('READ_STATS', async ({ query }) => {
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) return err('Serveur Discord introuvable');
+
+        let roles = [...guild.roles.cache.values()].filter((r) => r.id !== guild.id);
+        if (query) {
+          const q = query.toLowerCase();
+          roles = roles.filter((r) => r.name.toLowerCase().includes(q));
+        }
+
+        return ok(
+          roles
+            .sort((a, b) => b.position - a.position)
+            .map((r) => ({
+              id: r.id,
+              name: r.name,
+              color: r.hexColor,
+              position: r.position,
+              mentionable: r.mentionable,
+              memberCount: r.members.size,
+            }))
+        );
+      })
+    );
+
+    server.registerTool(
+      'get_server_info',
+      {
+        description: 'Informations générales du serveur Discord (nom, membres, salons, rôles, boosts).',
+        inputSchema: {},
+        _meta: toolMeta,
+      },
+      guard('READ_STATS', async () => {
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) return err('Serveur Discord introuvable');
+
+        return ok({
+          id: guild.id,
+          name: guild.name,
+          description: guild.description,
+          memberCount: guild.memberCount,
+          channelCount: guild.channels.cache.size,
+          roleCount: guild.roles.cache.size,
+          ownerId: guild.ownerId,
+          boostTier: guild.premiumTier,
+          boostCount: guild.premiumSubscriptionCount ?? 0,
+          iconUrl: guild.iconURL(),
+          createdAt: guild.createdAt.toISOString(),
+        });
+      })
+    );
+  }
+
+  // ── WRITE_MESSAGES ────────────────────────────────────────────────────────
+
+  if (shouldRegister('WRITE_MESSAGES')) {
+    server.registerTool(
+      'send_message',
+      {
+        description:
+          'Envoie un message dans un salon Discord en tant que bot. Requiert la permission WRITE_MESSAGES.',
+        inputSchema: {
+          channel: z.string().describe('Nom du salon (ex: « general »), mention <#id> ou ID'),
+          content: z.string().min(1).max(2000).describe('Contenu du message (max 2000 caractères)'),
+          key_name: z.string().optional().describe('Nom de la clé MCP (pour l\'audit)'),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_MESSAGES', async ({ channel, content, key_name }) => {
+        const resolved = resolveChannel(guildId, client, channel);
+        if (!resolved.ok) return resolved.response;
+
+        const sent = await resolved.channel.send({ content }).catch((e) => {
+          const msg = e instanceof Error ? e.message : String(e);
+          return msg;
+        });
+        if (typeof sent === 'string') return err(`Impossible d'envoyer le message : ${sent}`);
+
+        await audit(
+          key_name,
+          'Message envoyé MCP',
+          `Salon: #${resolved.channel.name} (${resolved.channel.id})`,
+          content.slice(0, 200)
+        );
+
+        return ok({ ok: true, messageId: sent.id, channelId: resolved.channel.id, channelName: resolved.channel.name });
+      })
+    );
+  }
+
+  // ── WRITE_TICKETS ─────────────────────────────────────────────────────────
+
+  if (shouldRegister('WRITE_TICKETS')) {
+    server.registerTool(
+      'reply_ticket',
+      {
+        description: 'Envoie un message dans le salon d\'un ticket en tant que bot. Requiert WRITE_TICKETS.',
+        inputSchema: {
+          ticket_id: z.string().describe('ID du ticket (issu de get_tickets)'),
+          content: z.string().min(1).max(2000).describe('Contenu du message'),
+          key_name: z.string().optional().describe('Nom de la clé MCP (pour l\'audit)'),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_TICKETS', async ({ ticket_id, content, key_name }) => {
+        const ticket = await prisma.ticket.findFirst({ where: { id: ticket_id, guildId } });
+        if (!ticket) return err('Ticket introuvable');
+        if (!ticket.channelId) return err('Ce ticket n\'a pas de salon associé');
+
+        const channel = client.guilds.cache.get(guildId)?.channels.cache.get(ticket.channelId);
+        if (!channel || !channel.isTextBased()) return err('Salon du ticket introuvable');
+
+        const sent = await (channel as TextChannel).send({ content }).catch(() => null);
+        if (!sent) return err('Impossible d\'envoyer le message dans le ticket');
+
+        await audit(key_name, 'Réponse ticket MCP', `Ticket: ${ticket.id}`, content.slice(0, 200));
+
+        return ok({ ok: true, ticketId: ticket.id, messageId: sent.id });
+      })
+    );
+
+    server.registerTool(
+      'close_ticket',
+      {
+        description:
+          'Ferme un ticket : marque le ticket comme fermé en base et renomme son salon (préfixe « fermer- »). Requiert WRITE_TICKETS.',
+        inputSchema: {
+          ticket_id: z.string().describe('ID du ticket (issu de get_tickets)'),
+          reason: z.string().max(512).optional().describe('Raison de la fermeture'),
+          key_name: z.string().optional().describe('Nom de la clé MCP (pour l\'audit)'),
+        },
+        _meta: toolMeta,
+      },
+      guard('WRITE_TICKETS', async ({ ticket_id, reason, key_name }) => {
+        const ticket = await prisma.ticket.findFirst({ where: { id: ticket_id, guildId } });
+        if (!ticket) return err('Ticket introuvable');
+        if (ticket.status === 'CLOSED') return err('Ce ticket est déjà fermé');
+
+        await prisma.ticket.update({
+          where: { id: ticket.id },
+          data: { status: 'CLOSED', closedAt: new Date(), closedByName: `MCP[${key_name ?? 'agent'}]` },
+        });
+
+        if (ticket.channelId) {
+          const channel = client.guilds.cache.get(guildId)?.channels.cache.get(ticket.channelId);
+          if (channel?.isTextBased()) {
+            await (channel as TextChannel)
+              .send({ content: `🔒 Ticket fermé via IA${reason ? ` — ${reason}` : ''}.` })
+              .catch(() => null);
+          }
+          await renameChannelToClosed(client, ticket.channelId).catch(() => undefined);
+        }
+
+        await audit(key_name, 'Fermeture ticket MCP', `Ticket: ${ticket.id}`, reason ?? '(sans raison)');
+
+        return ok({ ok: true, ticketId: ticket.id, status: 'CLOSED' });
+      })
+    );
+  }
+
+  // ── READ_COMMUNITY ────────────────────────────────────────────────────────
+
+  if (shouldRegister('READ_COMMUNITY')) {
+    server.registerTool(
+      'get_leaderboard',
+      {
+        description: 'Classement des membres par XP/niveau, nombre de messages ou temps vocal.',
+        inputSchema: {
+          by: z.enum(['xp', 'messages', 'voice']).default('xp').describe('Critère du classement'),
+          limit: z.number().int().min(1).max(50).default(10),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_COMMUNITY', async ({ by, limit }) => {
+        if (by === 'xp') {
+          const rows = await prisma.memberLevel.findMany({
+            where: { guildId },
+            orderBy: { xp: 'desc' },
+            take: limit,
+          });
+          const profiles = await prisma.memberProfile.findMany({
+            where: { guildId, userId: { in: rows.map((r) => r.userId) } },
+            select: { userId: true, username: true, displayName: true },
+          });
+          const nameOf = new Map(profiles.map((p) => [p.userId, p.displayName ?? p.username ?? p.userId]));
+          return ok(
+            rows.map((r, i) => ({
+              rank: i + 1,
+              userId: r.userId,
+              name: nameOf.get(r.userId) ?? r.userId,
+              level: r.level,
+              xp: r.xp,
+            }))
+          );
+        }
+
+        const field = by === 'voice' ? 'voiceTimeSeconds' : 'messageCount';
+        const rows = await prisma.memberProfile.findMany({
+          where: { guildId },
+          orderBy: { [field]: 'desc' },
+          take: limit,
+          select: { userId: true, username: true, displayName: true, messageCount: true, voiceTimeSeconds: true },
+        });
+        return ok(
+          rows.map((r, i) => ({
+            rank: i + 1,
+            userId: r.userId,
+            name: r.displayName ?? r.username ?? r.userId,
+            messageCount: r.messageCount,
+            voiceTimeSeconds: r.voiceTimeSeconds,
+          }))
+        );
+      })
+    );
+
+    server.registerTool(
+      'get_suggestions',
+      {
+        description: 'Liste les suggestions de la communauté avec filtre optionnel par statut.',
+        inputSchema: {
+          status: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'IMPLEMENTED']).optional(),
+          limit: z.number().int().min(1).max(50).default(20),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_COMMUNITY', async ({ status, limit }) => {
+        const suggestions = await prisma.suggestion.findMany({
+          where: { guildId, ...(status ? { status } : {}) },
+          orderBy: { createdAt: 'desc' },
+          take: limit,
+        });
+        return ok(
+          suggestions.map((s) => ({
+            id: s.id,
+            content: s.content,
+            status: s.status,
+            author: s.username,
+            authorId: s.userId,
+            upvotes: s.upvoters.length,
+            downvotes: s.downvoters.length,
+            response: s.responseText,
+            createdAt: s.createdAt.toISOString(),
+          }))
+        );
+      })
+    );
+
+    server.registerTool(
+      'get_events',
+      {
+        description: 'Liste les événements du serveur.',
+        inputSchema: {
+          status: z.string().optional().describe('Filtre optionnel sur le statut (ex: DRAFT, SCHEDULED, ACTIVE, ENDED)'),
+          limit: z.number().int().min(1).max(50).default(20),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_COMMUNITY', async ({ status, limit }) => {
+        const events = await prisma.event.findMany({
+          where: { guildId, ...(status ? { status: status as never } : {}) },
+          orderBy: { createdAt: 'desc' },
+          take: limit,
+          include: { _count: { select: { participants: true } } },
+        });
+        return ok(
+          events.map((e) => ({
+            id: e.id,
+            title: e.title,
+            description: e.description,
+            type: e.type,
+            status: e.status,
+            triggerType: e.triggerType,
+            triggerValue: e.triggerValue,
+            participants: e._count.participants,
+            createdAt: e.createdAt.toISOString(),
+          }))
+        );
+      })
+    );
+
+    server.registerTool(
+      'get_giveaways',
+      {
+        description: 'Liste les giveaways du serveur.',
+        inputSchema: {
+          active_only: z.boolean().default(false).describe('Ne retourner que les giveaways en cours'),
+          limit: z.number().int().min(1).max(50).default(20),
+        },
+        _meta: toolMeta,
+      },
+      guard('READ_COMMUNITY', async ({ active_only, limit }) => {
+        const giveaways = await prisma.giveaway.findMany({
+          where: { guildId, ...(active_only ? { ended: false } : {}) },
+          orderBy: { endsAt: 'desc' },
+          take: limit,
+        });
+        return ok(
+          giveaways.map((g) => ({
+            id: g.id,
+            prize: g.prize,
+            description: g.description,
+            winnerCount: g.winnerCount,
+            ended: g.ended,
+            endsAt: g.endsAt.toISOString(),
+            participants: g.participants.length,
+            winners: g.winners,
+          }))
+        );
       })
     );
   }
