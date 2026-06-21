@@ -4,7 +4,7 @@ import { Client } from 'discord.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { json } from '../shared.js';
-import { verifyMcpKey } from './mcpKeyService.js';
+import { verifyMcpKey, verifyMcpKeyByClientCredentials } from './mcpKeyService.js';
 import { registerMcpTools } from './mcpTools.js';
 
 // ── In-memory OAuth state (ephemeral, single-instance) ────────────────────
@@ -73,12 +73,64 @@ function publicBase(req: IncomingMessage, url: URL, guildId: string): string {
   return `${proto}://${host}/api/mcp/${guildId}`;
 }
 
+function standardProtectedResourceMetadataUrl(req: IncomingMessage, url: URL, guildId: string): string {
+  const proto = (req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0]?.trim()
+    ?? url.protocol.replace(':', '');
+  const host = (req.headers['x-forwarded-host'] as string | undefined) ?? url.host;
+  return `${proto}://${host}/.well-known/oauth-protected-resource/api/mcp/${guildId}`;
+}
+
+export function isValidMcpGuildId(guildId: string): boolean {
+  return /^\d{15,20}$/.test(guildId);
+}
+
+export function mcpProtectedResourceMetadata(base: string) {
+  return {
+    resource: base,
+    authorization_servers: [base],
+    bearer_methods_supported: ['header'],
+    scopes_supported: ['mcp'],
+  };
+}
+
+export function mcpAuthorizationServerMetadata(base: string) {
+  return {
+    issuer: base,
+    authorization_endpoint: `${base}/oauth/authorize`,
+    token_endpoint: `${base}/oauth/token`,
+    registration_endpoint: `${base}/oauth/register`,
+    response_types_supported: ['code'],
+    code_challenge_methods_supported: ['S256'],
+    grant_types_supported: ['authorization_code', 'client_credentials'],
+    token_endpoint_auth_methods_supported: ['client_secret_post', 'client_secret_basic', 'none'],
+    scopes_supported: ['mcp'],
+  };
+}
+
 function verifyPKCE(verifier: string, challenge: string, method: string): boolean {
   if (method === 'S256') {
     const hash = crypto.createHash('sha256').update(verifier).digest('base64url');
     return hash === challenge;
   }
   return verifier === challenge; // plain
+}
+
+function readBasicClientCredentials(authHeader: string | string[] | undefined): { clientId: string; clientSecret: string } | null {
+  const raw = Array.isArray(authHeader) ? authHeader[0] : authHeader;
+  if (!raw?.startsWith('Basic ')) return null;
+
+  try {
+    const decoded = Buffer.from(raw.slice(6), 'base64').toString('utf8');
+    const separator = decoded.indexOf(':');
+    if (separator <= 0) return null;
+
+    return {
+      clientId: decoded.slice(0, separator),
+      clientSecret: decoded.slice(separator + 1),
+    };
+  } catch {
+    return null;
+  }
 }
 
 // ── Authorization HTML page ───────────────────────────────────────────────
@@ -151,6 +203,13 @@ export async function handleMCPRoutes(
     json(res, 400, { error: 'guildId manquant dans le chemin /api/mcp/:guildId' });
     return true;
   }
+  if (!isValidMcpGuildId(guildId)) {
+    json(res, 400, {
+      error: 'invalid_guild_id',
+      error_description: 'Utilise l URL MCP complete depuis le dashboard Kotbo, avec l ID Discord du serveur.',
+    });
+    return true;
+  }
 
   const method = req.method ?? 'GET';
   const subPath = parts.slice(3).join('/');
@@ -158,28 +217,13 @@ export async function handleMCPRoutes(
 
   // ── Protected Resource Metadata (RFC 9728) ─────────────────────────────
   if (subPath === '.well-known/oauth-protected-resource' && method === 'GET') {
-    json(res, 200, {
-      resource: base,
-      authorization_servers: [base],
-      bearer_methods_supported: ['header'],
-      scopes_supported: ['mcp'],
-    });
+    json(res, 200, mcpProtectedResourceMetadata(base));
     return true;
   }
 
   // ── Authorization Server Metadata (RFC 8414) ───────────────────────────
   if (subPath === '.well-known/oauth-authorization-server' && method === 'GET') {
-    json(res, 200, {
-      issuer: base,
-      authorization_endpoint: `${base}/oauth/authorize`,
-      token_endpoint: `${base}/oauth/token`,
-      registration_endpoint: `${base}/oauth/register`,
-      response_types_supported: ['code'],
-      code_challenge_methods_supported: ['S256'],
-      grant_types_supported: ['authorization_code', 'refresh_token'],
-      token_endpoint_auth_methods_supported: ['client_secret_post', 'none'],
-      scopes_supported: ['mcp'],
-    });
+    json(res, 200, mcpAuthorizationServerMetadata(base));
     return true;
   }
 
@@ -223,6 +267,8 @@ export async function handleMCPRoutes(
     }
 
     const clientName = oauthClients.get(clientId)?.clientName ?? 'Agent IA';
+    res.setHeader('Content-Security-Policy',
+      "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' https://claude.ai https://chatgpt.com https://chat.openai.com https://gemini.google.com; base-uri 'none'; frame-ancestors 'none'");
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.statusCode = 200;
     res.end(authPage({ guildId, clientName, clientId, redirectUri, state, codeChallenge, codeChallengeMethod }));
@@ -242,6 +288,8 @@ export async function handleMCPRoutes(
     const mcpKey = await verifyMcpKey(api_key, guildId);
     if (!mcpKey) {
       const clientName = oauthClients.get(client_id)?.clientName ?? 'Agent IA';
+      res.setHeader('Content-Security-Policy',
+        "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' https://claude.ai https://chatgpt.com https://chat.openai.com https://gemini.google.com; base-uri 'none'; frame-ancestors 'none'");
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.statusCode = 200;
       res.end(authPage({
@@ -285,10 +333,36 @@ export async function handleMCPRoutes(
       p = parseFormBody(req.bodyText ?? '');
     }
 
-    const { grant_type, code, code_verifier, redirect_uri, client_id } = p;
+    const basicCredentials = readBasicClientCredentials(req.headers.authorization);
+    const { grant_type, code, code_verifier, redirect_uri } = p;
+    const clientId = basicCredentials?.clientId ?? p.client_id;
+    const clientSecret = basicCredentials?.clientSecret ?? p.client_secret;
+
+    if (grant_type === 'client_credentials') {
+      if (!clientId || !clientSecret) {
+        oauthError(res, 400, 'invalid_request', 'client_id et client_secret requis');
+        return true;
+      }
+
+      const mcpKey = await verifyMcpKeyByClientCredentials(clientId, clientSecret, guildId);
+      if (!mcpKey) {
+        oauthError(res, 401, 'invalid_client', 'Client ID ou secret invalide');
+        return true;
+      }
+
+      res.setHeader('Content-Type', 'application/json');
+      res.statusCode = 200;
+      res.end(JSON.stringify({
+        access_token: clientSecret,
+        token_type: 'Bearer',
+        expires_in: 7776000,
+        scope: 'mcp',
+      }));
+      return true;
+    }
 
     if (grant_type !== 'authorization_code') {
-      oauthError(res, 400, 'unsupported_grant_type', 'Seul authorization_code est supporté');
+      oauthError(res, 400, 'unsupported_grant_type', 'authorization_code et client_credentials sont supportés');
       return true;
     }
     if (!code || !code_verifier || !redirect_uri) {
@@ -341,7 +415,7 @@ export async function handleMCPRoutes(
 
     if (!rawKey) {
       res.setHeader('WWW-Authenticate',
-        `Bearer realm="kotbo", resource_metadata="${base}/.well-known/oauth-protected-resource"`);
+        `Bearer realm="kotbo", scope="mcp", resource_metadata="${standardProtectedResourceMetadataUrl(req, url, guildId)}"`);
       json(res, 401, { error: 'Authorization manquante' });
       return true;
     }
@@ -349,7 +423,7 @@ export async function handleMCPRoutes(
     const mcpKey = await verifyMcpKey(rawKey, guildId);
     if (!mcpKey) {
       res.setHeader('WWW-Authenticate',
-        `Bearer realm="kotbo", error="invalid_token", resource_metadata="${base}/.well-known/oauth-protected-resource"`);
+        `Bearer realm="kotbo", error="invalid_token", scope="mcp", resource_metadata="${standardProtectedResourceMetadataUrl(req, url, guildId)}"`);
       json(res, 401, { error: 'Clé MCP invalide ou inactive' });
       return true;
     }

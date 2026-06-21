@@ -190,7 +190,10 @@ export const startDashboardApi = (client: Client) => {
 
         void (async () => {
           // MCP endpoints are public APIs — allow any origin
-          const isMcpPath = url.pathname.startsWith('/api/mcp/') || url.pathname === '/.well-known/oauth-authorization-server';
+          const isMcpPath = url.pathname.startsWith('/api/mcp/')
+            || url.pathname === '/.well-known/oauth-authorization-server'
+            || url.pathname.startsWith('/.well-known/oauth-protected-resource/')
+            || url.pathname.startsWith('/.well-known/oauth-authorization-server/');
 
           if (isMcpPath) {
             res.setHeader('Access-Control-Allow-Origin', '*');

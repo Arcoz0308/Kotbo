@@ -97,6 +97,28 @@ const activationJsPath = path.resolve(import.meta.dir, '../../utils/activation.j
 mock.module(activationPath, () => mockActivation);
 mock.module(activationJsPath, () => mockActivation);
 
+const mockMcpKeyService = {
+  verifyMcpKey: mock(() => Promise.resolve(null)),
+  verifyMcpKeyByClientCredentials: mock(() => Promise.resolve(null)),
+  createMcpKey: mock(() => Promise.resolve({})),
+  getMcpKeys: mock(() => Promise.resolve([])),
+  deactivateMcpKey: mock(() => Promise.resolve({ count: 1 })),
+};
+const mcpKeyServicePath = path.resolve(import.meta.dir, '../../api/mcp/mcpKeyService.ts');
+const mcpKeyServiceJsPath = path.resolve(import.meta.dir, '../../api/mcp/mcpKeyService.js');
+
+mock.module(mcpKeyServicePath, () => mockMcpKeyService);
+mock.module(mcpKeyServiceJsPath, () => mockMcpKeyService);
+
+const mockMcpTools = {
+  registerMcpTools: mock(() => undefined),
+};
+const mcpToolsPath = path.resolve(import.meta.dir, '../../api/mcp/mcpTools.ts');
+const mcpToolsJsPath = path.resolve(import.meta.dir, '../../api/mcp/mcpTools.js');
+
+mock.module(mcpToolsPath, () => mockMcpTools);
+mock.module(mcpToolsJsPath, () => mockMcpTools);
+
 // Import router modules and helpers after mocks are set up
 import {
   json,
@@ -109,6 +131,7 @@ import { handleReportErrorRoute } from '../../api/routes/error.js';
 import { handleUserRoutes } from '../../api/routes/user.js';
 import { handleAdminRoutes } from '../../api/routes/admin.js';
 import { handleDashboardRoutes } from '../../api/routes/dashboard.js';
+import { handleMCPRoutes } from '../../api/mcp/mcpServer.js';
 
 // Helper mock req/res functions
 function createMockRequest(options: {
@@ -123,9 +146,11 @@ function createMockRequest(options: {
   req.url = options.url || '/';
   req.headers = options.headers || {};
   if (options.body) {
+    (req as IncomingMessage & { bodyText?: string }).bodyText = options.body;
     req.push(options.body);
     req.push(null);
   } else {
+    (req as IncomingMessage & { bodyText?: string }).bodyText = '';
     req.push(null);
   }
   return req;
@@ -288,6 +313,11 @@ describe('Modular Routers Unit Tests', () => {
     mockDb.dashboardFeatureConfig.create.mockClear();
     mockDb.dashboardFeatureConfig.findUnique.mockClear();
     mockDb.dashboardFeatureConfig.update.mockClear();
+    mockMcpKeyService.verifyMcpKey.mockClear();
+    mockMcpKeyService.verifyMcpKeyByClientCredentials.mockClear();
+    mockMcpKeyService.createMcpKey.mockClear();
+    mockMcpKeyService.getMcpKeys.mockClear();
+    mockMcpKeyService.deactivateMcpKey.mockClear();
 
     mockActivation.isGuildActivated.mockClear();
     mockActivation.activateGuild.mockClear();
@@ -330,6 +360,128 @@ describe('Modular Routers Unit Tests', () => {
       const data = JSON.parse(res.body);
       const { DISCORD_CLIENT_ID: actualClientId } = await import('../../api/shared.js');
       expect(data.discordClientId).toBe(actualClientId);
+    });
+
+    test('GET root OAuth discovery refuses templated MCP endpoints', async () => {
+      const req = createMockRequest({
+        method: 'GET',
+        url: '/.well-known/oauth-authorization-server',
+        headers: { 'x-forwarded-proto': 'https', 'x-forwarded-host': 'api-kotbo.example' },
+      });
+      const res = createMockResponse();
+      const parts = splitPath(req.url!);
+      const url = new URL(req.url!, 'http://localhost');
+
+      const handled = await handlePublicRoutes(req, res, parts, url, mockClient);
+      expect(handled).toBeTrue();
+      expect(res.statusCode).toBe(400);
+      const data = JSON.parse(res.body);
+      expect(data.error).toBe('guild_scoped_mcp_endpoint_required');
+      expect(data.endpoint_format).toBe('https://api-kotbo.example/api/mcp/:guildId');
+    });
+
+    test('GET standard MCP protected resource metadata returns guild-scoped issuer', async () => {
+      const req = createMockRequest({
+        method: 'GET',
+        url: '/.well-known/oauth-protected-resource/api/mcp/112233445566778899',
+        headers: { 'x-forwarded-proto': 'https', 'x-forwarded-host': 'api-kotbo.example' },
+      });
+      const res = createMockResponse();
+      const parts = splitPath(req.url!);
+      const url = new URL(req.url!, 'http://localhost');
+
+      const handled = await handlePublicRoutes(req, res, parts, url, mockClient);
+      expect(handled).toBeTrue();
+      expect(res.statusCode).toBe(200);
+      const data = JSON.parse(res.body);
+      expect(data.resource).toBe('https://api-kotbo.example/api/mcp/112233445566778899');
+      expect(data.authorization_servers).toEqual(['https://api-kotbo.example/api/mcp/112233445566778899']);
+    });
+
+    test('GET standard MCP authorization server metadata returns concrete endpoints', async () => {
+      const req = createMockRequest({
+        method: 'GET',
+        url: '/.well-known/oauth-authorization-server/api/mcp/112233445566778899',
+        headers: { 'x-forwarded-proto': 'https', 'x-forwarded-host': 'api-kotbo.example' },
+      });
+      const res = createMockResponse();
+      const parts = splitPath(req.url!);
+      const url = new URL(req.url!, 'http://localhost');
+
+      const handled = await handlePublicRoutes(req, res, parts, url, mockClient);
+      expect(handled).toBeTrue();
+      expect(res.statusCode).toBe(200);
+      const data = JSON.parse(res.body);
+      expect(data.issuer).toBe('https://api-kotbo.example/api/mcp/112233445566778899');
+      expect(data.authorization_endpoint).toBe('https://api-kotbo.example/api/mcp/112233445566778899/oauth/authorize');
+      expect(data.token_endpoint).toBe('https://api-kotbo.example/api/mcp/112233445566778899/oauth/token');
+      expect(data.authorization_endpoint).not.toContain('{guildId}');
+    });
+  });
+
+  describe('1b. MCP OAuth Routes', () => {
+    test('rejects encoded guildId template from OAuth discovery', async () => {
+      const req = createMockRequest({
+        method: 'GET',
+        url: '/api/mcp/%7BguildId%7D/oauth/authorize?client_id=test&redirect_uri=https%3A%2F%2Fclaude.ai%2Fapi%2Fmcp%2Fauth_callback&code_challenge=abc',
+      });
+      const res = createMockResponse();
+      const parts = splitPath(new URL(req.url!, 'http://localhost').pathname);
+      const url = new URL(req.url!, 'http://localhost');
+
+      const handled = await handleMCPRoutes(req as IncomingMessage & { bodyText?: string }, res, parts, url, mockClient);
+      expect(handled).toBeTrue();
+      expect(res.statusCode).toBe(400);
+      const data = JSON.parse(res.body);
+      expect(data.error).toBe('invalid_guild_id');
+    });
+
+    test('OAuth authorize page overrides global CSP so inline CSS can render', async () => {
+      const req = createMockRequest({
+        method: 'GET',
+        url: '/api/mcp/112233445566778899/oauth/authorize?client_id=test&redirect_uri=https%3A%2F%2Fclaude.ai%2Fapi%2Fmcp%2Fauth_callback&code_challenge=abc',
+      });
+      const res = createMockResponse();
+      const parts = splitPath(new URL(req.url!, 'http://localhost').pathname);
+      const url = new URL(req.url!, 'http://localhost');
+
+      const handled = await handleMCPRoutes(req as IncomingMessage & { bodyText?: string }, res, parts, url, mockClient);
+      expect(handled).toBeTrue();
+      expect(res.statusCode).toBe(200);
+      expect(res.getHeader('content-security-policy')).toContain("style-src 'unsafe-inline'");
+      expect(res.getHeader('content-type')).toContain('text/html');
+      expect(res.body).toContain('<style>');
+    });
+
+    test('OAuth token endpoint supports client_credentials with MCP key client ID and secret', async () => {
+      const clientId = 'mcp-key-id';
+      const clientSecret = 'mcp_test_secret';
+      mockMcpKeyService.verifyMcpKeyByClientCredentials.mockImplementation(() => Promise.resolve({
+        id: clientId,
+        guildId: '112233445566778899',
+        isActive: true,
+      } as any));
+
+      const req = createMockRequest({
+        method: 'POST',
+        url: '/api/mcp/112233445566778899/oauth/token',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'client_credentials',
+          client_id: clientId,
+          client_secret: clientSecret,
+        }).toString(),
+      });
+      const res = createMockResponse();
+      const parts = splitPath(new URL(req.url!, 'http://localhost').pathname);
+      const url = new URL(req.url!, 'http://localhost');
+
+      const handled = await handleMCPRoutes(req as IncomingMessage & { bodyText?: string }, res, parts, url, mockClient);
+      expect(handled).toBeTrue();
+      expect(res.statusCode).toBe(200);
+      const data = JSON.parse(res.body);
+      expect(data.access_token).toBe(clientSecret);
+      expect(data.token_type).toBe('Bearer');
     });
   });
 

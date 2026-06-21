@@ -17,7 +17,22 @@ import {
   DISCORD_CLIENT_ID,
   DASHBOARD_ORIGIN,
 } from '../shared.js';
+import {
+  isValidMcpGuildId,
+  mcpAuthorizationServerMetadata,
+  mcpProtectedResourceMetadata,
+} from '../mcp/mcpServer.js';
 import { generateRssXml } from '../../services/core/newsService.js';
+
+function publicBase(req: IncomingMessage, url: URL): string {
+  const proto = (req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0]?.trim() ?? url.protocol.replace(':', '');
+  const host = (req.headers['x-forwarded-host'] as string | undefined) ?? url.host;
+  return `${proto}://${host}`;
+}
+
+function guildScopedMcpBase(req: IncomingMessage, url: URL, guildId: string): string {
+  return `${publicBase(req, url)}/api/mcp/${guildId}`;
+}
 
 export async function handlePublicRoutes(
   req: IncomingMessage,
@@ -34,23 +49,40 @@ export async function handlePublicRoutes(
     return true;
   }
 
-  // GET /.well-known/oauth-authorization-server — fallback discovery (root)
-  // Claude.ai uses the guild-specific endpoint; this is just for spec compliance
+  // GET /.well-known/oauth-authorization-server
+  // MCP OAuth discovery is guild-scoped. Returning templated endpoints here makes
+  // clients treat "{guildId}" as a real path segment, so fail with a clear hint.
   if (url.pathname === '/.well-known/oauth-authorization-server' && method === 'GET') {
-    const proto = (req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0]?.trim() ?? url.protocol.replace(':', '');
-    const host = (req.headers['x-forwarded-host'] as string | undefined) ?? url.host;
-    const base = `${proto}://${host}`;
-    json(res, 200, {
-      issuer: base,
-      authorization_endpoint: `${base}/api/mcp/{guildId}/oauth/authorize`,
-      token_endpoint: `${base}/api/mcp/{guildId}/oauth/token`,
-      registration_endpoint: `${base}/api/mcp/{guildId}/oauth/register`,
-      response_types_supported: ['code'],
-      code_challenge_methods_supported: ['S256'],
-      grant_types_supported: ['authorization_code', 'refresh_token'],
-      token_endpoint_auth_methods_supported: ['client_secret_post', 'none'],
-      scopes_supported: ['mcp'],
+    const base = publicBase(req, url);
+    json(res, 400, {
+      error: 'guild_scoped_mcp_endpoint_required',
+      error_description: 'Utilise l endpoint MCP complet du serveur Discord: /api/mcp/:guildId',
+      endpoint_format: `${base}/api/mcp/:guildId`,
     });
+    return true;
+  }
+
+  // RFC 9728 well-known form for an MCP resource at /api/mcp/:guildId.
+  if (parts[0] === '.well-known' && parts[1] === 'oauth-protected-resource' && parts[2] === 'api' && parts[3] === 'mcp' && method === 'GET') {
+    const guildId = parts[4];
+    if (!guildId || !isValidMcpGuildId(guildId) || parts.length !== 5) {
+      json(res, 400, { error: 'invalid_guild_id' });
+      return true;
+    }
+
+    json(res, 200, mcpProtectedResourceMetadata(guildScopedMcpBase(req, url, guildId)));
+    return true;
+  }
+
+  // RFC 8414 well-known form for an OAuth issuer at /api/mcp/:guildId.
+  if (parts[0] === '.well-known' && parts[1] === 'oauth-authorization-server' && parts[2] === 'api' && parts[3] === 'mcp' && method === 'GET') {
+    const guildId = parts[4];
+    if (!guildId || !isValidMcpGuildId(guildId) || parts.length !== 5) {
+      json(res, 400, { error: 'invalid_guild_id' });
+      return true;
+    }
+
+    json(res, 200, mcpAuthorizationServerMetadata(guildScopedMcpBase(req, url, guildId)));
     return true;
   }
 
@@ -710,4 +742,3 @@ export async function handlePublicRoutes(
 
   return false;
 }
-
