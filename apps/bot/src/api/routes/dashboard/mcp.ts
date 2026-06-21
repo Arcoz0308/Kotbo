@@ -2,6 +2,7 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client } from 'discord.js';
 import { json, readJsonBody, type AuthClaims, type DashboardAccess } from '../../shared.js';
 import { logger } from '../../../utils/logger.js';
+import { getMcpConnectionLogs } from '../../mcp/mcpServer.js';
 import { createMcpKey, getMcpKeys, deactivateMcpKey } from '../../mcp/mcpKeyService.js';
 import type { McpKeyPermission } from '@prisma/client';
 
@@ -24,7 +25,7 @@ export async function handleMCPKeyRoutes(
   guildId: string,
   access: DashboardAccess
 ): Promise<boolean> {
-  if (parts[4] !== 'mcp-keys') return false;
+  if (parts[4] !== 'mcp-keys' && parts[4] !== 'mcp-logs') return false;
 
   const method = req.method;
 
@@ -33,8 +34,15 @@ export async function handleMCPKeyRoutes(
     return true;
   }
 
+  // GET /api/dashboard/guilds/:guildId/mcp-logs
+  if (parts.length === 5 && parts[4] === 'mcp-logs' && method === 'GET') {
+    const logs = getMcpConnectionLogs(guildId);
+    json(res, 200, { logs });
+    return true;
+  }
+
   // GET /api/dashboard/guilds/:guildId/mcp-keys
-  if (parts.length === 5 && method === 'GET') {
+  if (parts.length === 5 && parts[4] === 'mcp-keys' && method === 'GET') {
     try {
       const keys = await getMcpKeys(guildId);
       json(res, 200, keys);
@@ -46,7 +54,7 @@ export async function handleMCPKeyRoutes(
   }
 
   // POST /api/dashboard/guilds/:guildId/mcp-keys
-  if (parts.length === 5 && method === 'POST') {
+  if (parts.length === 5 && parts[4] === 'mcp-keys' && method === 'POST') {
     try {
       const body = await readJsonBody<{ name?: string; permissions?: string[] }>(req);
       if (!body?.name || typeof body.name !== 'string' || !body.name.trim()) {
@@ -75,7 +83,7 @@ export async function handleMCPKeyRoutes(
   }
 
   // DELETE /api/dashboard/guilds/:guildId/mcp-keys/:keyId
-  if (parts.length === 6 && method === 'DELETE') {
+  if (parts.length === 6 && parts[4] === 'mcp-keys' && method === 'DELETE') {
     const keyId = parts[5];
     try {
       await deactivateMcpKey(guildId, keyId);

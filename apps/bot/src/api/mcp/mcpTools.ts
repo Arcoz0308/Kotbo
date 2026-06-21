@@ -22,7 +22,10 @@ const err = (msg: string, meta?: Record<string, unknown>) => ({
   ...(meta ? { _meta: meta } : {}),
 });
 
-const oauthSecuritySchemes = [{ type: 'oauth2', scopes: ['mcp'] }];
+const oauthSecuritySchemes = [
+  { type: 'noauth' },
+  { type: 'oauth2', scopes: ['mcp'] },
+];
 
 const toolMeta = {
   securitySchemes: oauthSecuritySchemes,

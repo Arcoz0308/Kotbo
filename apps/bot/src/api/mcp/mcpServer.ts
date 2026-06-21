@@ -33,6 +33,21 @@ type AuthCode = {
 const oauthClients = new Map<string, OAuthClient>();
 const authCodes    = new Map<string, AuthCode>();
 
+export type McpConnectionLog = {
+  id: string;
+  ts: string;
+  level: 'info' | 'warn' | 'error';
+  guildId: string;
+  event: string;
+  method: string;
+  url: string;
+  ua: string;
+  data: Record<string, unknown>;
+};
+
+const mcpConnectionLogs: McpConnectionLog[] = [];
+const MCP_CONNECTION_LOG_LIMIT = 500;
+
 // Clean expired codes every 15 min
 setInterval(() => {
   const now = Date.now();
@@ -59,21 +74,58 @@ function parseFormBody(body: string): Record<string, string> {
   return Object.fromEntries(new URLSearchParams(body).entries());
 }
 
-function oauthError(res: ServerResponse, status: number, error: string, desc?: string) {
-  logger.warn('MCPAuth', `oauth_error status=${status} error=${error} desc=${desc ?? ''}`);
+function pushMcpConnectionLog(entry: McpConnectionLog) {
+  mcpConnectionLogs.push(entry);
+  if (mcpConnectionLogs.length > MCP_CONNECTION_LOG_LIMIT) {
+    mcpConnectionLogs.splice(0, mcpConnectionLogs.length - MCP_CONNECTION_LOG_LIMIT);
+  }
+}
+
+export function getMcpConnectionLogs(guildId: string, limit = 150): McpConnectionLog[] {
+  return mcpConnectionLogs
+    .filter((entry) => entry.guildId === guildId)
+    .slice(-limit)
+    .reverse();
+}
+
+function inferMcpGuildId(req: IncomingMessage): string {
+  const path = (req.url ?? '').split('?')[0] ?? '';
+  const match = path.match(/\/api\/mcp\/(\d{15,20})(?:\/|$)/);
+  return match?.[1] ?? 'unknown';
+}
+
+function oauthError(req: IncomingMessage, res: ServerResponse, status: number, error: string, desc?: string) {
+  mcpLog(req, 'oauth_error', { status, error, description: desc ?? null }, 'warn');
   res.setHeader('Content-Type', 'application/json');
   res.statusCode = status;
   res.end(JSON.stringify({ error, ...(desc ? { error_description: desc } : {}) }));
 }
 
-function mcpLog(req: IncomingMessage, event: string, data: Record<string, unknown> = {}) {
+function mcpLog(req: IncomingMessage, event: string, data: Record<string, unknown> = {}, level: 'info' | 'warn' | 'error' = 'info') {
   const ua = Array.isArray(req.headers['user-agent']) ? req.headers['user-agent'].join(' ') : req.headers['user-agent'] ?? '';
-  logger.info('MCPAuth', `${event} ${JSON.stringify({
+  const guildId = typeof data.guildId === 'string' ? data.guildId : inferMcpGuildId(req);
+  const payload = {
     method: req.method,
     url: req.url,
     ua: ua.slice(0, 120),
+    guildId,
     ...data,
-  })}`);
+  };
+
+  pushMcpConnectionLog({
+    id: crypto.randomUUID(),
+    ts: new Date().toISOString(),
+    level,
+    guildId,
+    event,
+    method: req.method ?? 'GET',
+    url: req.url ?? '',
+    ua: ua.slice(0, 120),
+    data,
+  });
+
+  const log = level === 'error' ? logger.error : level === 'warn' ? logger.warn : logger.info;
+  log('MCPAuth', `${event} ${JSON.stringify(payload)}`);
 }
 
 function authParam(value: string): string {
@@ -182,7 +234,7 @@ function sendToolsListCompat(server: McpServer, parsedBody: unknown, res: Server
     .filter(([, tool]) => tool.enabled !== false)
     .map(([name, tool]) => {
       const meta = (tool._meta as { securitySchemes?: unknown } | undefined) ?? {};
-      const securitySchemes = meta.securitySchemes ?? [{ type: 'oauth2', scopes: ['mcp'] }];
+      const securitySchemes = meta.securitySchemes ?? [{ type: 'noauth' }, { type: 'oauth2', scopes: ['mcp'] }];
 
       return {
         name,
@@ -488,7 +540,7 @@ export async function handleMCPRoutes(
     let p: Record<string, string>;
     if (ct.includes('application/json')) {
       try { p = JSON.parse(req.bodyText ?? '{}') as Record<string, string>; }
-      catch { oauthError(res, 400, 'invalid_request'); return true; }
+      catch { oauthError(req, res, 400, 'invalid_request'); return true; }
     } else {
       p = parseFormBody(req.bodyText ?? '');
     }
@@ -509,13 +561,13 @@ export async function handleMCPRoutes(
 
     if (grant_type === 'client_credentials') {
       if (!clientId || !clientSecret) {
-        oauthError(res, 400, 'invalid_request', 'client_id et client_secret requis');
+        oauthError(req, res, 400, 'invalid_request', 'client_id et client_secret requis');
         return true;
       }
 
       const mcpKey = await verifyMcpKeyByClientCredentials(clientId, clientSecret, guildId);
       if (!mcpKey) {
-        oauthError(res, 401, 'invalid_client', 'Client ID ou secret invalide');
+        oauthError(req, res, 401, 'invalid_client', 'Client ID ou secret invalide');
         return true;
       }
       mcpLog(req, 'token_client_credentials_success', { guildId, clientId, keyId: mcpKey.id });
@@ -532,37 +584,37 @@ export async function handleMCPRoutes(
     }
 
     if (grant_type !== 'authorization_code') {
-      oauthError(res, 400, 'unsupported_grant_type', 'authorization_code et client_credentials sont supportés');
+      oauthError(req, res, 400, 'unsupported_grant_type', 'authorization_code et client_credentials sont supportés');
       return true;
     }
     if (!code || !code_verifier || !redirect_uri) {
-      oauthError(res, 400, 'invalid_request', 'code, code_verifier et redirect_uri requis');
+      oauthError(req, res, 400, 'invalid_request', 'code, code_verifier et redirect_uri requis');
       return true;
     }
 
     const ac = authCodes.get(code) ?? openAuthCode(code);
     if (!ac || ac.expiresAt < Date.now()) {
-      oauthError(res, 400, 'invalid_grant', 'Code invalide ou expiré');
+      oauthError(req, res, 400, 'invalid_grant', 'Code invalide ou expiré');
       return true;
     }
     if (ac.guildId !== guildId) {
-      oauthError(res, 400, 'invalid_grant', 'Code invalide pour ce serveur');
+      oauthError(req, res, 400, 'invalid_grant', 'Code invalide pour ce serveur');
       return true;
     }
     if (clientId && clientId !== ac.clientId) {
-      oauthError(res, 400, 'invalid_grant', 'client_id ne correspond pas');
+      oauthError(req, res, 400, 'invalid_grant', 'client_id ne correspond pas');
       return true;
     }
     if (redirect_uri !== ac.redirectUri) {
-      oauthError(res, 400, 'invalid_grant', 'redirect_uri ne correspond pas');
+      oauthError(req, res, 400, 'invalid_grant', 'redirect_uri ne correspond pas');
       return true;
     }
     if (resource && ac.resource && resource !== ac.resource) {
-      oauthError(res, 400, 'invalid_target', 'resource ne correspond pas');
+      oauthError(req, res, 400, 'invalid_target', 'resource ne correspond pas');
       return true;
     }
     if (!verifyPKCE(code_verifier, ac.codeChallenge, ac.codeChallengeMethod)) {
-      oauthError(res, 400, 'invalid_grant', 'PKCE code_verifier invalide');
+      oauthError(req, res, 400, 'invalid_grant', 'PKCE code_verifier invalide');
       return true;
     }
 
@@ -657,9 +709,20 @@ export async function handleMCPRoutes(
       enableJsonResponse: true,
     });
 
-    await server.connect(transport);
-
-    await handleTransportRequestWithCompat(transport, server, req, res, parsedBody);
+    try {
+      await server.connect(transport);
+      mcpLog(req, 'mcp_jsonrpc_request', { guildId, keyId, method: jsonRpcMethod(parsedBody) });
+      await handleTransportRequestWithCompat(transport, server, req, res, parsedBody);
+      mcpLog(req, 'mcp_jsonrpc_response', { guildId, keyId, method: jsonRpcMethod(parsedBody), statusCode: res.statusCode });
+    } catch (error) {
+      mcpLog(req, 'mcp_jsonrpc_error', {
+        guildId,
+        keyId,
+        method: jsonRpcMethod(parsedBody),
+        error: error instanceof Error ? error.message : String(error),
+      }, 'error');
+      throw error;
+    }
     return true;
   }
 

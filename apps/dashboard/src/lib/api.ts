@@ -2128,3 +2128,6 @@ export async function deleteMcpKey(keyId: string, guildId = authStore.selectedGu
   return dashboardRequest(`/mcp-keys/${keyId}`, { method: 'DELETE', guildId, errorContext: 'API Error (Delete MCP Key):' });
 }
 
+export async function fetchMcpLogs(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/mcp-logs', { method: 'GET', guildId, errorContext: 'API Error (Fetch MCP Logs):' });
+}

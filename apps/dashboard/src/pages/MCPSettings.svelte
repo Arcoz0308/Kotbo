@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { toast } from '../lib/stores/toast.svelte';
-  import { API_BASE_URL, fetchMcpKeys, createMcpKey, deleteMcpKey } from '../lib/api';
+  import { API_BASE_URL, fetchMcpKeys, createMcpKey, deleteMcpKey, fetchMcpLogs } from '../lib/api';
   import Modal from '../lib/components/Modal.svelte';
   import ConfirmModal from '../lib/components/ConfirmModal.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
@@ -31,6 +31,18 @@
     name: string;
   };
 
+  type McpLogEntry = {
+    id: string;
+    ts: string;
+    level: 'info' | 'warn' | 'error';
+    guildId: string;
+    event: string;
+    method: string;
+    url: string;
+    ua: string;
+    data: Record<string, unknown>;
+  };
+
   let keys = $state<McpKey[]>([]);
   let loading = $state(true);
 
@@ -44,7 +56,7 @@
   let selectedAi = $state<'claude' | 'chatgpt' | 'gemini'>('claude');
   let diagOpen = $state(false);
   let diagRunning = $state(false);
-  let diagResults = $state<Array<{ name: string; ok: boolean; status?: number; detail: string }>>([]);
+  let diagLogs = $state<McpLogEntry[]>([]);
 
   // Delete modal
   let deleteOpen = $state(false);
@@ -228,89 +240,31 @@
     expandedKeyId = expandedKeyId === keyId ? null : keyId;
   }
 
-  async function runMcpDiagnostics() {
-    if (!endpointUrl) return;
-    diagOpen = true;
+  function formatLogData(data: Record<string, unknown>) {
+    return JSON.stringify(data, null, 2);
+  }
+
+  function formatLogTime(ts: string) {
+    return new Date(ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+
+  async function refreshMcpLogs() {
+    if (!guildId) return;
     diagRunning = true;
-    diagResults = [];
-
-    const add = (name: string, ok: boolean, status: number | undefined, detail: string) => {
-      const entry = { name, ok, status, detail };
-      diagResults = [...diagResults, entry];
-      const log = ok ? console.info : console.warn;
-      log('[MCP diagnostic]', entry);
-    };
-
-    const safeJson = async (response: Response) => {
-      const text = await response.text();
-      try {
-        return JSON.stringify(JSON.parse(text), null, 2).slice(0, 1200);
-      } catch {
-        return text.slice(0, 1200);
-      }
-    };
-
-    const guildPath = `/api/mcp/${guildId}`;
-    const prmUrl = `${API_BASE_URL}/.well-known/oauth-protected-resource${guildPath}`;
-    const asUrl = `${API_BASE_URL}/.well-known/oauth-authorization-server${guildPath}`;
-    const commonHeaders = {
-      'content-type': 'application/json',
-      accept: 'application/json, text/event-stream',
-    };
-
     try {
-      const response = await fetch(endpointUrl, { method: 'GET' });
-      add('GET endpoint sans token', response.status === 401, response.status, `WWW-Authenticate: ${response.headers.get('www-authenticate') ?? 'absent'}\n${await safeJson(response)}`);
-    } catch (error) {
-      add('GET endpoint sans token', false, undefined, error instanceof Error ? error.message : String(error));
-    }
-
-    try {
-      const response = await fetch(prmUrl);
-      add('Protected Resource Metadata', response.ok, response.status, await safeJson(response));
-    } catch (error) {
-      add('Protected Resource Metadata', false, undefined, error instanceof Error ? error.message : String(error));
-    }
-
-    try {
-      const response = await fetch(asUrl);
-      add('Authorization Server Metadata', response.ok, response.status, await safeJson(response));
-    } catch (error) {
-      add('Authorization Server Metadata', false, undefined, error instanceof Error ? error.message : String(error));
-    }
-
-    try {
-      const response = await fetch(endpointUrl, {
-        method: 'POST',
-        headers: commonHeaders,
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'initialize',
-          params: {
-            protocolVersion: '2025-06-18',
-            capabilities: {},
-            clientInfo: { name: 'kotbo-dashboard-diagnostic', version: '1' },
-          },
-        }),
-      });
-      add('JSON-RPC initialize sans token', response.ok, response.status, await safeJson(response));
-    } catch (error) {
-      add('JSON-RPC initialize sans token', false, undefined, error instanceof Error ? error.message : String(error));
-    }
-
-    try {
-      const response = await fetch(endpointUrl, {
-        method: 'POST',
-        headers: commonHeaders,
-        body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} }),
-      });
-      add('JSON-RPC tools/list sans token', response.ok, response.status, await safeJson(response));
-    } catch (error) {
-      add('JSON-RPC tools/list sans token', false, undefined, error instanceof Error ? error.message : String(error));
+      const result = await fetchMcpLogs(guildId);
+      diagLogs = Array.isArray(result?.logs) ? result.logs : [];
+      console.info('[MCP logs]', diagLogs);
+    } catch {
+      toast.error('Impossible de charger les logs MCP');
     } finally {
       diagRunning = false;
     }
+  }
+
+  async function openMcpDiagnostics() {
+    diagOpen = true;
+    await refreshMcpLogs();
   }
 
   function handleKeyRowKeyboard(event: KeyboardEvent, keyId: string) {
@@ -367,10 +321,10 @@
           {copiedField === 'endpoint' ? '✓ Copié' : 'Copier'}
         </button>
         <button
-          onclick={runMcpDiagnostics}
+          onclick={openMcpDiagnostics}
           class="shrink-0 px-3 py-2.5 rounded-lg border border-amber-400/25 text-xs text-amber-300 hover:text-amber-200 hover:border-amber-400/40 transition-colors"
         >
-          Diagnostic
+          Logs
         </button>
       {/if}
     </div>
@@ -766,32 +720,39 @@
   </div>
 </Modal>
 
-<Modal bind:open={diagOpen} onClose={() => { diagOpen = false; }} title="Diagnostic MCP" size="xl">
+<Modal bind:open={diagOpen} onClose={() => { diagOpen = false; }} title="Logs MCP" size="xl">
   <div class="space-y-3 p-5">
     <div class="flex items-center justify-between gap-3">
-      <p class="text-sm text-gray-400">Tests publics depuis ton navigateur vers l'endpoint MCP. Les résultats sont aussi dans la console.</p>
+      <p class="text-sm text-gray-400">Dernières connexions réelles au serveur MCP pour ce serveur Discord.</p>
       <button
-        onclick={runMcpDiagnostics}
-        disabled={diagRunning || !endpointUrl}
+        onclick={refreshMcpLogs}
+        disabled={diagRunning || !guildId}
         class="px-3 py-2 rounded-lg border border-white/10 text-sm text-gray-300 hover:text-white disabled:opacity-40"
       >
-        {diagRunning ? 'Test...' : 'Relancer'}
+        {diagRunning ? 'Chargement...' : 'Actualiser'}
       </button>
     </div>
 
-    {#if diagResults.length === 0}
+    {#if diagLogs.length === 0}
       <div class="rounded-lg border border-white/8 bg-black/20 p-6 text-sm text-gray-500">
-        {diagRunning ? 'Diagnostic en cours...' : 'Aucun diagnostic lancé.'}
+        {diagRunning ? 'Chargement des logs...' : 'Aucun log MCP récent. Lance une connexion Claude ou ChatGPT puis actualise.'}
       </div>
     {:else}
       <div class="space-y-2">
-        {#each diagResults as result}
-          <div class="rounded-lg border {result.ok ? 'border-emerald-400/20 bg-emerald-400/5' : 'border-red-400/20 bg-red-400/5'} p-3">
-            <div class="flex items-center justify-between gap-3">
-              <p class="text-sm font-semibold {result.ok ? 'text-emerald-300' : 'text-red-300'}">{result.name}</p>
-              <span class="text-xs text-gray-500">HTTP {result.status ?? 'ERR'}</span>
+        {#each diagLogs as log (log.id)}
+          <div class="rounded-lg border {log.level === 'error' ? 'border-red-400/25 bg-red-400/5' : log.level === 'warn' ? 'border-amber-400/25 bg-amber-400/5' : 'border-white/8 bg-black/20'} p-3">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="text-xs text-gray-500">{formatLogTime(log.ts)}</span>
+                  <span class="rounded border px-1.5 py-0.5 text-[10px] uppercase {log.level === 'error' ? 'border-red-400/30 text-red-300' : log.level === 'warn' ? 'border-amber-400/30 text-amber-300' : 'border-white/10 text-gray-400'}">{log.level}</span>
+                  <span class="text-sm font-semibold {log.level === 'error' ? 'text-red-300' : log.level === 'warn' ? 'text-amber-300' : 'text-gray-200'}">{log.event}</span>
+                </div>
+                <p class="mt-1 break-all font-mono text-[11px] text-gray-600">{log.method} {log.url}</p>
+              </div>
+              <span class="max-w-full truncate text-xs text-gray-500">{log.ua || 'user-agent absent'}</span>
             </div>
-            <pre class="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-black/35 p-3 text-xs leading-relaxed text-gray-300">{result.detail}</pre>
+            <pre class="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-black/35 p-3 text-xs leading-relaxed text-gray-300">{formatLogData(log.data)}</pre>
           </div>
         {/each}
       </div>
