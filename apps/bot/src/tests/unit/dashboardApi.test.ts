@@ -453,6 +453,23 @@ describe('Modular Routers Unit Tests', () => {
       expect(res.body).toContain('<style>');
     });
 
+    test('GET MCP endpoint without token starts OAuth discovery instead of returning 405', async () => {
+      const req = createMockRequest({
+        method: 'GET',
+        url: '/api/mcp/112233445566778899',
+        headers: { 'x-forwarded-proto': 'https', 'x-forwarded-host': 'api-kotbo.example' },
+      });
+      const res = createMockResponse();
+      const parts = splitPath(new URL(req.url!, 'http://localhost').pathname);
+      const url = new URL(req.url!, 'http://localhost');
+
+      const handled = await handleMCPRoutes(req as IncomingMessage & { bodyText?: string }, res, parts, url, mockClient);
+      expect(handled).toBeTrue();
+      expect(res.statusCode).toBe(401);
+      expect(res.getHeader('www-authenticate')).toContain('Bearer realm="kotbo"');
+      expect(res.getHeader('www-authenticate')).toContain('resource_metadata="https://api-kotbo.example/.well-known/oauth-protected-resource/api/mcp/112233445566778899"');
+    });
+
     test('OAuth token endpoint supports client_credentials with MCP key client ID and secret', async () => {
       const clientId = 'mcp-key-id';
       const clientSecret = 'mcp_test_secret';
