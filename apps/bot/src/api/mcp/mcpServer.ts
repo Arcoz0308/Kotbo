@@ -114,6 +114,7 @@ export function mcpProtectedResourceMetadata(base: string) {
     authorization_servers: [base],
     bearer_methods_supported: ['header'],
     scopes_supported: ['mcp'],
+    resource_documentation: `${base}/.well-known/oauth-protected-resource`,
   };
 }
 
@@ -128,8 +129,15 @@ export function mcpAuthorizationServerMetadata(base: string) {
     grant_types_supported: ['authorization_code'],
     token_endpoint_auth_methods_supported: ['none', 'client_secret_post', 'client_secret_basic'],
     client_id_metadata_document_supported: true,
+    authorization_response_iss_parameter_supported: true,
     scopes_supported: ['mcp'],
   };
+}
+
+function jsonRpcMethod(body: unknown): string | null {
+  if (!body || Array.isArray(body) || typeof body !== 'object') return null;
+  const method = (body as { method?: unknown }).method;
+  return typeof method === 'string' ? method : null;
 }
 
 function verifyPKCE(verifier: string, challenge: string, method: string): boolean {
@@ -281,6 +289,11 @@ export async function handleMCPRoutes(
     return true;
   }
 
+  if (subPath === '.well-known/openid-configuration' && method === 'GET') {
+    json(res, 200, mcpAuthorizationServerMetadata(base));
+    return true;
+  }
+
   // ── Dynamic Client Registration (RFC 7591) ─────────────────────────────
   if (subPath === 'oauth/register' && method === 'POST') {
     let body: Record<string, unknown> = {};
@@ -340,7 +353,8 @@ export async function handleMCPRoutes(
       return true;
     }
 
-    const mcpKey = await verifyMcpKey(api_key, guildId);
+    const cleanApiKey = api_key.trim();
+    const mcpKey = await verifyMcpKey(cleanApiKey, guildId);
     if (!mcpKey) {
       const clientName = oauthClients.get(client_id)?.clientName ?? 'Agent IA';
       res.setHeader('Content-Security-Policy',
@@ -363,7 +377,7 @@ export async function handleMCPRoutes(
       codeChallenge: code_challenge,
       codeChallengeMethod: code_challenge_method ?? 'S256',
       guildId,
-      rawKey: api_key,
+      rawKey: cleanApiKey,
       expiresAt: Date.now() + 10 * 60 * 1000,
       resource,
     };
@@ -373,6 +387,7 @@ export async function handleMCPRoutes(
     const dest = new URL(redirect_uri);
     dest.searchParams.set('code', code);
     if (state) dest.searchParams.set('state', state);
+    dest.searchParams.set('iss', base);
 
     res.setHeader('Location', dest.toString());
     res.statusCode = 302;
@@ -483,10 +498,17 @@ export async function handleMCPRoutes(
     const rawKey = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
       ? authHeader.slice(7).trim()
       : null;
+    const basicCredentials = readBasicClientCredentials(authHeader);
 
-    if (!rawKey && (method === 'GET' || method === 'HEAD')) {
+    if (!rawKey && !basicCredentials && (method === 'GET' || method === 'HEAD')) {
       res.setHeader('WWW-Authenticate', authChallenge(req, url, guildId));
       json(res, 401, { error: 'Authorization manquante' });
+      return true;
+    }
+
+    if (!rawKey && !basicCredentials && jsonRpcMethod(parsedBody) === 'tools/call') {
+      res.setHeader('WWW-Authenticate', authChallenge(req, url, guildId, 'insufficient_scope', 'Autorisation MCP Kotbo requise'));
+      json(res, 401, { error: 'authorization_required', error_description: 'Autorisation MCP Kotbo requise' });
       return true;
     }
 
@@ -503,6 +525,16 @@ export async function handleMCPRoutes(
 
       permissions = mcpKey.permissions;
       keyId = mcpKey.id;
+    } else if (basicCredentials) {
+      const mcpKey = await verifyMcpKeyByClientCredentials(basicCredentials.clientId, basicCredentials.clientSecret, guildId);
+      if (!mcpKey) {
+        res.setHeader('WWW-Authenticate', authChallenge(req, url, guildId, 'invalid_token', 'Client MCP invalide ou inactif'));
+        json(res, 401, { error: 'Client MCP invalide ou inactif' });
+        return true;
+      }
+
+      permissions = mcpKey.permissions;
+      keyId = mcpKey.id;
     }
 
     if (keyId && !checkRateLimit(keyId)) {
@@ -512,7 +544,7 @@ export async function handleMCPRoutes(
 
     const server = new McpServer({ name: 'kotbo', version: '1.0.0' });
     registerMcpTools(server, guildId, permissions, client, {
-      listAllTools: !rawKey,
+      listAllTools: !rawKey && !basicCredentials,
       wwwAuthenticate: authChallenge(req, url, guildId, 'insufficient_scope', 'Autorisation MCP Kotbo requise'),
     });
 

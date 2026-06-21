@@ -480,6 +480,38 @@ describe('Modular Routers Unit Tests', () => {
       expect(data.token_endpoint_auth_methods_supported[0]).toBe('none');
       expect(data.client_id_metadata_document_supported).toBe(true);
     });
+
+    test('GET root protected resource metadata supports resource query parameter', async () => {
+      const req = createMockRequest({
+        method: 'GET',
+        url: '/.well-known/oauth-protected-resource?resource=https%3A%2F%2Fapi-kotbo.example%2Fapi%2Fmcp%2F112233445566778899',
+      });
+      const res = createMockResponse();
+      const parts = splitPath(new URL(req.url!, 'http://localhost').pathname);
+      const url = new URL(req.url!, 'http://localhost');
+
+      const handled = await handlePublicRoutes(req, res, parts, url, mockClient);
+      expect(handled).toBeTrue();
+      expect(res.statusCode).toBe(200);
+      const data = JSON.parse(res.body);
+      expect(data.resource).toBe('https://api-kotbo.example/api/mcp/112233445566778899');
+    });
+
+    test('GET root authorization server metadata supports resource query parameter', async () => {
+      const req = createMockRequest({
+        method: 'GET',
+        url: '/.well-known/oauth-authorization-server?resource=https%3A%2F%2Fapi-kotbo.example%2Fapi%2Fmcp%2F112233445566778899',
+      });
+      const res = createMockResponse();
+      const parts = splitPath(new URL(req.url!, 'http://localhost').pathname);
+      const url = new URL(req.url!, 'http://localhost');
+
+      const handled = await handlePublicRoutes(req, res, parts, url, mockClient);
+      expect(handled).toBeTrue();
+      expect(res.statusCode).toBe(200);
+      const data = JSON.parse(res.body);
+      expect(data.issuer).toBe('https://api-kotbo.example/api/mcp/112233445566778899');
+    });
   });
 
   describe('1b. MCP OAuth Routes', () => {
@@ -582,6 +614,25 @@ describe('Modular Routers Unit Tests', () => {
         mockClient,
         expect.objectContaining({ listAllTools: true })
       );
+    });
+
+    test('POST tools/call without token returns HTTP OAuth challenge for Claude lazy auth', async () => {
+      const response = await requestMcpOverHttp({
+        jsonrpc: '2.0',
+        id: 3,
+        method: 'tools/call',
+        params: {
+          name: 'test_tool',
+          arguments: {},
+        },
+      });
+
+      expect(response.status).toBe(401);
+      expect(response.headers.get('www-authenticate')).toContain('Bearer realm="kotbo"');
+      expect(response.headers.get('www-authenticate')).toContain('error="insufficient_scope"');
+      expect(response.headers.get('www-authenticate')).toContain('resource_metadata="https://api-kotbo.example/.well-known/oauth-protected-resource/api/mcp/112233445566778899"');
+      const data = JSON.parse(response.body);
+      expect(data.error).toBe('authorization_required');
     });
 
     test('OAuth token endpoint supports client_credentials with MCP key client ID and secret', async () => {
