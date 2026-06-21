@@ -29,9 +29,17 @@ function mcpBaseFromResource(resource: string | null): string | null {
 
   try {
     const parsed = new URL(resource);
-    const match = parsed.pathname.match(/^\/api\/mcp\/(\d{15,20})\/?$/);
-    if (!match) return null;
-    return `${parsed.protocol}//${parsed.host}/api/mcp/${match[1]}`;
+    const standardMatch = parsed.pathname.match(/^\/api\/mcp\/(\d{15,20})\/?$/);
+    if (standardMatch) {
+      return `${parsed.protocol}//${parsed.host}/api/mcp/${standardMatch[1]}`;
+    }
+
+    const directMatch = parsed.pathname.match(/^\/api\/mcp-direct\/(\d{15,20})\/([^/?#]+)\/?$/);
+    if (directMatch) {
+      return `${parsed.protocol}//${parsed.host}/api/mcp-direct/${directMatch[1]}/${directMatch[2]}`;
+    }
+
+    return null;
   } catch {
     return null;
   }

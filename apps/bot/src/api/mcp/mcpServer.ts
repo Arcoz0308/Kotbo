@@ -114,7 +114,20 @@ function inferMcpGuildId(req: IncomingMessage): string {
 }
 
 function sanitizeMcpUrl(rawUrl: string | undefined): string {
-  return (rawUrl ?? '').replace(/(\/api\/mcp-direct\/\d{15,20}\/)[^/?#]+/g, '$1[token]');
+  return (rawUrl ?? '')
+    .replace(/(\/api\/mcp-direct\/\d{15,20}\/)[^/?#&]+/g, '$1[token]')
+    .replace(/(%2Fapi%2Fmcp-direct%2F\d{15,20}%2F)[^&?#]+/gi, '$1[token]');
+}
+
+function sanitizeMcpLogValue(value: unknown): unknown {
+  if (typeof value === 'string') return sanitizeMcpUrl(value);
+  if (Array.isArray(value)) return value.map(sanitizeMcpLogValue);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, sanitizeMcpLogValue(item)])
+    );
+  }
+  return value;
 }
 
 function oauthError(req: IncomingMessage, res: ServerResponse, status: number, error: string, desc?: string) {
@@ -136,12 +149,13 @@ function mcpLog(req: IncomingMessage, event: string, data: Record<string, unknow
   const ua = Array.isArray(req.headers['user-agent']) ? req.headers['user-agent'].join(' ') : req.headers['user-agent'] ?? '';
   const guildId = typeof data.guildId === 'string' ? data.guildId : inferMcpGuildId(req);
   const safeUrl = sanitizeMcpUrl(req.url);
+  const safeData = sanitizeMcpLogValue(data) as Record<string, unknown>;
   const payload = {
     method: req.method,
     url: safeUrl,
     ua: ua.slice(0, 120),
     guildId,
-    ...data,
+    ...safeData,
   };
 
   pushMcpConnectionLog({
@@ -153,7 +167,7 @@ function mcpLog(req: IncomingMessage, event: string, data: Record<string, unknow
     method: req.method ?? 'GET',
     url: safeUrl,
     ua: ua.slice(0, 120),
-    data,
+    data: safeData,
   });
 
   const log = level === 'error' ? logger.error : level === 'warn' ? logger.warn : logger.info;
@@ -184,6 +198,10 @@ function escapeHtml(s: string): string {
 
 function publicBase(req: IncomingMessage, url: URL, guildId: string): string {
   return `${publicOrigin(req, url)}/api/mcp/${guildId}`;
+}
+
+function directPublicBase(req: IncomingMessage, url: URL, guildId: string, directToken: string): string {
+  return `${publicOrigin(req, url)}/api/mcp-direct/${guildId}/${directToken}`;
 }
 
 function publicOrigin(req: IncomingMessage, url: URL): string {
@@ -618,17 +636,11 @@ export async function handleMCPRoutes(
   const method = req.method ?? 'GET';
   const directToken = isDirectMcp ? parts[3] : null;
   const subPath = parts.slice(isDirectMcp ? 4 : 3).join('/');
-  const base = publicBase(req, url, guildId);
+  const base = directToken ? directPublicBase(req, url, guildId, directToken) : publicBase(req, url, guildId);
 
   if (isDirectMcp && !directToken) {
     mcpLog(req, 'mcp_direct_missing_token', { guildId }, 'warn');
     json(res, 401, { error: 'direct_token_required' });
-    return true;
-  }
-
-  if (isDirectMcp && subPath !== '') {
-    mcpLog(req, 'mcp_direct_subpath_rejected', { guildId, subPath }, 'warn');
-    json(res, 404, { error: 'not_found' });
     return true;
   }
 
@@ -688,6 +700,39 @@ export async function handleMCPRoutes(
     if (!clientId || !redirectUri || !codeChallenge) {
       mcpLog(req, 'authorize_get_invalid', { guildId, hasClientId: !!clientId, hasRedirectUri: !!redirectUri, hasCodeChallenge: !!codeChallenge });
       json(res, 400, { error: 'invalid_request', error_description: 'client_id, redirect_uri et code_challenge requis' });
+      return true;
+    }
+
+    if (directToken) {
+      const mcpKey = await verifyMcpDirectToken(directToken, guildId);
+      if (!mcpKey) {
+        mcpLog(req, 'direct_authorize_invalid', { guildId, clientId, redirectUri }, 'warn');
+        json(res, 401, { error: 'invalid_direct_token' });
+        return true;
+      }
+
+      const authCode: AuthCode = {
+        clientId,
+        redirectUri,
+        codeChallenge,
+        codeChallengeMethod,
+        guildId,
+        keyId: mcpKey.id,
+        expiresAt: Date.now() + 10 * 60 * 1000,
+        resource: resource ?? base,
+      };
+      const code = sealAuthCode(authCode);
+      authCodes.set(code, authCode);
+      mcpLog(req, 'direct_authorize_code_issued', { guildId, clientId, redirectUri, resource: resource ?? base, keyId: mcpKey.id, permissions: mcpKey.permissions });
+
+      const dest = new URL(redirectUri);
+      dest.searchParams.set('code', code);
+      if (state) dest.searchParams.set('state', state);
+      dest.searchParams.set('iss', base);
+
+      res.setHeader('Location', dest.toString());
+      res.statusCode = 302;
+      res.end();
       return true;
     }
 
@@ -887,6 +932,12 @@ export async function handleMCPRoutes(
       expires_in: 7776000,
       scope: 'mcp',
     });
+    return true;
+  }
+
+  if (isDirectMcp && subPath !== '') {
+    mcpLog(req, 'mcp_direct_subpath_rejected', { guildId, subPath }, 'warn');
+    json(res, 404, { error: 'not_found' });
     return true;
   }
 

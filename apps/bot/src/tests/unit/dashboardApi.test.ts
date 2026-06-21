@@ -575,6 +575,27 @@ describe('Modular Routers Unit Tests', () => {
       const data = JSON.parse(res.body);
       expect(data.issuer).toBe('https://api-kotbo.example/api/mcp/112233445566778899');
     });
+
+    test('GET root authorization server metadata supports signed direct MCP resource URLs', async () => {
+      const directToken = makeMcpDirectToken('112233445566778899', 'direct-key-id');
+      const directResource = `https://api-kotbo.example/api/mcp-direct/112233445566778899/${directToken}`;
+      const req = createMockRequest({
+        method: 'GET',
+        url: `/.well-known/oauth-authorization-server?resource=${encodeURIComponent(directResource)}`,
+      });
+      const res = createMockResponse();
+      const parts = splitPath(new URL(req.url!, 'http://localhost').pathname);
+      const url = new URL(req.url!, 'http://localhost');
+
+      const handled = await handlePublicRoutes(req, res, parts, url, mockClient);
+      expect(handled).toBeTrue();
+      expect(res.statusCode).toBe(200);
+      const data = JSON.parse(res.body);
+      expect(data.issuer).toBe(directResource);
+      expect(data.registration_endpoint).toBe(`${directResource}/oauth/register`);
+      expect(data.authorization_endpoint).toBe(`${directResource}/oauth/authorize`);
+      expect(data.token_endpoint).toBe(`${directResource}/oauth/token`);
+    });
   });
 
   describe('1b. MCP OAuth Routes', () => {
@@ -905,23 +926,102 @@ describe('Modular Routers Unit Tests', () => {
       expect(logs.some((entry) => entry.url.includes('/api/mcp-direct/112233445566778899/[token]'))).toBeTrue();
     });
 
-    test('signed direct MCP URL does not expose OAuth registration subroutes', async () => {
-      const directToken = makeMcpDirectToken('112233445566778899', 'direct-key-id');
-      const req = createMockRequest({
+    test('signed direct MCP URL supports automatic OAuth registration flow for Claude fallback', async () => {
+      const keyId = 'direct-key-id';
+      const directToken = makeMcpDirectToken('112233445566778899', keyId);
+      const redirectUri = 'https://claude.ai/api/mcp/auth_callback';
+      const codeVerifier = 'direct-verifier';
+      const codeChallenge = nodeCrypto.createHash('sha256').update(codeVerifier).digest('base64url');
+      const directResource = `https://api-kotbo.example/api/mcp-direct/112233445566778899/${directToken}`;
+
+      mockMcpKeyService.getActiveMcpKeyById.mockImplementation(() => Promise.resolve({
+        id: keyId,
+        guildId: '112233445566778899',
+        permissions: ['READ_STATS'],
+        isActive: true,
+      } as any));
+
+      const registerReq = createMockRequest({
         method: 'POST',
         url: `/api/mcp-direct/112233445566778899/${directToken}/oauth/register`,
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ client_name: 'Claude' }),
+        body: JSON.stringify({
+          client_name: 'Claude',
+          redirect_uris: [redirectUri],
+        }),
       });
-      const res = createMockResponse();
-      const parts = splitPath(new URL(req.url!, 'http://localhost').pathname);
-      const url = new URL(req.url!, 'http://localhost');
+      const registerRes = createMockResponse();
+      await handleMCPRoutes(
+        registerReq as IncomingMessage & { bodyText?: string },
+        registerRes,
+        splitPath(new URL(registerReq.url!, 'http://localhost').pathname),
+        new URL(registerReq.url!, 'http://localhost'),
+        mockClient
+      );
+      expect(registerRes.statusCode).toBe(201);
+      const registered = JSON.parse(registerRes.body);
 
-      const handled = await handleMCPRoutes(req as IncomingMessage & { bodyText?: string }, res, parts, url, mockClient);
-      expect(handled).toBeTrue();
-      expect(res.statusCode).toBe(404);
-      const data = JSON.parse(res.body);
-      expect(data.error).toBe('not_found');
+      const authorizeReq = createMockRequest({
+        method: 'GET',
+        url: `/api/mcp-direct/112233445566778899/${directToken}/oauth/authorize?${new URLSearchParams({
+          response_type: 'code',
+          client_id: registered.client_id,
+          redirect_uri: redirectUri,
+          code_challenge: codeChallenge,
+          code_challenge_method: 'S256',
+          state: 'state',
+          resource: directResource,
+        }).toString()}`,
+        headers: {
+          'x-forwarded-proto': 'https',
+          'x-forwarded-host': 'api-kotbo.example',
+        },
+      });
+      const authorizeRes = createMockResponse();
+      await handleMCPRoutes(
+        authorizeReq as IncomingMessage & { bodyText?: string },
+        authorizeRes,
+        splitPath(new URL(authorizeReq.url!, 'http://localhost').pathname),
+        new URL(authorizeReq.url!, 'http://localhost'),
+        mockClient
+      );
+      expect(authorizeRes.statusCode).toBe(302);
+      const callbackUrl = new URL(String(authorizeRes.getHeader('location')));
+      const code = callbackUrl.searchParams.get('code')!;
+      expect(code).toStartWith('kotbo_ac_');
+
+      const tokenReq = createMockRequest({
+        method: 'POST',
+        url: `/api/mcp-direct/112233445566778899/${directToken}/oauth/token`,
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          'x-forwarded-proto': 'https',
+          'x-forwarded-host': 'api-kotbo.example',
+        },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          client_id: registered.client_id,
+          code,
+          code_verifier: codeVerifier,
+          redirect_uri: redirectUri,
+          resource: directResource,
+        }).toString(),
+      });
+      const tokenRes = createMockResponse();
+      await handleMCPRoutes(
+        tokenReq as IncomingMessage & { bodyText?: string },
+        tokenRes,
+        splitPath(new URL(tokenReq.url!, 'http://localhost').pathname),
+        new URL(tokenReq.url!, 'http://localhost'),
+        mockClient
+      );
+      expect(tokenRes.statusCode).toBe(200);
+      const tokenData = JSON.parse(tokenRes.body);
+      expect(typeof tokenData.access_token).toBe('string');
+      expect(tokenData.token_type).toBe('Bearer');
+
+      const logs = getMcpConnectionLogs('112233445566778899', 30);
+      expect(JSON.stringify(logs)).not.toContain(directToken);
     });
   });
 
