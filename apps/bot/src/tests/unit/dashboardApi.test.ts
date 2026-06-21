@@ -285,7 +285,7 @@ const mockClient = {
   },
 } as unknown as Client;
 
-async function requestMcpOverHttp(body: unknown) {
+async function requestMcpOverHttp(body: unknown, extraHeaders: Record<string, string> = {}) {
   const server = createServer(async (req, res) => {
     const chunks: Buffer[] = [];
     for await (const chunk of req) {
@@ -318,6 +318,7 @@ async function requestMcpOverHttp(body: unknown) {
         accept: 'application/json, text/event-stream',
         'x-forwarded-proto': 'https',
         'x-forwarded-host': 'api-kotbo.example',
+        ...extraHeaders,
       },
       body: JSON.stringify(body),
     });
@@ -603,6 +604,7 @@ describe('Modular Routers Unit Tests', () => {
       expect(data.result.tools).toEqual([
         expect.objectContaining({
           name: 'test_tool',
+          securitySchemes: [{ type: 'oauth2', scopes: ['mcp'] }],
           _meta: { securitySchemes: [{ type: 'oauth2', scopes: ['mcp'] }] },
         }),
       ]);
@@ -617,15 +619,18 @@ describe('Modular Routers Unit Tests', () => {
     });
 
     test('POST tools/call without token returns HTTP OAuth challenge for Claude lazy auth', async () => {
-      const response = await requestMcpOverHttp({
-        jsonrpc: '2.0',
-        id: 3,
-        method: 'tools/call',
-        params: {
-          name: 'test_tool',
-          arguments: {},
+      const response = await requestMcpOverHttp(
+        {
+          jsonrpc: '2.0',
+          id: 3,
+          method: 'tools/call',
+          params: {
+            name: 'test_tool',
+            arguments: {},
+          },
         },
-      });
+        { 'user-agent': 'Claude MCP Connector' }
+      );
 
       expect(response.status).toBe(401);
       expect(response.headers.get('www-authenticate')).toContain('Bearer realm="kotbo"');

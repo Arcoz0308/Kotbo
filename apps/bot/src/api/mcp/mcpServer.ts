@@ -2,6 +2,7 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import crypto from 'node:crypto';
 import { Client } from 'discord.js';
 import type { McpKeyPermission } from '@prisma/client';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { JWT_SECRET, json } from '../shared.js';
@@ -138,6 +139,74 @@ function jsonRpcMethod(body: unknown): string | null {
   if (!body || Array.isArray(body) || typeof body !== 'object') return null;
   const method = (body as { method?: unknown }).method;
   return typeof method === 'string' ? method : null;
+}
+
+function jsonRpcId(body: unknown): unknown {
+  if (!body || Array.isArray(body) || typeof body !== 'object') return null;
+  return (body as { id?: unknown }).id ?? null;
+}
+
+function looksLikeClaude(req: IncomingMessage): boolean {
+  const ua = Array.isArray(req.headers['user-agent']) ? req.headers['user-agent'].join(' ') : req.headers['user-agent'] ?? '';
+  return /claude|anthropic/i.test(ua);
+}
+
+function zodSchemaToToolInputSchema(schema: unknown): Record<string, unknown> {
+  if (!schema) return { type: 'object', properties: {} };
+
+  try {
+    const converted = zodToJsonSchema(schema as never) as Record<string, unknown>;
+    if (converted && converted.type === 'object') return converted;
+  } catch {
+    // fall through
+  }
+
+  return { type: 'object', properties: {} };
+}
+
+function sendToolsListCompat(server: McpServer, parsedBody: unknown, res: ServerResponse) {
+  const registeredTools = ((server as unknown as { _registeredTools?: Record<string, Record<string, unknown>> })._registeredTools) ?? {};
+  const tools = Object.entries(registeredTools)
+    .filter(([, tool]) => tool.enabled !== false)
+    .map(([name, tool]) => {
+      const meta = (tool._meta as { securitySchemes?: unknown } | undefined) ?? {};
+      const securitySchemes = meta.securitySchemes ?? [{ type: 'oauth2', scopes: ['mcp'] }];
+
+      return {
+        name,
+        title: tool.title,
+        description: tool.description,
+        inputSchema: zodSchemaToToolInputSchema(tool.inputSchema),
+        outputSchema: tool.outputSchema ? zodSchemaToToolInputSchema(tool.outputSchema) : undefined,
+        annotations: tool.annotations,
+        execution: tool.execution,
+        securitySchemes,
+        _meta: { ...meta, securitySchemes },
+      };
+    });
+
+  res.setHeader('Content-Type', 'application/json');
+  res.statusCode = 200;
+  res.end(JSON.stringify({
+    result: { tools },
+    jsonrpc: '2.0',
+    id: jsonRpcId(parsedBody),
+  }));
+}
+
+async function handleTransportRequestWithCompat(
+  transport: StreamableHTTPServerTransport,
+  server: McpServer,
+  req: IncomingMessage,
+  res: ServerResponse,
+  parsedBody: unknown
+) {
+  if (jsonRpcMethod(parsedBody) === 'tools/list') {
+    sendToolsListCompat(server, parsedBody, res);
+    return;
+  }
+
+  await transport.handleRequest(req, res, parsedBody);
 }
 
 function verifyPKCE(verifier: string, challenge: string, method: string): boolean {
@@ -506,7 +575,7 @@ export async function handleMCPRoutes(
       return true;
     }
 
-    if (!rawKey && !basicCredentials && jsonRpcMethod(parsedBody) === 'tools/call') {
+    if (!rawKey && !basicCredentials && jsonRpcMethod(parsedBody) === 'tools/call' && looksLikeClaude(req)) {
       res.setHeader('WWW-Authenticate', authChallenge(req, url, guildId, 'insufficient_scope', 'Autorisation MCP Kotbo requise'));
       json(res, 401, { error: 'authorization_required', error_description: 'Autorisation MCP Kotbo requise' });
       return true;
@@ -555,7 +624,7 @@ export async function handleMCPRoutes(
 
     await server.connect(transport);
 
-    await transport.handleRequest(req, res, parsedBody);
+    await handleTransportRequestWithCompat(transport, server, req, res, parsedBody);
     return true;
   }
 
