@@ -334,6 +334,22 @@ function normalizeMcpTransportAcceptHeader(req: IncomingMessage, method: string)
   return null;
 }
 
+function normalizeMcpTransportContentTypeHeader(req: IncomingMessage, method: string, parsedBody: unknown): string | null {
+  if (method !== 'POST') return null;
+  if (!jsonRpcMethod(parsedBody)) return null;
+
+  const current = Array.isArray(req.headers['content-type'])
+    ? req.headers['content-type'].join(', ')
+    : req.headers['content-type'];
+
+  if (!current?.includes('application/json')) {
+    setIncomingHeader(req, 'Content-Type', 'application/json');
+    return current ?? null;
+  }
+
+  return null;
+}
+
 function sealAuthCode(payload: AuthCode): string {
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv('aes-256-gcm', oauthCodeKey(), iv);
@@ -752,6 +768,16 @@ export async function handleMCPRoutes(
         method: jsonRpcMethod(parsedBody),
         previousAccept,
         accept: req.headers.accept,
+      });
+    }
+    const previousContentType = normalizeMcpTransportContentTypeHeader(req, method, parsedBody);
+    if (previousContentType !== null) {
+      mcpLog(req, 'mcp_content_type_header_patched', {
+        guildId,
+        keyId,
+        method: jsonRpcMethod(parsedBody),
+        previousContentType,
+        contentType: req.headers['content-type'],
       });
     }
 

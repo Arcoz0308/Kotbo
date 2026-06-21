@@ -591,7 +591,7 @@ describe('Modular Routers Unit Tests', () => {
       );
     });
 
-    test('POST initialize tolerates Claude httpx wildcard accept header', async () => {
+    test('POST initialize tolerates Claude httpx loose transport headers', async () => {
       const response = await requestMcpOverHttp(
         {
           jsonrpc: '2.0',
@@ -603,7 +603,7 @@ describe('Modular Routers Unit Tests', () => {
             clientInfo: { name: 'Claude', version: 'httpx' },
           },
         },
-        { accept: '*/*', 'user-agent': 'python-httpx/0.28.1' }
+        { accept: '*/*', 'content-type': 'text/plain', 'user-agent': 'python-httpx/0.28.1' }
       );
 
       expect(response.status).toBe(200);
