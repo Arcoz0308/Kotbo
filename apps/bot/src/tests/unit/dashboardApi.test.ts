@@ -591,6 +591,26 @@ describe('Modular Routers Unit Tests', () => {
       );
     });
 
+    test('POST initialize tolerates Claude httpx wildcard accept header', async () => {
+      const response = await requestMcpOverHttp(
+        {
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2025-06-18',
+            capabilities: {},
+            clientInfo: { name: 'Claude', version: 'httpx' },
+          },
+        },
+        { accept: '*/*', 'user-agent': 'python-httpx/0.28.1' }
+      );
+
+      expect(response.status).toBe(200);
+      const data = JSON.parse(response.body);
+      expect(data.result.serverInfo.name).toBe('kotbo');
+    });
+
     test('POST tools/list without token lists public tool descriptors instead of HTTP 401', async () => {
       const response = await requestMcpOverHttp({
         jsonrpc: '2.0',

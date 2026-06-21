@@ -299,6 +299,41 @@ function readBasicClientCredentials(authHeader: string | string[] | undefined): 
   }
 }
 
+function setIncomingHeader(req: IncomingMessage, name: string, value: string) {
+  const lowerName = name.toLowerCase();
+  req.headers[lowerName] = value;
+
+  let found = false;
+  for (let i = 0; i < req.rawHeaders.length; i += 2) {
+    if (req.rawHeaders[i]?.toLowerCase() === lowerName) {
+      req.rawHeaders[i + 1] = value;
+      found = true;
+    }
+  }
+
+  if (!found) {
+    req.rawHeaders.push(name, value);
+  }
+}
+
+function normalizeMcpTransportAcceptHeader(req: IncomingMessage, method: string): string | null {
+  const current = Array.isArray(req.headers.accept) ? req.headers.accept.join(', ') : req.headers.accept;
+
+  if (method === 'POST') {
+    if (!current?.includes('application/json') || !current.includes('text/event-stream')) {
+      setIncomingHeader(req, 'Accept', 'application/json, text/event-stream');
+      return current ?? null;
+    }
+  }
+
+  if (method === 'GET' && !current?.includes('text/event-stream')) {
+    setIncomingHeader(req, 'Accept', 'text/event-stream');
+    return current ?? null;
+  }
+
+  return null;
+}
+
 function sealAuthCode(payload: AuthCode): string {
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv('aes-256-gcm', oauthCodeKey(), iv);
@@ -708,6 +743,17 @@ export async function handleMCPRoutes(
       sessionIdGenerator: undefined,
       enableJsonResponse: true,
     });
+
+    const previousAccept = normalizeMcpTransportAcceptHeader(req, method);
+    if (previousAccept !== null) {
+      mcpLog(req, 'mcp_accept_header_patched', {
+        guildId,
+        keyId,
+        method: jsonRpcMethod(parsedBody),
+        previousAccept,
+        accept: req.headers.accept,
+      });
+    }
 
     try {
       await server.connect(transport);
