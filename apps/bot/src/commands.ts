@@ -25,6 +25,7 @@ import { profilCommand } from './commands/profile/profil.js';
 import { profileCommand } from './commands/profile/profile.js';
 import { rankCommand } from './commands/profile/rank.js';
 import { rescanCommand } from './commands/moderation/rescan.js';
+import { roleCommand } from './commands/moderation/role.js';
 import { sanctionCommand, sanctionContextCommand } from './commands/moderation/sanction.js';
 import { sayCommand } from './commands/fun/say.js';
 import { buyCommand } from './commands/economy/buy.js';
@@ -113,6 +114,7 @@ export const commands: SlashCommandDefinition[] = [
   clearCommand,
   channelCommand,
   signalCommand,
+  roleCommand,
   dashboardCommand,
   buyCommand,
   dailyCommand,

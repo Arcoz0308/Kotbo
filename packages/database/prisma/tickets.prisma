@@ -28,6 +28,8 @@ model Ticket {
   closedById    String?      // Discord User ID of closing staff
   closedByName  String?      // Username of closing staff
   transcriptId  String?      // Linked Transcript ID
+  restoreCount  Int          @default(0)
+  lastRestoredAt DateTime?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
   closedAt      DateTime?

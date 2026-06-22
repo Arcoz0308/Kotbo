@@ -4751,6 +4751,32 @@ export async function handleModulesRoutes(
           return true;
         }
 
+        // Restore limits: 1st = instant, 2nd = after 1 day, 3rd = after 1 week, then blocked
+        const restoreCount = ticket.restoreCount ?? 0;
+        const lastRestoredAt = ticket.lastRestoredAt;
+        if (restoreCount >= 3) {
+          json(res, 429, { error: 'Ce ticket a atteint la limite maximale de restaurations (3).' });
+          return true;
+        }
+        if (restoreCount === 1 && lastRestoredAt) {
+          const oneDayMs = 24 * 60 * 60 * 1000;
+          const elapsed = Date.now() - new Date(lastRestoredAt).getTime();
+          if (elapsed < oneDayMs) {
+            const remaining = Math.ceil((oneDayMs - elapsed) / (60 * 60 * 1000));
+            json(res, 429, { error: `Deuxième restauration disponible dans ${remaining}h. Délai : 24h après la première restauration.` });
+            return true;
+          }
+        }
+        if (restoreCount === 2 && lastRestoredAt) {
+          const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
+          const elapsed = Date.now() - new Date(lastRestoredAt).getTime();
+          if (elapsed < oneWeekMs) {
+            const remainingDays = Math.ceil((oneWeekMs - elapsed) / (24 * 60 * 60 * 1000));
+            json(res, 429, { error: `Troisième restauration disponible dans ${remainingDays}j. Délai : 7 jours après la deuxième restauration.` });
+            return true;
+          }
+        }
+
         const transcript = await prisma.transcript.findUnique({ where: { id: ticket.transcriptId } });
         if (!transcript) {
           json(res, 404, { error: 'Transcription introuvable.' });
@@ -4822,17 +4848,51 @@ export async function handleModulesRoutes(
           await ticketChannel.send({ embeds: [headerEmbed] });
 
           for (const msg of parsedMessages) {
-            if (!msg.content && !msg.username) continue;
-            const sendContent = msg.content || '*(message sans contenu texte)*';
+            if (!msg.content && !msg.username && msg.embeds.length === 0 && msg.imageUrls.length === 0) continue;
             // Discord webhook username must be 1-80 chars, avoid "clyde"
             let webhookName = msg.username.slice(0, 80) || 'Utilisateur';
             if (/clyde/i.test(webhookName)) webhookName = webhookName.replace(/clyde/gi, 'C|yde');
 
+            // Build embeds from parsed transcript data
+            const discordEmbeds: EmbedBuilder[] = [];
+            for (const e of msg.embeds) {
+              const eb = new EmbedBuilder();
+              if (e.color) {
+                try { eb.setColor(e.color as any); } catch {}
+              }
+              if (e.authorName) {
+                eb.setAuthor({ name: e.authorName, iconURL: e.authorIconUrl || undefined, url: e.authorUrl || undefined });
+              }
+              if (e.title) eb.setTitle(e.title.slice(0, 256));
+              if (e.url) eb.setURL(e.url);
+              if (e.description) eb.setDescription(e.description.slice(0, 4096));
+              if (e.fields.length > 0) {
+                eb.addFields(e.fields.slice(0, 25).map(f => ({
+                  name: f.name.slice(0, 256) || '​',
+                  value: f.value.slice(0, 1024) || '​',
+                  inline: f.inline
+                })));
+              }
+              if (e.thumbnailUrl) eb.setThumbnail(e.thumbnailUrl);
+              if (e.imageUrl) eb.setImage(e.imageUrl);
+              if (e.footerText) {
+                eb.setFooter({ text: e.footerText.slice(0, 2048), iconURL: e.footerIconUrl || undefined });
+              }
+              discordEmbeds.push(eb);
+            }
+
+            // Add standalone image attachments as embeds
+            for (const imgUrl of msg.imageUrls) {
+              if (discordEmbeds.length >= 10) break;
+              discordEmbeds.push(new EmbedBuilder().setImage(imgUrl));
+            }
+
             try {
               await webhook.send({
-                content: sendContent.slice(0, 2000),
+                content: msg.content ? msg.content.slice(0, 2000) : (discordEmbeds.length === 0 ? '*(message sans contenu texte)*' : undefined),
                 username: `${webhookName} (historique)`,
                 avatarURL: msg.avatarUrl || undefined,
+                embeds: discordEmbeds.length > 0 ? discordEmbeds.slice(0, 10) : undefined,
               });
             } catch (sendErr: any) {
               logger.warn('TicketsAPI', `Failed to replay message from ${msg.username}: ${sendErr.message}`);
@@ -4861,6 +4921,8 @@ export async function handleModulesRoutes(
           data: {
             channelId: ticketChannel.id,
             status: 'OPEN',
+            restoreCount: restoreCount + 1,
+            lastRestoredAt: new Date(),
             claimedById: null,
             claimedByName: null,
             closedById: null,

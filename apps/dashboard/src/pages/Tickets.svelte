@@ -856,17 +856,24 @@
                   </button>
                 {/if}
                 {#if selectedTicketDetail?.transcriptId}
-                  <button onclick={() => showRestoreModal = true}
-                    class="px-3 py-1.5 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:bg-purple-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
+                  {@const restoresLeft = 3 - (selectedTicketDetail.restoreCount ?? 0)}
+                  <button
+                    onclick={() => { if (restoresLeft > 0) showRestoreModal = true; }}
+                    disabled={restoresLeft <= 0}
+                    title={restoresLeft <= 0 ? 'Limite de restauration atteinte (3/3). Ce ticket ne peut plus être restauré.' : `${restoresLeft} restauration${restoresLeft > 1 ? 's' : ''} restante${restoresLeft > 1 ? 's' : ''}`}
+                    class="px-3 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-wider flex items-center gap-1.5 shrink-0 transition-all {restoresLeft > 0 ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20 hover:bg-purple-500 hover:text-white cursor-pointer' : 'bg-surface-container text-on-surface-variant/30 border border-outline-variant/10 cursor-not-allowed'}"
                   >
-                    <Papicon icon="refresh-ccw" size={12} /> Restaurer
+                    <Papicon icon="refresh-ccw" size={12} /> Restaurer ({restoresLeft}/3)
                   </button>
-                  <a href="/transcripts/{selectedTicketDetail.transcriptId}" target="_blank"
-                    class="px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:bg-blue-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
-                  >
-                    <Papicon icon="external-link" size={12} /> Transcription
-                  </a>
                 {/if}
+              {/if}
+
+              {#if selectedTicketDetail?.transcriptId}
+                <a href="/transcripts/{selectedTicketDetail.transcriptId}" target="_blank"
+                  class="px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:bg-blue-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
+                >
+                  <Papicon icon="external-link" size={12} /> Transcription originale
+                </a>
               {/if}
             </div>
 
@@ -1521,6 +1528,9 @@
 
 <!-- Ticket Restore Modal -->
 {#if showRestoreModal}
+  {@const rc = selectedTicketDetail?.restoreCount ?? 0}
+  {@const maxRestores = 3}
+  {@const remaining = maxRestores - rc}
   <div class="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60">
     <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-lg shadow-sm p-10 animate-in zoom-in-95 duration-300">
       <div class="flex items-center gap-4 mb-2 text-purple-400">
@@ -1530,12 +1540,21 @@
       <p class="text-sm text-on-surface-variant/80 mb-4">Cette action va :</p>
       <ul class="text-sm text-on-surface-variant/80 mb-6 space-y-2 list-disc ml-5">
         <li>Créer un <strong>nouveau salon</strong> de ticket sur Discord</li>
-        <li>Rejouer tout l'<strong>historique des messages</strong> via webhook (noms et avatars d'origine)</li>
+        <li>Rejouer tout l'<strong>historique des messages et embeds</strong> via webhook (noms et avatars d'origine)</li>
         <li>Réouvrir le ticket avec le statut <strong>Ouvert</strong></li>
       </ul>
+
+      <div class="flex items-start gap-2 p-3 rounded-lg bg-purple-500/5 border border-purple-500/15 mb-4">
+        <Papicon icon="info" size={14} class="text-purple-400 mt-0.5 shrink-0" />
+        <div class="text-[10px] text-purple-300/80 leading-relaxed">
+          <p class="font-semibold mb-1">Limites de restauration ({remaining}/{maxRestores} restantes)</p>
+          <p>1re — instantanée · 2e — après 24h · 3e — après 7 jours · Ensuite bloqué</p>
+        </div>
+      </div>
+
       <div class="flex items-start gap-2 p-3 rounded-lg bg-amber-500/5 border border-amber-500/15 mb-6">
         <Papicon icon="alert-triangle" size={14} class="text-amber-500 mt-0.5 shrink-0" />
-        <p class="text-[10px] text-amber-500/80 leading-relaxed">La restauration peut prendre quelques secondes selon le nombre de messages. Les pièces jointes et embeds d'origine ne seront pas restaurés, seul le contenu textuel est restitué.</p>
+        <p class="text-[10px] text-amber-500/80 leading-relaxed">La restauration peut prendre quelques secondes selon le nombre de messages. Les pièces jointes d'origine ne seront pas restaurées.</p>
       </div>
 
       <div class="flex gap-4 mt-8 pt-6 border-t border-outline-variant/20">

@@ -2,12 +2,29 @@ import { type TextChannel, type Message, type Guild } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 
+export interface ParsedTranscriptEmbed {
+  color: string | null;
+  authorName: string | null;
+  authorIconUrl: string | null;
+  authorUrl: string | null;
+  title: string | null;
+  url: string | null;
+  description: string | null;
+  fields: { name: string; value: string; inline: boolean }[];
+  thumbnailUrl: string | null;
+  imageUrl: string | null;
+  footerText: string | null;
+  footerIconUrl: string | null;
+}
+
 export interface ParsedTranscriptMessage {
   avatarUrl: string;
   username: string;
   isBot: boolean;
   timestamp: string;
   content: string;
+  embeds: ParsedTranscriptEmbed[];
+  imageUrls: string[];
 }
 
 function unescapeHtml(text: string): string {
@@ -36,13 +53,60 @@ function stripHtmlTags(html: string): string {
     .trim();
 }
 
+function parseEmbedFromHtml(embedHtml: string): ParsedTranscriptEmbed {
+  const colorMatch = embedHtml.match(/border-left-color:\s*([^"]+)/);
+
+  const authorIconMatch = embedHtml.match(/<img class="discord-embed-author-icon" src="([^"]*?)"/);
+  const authorLinkMatch = embedHtml.match(/<a class="discord-embed-author-link" href="([^"]*?)"[^>]*>([^<]*)<\/a>/);
+  const authorSpanMatch = !authorLinkMatch ? embedHtml.match(/<div class="discord-embed-author">[^]*?<span>([^<]*)<\/span>/) : null;
+
+  const titleLinkMatch = embedHtml.match(/<div class="discord-embed-title">\s*<a href="([^"]*?)"[^>]*>([^<]*)<\/a>/);
+  const titlePlainMatch = !titleLinkMatch ? embedHtml.match(/<div class="discord-embed-title">\s*([^<]+)/) : null;
+
+  const descMatch = embedHtml.match(/<div class="discord-embed-description">([\s\S]*?)<\/div>/);
+
+  const fields: { name: string; value: string; inline: boolean }[] = [];
+  const fieldRegex = /<div class="discord-embed-field\s*(inline)?\s*">\s*<div class="discord-embed-field-name">([^<]*)<\/div>\s*<div class="discord-embed-field-value">([\s\S]*?)<\/div>/g;
+  let fieldMatch;
+  while ((fieldMatch = fieldRegex.exec(embedHtml)) !== null) {
+    fields.push({
+      name: unescapeHtml(fieldMatch[2]),
+      value: unescapeHtml(stripHtmlTags(fieldMatch[3])),
+      inline: !!fieldMatch[1]
+    });
+  }
+
+  const thumbnailMatch = embedHtml.match(/<img class="discord-embed-thumbnail" src="([^"]*?)"/);
+  const imageMatch = embedHtml.match(/<img class="discord-embed-image" src="([^"]*?)"/);
+  const footerTextMatch = embedHtml.match(/<span class="discord-embed-footer-text">\s*([\s\S]*?)\s*<\/span>/);
+  const footerIconMatch = embedHtml.match(/<img class="discord-embed-footer-icon" src="([^"]*?)"/);
+
+  return {
+    color: colorMatch ? colorMatch[1].trim() : null,
+    authorName: authorLinkMatch ? unescapeHtml(authorLinkMatch[2]) : (authorSpanMatch ? unescapeHtml(authorSpanMatch[1]) : null),
+    authorIconUrl: authorIconMatch ? authorIconMatch[1] : null,
+    authorUrl: authorLinkMatch ? authorLinkMatch[1] : null,
+    title: titleLinkMatch ? unescapeHtml(titleLinkMatch[2]) : (titlePlainMatch ? unescapeHtml(titlePlainMatch[1].trim()) : null),
+    url: titleLinkMatch ? titleLinkMatch[1] : null,
+    description: descMatch ? unescapeHtml(stripHtmlTags(descMatch[1])) : null,
+    fields,
+    thumbnailUrl: thumbnailMatch ? thumbnailMatch[1] : null,
+    imageUrl: imageMatch ? imageMatch[1] : null,
+    footerText: footerTextMatch ? unescapeHtml(footerTextMatch[1].replace(/\s*•\s*.*$/, '').trim()) : null,
+    footerIconUrl: footerIconMatch ? footerIconMatch[1] : null,
+  };
+}
+
 export function parseTranscriptHtml(html: string): ParsedTranscriptMessage[] {
   const messages: ParsedTranscriptMessage[] = [];
-  const messageGroupRegex = /<div class="message-group">([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/g;
 
-  let match;
-  while ((match = messageGroupRegex.exec(html)) !== null) {
-    const block = match[0];
+  // Split on message-group boundaries to get each message block
+  const blocks = html.split(/<div class="message-group">/);
+  blocks.shift(); // remove content before first message
+
+  for (const rawBlock of blocks) {
+    // Re-add the opening tag for consistency
+    const block = `<div class="message-group">${rawBlock}`;
 
     const avatarMatch = block.match(/<img class="avatar" src="([^"]*?)"/);
     const usernameMatch = block.match(/<span class="username"[^>]*>([^<]*)<\/span>/);
@@ -50,18 +114,36 @@ export function parseTranscriptHtml(html: string): ParsedTranscriptMessage[] {
     const timestampMatch = block.match(/<span class="timestamp">([^<]*)<\/span>/);
     const textMatch = block.match(/<div class="message-text">([\s\S]*?)<\/div>/);
 
-    if (usernameMatch) {
-      const rawContent = textMatch ? stripHtmlTags(textMatch[1]) : '';
-      const content = unescapeHtml(rawContent);
+    if (!usernameMatch) continue;
 
-      messages.push({
-        avatarUrl: avatarMatch ? avatarMatch[1] : '',
-        username: unescapeHtml(usernameMatch[1]),
-        isBot: !!isBotMatch,
-        timestamp: timestampMatch ? timestampMatch[1] : '',
-        content
-      });
+    const rawContent = textMatch ? stripHtmlTags(textMatch[1]) : '';
+    const content = unescapeHtml(rawContent);
+
+    // Extract embeds
+    const embeds: ParsedTranscriptEmbed[] = [];
+    const embedRegex = /<div class="discord-embed"[\s\S]*?(?=<div class="discord-embed"|<div class="message-group">|<div class="reactions-list">|$)/g;
+    let embedMatch;
+    while ((embedMatch = embedRegex.exec(block)) !== null) {
+      embeds.push(parseEmbedFromHtml(embedMatch[0]));
     }
+
+    // Extract standalone images (attachments)
+    const imageUrls: string[] = [];
+    const imgRegex = /<img src="([^"]*?)" class="discord-img"/g;
+    let imgMatch;
+    while ((imgMatch = imgRegex.exec(block)) !== null) {
+      imageUrls.push(imgMatch[1]);
+    }
+
+    messages.push({
+      avatarUrl: avatarMatch ? avatarMatch[1] : '',
+      username: unescapeHtml(usernameMatch[1]),
+      isBot: !!isBotMatch,
+      timestamp: timestampMatch ? timestampMatch[1] : '',
+      content,
+      embeds,
+      imageUrls
+    });
   }
 
   return messages;
