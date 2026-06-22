@@ -20,6 +20,10 @@ import {
   deleteEvent,
   createCustomEvent,
 } from '../../../services/features/eventService.js';
+import {
+  getEventRegistrations,
+  removeEventRegistration,
+} from '../../../services/features/customFormService.js';
 
 export async function handleEventsRoutes(
   req: IncomingMessage,
@@ -250,6 +254,30 @@ export async function handleEventsRoutes(
       } catch (err) {
         logger.error('EventsAPI', err);
         json(res, 500, { error: 'Erreur récupération stats' });
+      }
+      return true;
+    }
+
+    // GET /api/dashboard/guilds/:guildId/events/:eventId/registrations
+    if (method === 'GET' && parts[6] === 'registrations') {
+      try {
+        const registrations = await getEventRegistrations(eventId);
+        json(res, 200, { registrations });
+      } catch (err) {
+        logger.error('EventsAPI', err);
+        json(res, 500, { error: 'Erreur récupération inscriptions' });
+      }
+      return true;
+    }
+
+    // DELETE /api/dashboard/guilds/:guildId/events/:eventId/registrations/:userId
+    if (method === 'DELETE' && parts[6] === 'registrations' && parts[7]) {
+      try {
+        await removeEventRegistration(eventId, parts[7]);
+        json(res, 200, { ok: true });
+      } catch (err) {
+        logger.error('EventsAPI', err);
+        json(res, 500, { error: 'Erreur suppression inscription' });
       }
       return true;
     }

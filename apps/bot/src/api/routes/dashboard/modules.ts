@@ -4270,6 +4270,8 @@ export async function handleModulesRoutes(
             ticketEmbedDesc: body.ticketEmbedDesc || 'Cliquez sur le bouton ci-dessous pour ouvrir un ticket de support.',
             ticketEmbedButtonText: body.ticketEmbedButtonText || 'Ouvrir un ticket',
             ticketEmbedColor: body.ticketEmbedColor || '#5865F2',
+            ticketMode: body.ticketMode === 'DM' || body.ticketMode === 'THREAD' ? body.ticketMode : 'CHANNEL',
+            ticketDmRelayChannelId: body.ticketDmRelayChannelId || null,
             ...(body.ticketTypes !== undefined
               ? {
                   ticketTypes: Array.isArray(body.ticketTypes)
@@ -4330,6 +4332,22 @@ export async function handleModulesRoutes(
           where: { guildId },
           orderBy: { createdAt: 'desc' },
         });
+
+        const fetchAvatar = async (discordId: string, size = 64): Promise<string | null> => {
+          try {
+            const u = client.users.cache.get(discordId) || await client.users.fetch(discordId);
+            return u.displayAvatarURL({ size: size as 64 | 128 });
+          } catch {
+            return `https://cdn.discordapp.com/embed/avatars/${(BigInt(discordId) >> 22n) % 6n}.png`;
+          }
+        };
+
+        const enrichedTickets = await Promise.all(tickets.map(async (t) => {
+          const userAvatar = await fetchAvatar(t.userId);
+          const claimedByAvatar = t.claimedById ? await fetchAvatar(t.claimedById) : null;
+          return { ...t, userAvatar, claimedByAvatar };
+        }));
+
         const guildConfig = await prisma.guild.findUnique({
           where: { id: guildId },
           select: {
@@ -4349,7 +4367,7 @@ export async function handleModulesRoutes(
             ticketInactivityMessage: true,
           }
         });
-        json(res, 200, { tickets, config: guildConfig || {} });
+        json(res, 200, { tickets: enrichedTickets, config: guildConfig || {} });
       } catch (err: any) {
         logger.error('TicketsAPI', `Error listing tickets: ${err.message}`);
         json(res, 500, { error: 'Erreur lors de la récupération des tickets' });
@@ -4398,7 +4416,18 @@ export async function handleModulesRoutes(
           }
         }
 
-        json(res, 200, { ticket: { ...ticket, channelName }, messages });
+        const fetchAvatarDetail = async (discordId: string, size = 128): Promise<string | null> => {
+          try {
+            const u = client.users.cache.get(discordId) || await client.users.fetch(discordId);
+            return u.displayAvatarURL({ size: size as 64 | 128 });
+          } catch {
+            return `https://cdn.discordapp.com/embed/avatars/${(BigInt(discordId) >> 22n) % 6n}.png`;
+          }
+        };
+        const userAvatar = await fetchAvatarDetail(ticket.userId, 128);
+        const claimedByAvatar = ticket.claimedById ? await fetchAvatarDetail(ticket.claimedById) : null;
+
+        json(res, 200, { ticket: { ...ticket, channelName, userAvatar, claimedByAvatar }, messages });
       } catch (err: any) {
         logger.error('TicketsAPI', `Error reading ticket details: ${err.stack}`);
         json(res, 500, { error: `Erreur lors de la récupération du ticket: ${err.stack}` });
@@ -4700,6 +4729,168 @@ export async function handleModulesRoutes(
       } catch (err: any) {
         logger.error('TicketsAPI', `Error renaming ticket: ${err.message}`);
         json(res, 500, { error: 'Erreur lors du renommage du ticket' });
+      }
+      return true;
+    }
+
+    // POST /api/dashboard/guilds/:guildId/tickets/:ticketId/restore
+    if (parts.length === 7 && parts[6] === 'restore' && method === 'POST') {
+      const ticketId = parts[5];
+      try {
+        const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+        if (!ticket) {
+          json(res, 404, { error: 'Ticket introuvable' });
+          return true;
+        }
+        if (ticket.status !== 'CLOSED') {
+          json(res, 400, { error: 'Seul un ticket fermé peut être restauré.' });
+          return true;
+        }
+        if (!ticket.transcriptId) {
+          json(res, 400, { error: 'Ce ticket n\'a pas de transcription associée.' });
+          return true;
+        }
+
+        const transcript = await prisma.transcript.findUnique({ where: { id: ticket.transcriptId } });
+        if (!transcript) {
+          json(res, 404, { error: 'Transcription introuvable.' });
+          return true;
+        }
+
+        const guildConfig = await prisma.guild.findUnique({ where: { id: guildId } });
+        if (!guildConfig) {
+          json(res, 404, { error: 'Serveur introuvable' });
+          return true;
+        }
+
+        const discordGuild = client.guilds.cache.get(guildId);
+        if (!discordGuild) {
+          json(res, 404, { error: 'Serveur Discord introuvable.' });
+          return true;
+        }
+
+        const categoryId = ticket.categoryId || guildConfig.ticketCategoryId || null;
+        const ticketCategory = categoryId ? discordGuild.channels.cache.get(categoryId) : null;
+        const staffRoleId = ticket.staffRoleId || guildConfig.ticketStaffRoleId || null;
+
+        const cleanedUsername = ticket.username.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'membre';
+        const channelName = `ticket-${cleanedUsername}`;
+
+        const permissionOverwrites: any[] = [
+          { id: discordGuild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+          { id: ticket.userId, allow: [
+            PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.EmbedLinks,
+            PermissionFlagsBits.AttachFiles
+          ]}
+        ];
+        if (staffRoleId) {
+          permissionOverwrites.push({ id: staffRoleId, allow: [
+            PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.EmbedLinks,
+            PermissionFlagsBits.AttachFiles
+          ]});
+        }
+        if (guildConfig.moderatorRoleId) {
+          permissionOverwrites.push({ id: guildConfig.moderatorRoleId, allow: [
+            PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.EmbedLinks,
+            PermissionFlagsBits.AttachFiles
+          ]});
+        }
+
+        const ticketChannel = await discordGuild.channels.create({
+          name: channelName,
+          type: ChannelType.GuildText,
+          parent: ticketCategory && ticketCategory.type === ChannelType.GuildCategory ? ticketCategory.id : undefined,
+          topic: `Ticket restauré de ${ticket.username} — Raison : ${ticket.reason}`,
+          permissionOverwrites
+        });
+
+        // Parse transcript and replay messages via webhook
+        const { parseTranscriptHtml } = await import('../../../services/features/transcriptService.js');
+        const parsedMessages = parseTranscriptHtml(transcript.html);
+
+        if (parsedMessages.length > 0) {
+          const webhook = await ticketChannel.createWebhook({ name: 'Kotbo Restore' });
+
+          const headerEmbed = new EmbedBuilder()
+            .setTitle('📜 Historique restauré')
+            .setDescription(`Ce ticket a été restauré depuis une transcription par **${user.username || 'Staff'}**.\nLes messages ci-dessous sont une restitution de la conversation d'origine.`)
+            .setColor(COLORS.primary as any)
+            .setTimestamp();
+          await ticketChannel.send({ embeds: [headerEmbed] });
+
+          for (const msg of parsedMessages) {
+            if (!msg.content && !msg.username) continue;
+            const sendContent = msg.content || '*(message sans contenu texte)*';
+            // Discord webhook username must be 1-80 chars, avoid "clyde"
+            let webhookName = msg.username.slice(0, 80) || 'Utilisateur';
+            if (/clyde/i.test(webhookName)) webhookName = webhookName.replace(/clyde/gi, 'C|yde');
+
+            try {
+              await webhook.send({
+                content: sendContent.slice(0, 2000),
+                username: `${webhookName} (historique)`,
+                avatarURL: msg.avatarUrl || undefined,
+              });
+            } catch (sendErr: any) {
+              logger.warn('TicketsAPI', `Failed to replay message from ${msg.username}: ${sendErr.message}`);
+            }
+          }
+
+          await webhook.delete('Restore terminé').catch(() => {});
+        }
+
+        // Send separator + welcome back embed
+        const restoreEmbed = new EmbedBuilder()
+          .setTitle('🔄 Ticket Restauré')
+          .setDescription(`Ce ticket a été réouvert par **${user.username || 'Staff'}** depuis le Dashboard.\n\n**Raison d'origine :** ${ticket.reason}\n**Description :** ${ticket.description || 'Aucune'}`)
+          .setColor(COLORS.primary as any)
+          .setTimestamp()
+          .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
+
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder().setCustomId(`ticket:claim:${ticket.id}`).setLabel('Prendre en charge').setStyle(ButtonStyle.Primary).setEmoji('🛠️'),
+          new ButtonBuilder().setCustomId(`ticket:close:${ticket.id}`).setLabel('Fermer').setStyle(ButtonStyle.Danger).setEmoji('🔒')
+        );
+        await ticketChannel.send({ embeds: [restoreEmbed], components: [row] });
+
+        await prisma.ticket.update({
+          where: { id: ticketId },
+          data: {
+            channelId: ticketChannel.id,
+            status: 'OPEN',
+            claimedById: null,
+            claimedByName: null,
+            closedById: null,
+            closedByName: null,
+            closedAt: null,
+          }
+        });
+
+        if (guildConfig.ticketLogChannelId) {
+          const logCh = client.channels.cache.get(guildConfig.ticketLogChannelId);
+          if (logCh && logCh instanceof TextChannel) {
+            const logEmbed = new EmbedBuilder()
+              .setTitle('🔄 Ticket Restauré')
+              .setDescription(`Le ticket de **${ticket.username}** a été restauré depuis le Dashboard par **${user.username}**.`)
+              .setColor(COLORS.primary as any)
+              .addFields([
+                { name: 'Créateur', value: `<@${ticket.userId}>`, inline: true },
+                { name: 'Restauré par', value: `<@${user.userId}>`, inline: true },
+                { name: 'Nouveau salon', value: `<#${ticketChannel.id}>`, inline: true },
+              ])
+              .setTimestamp()
+              .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
+            await logCh.send({ embeds: [logEmbed] }).catch(() => {});
+          }
+        }
+
+        json(res, 200, { success: true, channelId: ticketChannel.id });
+      } catch (err: any) {
+        logger.error('TicketsAPI', `Error restoring ticket: ${err.stack}`);
+        json(res, 500, { error: `Erreur lors de la restauration: ${err.message}` });
       }
       return true;
     }

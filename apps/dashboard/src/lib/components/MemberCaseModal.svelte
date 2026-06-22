@@ -567,8 +567,7 @@
   size="xl"
   showCloseButton={false}
 >
-  <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
-  <div class="modal-panel modal-panel-xl space-y-0 p-0 font-body" onclick={(e) => e.stopPropagation()}>
+  <div class="modal-panel modal-panel-xl space-y-0 p-0 font-body" role="dialog" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
 
     <!-- ── Hero Section ──────────────────────────────────────── -->
     <div class="relative overflow-hidden rounded-t-3xl -mt-6 -mx-6" style="min-height: 180px;">

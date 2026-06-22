@@ -2,6 +2,71 @@ import { type TextChannel, type Message, type Guild } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 
+export interface ParsedTranscriptMessage {
+  avatarUrl: string;
+  username: string;
+  isBot: boolean;
+  timestamp: string;
+  content: string;
+}
+
+function unescapeHtml(text: string): string {
+  return text
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'");
+}
+
+function stripHtmlTags(html: string): string {
+  return html
+    .replace(/<span class="mention">(@[^<]*)<\/span>/g, '$1')
+    .replace(/<span class="mention">(#[^<]*)<\/span>/g, '$1')
+    .replace(/<code class="inline-code">([^<]*)<\/code>/g, '`$1`')
+    .replace(/<pre><code[^>]*>([\s\S]*?)<\/code><\/pre>/g, '```\n$1```')
+    .replace(/<strong>(.*?)<\/strong>/g, '**$1**')
+    .replace(/<em>(.*?)<\/em>/g, '*$1*')
+    .replace(/<u>(.*?)<\/u>/g, '__$1__')
+    .replace(/<del>(.*?)<\/del>/g, '~~$1~~')
+    .replace(/<a[^>]*href="([^"]*)"[^>]*>[^<]*<\/a>/g, '$1')
+    .replace(/<img[^>]*class="discord-emoji"[^>]*alt="([^"]*)"[^>]*\/?>/g, '$1')
+    .replace(/<br\s*\/?>/g, '\n')
+    .replace(/<[^>]+>/g, '')
+    .trim();
+}
+
+export function parseTranscriptHtml(html: string): ParsedTranscriptMessage[] {
+  const messages: ParsedTranscriptMessage[] = [];
+  const messageGroupRegex = /<div class="message-group">([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/g;
+
+  let match;
+  while ((match = messageGroupRegex.exec(html)) !== null) {
+    const block = match[0];
+
+    const avatarMatch = block.match(/<img class="avatar" src="([^"]*?)"/);
+    const usernameMatch = block.match(/<span class="username"[^>]*>([^<]*)<\/span>/);
+    const isBotMatch = block.match(/<span class="bot-tag">BOT<\/span>/);
+    const timestampMatch = block.match(/<span class="timestamp">([^<]*)<\/span>/);
+    const textMatch = block.match(/<div class="message-text">([\s\S]*?)<\/div>/);
+
+    if (usernameMatch) {
+      const rawContent = textMatch ? stripHtmlTags(textMatch[1]) : '';
+      const content = unescapeHtml(rawContent);
+
+      messages.push({
+        avatarUrl: avatarMatch ? avatarMatch[1] : '',
+        username: unescapeHtml(usernameMatch[1]),
+        isBot: !!isBotMatch,
+        timestamp: timestampMatch ? timestampMatch[1] : '',
+        content
+      });
+    }
+  }
+
+  return messages;
+}
+
 /**
  * Escapes HTML tags to prevent XSS.
  */

@@ -213,10 +213,10 @@
   }
 </script>
 
-<ModulePage 
-  title={event ? (event.type === 'CTF' ? 'Éditeur de CTF' : 'Éditeur de Quiz') : 'Éditeur d\'Événement'} 
-  description={event && event.type === 'CTF' ? "Préparez vos défis, configurez les flags et publiez l'événement sur Discord." : "Préparez vos questions et publiez l'événement sur Discord."} 
-  icon="Edit3"
+<ModulePage
+  title={event ? (event.type === 'CTF' ? 'Éditeur de CTF' : event.type === 'CUSTOM' ? 'Éditeur d\'Événement' : 'Éditeur de Quiz') : 'Éditeur d\'Événement'}
+  description={event?.type === 'CTF' ? "Préparez vos défis, configurez les flags et publiez l'événement sur Discord." : event?.type === 'CUSTOM' ? "Configurez votre événement, le salon d'annonce et le formulaire d'inscription." : "Préparez vos questions et publiez l'événement sur Discord."}
+  icon={event?.type === 'CUSTOM' ? 'Calendar' : 'Edit3'}
   featureKey="events"
 >
   {#snippet actions()}

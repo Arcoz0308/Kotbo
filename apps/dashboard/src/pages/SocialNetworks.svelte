@@ -546,8 +546,9 @@
                       <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest mb-3">Messages personnalisés</p>
                       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div class="space-y-1">
-                          <label class="text-[11px] font-bold text-on-surface-variant/50">Live</label>
+                          <label for="yt-live-msg-{follow.id}" class="text-[11px] font-bold text-on-surface-variant/50">Live</label>
                           <input
+                            id="yt-live-msg-{follow.id}"
                             type="text"
                             bind:value={follow.liveMessage}
                             placeholder="Message par défaut"
@@ -555,8 +556,9 @@
                           />
                         </div>
                         <div class="space-y-1">
-                          <label class="text-[11px] font-bold text-on-surface-variant/50">Vidéo</label>
+                          <label for="yt-video-msg-{follow.id}" class="text-[11px] font-bold text-on-surface-variant/50">Vidéo</label>
                           <input
+                            id="yt-video-msg-{follow.id}"
                             type="text"
                             bind:value={follow.videoMessage}
                             placeholder="Message par défaut"
@@ -564,8 +566,9 @@
                           />
                         </div>
                         <div class="space-y-1">
-                          <label class="text-[11px] font-bold text-on-surface-variant/50">Short</label>
+                          <label for="yt-short-msg-{follow.id}" class="text-[11px] font-bold text-on-surface-variant/50">Short</label>
                           <input
+                            id="yt-short-msg-{follow.id}"
                             type="text"
                             bind:value={follow.shortMessage}
                             placeholder="Message par défaut"
@@ -580,8 +583,9 @@
                       <p class="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest mb-3">Mentions</p>
                       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div class="space-y-1">
-                          <label class="text-[11px] font-bold text-on-surface-variant/50">Live</label>
+                          <label for="yt-live-mention-{follow.id}" class="text-[11px] font-bold text-on-surface-variant/50">Live</label>
                           <input
+                            id="yt-live-mention-{follow.id}"
                             type="text"
                             bind:value={follow.liveMention}
                             placeholder="@everyone"
@@ -589,8 +593,9 @@
                           />
                         </div>
                         <div class="space-y-1">
-                          <label class="text-[11px] font-bold text-on-surface-variant/50">Vidéo</label>
+                          <label for="yt-video-mention-{follow.id}" class="text-[11px] font-bold text-on-surface-variant/50">Vidéo</label>
                           <input
+                            id="yt-video-mention-{follow.id}"
                             type="text"
                             bind:value={follow.videoMention}
                             placeholder="<@&role_id>"
@@ -598,8 +603,9 @@
                           />
                         </div>
                         <div class="space-y-1">
-                          <label class="text-[11px] font-bold text-on-surface-variant/50">Short</label>
+                          <label for="yt-short-mention-{follow.id}" class="text-[11px] font-bold text-on-surface-variant/50">Short</label>
                           <input
+                            id="yt-short-mention-{follow.id}"
                             type="text"
                             bind:value={follow.shortMention}
                             placeholder="<@&role_id>"

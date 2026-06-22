@@ -57,6 +57,8 @@
   let ticketEmbedDesc = $state('');
   let ticketEmbedButtonText = $state('');
   let ticketEmbedColor = $state('');
+  let ticketMode = $state<'CHANNEL' | 'DM' | 'THREAD'>('CHANNEL');
+  let ticketDmRelayChannelId = $state('');
   let ticketAllowOverclaim = $state(true);
   let ticketOverclaimPermission = $state('ANY');
   let ticketInactivityEnabled = $state(false);
@@ -71,6 +73,14 @@
     staffRoleId: string;
     buttonStyle: 'PRIMARY' | 'SECONDARY' | 'SUCCESS' | 'DANGER';
   }>>([]);
+
+  // Config sections accordion
+  let expandedConfigSection = $state<string | null>('mode');
+  let showMobileChat = $state(false);
+
+  function toggleConfigSection(section: string) {
+    expandedConfigSection = expandedConfigSection === section ? null : section;
+  }
 
   // Member Case Modal Integration
   let caseModalOpen = $state(false);
@@ -95,6 +105,8 @@
     ticketEmbedDesc,
     ticketEmbedButtonText,
     ticketEmbedColor,
+    ticketMode,
+    ticketDmRelayChannelId,
     ticketAllowOverclaim,
     ticketOverclaimPermission,
     ticketInactivityEnabled,
@@ -122,6 +134,8 @@
     ticketEmbedDesc = savedSettingsConfig.ticketEmbedDesc;
     ticketEmbedButtonText = savedSettingsConfig.ticketEmbedButtonText;
     ticketEmbedColor = savedSettingsConfig.ticketEmbedColor;
+    ticketMode = savedSettingsConfig.ticketMode;
+    ticketDmRelayChannelId = savedSettingsConfig.ticketDmRelayChannelId;
     ticketAllowOverclaim = savedSettingsConfig.ticketAllowOverclaim;
     ticketOverclaimPermission = savedSettingsConfig.ticketOverclaimPermission;
     ticketInactivityEnabled = savedSettingsConfig.ticketInactivityEnabled;
@@ -231,6 +245,8 @@
       ticketEmbedDesc = config.ticketEmbedDesc || 'Cliquez sur le bouton ci-dessous pour ouvrir un ticket de support.';
       ticketEmbedButtonText = config.ticketEmbedButtonText || 'Ouvrir un ticket';
       ticketEmbedColor = config.ticketEmbedColor || '#5865F2';
+      ticketMode = config.ticketMode || 'CHANNEL';
+      ticketDmRelayChannelId = config.ticketDmRelayChannelId || '';
       ticketAllowOverclaim = config.ticketAllowOverclaim !== undefined ? config.ticketAllowOverclaim : true;
       ticketOverclaimPermission = config.ticketOverclaimPermission || 'ANY';
       ticketInactivityEnabled = config.ticketInactivityEnabled !== undefined ? config.ticketInactivityEnabled : false;
@@ -246,6 +262,8 @@
         ticketEmbedDesc,
         ticketEmbedButtonText,
         ticketEmbedColor,
+        ticketMode,
+        ticketDmRelayChannelId,
         ticketAllowOverclaim,
         ticketOverclaimPermission,
         ticketInactivityEnabled,
@@ -436,6 +454,33 @@
     }
   }
 
+  // Restore Ticket
+  let showRestoreModal = $state(false);
+  let restoring = $state(false);
+
+  async function restoreTicket() {
+    if (!selectedTicketId || !authStore.selectedGuildId) return;
+    restoring = true;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/${selectedTicketId}/restore`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authStore.token}` }
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Erreur de restauration');
+      }
+      showRestoreModal = false;
+      toast.success('Ticket restauré avec succès ! Le salon a été recréé avec l\'historique.');
+      await loadTicketDetail(selectedTicketId, false);
+      await loadTicketsAndConfig();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      restoring = false;
+    }
+  }
+
   // Delete Ticket
   async function deleteTicket() {
     if (!selectedTicketId || !authStore.selectedGuildId) return;
@@ -474,6 +519,8 @@
           ticketEmbedDesc,
           ticketEmbedButtonText,
           ticketEmbedColor,
+          ticketMode,
+          ticketDmRelayChannelId,
           ticketTypes,
           ticketAllowOverclaim,
           ticketOverclaimPermission,
@@ -631,88 +678,82 @@
   {/snippet}
 
   <!-- Tab Switcher -->
-  <div class="flex border-b border-outline-variant/10 mb-8">
-    <button 
-      onclick={() => changeTab('tickets')}
-      class="px-8 py-4 text-[10px] font-semibold uppercase tracking-wider transition-all relative {activeTab === 'tickets' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
-    >
-      Tickets Support
-      {#if activeTab === 'tickets'}
-        <div class="absolute bottom-0 left-0 w-full h-1 bg-primary rounded-t-full"></div>
-      {/if}
-    </button>
-    <button 
-      onclick={() => changeTab('transcripts')}
-      class="px-8 py-4 text-[10px] font-semibold uppercase tracking-wider transition-all relative {activeTab === 'transcripts' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
-    >
-      Transcriptions
-      {#if activeTab === 'transcripts'}
-        <div class="absolute bottom-0 left-0 w-full h-1 bg-primary rounded-t-full"></div>
-      {/if}
-    </button>
-    <button 
-      onclick={() => changeTab('config')}
-      class="px-8 py-4 text-[10px] font-semibold uppercase tracking-wider transition-all relative {activeTab === 'config' ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
-    >
-      Configuration
-      {#if activeTab === 'config'}
-        <div class="absolute bottom-0 left-0 w-full h-1 bg-primary rounded-t-full"></div>
-      {/if}
-    </button>
+  <div class="flex border-b border-outline-variant/10 mb-6 overflow-x-auto scrollbar-hide">
+    {#each [
+      { key: 'tickets', label: 'Tickets' },
+      { key: 'transcripts', label: 'Transcriptions' },
+      { key: 'config', label: 'Configuration' }
+    ] as tab}
+      <button
+        onclick={() => changeTab(tab.key as any)}
+        class="px-4 lg:px-8 py-3 text-[10px] font-semibold uppercase tracking-wider transition-all relative whitespace-nowrap {activeTab === tab.key ? 'text-primary' : 'text-on-surface-variant/40 hover:text-on-surface-variant'}"
+      >
+        {tab.label}
+        {#if activeTab === tab.key}
+          <div class="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-t-full"></div>
+        {/if}
+      </button>
+    {/each}
   </div>
 
   {#if activeTab === 'tickets'}
-    <!-- Tickets Main View -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 h-[75vh]">
-      
-      <!-- Left Panel: Tickets Browser (col-span-4) -->
-      <div class="lg:col-span-4 bg-surface-container-low/40 border border-outline-variant/10 rounded-xl p-6 flex flex-col overflow-hidden h-full">
-        <!-- Filter chips inside browser -->
-        <div class="flex items-center gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
+    <!-- Tickets Main View — mobile: master/detail pattern -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 h-auto lg:h-[75vh]">
+
+      <!-- Left Panel: Tickets Browser -->
+      <div class="lg:col-span-4 bg-surface-container-low/40 border border-outline-variant/10 rounded-xl p-4 lg:p-6 flex flex-col overflow-hidden {showMobileChat && selectedTicketId ? 'hidden lg:flex' : 'flex'} h-[50vh] lg:h-full">
+        <div class="flex items-center gap-1.5 mb-4 overflow-x-auto pb-2 scrollbar-hide">
           {#each ['ALL', 'OPEN', 'CLAIMED', 'CLOSED'] as filterType}
             <button
               onclick={() => ticketFilter = filterType as any}
-              class="px-4 py-2 rounded-full text-[10px] font-semibold uppercase tracking-widest transition-all {ticketFilter === filterType ? 'bg-primary text-white shadow-md shadow-primary/20' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}"
+              class="px-3 py-1.5 rounded-full text-[10px] font-semibold uppercase tracking-widest transition-all whitespace-nowrap {ticketFilter === filterType ? 'bg-primary text-white shadow-md shadow-primary/20' : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'}"
             >
               {filterType === 'ALL' ? 'Tous' : getStatusLabel(filterType)}
             </button>
           {/each}
         </div>
 
-        <!-- Ticket Cards List -->
-        <div class="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-hide">
+        <div class="flex-1 overflow-y-auto space-y-2 pr-1 scrollbar-hide">
           {#if filteredTickets.length === 0}
-            <div class="flex flex-col items-center justify-center py-20 text-on-surface-variant/30">
-              <Papicon icon="inbox" size={32} class="opacity-50 mb-3" />
+            <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/30">
+              <Papicon icon="inbox" size={28} class="opacity-50 mb-2" />
               <p class="text-xs font-bold">Aucun ticket trouvé</p>
             </div>
           {:else}
             {#each filteredTickets as ticket (ticket.id)}
               <button
-                onclick={() => selectTicket(ticket.id)}
-                class="w-full text-left p-4 rounded-lg border transition-all duration-300 relative overflow-hidden group {selectedTicketId === ticket.id ? 'bg-primary/5 border-primary shadow-sm' : 'bg-surface-container/30 border-outline-variant/10 hover:border-outline-variant/40 hover:bg-surface-container/50'}"
+                onclick={() => { selectTicket(ticket.id); showMobileChat = true; }}
+                class="w-full text-left p-3 lg:p-4 rounded-lg border transition-all duration-200 {selectedTicketId === ticket.id ? 'bg-primary/5 border-primary shadow-sm' : 'bg-surface-container/30 border-outline-variant/10 hover:border-outline-variant/40 hover:bg-surface-container/50'}"
               >
-                <!-- Avatar & Header info -->
                 <div class="flex items-start gap-3">
-                  <div class="w-10 h-10 rounded-xl bg-surface-container flex items-center justify-center text-primary font-semibold text-sm shadow-sm  transition-transform">
-                    {ticket.username?.charAt(0).toUpperCase() || '?'}
-                  </div>
+                  {#if ticket.userAvatar}
+                    <img src={ticket.userAvatar} alt={ticket.username} class="w-9 h-9 lg:w-10 lg:h-10 rounded-xl object-cover shadow-sm shrink-0" />
+                  {:else}
+                    <div class="w-9 h-9 lg:w-10 lg:h-10 rounded-xl bg-surface-container flex items-center justify-center text-primary font-semibold text-sm shadow-sm shrink-0">
+                      {ticket.username?.charAt(0).toUpperCase() || '?'}
+                    </div>
+                  {/if}
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center justify-between gap-2">
                       <p class="text-sm font-semibold text-on-surface truncate">@{ticket.username || 'Anonyme'}</p>
-                      <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider border {getStatusColor(ticket.status)}">
+                      <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border shrink-0 {getStatusColor(ticket.status)}">
                         {getStatusLabel(ticket.status)}
                       </span>
                     </div>
-                    <p class="text-[10px] text-on-surface-variant/60 font-mono mt-0.5">ID: {ticket.id}</p>
-                    <p class="text-[11px] text-on-surface-variant/50 mt-1">Créé le {new Date(ticket.createdAt).toLocaleDateString()}</p>
+                    {#if ticket.reason}
+                      <p class="text-[11px] text-on-surface-variant/70 mt-0.5 truncate">{ticket.reason}</p>
+                    {/if}
+                    <p class="text-[10px] text-on-surface-variant/40 mt-0.5">{new Date(ticket.createdAt).toLocaleDateString('fr-FR')}</p>
                   </div>
                 </div>
-
-                <!-- Claimed By indicator -->
                 {#if ticket.claimedByName}
-                  <div class="mt-3 pt-3 border-t border-outline-variant/10 flex items-center gap-1.5 text-[10px] font-semibold text-primary/80">
-                    <Papicon icon="user" size={12} /> Assigné à @{ticket.claimedByName}
+                  <div class="mt-2 pt-2 border-t border-outline-variant/10 flex items-center gap-1.5 text-[10px] font-semibold text-primary/80">
+                    {#if ticket.claimedByAvatar}
+                      <img src={ticket.claimedByAvatar} alt={ticket.claimedByName} class="w-5 h-5 rounded-full object-cover border border-primary/20" />
+                    {:else}
+                      <Papicon icon="user" size={11} />
+                    {/if}
+                    @{ticket.claimedByName}
                   </div>
                 {/if}
               </button>
@@ -721,134 +762,134 @@
         </div>
       </div>
 
-      <!-- Right Panel: Live Chat & Actions (col-span-8) -->
-      <div class="lg:col-span-8 bg-surface-container-low/40 border border-outline-variant/10 rounded-xl flex flex-col overflow-hidden h-full">
+      <!-- Right Panel: Live Chat & Actions -->
+      <div class="lg:col-span-8 bg-surface-container-low/40 border border-outline-variant/10 rounded-xl flex flex-col overflow-hidden {!showMobileChat && selectedTicketId ? 'hidden lg:flex' : !selectedTicketId ? 'hidden lg:flex' : 'flex'} h-[75vh] lg:h-full">
         {#if !selectedTicketId}
-          <div class="flex-1 flex flex-col items-center justify-center text-on-surface-variant/30 py-32">
-            <div class="w-20 h-20 rounded-xl bg-surface-container flex items-center justify-center mb-6 shadow-inner">
-              <Papicon icon="message-square" size={40} />
+          <div class="flex-1 flex flex-col items-center justify-center text-on-surface-variant/30 py-20">
+            <div class="w-16 h-16 rounded-xl bg-surface-container flex items-center justify-center mb-4 shadow-inner">
+              <Papicon icon="message-square" size={32} />
             </div>
-            <h3 class="text-xl font-semibold text-on-surface/40 font-headline">Aucun ticket sélectionné</h3>
-            <p class="text-xs opacity-60 mt-1">Sélectionnez un ticket dans la liste pour démarrer l'assistance en direct.</p>
+            <h3 class="text-lg font-semibold text-on-surface/40">Aucun ticket sélectionné</h3>
+            <p class="text-xs opacity-60 mt-1">Sélectionnez un ticket pour démarrer.</p>
           </div>
         {:else}
           <!-- Chat Header -->
-          <div class="p-6 border-b border-outline-variant/10 bg-surface-container/20 flex flex-wrap items-center justify-between gap-4">
+          <div class="p-3 lg:p-5 border-b border-outline-variant/10 bg-surface-container/20">
             <div class="flex items-center gap-3">
-              <div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-semibold text-lg shadow-inner">
-                {selectedTicketDetail?.username?.charAt(0).toUpperCase() || '?'}
-              </div>
-              <div>
-                <div class="flex items-center gap-2">
-                  <h3 class="text-base font-semibold text-on-surface">@{selectedTicketDetail?.username || 'Utilisateur'}</h3>
-                  <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider border {getStatusColor(selectedTicketDetail?.status)}">
+              <!-- Mobile back button -->
+              <button onclick={() => showMobileChat = false} class="lg:hidden p-2 -ml-1 rounded-lg hover:bg-surface-container transition-colors">
+                <Papicon icon="arrow-left" size={18} />
+              </button>
+              {#if selectedTicketDetail?.userAvatar}
+                <img src={selectedTicketDetail.userAvatar} alt={selectedTicketDetail.username} class="w-10 h-10 rounded-xl object-cover shadow-inner shrink-0" />
+              {:else}
+                <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-semibold text-base shadow-inner shrink-0">
+                  {selectedTicketDetail?.username?.charAt(0).toUpperCase() || '?'}
+                </div>
+              {/if}
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <h3 class="text-sm lg:text-base font-semibold text-on-surface truncate">@{selectedTicketDetail?.username || 'Utilisateur'}</h3>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border {getStatusColor(selectedTicketDetail?.status)}">
                     {getStatusLabel(selectedTicketDetail?.status)}
                   </span>
-                </div>
-                <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
-                  <span class="text-[10px] font-mono text-on-surface-variant/60">ID: {selectedTicketDetail?.id}</span>
-                  {#if selectedTicketDetail?.claimedByName}
-                    <span class="text-[10px] text-primary/80 font-bold">• Assigné à @{selectedTicketDetail.claimedByName}</span>
+                  {#if selectedTicketDetail?.mode && selectedTicketDetail.mode !== 'CHANNEL'}
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                      {selectedTicketDetail.mode === 'DM' ? 'MP' : 'Thread'}
+                    </span>
                   {/if}
                 </div>
+                {#if selectedTicketDetail?.claimedByName}
+                  <div class="flex items-center gap-1 text-[10px] text-primary/80 font-bold">
+                    {#if selectedTicketDetail.claimedByAvatar}
+                      <img src={selectedTicketDetail.claimedByAvatar} alt={selectedTicketDetail.claimedByName} class="w-4 h-4 rounded-full object-cover" />
+                    {/if}
+                    Assigné à @{selectedTicketDetail.claimedByName}
+                  </div>
+                {/if}
               </div>
             </div>
 
-            <!-- Header Quick Actions -->
-            <div class="flex flex-wrap items-center gap-2">
-              <button 
+            <!-- Quick actions — scrollable on mobile -->
+            <div class="flex items-center gap-2 mt-3 overflow-x-auto pb-1 scrollbar-hide">
+              <button
                 onclick={() => openMemberCase(selectedTicketDetail.userId, selectedTicketDetail.username)}
-                class="px-4 py-2 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-xl text-xs font-semibold uppercase tracking-wider hover:bg-indigo-500 hover:text-white transition-all flex items-center gap-1.5 shadow-sm"
+                class="px-3 py-1.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:bg-indigo-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
               >
-                <Papicon icon="shield" size={14} /> Casier
+                <Papicon icon="shield" size={12} /> Casier
               </button>
 
               {#if selectedTicketDetail?.status === 'OPEN'}
                 {#if selectedTicketDetail.claimedBy !== authStore.user?.id}
-                  <button 
-                    onclick={claimTicket}
-                    class="px-4 py-2 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-xl text-xs font-semibold uppercase tracking-wider hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 shadow-sm"
+                  <button onclick={claimTicket}
+                    class="px-3 py-1.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
                   >
-                    <Papicon icon="user-check" size={14} /> S'assigner
+                    <Papicon icon="user-check" size={12} /> S'assigner
                   </button>
                 {/if}
-                <button 
-                  onclick={() => showCloseModal = true}
-                  class="px-4 py-2 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-xl text-xs font-semibold uppercase tracking-wider hover:bg-rose-500 hover:text-white transition-all flex items-center gap-1.5 shadow-sm"
+                <button onclick={() => showCloseModal = true}
+                  class="px-3 py-1.5 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:bg-rose-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
                 >
-                  <Papicon icon="x-circle" size={14} /> Fermer
+                  <Papicon icon="x-circle" size={12} /> Fermer
                 </button>
               {/if}
-              
+
               {#if selectedTicketDetail?.status === 'CLAIMED' && selectedTicketDetail.claimedById !== authStore.user?.id && (config.ticketAllowOverclaim ?? true) && config.ticketOverclaimPermission !== 'NONE'}
-                <button 
-                  onclick={claimTicket}
-                  class="px-4 py-2 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-xl text-xs font-semibold uppercase tracking-wider hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 shadow-sm"
+                <button onclick={claimTicket}
+                  class="px-3 py-1.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:bg-amber-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
                 >
-                  <Papicon icon="user-check" size={14} /> Sur-revendiquer
+                  <Papicon icon="user-check" size={12} /> Sur-revendiquer
                 </button>
               {/if}
 
               {#if selectedTicketDetail?.status === 'CLOSED'}
                 {#if selectedTicketDetail.channelId}
-                  <button 
-                    onclick={reopenTicket}
-                    class="px-4 py-2 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-xl text-xs font-semibold uppercase tracking-wider hover:bg-emerald-500 hover:text-white transition-all flex items-center gap-1.5 shadow-sm"
+                  <button onclick={reopenTicket}
+                    class="px-3 py-1.5 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:bg-emerald-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
                   >
-                    <Papicon icon="refresh" size={14} /> Réouvrir
+                    <Papicon icon="refresh" size={12} /> Réouvrir
                   </button>
-                  <button 
-                    onclick={() => showDeleteConfirmModal = true}
-                    class="px-4 py-2 bg-rose-600 text-white rounded-xl text-xs font-semibold uppercase tracking-wider hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5 shadow-md shadow-rose-600/20"
+                  <button onclick={() => showDeleteConfirmModal = true}
+                    class="px-3 py-1.5 bg-rose-600 text-white rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5 shrink-0"
                   >
-                    <Papicon icon="delete" size={14} /> Supprimer
+                    <Papicon icon="delete" size={12} /> Supprimer
                   </button>
                 {/if}
-                
                 {#if selectedTicketDetail?.transcriptId}
-                  <a 
-                    href="/transcripts/{selectedTicketDetail.transcriptId}" 
-                    target="_blank"
-                    class="px-4 py-2 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-xl text-xs font-semibold uppercase tracking-wider hover:bg-blue-500 hover:text-white transition-all flex items-center gap-1.5 shadow-sm"
+                  <button onclick={() => showRestoreModal = true}
+                    class="px-3 py-1.5 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:bg-purple-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
                   >
-                    <Papicon icon="external-link" size={14} /> Voir la transcription
+                    <Papicon icon="refresh-ccw" size={12} /> Restaurer
+                  </button>
+                  <a href="/transcripts/{selectedTicketDetail.transcriptId}" target="_blank"
+                    class="px-3 py-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:bg-blue-500 hover:text-white transition-all flex items-center gap-1.5 shrink-0"
+                  >
+                    <Papicon icon="external-link" size={12} /> Transcription
                   </a>
                 {/if}
               {/if}
             </div>
 
-            {#if selectedTicketDetail?.channelId}
-              <div class="mt-4 flex flex-col gap-3 rounded-lg border border-outline-variant/10 bg-surface-container/30 p-4">
-                <div class="flex flex-col gap-1">
-                  <span class="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">Renommage du salon</span>
-                  <p class="text-[11px] text-on-surface-variant/70">Le nom sera normalisé côté Discord pour rester compatible avec les règles des salons.</p>
-                </div>
-                <div class="flex flex-col gap-3 sm:flex-row">
-                  <FormInput
-                    type="text"
-                    bind:value={ticketRenameName}
-                    placeholder="ticket-nouveau-nom"
-                    className="flex-1"
-                  />
-                  <button
-                    onclick={renameTicket}
-                    disabled={renameAction.state.loading || !ticketRenameName.trim()}
-                    class="px-5 py-3 bg-primary text-white rounded-xl text-xs font-semibold uppercase tracking-wider hover:scale-105 active:scale-95 transition-transform  disabled:opacity-50 flex items-center gap-2"
-                  >
-                    <Papicon icon="edit" size={14} />
-                    {renameAction.state.loading ? 'Renommage...' : 'Renommer'}
-                  </button>
-                </div>
+            {#if selectedTicketDetail?.channelId && selectedTicketDetail?.mode !== 'DM'}
+              <div class="mt-3 flex gap-2 items-center">
+                <FormInput type="text" bind:value={ticketRenameName} placeholder="ticket-nouveau-nom" className="flex-1" />
+                <button onclick={renameTicket} disabled={renameAction.state.loading || !ticketRenameName.trim()}
+                  class="px-3 py-2.5 bg-primary text-white rounded-lg text-[10px] font-semibold uppercase tracking-wider disabled:opacity-50 flex items-center gap-1.5 shrink-0"
+                >
+                  <Papicon icon="edit" size={12} />
+                  {renameAction.state.loading ? '...' : 'Renommer'}
+                </button>
               </div>
             {/if}
           </div>
 
           <!-- Chat Messages Container -->
-          <div 
+          <div
             bind:this={chatScrollContainer}
             class="flex-1 overflow-y-auto bg-[#313338] scrollbar-hide"
-            class:p-6={!selectedTicketDetail?.transcriptId || messages.length > 0}
-            class:space-y-4={!selectedTicketDetail?.transcriptId || messages.length > 0}
+            class:p-4={!selectedTicketDetail?.transcriptId || messages.length > 0}
+            class:lg:p-6={!selectedTicketDetail?.transcriptId || messages.length > 0}
+            class:space-y-3={!selectedTicketDetail?.transcriptId || messages.length > 0}
           >
             {#if loadingDetail && messages.length === 0}
               <div class="flex items-center justify-center h-full">
@@ -863,179 +904,133 @@
                 ></iframe>
               {:else}
                 <div class="flex flex-col items-center justify-center text-white/30 h-full">
-                  <Papicon icon="forum" size={32} class="opacity-50 mb-2" />
+                  <Papicon icon="forum" size={28} class="opacity-50 mb-2" />
                   <p class="text-xs">Aucun message dans ce ticket.</p>
                 </div>
               {/if}
             {:else}
               {#each messages as msg (msg.id)}
-                <div class="flex items-start gap-4 p-2.5 rounded-xl hover:bg-white/5 transition-colors group">
-                  <!-- Avatar -->
-                  <div class="shrink-0 relative">
+                <div class="flex items-start gap-2.5 lg:gap-4 p-2 rounded-xl hover:bg-white/5 transition-colors group">
+                  <div class="shrink-0">
                     {#if msg.authorAvatar}
-                      <img src={msg.authorAvatar} alt="Avatar" class="h-10 w-10 rounded-full object-cover border border-white/10" />
+                      <img src={msg.authorAvatar} alt="Avatar" class="h-8 w-8 lg:h-10 lg:w-10 rounded-full object-cover border border-white/10" />
                     {:else}
-                      <div class="h-10 w-10 rounded-full bg-white/10 flex items-center justify-center text-sm font-semibold text-white/80">
+                      <div class="h-8 w-8 lg:h-10 lg:w-10 rounded-full bg-white/10 flex items-center justify-center text-xs lg:text-sm font-semibold text-white/80">
                         {msg.authorName?.slice(0, 1).toUpperCase()}
                       </div>
                     {/if}
                   </div>
-
-                  <!-- Content Block -->
                   <div class="min-w-0 flex-1">
-                    <div class="flex items-baseline gap-2">
-                      <span class="text-sm font-bold text-white hover:underline cursor-pointer">{msg.authorName || 'Anonyme'}</span>
+                    <div class="flex items-baseline gap-1.5 flex-wrap">
+                      <span class="text-xs lg:text-sm font-bold text-white">{msg.authorName || 'Anonyme'}</span>
                       {#if msg.isStaff}
-                        <span class="bg-[#5865F2] text-white text-[11px] font-semibold uppercase px-1.5 py-0.5 rounded tracking-wider leading-none">Kotbo Staff</span>
+                        <span class="bg-[#5865F2] text-white text-[9px] lg:text-[11px] font-semibold uppercase px-1 py-0.5 rounded tracking-wider leading-none">Staff</span>
                       {/if}
-                      <span class="text-[10px] text-white/40">{new Date(msg.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+                      <span class="text-[9px] lg:text-[10px] text-white/40">{new Date(msg.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
                     {#if msg.htmlContent}
-                      <div class="text-sm text-white/90 mt-1 whitespace-pre-wrap leading-relaxed select-text flex flex-wrap gap-x-1 items-center message-html-content">
+                      <div class="text-xs lg:text-sm text-white/90 mt-1 whitespace-pre-wrap leading-relaxed select-text flex flex-wrap gap-x-1 items-center message-html-content">
                         {@html msg.htmlContent}
                       </div>
                     {:else if msg.content}
-                      <p class="text-sm text-white/90 mt-1 whitespace-pre-wrap leading-relaxed select-text">{msg.content}</p>
+                      <p class="text-xs lg:text-sm text-white/90 mt-1 whitespace-pre-wrap leading-relaxed select-text">{msg.content}</p>
                     {/if}
 
-                    <!-- Handle Media URLs (extracted from content) -->
                     {#if msg.mediaUrls && msg.mediaUrls.length > 0}
-                      <div class="mt-3 space-y-2">
+                      <div class="mt-2 space-y-2">
                         {#each msg.mediaUrls.filter((media: any) => {
                           if (msg.attachments?.some((att: any) => att.url === media.url)) return false;
-                          
-                          const getFilename = (url: any) => {
-                            if (!url) return '';
-                            const clean = url.split('?')[0];
-                            const parts = clean.split('/');
-                            return parts[parts.length - 1] || '';
-                          };
-                          
+                          const getFilename = (url: any) => { if (!url) return ''; const clean = url.split('?')[0]; const parts = clean.split('/'); return parts[parts.length - 1] || ''; };
                           const mediaFilename = getFilename(media.url);
-                          
                           if (msg.embeds?.some((embed: any) => {
-                            const embedUrl = embed.url || '';
-                            const embedImg = embed.image?.url || '';
-                            const embedThumb = embed.thumbnail?.url || '';
-                            const embedVid = embed.video?.url || '';
-                            
-                            if (embedUrl === media.url || embedImg === media.url || embedThumb === media.url || embedVid === media.url) {
-                              return true;
-                            }
-                            
-                            if (mediaFilename) {
-                              if (getFilename(embedUrl).includes(mediaFilename) ||
-                                  getFilename(embedImg).includes(mediaFilename) ||
-                                  getFilename(embedThumb).includes(mediaFilename) ||
-                                  getFilename(embedVid).includes(mediaFilename)) {
-                                return true;
-                              }
-                            }
-                            
-                            const mediaIsGiphy = media.url.includes('giphy.com');
-                            const embedIsGiphy = embedUrl.includes('giphy.com') || embedImg.includes('giphy.com') || embedVid.includes('giphy.com') || embedThumb.includes('giphy.com');
-                            if (mediaIsGiphy && embedIsGiphy) return true;
-                            
-                            const mediaIsTenor = media.url.includes('tenor.com');
-                            const embedIsTenor = embedUrl.includes('tenor.com') || embedImg.includes('tenor.com') || embedVid.includes('tenor.com') || embedThumb.includes('tenor.com');
-                            if (mediaIsTenor && embedIsTenor) return true;
-                            
+                            const embedUrl = embed.url || ''; const embedImg = embed.image?.url || ''; const embedThumb = embed.thumbnail?.url || ''; const embedVid = embed.video?.url || '';
+                            if (embedUrl === media.url || embedImg === media.url || embedThumb === media.url || embedVid === media.url) return true;
+                            if (mediaFilename && (getFilename(embedUrl).includes(mediaFilename) || getFilename(embedImg).includes(mediaFilename) || getFilename(embedThumb).includes(mediaFilename) || getFilename(embedVid).includes(mediaFilename))) return true;
+                            if (media.url.includes('giphy.com') && (embedUrl.includes('giphy.com') || embedImg.includes('giphy.com') || embedVid.includes('giphy.com') || embedThumb.includes('giphy.com'))) return true;
+                            if (media.url.includes('tenor.com') && (embedUrl.includes('tenor.com') || embedImg.includes('tenor.com') || embedVid.includes('tenor.com') || embedThumb.includes('tenor.com'))) return true;
                             return false;
                           })) return false;
-                          
                           return true;
                         }) as media}
                           {#if media.type === 'image'}
-                            <img src={media.url} alt="media-preview" class="max-w-xs md:max-w-md rounded-lg border border-white/10 hover:shadow-lg transition-shadow max-h-72 object-contain bg-[#1e1f22]" />
+                            <img src={media.url} alt="media-preview" class="max-w-[80%] lg:max-w-md rounded-lg border border-white/10 max-h-60 object-contain bg-[#1e1f22]" />
                           {:else if media.type === 'video'}
                             <!-- svelte-ignore a11y_media_has_caption -->
-                            <video src={media.url} controls class="max-w-xs md:max-w-md rounded-lg border border-white/10 max-h-72 bg-[#1e1f22]"></video>
+                            <video src={media.url} controls class="max-w-[80%] lg:max-w-md rounded-lg border border-white/10 max-h-60 bg-[#1e1f22]"></video>
                           {:else if media.type === 'audio'}
-                            <audio src={media.url} controls class="max-w-xs md:max-w-md"></audio>
+                            <audio src={media.url} controls class="max-w-[80%] lg:max-w-md"></audio>
                           {/if}
                         {/each}
                       </div>
                     {/if}
 
-                    <!-- Handle Discord Stickers -->
                     {#if msg.stickers && msg.stickers.length > 0}
-                      <div class="mt-3 space-y-2">
+                      <div class="mt-2 space-y-2">
                         {#each msg.stickers as sticker}
-                          <div class="relative group max-w-xs">
-                            <img src={sticker.url} alt={sticker.name} class="h-40 w-auto rounded-lg object-contain hover:scale-105 transition-transform" />
-                            <span class="absolute bottom-1 left-1 bg-black/60 text-white/70 text-[11px] px-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">Autocollant : {sticker.name}</span>
+                          <div class="relative group max-w-[50%]">
+                            <img src={sticker.url} alt={sticker.name} class="h-32 w-auto rounded-lg object-contain hover:scale-105 transition-transform" />
                           </div>
                         {/each}
                       </div>
                     {/if}
-                    
-                    <!-- Handle Embeds -->
+
                     {#if msg.embeds && msg.embeds.length > 0}
                       <div class="mt-2 space-y-2">
                         {#each msg.embeds as embed}
-                          <div class="bg-[#2b2d31] border-l-4 rounded-r-md p-3 max-w-lg" style="border-left-color: {embed.color || '#1e1f22'}">
+                          <div class="bg-[#2b2d31] border-l-4 rounded-r-md p-2.5 max-w-full lg:max-w-lg" style="border-left-color: {embed.color || '#1e1f22'}">
                             {#if embed.title}
-                              <div class="font-bold text-[#00a8fc] text-sm mb-1">{embed.title}</div>
+                              <div class="font-bold text-[#00a8fc] text-xs lg:text-sm mb-1">{embed.title}</div>
                             {/if}
                             {#if embed.htmlDescription}
-                              <div class="text-sm text-white/80 whitespace-pre-wrap leading-relaxed select-text message-html-content">{@html embed.htmlDescription}</div>
+                              <div class="text-xs lg:text-sm text-white/80 whitespace-pre-wrap leading-relaxed select-text message-html-content">{@html embed.htmlDescription}</div>
                             {:else if embed.description}
-                              <div class="text-sm text-white/80 whitespace-pre-wrap leading-relaxed select-text">{embed.description}</div>
+                              <div class="text-xs lg:text-sm text-white/80 whitespace-pre-wrap leading-relaxed select-text">{embed.description}</div>
                             {/if}
                             {#if embed.fields && embed.fields.length > 0}
-                              <div class="mt-2 flex flex-wrap gap-3">
+                              <div class="mt-2 flex flex-wrap gap-2">
                                 {#each embed.fields as field}
                                   <div class="flex-1 min-w-[45%]">
-                                    <div class="text-[11px] font-bold text-white/60 uppercase">{field.name}</div>
+                                    <div class="text-[10px] font-bold text-white/60 uppercase">{field.name}</div>
                                     {#if field.htmlValue}
-                                      <div class="text-sm text-white/80 select-text message-html-content">{@html field.htmlValue}</div>
+                                      <div class="text-xs text-white/80 select-text message-html-content">{@html field.htmlValue}</div>
                                     {:else}
-                                      <div class="text-sm text-white/80 select-text">{field.value}</div>
+                                      <div class="text-xs text-white/80 select-text">{field.value}</div>
                                     {/if}
                                   </div>
                                 {/each}
                               </div>
                             {/if}
-
-                            <!-- Render Embed Image / Video / Thumbnail (Mutually Exclusive) -->
-                            {#if embed.image && embed.image.url}
-                              <div class="mt-2 relative group max-w-full">
-                                <img src={embed.image.url} alt="embed-img" class="max-w-full rounded-lg border border-white/10 max-h-72 object-contain bg-[#1e1f22] hover:scale-[1.01] transition-transform" />
-                              </div>
-                            {:else if embed.video && embed.video.url}
-                              <div class="mt-2">
-                                {#if embed.video.url.includes('giphy.com') || embed.video.url.includes('tenor.com') || embed.video.url.includes('gifv')}
-                                  <!-- svelte-ignore a11y_media_has_caption -->
-                                  <video src={embed.video.url} autoplay loop muted playsinline class="max-w-full rounded-lg border border-white/10 max-h-72 bg-[#1e1f22]"></video>
-                                {:else}
-                                  <!-- svelte-ignore a11y_media_has_caption -->
-                                  <video src={embed.video.url} controls class="max-w-full rounded-lg border border-white/10 max-h-72 bg-[#1e1f22]"></video>
-                                {/if}
-                              </div>
-                            {:else if embed.thumbnail && embed.thumbnail.url}
-                              <div class="mt-2 relative group max-w-full">
-                                <img src={embed.thumbnail.url} alt="embed-thumbnail" class="max-w-full rounded-lg border border-white/10 max-h-40 object-contain bg-[#1e1f22]" />
-                              </div>
+                            {#if embed.image?.url}
+                              <img src={embed.image.url} alt="embed-img" class="mt-2 max-w-full rounded-lg border border-white/10 max-h-60 object-contain bg-[#1e1f22]" />
+                            {:else if embed.video?.url}
+                              {#if embed.video.url.includes('giphy.com') || embed.video.url.includes('tenor.com') || embed.video.url.includes('gifv')}
+                                <!-- svelte-ignore a11y_media_has_caption -->
+                                <video src={embed.video.url} autoplay loop muted playsinline class="mt-2 max-w-full rounded-lg border border-white/10 max-h-60 bg-[#1e1f22]"></video>
+                              {:else}
+                                <!-- svelte-ignore a11y_media_has_caption -->
+                                <video src={embed.video.url} controls class="mt-2 max-w-full rounded-lg border border-white/10 max-h-60 bg-[#1e1f22]"></video>
+                              {/if}
+                            {:else if embed.thumbnail?.url}
+                              <img src={embed.thumbnail.url} alt="embed-thumbnail" class="mt-2 max-w-full rounded-lg border border-white/10 max-h-32 object-contain bg-[#1e1f22]" />
                             {/if}
                           </div>
                         {/each}
                       </div>
                     {/if}
 
-                    <!-- Handle Media Attachments -->
                     {#if msg.attachments && msg.attachments.length > 0}
-                      <div class="mt-3 space-y-2">
+                      <div class="mt-2 space-y-2">
                         {#each msg.attachments as att}
                           {#if att.contentType?.startsWith('image/')}
-                            <img src={att.url} alt="discord-att" class="max-w-xs md:max-w-md rounded-lg border border-white/10 hover:shadow-lg transition-shadow max-h-72 object-cover" />
+                            <img src={att.url} alt="discord-att" class="max-w-[80%] lg:max-w-md rounded-lg border border-white/10 max-h-60 object-cover" />
                           {:else if att.contentType?.startsWith('video/')}
                             <!-- svelte-ignore a11y_media_has_caption -->
-                            <video src={att.url} controls class="max-w-xs md:max-w-md rounded-lg border border-white/10 max-h-72"></video>
+                            <video src={att.url} controls class="max-w-[80%] lg:max-w-md rounded-lg border border-white/10 max-h-60"></video>
                           {:else if att.contentType?.startsWith('audio/')}
-                            <audio src={att.url} controls class="max-w-xs md:max-w-md"></audio>
+                            <audio src={att.url} controls class="max-w-[80%] lg:max-w-md"></audio>
                           {:else}
-                            <a href={att.url} target="_blank" class="flex items-center gap-2 p-3 bg-white/5 border border-white/10 rounded-lg text-xs font-bold text-white hover:bg-white/10 transition-colors w-fit">
-                              <Papicon icon="file" size={16} /> Télécharger la pièce jointe
+                            <a href={att.url} target="_blank" class="flex items-center gap-2 p-2.5 bg-white/5 border border-white/10 rounded-lg text-xs font-bold text-white hover:bg-white/10 transition-colors w-fit">
+                              <Papicon icon="file" size={14} /> Pièce jointe
                             </a>
                           {/if}
                         {/each}
@@ -1049,25 +1044,25 @@
 
           <!-- Chat Input Bar -->
           {#if selectedTicketDetail?.status === 'OPEN' || selectedTicketDetail?.status === 'CLAIMED'}
-            <div class="p-6 border-t border-outline-variant/10 bg-surface-container/20 flex gap-4">
-              <input 
-                type="text" 
+            <div class="p-3 lg:p-4 border-t border-outline-variant/10 bg-surface-container/20 flex gap-2 lg:gap-3">
+              <input
+                type="text"
                 bind:value={chatInput}
                 onkeydown={(e) => e.key === 'Enter' && sendMessage()}
-                placeholder="Écrire un message privé au candidat..."
-                class="flex-1 bg-surface-container rounded-lg px-6 py-4 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm font-medium"
+                placeholder="Écrire un message..."
+                class="flex-1 bg-surface-container rounded-lg px-4 py-3 focus:outline-hidden border-2 border-transparent focus:border-primary/50 text-sm"
               />
-              <button 
+              <button
                 onclick={sendMessage}
                 disabled={!chatInput.trim()}
-                class="w-14 h-14 rounded-lg bg-primary text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-transform disabled:opacity-50 "
+                class="w-11 h-11 rounded-lg bg-primary text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-transform disabled:opacity-50 shrink-0"
               >
-                <Papicon icon="send" size={20} />
+                <Papicon icon="send" size={18} />
               </button>
             </div>
           {:else}
-            <div class="p-6 border-t border-outline-variant/10 bg-rose-500/10 text-rose-500 flex items-center justify-center text-xs font-semibold uppercase tracking-widest gap-2">
-              <Papicon icon="lock" size={16} /> Ce ticket est fermé. Aucune modification ou envoi de message n'est possible.
+            <div class="p-3 lg:p-4 border-t border-outline-variant/10 bg-rose-500/10 text-rose-500 flex items-center justify-center text-[10px] font-semibold uppercase tracking-widest gap-2">
+              <Papicon icon="lock" size={14} /> Ticket fermé
             </div>
           {/if}
         {/if}
@@ -1075,277 +1070,394 @@
 
     </div>
   {:else if activeTab === 'config'}
-    <!-- Configuration Panel -->
-    <div class="bg-surface-container-low/40 border border-outline-variant/10 rounded-xl p-8 max-w-4xl mx-auto space-y-8 font-inter">
-      <div class="border-b border-outline-variant/20 pb-4 flex items-center justify-between">
+    <!-- Configuration Panel — redesigned sections -->
+    <div class="max-w-4xl mx-auto space-y-4">
+
+      <!-- Header actions -->
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-2">
         <div>
-          <h3 class="text-xl font-semibold text-on-surface">Configuration du Module</h3>
-          <p class="text-on-surface-variant text-sm">Organisez les salons et personnalisez le bouton d'ouverture.</p>
+          <h3 class="text-lg font-semibold text-on-surface">Configuration des Tickets</h3>
+          <p class="text-on-surface-variant text-xs mt-0.5">Mode de fonctionnement, salons, embed et types de tickets.</p>
         </div>
-        <button 
-          onclick={sendEmbedPanel} 
+        <button
+          onclick={sendEmbedPanel}
           disabled={sendEmbedAction.state.loading || !ticketChannelId}
-          class="px-5 py-3 bg-primary text-white rounded-xl text-xs font-semibold uppercase tracking-wider hover:scale-105 active:scale-95 transition-transform  disabled:opacity-50 flex items-center gap-2"
+          class="px-4 py-2.5 bg-primary text-white rounded-xl text-[10px] font-semibold uppercase tracking-wider hover:scale-105 active:scale-95 transition-transform disabled:opacity-50 flex items-center gap-2 shrink-0"
         >
-          <Papicon icon="send" size={14} /> 
-          {sendEmbedAction.state.loading ? 'Envoi...' : 'Envoyer Embed sur Discord'}
+          <Papicon icon="send" size={13} />
+          {sendEmbedAction.state.loading ? 'Envoi...' : 'Envoyer Embed'}
         </button>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <!-- Salons -->
-        <div class="space-y-4">
-          <h4 class="text-xs font-semibold uppercase tracking-widest text-primary mb-2">Salons & Rôles Discord</h4>
+      <!-- ─── Section 1: Mode de fonctionnement ──────────────────────────── -->
+      <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
+        <button onclick={() => toggleConfigSection('mode')} class="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-white/3 transition-colors text-left">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center shrink-0">
+              <Papicon icon="radio" size={18} />
+            </div>
+            <div>
+              <p class="text-sm font-semibold text-on-surface">Mode de fonctionnement</p>
+              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">Salon, MP ou Thread — comment les tickets sont créés</p>
+            </div>
+          </div>
+          <Papicon icon={expandedConfigSection === 'mode' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40 shrink-0" />
+        </button>
+        {#if expandedConfigSection === 'mode'}
+          <div class="px-4 lg:px-5 pb-5 space-y-4 border-t border-outline-variant/10 pt-4">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {#each [
+                { value: 'CHANNEL', label: 'Salon', icon: 'hash', desc: 'Crée un salon textuel privé par ticket' },
+                { value: 'DM', label: 'Messages Privés', icon: 'mail', desc: 'Le bot communique en MP avec l\'utilisateur' },
+                { value: 'THREAD', label: 'Thread privé', icon: 'message-circle', desc: 'Crée un fil privé dans un salon' }
+              ] as modeOption}
+                <button
+                  onclick={() => ticketMode = modeOption.value as any}
+                  class="p-4 rounded-xl border-2 text-left transition-all {ticketMode === modeOption.value ? 'border-primary bg-primary/5' : 'border-outline-variant/10 hover:border-outline-variant/30 bg-surface-container/20'}"
+                >
+                  <div class="flex items-center gap-2.5 mb-2">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center {ticketMode === modeOption.value ? 'bg-primary/15 text-primary' : 'bg-surface-container text-on-surface-variant/50'}">
+                      <Papicon icon={modeOption.icon} size={16} />
+                    </div>
+                    <span class="text-sm font-semibold {ticketMode === modeOption.value ? 'text-primary' : 'text-on-surface'}">{modeOption.label}</span>
+                  </div>
+                  <p class="text-[10px] text-on-surface-variant/60 leading-relaxed">{modeOption.desc}</p>
+                </button>
+              {/each}
+            </div>
 
-          <label class="block">
-            <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">ID Catégorie Tickets (Création des salons)</span>
-            <SearchableSelect bind:value={ticketCategoryId} options={discordCategories.map(c => ({ id: c.id, name: c.name }))} placeholder="Sélectionner une catégorie" className="w-full" />
-          </label>
-
-          <label class="block">
-            <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Salon d'ouverture (Où envoyer le panel)</span>
-            <SearchableSelect bind:value={ticketChannelId} options={discordChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="Sélectionner un salon" className="w-full" />
-          </label>
-
-          <label class="block">
-            <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Salon des Logs (Envoi des Transcripts)</span>
-            <SearchableSelect bind:value={ticketLogChannelId} options={discordChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="Sélectionner un salon" className="w-full" />
-          </label>
-
-          <label class="block">
-            <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Rôle Staff Support</span>
-            <SearchableSelect bind:value={ticketStaffRoleId} options={discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Sélectionner un rôle" className="w-full" />
-          </label>
-
-          <div class="border-t border-outline-variant/10 pt-4 mt-4 space-y-3">
-            <label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white/5 rounded-xl transition-colors">
-              <input type="checkbox" bind:checked={ticketAllowOverclaim} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
-              <div>
-                <span class="text-xs font-bold text-on-surface">Autoriser la sur-revendication</span>
-                <p class="text-[10px] text-on-surface-variant/60">Permettre à un autre membre du personnel de reprendre un ticket déjà revendiqué.</p>
-              </div>
-            </label>
-
-            {#if ticketAllowOverclaim}
-              <label class="block mt-2">
-                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Qui peut sur-revendiquer ?</span>
-                <FormSelect bind:value={ticketOverclaimPermission} className="w-full">
-                  <option value="ANY">Tout le staff</option>
-                  <option value="SUPERIOR_OR_EQUAL">Uniquement grade supérieur ou égal</option>
-                </FormSelect>
+            {#if ticketMode === 'DM'}
+              <label class="block">
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Salon de relais staff (les threads MP y sont créés)</span>
+                <SearchableSelect bind:value={ticketDmRelayChannelId} options={discordChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="Sélectionner un salon" className="w-full" />
               </label>
+              <div class="flex items-start gap-2 p-3 rounded-lg bg-amber-500/5 border border-amber-500/15">
+                <Papicon icon="alert-triangle" size={14} class="text-amber-500 mt-0.5 shrink-0" />
+                <p class="text-[10px] text-amber-500/80 leading-relaxed">En mode MP, les messages de l'utilisateur sont relayés dans un thread et inversement. L'utilisateur doit avoir ses MP activés.</p>
+              </div>
             {/if}
           </div>
-        </div>
-
-        <!-- Custom Embed -->
-        <div class="space-y-4">
-          <h4 class="text-xs font-semibold uppercase tracking-widest text-primary mb-2">Personnalisation de l'Embed</h4>
-
-          <label class="block">
-            <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Titre de l'Embed</span>
-            <FormInput type="text" bind:value={ticketEmbedTitle} placeholder="Ex: Support Client" className="w-full" />
-          </label>
-
-          <label class="block">
-            <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Description de l'Embed</span>
-            <FormTextarea bind:value={ticketEmbedDesc} placeholder="Ex: Cliquez pour obtenir de l'aide..." className="w-full h-24" />
-          </label>
-
-          <label class="block">
-            <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Texte du Bouton Discord</span>
-            <FormInput type="text" bind:value={ticketEmbedButtonText} placeholder="Ex: Ouvrir un ticket" className="w-full" />
-          </label>
-
-          <label class="block">
-            <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Couleur Hex de l'Embed</span>
-            <FormColorPicker bind:value={ticketEmbedColor} />
-          </label>
-        </div>
+        {/if}
       </div>
 
-      <!-- Inactivité du Créateur -->
-      <div class="rounded-xl border border-outline-variant/10 bg-surface-container/30 p-6 space-y-5">
-        <div>
-          <h4 class="text-xs font-semibold uppercase tracking-widest text-primary mb-1">Inactivité du Créateur</h4>
-          <p class="text-sm text-on-surface-variant">Configurez un rappel automatique pour relancer le créateur du ticket s\'il ne répond pas.</p>
-        </div>
-
-        <div class="space-y-4">
-          <label class="flex items-center gap-3 cursor-pointer p-2 hover:bg-white/5 rounded-xl transition-colors">
-            <input type="checkbox" bind:checked={ticketInactivityEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
+      <!-- ─── Section 2: Salons & Rôles ──────────────────────────────────── -->
+      <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
+        <button onclick={() => toggleConfigSection('channels')} class="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-white/3 transition-colors text-left">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
+              <Papicon icon="hash" size={18} />
+            </div>
             <div>
-              <span class="text-xs font-bold text-on-surface">Activer les rappels d\'inactivité</span>
-              <p class="text-[10px] text-on-surface-variant/60">Envoie un message automatique après une période d\'inactivité.</p>
+              <p class="text-sm font-semibold text-on-surface">Salons & Rôles</p>
+              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">Catégorie, logs, rôle staff et sur-revendication</p>
             </div>
-          </label>
-
-          {#if ticketInactivityEnabled}
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <label class="block md:col-span-1">
-                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Temps d\'inactivité (Heures)</span>
-                <input type="number" bind:value={ticketInactivityHours} min={1} max={168} class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none" />
-              </label>
-
-              <label class="block md:col-span-2">
-                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Message automatique</span>
-                <FormTextarea bind:value={ticketInactivityMessage} placeholder={"Ex: Bonjour {user}, votre ticket est inactif..."} className="w-full h-20" />
-              </label>
-            </div>
-          {/if}
-        </div>
-      </div>
-
-      <div class="rounded-xl border border-outline-variant/10 bg-surface-container/30 p-6 space-y-5">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h4 class="text-xs font-semibold uppercase tracking-widest text-primary mb-1">Types de tickets</h4>
-            <p class="text-sm text-on-surface-variant">Chaque type affiche son propre bouton, ping le bon rôle et ouvre le salon dans la bonne catégorie.</p>
           </div>
-          <button
-            onclick={addTicketType}
-            class="px-4 py-2 bg-primary text-white rounded-xl text-[10px] font-semibold uppercase tracking-wider hover:scale-105 active:scale-95 transition-transform  flex items-center gap-2"
-          >
-            <Papicon icon="plus" size={14} /> Ajouter un type
-          </button>
-        </div>
-
-        <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          {#each ticketTypes as ticketType, index}
-            <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 p-5 space-y-4">
-              <div class="flex items-center justify-between gap-3">
-                <div>
-                  <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/70">Type #{index + 1}</p>
-                  <p class="text-sm font-bold text-on-surface">Bouton visible dans l'embed</p>
-                </div>
-                <button
-                  onclick={() => removeTicketType(index)}
-                  class="px-3 py-2 rounded-xl bg-rose-500/10 text-rose-500 border border-rose-500/20 text-[10px] font-semibold uppercase tracking-wider hover:bg-rose-500 hover:text-white transition-colors"
-                >
-                  Supprimer
-                </button>
-              </div>
-
-              <label class="block">
-                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Texte du bouton</span>
-                <FormInput type="text" bind:value={ticketType.label} placeholder="Support technique" className="w-full" />
-              </label>
-
-              <label class="block">
-                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Description affichée dans l'embed</span>
-                <FormTextarea bind:value={ticketType.description} placeholder="Explique ce que couvre ce type de ticket..." className="w-full h-24" />
-              </label>
-
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Papicon icon={expandedConfigSection === 'channels' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40 shrink-0" />
+        </button>
+        {#if expandedConfigSection === 'channels'}
+          <div class="px-4 lg:px-5 pb-5 space-y-4 border-t border-outline-variant/10 pt-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {#if ticketMode === 'CHANNEL'}
                 <label class="block">
-                  <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Emoji du bouton</span>
-                  <div class="flex gap-2">
-                    <FormInput type="text" bind:value={ticketType.emoji} placeholder="📩" className="w-full" />
-                    <EmojiPicker bind:value={ticketType.emoji} />
-                  </div>
+                  <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Catégorie des tickets</span>
+                  <SearchableSelect bind:value={ticketCategoryId} options={discordCategories.map(c => ({ id: c.id, name: c.name }))} placeholder="Sélectionner" className="w-full" />
                 </label>
+              {/if}
+              <label class="block">
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Salon du panel d'ouverture</span>
+                <SearchableSelect bind:value={ticketChannelId} options={discordChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="Sélectionner" className="w-full" />
+              </label>
+              <label class="block">
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Salon des logs / transcripts</span>
+                <SearchableSelect bind:value={ticketLogChannelId} options={discordChannels.map(c => ({ id: c.id, name: `#${c.name}` }))} placeholder="Sélectionner" className="w-full" />
+              </label>
+              <label class="block">
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Rôle Staff Support</span>
+                <SearchableSelect bind:value={ticketStaffRoleId} options={discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Sélectionner" className="w-full" />
+              </label>
+            </div>
 
-                <label class="block">
-                  <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Style du bouton</span>
-                  <FormSelect bind:value={ticketType.buttonStyle} className="w-full">
-                    <option value="PRIMARY">Primaire</option>
-                    <option value="SECONDARY">Secondaire</option>
-                    <option value="SUCCESS">Succès</option>
-                    <option value="DANGER">Danger</option>
+            <div class="border-t border-outline-variant/10 pt-4 space-y-3">
+              <label class="flex items-center gap-3 cursor-pointer p-2.5 hover:bg-white/5 rounded-xl transition-colors">
+                <input type="checkbox" bind:checked={ticketAllowOverclaim} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
+                <div>
+                  <span class="text-xs font-bold text-on-surface">Autoriser la sur-revendication</span>
+                  <p class="text-[10px] text-on-surface-variant/60">Un staff peut reprendre un ticket déjà revendiqué.</p>
+                </div>
+              </label>
+              {#if ticketAllowOverclaim}
+                <label class="block ml-7">
+                  <span class="text-xs font-bold text-on-surface-variant/80 mb-2 block">Qui peut sur-revendiquer ?</span>
+                  <FormSelect bind:value={ticketOverclaimPermission} className="w-full">
+                    <option value="ANY">Tout le staff</option>
+                    <option value="SUPERIOR_OR_EQUAL">Grade supérieur ou égal</option>
                   </FormSelect>
                 </label>
-              </div>
-
-              <label class="block">
-                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Catégorie de création</span>
-                <SearchableSelect bind:value={ticketType.categoryId} options={discordCategories.map(c => ({ id: c.id, name: c.name }))} placeholder="Sélectionner une catégorie" className="w-full" />
-              </label>
-
-              <label class="block">
-                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Rôle staff notifié</span>
-                <SearchableSelect bind:value={ticketType.staffRoleId} options={discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Sélectionner un rôle" className="w-full" />
-              </label>
+              {/if}
             </div>
-          {/each}
-        </div>
+          </div>
+        {/if}
       </div>
 
+      <!-- ─── Section 3: Personnalisation Embed ──────────────────────────── -->
+      <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
+        <button onclick={() => toggleConfigSection('embed')} class="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-white/3 transition-colors text-left">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center shrink-0">
+              <Papicon icon="palette" size={18} />
+            </div>
+            <div>
+              <p class="text-sm font-semibold text-on-surface">Personnalisation de l'Embed</p>
+              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">Titre, description, couleur et texte du bouton</p>
+            </div>
+          </div>
+          <Papicon icon={expandedConfigSection === 'embed' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40 shrink-0" />
+        </button>
+        {#if expandedConfigSection === 'embed'}
+          <div class="px-4 lg:px-5 pb-5 space-y-4 border-t border-outline-variant/10 pt-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label class="block">
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Titre</span>
+                <FormInput type="text" bind:value={ticketEmbedTitle} placeholder="Support Client" className="w-full" />
+              </label>
+              <label class="block">
+                <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Texte du bouton</span>
+                <FormInput type="text" bind:value={ticketEmbedButtonText} placeholder="Ouvrir un ticket" className="w-full" />
+              </label>
+            </div>
+            <label class="block">
+              <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Description</span>
+              <FormTextarea bind:value={ticketEmbedDesc} placeholder="Cliquez pour obtenir de l'aide..." className="w-full h-20" />
+            </label>
+            <label class="block">
+              <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Couleur</span>
+              <FormColorPicker bind:value={ticketEmbedColor} />
+            </label>
+          </div>
+        {/if}
+      </div>
+
+      <!-- ─── Section 4: Inactivité ──────────────────────────────────────── -->
+      <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
+        <button onclick={() => toggleConfigSection('inactivity')} class="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-white/3 transition-colors text-left">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center shrink-0">
+              <Papicon icon="clock" size={18} />
+            </div>
+            <div>
+              <p class="text-sm font-semibold text-on-surface">Inactivité</p>
+              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">Rappel automatique si le créateur ne répond pas</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            {#if ticketInactivityEnabled}
+              <span class="px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">Actif</span>
+            {/if}
+            <Papicon icon={expandedConfigSection === 'inactivity' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40" />
+          </div>
+        </button>
+        {#if expandedConfigSection === 'inactivity'}
+          <div class="px-4 lg:px-5 pb-5 space-y-4 border-t border-outline-variant/10 pt-4">
+            <label class="flex items-center gap-3 cursor-pointer p-2.5 hover:bg-white/5 rounded-xl transition-colors">
+              <input type="checkbox" bind:checked={ticketInactivityEnabled} class="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant/30" />
+              <div>
+                <span class="text-xs font-bold text-on-surface">Activer les rappels</span>
+                <p class="text-[10px] text-on-surface-variant/60">Message automatique après inactivité du créateur.</p>
+              </div>
+            </label>
+            {#if ticketInactivityEnabled}
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <label class="block">
+                  <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Délai (heures)</span>
+                  <input type="number" bind:value={ticketInactivityHours} min={1} max={168} class="w-full bg-surface-container-high text-sm px-4 py-2.5 rounded-xl border border-outline-variant/10 focus:ring-1 ring-primary/30 transition-all outline-none" />
+                </label>
+                <label class="block sm:col-span-2">
+                  <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Message ({'{user}'} = mention)</span>
+                  <FormTextarea bind:value={ticketInactivityMessage} placeholder="Bonjour {'{user}'}, votre ticket est inactif..." className="w-full h-20" />
+                </label>
+              </div>
+            {/if}
+          </div>
+        {/if}
+      </div>
+
+      <!-- ─── Section 5: Types de tickets ────────────────────────────────── -->
+      <div class="rounded-xl border border-outline-variant/10 bg-surface-container-low/40 overflow-hidden">
+        <button onclick={() => toggleConfigSection('types')} class="w-full flex items-center justify-between p-4 lg:p-5 hover:bg-white/3 transition-colors text-left">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-rose-500/10 text-rose-400 flex items-center justify-center shrink-0">
+              <Papicon icon="layers" size={18} />
+            </div>
+            <div>
+              <p class="text-sm font-semibold text-on-surface">Types de tickets</p>
+              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">{ticketTypes.length} type{ticketTypes.length > 1 ? 's' : ''} — chaque type a son bouton, rôle et catégorie</p>
+            </div>
+          </div>
+          <Papicon icon={expandedConfigSection === 'types' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40 shrink-0" />
+        </button>
+        {#if expandedConfigSection === 'types'}
+          <div class="px-4 lg:px-5 pb-5 border-t border-outline-variant/10 pt-4 space-y-4">
+            <div class="flex justify-end">
+              <button onclick={addTicketType}
+                class="px-3 py-2 bg-primary text-white rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:scale-105 active:scale-95 transition-transform flex items-center gap-1.5"
+              >
+                <Papicon icon="plus" size={13} /> Ajouter
+              </button>
+            </div>
+
+            <div class="space-y-4">
+              {#each ticketTypes as ticketType, index}
+                <div class="rounded-xl border border-outline-variant/10 bg-surface-container/20 p-4 space-y-3">
+                  <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                      <span class="text-lg">{ticketType.emoji || '📩'}</span>
+                      <span class="text-sm font-semibold text-on-surface">{ticketType.label || `Type #${index + 1}`}</span>
+                    </div>
+                    <button onclick={() => removeTicketType(index)}
+                      class="px-2.5 py-1.5 rounded-lg bg-rose-500/10 text-rose-500 border border-rose-500/20 text-[9px] font-semibold uppercase tracking-wider hover:bg-rose-500 hover:text-white transition-colors"
+                    >
+                      Supprimer
+                    </button>
+                  </div>
+
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <label class="block">
+                      <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Texte du bouton</span>
+                      <FormInput type="text" bind:value={ticketType.label} placeholder="Support technique" className="w-full" />
+                    </label>
+                    <div class="grid grid-cols-2 gap-3">
+                      <label class="block">
+                        <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Emoji</span>
+                        <div class="flex gap-1.5">
+                          <FormInput type="text" bind:value={ticketType.emoji} placeholder="📩" className="w-full" />
+                          <EmojiPicker bind:value={ticketType.emoji} />
+                        </div>
+                      </label>
+                      <label class="block">
+                        <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Style</span>
+                        <FormSelect bind:value={ticketType.buttonStyle} className="w-full">
+                          <option value="PRIMARY">Primaire</option>
+                          <option value="SECONDARY">Secondaire</option>
+                          <option value="SUCCESS">Succès</option>
+                          <option value="DANGER">Danger</option>
+                        </FormSelect>
+                      </label>
+                    </div>
+                  </div>
+
+                  <label class="block">
+                    <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Description</span>
+                    <FormTextarea bind:value={ticketType.description} placeholder="Décrit ce type de ticket..." className="w-full h-16" />
+                  </label>
+
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <label class="block">
+                      <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Catégorie</span>
+                      <SearchableSelect bind:value={ticketType.categoryId} options={discordCategories.map(c => ({ id: c.id, name: c.name }))} placeholder="Sélectionner" className="w-full" />
+                    </label>
+                    <label class="block">
+                      <span class="text-[10px] font-bold text-on-surface-variant/70 ml-1 mb-1.5 block">Rôle staff</span>
+                      <SearchableSelect bind:value={ticketType.staffRoleId} options={discordRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} placeholder="Sélectionner" className="w-full" />
+                    </label>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
+      </div>
 
     </div>
   {:else if activeTab === 'transcripts'}
-    <div class="bg-surface-container-low/40 border border-outline-variant/10 rounded-xl p-8 flex flex-col h-full min-h-[50vh] font-inter">
-      <div class="flex items-center justify-between mb-6">
-        <div>
-          <h3 class="text-xl font-semibold text-on-surface">Historique des Transcriptions</h3>
-          <p class="text-on-surface-variant text-sm">Consultez l'historique complet des transcriptions de tickets et de salons.</p>
-        </div>
+    <div class="bg-surface-container-low/40 border border-outline-variant/10 rounded-xl p-4 lg:p-6 flex flex-col min-h-[40vh]">
+      <div class="mb-4">
+        <h3 class="text-lg font-semibold text-on-surface">Transcriptions</h3>
+        <p class="text-on-surface-variant text-xs mt-0.5">Historique des transcriptions de tickets et de salons.</p>
       </div>
 
       {#if loading}
-        <div class="flex items-center justify-center py-20">
+        <div class="flex items-center justify-center py-16">
           <div class="w-8 h-8 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
         </div>
       {:else if transcripts.length === 0}
-        <div class="flex flex-col items-center justify-center py-20 text-on-surface-variant/30">
-          <Papicon icon="inbox" size={48} class="opacity-50 mb-3" />
-          <p class="text-sm font-bold">Aucune transcription disponible</p>
+        <div class="flex flex-col items-center justify-center py-16 text-on-surface-variant/30">
+          <Papicon icon="inbox" size={36} class="opacity-50 mb-2" />
+          <p class="text-xs font-bold">Aucune transcription</p>
         </div>
       {:else}
-        <div class="overflow-x-auto w-full">
+        <!-- Mobile: card layout / Desktop: table -->
+        <div class="hidden md:block overflow-x-auto w-full">
           <table class="w-full text-left border-collapse">
             <thead>
               <tr class="border-b border-outline-variant/15 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/70">
-                <th class="py-4 px-6">Salon</th>
-                <th class="py-4 px-6">Type / Origine</th>
-                <th class="py-4 px-6">Période des messages</th>
-                <th class="py-4 px-6">Généré le</th>
-                <th class="py-4 px-6 text-right">Action</th>
+                <th class="py-3 px-4">Salon</th>
+                <th class="py-3 px-4">Type</th>
+                <th class="py-3 px-4">Période</th>
+                <th class="py-3 px-4">Généré le</th>
+                <th class="py-3 px-4 text-right">Action</th>
               </tr>
             </thead>
             <tbody>
               {#each transcripts as t}
-                <tr class="border-b border-outline-variant/10 hover:bg-white/5 transition-colors group">
-                  <td class="py-4 px-6 font-mono text-sm font-bold text-on-surface">
+                <tr class="border-b border-outline-variant/10 hover:bg-white/5 transition-colors">
+                  <td class="py-3 px-4 font-mono text-sm font-bold text-on-surface">
                     <span class="text-primary/70">#</span>{t.channelName}
                   </td>
-                  <td class="py-4 px-6">
+                  <td class="py-3 px-4">
                     {#if t.channelName.startsWith('ticket-') || t.channelName.startsWith('fermer-')}
-                      <span class="px-3 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                        Ticket Support
-                      </span>
+                      <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase bg-blue-500/10 text-blue-400 border border-blue-500/20">Ticket</span>
                     {:else}
-                      <span class="px-3 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                        Commande /transcript
-                      </span>
+                      <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">/transcript</span>
                     {/if}
                   </td>
-                  <td class="py-4 px-6 text-xs text-on-surface-variant">
+                  <td class="py-3 px-4 text-xs text-on-surface-variant">
                     {#if t.startTime && t.endTime}
-                      <div class="flex flex-col gap-0.5">
-                        <span>Du <strong class="text-on-surface/90">{new Date(t.startTime).toLocaleDateString('fr-FR')} à {new Date(t.startTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</strong></span>
-                        <span>Au <strong class="text-on-surface/90">{new Date(t.endTime).toLocaleDateString('fr-FR')} à {new Date(t.endTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</strong></span>
-                      </div>
+                      {new Date(t.startTime).toLocaleDateString('fr-FR')} — {new Date(t.endTime).toLocaleDateString('fr-FR')}
                     {:else}
-                      <span class="text-on-surface-variant/40 italic">Non spécifiée (Toutes)</span>
+                      <span class="text-on-surface-variant/40 italic">Toutes</span>
                     {/if}
                   </td>
-                  <td class="py-4 px-6 text-xs text-on-surface-variant">
-                    {new Date(t.createdAt).toLocaleDateString('fr-FR')} {new Date(t.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                  <td class="py-3 px-4 text-xs text-on-surface-variant">
+                    {new Date(t.createdAt).toLocaleDateString('fr-FR')}
                   </td>
-                  <td class="py-4 px-6 text-right">
-                    <a
-                      href="/transcripts/{t.id}"
-                      target="_blank"
-                      class="px-4 py-2 bg-primary/10 text-primary border border-primary/20 rounded-xl text-xs font-semibold uppercase tracking-wider hover:bg-primary hover:text-white transition-all inline-flex items-center gap-1.5 shadow-sm"
+                  <td class="py-3 px-4 text-right">
+                    <a href="/transcripts/{t.id}" target="_blank"
+                      class="px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:bg-primary hover:text-white transition-all inline-flex items-center gap-1"
                     >
-                      <Papicon icon="external-link" size={12} />
-                      Consulter
+                      <Papicon icon="external-link" size={11} /> Voir
                     </a>
                   </td>
                 </tr>
               {/each}
             </tbody>
           </table>
+        </div>
+
+        <!-- Mobile cards -->
+        <div class="md:hidden space-y-3">
+          {#each transcripts as t}
+            <div class="rounded-xl border border-outline-variant/10 bg-surface-container/20 p-3.5">
+              <div class="flex items-center justify-between gap-2 mb-2">
+                <span class="font-mono text-sm font-bold text-on-surface truncate"><span class="text-primary/70">#</span>{t.channelName}</span>
+                {#if t.channelName.startsWith('ticket-') || t.channelName.startsWith('fermer-')}
+                  <span class="px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase bg-blue-500/10 text-blue-400 border border-blue-500/20 shrink-0">Ticket</span>
+                {:else}
+                  <span class="px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">/transcript</span>
+                {/if}
+              </div>
+              <p class="text-[10px] text-on-surface-variant/60 mb-2">
+                {new Date(t.createdAt).toLocaleDateString('fr-FR')}
+                {#if t.startTime && t.endTime}
+                  — Du {new Date(t.startTime).toLocaleDateString('fr-FR')} au {new Date(t.endTime).toLocaleDateString('fr-FR')}
+                {/if}
+              </p>
+              <a href="/transcripts/{t.id}" target="_blank"
+                class="px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:bg-primary hover:text-white transition-all inline-flex items-center gap-1"
+              >
+                <Papicon icon="external-link" size={11} /> Consulter
+              </a>
+            </div>
+          {/each}
         </div>
       {/if}
     </div>
@@ -1401,6 +1513,44 @@
           class="flex-1 py-4 rounded-xl font-bold bg-rose-600 text-white hover:scale-105 active:scale-95 transition-transform shadow-lg shadow-rose-600/30"
         >
           Confirmer la suppression
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Ticket Restore Modal -->
+{#if showRestoreModal}
+  <div class="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60">
+    <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-lg shadow-sm p-10 animate-in zoom-in-95 duration-300">
+      <div class="flex items-center gap-4 mb-2 text-purple-400">
+        <Papicon icon="refresh-ccw" size={36} />
+        <h3 class="text-2xl font-semibold">Restaurer le Ticket</h3>
+      </div>
+      <p class="text-sm text-on-surface-variant/80 mb-4">Cette action va :</p>
+      <ul class="text-sm text-on-surface-variant/80 mb-6 space-y-2 list-disc ml-5">
+        <li>Créer un <strong>nouveau salon</strong> de ticket sur Discord</li>
+        <li>Rejouer tout l'<strong>historique des messages</strong> via webhook (noms et avatars d'origine)</li>
+        <li>Réouvrir le ticket avec le statut <strong>Ouvert</strong></li>
+      </ul>
+      <div class="flex items-start gap-2 p-3 rounded-lg bg-amber-500/5 border border-amber-500/15 mb-6">
+        <Papicon icon="alert-triangle" size={14} class="text-amber-500 mt-0.5 shrink-0" />
+        <p class="text-[10px] text-amber-500/80 leading-relaxed">La restauration peut prendre quelques secondes selon le nombre de messages. Les pièces jointes et embeds d'origine ne seront pas restaurés, seul le contenu textuel est restitué.</p>
+      </div>
+
+      <div class="flex gap-4 mt-8 pt-6 border-t border-outline-variant/20">
+        <button onclick={() => showRestoreModal = false} disabled={restoring} class="flex-1 py-4 rounded-xl font-bold bg-surface-container hover:bg-surface-container-high transition-colors disabled:opacity-50">Annuler</button>
+        <button
+          onclick={restoreTicket}
+          disabled={restoring}
+          class="flex-1 py-4 rounded-xl font-bold bg-purple-600 text-white hover:scale-105 active:scale-95 transition-transform shadow-lg shadow-purple-600/30 disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          {#if restoring}
+            <div class="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin"></div>
+            Restauration...
+          {:else}
+            Confirmer la restauration
+          {/if}
         </button>
       </div>
     </div>

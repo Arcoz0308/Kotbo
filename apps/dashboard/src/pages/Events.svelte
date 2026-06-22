@@ -271,8 +271,8 @@
         <p class="text-lg font-semibold text-emerald-500 mt-2">{events.filter(e => e.status === 'ONGOING').length}</p>
       </div>
       <div class="bg-surface-container-low/40 rounded-xl p-8 border border-outline-variant/10">
-        <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Participations</p>
-        <p class="text-lg font-semibold text-on-surface mt-2">{events.reduce((acc, e) => acc + (e._count?.participants || 0), 0)}</p>
+        <p class="text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/40">Participations / Inscriptions</p>
+        <p class="text-lg font-semibold text-on-surface mt-2">{events.reduce((acc, e) => acc + (e._count?.participants || 0) + (e._count?.registrations || 0), 0)}</p>
       </div>
     </div>
 
@@ -309,24 +309,38 @@
                       <Papicon icon="HelpCircle" size={12} /> {event._count?.questions || 0} questions
                     </span>
                   {/if}
-                  <span class="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1.5">
-                    <Papicon icon="Users" size={12} /> {event._count?.participants || 0} participants
-                  </span>
+                  {#if event.type === 'CUSTOM'}
+                    <span class="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1.5">
+                      <Papicon icon="UserPlus" size={12} /> {event._count?.registrations || 0} inscrits
+                    </span>
+                  {:else}
+                    <span class="text-[10px] font-bold text-on-surface-variant/40 flex items-center gap-1.5">
+                      <Papicon icon="Users" size={12} /> {event._count?.participants || 0} participants
+                    </span>
+                  {/if}
                 </div>
               </div>
             </div>
 
             <div class="flex items-center gap-3">
               {#if (event.status === 'ONGOING' || event.status === 'PUBLISHED') && event.type !== 'CUSTOM'}
-                <button 
+                <button
                   onclick={() => router.goto(`/events/control/${event.id}`)}
                   class="px-6 py-3 bg-emerald-500 text-white rounded-lg text-[10px] font-semibold uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2"
                 >
                   <Papicon icon="Play" size={12} /> Piloter
                 </button>
               {/if}
+              {#if event.type === 'CUSTOM' && (event.status === 'PUBLISHED' || event.status === 'ONGOING' || event.status === 'COMPLETED')}
+                <button
+                  onclick={() => router.goto(`/events/control/${event.id}`)}
+                  class="px-6 py-3 bg-purple-500/10 text-purple-400 rounded-lg text-[10px] font-semibold uppercase tracking-widest border border-purple-500/20 hover:bg-purple-500/20 transition-colors flex items-center gap-2"
+                >
+                  <Papicon icon="Users" size={12} /> Inscriptions
+                </button>
+              {/if}
               {#if event.status === 'COMPLETED' && event.type !== 'CUSTOM'}
-                <button 
+                <button
                   onclick={() => router.goto(`/events/control/${event.id}`)}
                   class="px-6 py-3 bg-primary/10 text-primary rounded-lg text-[10px] font-semibold uppercase tracking-widest border border-primary/20 hover:bg-primary/20 transition-colors flex items-center gap-2"
                 >

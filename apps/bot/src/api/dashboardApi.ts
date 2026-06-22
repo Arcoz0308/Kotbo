@@ -16,6 +16,8 @@ import {
   JWT_SECRET,
   DISCORD_CLIENT_ID,
   DASHBOARD_URL,
+  DASHBOARD_ORIGIN,
+  CORS_EXTRA_ORIGINS,
   splitPath,
   parseDiscordMarkdown,
   extractMediaUrls,
@@ -200,7 +202,8 @@ export const startDashboardApi = (client: Client) => {
           } else {
             // CORS whitelist verification
             const allowedOrigins = new Set([
-              DASHBOARD_URL.replace(/\/$/, ''),
+              DASHBOARD_ORIGIN,
+              ...CORS_EXTRA_ORIGINS,
               'http://localhost:5173',
               'http://localhost:3000'
             ]);
@@ -217,16 +220,18 @@ export const startDashboardApi = (client: Client) => {
             const origin = req.headers.origin;
             const originStr = Array.isArray(origin) ? origin[0] : origin;
             if (originStr) {
-              const sanitizedOrigin = originStr.replace(/\/$/, '');
-              if (allowedOrigins.has(sanitizedOrigin) || isAllowedDevOrigin(sanitizedOrigin)) {
+              let normalizedOrigin: string;
+              try { normalizedOrigin = new URL(originStr).origin; } catch { normalizedOrigin = originStr.replace(/\/$/, ''); }
+              if (allowedOrigins.has(normalizedOrigin) || isAllowedDevOrigin(originStr)) {
                 res.setHeader('Access-Control-Allow-Origin', originStr);
                 res.setHeader('Access-Control-Allow-Credentials', 'true');
               } else {
-                res.setHeader('Access-Control-Allow-Origin', DASHBOARD_URL);
+                res.setHeader('Access-Control-Allow-Origin', DASHBOARD_ORIGIN);
               }
             } else {
-              res.setHeader('Access-Control-Allow-Origin', DASHBOARD_URL);
+              res.setHeader('Access-Control-Allow-Origin', DASHBOARD_ORIGIN);
             }
+            res.setHeader('Vary', 'Origin');
           }
           res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
           res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, Origin, X-Requested-With, Cache-Control, Pragma, X-Kotbo-API-Key, X-API-Key');

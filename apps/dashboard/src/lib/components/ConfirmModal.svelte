@@ -72,17 +72,21 @@
   <div
     class="fixed inset-0 z-50 flex items-center justify-center p-4"
     onclick={handleCancel}
+    onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleCancel(); }}
     role="dialog"
+    tabindex="-1"
     aria-modal="true"
     aria-labelledby="confirm-modal-title"
   >
     <div class="absolute inset-0 bg-black/40 animate-in fade-in duration-200"></div>
 
     <!-- Modal -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <div
       class="relative z-10 w-full max-w-md bg-surface-container border border-outline-variant/20 rounded-lg shadow-sm shadow-black/50 p-6 space-y-5 animate-in fade-in zoom-in-95 duration-200"
       onclick={(e) => e.stopPropagation()}
-      role="document"
+      onkeydown={(e) => e.stopPropagation()}
     >
       <!-- Icon + Title -->
       <div class="flex items-start gap-4">

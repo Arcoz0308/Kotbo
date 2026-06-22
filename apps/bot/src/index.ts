@@ -36,6 +36,7 @@ import { registerCloseSourceWarningListener } from './events/closeSourceWarning.
 import { registerNicknameModerationListener } from './events/nicknameModeration.js';
 import { registerTicketLeaveFollowUpListener } from './events/ticketLeaveFollowUp.js';
 import { registerTicketInactivityListener } from './events/ticketInactivity.js';
+import { registerTicketDmRelayListener } from './events/ticketDmRelay.js';
 import { registerAutoThreadListener } from './events/autoThread.js';
 import { registerTempVoiceListener } from './events/tempVoice.js';
 import { registerHoneypotListener } from './events/honeypot.js';
@@ -236,6 +237,7 @@ client.once(Events.ClientReady, async (c) => {
   registerNicknameModerationListener(client);
   registerTicketLeaveFollowUpListener(client);
   registerTicketInactivityListener(client);
+  registerTicketDmRelayListener(client);
   registerAutoThreadListener(client);
   registerTempVoiceListener(client);
   registerHoneypotListener(client);

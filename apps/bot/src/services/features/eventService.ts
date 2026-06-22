@@ -29,6 +29,7 @@ export async function getEvents(guildId: string) {
           questions: true,
           ctfChallenges: true,
           participants: true,
+          registrations: true,
         },
       },
     },
@@ -54,7 +55,11 @@ export async function getEvent(eventId: string) {
           profile: true,
         },
       },
-    },
+      registrations: {
+        orderBy: { createdAt: 'asc' },
+      },
+      customForm: true,
+    } as any,
   });
 }
 

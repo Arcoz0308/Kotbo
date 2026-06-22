@@ -12,6 +12,8 @@ model Ticket {
   id            String       @id @default(cuid())
   guildId       String
   channelId     String?      @unique
+  mode          String       @default("CHANNEL") // "CHANNEL", "DM", "THREAD"
+  threadId      String?      @unique
   ticketTypeId  String?
   ticketTypeLabel String?
   staffRoleId   String?

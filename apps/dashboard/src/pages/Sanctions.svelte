@@ -1348,21 +1348,25 @@
 
               <div class="space-y-2 max-h-[300px] overflow-y-auto pr-2">
                 {#each guildSettings.sanctionTables as table, i}
-                  <div 
-                    class="flex items-center justify-between p-4 rounded-lg transition-all cursor-pointer {selectedTableIndex === i ? 'bg-primary/10 border border-primary/20 text-primary' : 'bg-surface-container-high/30 border border-transparent text-on-surface hover:bg-surface-container-high/60'}"
+                  <button
+                    type="button"
+                    class="flex items-center justify-between w-full text-left p-4 rounded-lg transition-all cursor-pointer {selectedTableIndex === i ? 'bg-primary/10 border border-primary/20 text-primary' : 'bg-surface-container-high/30 border border-transparent text-on-surface hover:bg-surface-container-high/60'}"
                     onclick={() => selectedTableIndex = i}
                   >
                     <span class="text-sm font-bold truncate">{table.name}</span>
                     <div class="flex items-center gap-3">
                       <span class="text-[10px] font-semibold bg-on-surface/5 px-2 py-0.5 rounded-md text-on-surface-variant/80">{table.tiers.length} palier(s)</span>
-                      <button 
+                      <span
+                        role="button"
+                        tabindex="0"
                         onclick={(e) => { e.stopPropagation(); deleteSanctionTable(i); }}
-                        class="text-on-surface-variant/40 hover:text-red-500 transition-colors"
+                        onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); deleteSanctionTable(i); } }}
+                        class="text-on-surface-variant/40 hover:text-red-500 transition-colors cursor-pointer"
                       >
                         <Papicon icon="trash" size={14} />
-                      </button>
+                      </span>
                     </div>
-                  </div>
+                  </button>
                 {/each}
               </div>
             </div>

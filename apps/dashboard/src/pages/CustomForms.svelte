@@ -146,11 +146,11 @@
   });
 </script>
 
-<ModulePage 
-  title="Formulaires Personnalisés" 
-  description="Créez des formulaires autonomes pour vos événements ou sondages, connectables ou non au recrutement." 
+<ModulePage
+  title="Formulaires Personnalisés"
+  description="Créez des formulaires autonomes pour vos événements ou sondages. Connectables au recrutement si souhaité."
   icon="description"
-  featureKey="recruitment"
+  featureKey="events"
 >
   {#snippet actions()}
     <div class="flex items-center gap-3">

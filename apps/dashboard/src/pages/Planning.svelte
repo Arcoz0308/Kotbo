@@ -609,7 +609,7 @@
   <!-- CREATION MODAL -->
   {#if creationModalOpen}
     <div class="fixed inset-0 z-100 flex items-center justify-center p-4">
-      <div class="absolute inset-0 bg-black/40" onclick={() => creationModalOpen = false}></div>
+      <button type="button" class="absolute inset-0 bg-black/40 border-none cursor-default" onclick={() => creationModalOpen = false} aria-label="Fermer"></button>
       
       <div class="relative w-full max-w-2xl bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-outline-variant/30 animate-in fade-in duration-200">
         
@@ -782,7 +782,7 @@
               {/if}
 
               <div>
-                <label class="block text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest mb-1.5">Inviter des membres du staff</label>
+                <span class="block text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest mb-1.5">Inviter des membres du staff</span>
                 <div class="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto pr-1 custom-scrollbar">
                   {#each activeStaff.filter(s => s.id !== myStaffRecord?.id) as staff}
                     <label class="flex items-center gap-2 p-2 bg-surface-container-high/40 rounded-xl cursor-pointer hover:bg-surface-container-high transition-colors">
@@ -864,7 +864,7 @@
   {#if detailModalOpen && currentItemDetail}
     {@const raw = currentItemDetail.raw}
     <div class="fixed inset-0 z-100 flex items-center justify-center p-4">
-      <div class="absolute inset-0 bg-black/40" onclick={() => detailModalOpen = false}></div>
+      <button type="button" class="absolute inset-0 bg-black/40 border-none cursor-default" onclick={() => detailModalOpen = false} aria-label="Fermer"></button>
       
       <div class="relative w-full max-w-lg bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-outline-variant/30 animate-in fade-in duration-200 text-on-surface">
         

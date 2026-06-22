@@ -12,6 +12,9 @@
     { keys: ['G', 'M', 'ou', 'Ctrl', 'Shift', 'M'], description: 'Aller à la gestion des Membres / Modération', category: 'Navigation' },
     { keys: ['G', 'C', 'ou', 'Ctrl', 'Shift', 'C'], description: 'Aller à la Configuration / Paramètres du bot', category: 'Navigation' },
     { keys: ['G', 'L', 'ou', 'Ctrl', 'Shift', 'L'], description: 'Consulter les Logs d\'activité', category: 'Navigation' },
+    { keys: ['/'], description: 'Rechercher dans la sidebar', category: 'Navigation' },
+    { keys: ['Ctrl', 'K'], description: 'Rechercher dans la sidebar (×2 : palette de commandes)', category: 'Navigation' },
+    { keys: ['Ctrl', 'G'], description: 'Sélecteur de serveur', category: 'Navigation' },
     { keys: ['Ctrl', 'Shift', 'N'], description: 'Ouvrir ce menu des raccourcis clavier', category: 'Système' },
   ];
 

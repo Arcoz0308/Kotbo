@@ -164,6 +164,8 @@ model Guild {
   ticketEmbedButtonText  String   @default("Ouvrir un ticket")
   ticketEmbedColor       String   @default("#5865F2")
   ticketEmbedType        String   @default("BUTTONS") // "BUTTONS" or "DROPDOWN"
+  ticketMode             String   @default("CHANNEL") // "CHANNEL", "DM", "THREAD"
+  ticketDmRelayChannelId String?
   ticketTypes             Json?
   ticketAllowOverclaim        Boolean  @default(true)
   ticketOverclaimPermission   String   @default("ANY") // "ANY", "SUPERIOR_OR_EQUAL", "NONE"

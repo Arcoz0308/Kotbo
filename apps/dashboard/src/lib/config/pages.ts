@@ -34,6 +34,7 @@ export const moderationItems: PageConfig[] = [
   { name: "Logs Discord",        icon: "file-text",     href: "/logs",              featureKey: "logs", beta: false, wip: false },
   { name: "Journal d'activité",  icon: "history",       href: "/activity",          featureKey: "activity", beta: false, wip: false },
   { name: "Événements",          icon: "zap",           href: "/events",            featureKey: "events", beta: false, wip: false },
+  { name: "Formulaires",         icon: "clipboard",     href: "/forms",             featureKey: "events", beta: false, wip: false },
   { name: "Daily Algo",          icon: "code",          href: "/dailyalgo",         featureKey: "daily_algo", beta: false, wip: false },
 ];
 

@@ -149,7 +149,13 @@ if (!JWT_SECRET) {
   JWT_SECRET = crypto.randomBytes(32).toString('hex');
 }
 export const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://localhost:5173';
-export const DASHBOARD_ORIGIN = DASHBOARD_URL.replace(/\/$/, '');
+export const DASHBOARD_ORIGIN = (() => {
+  try { return new URL(DASHBOARD_URL).origin; } catch { return DASHBOARD_URL.replace(/\/$/, ''); }
+})();
+export const CORS_EXTRA_ORIGINS: string[] = (process.env.CORS_ALLOWED_ORIGINS || '')
+  .split(',')
+  .map(s => { try { return new URL(s.trim()).origin; } catch { return s.trim().replace(/\/$/, ''); } })
+  .filter(Boolean);
 export const DEFAULT_TRANSLATION_TARGET_LANG = 'FR';
 export const DISCORD_CLIENT_OWNER_ID = process.env.DISCORD_CLIENT_OWNER_ID;
 

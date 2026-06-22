@@ -257,6 +257,34 @@
   let lastCtrlKTime = 0;
 
   function handleGlobalKeydown(e: KeyboardEvent) {
+    // "/" ouvre la recherche sidebar (sauf si on est dans un champ texte)
+    if (e.key === '/' && !open) {
+      const active = document.activeElement;
+      const isEditing = active && (
+        active.tagName === 'INPUT' ||
+        active.tagName === 'TEXTAREA' ||
+        active.getAttribute('contenteditable') === 'true'
+      );
+      if (!isEditing) {
+        e.preventDefault();
+        serverSwitcherStore.close();
+        const sidebarSearchInput = document.querySelector('.sidebar input') as HTMLInputElement;
+        if (sidebarSearchInput) {
+          if (sidebarStore.collapsed) {
+            sidebarStore.set(false);
+          }
+          setTimeout(() => {
+            const input = document.querySelector('.sidebar input') as HTMLInputElement;
+            input?.focus();
+            input?.select();
+          }, 50);
+        } else {
+          searchStore.toggle();
+        }
+        return;
+      }
+    }
+
     const isSearchKey = e.key === 'k' || e.key === 'K';
     if ((e.metaKey || e.ctrlKey) && isSearchKey) {
       e.preventDefault();
