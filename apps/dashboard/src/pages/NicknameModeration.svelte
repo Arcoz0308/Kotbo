@@ -57,6 +57,7 @@
   let checkInvisible = $state(true);
   let checkGlobal = $state(true);
   let checkCustom = $state(true);
+  let discordAutoModSync = $state(false);
   let globalWords = $state<BannedWordEntry[]>([]);
   let customWords = $state<BannedWordEntry[]>([]);
   let whitelist = $state<string[]>([]);
@@ -97,6 +98,7 @@
         checkInvisible = config.checkInvisible ?? true;
         checkGlobal = config.checkGlobal ?? true;
         checkCustom = config.checkCustom ?? true;
+        discordAutoModSync = config.discordAutoModSync ?? false;
       }
       if (words) {
         globalWords = words.global ?? [];
@@ -152,7 +154,7 @@
     );
   }
 
-  async function saveGranularToggle(field: 'onJoin' | 'onUpdate' | 'checkInvisible' | 'checkGlobal' | 'checkCustom', value: boolean) {
+  async function saveGranularToggle(field: 'onJoin' | 'onUpdate' | 'checkInvisible' | 'checkGlobal' | 'checkCustom' | 'discordAutoModSync', value: boolean) {
     await saveToggleAction.run(
       async () => {
         const ok = await updateNicknameModerationConfig({ [field]: value });
@@ -411,6 +413,13 @@
           <div class="flex items-center justify-between gap-4 py-1.5 px-2 rounded-xl hover:bg-surface-container-high/30 transition-colors">
             <span class="text-sm text-on-surface-variant/80">Vos mots personnalisés ci-dessous</span>
             <ToggleSwitch checked={checkCustom} onToggle={() => { checkCustom = !checkCustom; saveGranularToggle('checkCustom', checkCustom); }} disabled={!enabled || saveToggleAction.state.loading} />
+          </div>
+          <div class="flex items-center justify-between gap-4 py-3 px-2 rounded-xl hover:bg-surface-container-high/30 transition-colors border-t border-outline-variant/10 mt-2">
+            <div class="flex flex-col gap-0.5">
+              <span class="text-sm font-semibold text-on-surface">Règle d'AutoMod native de Discord (Pseudos)</span>
+              <span class="text-xs text-on-surface-variant/60">Affiche la pop-up Discord native et bloque l'accès textuel/vocal aux membres enfreignant la règle.</span>
+            </div>
+            <ToggleSwitch checked={discordAutoModSync} onToggle={() => { discordAutoModSync = !discordAutoModSync; saveGranularToggle('discordAutoModSync', discordAutoModSync); }} disabled={!enabled || saveToggleAction.state.loading} />
           </div>
         </div>
         <p class="text-xs text-on-surface-variant/40 italic mt-1">

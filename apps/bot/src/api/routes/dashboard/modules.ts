@@ -959,6 +959,7 @@ export async function handleModulesRoutes(
             nickModCheckInvisible: true,
             nickModCheckGlobal: true,
             nickModCheckCustom: true,
+            nickModDiscordAutoModSync: true,
           },
         }).catch(async (dbErr) => {
           logger.warn('NicknameAPI', 'Failed to fetch bypass list, retrying without it:', dbErr);
@@ -983,6 +984,7 @@ export async function handleModulesRoutes(
           checkInvisible: (guild as any).nickModCheckInvisible ?? true,
           checkGlobal: (guild as any).nickModCheckGlobal ?? true,
           checkCustom: (guild as any).nickModCheckCustom ?? true,
+          discordAutoModSync: (guild as any).nickModDiscordAutoModSync ?? false,
         });
       } catch (err) {
         logger.error('NicknameAPI', 'GET nickname-moderation error:', err);
@@ -993,7 +995,7 @@ export async function handleModulesRoutes(
 
     if (method === 'PATCH') {
       try {
-        const body = await readJsonBody<{ enabled?: boolean; whitelist?: string[]; bypass?: string[]; onJoin?: boolean; onUpdate?: boolean; checkInvisible?: boolean; checkGlobal?: boolean; checkCustom?: boolean }>(req);
+        const body = await readJsonBody<{ enabled?: boolean; whitelist?: string[]; bypass?: string[]; onJoin?: boolean; onUpdate?: boolean; checkInvisible?: boolean; checkGlobal?: boolean; checkCustom?: boolean; discordAutoModSync?: boolean }>(req);
         
         const updateData: any = {};
         if (body && Object.prototype.hasOwnProperty.call(body, 'enabled')) {
@@ -1006,6 +1008,7 @@ export async function handleModulesRoutes(
           { key: 'checkInvisible', dbKey: 'nickModCheckInvisible' },
           { key: 'checkGlobal', dbKey: 'nickModCheckGlobal' },
           { key: 'checkCustom', dbKey: 'nickModCheckCustom' },
+          { key: 'discordAutoModSync', dbKey: 'nickModDiscordAutoModSync' },
         ] as const;
         for (const { key, dbKey } of toggleFields) {
           if (body && Object.prototype.hasOwnProperty.call(body, key)) {
@@ -1089,6 +1092,14 @@ export async function handleModulesRoutes(
         });
 
         invalidateNicknameModerationCache(guildId);
+
+        // Synchroniser la règle native d'AutoMod de Discord pour les pseudos
+        try {
+          const { syncDiscordAutoModProfileRule } = await import('../../../services/moderation/autoModService.js');
+          await syncDiscordAutoModProfileRule(client, guildId);
+        } catch (syncErr) {
+          logger.error('NicknameAPI', `Erreur lors de la synchronisation AutoMod Pseudos pour ${guildId}:`, syncErr);
+        }
 
         await pushAudit(guildId, {
           user: auditUser,
@@ -1922,6 +1933,19 @@ export async function handleModulesRoutes(
 
         invalidateBannedWordsCache(guildId);
 
+        const guildDb = await prisma.guild.findUnique({
+          where: { id: guildId },
+          select: { nickModDiscordAutoModSync: true }
+        });
+        if (guildDb?.nickModDiscordAutoModSync) {
+          try {
+            const { syncDiscordAutoModProfileRule } = await import('../../../services/moderation/autoModService.js');
+            await syncDiscordAutoModProfileRule(client, guildId);
+          } catch (syncErr) {
+            logger.error('BannedWordsAPI', `Erreur lors de la synchronisation AutoMod Pseudos pour ${guildId}:`, syncErr);
+          }
+        }
+
         await pushAudit(guildId, {
           user: auditUser,
           action: 'Ajout mot banni',
@@ -1978,6 +2002,20 @@ export async function handleModulesRoutes(
         await prisma.bannedWord.update({ where: { id: wordId }, data: { enabled: body.enabled } });
 
         invalidateBannedWordsCache(guildId);
+
+        const guildDb = await prisma.guild.findUnique({
+          where: { id: guildId },
+          select: { nickModDiscordAutoModSync: true }
+        });
+        if (guildDb?.nickModDiscordAutoModSync) {
+          try {
+            const { syncDiscordAutoModProfileRule } = await import('../../../services/moderation/autoModService.js');
+            await syncDiscordAutoModProfileRule(client, guildId);
+          } catch (syncErr) {
+            logger.error('BannedWordsAPI', `Erreur lors de la synchronisation AutoMod Pseudos pour ${guildId}:`, syncErr);
+          }
+        }
+
         broadcastDashboardStateChange(guildId, 'banned_words_updated');
         json(res, 200, { ok: true });
       } catch (err) {
@@ -1999,6 +2037,19 @@ export async function handleModulesRoutes(
         await prisma.bannedWord.delete({ where: { id: wordId } });
 
         invalidateBannedWordsCache(guildId);
+
+        const guildDb = await prisma.guild.findUnique({
+          where: { id: guildId },
+          select: { nickModDiscordAutoModSync: true }
+        });
+        if (guildDb?.nickModDiscordAutoModSync) {
+          try {
+            const { syncDiscordAutoModProfileRule } = await import('../../../services/moderation/autoModService.js');
+            await syncDiscordAutoModProfileRule(client, guildId);
+          } catch (syncErr) {
+            logger.error('BannedWordsAPI', `Erreur lors de la synchronisation AutoMod Pseudos pour ${guildId}:`, syncErr);
+          }
+        }
 
         await pushAudit(guildId, {
           user: auditUser,

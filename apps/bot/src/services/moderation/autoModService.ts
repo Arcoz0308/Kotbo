@@ -2,6 +2,7 @@ import { Message, PermissionFlagsBits, EmbedBuilder, Client, PartialMessage, Use
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { registerWarnSanction, registerTimeoutSanction } from './sanctionService.js';
+import { loadBannedWords, loadGlobalWords, loadCustomWords } from './bannedWordsService.js';
 
 // Cache for AutoMod configs: key is guildId, value is the config object
 const autoModConfigsCache = new Map<string, any>();
@@ -268,6 +269,132 @@ export async function syncDiscordAutoModRules(client: Client, guildId: string, c
     logger.error('AutoModService', 'Erreur globale lors de la synchronisation des règles AutoMod Discord Native :', err);
   }
 }
+
+/**
+ * Synchronise la règle native d'AutoMod de Discord pour les pseudos de profil de membre (MEMBER_PROFILE)
+ */
+export async function syncDiscordAutoModProfileRule(client: Client, guildId: string) {
+  try {
+    const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+    if (!guild) {
+      logger.warn('AutoModService', `Impossible de synchroniser la règle AutoMod Pseudos : Serveur ${guildId} introuvable ou inaccessible par le bot.`);
+      return;
+    }
+
+    const guildDb = await prisma.guild.findUnique({
+      where: { id: guildId },
+      select: {
+        nickModDiscordAutoModSync: true,
+        logChannelId: true,
+        nicknameModerationWhitelist: true,
+        nicknameModerationBypass: true,
+        nickModCheckGlobal: true,
+        nickModCheckCustom: true,
+      }
+    });
+
+    if (!guildDb) return;
+
+    const existingRules = await guild.autoModerationRules.fetch().catch((err) => {
+      logger.warn('AutoModService', `Impossible de récupérer les règles AutoMod pour ${guild.name} (${guildId}) :`, err);
+      return null;
+    });
+
+    if (!existingRules) return;
+
+    const ruleName = 'Kotbo AutoMod - Pseudos';
+    const existingRule = existingRules.find(r => r.name === ruleName);
+
+    const deleteRule = async () => {
+      if (existingRule) {
+        logger.info('AutoModService', `Suppression de la règle native Discord "${ruleName}" pour ${guild.name}`);
+        await existingRule.delete('Configuration modifiée dans le dashboard').catch(e => {
+          logger.error('AutoModService', `Erreur lors de la suppression de la règle "${ruleName}" :`, e);
+        });
+      }
+    };
+
+    if (!guildDb.nickModDiscordAutoModSync) {
+      await deleteRule();
+      return;
+    }
+
+    // Charger les mots bannis
+    const checkGlobal = guildDb.nickModCheckGlobal ?? true;
+    const checkCustom = guildDb.nickModCheckCustom ?? true;
+    let bannedWords: string[] = [];
+    if (checkGlobal && checkCustom) {
+      bannedWords = await loadBannedWords(guildId);
+    } else if (checkGlobal) {
+      bannedWords = await loadGlobalWords();
+    } else if (checkCustom) {
+      bannedWords = await loadCustomWords(guildId);
+    }
+
+    // Limites de Discord: mots clés <= 60 caractères, max 1000 mots
+    const keywords = bannedWords
+      .map(w => w.trim().toLowerCase())
+      .filter(w => w.length > 0 && w.length <= 60 && !w.includes('automod') && !w.includes('pseudo non conforme'))
+      .slice(0, 1000);
+
+    if (keywords.length === 0) {
+      // Discord nécessite au moins 1 mot-clé dans les filtres personnalisés
+      await deleteRule();
+      return;
+    }
+
+    const exemptRoles = (guildDb.nicknameModerationBypass || []).slice(0, 20);
+    // Limite Discord pour l'allowList : max 100
+    const allowList = (guildDb.nicknameModerationWhitelist || [])
+      .map(w => w.trim().toLowerCase())
+      .filter(Boolean)
+      .slice(0, 100);
+
+    const actions: unknown[] = [
+      {
+        type: 4 as AutoModerationActionType // BLOCK_MEMBER_INTERACTION
+      }
+    ];
+
+    if (guildDb.logChannelId) {
+      actions.push({
+        type: 2 as AutoModerationActionType, // SEND_ALERT_MESSAGE
+        metadata: {
+          channelId: guildDb.logChannelId
+        }
+      });
+    }
+
+    const ruleData = {
+      name: ruleName,
+      eventType: 2 as AutoModerationRuleEventType, // MEMBER_UPDATE
+      triggerType: 6 as AutoModerationRuleTriggerType, // MEMBER_PROFILE
+      triggerMetadata: {
+        keywordFilter: keywords,
+        allowList: allowList.length > 0 ? allowList : undefined
+      },
+      actions: actions as any[], // Need to cast as any[] to match discord.js rule creation types
+      enabled: true,
+      exemptRoles,
+      exemptChannels: []
+    };
+
+    if (existingRule) {
+      logger.info('AutoModService', `Mise à jour de la règle native Discord "${ruleName}" pour ${guild.name}`);
+      await existingRule.edit(ruleData).catch(err => {
+        logger.error('AutoModService', `Erreur lors de la modification de la règle "${ruleName}" :`, err);
+      });
+    } else {
+      logger.info('AutoModService', `Création de la règle native Discord "${ruleName}" pour ${guild.name}`);
+      await guild.autoModerationRules.create(ruleData).catch(err => {
+        logger.error('AutoModService', `Erreur lors de la création de la règle "${ruleName}" :`, err);
+      });
+    }
+  } catch (err) {
+    logger.error('AutoModService', 'Erreur globale lors de la synchronisation de la règle AutoMod Pseudos Discord Native :', err);
+  }
+}
+
 
 /**
  * Analyse un message et applique des sanctions si nécessaire

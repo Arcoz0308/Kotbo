@@ -63,6 +63,7 @@ model Guild {
   nickModCheckInvisible        Boolean   @default(true)
   nickModCheckGlobal           Boolean   @default(true)
   nickModCheckCustom           Boolean   @default(true)
+  nickModDiscordAutoModSync    Boolean   @default(false)
   bannedWords              BannedWord[]
 
   dailyAlgoEnabled         Boolean @default(false)
