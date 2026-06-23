@@ -35,7 +35,7 @@ function isParagraphField(key: string): boolean {
   const shortFieldIndicators = [
     'âge', 'age', 'ans',
     'micro', 'microphone',
-    'discord', 'pseudo', 'username', 'identifiant', 'nom d\'utilisateur',
+    'discord', 'pseudo', 'username', 'identifiant', "nom d\'utilisateur",
     'email', 'mail',
     'prénom', 'prenom', 'nom',
     'horodateur', 'timestamp',

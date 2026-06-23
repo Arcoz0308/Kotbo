@@ -89,7 +89,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     await interaction.reply({ embeds: [embed] });
   } catch (err: any) {
     await interaction.reply({
-      embeds: [errorEmbed('Erreur', err.message || 'Impossible d’ouvrir la boutique.')],
+      embeds: [errorEmbed('Erreur', err.message || "Impossible d'ouvrir la boutique.")],
       flags: [MessageFlags.Ephemeral]
     });
   }

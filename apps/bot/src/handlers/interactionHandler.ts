@@ -34,6 +34,7 @@ import { handleRecruitmentButton } from '../services/staff/recruitmentService.js
 import { handleTicketButton, handleTicketModalSubmit, handleTicketSelectMenu } from '../services/features/ticketService.js';
 import { checkInMeeting, createNotification } from '../services/staff/staffLeadershipService.js';
 import { handleDCInteraction } from '../services/moderation/dcDetectionService.js';
+import { handleVerifyButtonClick, handleVerificationStaffAction } from '../services/moderation/securityVerificationService.js';
 import { showModeratorNoteModal } from '../commands/moderation/note.js';
 import { sendReportToAdmin } from '../commands/moderation/signal.js';
 import {
@@ -125,7 +126,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
         const drop = await tx.rpgDrop.findUnique({
           where: { id: dropId }
         });
-        if (!drop) throw new Error('Ce drop n\'existe plus.');
+        if (!drop) throw new Error("Ce drop n\'existe plus.");
         if (drop.claimed) throw new Error('Ce drop a déjà été réclamé.');
 
         await tx.rpgDrop.update({
@@ -201,7 +202,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     await adminResetGuildEconomy(guildId!, component);
 
     const componentLabels: Record<string, string> = {
-      all: 'l\'Économie & RPG (Global)',
+      all: "l\'Économie & RPG (Global)",
       profiles: 'les Profils des joueurs',
       items: 'les Objets de la boutique',
       config: 'la Configuration',
@@ -228,7 +229,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     const giveawayId = customId.split(':')[1];
     const member = await resolveGuildMemberByUserId(interaction, user.id);
     if (!(await canModerate(member, guildId!))) {
-      await interaction.reply({ content: '❌ Vous n\'avez pas les permissions pour valider ce giveaway.', flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({ content: "❌ Vous n\'avez pas les permissions pour valider ce giveaway.", flags: [MessageFlags.Ephemeral] });
       return;
     }
 
@@ -243,7 +244,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     const giveawayId = customId.split(':')[1];
     const member = await resolveGuildMemberByUserId(interaction, user.id);
     if (!(await canModerate(member, guildId!))) {
-      await interaction.reply({ content: '❌ Vous n\'avez pas les permissions pour relancer ce giveaway.', flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({ content: "❌ Vous n\'avez pas les permissions pour relancer ce giveaway.", flags: [MessageFlags.Ephemeral] });
       return;
     }
 
@@ -310,7 +311,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
     const member = await resolveGuildMemberByUserId(interaction, user.id);
     if (!(await canModerate(member, guildId))) {
-      await interaction.reply({ content: '❌ Tu n’as pas les permissions nécessaires pour ouvrir un casier utilisateur.', flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({ content: "❌ Tu n'as pas les permissions nécessaires pour ouvrir un casier utilisateur.", flags: [MessageFlags.Ephemeral] });
       return;
     }
 
@@ -417,21 +418,38 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
         throw err;
       });
 
-      await interaction.editReply({ content: '✅ Merci d’avoir accepté le règlement ! Tu as maintenant accès au serveur.' });
+      await interaction.editReply({ content: "✅ Merci d'avoir accepté le règlement ! Tu as maintenant accès au serveur." });
     } catch (err) {
       logger.error('RegulationButton', `Erreur lors de l'acceptation du règlement :`, err);
-      await interaction.editReply({ content: '❌ Une erreur est survenue lors de l’attribution du rôle. Veuillez contacter un administrateur.' });
+      await interaction.editReply({ content: "❌ Une erreur est survenue lors de l'attribution du rôle. Veuillez contacter un administrateur." });
     }
     return;
   }
 
 
 
+  // ── Security Verification Buttons ────────────────────────────────────
+  if (customId.startsWith('secverif_start_')) {
+    const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://localhost:5173';
+    await handleVerifyButtonClick(interaction, DASHBOARD_URL);
+    return;
+  }
+
+  if (customId.startsWith('secverif_validate:') || customId.startsWith('secverif_reject:')) {
+    const member = await resolveGuildMemberByUserId(interaction, user.id);
+    if (!(await canModerate(member, guildId!))) {
+      await interaction.reply({ content: "❌ Tu n\'as pas les permissions nécessaires.", flags: [MessageFlags.Ephemeral] });
+      return;
+    }
+    await handleVerificationStaffAction(interaction);
+    return;
+  }
+
   // ── Double Account Buttons ───────────────────────────────────────────
   if (customId.startsWith('dc_')) {
     const member = await resolveGuildMemberByUserId(interaction, user.id);
     if (!(await canModerate(member, guildId!))) {
-      await interaction.reply({ content: '❌ Tu n’as pas les permissions nécessaires pour gérer les DCs.', flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({ content: "❌ Tu n'as pas les permissions nécessaires pour gérer les DCs.", flags: [MessageFlags.Ephemeral] });
       return;
     }
 
@@ -457,7 +475,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
     if (!staffMember) {
       await interaction.reply({
-        content: '❌ Vous ne faites pas partie de l\'équipe staff enregistrée sur ce serveur.',
+        content: "❌ Vous ne faites pas partie de l\'équipe staff enregistrée sur ce serveur.",
         flags: [MessageFlags.Ephemeral],
       });
       return;
@@ -467,7 +485,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     if (status === 'EXCUSED') {
       const modal = new ModalBuilder()
         .setCustomId(`meeting_excuse_modal:${meetingId}`)
-        .setTitle('Justification d\'absence');
+        .setTitle("Justification d\'absence");
 
       const reasonInput = new TextInputBuilder()
         .setCustomId('excuse_reason')
@@ -504,7 +522,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     } catch (error) {
       logger.error('Handler', `Error during meeting RSVP: ${error}`);
       await interaction.reply({
-        content: '❌ Une erreur est survenue lors de l\'enregistrement de votre réponse.',
+        content: "❌ Une erreur est survenue lors de l\'enregistrement de votre réponse.",
         flags: [MessageFlags.Ephemeral],
       });
     }
@@ -637,7 +655,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       }
 
       const embed = new EmbedBuilder()
-        .setTitle('📊 Statistiques de l\'événement')
+        .setTitle("📊 Statistiques de l\'événement")
         .setDescription(stats.questionText ? truncate(stats.questionText, 200) : 'Distribution des réponses')
         .setColor(COLORS.info)
         .setTimestamp();
@@ -724,7 +742,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
     const member = await resolveGuildMemberByUserId(interaction, user.id);
     if (!(await canModerate(member, guildId))) {
-      await interaction.reply({ content: '❌ Vous n\'avez pas le rôle modérateur requis pour cette action.', flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({ content: "❌ Vous n\'avez pas le rôle modérateur requis pour cette action.", flags: [MessageFlags.Ephemeral] });
       return;
     }
 
@@ -861,7 +879,7 @@ export async function handleSelectMenu(interaction: AnySelectMenuInteraction, cl
 
     const member = await resolveGuildMemberByUserId(interaction, interaction.user.id);
     if (!(await canModerate(member, guildId))) {
-      await interaction.reply({ content: '❌ Tu n’as pas les permissions nécessaires.', flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({ content: "❌ Tu n'as pas les permissions nécessaires.", flags: [MessageFlags.Ephemeral] });
       return;
     }
 
@@ -1019,7 +1037,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
       });
 
       if (!staff) {
-        await interaction.reply({ content: '❌ Vous ne faites pas partie de l\'équipe Staff.', flags: [MessageFlags.Ephemeral] });
+        await interaction.reply({ content: "❌ Vous ne faites pas partie de l\'équipe Staff.", flags: [MessageFlags.Ephemeral] });
         return;
       }
 
@@ -1110,7 +1128,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
     } catch (err) {
       logger.error('Handler', 'Error during resignation modal submit:', err);
       await interaction.reply({
-        content: '❌ Une erreur est survenue lors de l\'enregistrement de votre demande.',
+        content: "❌ Une erreur est survenue lors de l\'enregistrement de votre demande.",
         flags: [MessageFlags.Ephemeral]
       });
     }
@@ -1154,7 +1172,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
     } catch (error) {
       logger.error('Handler', `Error during meeting excuse modal submit: ${error}`);
       await interaction.reply({
-        content: '❌ Une erreur est survenue lors de l\'enregistrement de votre excuse.',
+        content: "❌ Une erreur est survenue lors de l\'enregistrement de votre excuse.",
         flags: [MessageFlags.Ephemeral]
       });
     }
@@ -1174,7 +1192,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
 
     const member = await resolveGuildMemberByUserId(interaction, interaction.user.id);
     if (!(await canModerate(member, interaction.guildId!))) {
-      await interaction.editReply('❌ Vous n\'avez pas les permissions.');
+      await interaction.editReply("❌ Vous n\'avez pas les permissions.");
       return;
     }
 
@@ -1289,7 +1307,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
       const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
           .setCustomId(`daily-algo-feedback:${submissionId}`)
-          .setLabel('🗒️ Ajouter l’explication')
+          .setLabel("🗒️ Ajouter l'explication")
           .setStyle(ButtonStyle.Primary),
       );
 
@@ -1427,7 +1445,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
       });
     } else {
       await interaction.editReply({
-        embeds: [errorEmbed('Échec de l\'envoi', 'Impossible de transmettre le signalement à l\'administrateur du bot.')],
+        embeds: [errorEmbed("Échec de l\'envoi", "Impossible de transmettre le signalement à l\'administrateur du bot.")],
       });
     }
     return;

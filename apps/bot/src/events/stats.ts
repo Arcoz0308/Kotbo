@@ -1,18 +1,17 @@
-import { Client, Events, ChannelType, VoiceChannel } from 'discord.js';
+import { Client, Events, ChannelType, VoiceChannel, CategoryChannel } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
+import { resolvePlaceholders, type PlaceholderContext } from '../utils/placeholders.js';
+import { fetchAllMembers } from '../utils/discord.js';
 
-// Debounce timers map to avoid spamming rename requests on member join/leave
 const updateTimeouts = new Map<string, NodeJS.Timeout>();
 
 export function registerStatsChannelListener(client: Client): void {
-  // Update stats on client ready, then every 10 minutes
   client.on(Events.ClientReady, () => {
     updateAllGuildsStats(client);
     setInterval(() => updateAllGuildsStats(client), 10 * 60 * 1000);
   });
 
-  // Also update stats when a member joins or leaves (debounced)
   client.on(Events.GuildMemberAdd, (member) => {
     triggerDebouncedUpdate(client, member.guild.id);
   });
@@ -30,10 +29,10 @@ function triggerDebouncedUpdate(client: Client, guildId: string) {
 
   const timeout = setTimeout(() => {
     updateTimeouts.delete(guildId);
-    updateGuildStats(client, guildId).catch((err) => 
+    updateGuildStats(client, guildId).catch((err) =>
       logger.error('StatsChannels', `Erreur lors de la mise à jour des stats pour la guilde ${guildId} :`, err)
     );
-  }, 15000); // Wait 15 seconds after last change
+  }, 15000);
 
   updateTimeouts.set(guildId, timeout);
 }
@@ -71,21 +70,21 @@ export async function updateGuildStats(client: Client, guildId: string): Promise
 
   const config = guildConfig.statsConfig as any;
 
-  // 1. Gather counts
+  // 1. Gather all counts upfront
   let membersCount = guild.memberCount;
   let botsCount = 0;
   let roleCount = 0;
-  
+
   let needsFetch = config.botChannelId || (config.roleChannelId && config.roleTargetId);
   if (!needsFetch && Array.isArray(config.customStats)) {
     needsFetch = config.customStats.some((c: any) => c.enabled && (c.type === 'role' || c.type === 'online' || c.type === 'bots'));
   }
 
-  // Fetch members to count bots and roles accurately if configured
+  let allMembers = guild.members.cache;
   if (needsFetch) {
-    const allMembers = await guild.members.fetch().catch(() => guild.members.cache);
+    allMembers = await fetchAllMembers(guild).catch(() => guild.members.cache);
     botsCount = allMembers.filter(m => m.user.bot).size;
-    
+
     if (config.roleChannelId && config.roleTargetId) {
       roleCount = allMembers.filter(m => m.roles.cache.has(config.roleTargetId)).size;
     }
@@ -93,6 +92,9 @@ export async function updateGuildStats(client: Client, guildId: string): Promise
 
   const channelsCount = guild.channels.cache.size;
   const categoriesCount = guild.channels.cache.filter(c => c.type === ChannelType.GuildCategory).size;
+  const onlineCount = allMembers.filter(m => m.presence && m.presence.status !== 'offline').size;
+  const voiceCount = guild.members.cache.filter(m => m.voice && m.voice.channelId).size;
+  const boostCount = guild.premiumSubscriptionCount || 0;
 
   let activityCount = 0;
   if (config.activityChannelId || (Array.isArray(config.customStats) && config.customStats.some((c: any) => c.enabled && c.type === 'activity'))) {
@@ -106,20 +108,39 @@ export async function updateGuildStats(client: Client, guildId: string): Promise
     }).catch(() => 0);
   }
 
-  // 2. Helper to rename a channel if it exists and value changed
+  // Build the universal placeholder context
+  const baseCtx: PlaceholderContext = {
+    guild,
+    memberCount: membersCount,
+    botCount: botsCount,
+    onlineCount,
+    voiceCount,
+    channelCount: channelsCount,
+    categoryCount: categoriesCount,
+    boostCount,
+    activityCount,
+    roleCount,
+  };
+
+  // 2. Helper to rename a channel (voice or category) if value changed
   const renameChannelIfNeeded = async (channelId: string, template: string, count: number, customGoal?: number) => {
     if (!channelId) return;
     const channel = guild.channels.cache.get(channelId) || await guild.channels.fetch(channelId).catch(() => null);
-    if (channel && channel instanceof VoiceChannel) {
-      let expectedName = template.replace('{count}', count.toString());
-      if (customGoal !== undefined) {
-        expectedName = expectedName.replace('{goal}', customGoal.toString());
-      }
-      if (channel.name !== expectedName) {
-        await channel.setName(expectedName).catch((err) => 
-          logger.warn('StatsChannels', `Impossible de renommer le salon ${channelId} vers "${expectedName}" (limitation Discord ?) :`, err)
-        );
-      }
+    if (!channel) return;
+
+    const isRenameable = channel instanceof VoiceChannel || channel instanceof CategoryChannel;
+    if (!isRenameable) return;
+
+    const expectedName = resolvePlaceholders(template, {
+      ...baseCtx,
+      count,
+      goal: customGoal,
+    });
+
+    if (channel.name !== expectedName) {
+      await channel.setName(expectedName).catch((err) =>
+        logger.warn('StatsChannels', `Impossible de renommer le salon ${channelId} vers "${expectedName}" (limitation Discord ?) :`, err)
+      );
     }
   };
 
@@ -143,24 +164,25 @@ export async function updateGuildStats(client: Client, guildId: string): Promise
     await renameChannelIfNeeded(config.activityChannelId, config.activityTemplate || '📈 Actifs 24h : {count}', activityCount);
   }
 
-  // 4. Update custom stats channels
+  // 4. Update custom stats channels (voice or category)
   if (Array.isArray(config.customStats)) {
     for (const custom of config.customStats) {
       if (!custom.enabled || !custom.channelId) continue;
-      
+
       let count = 0;
       if (custom.type === 'members') {
         count = membersCount;
       } else if (custom.type === 'bots') {
         count = botsCount;
       } else if (custom.type === 'online') {
-        const allMembers = await guild.members.fetch().catch(() => guild.members.cache);
-        count = allMembers.filter(m => m.presence && m.presence.status !== 'offline').size;
+        count = onlineCount;
       } else if (custom.type === 'voice') {
-        count = guild.members.cache.filter(m => m.voice && m.voice.channelId).size;
+        count = voiceCount;
       } else if (custom.type === 'role') {
         if (custom.roleTargetId) {
-          const allMembers = await guild.members.fetch().catch(() => guild.members.cache);
+          if (!needsFetch) {
+            allMembers = await fetchAllMembers(guild).catch(() => guild.members.cache);
+          }
           count = allMembers.filter(m => m.roles.cache.has(custom.roleTargetId)).size;
         }
       } else if (custom.type === 'channels') {
@@ -170,7 +192,7 @@ export async function updateGuildStats(client: Client, guildId: string): Promise
       } else if (custom.type === 'activity') {
         count = activityCount;
       } else if (custom.type === 'boosts') {
-        count = guild.premiumSubscriptionCount || 0;
+        count = boostCount;
       } else if (custom.type === 'goal') {
         count = membersCount;
       }

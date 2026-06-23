@@ -8,6 +8,7 @@
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
+  import LoadingHint from '../lib/components/LoadingHint.svelte';
   import { fetchAutoModConfig, updateAutoModConfig } from '../lib/api';
 
   const actionState = createAsyncActionState();
@@ -17,6 +18,8 @@
     !!dashboardStore.state.featureAccess?.automod?.canConfigure
       || !!dashboardStore.state.access?.canManageSettings
   );
+
+  let isOwner = $state(false);
 
   const availableChannels = $derived(dashboardStore.state.discordChannels || []);
   const availableRoles = $derived(dashboardStore.state.discordRoles || []);
@@ -47,7 +50,11 @@
     
     antiEveryoneEnabled: false,
     antiEveryoneAction: 'DELETE_AND_WARN',
-    
+
+    antiBotEnabled: false,
+    antiBotAction: 'KICK',
+    antiBotBypassUsers: [] as string[],
+
     bypassRoles: [] as string[],
     bypassChannels: [] as string[]
   });
@@ -62,6 +69,7 @@
     mentionsEnabled: false, mentionsLimit: 5,
     ghostPingEnabled: false, ghostPingAction: 'ALERT',
     antiEveryoneEnabled: false, antiEveryoneAction: 'DELETE_AND_WARN',
+    antiBotEnabled: false, antiBotAction: 'KICK', antiBotBypassUsers: [],
     bypassRoles: [], bypassChannels: []
   })));
 
@@ -93,6 +101,7 @@
   let whitelistInput = $state('');
   let selectedBypassRole = $state('');
   let selectedBypassChannel = $state('');
+  let antiBotBypassInput = $state('');
 
   onMount(async () => {
     loading = true;
@@ -103,6 +112,7 @@
         config = res.config;
         savedConfig = JSON.parse(JSON.stringify(res.config));
         whitelistInput = config.linksWhitelist.join('\n');
+        if (res.isOwner) isOwner = true;
       }
     } catch (err) {
       console.error(err);
@@ -165,6 +175,19 @@
     const chan = availableChannels.find(c => c.id === channelId);
     return chan ? `#${chan.name}` : channelId;
   }
+
+  function addAntiBotBypassUser() {
+    const userId = antiBotBypassInput.trim();
+    if (!userId || !/^\d{17,20}$/.test(userId)) return;
+    if (!config.antiBotBypassUsers.includes(userId)) {
+      config.antiBotBypassUsers = [...config.antiBotBypassUsers, userId];
+    }
+    antiBotBypassInput = '';
+  }
+
+  function removeAntiBotBypassUser(userId: string) {
+    config.antiBotBypassUsers = config.antiBotBypassUsers.filter(id => id !== userId);
+  }
 </script>
 
 <div class="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -186,6 +209,9 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <Skeleton height="400px" radius="2.5rem" />
       <Skeleton height="400px" radius="2.5rem" />
+    </div>
+    <div class="flex justify-center mt-4">
+      <LoadingHint context="config" />
     </div>
   {:else}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -468,6 +494,95 @@
                   <option value="DELETE_AND_WARN">Supprimer & Avertir le membre</option>
                   <option value="TIMEOUT">Exclusion temporaire (Mute 10 min)</option>
                 </select>
+              </div>
+            </div>
+          {/if}
+        </section>
+
+        <!-- Anti-Bot (Mode Sécurisé) -->
+        <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6">
+          <div class="flex items-center justify-between border-b border-outline-variant/15 pb-4">
+            <h3 class="text-lg font-semibold flex items-center gap-3">
+              <Papicon icon="ShieldCheck" size={20} class="text-cyan-400" />
+              Mode Sécurisé (Anti-Bot)
+            </h3>
+            <ToggleSwitch
+              checked={config.antiBotEnabled}
+              onToggle={(v: boolean) => config.antiBotEnabled = v}
+              disabled={!isOwner}
+            />
+          </div>
+
+          {#if !isOwner}
+            <div class="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+              <p class="text-xs text-red-400/90 font-medium">
+                Seul le propriétaire du serveur peut activer, désactiver ou configurer le mode sécurisé anti-bot.
+              </p>
+            </div>
+          {/if}
+
+          <p class="text-xs text-on-surface-variant/70 leading-relaxed">
+            Empêche tout membre autre que le propriétaire du serveur d'ajouter des bots.
+            Les bots ajoutés par un non-propriétaire seront automatiquement expulsés ou bannis.
+          </p>
+
+          {#if config.antiBotEnabled}
+            <div class="space-y-5 animate-in fade-in duration-300">
+              <div class="space-y-1.5">
+                <label for="antiBotAction" class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Action sur le bot non autorisé</label>
+                <select
+                  id="antiBotAction"
+                  bind:value={config.antiBotAction}
+                  class="w-full bg-surface-container-high/45 border border-outline-variant/10 rounded-lg px-4 py-3 text-sm text-on-surface focus:outline-none"
+                  disabled={!isOwner}
+                >
+                  <option value="KICK">Expulser le bot</option>
+                  <option value="BAN">Bannir le bot</option>
+                </select>
+              </div>
+
+              <!-- Bypass users -->
+              <div class="space-y-3 pt-2 border-t border-outline-variant/10">
+                <span class="text-[10px] font-bold text-on-surface-variant/60 ml-2 uppercase tracking-widest">Utilisateurs autorisés à ajouter des bots</span>
+                <p class="text-xs text-on-surface-variant/50 ml-2">Ces utilisateurs peuvent ajouter des bots mais ne peuvent pas modifier cette configuration.</p>
+                {#if isOwner}
+                  <div class="flex gap-2">
+                    <input
+                      type="text"
+                      bind:value={antiBotBypassInput}
+                      placeholder="ID Discord de l'utilisateur"
+                      class="flex-1 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary/20 transition-all"
+                      onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); addAntiBotBypassUser(); } }}
+                    />
+                    <button
+                      type="button"
+                      onclick={addAntiBotBypassUser}
+                      disabled={!antiBotBypassInput.trim() || !/^\d{17,20}$/.test(antiBotBypassInput.trim())}
+                      class="px-4 py-2.5 bg-outline-variant/20 hover:bg-outline-variant/35 text-xs font-bold rounded-xl transition-all disabled:opacity-50"
+                    >
+                      Ajouter
+                    </button>
+                  </div>
+                {/if}
+
+                <div class="flex flex-wrap gap-2">
+                  {#each config.antiBotBypassUsers as userId}
+                    <div class="flex items-center gap-1.5 px-3 py-1 bg-surface-container-high/40 border border-outline-variant/10 rounded-xl text-xs font-bold font-mono">
+                      <span>{userId}</span>
+                      {#if isOwner}
+                        <button type="button" onclick={() => removeAntiBotBypassUser(userId)} class="text-error hover:text-error/80 transition-colors ml-1 text-sm font-bold leading-none">&times;</button>
+                      {/if}
+                    </div>
+                  {:else}
+                    <span class="text-xs text-on-surface-variant/40 italic ml-2">Aucun utilisateur autorisé (seul le propriétaire peut ajouter des bots).</span>
+                  {/each}
+                </div>
+              </div>
+
+              <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                <p class="text-xs text-amber-400/90 font-medium">
+                  Le bot Kotbo ne sera jamais affecté par cette protection. La personne ayant ajouté le bot recevra un message privé pour l'informer du blocage.
+                </p>
               </div>
             </div>
           {/if}

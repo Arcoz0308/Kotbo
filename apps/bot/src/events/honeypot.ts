@@ -6,6 +6,7 @@ import {
   registerWarnSanction,
   registerKickSanction,
   registerBanSanction,
+  registerSoftbanSanction,
   registerTimeoutSanction,
 } from '../services/moderation/sanctionService.js';
 
@@ -17,7 +18,7 @@ export function registerHoneypotListener(client: Client): void {
     try {
       const guildConfig = await getCachedGuild(guild.id);
 
-      if (!guildConfig || !guildConfig.honeypotEnabled || guildConfig.honeypotChannelId !== channelId) {
+      if (!guildConfig || !guildConfig.honeypotEnabled || !guildConfig.honeypotChannelIds.includes(channelId)) {
         return;
       }
 
@@ -106,6 +107,23 @@ export function registerHoneypotListener(client: Client): void {
         actionText = 'exclu (kick)';
         logTitle = '🚨 Détection Honeypot : Compte exclu';
         logger.warn('Honeypot', `Utilisateur exclu car il a écrit dans le salon honeypot : ${author.tag} (${author.id})`);
+      } else if (sanctionType === 'SOFTBAN') {
+        await member.ban({
+          deleteMessageSeconds: 60 * 60 * 24 * 7,
+          reason,
+        });
+        await guild.members.unban(author.id, 'Kotbo Honeypot: Softban (unban after message purge)').catch(() => null);
+        await registerSoftbanSanction({
+          guildId: guild.id,
+          target,
+          moderator,
+          reason,
+          client,
+        }).catch(() => null);
+
+        actionText = 'softban (ban + déban immédiat)';
+        logTitle = '🚨 Détection Honeypot : Softban appliqué';
+        logger.warn('Honeypot', `Utilisateur softban car il a écrit dans le salon honeypot : ${author.tag} (${author.id})`);
       } else if (sanctionType === 'WARN') {
         await registerWarnSanction({
           guildId: guild.id,

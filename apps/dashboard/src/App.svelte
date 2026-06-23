@@ -5,6 +5,7 @@
   import MainLayout from "./lib/components/MainLayout.svelte";
   import { authStore } from "./lib/stores/auth.svelte";
   import { dashboardStore } from "./lib/stores/dashboard.svelte";
+  import { brandingStore } from "./lib/stores/branding.svelte";
   import { themeStore } from "./lib/stores/theme.svelte";
   import { toast } from "./lib/stores/toast.svelte";
   import ToastContainer from "./lib/components/ToastContainer.svelte";
@@ -42,6 +43,7 @@
   import AdminConfig from "./pages/admin/Config.svelte";
   import AdminActivation from "./pages/admin/Activation.svelte";
   import AdminModules from "./pages/admin/Modules.svelte";
+  import AdminWhiteLabel from "./pages/admin/WhiteLabel.svelte";
   import Profile from "./pages/Profile.svelte";
   import PublicProfile from "./pages/PublicProfile.svelte";
   import StaffManagement from "./pages/StaffManagement.svelte";
@@ -85,13 +87,16 @@
   import Schedules from "./pages/Schedules.svelte";
   import MCPSettings from "./pages/MCPSettings.svelte";
   import FunSettings from "./pages/FunSettings.svelte";
+  import CustomBot from "./pages/CustomBot.svelte";
+  import Verify from "./pages/Verify.svelte";
 
   const isPublicPage = $derived(
     /^\/\d{17,19}\/news\/?$/.test($router.path) ||
       /^\/\d{17,19}\/leveling\/classement\/?$/.test($router.path) ||
       ($router.path.startsWith("/profile/") && !authStore.isAuthenticated) ||
       $router.path.startsWith("/transcripts/") ||
-      $router.path.startsWith("/form/"),
+      $router.path.startsWith("/form/") ||
+      $router.path.startsWith("/verify/"),
   );
 
   const featureAccess = $derived(dashboardStore.state.featureAccess || {});
@@ -176,6 +181,8 @@
   );
 
   onMount(() => {
+    brandingStore.load();
+
     const urlParams = new URLSearchParams(window.location.search);
     let token = urlParams.get("token");
 
@@ -419,6 +426,9 @@
       <Route path="/form/:formId" let:meta>
         <PublicForm formId={meta.params.formId} />
       </Route>
+      <Route path="/verify/:guildId/:token" let:meta>
+        <Verify guildId={meta.params.guildId} token={meta.params.token} />
+      </Route>
 
       <Route path="/analytics">
         <Analytics />
@@ -451,6 +461,9 @@
         <Route path="/admin/modules">
           <AdminModules />
         </Route>
+        <Route path="/admin/whitelabel">
+          <AdminWhiteLabel />
+        </Route>
       {/if}
       <Route path="/logs">
         <Logs />
@@ -459,7 +472,7 @@
         <Sanctions />
       </Route>
       <Route path="/detections">
-        <Detections />
+        <div use:navigate={"/double-accounts?tab=detections"}></div>
       </Route>
       <Route path="/regulation">
         <Regulation />
@@ -543,6 +556,9 @@
       <Route path="/mcp-settings">
         <MCPSettings />
       </Route>
+      <Route path="/custom-bot">
+        <CustomBot />
+      </Route>
 
       <Route path="/events">
         <Events />
@@ -613,6 +629,9 @@
               <Route path="/admin/modules">
                 <AdminModules />
               </Route>
+              <Route path="/admin/whitelabel">
+                <AdminWhiteLabel />
+              </Route>
             {/if}
             <Route path="/logs">
               <Logs />
@@ -621,7 +640,7 @@
               <Sanctions />
             </Route>
             <Route path="/detections">
-              <Detections />
+              <div use:navigate={"/double-accounts?tab=detections"}></div>
             </Route>
             <Route path="/regulation">
               <Regulation />
@@ -663,6 +682,9 @@
               </Route>
               <Route path="/mcp-settings">
                 <MCPSettings />
+              </Route>
+              <Route path="/custom-bot">
+                <CustomBot />
               </Route>
               <Route path="/automations">
                 <ModuleCatalog />

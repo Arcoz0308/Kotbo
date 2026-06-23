@@ -10,6 +10,7 @@ import { createReactionRoleMenu } from '../../../services/features/reactionRoleS
 import { invalidateAutoResponseCache } from '../../../services/features/autoResponseService.js';
 import { resolveSuggestion } from '../../../services/features/suggestionService.js';
 import { json, readJsonBody, getGuildName, pushAudit, type AuthClaims, type DashboardAccess } from '../../shared.js';
+import { fetchAllMembers } from '../../../utils/discord.js';
 
 export async function handleGeneralistModulesRoutes(
   req: IncomingMessage,
@@ -241,7 +242,7 @@ export async function handleGeneralistModulesRoutes(
         });
 
         const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
-        const discordMembers = discordGuild ? await discordGuild.members.fetch().catch(() => new Map()) : new Map();
+        const discordMembers = discordGuild ? await fetchAllMembers(discordGuild).catch(() => new Map()) : new Map();
 
         const identityMap = new Map<string, string>();
 
@@ -363,7 +364,7 @@ export async function handleGeneralistModulesRoutes(
         });
       } catch (err) {
         logger.error('LevelingAPI', 'Error during leveling import:', err);
-        json(res, 500, { error: 'Erreur lors de l\'importation des données' });
+        json(res, 500, { error: "Erreur lors de l\'importation des données" });
       }
       return true;
     }
@@ -777,7 +778,9 @@ export async function handleGeneralistModulesRoutes(
     if (parts.length === 5 && method === 'GET') {
       try {
         const config = await getOrCreateAutoModConfig(guildId);
-        json(res, 200, { config });
+        const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+        const isOwner = guild ? guild.ownerId === user.userId : false;
+        json(res, 200, { config, isOwner });
       } catch (err) {
         logger.error('AutoModAPI', 'Error fetching config:', err);
         json(res, 500, { error: 'Erreur de récupération config AutoMod' });
@@ -808,6 +811,9 @@ export async function handleGeneralistModulesRoutes(
           ghostPingAction?: string;
           antiEveryoneEnabled?: boolean;
           antiEveryoneAction?: string;
+          antiBotEnabled?: boolean;
+          antiBotAction?: string;
+          antiBotBypassUsers?: string[];
           bypassRoles?: string[];
           bypassChannels?: string[];
         }>(req);
@@ -815,6 +821,16 @@ export async function handleGeneralistModulesRoutes(
         if (!body) {
           json(res, 400, { error: 'Corps de requête manquant' });
           return true;
+        }
+
+        // Seul le propriétaire du serveur peut modifier les paramètres anti-bot
+        const antiBotFieldsTouched = body.antiBotEnabled !== undefined || body.antiBotAction !== undefined || body.antiBotBypassUsers !== undefined;
+        if (antiBotFieldsTouched) {
+          const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+          if (!guild || guild.ownerId !== user.userId) {
+            json(res, 403, { error: 'Seul le propriétaire du serveur peut modifier les paramètres du mode sécurisé (Anti-Bot).' });
+            return true;
+          }
         }
 
         const config = await prisma.autoModConfig.update({
@@ -839,6 +855,9 @@ export async function handleGeneralistModulesRoutes(
             ghostPingAction: body.ghostPingAction,
             antiEveryoneEnabled: body.antiEveryoneEnabled,
             antiEveryoneAction: body.antiEveryoneAction,
+            antiBotEnabled: body.antiBotEnabled,
+            antiBotAction: body.antiBotAction,
+            antiBotBypassUsers: body.antiBotBypassUsers,
             bypassRoles: body.bypassRoles,
             bypassChannels: body.bypassChannels,
           },
@@ -1020,7 +1039,7 @@ export async function handleGeneralistModulesRoutes(
         }>(req);
 
         if (!body || !body.channelId || (!body.embed && !body.content)) {
-          json(res, 400, { error: 'Salon et données d\'envoi requis (content ou embed)' });
+          json(res, 400, { error: "Salon et données d\'envoi requis (content ou embed)" });
           return true;
         }
 
@@ -1080,7 +1099,7 @@ export async function handleGeneralistModulesRoutes(
         }
 
         if (!body.content && !hasEmbedData) {
-          json(res, 400, { error: 'Vous devez fournir du texte de message ou au moins un champ d\'embed.' });
+          json(res, 400, { error: "Vous devez fournir du texte de message ou au moins un champ d\'embed." });
           return true;
         }
 
@@ -1104,7 +1123,7 @@ export async function handleGeneralistModulesRoutes(
         }
 
         if (!messageSent) {
-          json(res, 500, { error: 'Le bot n\'a pas pu envoyer ou modifier le message (vérifiez ses permissions).' });
+          json(res, 500, { error: "Le bot n\'a pas pu envoyer ou modifier le message (vérifiez ses permissions)." });
           return true;
         }
 
@@ -1121,7 +1140,7 @@ export async function handleGeneralistModulesRoutes(
         json(res, 200, { ok: true, messageId: messageSent.id });
       } catch (err) {
         logger.error('EmbedBuilderAPI', 'Error building/sending embed:', err);
-        json(res, 500, { error: 'Erreur lors du traitement de l\'embed' });
+        json(res, 500, { error: "Erreur lors du traitement de l\'embed" });
       }
       return true;
     }

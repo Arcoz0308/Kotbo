@@ -6,6 +6,7 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
+  import LoadingHint from '../lib/components/LoadingHint.svelte';
   import {
     fetchFeatureConfigurations,
     updateFeatureConfiguration,
@@ -251,6 +252,9 @@
           <Skeleton width="100%" height="80px" radius="16px" />
         </div>
       {/each}
+    </div>
+    <div class="flex justify-center mt-4">
+      <LoadingHint context="config" />
     </div>
   {:else if !canManageSettings}
     <div class="p-12 rounded-xl bg-error/5 border border-error/10 text-center space-y-4">

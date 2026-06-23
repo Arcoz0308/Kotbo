@@ -2783,7 +2783,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                 </label>
                 <label class="flex-1 cursor-pointer">
                   <input type="radio" name="actionMode" value="auto" checked={actionMode === 'auto'} onchange={() => { actionMode = 'auto'; saveStaffConfig(); }} class="peer sr-only" />
-                  <div class="rounded-xl px-3 py-2 text-center text-xs font-bold transition-all peer-checked:bg-rose-500/10 peer-checked:text-rose-600 peer-checked:shadow-sm">
+                  <div class="rounded-xl px-3 py-2 text-center text-xs font-bold transition-all bg-rose-500/10 peer-checked:text-rose-600 peer-checked:shadow-sm">
                     <Papicon icon="zap" size={14} class="mb-1 mx-auto" />
                     Automatique
                   </div>
@@ -2826,7 +2826,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                     <span class="block text-xs text-on-surface-variant">Supprime l'intégralité des rôles staff</span>
                   </div>
                 </div>
-                <ToggleSwitch checked={demoteRemoveAllRoles} onToggle={(v: boolean) => { demoteRemoveAllRoles = v; saveStaffConfig(); }} size="sm" activeClass="peer-checked:bg-amber-500" />
+                <ToggleSwitch checked={demoteRemoveAllRoles} onToggle={(v: boolean) => { demoteRemoveAllRoles = v; saveStaffConfig(); }} size="sm" activeClass="bg-amber-500" />
               </label>
 
               <label class="flex cursor-pointer items-center justify-between rounded-lg border border-outline-variant/15 bg-surface px-4 py-3 hover:bg-surface-container-high transition-colors">
@@ -2837,7 +2837,7 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
                     <span class="block text-xs text-on-surface-variant">L'utilisateur est banni du staff par défaut</span>
                   </div>
                 </div>
-                <ToggleSwitch checked={blacklistPermanentByDefault} onToggle={(v: boolean) => { blacklistPermanentByDefault = v; saveStaffConfig(); }} size="sm" activeClass="peer-checked:bg-rose-500" />
+                <ToggleSwitch checked={blacklistPermanentByDefault} onToggle={(v: boolean) => { blacklistPermanentByDefault = v; saveStaffConfig(); }} size="sm" activeClass="bg-rose-500" />
               </label>
             </div>
           </div>

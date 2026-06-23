@@ -1,17 +1,24 @@
 import type { SlashCommandDefinition } from '../../commands.js';
-import { EmbedBuilder, MessageFlags, SlashCommandBuilder, AttachmentBuilder, type ChatInputCommandInteraction } from 'discord.js';
+import {
+  ContainerBuilder,
+  MediaGalleryBuilder,
+  MediaGalleryItemBuilder,
+  TextDisplayBuilder,
+  MessageFlags,
+  SlashCommandBuilder,
+  AttachmentBuilder,
+  type ChatInputCommandInteraction,
+} from 'discord.js';
 import prisma from '../../utils/db.js';
 import { generateMemberStatsImage } from '../../services/core/imageService.js';
-import { COLORS } from '../../utils/embeds.js';
+import { COLORS_RAW, text } from '../../utils/embeds.js';
+import { E } from '../../utils/emojis.js';
 
 const data = new SlashCommandBuilder()
   .setName('stats')
   .setDescription("📊 Affiche les statistiques d'activité d'un membre")
   .addUserOption((option) =>
-    option
-      .setName('membre')
-      .setDescription('Membre à afficher (par défaut: toi)')
-      .setRequired(false),
+    option.setName('membre').setDescription('Membre à afficher (par défaut: toi)').setRequired(false),
   )
   .addIntegerOption((option) =>
     option
@@ -21,16 +28,15 @@ const data = new SlashCommandBuilder()
       .addChoices(
         { name: '7 jours', value: 7 },
         { name: '30 jours', value: 30 },
-        { name: '90 jours', value: 90 }
+        { name: '90 jours', value: 90 },
       ),
   );
 
 async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId;
-
   if (!guildId) {
     await interaction.reply({
-      content: '❌ Cette commande doit être utilisée dans un serveur.',
+      content: `${E.error} Cette commande doit être utilisée dans un serveur.`,
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -47,11 +53,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
   const startDateKey = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`;
 
   const dailyStats = await prisma.memberDailyStat.findMany({
-    where: {
-      guildId,
-      userId: targetUser.id,
-      dateKey: { gte: startDateKey },
-    },
+    where: { guildId, userId: targetUser.id, dateKey: { gte: startDateKey } },
     orderBy: { dateKey: 'asc' },
   });
 
@@ -60,26 +62,28 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
   const activeDays = dailyStats.length;
   const peakDayMessages = Math.max(0, ...dailyStats.map(d => d.messagesCount));
 
-  const statsObj = { totalMessages, totalVoice, activeDays, peakDayMessages };
-  const dailyData = dailyStats.map(d => ({ date: d.dateKey, messages: d.messagesCount, voice: d.voiceMinutes }));
-
   const imageBuffer = await generateMemberStatsImage(
     targetUser.username,
     periodDays,
-    statsObj,
-    dailyData
+    { totalMessages, totalVoice, activeDays, peakDayMessages },
+    dailyStats.map(d => ({ date: d.dateKey, messages: d.messagesCount, voice: d.voiceMinutes })),
   );
 
   const attachment = new AttachmentBuilder(imageBuffer, { name: 'stats.png' });
 
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.info)
-    .setImage('attachment://stats.png')
-    .setFooter({ text: `Kotbo Analytics • Requis par ${interaction.user.username}` });
+  const container = new ContainerBuilder()
+    .setAccentColor(COLORS_RAW.primary)
+    .addMediaGalleryComponents(
+      new MediaGalleryBuilder().addItems(
+        new MediaGalleryItemBuilder({ media: { url: 'attachment://stats.png' } }),
+      ),
+    )
+    .addTextDisplayComponents(text(`-# Kotbo Analytics · Requis par ${interaction.user.username}`));
 
   await interaction.editReply({
-    embeds: [embed],
+    components: [container],
     files: [attachment],
+    flags: MessageFlags.IsComponentsV2,
   });
 }
 

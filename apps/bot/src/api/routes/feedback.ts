@@ -91,9 +91,9 @@ export async function handleReportFeedbackRoute(
       }
 
       const typeLabels: Record<string, string> = {
-        retour: '📬 Retour d\'expérience',
+        retour: "📬 Retour d\'expérience",
         bloquage: '🛑 Bloquage / Bug',
-        suggestion: '💡 Suggestion d\'amélioration',
+        suggestion: "💡 Suggestion d\'amélioration",
         autre: '💬 Autre retour'
       };
 
@@ -132,7 +132,7 @@ export async function handleReportFeedbackRoute(
       }
 
       if (sentCount === 0) {
-        json(res, 500, { error: 'Impossible d\'envoyer le retour aux administrateurs' });
+        json(res, 500, { error: "Impossible d\'envoyer le retour aux administrateurs" });
         return true;
       }
 

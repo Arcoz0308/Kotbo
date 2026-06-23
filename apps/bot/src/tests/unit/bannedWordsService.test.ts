@@ -26,7 +26,7 @@ describe('containsBannedWord — Détection automatique', () => {
       { text: 'super2man', banned: ['man'], reason: 'les chiffres ne sont pas des séparateurs' },
       { text: 'bidon', banned: ['bi'], reason: 'mot banni court (< 4c) en bord de pseudo' },
       { text: '', banned: ['caca'], reason: 'pseudo vide' },
-      { text: '   ', banned: ['caca'], reason: 'pseudo composé uniquement d\'espaces' },
+      { text: '   ', banned: ['caca'], reason: "pseudo composé uniquement d\'espaces" },
       { text: 'caca', banned: ['', '   '], reason: 'mots bannis vides' },
     ];
 

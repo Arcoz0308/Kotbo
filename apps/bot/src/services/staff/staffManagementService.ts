@@ -1160,7 +1160,7 @@ export const updateStaffHierarchy = async (
 
   if (data.parentHierarchyId) {
     if (data.parentHierarchyId === hierarchyId) {
-      throw new Error('Une hiérarchie ne peut pas être parente d’elle-même');
+      throw new Error("Une hiérarchie ne peut pas être parente d'elle-même");
     }
 
     const parentHierarchy = await prisma.staffHierarchy.findFirst({

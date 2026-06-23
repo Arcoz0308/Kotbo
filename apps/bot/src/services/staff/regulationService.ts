@@ -49,7 +49,7 @@ export function buildRegulationEmbed(params: {
       value: [
         `Articles actifs: **${activeArticles.length}**`,
         `Articles totaux: **${params.articles.length}**`,
-        `Mise à jour: ${params.publishedAt ? `<t:${Math.floor(params.publishedAt.getTime() / 1000)}:R>` : 'à l’instant'}`,
+        `Mise à jour: ${params.publishedAt ? `<t:${Math.floor(params.publishedAt.getTime() / 1000)}:R>` : "à l'instant"}`,
       ].join(' · '),
       inline: false,
     });
@@ -97,7 +97,7 @@ export async function publishOrUpdateRegulationMessage(client: Client, guildId: 
 
   const targetChannelId = guild?.regulationChannelId ?? guild?.configChannelId;
   if (!targetChannelId) {
-    throw new Error('Le salon de publication du règlement n’est pas défini.');
+    throw new Error("Le salon de publication du règlement n'est pas défini.");
   }
 
   const discordGuild = client.guilds.cache.get(guildId);
@@ -167,7 +167,7 @@ export async function publishOrUpdateRegulationMessage(client: Client, guildId: 
           guildId,
           m.userId,
           'Règlement mis à jour',
-          'Le règlement du serveur a été mis à jour. Merci d\'en prendre connaissance.',
+          "Le règlement du serveur a été mis à jour. Merci d\'en prendre connaissance.",
           'INFO',
           '/regulation',
           true
@@ -185,7 +185,7 @@ export async function publishOrUpdateRegulationMessage(client: Client, guildId: 
                 guildId,
                 m.id,
                 'Règlement mis à jour',
-                'Le règlement du serveur a été mis à jour. Merci d\'en prendre connaissance.',
+                "Le règlement du serveur a été mis à jour. Merci d\'en prendre connaissance.",
                 'INFO',
                 '/regulation',
                 true

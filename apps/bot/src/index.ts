@@ -2,6 +2,8 @@ import dotenv from 'dotenv';
 import path from 'path';
 dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
 
+import './utils/patchV2.js';
+
 import {
   Client,
   GatewayIntentBits,
@@ -13,6 +15,8 @@ import {
   type ChatInputCommandInteraction,
 } from 'discord.js';
 import { logger } from './utils/logger.js';
+import { parseInstanceIdFromArgs, setCurrentInstance, getCurrentInstance, isWhiteLabelInstance } from './utils/instanceContext.js';
+import { loadAllInstances, getInstanceById, getDefaultInstance } from './utils/instanceResolver.js';
 import { queueAuditLog } from './utils/auditLogger.js';
 import { replyOrFollowUp } from './utils/interactionResponses.js';
 import { registerCrons } from './events/crons.js';
@@ -54,6 +58,7 @@ import { startBackgroundQueueWorker } from './infra/queues/backgroundQueue.js';
 import botPackageJson from '../package.json';
 import { registerLevelingListener } from './events/levelingEvents.js';
 import { registerWelcomeGoodbyeListener } from './events/welcomeGoodbyeEvents.js';
+import { registerSecurityVerificationListener } from './events/securityVerificationEvents.js';
 import { registerAutoModListener } from './events/autoModEvents.js';
 import { registerAutoResponseListener } from './events/autoResponseEvents.js';
 import { loadActivatedGuilds, isGuildActivated } from './utils/activation.js';
@@ -66,6 +71,19 @@ import {
 } from './commands.js';
 
 initBotSentry();
+
+// Resolve white-label instance from launcher args
+const instanceId = parseInstanceIdFromArgs();
+await loadAllInstances();
+const resolvedInstance = instanceId === '__default__' ? getDefaultInstance() : getInstanceById(instanceId);
+if (!resolvedInstance) {
+  logger.error('Bot', `Instance white-label introuvable: ${instanceId}`);
+  process.exit(1);
+}
+setCurrentInstance(resolvedInstance);
+if (!resolvedInstance.isDefault) {
+  logger.info('WhiteLabel', `Worker démarré pour l'instance "${resolvedInstance.name}" (${resolvedInstance.slug})`);
+}
 
 import { setClient } from './utils/client.js';
 
@@ -206,7 +224,8 @@ async function enforceCommandAccess(interaction: ChatInputCommandInteraction): P
 
 client.once(Events.ClientReady, async (c) => {
   logger.success('Bot', `Connecté en tant que ${c.user.tag}`);
-  c.user.setActivity(`/help | v${botPackageJson.version}`, { type: ActivityType.Playing });
+  const activityPrefix = isWhiteLabelInstance() ? `${getCurrentInstance().brandName} | ` : '';
+  c.user.setActivity(`${activityPrefix}/help | v${botPackageJson.version}`, { type: ActivityType.Playing });
 
   // Load activated guilds into cache at startup
   await loadActivatedGuilds().catch((error) =>
@@ -248,6 +267,7 @@ client.once(Events.ClientReady, async (c) => {
   registerAnalyticsListeners(client);
   registerLevelingListener(client);
   registerWelcomeGoodbyeListener(client);
+  registerSecurityVerificationListener(client);
   registerAutoModListener(client);
   registerAutoResponseListener(client);
   
@@ -262,7 +282,7 @@ client.once(Events.ClientReady, async (c) => {
   );
   logger.info('System', 'Synchronisation DailyAlgo terminée, initialisation des backups automatiques...');
   await initializeAutoBackupForAllGuilds(c.guilds.cache.values()).catch((error) =>
-    logger.error('AutoBackup', 'Impossible d\'initialiser les backups automatiques:', error)
+    logger.error('AutoBackup', "Impossible d\'initialiser les backups automatiques:", error)
   );
   logger.info('System', 'Backups automatiques initialisés');
 
@@ -353,7 +373,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (blacklist.has(interaction.user.id)) {
       if (interaction.isRepliable()) {
         await interaction.reply({
-          content: '❌ Vous avez été banni globalement de l\'utilisation de ce bot.',
+          content: "❌ Vous avez été banni globalement de l\'utilisation de ce bot.",
           flags: [MessageFlags.Ephemeral]
         });
       }
@@ -383,7 +403,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const cmd = slashCommands.get(interaction.commandName);
       if (!cmd) {
         await interaction.reply({
-          content: '⚠️ Cette commande n\'est pas encore disponible sur cette instance du bot. Redémarre le bot puis redéploie les commandes.',
+          content: "⚠️ Cette commande n\'est pas encore disponible sur cette instance du bot. Redémarre le bot puis redéploie les commandes.",
           flags: [MessageFlags.Ephemeral],
         });
         return;
@@ -477,7 +497,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (interaction.isRepliable() && !interaction.deferred && !interaction.replied) {
         await replyOrFollowUp(interaction, { content: '❌ Une erreur est survenue.', flags: [MessageFlags.Ephemeral] });
       } else {
-        logger.warn('Event', 'Interaction déjà acquittée au moment de la gestion d\'erreur; aucun message supplémentaire envoyé.');
+        logger.warn('Event', "Interaction déjà acquittée au moment de la gestion d\'erreur; aucun message supplémentaire envoyé.");
       }
     } catch (e){
       captureException(e, 'interaction-create-error-handler');
@@ -570,9 +590,9 @@ process.on('beforeExit', () => {
 });
 // ============================================================================
 
-const token = process.env.DISCORD_TOKEN;
+const token = getCurrentInstance().discordToken;
 if (!token) {
-  logger.error('Bot', 'DISCORD_TOKEN non défini dans .env !');
+  logger.error('Bot', `DISCORD_TOKEN non défini pour l'instance "${getCurrentInstance().slug}" !`);
   process.exit(1);
 }
 

@@ -19,6 +19,7 @@
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import ActionButton from '../lib/components/ActionButton.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import LoadingHint from '../lib/components/LoadingHint.svelte';
   import Calendar from '../lib/components/Calendar.svelte';
   import AbsenceModal from '../lib/components/AbsenceModal.svelte';
   import CalendarEventModal from '../lib/components/CalendarEventModal.svelte';
@@ -490,6 +491,9 @@
           </div>
         </div>
       </div>
+    </div>
+    <div class="flex justify-center mt-4">
+      <LoadingHint context="data" />
     </div>
   {:else}
     <div class="flex flex-col lg:flex-row gap-8">

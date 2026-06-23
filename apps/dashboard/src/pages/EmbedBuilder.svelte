@@ -6,6 +6,7 @@
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
+  import LoadingHint from '../lib/components/LoadingHint.svelte';
   import { sendOrUpdateEmbed } from '../lib/api';
   import { authStore } from '../lib/stores/auth.svelte';
 
@@ -228,6 +229,9 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <Skeleton height="600px" radius="2.5rem" />
       <Skeleton height="600px" radius="2.5rem" />
+    </div>
+    <div class="flex justify-center mt-4">
+      <LoadingHint context="config" />
     </div>
   {:else}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">

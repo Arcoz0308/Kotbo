@@ -1,13 +1,21 @@
 import type { SlashCommandDefinition } from '../../commands.js';
-import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
-import { infoEmbed, errorEmbed } from '../../utils/embeds.js';
+import {
+  SlashCommandBuilder,
+  type ChatInputCommandInteraction,
+  ContainerBuilder,
+  SeparatorBuilder,
+  SeparatorSpacingSize,
+  MessageFlags,
+} from 'discord.js';
+import { COLORS_RAW, text, separator, errorContainer, v2 } from '../../utils/embeds.js';
+import { E } from '../../utils/emojis.js';
 import prisma from '../../utils/db.js';
 
 function getStatusEmoji(code: number): string {
-  if (code >= 200 && code < 300) return '🟢';
-  if (code >= 300 && code < 400) return '🔵';
-  if (code >= 400 && code < 500) return '🟠';
-  return '🔴';
+  if (code >= 200 && code < 300) return E.success;
+  if (code >= 300 && code < 400) return E.info;
+  if (code >= 400 && code < 500) return E.warning;
+  return E.error;
 }
 
 function getStatusLabel(code: number): string {
@@ -26,18 +34,18 @@ function getStatusLabel(code: number): string {
     500: 'Erreur interne du serveur',
     502: 'Passerelle invalide',
     503: 'Service indisponible',
-    504: 'Délai d’attente de la passerelle dépassé',
+    504: "Délai d'attente de la passerelle dépassé",
   };
   return labels[code] ?? 'Statut inconnu';
 }
 
 const data = new SlashCommandBuilder()
   .setName('status')
-  .setDescription('🌐 Vérifie le statut HTTP d\'une URL')
+  .setDescription("Vérifie le statut HTTP d\'une URL")
   .addStringOption(option =>
     option
       .setName('url')
-      .setDescription('L\'URL à vérifier (ex: https://example.com)')
+      .setDescription("L\'URL à vérifier (ex: https://example.com)")
       .setRequired(true)
   );
 
@@ -53,13 +61,8 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
     if (guild?.statusCheckChannelId && interaction.channelId !== guild.statusCheckChannelId) {
       await interaction.reply({
-        embeds: [
-          errorEmbed(
-            'Canal non autorisé',
-            `La commande /status est limitée à <#${guild.statusCheckChannelId}> sur ce serveur.`
-          ),
-        ],
-        flags: 64,
+        ...v2(errorContainer('Canal non autorisé', `La commande /status est limitée à <#${guild.statusCheckChannelId}> sur ce serveur.`)),
+        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
       });
       return;
     }
@@ -73,8 +76,8 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     url = new URL(urlStr);
   } catch {
     await interaction.reply({
-      embeds: [errorEmbed('URL invalide', 'La URL fournie n\'est pas valide')],
-      flags: 64,
+      ...v2(errorContainer('URL invalide', "La URL fournie n\'est pas valide")),
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     });
     return;
   }
@@ -97,47 +100,26 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     const emoji = getStatusEmoji(response.status);
     const label = getStatusLabel(response.status);
 
-    await interaction.reply({
-      embeds: [
-        infoEmbed(
-          'Vérification du statut',
-          undefined,
-          [
-            {
-              name: 'URL',
-              value: `${url.hostname}`,
-              inline: true,
-            },
-            {
-              name: 'Code HTTP',
-              value: `${emoji} **${response.status}** ${label}`,
-              inline: true,
-            },
-            {
-              name: 'Latence',
-              value: `⏱️ ${latency}ms`,
-              inline: true,
-            },
-          ]
-        ),
-      ],
-    });
+    const container = new ContainerBuilder()
+      .setAccentColor(COLORS_RAW.info)
+      .addTextDisplayComponents(text(`### ${E.link} Vérification du statut`))
+      .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
+      .addTextDisplayComponents(text(`**URL**\n${url.hostname}`))
+      .addTextDisplayComponents(text(`**Code HTTP**\n${emoji} **${response.status}** ${label}`))
+      .addTextDisplayComponents(text(`**Latence**\n${E.clock} ${latency}ms`));
+
+    await interaction.reply(v2(container));
   } catch (error) {
     const isTimeout = error instanceof Error && error.name === 'AbortError';
-    const message = isTimeout 
+    const message = isTimeout
       ? 'Timeout après 5 secondes - le serveur ne répond pas'
-      : error instanceof Error 
-        ? error.message 
+      : error instanceof Error
+        ? error.message
         : 'Impossible de se connecter';
 
     await interaction.reply({
-      embeds: [
-        errorEmbed(
-          'Erreur de connexion',
-          `🔴 ${message}`
-        ),
-      ],
-      flags: 64,
+      ...v2(errorContainer('Erreur de connexion', message)),
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     });
   }
 }

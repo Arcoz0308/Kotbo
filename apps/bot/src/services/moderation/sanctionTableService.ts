@@ -64,7 +64,7 @@ export async function getOrCreateDefaultTables(guildId: string) {
     data: [
       { tableId: insultsTable.id, level: 1, action: SanctionType.WARN, customReason: 'Avertissement pour langage inapproprié / insultes' },
       { tableId: insultsTable.id, level: 2, action: SanctionType.TIMEOUT, durationSeconds: 43200, customReason: 'Insultes / langage agressif (Timeout 12h)' },
-      { tableId: insultsTable.id, level: 3, action: SanctionType.TIMEOUT, durationSeconds: 259200, customReason: 'Récidive d\'insultes (Timeout 3 jours)' },
+      { tableId: insultsTable.id, level: 3, action: SanctionType.TIMEOUT, durationSeconds: 259200, customReason: "Récidive d\'insultes (Timeout 3 jours)" },
       { tableId: insultsTable.id, level: 4, action: SanctionType.KICK, customReason: 'Comportement toxique répété' },
       { tableId: insultsTable.id, level: 5, action: SanctionType.BAN, customReason: 'Bannissement définitif pour toxicité extrême' },
     ],

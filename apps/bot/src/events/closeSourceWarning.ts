@@ -20,13 +20,13 @@ function buildCloseSourceWarningEmbed(): EmbedBuilder {
 		.setTitle('⚠️ Projet Close Source')
 		.setDescription(
 			[
-				'**Ce projet est close source** : son code source n\'est pas accessible publiquement.',
+				"**Ce projet est close source** : son code source n\'est pas accessible publiquement.",
 				'',
 				'> 🔒 Nous **ne sommes pas responsables** du traitement de vos données ni de tout usage malveillant potentiel de ce logiciel.',
 				'',
-				'> 🛡️ **Soyez vigilants** : avant d\'installer ou d\'utiliser ce projet, assurez-vous de faire confiance à son auteur. Un logiciel dont le code n\'est pas vérifiable peut présenter des risques pour votre vie privée et la sécurité de vos appareils.',
+				"> 🛡️ **Soyez vigilants** : avant d\'installer ou d\'utiliser ce projet, assurez-vous de faire confiance à son auteur. Un logiciel dont le code n\'est pas vérifiable peut présenter des risques pour votre vie privée et la sécurité de vos appareils.",
 				'',
-				'> 💡 En cas de doute, n\'hésitez pas à demander des précisions à l\'auteur du projet ou à un membre du staff.',
+				"> 💡 En cas de doute, n\'hésitez pas à demander des précisions à l\'auteur du projet ou à un membre du staff.",
 			].join('\n'),
 		)
 		.setFooter({ text: 'Vos données, votre responsabilité.' })
@@ -76,5 +76,5 @@ export function registerCloseSourceWarningListener(client: Client): void {
 		}
 	});
 
-	logger.success('CloseSource', 'Écouteur d\'avertissement close source enregistré');
+	logger.success('CloseSource', "Écouteur d\'avertissement close source enregistré");
 }

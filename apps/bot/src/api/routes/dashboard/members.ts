@@ -4,7 +4,8 @@ import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
 import { COLORS } from '../../../utils/embeds.js';
 import * as altAccountService from '../../../services/moderation/altAccountService.js';
-import { scanGuildMembersForYoungAccounts } from '../../../services/moderation/dcDetectionService.js';
+import { scanGuildMembersForYoungAccounts, getDetectionEvidence } from '../../../services/moderation/dcDetectionService.js';
+import { LinkedAccountType, LinkedAccountStatus } from '@prisma/client';
 import {
   json,
   readJsonBody,
@@ -194,11 +195,11 @@ export async function handleMembersRoutes(
   }
 
   // 2. Suspected DC Detections
-  // GET /api/dashboard/guilds/:guildId/detections - List suspected DC detections
+  // GET /api/dashboard/guilds/:guildId/detections - List suspected DC detections with evidence
   if (parts.length === 5 && parts[4] === 'detections' && method === 'GET') {
     try {
       if (!access.canManageSettings && !featureAccess.double_accounts?.canView) {
-        json(res, 403, { error: 'Accès refusé. Le module Détections n’est pas accessible.' });
+        json(res, 403, { error: "Accès refusé. Le module Détections n'est pas accessible." });
         return true;
       }
 
@@ -219,22 +220,13 @@ export async function handleMembersRoutes(
         orderBy: [{ lastSeenAt: 'desc' }, { guildJoinedAt: 'desc' }],
         take: 200,
         select: {
-          userId: true,
-          username: true,
-          displayName: true,
-          userTag: true,
-          avatarUrl: true,
-          isBot: true,
-          accountCreatedAt: true,
-          guildJoinedAt: true,
-          guildLeftAt: true,
-          lastSeenAt: true,
-          messageCount: true,
-          isSuspectedDC: true,
+          userId: true, username: true, displayName: true, userTag: true,
+          avatarUrl: true, isBot: true, accountCreatedAt: true, guildJoinedAt: true,
+          guildLeftAt: true, lastSeenAt: true, messageCount: true, isSuspectedDC: true,
         },
       });
 
-      const detections = suspiciousMembers.map((member) => {
+      const detections = await Promise.all(suspiciousMembers.map(async (member) => {
         const discordMember = discordMembers.get(member.userId) ?? null;
         const accountCreatedAt = member.accountCreatedAt?.toISOString() ?? null;
         const guildJoinedAt = discordMember?.joinedAt?.toISOString() ?? member.guildJoinedAt?.toISOString() ?? null;
@@ -242,33 +234,101 @@ export async function handleMembersRoutes(
         const joinedTs = discordMember?.joinedTimestamp ?? member.guildJoinedAt?.getTime() ?? null;
         const accountAgeMs = createdTs !== null && joinedTs !== null ? Math.max(0, joinedTs - createdTs) : null;
 
+        const evidence = await getDetectionEvidence(guildId, member.userId).catch(() => null);
+
+        const suspectedAlts: Array<{ userId: string; username: string | null; avatarUrl: string | null }> = [];
+        if (evidence?.suspectedAlts) {
+          for (const altId of evidence.suspectedAlts.slice(0, 5)) {
+            const altProfile = await prisma.memberProfile.findUnique({
+              where: { guildId_userId: { guildId, userId: altId } },
+              select: { username: true, avatarUrl: true }
+            }).catch(() => null);
+            const altDiscord = discordMembers.get(altId);
+            suspectedAlts.push({
+              userId: altId,
+              username: altProfile?.username ?? altDiscord?.user?.username ?? null,
+              avatarUrl: altProfile?.avatarUrl ?? altDiscord?.user?.displayAvatarURL({ size: 64 }) ?? null,
+            });
+          }
+        }
+
         return {
           id: member.userId,
           username: member.username ?? null,
           displayName: member.displayName ?? member.userTag ?? member.username ?? null,
           avatarUrl: member.avatarUrl ?? discordMember?.user.displayAvatarURL({ size: 256 }) ?? null,
           isBot: member.isBot,
-          accountCreatedAt,
-          guildJoinedAt,
+          accountCreatedAt, guildJoinedAt,
           guildLeftAt: member.guildLeftAt?.toISOString() ?? null,
           lastSeenAt: member.lastSeenAt?.toISOString() ?? null,
           messageCount: member.messageCount ?? 0,
           isOnServer: !!discordMember,
           presenceStatus: discordMember?.presence?.status ?? (discordMember ? null : 'left'),
           accountAgeMs,
-          accountAgeLabel: accountAgeMs !== null
-            ? formatDurationFr(accountAgeMs)
-            : 'Inconnue',
+          accountAgeLabel: accountAgeMs !== null ? formatDurationFr(accountAgeMs) : 'Inconnue',
+          suspectedAlts,
+          evidence: evidence ? {
+            reasons: evidence.reasons.map(r => ({ type: r.type, label: r.label, score: r.score, matchedUserId: r.matchedUserId, detail: r.detail })),
+            totalScore: evidence.totalScore,
+          } : null,
         };
-      });
+      }));
 
-      json(res, 200, {
-        total: detections.length,
-        detections,
-      });
+      json(res, 200, { total: detections.length, detections });
     } catch (err) {
       logger.error('MembersAPI', 'Error fetching suspected detections:', err);
       json(res, 500, { error: 'Erreur lors du chargement des détections' });
+    }
+    return true;
+  }
+
+  // POST /api/dashboard/guilds/:guildId/detections/:userId/link - Link a detected user with their suspected alt
+  if (parts.length === 7 && parts[4] === 'detections' && parts[6] === 'link' && method === 'POST') {
+    try {
+      if (!access.canManageSettings && !featureAccess.double_accounts?.canModerate) {
+        json(res, 403, { error: 'Accès refusé.' });
+        return true;
+      }
+      const targetUserId = parts[5];
+      const body = await readJsonBody<{ altUserId: string; reason?: string }>(req);
+      if (!body?.altUserId) {
+        json(res, 400, { error: 'altUserId requis.' });
+        return true;
+      }
+      await altAccountService.linkAccounts({
+        guildId, user1Id: targetUserId, user2Id: body.altUserId,
+        type: LinkedAccountType.AUTOMATIC, status: LinkedAccountStatus.VALIDATED,
+        reason: body.reason || 'Lié depuis le dashboard (détection).',
+        linkedByUserId: user.userId,
+      });
+      await prisma.memberProfile.updateMany({
+        where: { guildId, userId: { in: [targetUserId, body.altUserId] } },
+        data: { isSuspectedDC: false },
+      }).catch(() => null);
+      json(res, 200, { success: true });
+    } catch (err) {
+      logger.error('MembersAPI', 'Error linking from detection:', err);
+      json(res, 500, { error: 'Erreur lors de la liaison.' });
+    }
+    return true;
+  }
+
+  // POST /api/dashboard/guilds/:guildId/detections/:userId/dismiss - Dismiss a detection (false positive)
+  if (parts.length === 7 && parts[4] === 'detections' && parts[6] === 'dismiss' && method === 'POST') {
+    try {
+      if (!access.canManageSettings && !featureAccess.double_accounts?.canModerate) {
+        json(res, 403, { error: 'Accès refusé.' });
+        return true;
+      }
+      const targetUserId = parts[5];
+      await prisma.memberProfile.updateMany({
+        where: { guildId, userId: targetUserId },
+        data: { isSuspectedDC: false },
+      });
+      json(res, 200, { success: true });
+    } catch (err) {
+      logger.error('MembersAPI', 'Error dismissing detection:', err);
+      json(res, 500, { error: 'Erreur.' });
     }
     return true;
   }
@@ -277,7 +337,7 @@ export async function handleMembersRoutes(
   if (parts.length === 6 && parts[4] === 'detections' && parts[5] === 'scan' && method === 'POST') {
     try {
       if (!access.canManageSettings && !featureAccess.double_accounts?.canModerate) {
-        json(res, 403, { error: 'Accès refusé. Vous n’avez pas les permissions nécessaires pour lancer un scan.' });
+        json(res, 403, { error: "Accès refusé. Vous n'avez pas les permissions nécessaires pour lancer un scan." });
         return true;
       }
 
@@ -489,7 +549,7 @@ export async function handleMembersRoutes(
       const reason = body?.reason;
 
       if (!u2Id) {
-        json(res, 400, { error: 'L\'ID du compte cible est requis.' });
+        json(res, 400, { error: "L\'ID du compte cible est requis." });
         return true;
       }
 
@@ -623,7 +683,7 @@ export async function handleMembersRoutes(
       };
 
       if (!action || !['WARN', 'KICK', 'TIMEOUT', 'BAN'].includes(action)) {
-        json(res, 400, { error: 'Type d’action invalide.' });
+        json(res, 400, { error: "Type d'action invalide." });
         return true;
       }
 
@@ -738,7 +798,7 @@ export async function handleMembersRoutes(
       }
     } catch (err) {
       logger.error('MembersAPI', `Error executing moderation action for ${userId}:`, err);
-      json(res, 500, { error: 'Erreur lors de l\'exécution de l\'action de modération', details: String(err) });
+      json(res, 500, { error: "Erreur lors de l\'exécution de l\'action de modération", details: String(err) });
     }
     return true;
   }
@@ -916,7 +976,7 @@ export async function handleMembersRoutes(
 
           await pushAudit(guildId, {
             user: auditUser,
-            action: 'Suspension créateur d\'invitations',
+            action: "Suspension créateur d\'invitations",
             context: getGuildName(client, guildId),
             module: 'Invitations',
             eventType: 'Manuel',
@@ -962,7 +1022,7 @@ export async function handleMembersRoutes(
 
           await pushAudit(guildId, {
             user: auditUser,
-            action: 'Réhabilitation créateur d\'invitations',
+            action: "Réhabilitation créateur d\'invitations",
             context: getGuildName(client, guildId),
             module: 'Invitations',
             eventType: 'Manuel',
@@ -1045,7 +1105,7 @@ export async function handleMembersRoutes(
     if (parts[5] && parts[5] !== 'suspended-inviters' && parts[5] !== 'inviters') {
       const code = parts[5];
       if (!isValidInviteCode(code)) {
-        json(res, 400, { error: 'Code d\'invitation invalide' });
+        json(res, 400, { error: "Code d\'invitation invalide" });
         return true;
       }
 
@@ -1131,7 +1191,7 @@ export async function handleMembersRoutes(
           });
         } catch (err) {
           logger.error('InvitationsAPI', `Error fetching invite details for ${code}:`, err);
-          json(res, 500, { error: 'Erreur lors de la récupération des détails de l\'invitation' });
+          json(res, 500, { error: "Erreur lors de la récupération des détails de l\'invitation" });
         }
         return true;
       }
@@ -1169,7 +1229,7 @@ export async function handleMembersRoutes(
             json(res, 200, { ok: true, invite: updatedInvite });
           } catch (err) {
             logger.error('InvitationsAPI', `Error toggling invite suspension for ${code}:`, err);
-            json(res, 500, { error: 'Erreur lors de la modification de l\'invitation' });
+            json(res, 500, { error: "Erreur lors de la modification de l\'invitation" });
           }
           return true;
         }
@@ -1213,7 +1273,7 @@ export async function handleMembersRoutes(
           json(res, 200, { ok: true, invite: updatedInvite });
         } catch (err) {
           logger.error('InvitationsAPI', `Error deleting invite ${code}:`, err);
-          json(res, 500, { error: 'Erreur lors de la suppression de l\'invitation' });
+          json(res, 500, { error: "Erreur lors de la suppression de l\'invitation" });
         }
         return true;
       }
@@ -1275,7 +1335,7 @@ export async function handleMembersRoutes(
             json(res, 200, { ok: true, purgedCount });
           } catch (err) {
             logger.error('InvitationsAPI', `Error purging invite ${code}:`, err);
-            json(res, 500, { error: 'Erreur lors de la purge de l\'invitation' });
+            json(res, 500, { error: "Erreur lors de la purge de l\'invitation" });
           }
           return true;
         }

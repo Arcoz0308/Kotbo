@@ -22,7 +22,7 @@ export function createAsyncActionState() {
 
   async function run(action, {
     successMessage = '',
-    failureMessage = 'Une erreur est survenue pendant l\'opération.'
+    failureMessage = "Une erreur est survenue pendant l\'opération."
   } = {}) {
     state.loading = true;
     clearFeedback();

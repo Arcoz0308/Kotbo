@@ -28,7 +28,7 @@ export async function handleReportErrorRoute(
   if (method === 'POST') {
     const ip = getClientIp(req);
     if (!checkRateLimit(errorReportRateLimiter, ip, 5, 15 * 60 * 1000)) {
-      json(res, 429, { error: 'Trop de rapports d\'erreur envoyés. Veuillez réessayer plus tard.' });
+      json(res, 429, { error: "Trop de rapports d\'erreur envoyés. Veuillez réessayer plus tard." });
       return true;
     }
 
@@ -94,13 +94,13 @@ export async function handleReportErrorRoute(
       }
 
       if (adminIds.size === 0) {
-        logger.error('Aucun administrateur configuré pour recevoir le rapport d\'erreur.');
+        logger.error("Aucun administrateur configuré pour recevoir le rapport d\'erreur.");
         json(res, 500, { error: 'Aucun administrateur configuré' });
         return true;
       }
 
       const embed = new EmbedBuilder()
-        .setTitle('🚨 Rapport d\'erreur du Dashboard')
+        .setTitle("🚨 Rapport d\'erreur du Dashboard")
         .setColor(0xFF0000)
         .setTimestamp()
         .addFields(
@@ -132,7 +132,7 @@ export async function handleReportErrorRoute(
       }
 
       if (sentCount === 0) {
-        json(res, 500, { error: 'Impossible d\'envoyer le rapport aux administrateurs' });
+        json(res, 500, { error: "Impossible d\'envoyer le rapport aux administrateurs" });
         return true;
       }
 

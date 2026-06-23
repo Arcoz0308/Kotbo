@@ -34,7 +34,7 @@ const ambiguous = (raw: string, kind: string, candidates: unknown[]) => ({
       text: JSON.stringify(
         {
           error: `Plusieurs ${kind} correspondent à « ${raw} ».`,
-          hint: 'Rappelle le même outil en reprenant le nom exact (ou l\'ID) d\'un des candidats ci-dessous.',
+          hint: "Rappelle le même outil en reprenant le nom exact (ou l\'ID) d\'un des candidats ci-dessous.",
           candidates,
         },
         null,
@@ -132,7 +132,7 @@ function resolveChannel(guildId: string, client: Client, raw: string): ChannelRe
   if (directId) {
     const ch = guild.channels.cache.get(directId);
     if (!ch) return { ok: false, response: err('Salon introuvable') };
-    if (!ch.isTextBased()) return { ok: false, response: err('Ce salon n\'est pas un salon textuel') };
+    if (!ch.isTextBased()) return { ok: false, response: err("Ce salon n\'est pas un salon textuel") };
     return { ok: true, channel: ch as TextChannel };
   }
 
@@ -263,7 +263,7 @@ export function registerMcpTools(
     server.registerTool(
       'get_recent_messages',
       {
-        description: 'Récupère les messages récents d\'un salon Discord (lecture en direct via l\'API Discord).',
+        description: "Récupère les messages récents d\'un salon Discord (lecture en direct via l\'API Discord).",
         inputSchema: {
           channel: z.string().describe('Nom du salon (ex: « general », avec ou sans #), mention <#id> ou ID'),
           limit: z.number().int().min(1).max(100).default(20).describe('Nombre de messages (1-100)'),
@@ -292,7 +292,7 @@ export function registerMcpTools(
     server.registerTool(
       'get_member_profile',
       {
-        description: 'Récupère le profil d\'un membre du serveur (activité, historique, informations Discord).',
+        description: "Récupère le profil d\'un membre du serveur (activité, historique, informations Discord).",
         inputSchema: { member: z.string().describe('Nom, surnom, @mention ou ID Discord du membre') },
         _meta: toolMeta,
       },
@@ -339,7 +339,7 @@ export function registerMcpTools(
     server.registerTool(
       'search_members',
       {
-        description: 'Recherche des membres par nom d\'utilisateur ou nom d\'affichage.',
+        description: "Recherche des membres par nom d\'utilisateur ou nom d\'affichage.",
         inputSchema: {
           query: z.string().describe('Terme de recherche (username, displayName ou userId)'),
           limit: z.number().int().min(1).max(50).default(20),
@@ -451,7 +451,7 @@ export function registerMcpTools(
     server.registerTool(
       'get_sanction_history',
       {
-        description: 'Récupère l\'historique complet des sanctions pour un membre spécifique.',
+        description: "Récupère l\'historique complet des sanctions pour un membre spécifique.",
         inputSchema: { member: z.string().describe('Nom, surnom, @mention ou ID Discord du membre') },
         _meta: toolMeta,
       },
@@ -554,7 +554,7 @@ export function registerMcpTools(
     server.registerTool(
       'get_staff_member',
       {
-        description: 'Récupère le profil détaillé d\'un membre du staff.',
+        description: "Récupère le profil détaillé d\'un membre du staff.",
         inputSchema: { member: z.string().describe('Nom, surnom, @mention ou ID Discord du membre du staff') },
         _meta: toolMeta,
       },
@@ -665,7 +665,7 @@ export function registerMcpTools(
             .max(2332800)
             .optional()
             .describe('Durée en secondes (obligatoire pour TIMEOUT et TEMP_BAN, max 27 jours)'),
-          key_name: z.string().optional().describe('Nom de la clé MCP (pour l\'audit)'),
+          key_name: z.string().optional().describe("Nom de la clé MCP (pour l\'audit)"),
         },
         _meta: toolMeta,
       },
@@ -743,7 +743,7 @@ export function registerMcpTools(
       'revoke_sanction',
       {
         description:
-          'Lève une sanction active d\'un membre : déban et/ou retrait du timeout. Requiert la permission WRITE_SANCTIONS.',
+          "Lève une sanction active d\'un membre : déban et/ou retrait du timeout. Requiert la permission WRITE_SANCTIONS.",
         inputSchema: {
           member: z.string().describe('Nom, surnom, @mention ou ID Discord du membre'),
           type: z
@@ -751,7 +751,7 @@ export function registerMcpTools(
             .optional()
             .describe('Type de sanction à lever (si omis, lève tout ce qui est actif)'),
           reason: z.string().max(512).optional().describe('Raison de la levée (audit)'),
-          key_name: z.string().optional().describe('Nom de la clé MCP (pour l\'audit)'),
+          key_name: z.string().optional().describe("Nom de la clé MCP (pour l\'audit)"),
         },
         _meta: toolMeta,
       },
@@ -915,7 +915,7 @@ export function registerMcpTools(
         inputSchema: {
           channel: z.string().describe('Nom du salon (ex: « general »), mention <#id> ou ID'),
           content: z.string().min(1).max(2000).describe('Contenu du message (max 2000 caractères)'),
-          key_name: z.string().optional().describe('Nom de la clé MCP (pour l\'audit)'),
+          key_name: z.string().optional().describe("Nom de la clé MCP (pour l\'audit)"),
         },
         _meta: toolMeta,
       },
@@ -947,24 +947,24 @@ export function registerMcpTools(
     server.registerTool(
       'reply_ticket',
       {
-        description: 'Envoie un message dans le salon d\'un ticket en tant que bot. Requiert WRITE_TICKETS.',
+        description: "Envoie un message dans le salon d\'un ticket en tant que bot. Requiert WRITE_TICKETS.",
         inputSchema: {
           ticket_id: z.string().describe('ID du ticket (issu de get_tickets)'),
           content: z.string().min(1).max(2000).describe('Contenu du message'),
-          key_name: z.string().optional().describe('Nom de la clé MCP (pour l\'audit)'),
+          key_name: z.string().optional().describe("Nom de la clé MCP (pour l\'audit)"),
         },
         _meta: toolMeta,
       },
       guard('WRITE_TICKETS', async ({ ticket_id, content, key_name }) => {
         const ticket = await prisma.ticket.findFirst({ where: { id: ticket_id, guildId } });
         if (!ticket) return err('Ticket introuvable');
-        if (!ticket.channelId) return err('Ce ticket n\'a pas de salon associé');
+        if (!ticket.channelId) return err("Ce ticket n\'a pas de salon associé");
 
         const channel = client.guilds.cache.get(guildId)?.channels.cache.get(ticket.channelId);
         if (!channel || !channel.isTextBased()) return err('Salon du ticket introuvable');
 
         const sent = await (channel as TextChannel).send({ content }).catch(() => null);
-        if (!sent) return err('Impossible d\'envoyer le message dans le ticket');
+        if (!sent) return err("Impossible d\'envoyer le message dans le ticket");
 
         await audit(key_name, 'Réponse ticket MCP', `Ticket: ${ticket.id}`, content.slice(0, 200));
 
@@ -980,7 +980,7 @@ export function registerMcpTools(
         inputSchema: {
           ticket_id: z.string().describe('ID du ticket (issu de get_tickets)'),
           reason: z.string().max(512).optional().describe('Raison de la fermeture'),
-          key_name: z.string().optional().describe('Nom de la clé MCP (pour l\'audit)'),
+          key_name: z.string().optional().describe("Nom de la clé MCP (pour l\'audit)"),
         },
         _meta: toolMeta,
       },

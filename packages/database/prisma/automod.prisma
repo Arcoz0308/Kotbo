@@ -44,6 +44,10 @@ model AutoModConfig {
   antiEveryoneEnabled  Boolean  @default(false)
   antiEveryoneAction   String   @default("DELETE_AND_WARN")
 
+  antiBotEnabled       Boolean  @default(false)
+  antiBotAction        String   @default("KICK") // KICK, BAN
+  antiBotBypassUsers   String[] @default([]) // User IDs autorisés à ajouter des bots
+
   bypassRoles          String[] @default([])
   bypassChannels       String[] @default([])
 

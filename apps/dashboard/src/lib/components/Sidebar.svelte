@@ -273,7 +273,8 @@
     resolveUserAvatarSrc(authStore.user?.id, authStore.user?.avatar),
   );
 
-  const LOGO_URL = '/favicon.svg';
+  import { brandingStore } from '../stores/branding.svelte';
+  const LOGO_URL = $derived(brandingStore.logoUrl || '/favicon.svg');
 </script>
 
 {#if !isDesktop && mobileOpen}
@@ -322,12 +323,12 @@
 
   <div class="flex items-center gap-3 px-4 pt-4 pb-3 {isCollapsed ? 'lg:justify-center' : ''}">
     <div class="w-8 h-8 shrink-0">
-      <img alt="Kotbo" src={LOGO_URL} class="w-full h-full object-cover rounded-lg" />
+      <img alt={brandingStore.brandName} src={LOGO_URL} class="w-full h-full object-cover rounded-lg" />
     </div>
 
     {#if !isCollapsed}
       <div class="flex flex-col min-w-0 flex-1">
-        <span class="text-sm font-semibold text-on-surface leading-none">Kotbo</span>
+        <span class="text-sm font-semibold text-on-surface leading-none">{brandingStore.brandName}</span>
         <span class="text-[10px] text-on-surface-variant mt-0.5">Dashboard</span>
       </div>
 

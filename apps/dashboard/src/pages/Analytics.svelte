@@ -5,6 +5,7 @@ import Papicon from '../lib/components/Papicon.svelte';
 import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
 import { fetchAnalytics, fetchMemberCase, fetchInviteAnalytics, fetchHourlyHeatmap, fetchWeeklyComparison, fetchDailyAlgoAnalytics, fetchGlobalInteractions } from '../lib/api';
 import AnalyticsSkeleton from '../lib/components/analytics/AnalyticsSkeleton.svelte';
+import LoadingHint from '../lib/components/LoadingHint.svelte';
 import StatsOverview from '../lib/components/analytics/StatsOverview.svelte';
 import EngagementMetrics from '../lib/components/analytics/EngagementMetrics.svelte';
 import MembersStats from '../lib/components/analytics/MembersStats.svelte';
@@ -605,6 +606,9 @@ import { toast } from '../lib/stores/toast.svelte';
 
   {#if loading}
     <AnalyticsSkeleton />
+    <div class="flex justify-center mt-4">
+      <LoadingHint context="analytics" />
+    </div>
   {:else if error}
 
     <div class="bg-error-container/10 border border-error/20 p-5 rounded-xl text-error text-sm font-bold flex items-center gap-3">
@@ -625,7 +629,7 @@ import { toast } from '../lib/stores/toast.svelte';
           </div>
           <div class="flex flex-col items-center text-center mt-2">
             <span class="text-sm font-semibold uppercase tracking-wider text-primary animate-pulse">Chargement du Réseau...</span>
-            <span class="text-xs text-on-surface-variant/60 mt-1">Analyse des flux de communication et des interactions globales</span>
+            <LoadingHint context="network" />
           </div>
         </div>
       {:else if interactionsError}

@@ -96,7 +96,7 @@ export async function publishNewsArticle(client: Client, guildId: string, articl
   // Bouton pour voir l'article / flux
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setLabel('Lire l\'article')
+      .setLabel("Lire l\'article")
       .setStyle(ButtonStyle.Link)
       .setURL(articleUrl)
   );

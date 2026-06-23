@@ -47,7 +47,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     const embed = new EmbedBuilder()
       .setTitle('🎒 Votre Inventaire')
       .setDescription(
-        `Retrouvez ici tous vos objets achetés.\n*Pour vous équiper d’un objet ou boire une potion, utilisez* \`/use <objet>\` !`
+        `Retrouvez ici tous vos objets achetés.\n*Pour vous équiper d'un objet ou boire une potion, utilisez* \`/use <objet>\` !`
       )
       .setColor(COLORS.primary)
       .setTimestamp();
@@ -56,8 +56,8 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       .map((entry) => {
         const item = entry.item;
         let desc = `${item.emoji} **${item.name}** (x${entry.quantity}) - *${item.type}*`;
-        if (item.id === profile.weaponId) desc += ' 🟢 *(Équipé en tant qu’Arme)*';
-        if (item.id === profile.armorId) desc += ' 🟢 *(Équipé en tant qu’Armure)*';
+        if (item.id === profile.weaponId) desc += " 🟢 *(Équipé en tant qu'Arme)*";
+        if (item.id === profile.armorId) desc += " 🟢 *(Équipé en tant qu'Armure)*";
         return desc;
       })
       .join('\n');
@@ -67,7 +67,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     await interaction.reply({ embeds: [embed] });
   } catch (err: any) {
     await interaction.reply({
-      embeds: [errorEmbed('Erreur', err.message || 'Impossible de lister l’inventaire.')],
+      embeds: [errorEmbed('Erreur', err.message || "Impossible de lister l'inventaire.")],
       flags: [MessageFlags.Ephemeral]
     });
   }

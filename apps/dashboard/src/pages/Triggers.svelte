@@ -8,6 +8,7 @@
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
+  import LoadingHint from '../lib/components/LoadingHint.svelte';
   import MultiSelect from '../lib/components/MultiSelect.svelte';
   import { 
     fetchAutoResponses, 
@@ -282,6 +283,9 @@
       <Skeleton height="100px" radius="2rem" />
       <Skeleton height="100px" radius="2rem" />
       <Skeleton height="100px" radius="2rem" />
+    </div>
+    <div class="flex justify-center mt-4">
+      <LoadingHint context="config" />
     </div>
   {:else}
     <div class="space-y-6">

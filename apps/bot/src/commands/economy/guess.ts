@@ -16,7 +16,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     const config = await getOrCreateEconomyConfig(guildId);
     if (!config.enabled) {
       await interaction.reply({
-        embeds: [errorEmbed('Module Désactivé', 'Le système d’économie est désactivé sur ce serveur.')],
+        embeds: [errorEmbed('Module Désactivé', "Le système d'économie est désactivé sur ce serveur.")],
         flags: [MessageFlags.Ephemeral]
       });
       return;
@@ -29,9 +29,9 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     const initialEmbed = new EmbedBuilder()
       .setTitle('🤔 Jeu du Nombre Mystère')
       .setDescription(
-        `J’ai choisi un nombre secret entre **1 et 100**.\n` +
+        `J'ai choisi un nombre secret entre **1 et 100**.\n` +
         `Envoyez vos propositions sous forme de message direct dans ce salon !\n\n` +
-        `Vous disposez de **${maxAttempts} essais**. Moins vous utilisez d’essais, plus le gain est élevé !\n` +
+        `Vous disposez de **${maxAttempts} essais**. Moins vous utilisez d'essais, plus le gain est élevé !\n` +
         `*Envoyez simplement le nombre dans le chat.*`
       )
       .setColor(COLORS.primary)
@@ -68,7 +68,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       } else {
         const hint = guess < secret ? 'plus GRAND 📈' : 'plus PETIT 📉';
         await interaction.followUp({
-          content: `<@${userId}>, **${guess}** est incorrect ! C’est **${hint}**. *(Essai ${attempts}/${maxAttempts})*`
+          content: `<@${userId}>, **${guess}** est incorrect ! C'est **${hint}**. *(Essai ${attempts}/${maxAttempts})*`
         });
       }
     });

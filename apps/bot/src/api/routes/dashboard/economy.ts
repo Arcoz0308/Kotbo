@@ -42,7 +42,7 @@ export async function handleEconomyRoutes(
         json(res, 200, { config });
       } catch (err) {
         logger.error('EconomyAPI', 'Error fetching economy config:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération de la configuration de l\'économie.' });
+        json(res, 500, { error: "Erreur lors de la récupération de la configuration de l\'économie." });
       }
       return true;
     }
@@ -111,7 +111,7 @@ export async function handleEconomyRoutes(
         json(res, 200, { config });
       } catch (err) {
         logger.error('EconomyAPI', 'Error updating economy config:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration de l\'économie.' });
+        json(res, 500, { error: "Erreur lors de la mise à jour de la configuration de l\'économie." });
       }
       return true;
     }
@@ -214,7 +214,7 @@ export async function handleEconomyRoutes(
         json(res, 200, { item });
       } catch (err) {
         logger.error('EconomyAPI', 'Error saving shop item:', err);
-        json(res, 500, { error: 'Erreur lors de la sauvegarde de l\'objet.' });
+        json(res, 500, { error: "Erreur lors de la sauvegarde de l\'objet." });
       }
       return true;
     }
@@ -249,7 +249,7 @@ export async function handleEconomyRoutes(
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('EconomyAPI', 'Error deleting shop item:', err);
-        json(res, 500, { error: 'Erreur lors de la suppression de l\'objet.' });
+        json(res, 500, { error: "Erreur lors de la suppression de l\'objet." });
       }
       return true;
     }
@@ -387,7 +387,7 @@ export async function handleEconomyRoutes(
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('EconomyAPI', 'Error resetting guild economy:', err);
-        json(res, 500, { error: 'Erreur lors de la réinitialisation de l\'économie.' });
+        json(res, 500, { error: "Erreur lors de la réinitialisation de l\'économie." });
       }
       return true;
     }

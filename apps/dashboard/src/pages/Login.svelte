@@ -4,6 +4,7 @@
   import { API_BASE_URL } from '../lib/api';
   import { router } from 'tinro';
   import Papicon from '../lib/components/Papicon.svelte';
+  import { brandingStore } from '../lib/stores/branding.svelte';
 
   let errorMessage = $state(null);
   const oauthLoginUrl = `${API_BASE_URL || ''}/api/auth/discord/login`;
@@ -79,8 +80,8 @@
   <header class="w-full px-6 py-6 max-w-5xl mx-auto">
     <nav class="flex justify-between items-center">
       <div class="flex items-center gap-3">
-        <img src="/favicon.svg" alt="Kotbo" class="w-8 h-8 rounded-lg" />
-        <span class="text-lg font-semibold text-on-surface">Kotbo</span>
+        <img src={brandingStore.logoUrl || '/favicon.svg'} alt={brandingStore.brandName} class="w-8 h-8 rounded-lg" />
+        <span class="text-lg font-semibold text-on-surface">{brandingStore.brandName}</span>
       </div>
 
       <div class="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20">
@@ -96,7 +97,7 @@
 
       <div class="section-card p-8 text-center">
         <div class="mb-6">
-          <img src="/favicon.svg" alt="Kotbo Logo" class="w-16 h-16 mx-auto rounded-xl" />
+          <img src={brandingStore.logoUrl || '/favicon.svg'} alt="{brandingStore.brandName} Logo" class="w-16 h-16 mx-auto rounded-xl" />
         </div>
 
         <h1 class="text-xl font-semibold text-on-surface mb-1">Connexion au Dashboard</h1>
@@ -138,7 +139,7 @@
       </div>
 
       <p class="text-center text-xs text-on-surface-variant/50 mt-6">
-        Kotbo &copy; {year}
+        {brandingStore.brandName} &copy; {year}
       </p>
     </div>
   </main>

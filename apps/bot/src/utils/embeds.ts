@@ -1,9 +1,24 @@
 import {
   EmbedBuilder,
+  ContainerBuilder,
+  TextDisplayBuilder,
+  SeparatorBuilder,
+  SectionBuilder,
+  ThumbnailBuilder,
+  MediaGalleryBuilder,
+  MediaGalleryItemBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  MessageFlags,
+  SeparatorSpacingSize,
   type ColorResolvable,
   type APIEmbedField,
 } from 'discord.js';
+import { E } from './emojis.js';
 
+// ─────────────────────────────────────────────────────────────
+// Color Palette
+// ─────────────────────────────────────────────────────────────
 export const COLORS = {
   primary: 0x5865f2 as ColorResolvable,
   success: 0x57f287 as ColorResolvable,
@@ -11,8 +26,152 @@ export const COLORS = {
   warning: 0xfee75c as ColorResolvable,
   info: 0x5865f2 as ColorResolvable,
   dark: 0x2b2d31 as ColorResolvable,
+  pink: 0xeb459e as ColorResolvable,
 };
 
+export const COLORS_RAW = {
+  primary: 0x5865f2,
+  success: 0x57f287,
+  danger: 0xed4245,
+  warning: 0xfee75c,
+  info: 0x5865f2,
+  dark: 0x2b2d31,
+  pink: 0xeb459e,
+};
+
+// ─────────────────────────────────────────────────────────────
+// V2 Helper — wraps components in IsComponentsV2 flag
+// ─────────────────────────────────────────────────────────────
+export function v2(...containers: ContainerBuilder[]) {
+  return {
+    components: containers,
+    flags: MessageFlags.IsComponentsV2,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
+// V2 Text Shorthand
+// ─────────────────────────────────────────────────────────────
+export function text(content: string) {
+  return new TextDisplayBuilder().setContent(content);
+}
+
+export function separator(divider = true, spacing: SeparatorSpacingSize = SeparatorSpacingSize.Small) {
+  return new SeparatorBuilder().setDivider(divider).setSpacing(spacing);
+}
+
+export function thumbnail(url: string, description?: string) {
+  const tb = new ThumbnailBuilder({ media: { url } });
+  if (description) tb.setDescription(description);
+  return tb;
+}
+
+export function section(content: string, accessory?: ThumbnailBuilder | ButtonBuilder) {
+  const s = new SectionBuilder().addTextDisplayComponents(text(content));
+  if (accessory instanceof ThumbnailBuilder) s.setThumbnailAccessory(accessory);
+  else if (accessory instanceof ButtonBuilder) s.setButtonAccessory(accessory);
+  return s;
+}
+
+export function mediaGallery(...urls: string[]) {
+  const mg = new MediaGalleryBuilder();
+  mg.addItems(...urls.map(url => new MediaGalleryItemBuilder({ media: { url } })));
+  return mg;
+}
+
+// ─────────────────────────────────────────────────────────────
+// V2 Preset Containers
+// ─────────────────────────────────────────────────────────────
+export function successContainer(title: string, description?: string) {
+  return new ContainerBuilder()
+    .setAccentColor(COLORS_RAW.success)
+    .addTextDisplayComponents(
+      text(`${E.success} **${title}**${description ? `\n${description}` : ''}`)
+    );
+}
+
+export function errorContainer(title: string, description?: string) {
+  return new ContainerBuilder()
+    .setAccentColor(COLORS_RAW.danger)
+    .addTextDisplayComponents(
+      text(`${E.error} **${title}**${description ? `\n${description}` : ''}`)
+    );
+}
+
+export function warningContainer(title: string, description?: string) {
+  return new ContainerBuilder()
+    .setAccentColor(COLORS_RAW.warning)
+    .addTextDisplayComponents(
+      text(`${E.warning} **${title}**${description ? `\n${description}` : ''}`)
+    );
+}
+
+export function infoContainer(title: string, description?: string) {
+  return new ContainerBuilder()
+    .setAccentColor(COLORS_RAW.info)
+    .addTextDisplayComponents(
+      text(`${E.info} **${title}**${description ? `\n${description}` : ''}`)
+    );
+}
+
+// ─────────────────────────────────────────────────────────────
+// V2 Rich Container Builder
+// ─────────────────────────────────────────────────────────────
+export interface V2Field {
+  name: string;
+  value: string;
+}
+
+export function richContainer(options: {
+  color?: number;
+  title?: string;
+  description?: string;
+  thumbnailUrl?: string;
+  fields?: V2Field[];
+  footer?: string;
+  imageUrl?: string;
+  actionRow?: ActionRowBuilder<ButtonBuilder>;
+}) {
+  const c = new ContainerBuilder().setAccentColor(options.color ?? COLORS_RAW.primary);
+
+  if (options.title && options.thumbnailUrl) {
+    c.addSectionComponents(
+      section(`### ${options.title}`, thumbnail(options.thumbnailUrl))
+    );
+  } else if (options.title) {
+    c.addTextDisplayComponents(text(`### ${options.title}`));
+  }
+
+  if (options.description) {
+    c.addTextDisplayComponents(text(options.description));
+  }
+
+  if (options.fields?.length) {
+    c.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
+    for (const field of options.fields) {
+      c.addTextDisplayComponents(text(`**${field.name}**\n${field.value}`));
+    }
+  }
+
+  if (options.imageUrl) {
+    c.addMediaGalleryComponents(mediaGallery(options.imageUrl));
+  }
+
+  if (options.actionRow) {
+    c.addActionRowComponents(options.actionRow);
+  }
+
+  if (options.footer) {
+    c.addSeparatorComponents(separator(false, SeparatorSpacingSize.Small));
+    c.addTextDisplayComponents(text(`-# ${options.footer}`));
+  }
+
+  return c;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Legacy Embed Helpers (kept for backward compatibility)
+// ─────────────────────────────────────────────────────────────
 export interface EmbedOptions {
   user?: { username: string; displayAvatarURL?: () => string };
 }
@@ -25,7 +184,7 @@ export function baseEmbed(color: ColorResolvable = COLORS.primary, options?: Emb
   if (options?.user) {
     embed.setFooter({
       text: `Kotbo • Demandé par ${options.user.username}`,
-      iconURL: options.user.displayAvatarURL ? options.user.displayAvatarURL() : undefined
+      iconURL: options.user.displayAvatarURL ? options.user.displayAvatarURL() : undefined,
     });
   } else {
     embed.setFooter({ text: 'Kotbo • Assistant V2' });
@@ -35,20 +194,23 @@ export function baseEmbed(color: ColorResolvable = COLORS.primary, options?: Emb
 }
 
 export function successEmbed(title: string, description?: string, options?: EmbedOptions) {
-  return baseEmbed(COLORS.success, options).setTitle(`✅ ${title}`).setDescription(description ?? null);
+  return baseEmbed(COLORS.success, options).setTitle(`${E.success} ${title}`).setDescription(description ?? null);
 }
 
 export function errorEmbed(title: string, description?: string, options?: EmbedOptions) {
-  return baseEmbed(COLORS.danger, options).setTitle(`❌ ${title}`).setDescription(description ?? null);
+  return baseEmbed(COLORS.danger, options).setTitle(`${E.error} ${title}`).setDescription(description ?? null);
 }
 
 export function infoEmbed(title: string, description?: string, fields?: APIEmbedField[], options?: EmbedOptions) {
-  const e = baseEmbed(COLORS.info, options).setTitle(`ℹ️ ${title}`);
+  const e = baseEmbed(COLORS.info, options).setTitle(`${E.info} ${title}`);
   if (description) e.setDescription(description);
   if (fields?.length) e.addFields(fields);
   return e;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Utilities
+// ─────────────────────────────────────────────────────────────
 export function truncate(str: string, max: number) {
   return str.length > max ? str.slice(0, max - 3) + '...' : str;
 }
@@ -60,17 +222,12 @@ export function getCategoryTheme(category: string) {
   return { label: 'Actualités', color: COLORS.primary };
 }
 
-export function categoryEmoji(category: string) {
-  const c = category?.toLowerCase() || '';
-  if (c.includes('youtube')) return '▶️';
-  if (c.includes('twitch')) return '🟪';
-  return '📰';
-}
+// Re-export emoji helpers for backward compatibility
+export { categoryEmoji, feedStatusEmoji } from './emojis.js';
 
-export function feedStatusEmoji(status: boolean) {
-  return status ? '🟢' : '🔴';
-}
-
+// ─────────────────────────────────────────────────────────────
+// Platform Embeds (YouTube / Twitch / News)
+// ─────────────────────────────────────────────────────────────
 export function buildYouTubeEmbed(params: {
   title: string;
   videoId: string;
@@ -112,7 +269,7 @@ export function buildTwitchEmbed(params: {
   if (params.isOffline) {
     embed.setDescription('Le stream est maintenant hors ligne.');
   } else {
-    embed.setDescription(`🔴 ${params.streamerName} est en live !`);
+    embed.setDescription(`${E.dnd} ${params.streamerName} est en live !`);
   }
 
   return embed;
@@ -138,7 +295,7 @@ export function buildNewsEmbed(params: {
 
   embed.addFields(
     { name: 'Catégorie', value: params.category, inline: true },
-    { name: 'Source', value: params.feedName, inline: true }
+    { name: 'Source', value: params.feedName, inline: true },
   );
 
   if (params.itemId) {
@@ -147,7 +304,3 @@ export function buildNewsEmbed(params: {
 
   return embed;
 }
-
-
-
-

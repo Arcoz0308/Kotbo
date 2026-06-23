@@ -6,6 +6,7 @@
   import Modal from '../lib/components/Modal.svelte';
   import ConfirmModal from '../lib/components/ConfirmModal.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import LoadingHint from '../lib/components/LoadingHint.svelte';
 
   const PERMISSIONS = [
     { value: 'READ_STATS',      label: 'Stats serveur',   desc: 'Membres, messages, activité' },
@@ -373,9 +374,12 @@
     <h2 class="text-sm font-semibold text-white">Clés d'accès</h2>
 
     {#if loading}
-      <div class="flex items-center justify-center py-12 text-gray-600 bg-[#1a1d23] border border-white/8 rounded-xl">
-        <Papicon icon="loader-2" size={18} class="animate-spin mr-2" />
-        <span class="text-sm">Chargement…</span>
+      <div class="flex flex-col items-center justify-center py-12 text-gray-600 bg-[#1a1d23] border border-white/8 rounded-xl">
+        <div class="flex items-center">
+          <Papicon icon="loader-2" size={18} class="animate-spin mr-2" />
+          <span class="text-sm">Chargement…</span>
+        </div>
+        <LoadingHint context="config" />
       </div>
 
     {:else if keys.length === 0}

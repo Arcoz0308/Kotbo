@@ -1,6 +1,15 @@
 import type { SlashCommandDefinition } from '../../commands.js';
-import { SlashCommandBuilder, type ChatInputCommandInteraction, PermissionFlagsBits, MessageFlags } from 'discord.js';
-import { successEmbed, errorEmbed, infoEmbed, COLORS, truncate } from '../../utils/embeds.js';
+import {
+  SlashCommandBuilder,
+  type ChatInputCommandInteraction,
+  PermissionFlagsBits,
+  MessageFlags,
+  ContainerBuilder,
+  SeparatorBuilder,
+  SeparatorSpacingSize,
+} from 'discord.js';
+import { COLORS_RAW, text, separator, successContainer, errorContainer, infoContainer, v2, truncate } from '../../utils/embeds.js';
+import { E } from '../../utils/emojis.js';
 import prisma from '../../utils/db.js';
 import { createPagination } from '../../utils/pagination.js';
 import { logger } from '../../utils/logger.js';
@@ -16,7 +25,7 @@ import {
 
 const data = new SlashCommandBuilder()
   .setName('admin')
-  .setDescription('🔧 Commandes administrateur')
+  .setDescription('Commandes administrateur')
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addSubcommand(sub =>
     sub
@@ -82,7 +91,7 @@ const data = new SlashCommandBuilder()
   .addSubcommand(sub =>
     sub
       .setName('stats')
-      .setDescription('📊 Affiche les statistiques globales et des modules')
+      .setDescription('Affiche les statistiques globales et des modules')
       .addStringOption(option =>
         option
           .setName('type')
@@ -108,7 +117,7 @@ const data = new SlashCommandBuilder()
   .addSubcommand(sub =>
     sub
       .setName('rescan-stats')
-      .setDescription('📊 Scrapper l\'historique des messages pour initialiser les statistiques')
+      .setDescription("Scrapper l\'historique des messages pour initialiser les statistiques")
       .addBooleanOption(option =>
         option
           .setName('forcer')
@@ -123,8 +132,8 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
   if (!guildId) {
     await interaction.reply({
-      embeds: [errorEmbed('Erreur', 'Cette commande doit être utilisée dans un serveur.')],
-      flags: [MessageFlags.Ephemeral],
+      ...v2(errorContainer('Erreur', 'Cette commande doit être utilisée dans un serveur.')),
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     });
     return;
   }
@@ -145,43 +154,20 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       },
     });
 
+    const container = new ContainerBuilder()
+      .setAccentColor(COLORS_RAW.info)
+      .addTextDisplayComponents(text(`### ${E.settings} Configuration actuelle`))
+      .addTextDisplayComponents(text(`Paramètres persistés en base de données`))
+      .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
+      .addTextDisplayComponents(text(`**Salon Daily Algo**\n${guild?.dailyAlgoChannelId ? `<#${guild.dailyAlgoChannelId}>` : `${E.error} Non configuré`}`))
+      .addTextDisplayComponents(text(`**Salon validation Daily Algo**\n${guild?.dailyAlgoValidationChannelId ? `<#${guild.dailyAlgoValidationChannelId}>` : `${E.error} Non configuré`}`))
+      .addTextDisplayComponents(text(`**Salon releases GitHub**\n${guild?.githubReleasesChannelId ? `<#${guild.githubReleasesChannelId}>` : `${E.error} Non configuré`}`))
+      .addTextDisplayComponents(text(`**Daily Algo**\n${guild?.dailyAlgoEnabled ? `${E.success} Activé (${guild.dailyAlgoTime} UTC)` : `${E.error} Désactivé`}`))
+      .addTextDisplayComponents(text(`**Releases GitHub**\n${guild?.githubReleasesEnabled ? `${E.success} Activé (${guild.githubRepositories.length} repos)` : `${E.error} Désactivé`}`));
+
     await interaction.reply({
-      embeds: [
-        infoEmbed(
-          'Configuration actuelle',
-          'Paramètres persistés en base de données',
-          [
-            {
-              name: 'Salon Daily Algo',
-              value: guild?.dailyAlgoChannelId ? `<#${guild.dailyAlgoChannelId}>` : '❌ Non configuré',
-              inline: true,
-            },
-            {
-              name: 'Salon validation Daily Algo',
-              value: guild?.dailyAlgoValidationChannelId ? `<#${guild.dailyAlgoValidationChannelId}>` : '❌ Non configuré',
-              inline: true,
-            },
-            {
-              name: 'Salon releases GitHub',
-              value: guild?.githubReleasesChannelId ? `<#${guild.githubReleasesChannelId}>` : '❌ Non configuré',
-              inline: true,
-            },
-            {
-              name: 'Daily Algo',
-              value: guild?.dailyAlgoEnabled ? `✅ Activé (${guild.dailyAlgoTime} UTC)` : '❌ Désactivé',
-              inline: true,
-            },
-            {
-              name: 'Releases GitHub',
-              value: guild?.githubReleasesEnabled
-                ? `✅ Activé (${guild.githubRepositories.length} repos)`
-                : '❌ Désactivé',
-              inline: false,
-            },
-          ]
-        ),
-      ],
-      flags: [MessageFlags.Ephemeral],
+      ...v2(container),
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     });
   } else if (subcommand === 'add-daily-algo') {
     const titre = interaction.options.getString('titre', true).trim();
@@ -198,13 +184,8 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
     if (existing) {
       await interaction.reply({
-        embeds: [
-          infoEmbed(
-            'Daily Algo déjà présent',
-            `Le problème **${titre}** existe déjà dans la banque française.`
-          ),
-        ],
-        flags: [MessageFlags.Ephemeral],
+        ...v2(infoContainer('Daily Algo déjà présent', `Le problème **${titre}** existe déjà dans la banque française.`)),
+        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
       });
       return;
     }
@@ -224,33 +205,23 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     });
 
     await interaction.reply({
-      embeds: [
-        successEmbed(
-          'Daily Algo ajouté',
-          `Le problème **${titre}** a été ajouté à la banque et pourra être sélectionné une seule fois.`
-        ),
-      ],
-      flags: [MessageFlags.Ephemeral],
+      ...v2(successContainer('Daily Algo ajouté', `Le problème **${titre}** a été ajouté à la banque et pourra être sélectionné une seule fois.`)),
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     });
   } else if (subcommand === 'set-algo-channel') {
     const channel = interaction.options.getChannel('channel', true);
 
     if (channel.type !== 0 && channel.type !== 5) { // 5 = GUILD_NEWS (announce channel)
       await interaction.reply({
-        embeds: [errorEmbed('Erreur', 'Le salon doit être un salon texte')],
-        flags: [MessageFlags.Ephemeral],
+        ...v2(errorContainer('Erreur', 'Le salon doit être un salon texte')),
+        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
       });
       return;
     }
 
     await interaction.reply({
-      embeds: [
-        successEmbed(
-          'Salon Daily Algo configuré',
-          `Le Daily Algo sera publié dans ${channel.toString()}`
-        ),
-      ],
-      flags: [MessageFlags.Ephemeral],
+      ...v2(successContainer('Salon Daily Algo configuré', `Le Daily Algo sera publié dans ${channel.toString()}`)),
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     });
 
     await prisma.guild.update({
@@ -262,20 +233,15 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
     if (channel.type !== 0 && channel.type !== 5) { // 5 = GUILD_NEWS (announce channel)
       await interaction.reply({
-        embeds: [errorEmbed('Erreur', 'Le salon doit être un salon texte')],
-        flags: [MessageFlags.Ephemeral],
+        ...v2(errorContainer('Erreur', 'Le salon doit être un salon texte')),
+        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
       });
       return;
     }
 
     await interaction.reply({
-      embeds: [
-        successEmbed(
-          'Salon releases GitHub configuré',
-          `Les releases GitHub seront publiées dans ${channel.toString()}`
-        ),
-      ],
-      flags: [MessageFlags.Ephemeral],
+      ...v2(successContainer('Salon releases GitHub configuré', `Les releases GitHub seront publiées dans ${channel.toString()}`)),
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     });
 
     await prisma.guild.update({
@@ -292,10 +258,9 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
     try {
       if (type === 'global') {
-        // Stats globales existantes (guilds, users, sanctions, dailyAlgo, uptime, memory, shards)
         const guilds = await prisma.guild.findMany({ select: { id: true } });
         const guildCount = guilds.length;
-        
+
         const totalMembers = await prisma.memberProfile.groupBy({
           by: ['guildId'],
           _count: true,
@@ -313,88 +278,50 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
         const memoryUsage = process.memoryUsage();
         const memoryMB = Math.round(memoryUsage.heapUsed / 1024 / 1024);
 
-        await interaction.editReply({
-          embeds: [
-            infoEmbed(
-              '📊 Statistiques Globales Kotbo',
-              `Période: ${period} jours`,
-              [
-                {
-                  name: 'Serveurs',
-                  value: guildCount.toString(),
-                  inline: true,
-                },
-                {
-                  name: 'Utilisateurs',
-                  value: userCount.toString(),
-                  inline: true,
-                },
-                {
-                  name: 'Sanctions actives',
-                  value: activeSanctions.toString(),
-                  inline: true,
-                },
-                {
-                  name: 'Submissions Daily Algo',
-                  value: dailyAlgoSubmissions.toString(),
-                  inline: true,
-                },
-                {
-                  name: 'Uptime',
-                  value: `${uptimeHours}h ${uptimeMinutes}m ${uptimeSeconds}s`,
-                  inline: true,
-                },
-                {
-                  name: 'Mémoire',
-                  value: `${memoryMB} MB`,
-                  inline: true,
-                },
-              ]
-            ),
-          ],
-        });
+        const container = new ContainerBuilder()
+          .setAccentColor(COLORS_RAW.info)
+          .addTextDisplayComponents(text(`### ${E.stats} Statistiques Globales Kotbo`))
+          .addTextDisplayComponents(text(`Période: ${period} jours`))
+          .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
+          .addTextDisplayComponents(text(`**Serveurs**\n${guildCount}`))
+          .addTextDisplayComponents(text(`**Utilisateurs**\n${userCount}`))
+          .addTextDisplayComponents(text(`**Sanctions actives**\n${activeSanctions}`))
+          .addTextDisplayComponents(text(`**Submissions Daily Algo**\n${dailyAlgoSubmissions}`))
+          .addTextDisplayComponents(text(`**Uptime**\n${uptimeHours}h ${uptimeMinutes}m ${uptimeSeconds}s`))
+          .addTextDisplayComponents(text(`**Mémoire**\n${memoryMB} MB`));
+
+        await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
       } else if (type === 'modules') {
-        // Résumé complet des modules
         const summary = await getModuleStatsSummary({ guildId, periodDays: period });
 
-        const fields = summary.topModules.slice(0, 10).map((m, i) => ({
-          name: `${i + 1}. ${m.moduleName}`,
-          value: `Utilisation: ${m.totalUsage} | Temps moyen: ${Math.round(m.avgExecutionTimeMs)}ms | Erreurs: ${Math.round(m.errorRate)}%`,
-          inline: false,
-        }));
+        const container = new ContainerBuilder()
+          .setAccentColor(COLORS_RAW.info)
+          .addTextDisplayComponents(text(`### ${E.stats} Statistiques des Modules`))
+          .addTextDisplayComponents(text(`Période: ${period} jours | Top 10 modules`))
+          .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
 
-        await interaction.editReply({
-          embeds: [
-            infoEmbed(
-              '📊 Statistiques des Modules',
-              `Période: ${period} jours | Top 10 modules`,
-              fields
-            ),
-          ],
-        });
+        for (const [i, m] of summary.topModules.slice(0, 10).entries()) {
+          container.addTextDisplayComponents(text(`**${i + 1}. ${m.moduleName}**\nUtilisation: ${m.totalUsage} | Temps moyen: ${Math.round(m.avgExecutionTimeMs)}ms | Erreurs: ${Math.round(m.errorRate)}%`));
+        }
+
+        await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
       } else if (type === 'activation') {
-        // Stats d'activation
         const activation = await getModuleActivationStats(guildId);
         const enabledCount = activation.filter(a => a.enabled).length;
         const disabledCount = activation.length - enabledCount;
 
-        const fields = activation.slice(0, 15).map(a => ({
-          name: `${a.moduleName}`,
-          value: a.enabled ? '✅ Activé' : '❌ Désactivé',
-          inline: true,
-        }));
+        const container = new ContainerBuilder()
+          .setAccentColor(COLORS_RAW.info)
+          .addTextDisplayComponents(text(`### ${E.stats} Activation des Modules`))
+          .addTextDisplayComponents(text(`${E.success} Activés: ${enabledCount} | ${E.error} Désactivés: ${disabledCount}`))
+          .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
 
-        await interaction.editReply({
-          embeds: [
-            infoEmbed(
-              '📊 Activation des Modules',
-              `Activés: ${enabledCount} | Désactivés: ${disabledCount}`,
-              fields
-            ),
-          ],
-        });
+        for (const a of activation.slice(0, 15)) {
+          container.addTextDisplayComponents(text(`**${a.moduleName}**\n${a.enabled ? `${E.success} Activé` : `${E.error} Désactivé`}`));
+        }
+
+        await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
       } else if (type === 'usage') {
-        // Stats d'utilisation
         const usage = await getModuleUsageStats({ guildId, moduleName, periodDays: period });
 
         const groupedByModule = new Map<string, { totalUsage: number; commandExecutions: number; apiCalls: number; eventTriggers: number }>();
@@ -412,23 +339,18 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
           .sort((a, b) => b.totalUsage - a.totalUsage)
           .slice(0, 15);
 
-        const fields = sorted.map((m, i) => ({
-          name: `${i + 1}. ${m.moduleName}`,
-          value: `Total: ${m.totalUsage} | Cmd: ${m.commandExecutions} | API: ${m.apiCalls} | Events: ${m.eventTriggers}`,
-          inline: false,
-        }));
+        const container = new ContainerBuilder()
+          .setAccentColor(COLORS_RAW.info)
+          .addTextDisplayComponents(text(`### ${E.stats} Utilisation des Modules`))
+          .addTextDisplayComponents(text(`Période: ${period} jours${moduleName ? ` | Module: ${moduleName}` : ''}`))
+          .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
 
-        await interaction.editReply({
-          embeds: [
-            infoEmbed(
-              '📊 Utilisation des Modules',
-              `Période: ${period} jours${moduleName ? ` | Module: ${moduleName}` : ''}`,
-              fields
-            ),
-          ],
-        });
+        for (const [i, m] of sorted.entries()) {
+          container.addTextDisplayComponents(text(`**${i + 1}. ${m.moduleName}**\nTotal: ${m.totalUsage} | Cmd: ${m.commandExecutions} | API: ${m.apiCalls} | Events: ${m.eventTriggers}`));
+        }
+
+        await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
       } else if (type === 'performance') {
-        // Stats de performance
         const performance = await getModulePerformanceStats({ guildId, moduleName, periodDays: period });
 
         const groupedByModule = new Map<string, { avgExecutionTimeMs: number; totalExecutions: number; errorCount: number; errorRate: number }>();
@@ -446,27 +368,23 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
           .sort((a, b) => b.totalExecutions - a.totalExecutions)
           .slice(0, 15);
 
-        const fields = sorted.map((m, i) => ({
-          name: `${i + 1}. ${m.moduleName}`,
-          value: `Exécutions: ${m.totalExecutions} | Temps moyen: ${Math.round(m.avgExecutionTimeMs)}ms | Erreurs: ${Math.round(m.errorRate)}%`,
-          inline: false,
-        }));
+        const container = new ContainerBuilder()
+          .setAccentColor(COLORS_RAW.info)
+          .addTextDisplayComponents(text(`### ${E.stats} Performance des Modules`))
+          .addTextDisplayComponents(text(`Période: ${period} jours${moduleName ? ` | Module: ${moduleName}` : ''}`))
+          .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
 
-        await interaction.editReply({
-          embeds: [
-            infoEmbed(
-              '📊 Performance des Modules',
-              `Période: ${period} jours${moduleName ? ` | Module: ${moduleName}` : ''}`,
-              fields
-            ),
-          ],
-        });
+        for (const [i, m] of sorted.entries()) {
+          container.addTextDisplayComponents(text(`**${i + 1}. ${m.moduleName}**\nExécutions: ${m.totalExecutions} | Temps moyen: ${Math.round(m.avgExecutionTimeMs)}ms | Erreurs: ${Math.round(m.errorRate)}%`));
+        }
+
+        await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
       }
     } catch (err) {
       logger.error('AdminCommand', 'Error fetching stats:', err);
-      await interaction.editReply({
-        embeds: [errorEmbed('Erreur', 'Impossible de récupérer les statistiques.')],
-      });
+      await interaction.editReply(
+        v2(errorContainer('Erreur', 'Impossible de récupérer les statistiques.')),
+      );
     }
   } else if (subcommand === 'rescan-stats') {
     const force = interaction.options.getBoolean('forcer') ?? false;
@@ -477,26 +395,17 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       const { startHistoricalScraping } = await import('../../services/analytics/messageScraperService.js');
       await startHistoricalScraping(interaction.client, guildId, force);
 
-      await interaction.editReply({
-        embeds: [
-          successEmbed(
-            'Scan des Statistiques Lancé',
-            `Le scraping historique des messages a été démarré avec succès en arrière-plan.\n\n` +
-            `• **Mode forcé :** ${force ? 'Oui (recommencer à zéro)' : 'Non'}\n` +
-            `• Vous pouvez suivre l'avancement dans les logs ou via le statut en base de données.`
-          ),
-        ],
-      });
+      await interaction.editReply(
+        v2(successContainer(
+          'Scan des Statistiques Lancé',
+          `Le scraping historique des messages a été démarré avec succès en arrière-plan.\n\n${E.arrow} **Mode forcé :** ${force ? 'Oui (recommencer à zéro)' : 'Non'}\n${E.arrow} Vous pouvez suivre l'avancement dans les logs ou via le statut en base de données.`,
+        )),
+      );
     } catch (err) {
       console.error('Error starting historical scraping from admin:', err);
-      await interaction.editReply({
-        embeds: [
-          errorEmbed(
-            'Erreur',
-            `Impossible de démarrer le scraping : ${err instanceof Error ? err.message : String(err)}`
-          ),
-        ],
-      });
+      await interaction.editReply(
+        v2(errorContainer('Erreur', `Impossible de démarrer le scraping : ${err instanceof Error ? err.message : String(err)}`)),
+      );
     }
   }
 }

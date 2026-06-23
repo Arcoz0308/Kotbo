@@ -594,7 +594,7 @@ export async function handleModulesRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('PresetsAPI', 'Error applying preset:', err);
-      json(res, 500, { error: 'Erreur lors de l\'application du preset' });
+      json(res, 500, { error: "Erreur lors de l\'application du preset" });
     }
     return true;
   }
@@ -754,7 +754,7 @@ export async function handleModulesRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('SanctionsAPI', 'Error deleting sanction:', err);
-      json(res, 500, { error: 'Erreur lors de la suppression de l\'infraction' });
+      json(res, 500, { error: "Erreur lors de la suppression de l\'infraction" });
     }
     return true;
   }
@@ -788,7 +788,7 @@ export async function handleModulesRoutes(
       }
 
       if (!incidentAt || Number.isNaN(incidentAt.getTime())) {
-        json(res, 400, { error: 'Date/heure de l\'incident invalide.' });
+        json(res, 400, { error: "Date/heure de l\'incident invalide." });
         return true;
       }
 
@@ -879,7 +879,7 @@ export async function handleModulesRoutes(
       }
 
       if (existingReport.createdByUserId !== user.userId && access.level !== 'admin') {
-        json(res, 403, { error: 'Seul l\'auteur du rapport ou un administrateur peut le modifier.' });
+        json(res, 403, { error: "Seul l\'auteur du rapport ou un administrateur peut le modifier." });
         return true;
       }
 
@@ -1260,10 +1260,21 @@ export async function handleModulesRoutes(
             tempVoiceChannelId: true,
             tempVoiceCategoryId: true,
             tempVoiceNameTemplate: true,
+            tempVoiceGenerators: true,
             honeypotEnabled: true,
-            honeypotChannelId: true,
+            honeypotChannelIds: true,
             honeypotSanction: true,
             honeypotReinvite: true,
+            verificationEnabled: true,
+            verificationMode: true,
+            verificationAction: true,
+            verificationChannelId: true,
+            verificationRoleId: true,
+            verificationLogChannelId: true,
+            verificationEmbedTitle: true,
+            verificationEmbedDesc: true,
+            verificationEmbedColor: true,
+            verificationOnJoin: true,
           },
         });
         if (!guild) {
@@ -1280,10 +1291,21 @@ export async function handleModulesRoutes(
           tempVoiceChannelId: guild.tempVoiceChannelId,
           tempVoiceCategoryId: guild.tempVoiceCategoryId,
           tempVoiceNameTemplate: guild.tempVoiceNameTemplate,
+          tempVoiceGenerators: guild.tempVoiceGenerators,
           honeypotEnabled: guild.honeypotEnabled,
-          honeypotChannelId: guild.honeypotChannelId,
+          honeypotChannelIds: guild.honeypotChannelIds,
           honeypotSanction: guild.honeypotSanction,
           honeypotReinvite: guild.honeypotReinvite,
+          verificationEnabled: guild.verificationEnabled,
+          verificationMode: guild.verificationMode,
+          verificationAction: guild.verificationAction,
+          verificationChannelId: guild.verificationChannelId,
+          verificationRoleId: guild.verificationRoleId,
+          verificationLogChannelId: guild.verificationLogChannelId,
+          verificationEmbedTitle: guild.verificationEmbedTitle,
+          verificationEmbedDesc: guild.verificationEmbedDesc,
+          verificationEmbedColor: guild.verificationEmbedColor,
+          verificationOnJoin: guild.verificationOnJoin,
         });
       } catch (err) {
         logger.error('ChannelsManagementAPI', 'GET config error:', err);
@@ -1304,10 +1326,21 @@ export async function handleModulesRoutes(
           tempVoiceChannelId?: string | null;
           tempVoiceCategoryId?: string | null;
           tempVoiceNameTemplate?: string;
+          tempVoiceGenerators?: Array<{ channelId?: string; categoryId?: string; nameTemplate?: string }>;
           honeypotEnabled?: boolean;
-          honeypotChannelId?: string | null;
+          honeypotChannelIds?: string[];
           honeypotSanction?: string;
           honeypotReinvite?: boolean;
+          verificationEnabled?: boolean;
+          verificationMode?: string;
+          verificationAction?: string;
+          verificationChannelId?: string | null;
+          verificationRoleId?: string | null;
+          verificationLogChannelId?: string | null;
+          verificationEmbedTitle?: string;
+          verificationEmbedDesc?: string;
+          verificationEmbedColor?: string;
+          verificationOnJoin?: boolean;
         }>(req);
 
         if (!body) {
@@ -1343,14 +1376,19 @@ export async function handleModulesRoutes(
         if (Object.prototype.hasOwnProperty.call(body, 'tempVoiceNameTemplate')) {
           data.tempVoiceNameTemplate = body.tempVoiceNameTemplate;
         }
+        if (Object.prototype.hasOwnProperty.call(body, 'tempVoiceGenerators')) {
+          data.tempVoiceGenerators = body.tempVoiceGenerators;
+        }
         if (Object.prototype.hasOwnProperty.call(body, 'honeypotEnabled')) {
           data.honeypotEnabled = !!body.honeypotEnabled;
         }
-        if (Object.prototype.hasOwnProperty.call(body, 'honeypotChannelId')) {
-          data.honeypotChannelId = body.honeypotChannelId;
+        if (Object.prototype.hasOwnProperty.call(body, 'honeypotChannelIds')) {
+          data.honeypotChannelIds = Array.isArray(body.honeypotChannelIds)
+            ? body.honeypotChannelIds.filter((id: unknown): id is string => typeof id === 'string' && id.length > 0)
+            : [];
         }
         if (Object.prototype.hasOwnProperty.call(body, 'honeypotSanction')) {
-          if (['WARN', 'KICK', 'TIMEOUT', 'BAN'].includes(body.honeypotSanction as string)) {
+          if (['WARN', 'KICK', 'TIMEOUT', 'BAN', 'SOFTBAN'].includes(body.honeypotSanction as string)) {
             data.honeypotSanction = body.honeypotSanction;
           } else {
             json(res, 400, { error: 'Type de sanction honeypot invalide' });
@@ -1359,6 +1397,40 @@ export async function handleModulesRoutes(
         }
         if (Object.prototype.hasOwnProperty.call(body, 'honeypotReinvite')) {
           data.honeypotReinvite = !!body.honeypotReinvite;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'verificationEnabled')) {
+          data.verificationEnabled = !!body.verificationEnabled;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'verificationMode')) {
+          if (['DM', 'EMBED'].includes(body.verificationMode as string)) {
+            data.verificationMode = body.verificationMode;
+          }
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'verificationAction')) {
+          if (['AUTO_LINK', 'NOTIFY_STAFF'].includes(body.verificationAction as string)) {
+            data.verificationAction = body.verificationAction;
+          }
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'verificationChannelId')) {
+          data.verificationChannelId = body.verificationChannelId;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'verificationRoleId')) {
+          data.verificationRoleId = body.verificationRoleId;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'verificationLogChannelId')) {
+          data.verificationLogChannelId = body.verificationLogChannelId;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'verificationEmbedTitle')) {
+          data.verificationEmbedTitle = (body.verificationEmbedTitle || '').slice(0, 256);
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'verificationEmbedDesc')) {
+          data.verificationEmbedDesc = (body.verificationEmbedDesc || '').slice(0, 2048);
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'verificationEmbedColor')) {
+          data.verificationEmbedColor = body.verificationEmbedColor;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'verificationOnJoin')) {
+          data.verificationOnJoin = !!body.verificationOnJoin;
         }
 
         const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
@@ -1386,9 +1458,39 @@ export async function handleModulesRoutes(
                 data.tempVoiceChannelId = newVoice.id;
               }
             }
+
+            // Auto-create channels for additional generators
+            if (Array.isArray(body.tempVoiceGenerators)) {
+              const resolvedGenerators = [];
+              for (const gen of body.tempVoiceGenerators) {
+                const resolved = { ...gen };
+
+                if (!resolved.categoryId) {
+                  const cat = await discordGuild.channels.create({
+                    name: '🔊 Salons Vocaux',
+                    type: ChannelType.GuildCategory,
+                  }).catch(() => null);
+                  if (cat) resolved.categoryId = cat.id;
+                }
+
+                if (!resolved.channelId) {
+                  const newVoice = await discordGuild.channels.create({
+                    name: '➕ Créer un salon',
+                    type: ChannelType.GuildVoice,
+                    parent: resolved.categoryId || undefined,
+                  }).catch(() => null);
+                  if (newVoice) resolved.channelId = newVoice.id;
+                }
+
+                if (resolved.channelId) {
+                  resolvedGenerators.push(resolved);
+                }
+              }
+              data.tempVoiceGenerators = resolvedGenerators;
+            }
           }
 
-          if (body.honeypotEnabled && !body.honeypotChannelId) {
+          if (body.honeypotEnabled && body.createHoneypotChannel) {
             const newHoneypot = await discordGuild.channels.create({
               name: 'ne-rien-envoyer-ici',
               type: ChannelType.GuildText,
@@ -1400,13 +1502,14 @@ export async function handleModulesRoutes(
               ],
             }).catch(() => null);
             if (newHoneypot) {
-              data.honeypotChannelId = newHoneypot.id;
+              const currentIds = Array.isArray(data.honeypotChannelIds) ? data.honeypotChannelIds : [];
+              data.honeypotChannelIds = [...currentIds, newHoneypot.id];
 
               const honeyEmbed = new EmbedBuilder()
                 .setTitle('⚠️ SALON PROTECTEUR - NE PAS ÉCRIRE ⚠️')
                 .setDescription(
                   '### 🛡️ Honeypot de Sécurité\n\n' +
-                  'Ce salon sert d\'appât pour intercepter les bots de spam et les comptes compromis.\n\n' +
+                  "Ce salon sert d\'appât pour intercepter les bots de spam et les comptes compromis.\n\n" +
                   '> 🛑 **RÈGLE CRUCIALE** : Ne postez **absolument aucun** message dans ce salon sous peine de **BANNISSEMENT DÉFINITIF ET IMMÉDIAT** de ce serveur Discord.\n\n' +
                   '*Si vous êtes un utilisateur légitime, ignorez ou masquez simplement ce salon.*'
                 )
@@ -1453,7 +1556,20 @@ export async function handleModulesRoutes(
                 }
               }
 
-              const createStatChannel = async (defaultName: string): Promise<string | undefined> => {
+              const createStatChannel = async (defaultName: string, asCategory = false): Promise<string | undefined> => {
+                if (asCategory) {
+                  const ch = await discordGuild.channels.create({
+                    name: defaultName,
+                    type: ChannelType.GuildCategory,
+                    permissionOverwrites: [
+                      {
+                        id: discordGuild.roles.everyone.id,
+                        deny: [PermissionFlagsBits.SendMessages],
+                      },
+                    ],
+                  }).catch(() => null);
+                  return ch?.id;
+                }
                 const ch = await discordGuild.channels.create({
                   name: defaultName,
                   type: ChannelType.GuildVoice,
@@ -1508,7 +1624,7 @@ export async function handleModulesRoutes(
                     if (item.type === 'goal' && item.goalTarget) {
                       initialName = initialName.replace('{goal}', item.goalTarget.toString());
                     }
-                    item.channelId = await createStatChannel(initialName) ?? '';
+                    item.channelId = await createStatChannel(initialName, item.channelType === 'category') ?? '';
                   }
                   updatedCustomStats.push(item);
                 }
@@ -1566,7 +1682,8 @@ export async function handleModulesRoutes(
           resolved: {
             tempVoiceChannelId: data.tempVoiceChannelId,
             tempVoiceCategoryId: data.tempVoiceCategoryId,
-            honeypotChannelId: data.honeypotChannelId,
+            tempVoiceGenerators: data.tempVoiceGenerators,
+            honeypotChannelIds: data.honeypotChannelIds,
             honeypotSanction: data.honeypotSanction,
             honeypotReinvite: data.honeypotReinvite,
             statsConfig: data.statsConfig,
@@ -1659,7 +1776,7 @@ export async function handleModulesRoutes(
           json(res, 409, { error: 'Ce mot existe déjà sur ce serveur' });
         } else {
           logger.error('BannedWordsAPI', 'POST banned-words error:', err);
-          json(res, 500, { error: 'Erreur lors de l\'ajout du mot' });
+          json(res, 500, { error: "Erreur lors de l\'ajout du mot" });
         }
       }
       return true;
@@ -1823,7 +1940,7 @@ export async function handleModulesRoutes(
         }>(req);
 
         if (!body || !Array.isArray(body.roleAccessConfigs)) {
-          json(res, 400, { error: 'Payload d\'accès de rôle invalide' });
+          json(res, 400, { error: "Payload d\'accès de rôle invalide" });
           return true;
         }
 
@@ -2176,7 +2293,7 @@ export async function handleModulesRoutes(
       await syncFeature('regulation', 'Règlement', undefined, data.regulationChannelId, undefined);
       await syncFeature('meetings', 'Réunions', undefined, data.meetingAnnouncementChannelId, data.meetingVoiceChannelId);
       await syncFeature('settings', 'Paramètres', undefined, data.configChannelId, undefined);
-      await syncFeature('dashboard', 'Vue d\'ensemble', undefined, data.publicChannelId, undefined);
+      await syncFeature('dashboard', "Vue d\'ensemble", undefined, data.publicChannelId, undefined);
       await syncFeature('news', 'Actualités & RSS', undefined, data.newsChannelId, undefined);
       await syncFeature('auto_thread', 'Auto-Thread', data.autoThreadEnabled, undefined, undefined);
       
@@ -2306,7 +2423,7 @@ export async function handleModulesRoutes(
         json(res, 201, { ok: true, articleId: article.id });
       } catch (err) {
         logger.error('RegulationAPI', 'Error creating regulation article:', err);
-        json(res, 500, { error: 'Erreur lors de la création de l\'article' });
+        json(res, 500, { error: "Erreur lors de la création de l\'article" });
       }
       return true;
     }
@@ -2433,7 +2550,7 @@ export async function handleModulesRoutes(
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('RegulationAPI', 'Error patching article:', err);
-        json(res, 500, { error: 'Erreur lors de la modification de l\'article' });
+        json(res, 500, { error: "Erreur lors de la modification de l\'article" });
       }
       return true;
     }
@@ -2481,7 +2598,7 @@ export async function handleModulesRoutes(
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('RegulationAPI', 'Error deleting article:', err);
-        json(res, 500, { error: 'Erreur lors de la suppression de l\'article' });
+        json(res, 500, { error: "Erreur lors de la suppression de l\'article" });
       }
       return true;
     }
@@ -2593,7 +2710,7 @@ export async function handleModulesRoutes(
         json(res, 201, article);
       } catch (err: any) {
         logger.error('NewsAPI', `Error creating news for guild ${guildId}: ${err.message}`);
-        json(res, 500, { error: 'Erreur lors de la création de l\'actualité' });
+        json(res, 500, { error: "Erreur lors de la création de l\'actualité" });
       }
       return true;
     }
@@ -2663,7 +2780,7 @@ export async function handleModulesRoutes(
         json(res, 200, updated);
       } catch (err: any) {
         logger.error('NewsAPI', `Error updating news article ${articleId}: ${err.message}`);
-        json(res, 500, { error: 'Erreur lors de la modification de l\'actualité' });
+        json(res, 500, { error: "Erreur lors de la modification de l\'actualité" });
       }
       return true;
     }
@@ -2698,7 +2815,7 @@ export async function handleModulesRoutes(
         json(res, 200, { success: true });
       } catch (err: any) {
         logger.error('NewsAPI', `Error deleting news article ${articleId}: ${err.message}`);
-        json(res, 500, { error: 'Erreur lors de la suppression de l\'actualité' });
+        json(res, 500, { error: "Erreur lors de la suppression de l\'actualité" });
       }
       return true;
     }
@@ -2779,7 +2896,7 @@ export async function handleModulesRoutes(
         json(res, 200, config);
       } catch (err: any) {
         logger.error('NewsAPI', `Error saving news category config for guild ${guildId}: ${err.message}`);
-        json(res, 500, { error: 'Erreur lors de l\'enregistrement de la configuration de catégorie' });
+        json(res, 500, { error: "Erreur lors de l\'enregistrement de la configuration de catégorie" });
       }
       return true;
     }
@@ -2924,7 +3041,7 @@ export async function handleModulesRoutes(
         json(res, 200, follow);
       } catch (err: any) {
         logger.error('SocialFollowsAPI', `Error adding youtube follow: ${err.message}`);
-        json(res, 500, { error: 'Erreur lors de l\'ajout du suivi YouTube' });
+        json(res, 500, { error: "Erreur lors de l\'ajout du suivi YouTube" });
       }
       return true;
     }
@@ -2992,7 +3109,7 @@ export async function handleModulesRoutes(
         json(res, 200, follow);
       } catch (err: any) {
         logger.error('SocialFollowsAPI', `Error adding twitch follow: ${err.message}`);
-        json(res, 500, { error: 'Erreur lors de l\'ajout du suivi Twitch' });
+        json(res, 500, { error: "Erreur lors de l\'ajout du suivi Twitch" });
       }
       return true;
     }
@@ -3119,7 +3236,7 @@ export async function handleModulesRoutes(
         json(res, 201, problem);
       } catch (err) {
         logger.error('DailyAlgoAPI', 'Error creating daily algo problem:', err);
-        json(res, 500, { error: 'Erreur lors de la création de l\'exercice' });
+        json(res, 500, { error: "Erreur lors de la création de l\'exercice" });
       }
       return true;
     }
@@ -3190,7 +3307,7 @@ export async function handleModulesRoutes(
         json(res, 200, updated);
       } catch (err) {
         logger.error('DailyAlgoAPI', `Error updating daily algo problem ${problemId}:`, err);
-        json(res, 500, { error: 'Erreur lors de la modification de l\'exercice' });
+        json(res, 500, { error: "Erreur lors de la modification de l\'exercice" });
       }
       return true;
     }
@@ -3233,7 +3350,7 @@ export async function handleModulesRoutes(
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('DailyAlgoAPI', `Error deleting daily algo problem ${problemId}:`, err);
-        json(res, 500, { error: 'Erreur lors de la suppression de l\'exercice' });
+        json(res, 500, { error: "Erreur lors de la suppression de l\'exercice" });
       }
       return true;
     }
@@ -3520,7 +3637,7 @@ export async function handleModulesRoutes(
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('InvitationsAPI', `Error suspending invite ${code}:`, err);
-        json(res, 500, { error: 'Erreur lors de la suspension de l\'invitation' });
+        json(res, 500, { error: "Erreur lors de la suspension de l\'invitation" });
       }
       return true;
     }
@@ -3568,7 +3685,7 @@ export async function handleModulesRoutes(
         json(res, 200, { purgedCount });
       } catch (err) {
         logger.error('InvitationsAPI', `Error purging members of invite ${code}:`, err);
-        json(res, 500, { error: 'Erreur lors de la purge de l\'invitation' });
+        json(res, 500, { error: "Erreur lors de la purge de l\'invitation" });
       }
       return true;
     }
@@ -3608,7 +3725,7 @@ export async function handleModulesRoutes(
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('InvitationsAPI', `Error deleting invite ${code}:`, err);
-        json(res, 500, { error: 'Erreur lors de la suppression de l\'invitation' });
+        json(res, 500, { error: "Erreur lors de la suppression de l\'invitation" });
       }
       return true;
     }
@@ -3885,7 +4002,7 @@ export async function handleModulesRoutes(
         });
       } catch (err) {
         logger.error('DailyAlgoAPI', 'Error getting submissions history:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération de l\'historique des soumissions' });
+        json(res, 500, { error: "Erreur lors de la récupération de l\'historique des soumissions" });
       }
       return true;
     }
@@ -4062,7 +4179,7 @@ export async function handleModulesRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('ImportAPI', 'Error importing state:', err);
-      json(res, 500, { error: 'Erreur lors de l\'importation de la configuration' });
+      json(res, 500, { error: "Erreur lors de l\'importation de la configuration" });
     }
     return true;
   }
@@ -4085,7 +4202,7 @@ export async function handleModulesRoutes(
     }
 
     if (isGetMethod && !access.canViewDashboard) {
-      json(res, 403, { error: 'Accès refusé. Vous n\'avez pas accès au dashboard.' });
+      json(res, 403, { error: "Accès refusé. Vous n\'avez pas accès au dashboard." });
       return true;
     }
 
@@ -4320,7 +4437,7 @@ export async function handleModulesRoutes(
         json(res, 200, { success: true });
       } catch (err: any) {
         logger.error('TicketsAPI', `Error sending ticket setup embed: ${err.message}`);
-        json(res, 500, { error: err.message || 'Erreur lors de l\'envoi de l\'embed' });
+        json(res, 500, { error: err.message || "Erreur lors de l\'envoi de l\'embed" });
       }
       return true;
     }
@@ -4476,7 +4593,7 @@ export async function handleModulesRoutes(
         });
       } catch (err: any) {
         logger.error('TicketsAPI', `Error sending message to ticket: ${err.message}`);
-        json(res, 500, { error: 'Erreur lors de l\'envoi du message' });
+        json(res, 500, { error: "Erreur lors de l\'envoi du message" });
       }
       return true;
     }
@@ -4747,7 +4864,7 @@ export async function handleModulesRoutes(
           return true;
         }
         if (!ticket.transcriptId) {
-          json(res, 400, { error: 'Ce ticket n\'a pas de transcription associée.' });
+          json(res, 400, { error: "Ce ticket n\'a pas de transcription associée." });
           return true;
         }
 
@@ -4905,7 +5022,7 @@ export async function handleModulesRoutes(
         // Send separator + welcome back embed
         const restoreEmbed = new EmbedBuilder()
           .setTitle('🔄 Ticket Restauré')
-          .setDescription(`Ce ticket a été réouvert par **${user.username || 'Staff'}** depuis le Dashboard.\n\n**Raison d'origine :** ${ticket.reason}\n**Description :** ${ticket.description || 'Aucune'}`)
+          .setDescription(`Ce ticket a été réouvert par **${user.username || "Staff"}** depuis le Dashboard.\n\n**Raison d'origine :** ${ticket.reason}\n**Description :** ${ticket.description || "Aucune"}`)
           .setColor(COLORS.primary as any)
           .setTimestamp()
           .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
@@ -4987,7 +5104,8 @@ export async function handleModulesRoutes(
           });
 
           const guildConfig = await prisma.guild.findUnique({ where: { id: guildId } });
-          const dashboardUrl = process.env.DASHBOARD_URL || 'http://localhost:5173';
+          const { getDashboardUrl } = await import('../../shared.js');
+          const dashboardUrl = getDashboardUrl();
           const publicLink = `${dashboardUrl}/transcripts/${transcriptData.id}`;
           
           const usersToDm = new Set<string>();
@@ -5000,7 +5118,7 @@ export async function handleModulesRoutes(
            const dmEmbed = new EmbedBuilder()
             .setTitle('📄 Transcription de ticket')
             .setDescription(`Le ticket d'assistance **${ticket.reason}** du serveur **${serverName}** a été supprimé.\n\nVoici le lien pour consulter la transcription complète :`)
-            .addFields([{ name: 'Lien d\'accès', value: `🌐 [Consulter le transcript](${publicLink})` }])
+            .addFields([{ name: "Lien d\'accès", value: `🌐 [Consulter le transcript](${publicLink})` }])
             .setColor('#5865F2')
             .setTimestamp()
             .setFooter({ text: `Serveur : ${serverName}` });

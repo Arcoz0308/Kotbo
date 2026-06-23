@@ -78,7 +78,7 @@ describe('codePolice analysis', () => {
     expect(analysis.risks.some((risk) => risk.title.includes('Récursion potentiellement sans cas de sortie'))).toBe(true);
   });
 
-  test('ignore les mentions Discord quand il n’y a pas de vrai signal de code', () => {
+  test("ignore les mentions Discord quand il n'y a pas de vrai signal de code", () => {
     const mentionRules: CodePoliceRule[] = [
       { key: 'signal.syntax.block', category: 'SIGNAL', matchType: 'REGEX', language: 'generic', pattern: '[{}\\[\\]();=>]', label: 'Syntaxe de bloc', feedback: 'Repère une syntaxe de bloc typique du code.', severity: 'INFO', enabled: true },
     ];
@@ -106,7 +106,7 @@ describe('codePolice analysis', () => {
     expect(analysis.signals.length).toBeGreaterThan(0);
   });
 
-  test('retourne generic si aucun langage spécifique n\'est détecté', () => {
+  test("retourne generic si aucun langage spécifique n\'est détecté", () => {
     const analysis = analyzeCodeContent('hello world', []);
     expect(analysis.language).toBe('generic');
   });

@@ -28,7 +28,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
   if (targetUser.bot) {
     await interaction.reply({
-      embeds: [errorEmbed('Erreur', 'Impossible de modifier le solde d’un bot.')],
+      embeds: [errorEmbed('Erreur', "Impossible de modifier le solde d'un bot.")],
       flags: [MessageFlags.Ephemeral]
     });
     return;

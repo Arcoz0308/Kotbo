@@ -1,4 +1,4 @@
-import { Message, PermissionFlagsBits, EmbedBuilder, Client, PartialMessage, User, Role, Collection, AuditLogEvent, AutoModerationRuleTriggerType, AutoModerationRuleEventType, AutoModerationActionType } from 'discord.js';
+import { Message, PermissionFlagsBits, EmbedBuilder, Client, PartialMessage, User, Role, Collection, AuditLogEvent, AutoModerationRuleTriggerType, AutoModerationRuleEventType, AutoModerationActionType, GuildMember } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { registerWarnSanction, registerTimeoutSanction } from './sanctionService.js';
@@ -48,6 +48,9 @@ if (!config) {
           ghostPingAction: 'ALERT',
           antiEveryoneEnabled: false,
           antiEveryoneAction: 'DELETE_AND_WARN',
+          antiBotEnabled: false,
+          antiBotAction: 'KICK',
+          antiBotBypassUsers: [],
         },
       });
     }
@@ -116,7 +119,7 @@ export async function syncDiscordAutoModRules(client: Client, guildId: string, c
         {
           type: AutoModerationActionType.BlockMessage,
           metadata: {
-            customMessage: 'Message bloqué par l\'AutoMod Kotbo (Spam détecté).'
+            customMessage: "Message bloqué par l\'AutoMod Kotbo (Spam détecté)."
           }
         }
       ];
@@ -162,7 +165,7 @@ export async function syncDiscordAutoModRules(client: Client, guildId: string, c
         {
           type: AutoModerationActionType.BlockMessage,
           metadata: {
-            customMessage: 'Message bloqué par l\'AutoMod Kotbo (Excès de mentions).'
+            customMessage: "Message bloqué par l\'AutoMod Kotbo (Excès de mentions)."
           }
         }
       ];
@@ -213,7 +216,7 @@ export async function syncDiscordAutoModRules(client: Client, guildId: string, c
         {
           type: AutoModerationActionType.BlockMessage,
           metadata: {
-            customMessage: 'Message bloqué par l\'AutoMod Kotbo (Lien ou invitation non autorisé).'
+            customMessage: "Message bloqué par l\'AutoMod Kotbo (Lien ou invitation non autorisé)."
           }
         }
       ];
@@ -325,7 +328,7 @@ export async function handleAutoMod(message: Message, client: any): Promise<bool
           await applySanction(
             message,
             config.linksAction,
-            '[AutoMod] Partage d\'invitation Discord non autorisé',
+            "[AutoMod] Partage d\'invitation Discord non autorisé",
             client
           );
           return true;
@@ -407,7 +410,7 @@ export async function handleAutoMod(message: Message, client: any): Promise<bool
       }
     }
   } catch (err) {
-    logger.error('AutoModService', 'Erreur lors de l\'exécution d\'AutoMod :', err);
+    logger.error('AutoModService', "Erreur lors de l\'exécution d\'AutoMod :", err);
   }
 
   return false;
@@ -468,7 +471,7 @@ async function applySanction(message: Message, action: string, reason: string, c
       }
     }
   } catch (err) {
-    logger.warn('AutoModService', 'Impossible d\'envoyer le log AutoMod :', err);
+    logger.warn('AutoModService', "Impossible d\'envoyer le log AutoMod :", err);
   }
 
   // Appliquer l'effet de sanction réel
@@ -674,7 +677,7 @@ async function triggerGhostPingAlert(
             { name: 'Utilisateur', value: `${author.tag} (${author.id})`, inline: true },
             { name: 'Cibles mentionnées', value: targetsString || 'Inconnues', inline: true },
             { name: 'Action', value: action, inline: true },
-            { name: 'Type d\'infraction', value: isEdit ? 'Modification de message' : 'Suppression de message', inline: true }
+            { name: "Type d\'infraction", value: isEdit ? 'Modification de message' : 'Suppression de message', inline: true }
           )
           .setColor('#ED4245')
           .setTimestamp();
@@ -689,7 +692,7 @@ async function triggerGhostPingAlert(
       }
     }
   } catch (err) {
-    logger.warn('AutoModService', 'Impossible d\'envoyer le log de Ghost Ping :', err);
+    logger.warn('AutoModService', "Impossible d\'envoyer le log de Ghost Ping :", err);
   }
 
   // 4. Appliquer une sanction d'avertissement (WARN) si configurée
@@ -710,5 +713,110 @@ async function triggerGhostPingAlert(
       reason,
       client,
     });
+  }
+}
+
+/**
+ * Gère l'ajout d'un bot sur le serveur en mode sécurisé.
+ * Si antiBotEnabled est actif, seul le propriétaire du serveur peut ajouter un bot.
+ * Sinon, le bot ajouté est expulsé ou banni automatiquement.
+ */
+export async function handleAntiBotAdd(member: GuildMember, client: Client): Promise<boolean> {
+  if (!member.user.bot) return false;
+  if (!member.guild) return false;
+
+  // Ne jamais s'expulser soi-même
+  if (member.id === client.user?.id) return false;
+
+  try {
+    const guildId = member.guild.id;
+    const config = await getOrCreateAutoModConfig(guildId);
+
+    if (!config.antiBotEnabled) return false;
+
+    // Chercher qui a ajouté le bot via l'audit log
+    let addedById: string | null = null;
+    try {
+      const auditLogs = await member.guild.fetchAuditLogs({
+        type: AuditLogEvent.BotAdd,
+        limit: 5,
+      });
+
+      const entry = auditLogs.entries.find(e => {
+        const isRecent = Date.now() - e.createdTimestamp < 10000;
+        return isRecent && e.targetId === member.id;
+      });
+
+      addedById = entry?.executorId ?? null;
+    } catch {
+      logger.warn('AutoModService', `Impossible de lire l'audit log pour l'ajout du bot ${member.user.tag} sur ${guildId}`);
+    }
+
+    // Si c'est le propriétaire ou un utilisateur bypass qui a ajouté le bot, on autorise
+    const ownerId = member.guild.ownerId;
+    if (addedById === ownerId) return false;
+    if (addedById && (config.antiBotBypassUsers || []).includes(addedById)) return false;
+
+    const action = config.antiBotAction || 'KICK';
+    const reason = `[AutoMod] Ajout de bot non autorisé — seul le propriétaire du serveur peut ajouter des bots (mode sécurisé)`;
+
+    // Appliquer l'action
+    if (action === 'BAN') {
+      await member.ban({ reason }).catch(err => {
+        logger.error('AutoModService', `Impossible de bannir le bot ${member.user.tag} :`, err);
+      });
+    } else {
+      await member.kick(reason).catch(err => {
+        logger.error('AutoModService', `Impossible d'expulser le bot ${member.user.tag} :`, err);
+      });
+    }
+
+    logger.info('AutoModService', `Bot ${member.user.tag} (${member.id}) ${action === 'BAN' ? 'banni' : 'expulsé'} du serveur ${guildId} — ajouté par ${addedById ?? 'inconnu'} (non propriétaire)`);
+
+    // Notifier dans le salon de log
+    try {
+      const guildDb = await prisma.guild.findUnique({
+        where: { id: guildId },
+        select: { logChannelId: true },
+      });
+      if (guildDb?.logChannelId) {
+        const logChannel = member.guild.channels.cache.get(guildDb.logChannelId);
+        if (logChannel?.isTextBased()) {
+          const embed = new EmbedBuilder()
+            .setTitle('🤖 Bot bloqué (Mode Sécurisé)')
+            .setDescription(`Le bot **${member.user.tag}** a été ${action === 'BAN' ? 'banni' : 'expulsé'} automatiquement.`)
+            .addFields(
+              { name: 'Bot', value: `${member.user.tag} (${member.id})`, inline: true },
+              { name: 'Ajouté par', value: addedById ? `<@${addedById}>` : 'Inconnu', inline: true },
+              { name: 'Action', value: action, inline: true },
+              { name: 'Raison', value: 'Seul le propriétaire du serveur peut ajouter des bots en mode sécurisé.', inline: false },
+            )
+            .setColor('#ED4245')
+            .setTimestamp();
+          await (logChannel as any).send({ embeds: [embed] }).catch(() => null);
+        }
+      }
+    } catch (err) {
+      logger.warn('AutoModService', "Impossible d'envoyer le log anti-bot :", err);
+    }
+
+    // Notifier la personne qui a ajouté le bot (si identifiable)
+    if (addedById) {
+      try {
+        const adder = await client.users.fetch(addedById).catch(() => null);
+        if (adder) {
+          await adder.send(
+            `⚠️ Le bot **${member.user.tag}** que vous avez ajouté sur **${member.guild.name}** a été ${action === 'BAN' ? 'banni' : 'expulsé'} automatiquement. Ce serveur est en **mode sécurisé** : seul le propriétaire peut ajouter des bots.`
+          ).catch(() => null);
+        }
+      } catch {
+        // DM fermés, pas grave
+      }
+    }
+
+    return true;
+  } catch (err) {
+    logger.error('AutoModService', "Erreur lors du traitement anti-bot :", err);
+    return false;
   }
 }

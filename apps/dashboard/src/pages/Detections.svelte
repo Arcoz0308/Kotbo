@@ -7,6 +7,7 @@
   import MemberCaseModal from '../lib/components/MemberCaseModal.svelte';
   import RefreshButton from '../lib/components/RefreshButton.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import LoadingHint from '../lib/components/LoadingHint.svelte';
 
   type DetectionItem = {
     id: string;
@@ -239,6 +240,7 @@
     <div class="flex flex-col items-center justify-center py-24 gap-4">
       <div class="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
       <p class="text-sm font-bold text-on-surface-variant/60">Chargement des détections...</p>
+      <LoadingHint context="data" />
     </div>
   {:else if error}
     <div class="rounded-lg border border-rose-500/20 bg-rose-500/5 px-4 py-6 text-center">

@@ -6,11 +6,11 @@ import { logger } from '../../utils/logger.js';
 import {
   json,
   getMissingOAuthConfig,
-  DISCORD_CLIENT_ID,
-  DISCORD_CLIENT_SECRET,
-  DISCORD_REDIRECT_URI,
-  DASHBOARD_URL,
-  JWT_SECRET,
+  getDiscordClientId,
+  getDiscordClientSecret,
+  getDiscordRedirectUri,
+  getDashboardUrl,
+  getJwtSecret,
 } from '../shared.js';
 
 interface DiscordTokenResponse {
@@ -58,7 +58,7 @@ export async function handleAuthRoutes(
       const state = crypto.randomBytes(16).toString('hex');
       res.setHeader('Set-Cookie', `kotbo_oauth_state=${state}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=300`);
 
-      const discordUrl = `https://discord.com/api/oauth2/authorize?client_id=${DISCORD_CLIENT_ID}&redirect_uri=${encodeURIComponent(DISCORD_REDIRECT_URI!)}&response_type=code&scope=identify%20guilds&state=${state}`;
+      const discordUrl = `https://discord.com/api/oauth2/authorize?client_id=${getDiscordClientId()}&redirect_uri=${encodeURIComponent(getDiscordRedirectUri())}&response_type=code&scope=identify%20guilds&state=${state}`;
       res.writeHead(302, { Location: discordUrl });
       res.end();
       return true;
@@ -75,13 +75,14 @@ export async function handleAuthRoutes(
         return true;
       }
 
+      const dashboardUrl = getDashboardUrl();
       const cookies = req.headers.cookie ? Object.fromEntries(req.headers.cookie.split(';').map(c => c.trim().split('='))) : {};
       const cookieState = cookies['kotbo_oauth_state'];
       const urlState = url.searchParams.get('state');
 
       if (!cookieState || !urlState || cookieState !== urlState) {
         logger.warn('Auth', 'OAuth state verification failed');
-        res.writeHead(302, { Location: `${DASHBOARD_URL}/login?error=invalid_state` });
+        res.writeHead(302, { Location: `${dashboardUrl}/login?error=invalid_state` });
         res.end();
         return true;
       }
@@ -90,7 +91,7 @@ export async function handleAuthRoutes(
 
       const code = url.searchParams.get('code');
       if (!code) {
-        res.writeHead(302, { Location: `${DASHBOARD_URL}/login?error=no_code` });
+        res.writeHead(302, { Location: `${dashboardUrl}/login?error=no_code` });
         res.end();
         return true;
       }
@@ -99,11 +100,11 @@ export async function handleAuthRoutes(
         const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
           method: 'POST',
           body: new URLSearchParams({
-            client_id: DISCORD_CLIENT_ID!,
-            client_secret: DISCORD_CLIENT_SECRET!,
+            client_id: getDiscordClientId(),
+            client_secret: getDiscordClientSecret(),
             grant_type: 'authorization_code',
             code,
-            redirect_uri: DISCORD_REDIRECT_URI!,
+            redirect_uri: getDiscordRedirectUri(),
           }),
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         });
@@ -121,16 +122,16 @@ export async function handleAuthRoutes(
           username: userData.username,
           avatar: userData.avatar,
           discordToken: tokenData.access_token
-        }, JWT_SECRET, { expiresIn: '7d' });
+        }, getJwtSecret(), { expiresIn: '7d' });
 
-        res.writeHead(302, { Location: `${DASHBOARD_URL}#token=${token}` });
+        res.writeHead(302, { Location: `${dashboardUrl}#token=${token}` });
         res.end();
       } catch (err) {
         logger.error('Auth', 'Discord callback error:', err);
         if (err instanceof Error) {
           logger.error('Auth', `Message: ${err.message}`);
         }
-        res.writeHead(302, { Location: `${DASHBOARD_URL}/login?error=auth_failed` });
+        res.writeHead(302, { Location: `${dashboardUrl}/login?error=auth_failed` });
         res.end();
       }
       return true;

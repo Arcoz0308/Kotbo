@@ -151,9 +151,15 @@
                 </svg>
               </div>
 
-              <h2 class="text-lg font-semibold text-on-surface mb-1">Fonctionnalité en développement</h2>
+              <h2 class="text-lg font-semibold text-on-surface mb-1">
+                {pageStatus.wipMessage ? 'Fonctionnalité premium' : 'Fonctionnalité en développement'}
+              </h2>
               <p class="text-sm text-on-surface-variant mb-5">
-                La page <strong>{pageStatus.name}</strong> est actuellement en cours de développement et n'est pas encore disponible.
+                {#if pageStatus.wipMessage}
+                  {pageStatus.wipMessage}
+                {:else}
+                  La page <strong>{pageStatus.name}</strong> est actuellement en cours de développement et n'est pas encore disponible.
+                {/if}
               </p>
 
               <a href="/" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-on-primary text-sm font-medium hover:opacity-90 transition-opacity">

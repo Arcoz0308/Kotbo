@@ -215,7 +215,7 @@
           <ToggleSwitch
             checked={notificationsDraft.killSwitchEnabled}
             onToggle={(checked: boolean) => (notificationsDraft.killSwitchEnabled = checked)}
-            activeClass="peer-checked:bg-red-500"
+            activeClass="bg-red-500"
           />
         </div>
       </div>

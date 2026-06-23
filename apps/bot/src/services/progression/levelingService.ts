@@ -258,7 +258,7 @@ async function processLevelUp(guildId: string, userId: string, newLevel: number,
         coinRewardText = ` Tu as également gagné **${rewardAmount}** ${econConfig.currencyEmoji} **${econConfig.currencyName}** !`;
       }
     } catch (econErr) {
-      logger.error('LevelingService', 'Erreur lors de l\'attribution du bonus d\'économie pour le level up :', econErr);
+      logger.error('LevelingService', "Erreur lors de l\'attribution du bonus d\'économie pour le level up :", econErr);
     }
 
     // 2. Envoi du message de félicitations
@@ -342,112 +342,125 @@ export async function getMemberRankData(guildId: string, userId: string) {
   };
 }
 
-/**
- * Génère une carte de rang en image PNG sous forme de Buffer
- */
 export async function generateRankCard(member: GuildMember, level: number, xp: number, rank: number): Promise<Buffer> {
-  const W = 900, H = 250;
+  const W = 934, H = 282;
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
 
-  // Arrière-plan dégradé vitreux sombre
+  // Background
   const bg = ctx.createLinearGradient(0, 0, W, H);
-  bg.addColorStop(0, '#10141f');
-  bg.addColorStop(1, '#161b2a');
-  ctx.fillStyle = bg;
-  roundRect(ctx, 0, 0, W, H, 20, bg);
+  bg.addColorStop(0, '#0a0d13');
+  bg.addColorStop(0.5, '#0f1219');
+  bg.addColorStop(1, '#0a0d13');
+  roundRect(ctx, 0, 0, W, H, 22, bg);
 
-  // Bordure lumineuse subtile
-  ctx.strokeStyle = 'rgba(88, 101, 242, 0.25)';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(1, 1, W - 2, H - 2);
+  // Accent bar (top)
+  const topBar = ctx.createLinearGradient(0, 0, W, 0);
+  topBar.addColorStop(0, '#5865f2');
+  topBar.addColorStop(0.5, '#7b68ee');
+  topBar.addColorStop(1, '#57f287');
+  ctx.fillStyle = topBar;
+  ctx.fillRect(0, 0, W, 3);
 
-  // Halo lumineux bleu/violet
-  const glow = ctx.createRadialGradient(W - 200, 125, 0, W - 200, 125, 300);
-  glow.addColorStop(0, 'rgba(88, 101, 242, 0.15)');
-  glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-  ctx.fillStyle = glow;
+  // Glows
+  const glow1 = ctx.createRadialGradient(W * 0.75, H * 0.4, 0, W * 0.75, H * 0.4, 300);
+  glow1.addColorStop(0, 'rgba(88, 101, 242, 0.1)');
+  glow1.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glow1;
   ctx.fillRect(0, 0, W, H);
 
-  // Avatar circulaire
+  const glow2 = ctx.createRadialGradient(150, 140, 0, 150, 140, 200);
+  glow2.addColorStop(0, 'rgba(87, 242, 135, 0.06)');
+  glow2.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glow2;
+  ctx.fillRect(0, 0, W, H);
+
+  // Avatar
   const avatarUrl = member.user.displayAvatarURL({ extension: 'png', size: 256 });
+  const avatarCX = 115, avatarCY = 130, avatarR = 62;
+
+  // Avatar ring
+  const ringGrad = ctx.createLinearGradient(avatarCX - avatarR, avatarCY - avatarR, avatarCX + avatarR, avatarCY + avatarR);
+  ringGrad.addColorStop(0, '#5865f2');
+  ringGrad.addColorStop(1, '#57f287');
+  ctx.beginPath();
+  ctx.arc(avatarCX, avatarCY, avatarR + 4, 0, Math.PI * 2);
+  ctx.fillStyle = ringGrad;
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(avatarCX, avatarCY, avatarR + 1, 0, Math.PI * 2);
+  ctx.fillStyle = '#0a0d13';
+  ctx.fill();
+
   try {
     const avatarImg = await loadImage(avatarUrl);
     ctx.save();
     ctx.beginPath();
-    ctx.arc(110, 125, 75, 0, Math.PI * 2);
+    ctx.arc(avatarCX, avatarCY, avatarR, 0, Math.PI * 2);
     ctx.closePath();
     ctx.clip();
-    ctx.drawImage(avatarImg, 35, 50, 150, 150);
+    ctx.drawImage(avatarImg, avatarCX - avatarR, avatarCY - avatarR, avatarR * 2, avatarR * 2);
     ctx.restore();
-  } catch (e) {
-    // Fallback si l'avatar ne peut pas être chargé
+  } catch {
     ctx.fillStyle = '#5865f2';
     ctx.beginPath();
-    ctx.arc(110, 125, 75, 0, Math.PI * 2);
+    ctx.arc(avatarCX, avatarCY, avatarR, 0, Math.PI * 2);
     ctx.fill();
   }
 
-  // Cercle de statut
-  ctx.beginPath();
-  ctx.arc(165, 180, 18, 0, Math.PI * 2);
-  ctx.fillStyle = '#10141f';
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.arc(165, 180, 12, 0, Math.PI * 2);
-  // Couleur selon la présence
+  // Status indicator
   const status = member.presence?.status || 'offline';
-  ctx.fillStyle = status === 'online' ? '#3ba55d' : status === 'idle' ? '#faa81a' : status === 'dnd' ? '#ed4245' : '#747f8d';
+  const statusColor = status === 'online' ? '#3ba55d' : status === 'idle' ? '#faa81a' : status === 'dnd' ? '#ed4245' : '#747f8d';
+  ctx.beginPath();
+  ctx.arc(avatarCX + 45, avatarCY + 45, 14, 0, Math.PI * 2);
+  ctx.fillStyle = '#0a0d13';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(avatarCX + 45, avatarCY + 45, 10, 0, Math.PI * 2);
+  ctx.fillStyle = statusColor;
   ctx.fill();
 
-  // Pseudo et Tag
+  // Name & tag
+  const nameX = 210;
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 32px sans-serif';
+  ctx.font = 'bold 30px sans-serif';
   const truncatedName = member.displayName.length > 18 ? member.displayName.slice(0, 15) + '…' : member.displayName;
-  ctx.fillText(truncatedName, 210, 85);
+  ctx.fillText(truncatedName, nameX, 80);
 
-  const isLegacy = member.user.discriminator && member.user.discriminator !== '0';
-  const tagText = isLegacy ? `#${member.user.discriminator}` : `@${member.user.username}`;
+  const tagText = member.user.discriminator !== '0' ? `#${member.user.discriminator}` : `@${member.user.username}`;
+  ctx.fillStyle = '#6e7681';
+  ctx.font = '17px sans-serif';
+  ctx.fillText(tagText, nameX, 106);
 
-  ctx.fillStyle = '#8b949e';
-  ctx.font = '20px sans-serif';
-  ctx.fillText(tagText, 210, 120);
-
-  // Niveau et Rang avec mesure dynamique pour éviter le chevauchement
+  // Rank & Level (right side)
   ctx.textAlign = 'right';
-  
-  // Valeur du rang
+
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 40px sans-serif';
+  ctx.font = 'bold 38px sans-serif';
   const rankVal = `#${rank}`;
-  ctx.fillText(rankVal, W - 45, 75);
-  const rankValWidth = ctx.measureText(rankVal).width;
+  ctx.fillText(rankVal, W - 45, 72);
+  const rankValW = ctx.measureText(rankVal).width;
 
-  // Label du rang
   ctx.fillStyle = '#5865f2';
-  ctx.font = 'bold 16px sans-serif';
-  ctx.fillText('RANG ', W - 45 - rankValWidth, 75);
-  const rankLabelWidth = ctx.measureText('RANG ').width;
+  ctx.font = 'bold 14px sans-serif';
+  ctx.fillText('RANG ', W - 45 - rankValW, 72);
+  const rankLabelW = ctx.measureText('RANG ').width;
 
-  // Valeur du niveau
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 40px sans-serif';
+  ctx.font = 'bold 38px sans-serif';
   const levelVal = `${level}`;
-  const levelX = W - 45 - rankValWidth - rankLabelWidth - 30; // Spécifier 30px d'espace
-  ctx.fillText(levelVal, levelX, 75);
-  const levelValWidth = ctx.measureText(levelVal).width;
+  const levelX = W - 45 - rankValW - rankLabelW - 28;
+  ctx.fillText(levelVal, levelX, 72);
+  const levelValW = ctx.measureText(levelVal).width;
 
-  // Label du niveau
   ctx.fillStyle = '#57f287';
-  ctx.font = 'bold 16px sans-serif';
-  ctx.fillText('NIVEAU ', levelX - levelValWidth, 75);
-  
+  ctx.font = 'bold 14px sans-serif';
+  ctx.fillText('NIVEAU ', levelX - levelValW, 72);
+
   ctx.textAlign = 'left';
 
-  // XP progression
-  // On dérive le niveau de l'XP pour rester cohérent même si le niveau passé
-  // était erroné, et on clampe pour ne jamais afficher de valeur négative.
+  // XP text
   const safeLevel = getLevelFromXp(xp);
   const prevXpNeeded = getXpForLevel(safeLevel - 1);
   const nextXpNeeded = getXpForLevel(safeLevel);
@@ -455,16 +468,16 @@ export async function generateRankCard(member: GuildMember, level: number, xp: n
   const xpRequiredForNextLevel = Math.max(1, nextXpNeeded - prevXpNeeded);
   const progressPercent = Math.min(1, Math.max(0, xpInCurrentLevel / xpRequiredForNextLevel));
 
-  ctx.fillStyle = '#8b949e';
-  ctx.font = '16px sans-serif';
+  ctx.fillStyle = '#6e7681';
+  ctx.font = '14px sans-serif';
   ctx.textAlign = 'right';
   ctx.fillText(`${xpInCurrentLevel.toLocaleString('fr-FR')} / ${xpRequiredForNextLevel.toLocaleString('fr-FR')} XP`, W - 45, 155);
   ctx.textAlign = 'left';
 
-  // Barre de progression
-  const barX = 210, barY = 175, barW = W - 210 - 45, barH = 24, barR = 12;
-  roundRect(ctx, barX, barY, barW, barH, barR, 'rgba(255, 255, 255, 0.08)');
-  
+  // Progress bar
+  const barX = nameX, barY = 175, barW = W - nameX - 45, barH = 22, barR = 11;
+  roundRect(ctx, barX, barY, barW, barH, barR, 'rgba(255,255,255,0.06)');
+
   if (progressPercent > 0) {
     const filledW = Math.max(barH, barW * progressPercent);
     const grad = ctx.createLinearGradient(barX, 0, barX + filledW, 0);
@@ -472,6 +485,25 @@ export async function generateRankCard(member: GuildMember, level: number, xp: n
     grad.addColorStop(1, '#57f287');
     roundRect(ctx, barX, barY, filledW, barH, barR, grad);
   }
+
+  // Bottom text
+  ctx.fillStyle = '#3b4048';
+  ctx.font = '11px sans-serif';
+  ctx.fillText('Kotbo · Progression', nameX, barY + barH + 28);
+
+  ctx.textAlign = 'right';
+  const totalXpText = `${xp.toLocaleString('fr-FR')} XP total`;
+  ctx.fillText(totalXpText, W - 45, barY + barH + 28);
+  ctx.textAlign = 'left';
+
+  // Bottom accent bar
+  const bottomBar = ctx.createLinearGradient(0, 0, W, 0);
+  bottomBar.addColorStop(0, 'rgba(88, 101, 242, 0)');
+  bottomBar.addColorStop(0.3, 'rgba(88, 101, 242, 0.3)');
+  bottomBar.addColorStop(0.7, 'rgba(87, 242, 135, 0.3)');
+  bottomBar.addColorStop(1, 'rgba(87, 242, 135, 0)');
+  ctx.fillStyle = bottomBar;
+  ctx.fillRect(0, H - 2, W, 2);
 
   return canvas.toBuffer('image/png');
 }

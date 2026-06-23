@@ -274,7 +274,7 @@ export const createAbsence = async (
     await createNotification(
       params.guildId,
       params.superiorUserId,
-      'Validation d\'absence en attente',
+      "Validation d\'absence en attente",
       `Une absence a été soumise par un de vos subordonnés. Type: ${params.type}. Durée: ${formatAbsenceDuration(params.startDate, params.endDate)}. Motif: ${params.reason}.`,
       'WARNING',
       '/planning',
@@ -471,12 +471,12 @@ export const createMeeting = async (
     // 2. Récupération de la guilde et des salons Discord
     const discordGuild = client.guilds.cache.get(guildId) ?? await client.guilds.fetch(guildId).catch(() => null);
     if (!discordGuild) {
-      throw new Error('Impossible d’accéder au serveur Discord pour créer la réunion.');
+      throw new Error("Impossible d'accéder au serveur Discord pour créer la réunion.");
     }
 
     const announcementChannel = await client.channels.fetch(announcementChannelId).catch(() => null);
     if (!announcementChannel || (announcementChannel.type !== ChannelType.GuildText && announcementChannel.type !== ChannelType.GuildAnnouncement)) {
-      throw new Error('Le salon d’annonce configuré est introuvable ou n’est pas un salon texte/annonces.');
+      throw new Error("Le salon d'annonce configuré est introuvable ou n'est pas un salon texte/annonces.");
     }
 
     const voiceChannel = await client.channels.fetch(voiceChannelId).catch(() => null);
@@ -530,7 +530,7 @@ export const createMeeting = async (
         .setEmoji('✅'),
       new ButtonBuilder()
         .setCustomId(`meeting_rsvp:${meeting.id}:EXCUSED`)
-        .setLabel('S\'excuser')
+        .setLabel("S\'excuser")
         .setStyle(ButtonStyle.Primary)
         .setEmoji('⏳'),
       new ButtonBuilder()

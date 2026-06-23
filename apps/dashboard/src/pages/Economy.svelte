@@ -7,6 +7,7 @@
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
+  import LoadingHint from '../lib/components/LoadingHint.svelte';
 import EmojiPicker from '../lib/components/EmojiPicker.svelte';
   import {
     fetchEconomyConfig,
@@ -325,6 +326,9 @@ import EmojiPicker from '../lib/components/EmojiPicker.svelte';
 
   {#if loading}
     <Skeleton height="350px" radius="2.5rem" />
+    <div class="flex justify-center mt-4">
+      <LoadingHint context="config" />
+    </div>
   {:else}
     <!-- Tab 1: Configuration -->
     {#if activeTab === 'config'}

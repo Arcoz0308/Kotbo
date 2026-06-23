@@ -1,11 +1,12 @@
 import type { SlashCommandDefinition } from '../../commands.js';
-import { SlashCommandBuilder, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
+import { SlashCommandBuilder, type ChatInputCommandInteraction, ContainerBuilder, SectionBuilder, ThumbnailBuilder, MessageFlags } from 'discord.js';
 import { getOrCreateRpgProfile, getOrCreateEconomyConfig } from '../../services/features/economyService.js';
-import { errorEmbed, COLORS } from '../../utils/embeds.js';
+import { COLORS_RAW, text, v2, errorContainer } from '../../utils/embeds.js';
+import { E } from '../../utils/emojis.js';
 
 const data = new SlashCommandBuilder()
   .setName('coins')
-  .setDescription('🪙 Consulter le solde de pièces d’un membre')
+  .setDescription("🪙 Consulter le solde de pièces d'un membre")
   .addUserOption(option =>
     option
       .setName('membre')
@@ -19,8 +20,8 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
   if (targetUser.bot) {
     await interaction.reply({
-      embeds: [errorEmbed('Erreur', 'Les bots n’ont pas de compte en banque !')],
-      flags: [MessageFlags.Ephemeral]
+      ...v2(errorContainer('Erreur', "Les bots n'ont pas de compte en banque !")),
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral
     });
     return;
   }
@@ -29,20 +30,22 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     const profile = await getOrCreateRpgProfile(guildId, targetUser.id);
     const config = await getOrCreateEconomyConfig(guildId);
 
-    const embed = new EmbedBuilder()
-      .setTitle(`🪙 Portefeuille — ${targetUser.displayName}`)
-      .setThumbnail(targetUser.displayAvatarURL({ size: 128 }))
-      .setColor(COLORS.primary)
-      .setDescription(
-        `<@${targetUser.id}> possède actuellement **${profile.balance}** ${config.currencyEmoji} **${config.currencyName}**.`
+    const container = new ContainerBuilder()
+      .setAccentColor(COLORS_RAW.primary)
+      .addSectionComponents(
+        new SectionBuilder()
+          .addTextDisplayComponents(text(`### ${E.coins} Portefeuille — ${targetUser.displayName}`))
+          .setThumbnailAccessory(new ThumbnailBuilder({ media: { url: targetUser.displayAvatarURL({ size: 128 }) } }))
       )
-      .setTimestamp();
+      .addTextDisplayComponents(
+        text(`<@${targetUser.id}> possède actuellement **${profile.balance}** ${config.currencyEmoji} **${config.currencyName}**.`)
+      );
 
-    await interaction.reply({ embeds: [embed] });
+    await interaction.reply(v2(container));
   } catch (err: any) {
     await interaction.reply({
-      embeds: [errorEmbed('Erreur', err.message || 'Impossible de consulter le solde.')],
-      flags: [MessageFlags.Ephemeral]
+      ...v2(errorContainer('Erreur', err.message || 'Impossible de consulter le solde.')),
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral
     });
   }
 }

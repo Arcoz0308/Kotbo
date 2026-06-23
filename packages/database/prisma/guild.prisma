@@ -8,6 +8,10 @@ model Guild {
   id String @id
   propagateSanctions Boolean @default(false)
 
+  // White-label instance (null = instance principale/default)
+  instanceId String?
+  instance   WhiteLabelInstance? @relation("WhiteLabelGuilds", fields: [instanceId], references: [id], onDelete: SetNull)
+
 
   configChannelId String?
   regulationChannelId String?
@@ -187,10 +191,11 @@ model Guild {
   tempVoiceChannelId      String?
   tempVoiceCategoryId     String?
   tempVoiceNameTemplate   String   @default("🔊 Salon de {user}")
+  tempVoiceGenerators     Json?
 
-  // Honeypot trap channel
+  // Honeypot trap channels
   honeypotEnabled         Boolean  @default(false)
-  honeypotChannelId       String?
+  honeypotChannelIds      String[] @default([])
   honeypotSanction        SanctionType @default(TIMEOUT)
   honeypotReinvite        Boolean  @default(false)
 
@@ -219,6 +224,20 @@ model Guild {
   staffCalls StaffCall[]
 
   mcpApiKeys McpApiKey[]
+  customBotConfig CustomBotConfig?
+
+  // Security Verification (anti-DC via dashboard OAuth)
+  verificationEnabled       Boolean            @default(false)
+  verificationMode          VerificationMode   @default(EMBED)
+  verificationAction        VerificationAction @default(NOTIFY_STAFF)
+  verificationChannelId     String?
+  verificationRoleId        String?
+  verificationLogChannelId  String?
+  verificationEmbedTitle    String   @default("Vérification de sécurité")
+  verificationEmbedDesc     String   @default("Cliquez sur le bouton ci-dessous pour vérifier votre identité et sécuriser votre compte.")
+  verificationEmbedColor    String   @default("#5865F2")
+  verificationOnJoin        Boolean  @default(true)
+  securityVerifications SecurityVerification[]
 
   @@map("guilds")
 }

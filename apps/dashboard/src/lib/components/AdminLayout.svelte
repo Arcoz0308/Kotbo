@@ -5,6 +5,7 @@
   import Papicon from './Papicon.svelte';
   import CommandPalette from './CommandPalette.svelte';
   import { fetchAdminStats } from '../api';
+  import { brandingStore } from '../stores/branding.svelte';
 
   let { children }: { children?: Snippet } = $props();
 
@@ -85,6 +86,7 @@
         { path: '/admin/security', label: 'Sécurité', icon: 'ShieldCheck' },
         { path: '/admin/content', label: 'Mots globaux', icon: 'filter' },
         { path: '/admin/activation', label: "Codes d'activation", icon: 'Key' },
+        { path: '/admin/whitelabel', label: 'White-Label', icon: 'Layers' },
       ]
     },
     {
@@ -126,7 +128,7 @@
           <Papicon icon="Lock" size={16} class="text-primary" />
         </div>
         <div>
-          <p class="text-xs font-semibold uppercase tracking-wider text-primary/80 leading-none">Kotbo</p>
+          <p class="text-xs font-semibold uppercase tracking-wider text-primary/80 leading-none">{brandingStore.brandName}</p>
           <h1 class="text-base font-semibold text-on-surface leading-none mt-0.5">Console Admin</h1>
         </div>
       </div>

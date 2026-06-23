@@ -21,17 +21,17 @@ export const COMMAND_CATALOG: CommandCatalogEntry[] = [
   { name: 'setup', label: 'Installation', description: 'Assistant de mise en route du serveur.', defaultAccess: 'administration' },
   { name: 'config', label: 'Configuration', description: 'Panneau de configuration principal du bot.', defaultAccess: 'administration' },
   { name: 'ping', label: 'Ping', description: 'Vérification de la latence du bot.', defaultAccess: 'tout_le_monde' },
-  { name: 'info', label: 'Infos serveur', description: 'Résumé de l’état et des métriques du serveur.', defaultAccess: 'tout_le_monde' },
+  { name: 'info', label: "Infos serveur", description: "Résumé de l'état et des métriques du serveur.", defaultAccess: "tout_le_monde" },
   { name: 'excuse', label: 'Excuse dev', description: 'Affiche une excuse de développeur aléatoire.', defaultAccess: 'tout_le_monde' },
   { name: 'epoch', label: 'Epoch', description: 'Convertit les dates et les timestamps.', defaultAccess: 'tout_le_monde' },
   { name: 'devutils', label: 'Outils dev', description: 'Utilitaires de développement.', defaultAccess: 'tout_le_monde' },
-  { name: 'status', label: 'Statut', description: 'Affichage d’un statut synthétique.', defaultAccess: 'tout_le_monde' },
+  { name: 'status', label: "Statut", description: "Affichage d'un statut synthétique.", defaultAccess: "tout_le_monde" },
   { name: 'admin', label: 'Admin', description: 'Commandes administrateur du serveur.', defaultAccess: 'administration' },
   { name: 'help', label: 'Aide', description: 'Aide générale et documentation des commandes.', defaultAccess: 'tout_le_monde' },
-  { name: 'dailyAlgo', label: 'Daily Algo', description: 'Gestion du défi d’algorithmique quotidien.', defaultAccess: 'administration' },
+  { name: 'dailyAlgo', label: "Daily Algo", description: "Gestion du défi d'algorithmique quotidien.", defaultAccess: "administration" },
   { name: 'profile', label: 'Profil', description: 'Affiche le profil utilisateur et la progression Daily Algo.', defaultAccess: 'tout_le_monde' },
   { name: 'sanction', label: 'Sanctions', description: 'Gestion des sanctions et des rapports.', defaultAccess: 'modération' },
-  { name: 'journal', label: 'Journal', description: 'Publication manuelle d’articles de presse.', defaultAccess: 'modération' },
+  { name: 'journal', label: "Journal", description: "Publication manuelle d'articles de presse.", defaultAccess: "modération" },
 ];
 
 const normalizeIdList = (value: unknown): string[] => {
@@ -99,7 +99,7 @@ export function evaluateCommandRestriction(
     }
 
     if (rule.allowedChannelIds.length > 0 && !rule.allowedChannelIds.includes(channelId)) {
-      return { allowed: false, reason: 'Cette commande n’est autorisée que dans certains salons.' };
+      return { allowed: false, reason: "Cette commande n'est autorisée que dans certains salons." };
     }
   }
 
@@ -109,7 +109,7 @@ export function evaluateCommandRestriction(
   }
 
   if (rule.allowedRoleIds.length > 0 && !rule.allowedRoleIds.some((roleId) => roleIds.includes(roleId))) {
-    return { allowed: false, reason: 'Tu n’as pas le rôle autorisé pour utiliser cette commande.' };
+    return { allowed: false, reason: "Tu n'as pas le rôle autorisé pour utiliser cette commande." };
   }
 
   return { allowed: true };

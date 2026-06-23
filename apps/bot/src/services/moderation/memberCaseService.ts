@@ -385,11 +385,11 @@ function buildIdentityEmbed(context: MemberCaseContext): EmbedBuilder {
     .setDescription(buildUserLabel(userId, userTag))
     .addFields(
       { name: 'ID Discord', value: userId, inline: true },
-      { name: 'Nom d’utilisateur', value: username, inline: true },
+      { name: "Nom d'utilisateur", value: username, inline: true },
       { name: 'Nom global', value: globalName, inline: true },
       { name: 'Locale', value: locale, inline: true },
       { name: 'Compte bot', value: profile?.isBot ? 'Oui' : user?.bot ? 'Oui' : 'Non', inline: true },
-      { name: 'Couleur d’accent', value: accentColor, inline: true },
+      { name: "Couleur d'accent", value: accentColor, inline: true },
       { name: 'Avatar', value: avatarUrl ?? 'Inconnu', inline: false },
       { name: 'Bannière', value: bannerUrl ?? 'Aucune', inline: false },
     )

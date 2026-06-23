@@ -1,0 +1,46 @@
+// ============================================================================
+// SYSTEME WHITE-LABEL / MULTI-INSTANCE
+// ============================================================================
+
+model WhiteLabelInstance {
+  id        String  @id @default(cuid())
+  slug      String  @unique // identifiant URL-friendly (ex: "ma-commu")
+  name      String  // Nom affiché (ex: "Ma Communauté Bot")
+  enabled   Boolean @default(true)
+
+  // Discord Application credentials
+  discordToken        String // Bot token pour cette instance
+  discordClientId     String // Client ID de l'app Discord
+  discordClientSecret String // Client secret pour OAuth
+  discordRedirectUri  String? // Override du redirect URI OAuth
+
+  // Dashboard / Branding
+  dashboardUrl    String? // URL custom du dashboard (ex: "https://panel.macommu.fr")
+  dashboardOrigin String? // Origin calculé depuis dashboardUrl
+  apiPort         Int?    // Port API custom (null = auto-assigné)
+
+  // Branding
+  brandName     String? // Nom affiché dans le dashboard (fallback: name)
+  brandColor    String  @default("#5865F2") // Couleur primaire
+  brandLogoUrl  String? // URL du logo
+  brandFaviconUrl String? // URL du favicon
+  brandFooterText String? // Texte custom en footer
+
+  // Security
+  jwtSecret     String? // Secret JWT isolé (null = généré au boot)
+  ownerId       String  // Discord user ID du propriétaire
+
+  // Limits
+  maxGuilds     Int     @default(1) // Nombre max de guilds pour cette instance
+
+  // Relations
+  guilds        Guild[] @relation("WhiteLabelGuilds")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([slug])
+  @@index([ownerId])
+  @@index([enabled])
+  @@map("whitelabel_instances")
+}

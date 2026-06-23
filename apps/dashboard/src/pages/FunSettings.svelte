@@ -7,6 +7,7 @@
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
+  import LoadingHint from '../lib/components/LoadingHint.svelte';
   import ModulePage from '../lib/components/ModulePage.svelte';
   import {
     fetchFunConfig,
@@ -185,6 +186,9 @@
       <Skeleton height="320px" radius="2.5rem" />
       <Skeleton height="320px" radius="2.5rem" />
       <Skeleton height="320px" radius="2.5rem" />
+    </div>
+    <div class="flex justify-center mt-4">
+      <LoadingHint context="config" />
     </div>
   {:else}
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">

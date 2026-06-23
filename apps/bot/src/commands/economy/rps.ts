@@ -43,7 +43,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     const config = await getOrCreateEconomyConfig(guildId);
     if (!config.enabled) {
       await interaction.reply({
-        embeds: [errorEmbed('Module Désactivé', 'Le système d’économie est désactivé sur ce serveur.')],
+        embeds: [errorEmbed('Module Désactivé', "Le système d'économie est désactivé sur ce serveur.")],
         flags: [MessageFlags.Ephemeral]
       });
       return;
@@ -52,7 +52,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     const profile = await getOrCreateRpgProfile(guildId, userId);
     if (profile.balance < bet) {
       await interaction.reply({
-        embeds: [errorEmbed('Solde insuffisant', `Vous n’avez pas assez de pièces pour parier **${bet}** 🪙 (Solde actuel : **${profile.balance}** 🪙).`)],
+        embeds: [errorEmbed('Solde insuffisant', `Vous n'avez pas assez de pièces pour parier **${bet}** 🪙 (Solde actuel : **${profile.balance}** 🪙).`)],
         flags: [MessageFlags.Ephemeral]
       });
       return;

@@ -23,7 +23,7 @@ const data = new SlashCommandBuilder()
       .addSubcommand((sub) =>
         sub
           .setName('scan')
-          .setDescription('Signaler les membres dont le compte est trop récent à l\'arrivée.')
+          .setDescription("Signaler les membres dont le compte est trop récent à l\'arrivée.")
           .addIntegerOption((opt) =>
             opt
               .setName('seuil_jours')
@@ -57,7 +57,7 @@ const data = new SlashCommandBuilder()
       .addSubcommand((sub) =>
         sub
           .setName('rescan')
-          .setDescription('Scrapper l\'historique des messages pour initialiser les statistiques.')
+          .setDescription("Scrapper l\'historique des messages pour initialiser les statistiques.")
           .addBooleanOption((opt) =>
             opt
               .setName('forcer')
@@ -98,7 +98,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
   if (!(await canUseModerationTools(interaction))) {
     return interaction.reply({
-      content: '❌ Tu n\'as pas les permissions nécessaires pour lancer ce scan.',
+      content: "❌ Tu n\'as pas les permissions nécessaires pour lancer ce scan.",
       flags: [MessageFlags.Ephemeral],
     });
   }

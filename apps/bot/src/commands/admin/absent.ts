@@ -15,6 +15,8 @@ import {
   getLatestOpenAbsenceForMember,
 } from '../../services/staff/staffLeadershipService.js';
 import { getStaffMember } from '../../services/staff/staffManagementService.js';
+import { successContainer, errorContainer, v2 } from '../../utils/embeds.js';
+import { E } from '../../utils/emojis.js';
 import type { SlashCommandDefinition } from '../../commands.js';
 
 const data = new SlashCommandBuilder()
@@ -27,7 +29,7 @@ const data = new SlashCommandBuilder()
       .addStringOption((option) =>
         option
           .setName('type')
-          .setDescription('Type d\'absence')
+          .setDescription("Type d\'absence")
           .setRequired(true)
           .addChoices(
             { name: 'Congé', value: 'Conge' },
@@ -45,7 +47,7 @@ const data = new SlashCommandBuilder()
       .addStringOption((option) =>
         option
           .setName('raison')
-          .setDescription('Motif de l\'absence')
+          .setDescription("Motif de l\'absence")
           .setRequired(true),
       )
       .addUserOption((option) =>
@@ -74,7 +76,7 @@ const data = new SlashCommandBuilder()
       .addStringOption((option) =>
         option
           .setName('absence_id')
-          .setDescription('ID de l\'absence à clôturer (optionnel)')
+          .setDescription("ID de l\'absence à clôturer (optionnel)")
           .setRequired(false),
       )
       .addUserOption((option) =>
@@ -134,8 +136,8 @@ const askIndefiniteConfirmation = async (
     const value = submit.fields.getTextInputValue('confirmation').trim().toUpperCase();
     if (value !== 'INDETERMINE') {
       await submit.reply({
-        content: '❌ Confirmation invalide. La déclaration d\'absence a été annulée.',
-        flags: [MessageFlags.Ephemeral],
+        ...v2(errorContainer('Confirmation invalide', "La déclaration d\'absence a été annulée.")),
+        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
       });
       return null;
     }
@@ -144,8 +146,8 @@ const askIndefiniteConfirmation = async (
     return submit;
   } catch {
     await interaction.followUp({
-      content: '⏱️ Confirmation expirée. Relancez `/absent declarer` si besoin.',
-      flags: [MessageFlags.Ephemeral],
+      ...v2(errorContainer('Confirmation expirée', 'Relancez `/absent declarer` si besoin.')),
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     });
     return null;
   }
@@ -156,7 +158,10 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
   const staff = await getStaffMember(interaction.guildId, interaction.user.id);
   if (!staff) {
-    await interaction.reply({ content: '❌ Vous ne faites pas partie de l\'équipe Staff.', flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({
+      ...v2(errorContainer('Accès refusé', "Vous ne faites pas partie de l\'équipe Staff.")),
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+    });
     return;
   }
 
@@ -171,13 +176,19 @@ async function execute(interaction: ChatInputCommandInteraction) {
     const superior = interaction.options.getUser('superieur', true);
 
     if (superior.bot) {
-      await interaction.reply({ content: '❌ Le supérieur indiqué doit être un membre humain.', flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({
+        ...v2(errorContainer('Supérieur invalide', 'Le supérieur indiqué doit être un membre humain.')),
+        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+      });
       return;
     }
 
     const superiorStaff = await getStaffMember(interaction.guildId, superior.id);
     if (!superiorStaff) {
-      await interaction.reply({ content: '❌ Le supérieur indiqué ne fait pas partie du staff.', flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({
+        ...v2(errorContainer('Supérieur invalide', 'Le supérieur indiqué ne fait pas partie du staff.')),
+        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+      });
       return;
     }
 
@@ -185,12 +196,18 @@ async function execute(interaction: ChatInputCommandInteraction) {
     const endDate = finRaw ? parseDateInput(finRaw) : null;
 
     if (!startDate || (finRaw && !endDate)) {
-      await interaction.reply({ content: '❌ Format de date invalide. Utilisez YYYY-MM-DD.', flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({
+        ...v2(errorContainer('Format invalide', 'Format de date invalide. Utilisez YYYY-MM-DD.')),
+        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+      });
       return;
     }
 
     if (endDate && endDate < startDate) {
-      await interaction.reply({ content: '❌ La date de fin doit être postérieure ou égale à la date de début.', flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({
+        ...v2(errorContainer('Dates incohérentes', 'La date de fin doit être postérieure ou égale à la date de début.')),
+        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+      });
       return;
     }
 
@@ -219,23 +236,26 @@ async function execute(interaction: ChatInputCommandInteraction) {
       });
 
       const isIndefinite = !endDate;
-      await replyInteraction.editReply({
-        content: isIndefinite
-          ? `✅ Absence déclarée en **indéterminé**. Supérieur notifié: <@${superior.id}>. ID: \`${absence.id}\`.`
-          : `✅ Absence déclarée du **${debutRaw}** au **${finRaw}**. Supérieur notifié: <@${superior.id}>. ID: \`${absence.id}\`.`,
-      });
+      await replyInteraction.editReply(
+        v2(successContainer(
+          'Absence déclarée',
+          isIndefinite
+            ? `Absence déclarée en **indéterminé**. Supérieur notifié: <@${superior.id}>. ID: \`${absence.id}\`.`
+            : `Absence déclarée du **${debutRaw}** au **${finRaw}**. Supérieur notifié: <@${superior.id}>. ID: \`${absence.id}\`.`,
+        )),
+      );
 
       try {
         await superior.send(
-          `📣 Nouvelle absence staff\n- Staff: ${interaction.user.tag} (${interaction.user.id})\n- Type: ${type}\n- Début: ${debutRaw}\n- Fin: ${finRaw ?? 'Indéterminée'}\n- Motif: ${reason}${message ? `\n- Message: ${message}` : ''}\n- ID: ${absence.id}`,
+          `${E.news} Nouvelle absence staff\n${E.arrow} Staff: ${interaction.user.tag} (${interaction.user.id})\n${E.arrow} Type: ${type}\n${E.arrow} Début: ${debutRaw}\n${E.arrow} Fin: ${finRaw ?? 'Indéterminée'}\n${E.arrow} Motif: ${reason}${message ? `\n${E.arrow} Message: ${message}` : ''}\n${E.arrow} ID: ${absence.id}`,
         );
       } catch {
         // Le DM peut échouer selon les préférences utilisateur, ce n'est pas bloquant.
       }
     } catch (err) {
-      await replyInteraction.editReply({
-        content: `❌ ${err instanceof Error ? err.message : 'Une erreur est survenue lors de la création de l\'absence.'}`,
-      });
+      await replyInteraction.editReply(
+        v2(errorContainer('Erreur', err instanceof Error ? err.message : 'Une erreur est survenue lors de la création de l\'absence.')),
+      );
     }
     return;
   }
@@ -247,7 +267,10 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
     const targetStaff = await getStaffMember(interaction.guildId, targetUser.id);
     if (!targetStaff) {
-      await interaction.reply({ content: '❌ Le membre ciblé ne fait pas partie du staff.', flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({
+        ...v2(errorContainer('Membre introuvable', 'Le membre ciblé ne fait pas partie du staff.')),
+        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+      });
       return;
     }
 
@@ -256,7 +279,10 @@ async function execute(interaction: ChatInputCommandInteraction) {
       : await getLatestOpenAbsenceForMember(interaction.guildId, targetStaff.id);
 
     if (!absence) {
-      await interaction.reply({ content: '❌ Aucune absence active trouvée à clôturer.', flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({
+        ...v2(errorContainer('Aucune absence', 'Aucune absence active trouvée à clôturer.')),
+        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
+      });
       return;
     }
 
@@ -265,8 +291,8 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
     if (!isTargetStaff && !isAssignedSuperior) {
       await interaction.reply({
-        content: '❌ Vous ne pouvez clôturer que votre absence ou celle d\'un staff dont vous êtes le supérieur notifié.',
-        flags: [MessageFlags.Ephemeral],
+        ...v2(errorContainer('Permission refusée', "Vous ne pouvez clôturer que votre absence ou celle d\'un staff dont vous êtes le supérieur notifié.")),
+        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
       });
       return;
     }
@@ -274,8 +300,8 @@ async function execute(interaction: ChatInputCommandInteraction) {
     await closeAbsence(absence.id, interaction.user.id, closeNote);
 
     await interaction.reply({
-      content: `✅ Absence clôturée pour <@${absence.staffMember.userId}> (ID: \`${absence.id}\`).`,
-      flags: [MessageFlags.Ephemeral],
+      ...v2(successContainer('Absence clôturée', `Absence clôturée pour <@${absence.staffMember.userId}> (ID: \`${absence.id}\`).`)),
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     });
   }
 }

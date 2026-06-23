@@ -13,10 +13,10 @@ import { logger } from '../utils/logger.js';
 import jwt from 'jsonwebtoken';
 import {
   json,
-  JWT_SECRET,
-  DISCORD_CLIENT_ID,
-  DASHBOARD_URL,
-  DASHBOARD_ORIGIN,
+  getJwtSecret,
+  getDiscordClientId,
+  getDashboardUrl,
+  getDashboardOrigin,
   CORS_EXTRA_ORIGINS,
   splitPath,
   parseDiscordMarkdown,
@@ -28,6 +28,8 @@ import {
   type DashboardSanctionType,
   BunServerResponse,
 } from './shared.js';
+import { getCurrentInstance } from '../utils/instanceContext.js';
+import { getAllInstances } from '../utils/instanceResolver.js';
 
 // Modular Route Handlers
 import { handlePublicRoutes } from './routes/public.js';
@@ -37,6 +39,7 @@ import { handleReportFeedbackRoute } from './routes/feedback.js';
 import { handleUserRoutes } from './routes/user.js';
 import { handleAdminRoutes } from './routes/admin.js';
 import { handleDashboardRoutes } from './routes/dashboard.js';
+import { handleVerifyRoutes } from './routes/verify.js';
 import { handleMCPRoutes, mcpRateLimiter } from './mcp/mcpServer.js';
 
 export type { DashboardSanctionType };
@@ -79,14 +82,16 @@ interface WebSocketData {
 }
 
 export const startDashboardApi = (client: Client) => {
-  const port = Number(process.env.DASHBOARD_API_PORT ?? '8787');
+  const instance = getCurrentInstance();
+  const port = instance.apiPort;
   const strictOAuthConfig = process.env.DASHBOARD_OAUTH_STRICT === 'true';
 
+  const clientId = getDiscordClientId();
   const missingOAuthAtStartup = (() => {
     const missing: string[] = [];
-    if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_ID.trim()) missing.push('DISCORD_CLIENT_ID');
-    if (!process.env.DISCORD_REDIRECT_URI || !process.env.DISCORD_REDIRECT_URI.trim()) missing.push('DISCORD_REDIRECT_URI');
-    if (!process.env.DISCORD_CLIENT_SECRET || !process.env.DISCORD_CLIENT_SECRET.trim()) missing.push('DISCORD_CLIENT_SECRET');
+    if (!clientId?.trim()) missing.push('DISCORD_CLIENT_ID');
+    if (!instance.discordRedirectUri && !process.env.DISCORD_REDIRECT_URI?.trim()) missing.push('DISCORD_REDIRECT_URI');
+    if (!instance.discordClientSecret?.trim()) missing.push('DISCORD_CLIENT_SECRET');
     return missing;
   })();
 
@@ -200,10 +205,13 @@ export const startDashboardApi = (client: Client) => {
           if (isMcpPath) {
             res.setHeader('Access-Control-Allow-Origin', '*');
           } else {
-            // CORS whitelist verification
+            // CORS whitelist — includes all white-label instance origins
+            const dashboardOrigin = getDashboardOrigin();
+            const wlOrigins = getAllInstances().map(i => i.dashboardOrigin);
             const allowedOrigins = new Set([
-              DASHBOARD_ORIGIN,
+              dashboardOrigin,
               ...CORS_EXTRA_ORIGINS,
+              ...wlOrigins,
               'http://localhost:5173',
               'http://localhost:3000'
             ]);
@@ -226,10 +234,10 @@ export const startDashboardApi = (client: Client) => {
                 res.setHeader('Access-Control-Allow-Origin', originStr);
                 res.setHeader('Access-Control-Allow-Credentials', 'true');
               } else {
-                res.setHeader('Access-Control-Allow-Origin', DASHBOARD_ORIGIN);
+                res.setHeader('Access-Control-Allow-Origin', dashboardOrigin);
               }
             } else {
-              res.setHeader('Access-Control-Allow-Origin', DASHBOARD_ORIGIN);
+              res.setHeader('Access-Control-Allow-Origin', dashboardOrigin);
             }
             res.setHeader('Vary', 'Origin');
           }
@@ -259,6 +267,9 @@ export const startDashboardApi = (client: Client) => {
               return;
             }
             if (await handleAuthRoutes(req, res, parts, url, client)) {
+              return;
+            }
+            if (await handleVerifyRoutes(req, res, parts, url, client)) {
               return;
             }
             if (await handleReportErrorRoute(req, res, parts, url, client)) {
@@ -311,7 +322,7 @@ export const startDashboardApi = (client: Client) => {
             }
 
             try {
-              const decoded = (jwt.verify(token, JWT_SECRET!) as unknown) as { userId: string };
+              const decoded = (jwt.verify(token, getJwtSecret()) as unknown) as { userId: string };
               ws.data.isAuthenticated = true;
               ws.data.userId = decoded.userId;
 

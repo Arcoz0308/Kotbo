@@ -17,7 +17,7 @@ import { logger } from '../../utils/logger.js';
 
 const data = new SlashCommandBuilder()
   .setName('note')
-  .setDescription('📝 Gère la note modérateur d’un membre')
+  .setDescription("📝 Gère la note modérateur d'un membre")
   .setDefaultMemberPermissions(PermissionFlagsBits.ModerateMembers)
   .addUserOption((option) =>
     option.setName('membre').setDescription('Le membre pour lequel vous souhaitez modifier la note').setRequired(true),
@@ -77,7 +77,7 @@ export async function showModeratorNoteModal(
     logger.error('Modal', `Erreur lors de l'affichage de la modal de note: ${String(error)}`);
     if (interaction.isRepliable()) {
       await interaction.reply({
-        content: '❌ Impossible d’afficher le menu de note. Réessaie plus tard.',
+        content: "❌ Impossible d'afficher le menu de note. Réessaie plus tard.",
         flags: ["Ephemeral"],
       }).catch(() => null);
     }

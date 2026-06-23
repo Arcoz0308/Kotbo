@@ -30,6 +30,7 @@
   import FormSelect from '../lib/components/FormSelect.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
+  import LoadingHint from '../lib/components/LoadingHint.svelte';
 
   // State
   let loading = $state(true);
@@ -428,6 +429,7 @@
     <div class="flex flex-col items-center justify-center py-20 bg-surface-container-lowest rounded-xl border border-outline-variant/30">
       <div class="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
       <p class="mt-4 text-on-surface-variant font-medium">Chargement de l'agenda...</p>
+      <LoadingHint context="data" />
     </div>
   {:else}
     <div class="flex flex-col xl:flex-row gap-8">

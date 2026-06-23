@@ -9,6 +9,7 @@
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
+  import LoadingHint from '../lib/components/LoadingHint.svelte';
   import { updateGlobalSettings, updateFeatureConfiguration } from '../lib/api';
   import { historyStore } from '../lib/stores/history.svelte';
 
@@ -184,6 +185,9 @@
           </div>
         </div>
       {/each}
+    </div>
+    <div class="flex justify-center mt-4">
+      <LoadingHint context="config" />
     </div>
   {:else}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">

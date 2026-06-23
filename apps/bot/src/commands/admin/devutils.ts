@@ -1,11 +1,19 @@
 import type { SlashCommandDefinition } from '../../commands.js';
-import { SlashCommandBuilder, type ChatInputCommandInteraction } from 'discord.js';
-import { infoEmbed, errorEmbed } from '../../utils/embeds.js';
+import {
+  SlashCommandBuilder,
+  type ChatInputCommandInteraction,
+  ContainerBuilder,
+  SeparatorBuilder,
+  SeparatorSpacingSize,
+  MessageFlags,
+} from 'discord.js';
+import { COLORS_RAW, text, separator, errorContainer, v2 } from '../../utils/embeds.js';
+import { E } from '../../utils/emojis.js';
 import { createHash } from 'crypto';
 
 const data = new SlashCommandBuilder()
   .setName('devutils')
-  .setDescription('🛠️ Utilitaires pour développeurs')
+  .setDescription('Utilitaires pour développeurs')
   .addSubcommand(sub =>
     sub
       .setName('jwt')
@@ -92,28 +100,20 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
       if (!decoded) {
         await interaction.reply({
-          embeds: [errorEmbed('JWT invalide', 'Le token fourni n\'est pas un JWT valide')],
-          flags: 64,
+          ...v2(errorContainer('JWT invalide', "Le token fourni n\'est pas un JWT valide")),
+          flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
         });
         return;
       }
 
-      await interaction.reply({
-        embeds: [
-          infoEmbed('Décodage JWT', undefined, [
-            {
-              name: 'Header',
-              value: `\`\`\`json\n${JSON.stringify(decoded.header, null, 2)}\n\`\`\``,
-              inline: false,
-            },
-            {
-              name: 'Payload',
-              value: `\`\`\`json\n${JSON.stringify(decoded.payload, null, 2)}\n\`\`\``,
-              inline: false,
-            },
-          ]),
-        ],
-      });
+      const container = new ContainerBuilder()
+        .setAccentColor(COLORS_RAW.info)
+        .addTextDisplayComponents(text(`### ${E.info} Décodage JWT`))
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
+        .addTextDisplayComponents(text(`**Header**\n\`\`\`json\n${JSON.stringify(decoded.header, null, 2)}\n\`\`\``))
+        .addTextDisplayComponents(text(`**Payload**\n\`\`\`json\n${JSON.stringify(decoded.payload, null, 2)}\n\`\`\``));
+
+      await interaction.reply(v2(container));
     } else if (subcommand === 'base64') {
       const action = interaction.options.getString('action', true);
       const content = interaction.options.getString('content', true);
@@ -125,46 +125,30 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
         result = base64Decode(content);
       }
 
-      await interaction.reply({
-        embeds: [
-          infoEmbed(
-            `Base64 ${action === 'encode' ? 'Encodé' : 'Décodé'}`,
-            undefined,
-            [
-              {
-                name: 'Résultat',
-                value: `\`\`\`\n${result}\n\`\`\``,
-                inline: false,
-              },
-            ]
-          ),
-        ],
-      });
+      const container = new ContainerBuilder()
+        .setAccentColor(COLORS_RAW.info)
+        .addTextDisplayComponents(text(`### ${E.info} Base64 ${action === 'encode' ? 'Encodé' : 'Décodé'}`))
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
+        .addTextDisplayComponents(text(`**Résultat**\n\`\`\`\n${result}\n\`\`\``));
+
+      await interaction.reply(v2(container));
     } else if (subcommand === 'hash') {
       const content = interaction.options.getString('content', true);
       const hash = sha256(content);
 
-      await interaction.reply({
-        embeds: [
-          infoEmbed(
-            'SHA-256 Hash',
-            undefined,
-            [
-              {
-                name: 'Résultat',
-                value: `\`\`\`\n${hash}\n\`\`\``,
-                inline: false,
-              },
-            ]
-          ),
-        ],
-      });
+      const container = new ContainerBuilder()
+        .setAccentColor(COLORS_RAW.info)
+        .addTextDisplayComponents(text(`### ${E.info} SHA-256 Hash`))
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
+        .addTextDisplayComponents(text(`**Résultat**\n\`\`\`\n${hash}\n\`\`\``));
+
+      await interaction.reply(v2(container));
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Une erreur est survenue';
     await interaction.reply({
-      embeds: [errorEmbed('Erreur', message)],
-      flags: 64,
+      ...v2(errorContainer('Erreur', message)),
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     });
   }
 }

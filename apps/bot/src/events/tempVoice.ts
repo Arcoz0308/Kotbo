@@ -1,15 +1,15 @@
-import { 
-  Client, 
-  Events, 
-  VoiceState, 
-  ChannelType, 
-  EmbedBuilder, 
-  ActionRowBuilder, 
-  ButtonBuilder, 
-  ButtonStyle, 
-  Interaction, 
-  ModalBuilder, 
-  TextInputBuilder, 
+import {
+  Client,
+  Events,
+  VoiceState,
+  ChannelType,
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  Interaction,
+  ModalBuilder,
+  TextInputBuilder,
   TextInputStyle,
   PermissionFlagsBits,
   MessageFlags
@@ -21,6 +21,40 @@ import { getCachedGuild } from '../utils/cache.js';
 // Memory cache for active temporary voice channels: channelId -> { creatorId: string }
 const tempChannels = new Map<string, { creatorId: string }>();
 
+interface TempVoiceGenerator {
+  channelId: string;
+  categoryId?: string;
+  nameTemplate?: string;
+}
+
+function getGenerators(guildConfig: any): TempVoiceGenerator[] {
+  const generators: TempVoiceGenerator[] = [];
+
+  // Primary generator (backward compatible)
+  if (guildConfig.tempVoiceChannelId) {
+    generators.push({
+      channelId: guildConfig.tempVoiceChannelId,
+      categoryId: guildConfig.tempVoiceCategoryId || undefined,
+      nameTemplate: guildConfig.tempVoiceNameTemplate || '🔊 Salon de {user}',
+    });
+  }
+
+  // Additional generators from JSON array
+  if (Array.isArray(guildConfig.tempVoiceGenerators)) {
+    for (const gen of guildConfig.tempVoiceGenerators) {
+      if (gen.channelId) {
+        generators.push({
+          channelId: gen.channelId,
+          categoryId: gen.categoryId || undefined,
+          nameTemplate: gen.nameTemplate || '🔊 Salon de {user}',
+        });
+      }
+    }
+  }
+
+  return generators;
+}
+
 export function registerTempVoiceListener(client: Client): void {
   // Listen to voice state updates to create/delete channels
   client.on(Events.VoiceStateUpdate, async (oldState: VoiceState, newState: VoiceState) => {
@@ -30,78 +64,77 @@ export function registerTempVoiceListener(client: Client): void {
     try {
       const guildConfig = await getCachedGuild(guild.id);
 
-      if (!guildConfig || !guildConfig.tempVoiceEnabled || !guildConfig.tempVoiceChannelId) {
+      if (!guildConfig || !guildConfig.tempVoiceEnabled) {
         return;
       }
 
-      // 1. Creation: User joins the generator channel
-      if (newState.channelId === guildConfig.tempVoiceChannelId) {
-        const categoryId = guildConfig.tempVoiceCategoryId || undefined;
-        const channelName = (guildConfig.tempVoiceNameTemplate || '🔊 Salon de {user}')
-          .replace('{user}', member.displayName || member.user.username);
+      // 1. Creation: Check if user joined any generator channel
+      if (newState.channelId) {
+        const generators = getGenerators(guildConfig);
+        const matchedGenerator = generators.find(g => g.channelId === newState.channelId);
 
-        // Create the new temporary voice channel
-        const tempChannel = await guild.channels.create({
-          name: channelName.slice(0, 100),
-          type: ChannelType.GuildVoice,
-          parent: categoryId,
-          permissionOverwrites: [
-            {
-              id: guild.id, // @everyone
-              allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
-            },
-            {
-              id: member.id, // Creator
-              allow: [
-                PermissionFlagsBits.ViewChannel, 
-                PermissionFlagsBits.Connect, 
-                PermissionFlagsBits.Speak,
-                PermissionFlagsBits.MuteMembers,
-                PermissionFlagsBits.DeafenMembers,
-                PermissionFlagsBits.MoveMembers
-              ],
-            }
-          ],
-          reason: `Création de salon temporaire pour ${member.user.tag}`,
-        });
+        if (matchedGenerator) {
+          const channelName = (matchedGenerator.nameTemplate || '🔊 Salon de {user}')
+            .replace('{user}', member.displayName || member.user.username);
 
-        // Move the member to their new channel
-        await newState.setChannel(tempChannel).catch(() => null);
+          const tempChannel = await guild.channels.create({
+            name: channelName.slice(0, 100),
+            type: ChannelType.GuildVoice,
+            parent: matchedGenerator.categoryId,
+            permissionOverwrites: [
+              {
+                id: guild.id,
+                allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.Speak],
+              },
+              {
+                id: member.id,
+                allow: [
+                  PermissionFlagsBits.ViewChannel,
+                  PermissionFlagsBits.Connect,
+                  PermissionFlagsBits.Speak,
+                  PermissionFlagsBits.MuteMembers,
+                  PermissionFlagsBits.DeafenMembers,
+                  PermissionFlagsBits.MoveMembers
+                ],
+              }
+            ],
+            reason: `Création de salon temporaire pour ${member.user.tag}`,
+          });
 
-        // Cache the channel
-        tempChannels.set(tempChannel.id, { creatorId: member.id });
+          await newState.setChannel(tempChannel).catch(() => null);
 
-        // Send control panel embed in the voice channel's text chat
-        const embed = new EmbedBuilder()
-          .setTitle('⚙️ Gestion de votre salon vocal')
-          .setDescription(`Bonjour <@${member.id}> !\nVous venez de créer votre salon temporaire. Utilisez les boutons ci-dessous pour le configurer.\n\n🔒 **Verrouiller** : Interdit l'accès à @everyone\n🔓 **Déverrouiller** : Autorise l'accès à @everyone\n👥 **Limite** : Modifie le nombre maximum de places\n✏️ **Renommer** : Modifie le nom du salon\n👢 **Expulser** : Expulse un membre du salon\n🚫 **Bannir** : Bannit un membre du salon (bypass staffs)\n➕ **Ajouter** : Autorise un membre à rejoindre\n👑 **Transférer** : Transfère la propriété du salon\n🙋 **Récupérer** : Récupère la propriété (si le propriétaire a quitté)`)
-          .setColor('#5865F2')
-          .setTimestamp();
+          tempChannels.set(tempChannel.id, { creatorId: member.id });
 
-        const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder().setCustomId('tempvoice:lock').setLabel('Verrouiller').setStyle(ButtonStyle.Secondary).setEmoji('🔒'),
-          new ButtonBuilder().setCustomId('tempvoice:unlock').setLabel('Déverrouiller').setStyle(ButtonStyle.Success).setEmoji('🔓'),
-          new ButtonBuilder().setCustomId('tempvoice:limit').setLabel('Limite').setStyle(ButtonStyle.Primary).setEmoji('👥'),
-          new ButtonBuilder().setCustomId('tempvoice:rename').setLabel('Renommer').setStyle(ButtonStyle.Primary).setEmoji('✏️')
-        );
+          const embed = new EmbedBuilder()
+            .setTitle('⚙️ Gestion de votre salon vocal')
+            .setDescription(`Bonjour <@${member.id}> !\nVous venez de créer votre salon temporaire. Utilisez les boutons ci-dessous pour le configurer.\n\n🔒 **Verrouiller** : Interdit l'accès à @everyone\n🔓 **Déverrouiller** : Autorise l'accès à @everyone\n👥 **Limite** : Modifie le nombre maximum de places\n✏️ **Renommer** : Modifie le nom du salon\n👢 **Expulser** : Expulse un membre du salon\n🚫 **Bannir** : Bannit un membre du salon (bypass staffs)\n➕ **Ajouter** : Autorise un membre à rejoindre\n👑 **Transférer** : Transfère la propriété du salon\n🙋 **Récupérer** : Récupère la propriété (si le propriétaire a quitté)`)
+            .setColor('#5865F2')
+            .setTimestamp();
 
-        const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder().setCustomId('tempvoice:kick').setLabel('Expulser').setStyle(ButtonStyle.Danger).setEmoji('👢'),
-          new ButtonBuilder().setCustomId('tempvoice:ban').setLabel('Bannir').setStyle(ButtonStyle.Danger).setEmoji('🚫'),
-          new ButtonBuilder().setCustomId('tempvoice:trust').setLabel('Ajouter').setStyle(ButtonStyle.Success).setEmoji('➕'),
-          new ButtonBuilder().setCustomId('tempvoice:transfer').setLabel('Transférer').setStyle(ButtonStyle.Primary).setEmoji('👑'),
-          new ButtonBuilder().setCustomId('tempvoice:claim').setLabel('Récupérer').setStyle(ButtonStyle.Secondary).setEmoji('🙋')
-        );
+          const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder().setCustomId('tempvoice:lock').setLabel('Verrouiller').setStyle(ButtonStyle.Secondary).setEmoji('🔒'),
+            new ButtonBuilder().setCustomId('tempvoice:unlock').setLabel('Déverrouiller').setStyle(ButtonStyle.Success).setEmoji('🔓'),
+            new ButtonBuilder().setCustomId('tempvoice:limit').setLabel('Limite').setStyle(ButtonStyle.Primary).setEmoji('👥'),
+            new ButtonBuilder().setCustomId('tempvoice:rename').setLabel('Renommer').setStyle(ButtonStyle.Primary).setEmoji('✏️')
+          );
 
-        await tempChannel.send({ content: `<@${member.id}>`, embeds: [embed], components: [row1, row2] }).catch(() => null);
-        logger.info('TempVoice', `Salon créé : ${tempChannel.name} (${tempChannel.id})`);
+          const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder().setCustomId('tempvoice:kick').setLabel('Expulser').setStyle(ButtonStyle.Danger).setEmoji('👢'),
+            new ButtonBuilder().setCustomId('tempvoice:ban').setLabel('Bannir').setStyle(ButtonStyle.Danger).setEmoji('🚫'),
+            new ButtonBuilder().setCustomId('tempvoice:trust').setLabel('Ajouter').setStyle(ButtonStyle.Success).setEmoji('➕'),
+            new ButtonBuilder().setCustomId('tempvoice:transfer').setLabel('Transférer').setStyle(ButtonStyle.Primary).setEmoji('👑'),
+            new ButtonBuilder().setCustomId('tempvoice:claim').setLabel('Récupérer').setStyle(ButtonStyle.Secondary).setEmoji('🙋')
+          );
+
+          await tempChannel.send({ content: `<@${member.id}>`, embeds: [embed], components: [row1, row2] }).catch(() => null);
+          logger.info('TempVoice', `Salon créé : ${tempChannel.name} (${tempChannel.id})`);
+        }
       }
 
       // 2. Deletion: User leaves a voice channel
       if (oldState.channelId && oldState.channelId !== newState.channelId) {
         const oldChannel = oldState.channel;
         if (oldChannel && oldChannel.type === ChannelType.GuildVoice && tempChannels.has(oldChannel.id)) {
-          // If empty, delete it
           if (oldChannel.members.size === 0) {
             tempChannels.delete(oldChannel.id);
             await oldChannel.delete('Salon vocal temporaire vide').catch(() => null);
@@ -124,7 +157,7 @@ export function registerTempVoiceListener(client: Client): void {
 
       const cache = tempChannels.get(channel.id);
       if (!cache) {
-        await interaction.reply({ content: '❌ Ce salon n\'est plus enregistré comme temporaire.', flags: [MessageFlags.Ephemeral] }).catch(() => null);
+        await interaction.reply({ content: "❌ Ce salon n\'est plus enregistré comme temporaire.", flags: [MessageFlags.Ephemeral] }).catch(() => null);
         return;
       }
 
@@ -141,19 +174,19 @@ export function registerTempVoiceListener(client: Client): void {
           Connect: false
         }).catch(() => null);
         await interaction.reply({ content: '🔒 Le salon a été verrouillé. Plus personne ne peut le rejoindre.', flags: [MessageFlags.Ephemeral] }).catch(() => null);
-      } 
-      
+      }
+
       else if (action === 'unlock') {
         await channel.permissionOverwrites.edit(interaction.guildId, {
           Connect: true
         }).catch(() => null);
         await interaction.reply({ content: '🔓 Le salon a été déverrouillé. Tout le monde peut le rejoindre.', flags: [MessageFlags.Ephemeral] }).catch(() => null);
-      } 
-      
+      }
+
       else if (action === 'limit') {
         const modal = new ModalBuilder()
           .setCustomId('tempvoice:limit_modal')
-          .setTitle('👥 Limite d\'utilisateurs');
+          .setTitle("👥 Limite d\'utilisateurs");
 
         const limitInput = new TextInputBuilder()
           .setCustomId('limit_input')
@@ -167,8 +200,8 @@ export function registerTempVoiceListener(client: Client): void {
         modal.addComponents(row);
 
         await interaction.showModal(modal).catch(() => null);
-      } 
-      
+      }
+
       else if (action === 'rename') {
         const modal = new ModalBuilder()
           .setCustomId('tempvoice:rename_modal')
@@ -289,7 +322,7 @@ export function registerTempVoiceListener(client: Client): void {
 
       const cache = tempChannels.get(channel.id);
       if (!cache) {
-        await interaction.reply({ content: '❌ Ce salon n\'est plus enregistré comme temporaire.', flags: [MessageFlags.Ephemeral] }).catch(() => null);
+        await interaction.reply({ content: "❌ Ce salon n\'est plus enregistré comme temporaire.", flags: [MessageFlags.Ephemeral] }).catch(() => null);
         return;
       }
 
@@ -312,8 +345,8 @@ export function registerTempVoiceListener(client: Client): void {
 
         await channel.setUserLimit(limit).catch(() => null);
         await interaction.reply({ content: `👥 Limite fixée à ${limit === 0 ? 'illimité' : limit} membres.`, flags: [MessageFlags.Ephemeral] }).catch(() => null);
-      } 
-      
+      }
+
       else if (modalId === 'rename_modal') {
         const newName = interaction.fields.getTextInputValue('name_input');
         if (!newName.trim()) {
@@ -401,7 +434,7 @@ export function registerTempVoiceListener(client: Client): void {
 
         if (modalId === 'kick_modal') {
           if (targetMember.voice.channelId !== channel.id) {
-            await interaction.editReply({ content: '❌ Ce membre n\'est pas dans votre salon vocal.' }).catch(() => null);
+            await interaction.editReply({ content: "❌ Ce membre n\'est pas dans votre salon vocal." }).catch(() => null);
             return;
           }
 

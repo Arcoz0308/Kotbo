@@ -18,7 +18,7 @@ interface LocalInventoryEntry {
 
 const data = new SlashCommandBuilder()
   .setName('remove-item')
-  .setDescription('⚙️ Retirer un objet de l’inventaire de quelqu’un')
+  .setDescription("⚙️ Retirer un objet de l'inventaire de quelqu'un")
   .addUserOption(option =>
     option
       .setName('membre')
@@ -35,7 +35,7 @@ const data = new SlashCommandBuilder()
   .addIntegerOption(option =>
     option
       .setName('quantite')
-      .setDescription('La quantité d’objets à retirer (défaut : 1)')
+      .setDescription("La quantité d'objets à retirer (défaut : 1)")
       .setRequired(false)
       .setMinValue(1)
   )
@@ -95,7 +95,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
   if (targetUser.bot) {
     await interaction.reply({
-      embeds: [errorEmbed('Erreur', 'Impossible de modifier l’inventaire d’un bot.')],
+      embeds: [errorEmbed('Erreur', "Impossible de modifier l'inventaire d'un bot.")],
       flags: [MessageFlags.Ephemeral]
     });
     return;
@@ -108,14 +108,14 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       embeds: [
         successEmbed(
           'Objet retiré !',
-          `Vous avez retiré **${result.removedQuantity}x** ${result.itemEmoji} **${result.itemName}** de l’inventaire de <@${targetUser.id}>.\n` +
+          `Vous avez retiré **${result.removedQuantity}x** ${result.itemEmoji} **${result.itemName}** de l'inventaire de <@${targetUser.id}>.\n` +
           `*(Quantité restante : ${result.remainingQuantity})*`
         )
       ]
     });
   } catch (err: any) {
     await interaction.reply({
-      embeds: [errorEmbed('Erreur', err.message || 'Impossible de retirer l’objet.')],
+      embeds: [errorEmbed('Erreur', err.message || "Impossible de retirer l'objet.")],
       flags: [MessageFlags.Ephemeral]
     });
   }

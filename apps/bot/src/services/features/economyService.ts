@@ -58,11 +58,11 @@ export async function seedDefaults() {
           // Armor
           { name: 'Tunique en tissu', description: 'Vêtement de paysan léger et aéré.', emoji: '👕', type: 'ARMOR', defBonus: 1, price: 30, purchasable: true },
           { name: 'Cotte de mailles', description: 'Une armure métallique bruyante mais solide.', emoji: '🛡️', type: 'ARMOR', defBonus: 5, price: 200, purchasable: true },
-          { name: 'Armure d\'Orichalque', description: 'Armure légendaire faite d\'un métal mythique.', emoji: '✨', type: 'ARMOR', defBonus: 12, price: 600, purchasable: true },
+          { name: "Armure d\'Orichalque", description: "Armure légendaire faite d\'un métal mythique.", emoji: '✨', type: 'ARMOR', defBonus: 12, price: 600, purchasable: true },
           
           // Potions
           { name: 'Potion de Vie Mineure', description: 'Restaure 20 points de vie.', emoji: '🧪', type: 'POTION', hpRestore: 20, price: 15, purchasable: true },
-          { name: 'Potion d\'Énergie', description: 'Restaure 30 points d\'énergie.', emoji: '⚡', type: 'POTION', energyRestore: 30, price: 25, purchasable: true },
+          { name: "Potion d\'Énergie", description: "Restaure 30 points d\'énergie.", emoji: '⚡', type: 'POTION', energyRestore: 30, price: 25, purchasable: true },
           { name: 'Élixir Divin', description: 'Restaure 50 PV et 50 Énergie.', emoji: '🍯', type: 'POTION', hpRestore: 50, energyRestore: 50, price: 75, purchasable: true }
         ]
       });
@@ -82,9 +82,9 @@ export async function seedDefaults() {
             description: 'Un petit gobelin ricane sur le bord de la route et essaie de voler votre sac !',
             emoji: '👹',
             choices: [
-              { text: 'L\'attraper par le col (Force)', hpEffect: -15, coinEffect: 40, xpEffect: 30, minLevel: 1 },
+              { text: "L\'attraper par le col (Force)", hpEffect: -15, coinEffect: 40, xpEffect: 30, minLevel: 1 },
               { text: 'Négocier pacifiquement', hpEffect: 0, coinEffect: -20, xpEffect: 15, minLevel: 1 },
-              { text: 'L\'ignorer et continuer', hpEffect: 0, coinEffect: 0, xpEffect: 5, minLevel: 1 }
+              { text: "L\'ignorer et continuer", hpEffect: 0, coinEffect: 0, xpEffect: 5, minLevel: 1 }
             ]
           },
           {
@@ -92,22 +92,22 @@ export async function seedDefaults() {
             description: 'Un sphinx majestueux vous bloque le passage et vous soumet une énigme difficile.',
             emoji: '🦁',
             choices: [
-              { text: 'Tenter de résoudre l\'énigme', hpEffect: -25, coinEffect: 120, xpEffect: 60, minLevel: 2 },
+              { text: "Tenter de résoudre l\'énigme", hpEffect: -25, coinEffect: 120, xpEffect: 60, minLevel: 2 },
               { text: 'Fuir lâchement', hpEffect: 0, coinEffect: 0, xpEffect: 5, minLevel: 1 }
             ]
           },
           {
             title: 'La Source de Vie',
-            description: 'Vous découvrez une magnifique source d\'eau chaude thermale cachée dans les bois.',
+            description: "Vous découvrez une magnifique source d\'eau chaude thermale cachée dans les bois.",
             emoji: '♨️',
             choices: [
               { text: 'Prendre un bain chaud relaxant', hpEffect: 40, coinEffect: 0, xpEffect: 10, minLevel: 1 },
-              { text: 'Remplir une fiole d\'eau', hpEffect: 0, coinEffect: 15, xpEffect: 15, minLevel: 1 }
+              { text: "Remplir une fiole d\'eau", hpEffect: 0, coinEffect: 15, xpEffect: 15, minLevel: 1 }
             ]
           },
           {
             title: 'Le Coffre Trésor',
-            description: 'Un coffre en bois renforcé de fer repose au pied d\'un arbre séculaire.',
+            description: "Un coffre en bois renforcé de fer repose au pied d\'un arbre séculaire.",
             emoji: '🪙',
             choices: [
               { text: 'Forcer la serrure rouillée', hpEffect: -10, coinEffect: 80, xpEffect: 20, minLevel: 1 },
@@ -274,7 +274,7 @@ export async function checkLevelUp(guildId: string, userId: string) {
  */
 export async function claimDaily(guildId: string, userId: string) {
   const config = await getOrCreateEconomyConfig(guildId);
-  if (!config.enabled) throw new Error('Le module d\'économie est désactivé sur ce serveur.');
+  if (!config.enabled) throw new Error("Le module d\'économie est désactivé sur ce serveur.");
 
   const profile = await getOrCreateRpgProfile(guildId, userId);
   const now = new Date();
@@ -319,12 +319,12 @@ export async function claimDaily(guildId: string, userId: string) {
  */
 export async function startTravel(guildId: string, userId: string, destination: string, durationMin: number) {
   const config = await getOrCreateEconomyConfig(guildId);
-  if (!config.rpgEnabled) throw new Error('Le module RPG d\'aventures est désactivé.');
+  if (!config.rpgEnabled) throw new Error("Le module RPG d\'aventures est désactivé.");
 
   const profile = await getOrCreateRpgProfile(guildId, userId);
   if (profile.isTraveling) throw new Error('Vous êtes déjà en cours de voyage !');
-  if (profile.health <= 0) throw new Error('Vous n\'avez plus de PV (0 PV). Prenez des potions ou attendez de vous reposer pour regagner des forces.');
-  if (profile.energy < 20) throw new Error('Vous n\'avez pas assez d\'énergie (requis: 20 énergie). Restez inactif pour regagner de l\'énergie.');
+  if (profile.health <= 0) throw new Error("Vous n\'avez plus de PV (0 PV). Prenez des potions ou attendez de vous reposer pour regagner des forces.");
+  if (profile.energy < 20) throw new Error("Vous n\'avez pas assez d\'énergie (requis: 20 énergie). Restez inactif pour regagner de l\'énergie.");
 
   await prisma.rpgProfile.update({
     where: { id: profile.id },
@@ -348,10 +348,10 @@ export async function startTravel(guildId: string, userId: string, destination: 
  */
 export async function resolveTravel(guildId: string, userId: string) {
   const config = await getOrCreateEconomyConfig(guildId);
-  if (!config.rpgEnabled) throw new Error('Le module RPG d\'aventures est désactivé.');
+  if (!config.rpgEnabled) throw new Error("Le module RPG d\'aventures est désactivé.");
 
   const profile = await getOrCreateRpgProfile(guildId, userId);
-  if (!profile.isTraveling) throw new Error('Vous n\'êtes pas en voyage actuellement.');
+  if (!profile.isTraveling) throw new Error("Vous n\'êtes pas en voyage actuellement.");
 
   const now = Date.now();
   const start = profile.travelStartedAt ? profile.travelStartedAt.getTime() : 0;
@@ -415,10 +415,10 @@ export async function resolveTravel(guildId: string, userId: string) {
  */
 export async function chooseAdventureOutcome(guildId: string, userId: string, eventId: string, choiceIndex: number) {
   const config = await getOrCreateEconomyConfig(guildId);
-  if (!config.rpgEnabled) throw new Error('Le module RPG d\'aventures est désactivé.');
+  if (!config.rpgEnabled) throw new Error("Le module RPG d\'aventures est désactivé.");
 
   const profile = await getOrCreateRpgProfile(guildId, userId);
-  if (!profile.isTraveling) throw new Error('Vous n\'êtes pas en voyage.');
+  if (!profile.isTraveling) throw new Error("Vous n\'êtes pas en voyage.");
 
   const event = await prisma.rpgAdventureEvent.findUnique({
     where: { id: eventId }
@@ -446,7 +446,7 @@ export async function chooseAdventureOutcome(guildId: string, userId: string, ev
   let criticalMessage = '';
   if (rng < 0.2 && finalHpEffect < 0) {
     finalHpEffect = Math.floor(finalHpEffect * 1.5);
-    criticalMessage = '💥 Échec critique ! L\'issue a été plus douloureuse que prévu...';
+    criticalMessage = "💥 Échec critique ! L\'issue a été plus douloureuse que prévu...";
   } else if (rng > 0.8 && (finalCoinEffect > 0 || finalXpEffect > 0)) {
     finalCoinEffect = Math.floor(finalCoinEffect * 1.5);
     finalXpEffect = Math.floor(finalXpEffect * 1.5);
@@ -500,7 +500,7 @@ export async function buyShopItem(guildId: string, userId: string, itemId: strin
   });
 
   if (!item || (!item.purchasable && item.guildId !== guildId)) {
-    throw new Error('Objet introuvable ou indisponible à l\'achat.');
+    throw new Error("Objet introuvable ou indisponible à l\'achat.");
   }
 
   if (profile.balance < item.price) {
@@ -619,7 +619,7 @@ export async function consumePotionItem(guildId: string, userId: string, itemId:
   }
 
   const item = inventoryEntry.item;
-  if (item.type !== 'POTION') throw new Error('Cet objet n\'est pas consommable.');
+  if (item.type !== 'POTION') throw new Error("Cet objet n\'est pas consommable.");
 
   const restoredHp = item.hpRestore || 0;
   const restoredEnergy = item.energyRestore || 0;
@@ -664,7 +664,7 @@ export async function createRpgGuild(guildId: string, userId: string, name: stri
   if (!config.guildsEnabled) throw new Error('Le système de guildes RPG est désactivé.');
 
   const profile = await getOrCreateRpgProfile(guildId, userId);
-  if (profile.rpgGuildId) throw new Error('Vous faites déjà partie d\'une guilde !');
+  if (profile.rpgGuildId) throw new Error("Vous faites déjà partie d\'une guilde !");
 
   // Creation costs 500 KotboCoins
   if (profile.balance < 500) {
@@ -699,7 +699,7 @@ export async function joinRpgGuild(guildId: string, userId: string, rpgGuildId: 
   if (!config.guildsEnabled) throw new Error('Le système de guildes RPG est désactivé.');
 
   const profile = await getOrCreateRpgProfile(guildId, userId);
-  if (profile.rpgGuildId) throw new Error('Vous devez d\'abord quitter votre guilde actuelle.');
+  if (profile.rpgGuildId) throw new Error("Vous devez d\'abord quitter votre guilde actuelle.");
 
   const targetGuild = await prisma.rpgGuild.findUnique({
     where: { id: rpgGuildId },
@@ -731,7 +731,7 @@ export async function joinRpgGuild(guildId: string, userId: string, rpgGuildId: 
  */
 export async function leaveRpgGuild(guildId: string, userId: string) {
   const profile = await getOrCreateRpgProfile(guildId, userId);
-  if (!profile.rpgGuildId) throw new Error('Vous n\'êtes dans aucune guilde.');
+  if (!profile.rpgGuildId) throw new Error("Vous n\'êtes dans aucune guilde.");
 
   const rpgGuild = await prisma.rpgGuild.findUnique({
     where: { id: profile.rpgGuildId },

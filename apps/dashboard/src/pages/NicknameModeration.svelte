@@ -4,6 +4,7 @@
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import InlineFeedback from '../lib/components/InlineFeedback.svelte';
   import Papicon from '../lib/components/Papicon.svelte';
+  import LoadingHint from '../lib/components/LoadingHint.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
   import { authStore } from '../lib/stores/auth.svelte';
   import { toast } from '../lib/stores/toast.svelte';
@@ -358,6 +359,9 @@
       {#each [1, 2] as _}
         <div class="h-32 rounded-xl bg-surface-container-low/60"></div>
       {/each}
+    </div>
+    <div class="flex justify-center mt-4">
+      <LoadingHint context="config" />
     </div>
   {:else if loadError}
     <div class="rounded-xl bg-error/10 border border-error/20 p-6 text-error text-sm font-semibold">

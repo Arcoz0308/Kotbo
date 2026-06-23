@@ -5,7 +5,7 @@ import { errorEmbed, successEmbed, COLORS } from '../../utils/embeds.js';
 
 const data = new SlashCommandBuilder()
   .setName('work')
-  .setDescription('💼 Travaille pendant une heure pour gagner des pièces et de l\'XP');
+  .setDescription("💼 Travaille pendant une heure pour gagner des pièces et de l\'XP");
 
 const WORK_MESSAGES = [
   "Vous avez nettoyé la taverne locale du sol au plafond.",

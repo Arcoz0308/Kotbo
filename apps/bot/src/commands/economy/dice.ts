@@ -1,8 +1,9 @@
 import type { SlashCommandDefinition } from '../../commands.js';
-import { SlashCommandBuilder, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
+import { SlashCommandBuilder, type ChatInputCommandInteraction, ContainerBuilder, SeparatorBuilder, SeparatorSpacingSize, MessageFlags } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { getOrCreateRpgProfile, getOrCreateEconomyConfig } from '../../services/features/economyService.js';
-import { errorEmbed, COLORS } from '../../utils/embeds.js';
+import { COLORS_RAW, text, v2, errorContainer } from '../../utils/embeds.js';
+import { E } from '../../utils/emojis.js';
 
 const DICE_EMOJIS = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
 
@@ -26,8 +27,8 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     const config = await getOrCreateEconomyConfig(guildId);
     if (!config.enabled) {
       await interaction.reply({
-        embeds: [errorEmbed('Module Désactivé', 'Le système d’économie est désactivé sur ce serveur.')],
-        flags: [MessageFlags.Ephemeral]
+        ...v2(errorContainer('Module Désactivé', "Le système d'économie est désactivé sur ce serveur.")),
+        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral
       });
       return;
     }
@@ -35,8 +36,8 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     const profile = await getOrCreateRpgProfile(guildId, userId);
     if (profile.balance < bet) {
       await interaction.reply({
-        embeds: [errorEmbed('Solde insuffisant', `Vous n’avez pas assez de pièces pour parier **${bet}** 🪙 (Solde actuel : **${profile.balance}** 🪙).`)],
-        flags: [MessageFlags.Ephemeral]
+        ...v2(errorContainer('Solde insuffisant', `Vous n'avez pas assez de pièces pour parier **${bet}** ${E.coins} (Solde actuel : **${profile.balance}** ${E.coins}).`)),
+        flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral
       });
       return;
     }
@@ -56,23 +57,23 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
     if (d1 === 6 && d2 === 6) {
       multiplier = 3;
-      resultMessage = `🎉 **DOUBLE SIX ! C’est le jackpot ! Vous remportez 3x votre mise !**`;
+      resultMessage = `${E.trophy} **DOUBLE SIX ! C'est le jackpot ! Vous remportez 3x votre mise !**`;
       isWin = true;
     } else if (d1 === d2) {
       multiplier = 2;
-      resultMessage = `✨ **DOUBLE ${d1} ! Vous gagnez 2x votre mise !**`;
+      resultMessage = `${E.star} **DOUBLE ${d1} ! Vous gagnez 2x votre mise !**`;
       isWin = true;
     } else if (sum >= 8) {
       multiplier = 1.5;
-      resultMessage = `👍 **Victoire ! Somme des dés = ${sum} (>= 8). Vous gagnez 1.5x votre mise.**`;
+      resultMessage = `${E.success} **Victoire ! Somme des dés = ${sum} (>= 8). Vous gagnez 1.5x votre mise.**`;
       isWin = true;
     } else if (sum === 7) {
       multiplier = 1;
-      resultMessage = `⚖️ **Égalité ! Somme des dés = 7. Votre mise vous est remboursée.**`;
+      resultMessage = `${E.info} **Égalité ! Somme des dés = 7. Votre mise vous est remboursée.**`;
       isDraw = true;
     } else {
       multiplier = 0;
-      resultMessage = `😢 **Défaite... Somme des dés = ${sum} (<= 6). Vous perdez votre mise.**`;
+      resultMessage = `${E.error} **Défaite... Somme des dés = ${sum} (<= 6). Vous perdez votre mise.**`;
     }
 
     const netGain = Math.floor(bet * multiplier) - bet;
@@ -83,27 +84,29 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       data: { balance: newBalance }
     });
 
-    let embedColor = COLORS.danger;
-    if (isWin) embedColor = COLORS.success;
-    else if (isDraw) embedColor = COLORS.info;
+    let accentColor = COLORS_RAW.danger;
+    if (isWin) accentColor = COLORS_RAW.success;
+    else if (isDraw) accentColor = COLORS_RAW.info;
 
-    const embed = new EmbedBuilder()
-      .setTitle('🎲 Lancer de Dés')
-      .setDescription(
+    const container = new ContainerBuilder()
+      .setAccentColor(accentColor)
+      .addTextDisplayComponents(text(`### ${E.coins} Lancer de Dés`))
+      .addTextDisplayComponents(text(
         `Vous misez **${bet}** ${config.currencyEmoji}.\n\n` +
         `**Résultat :** ${emoji1}  ${emoji2} *(somme: ${sum})*\n\n` +
-        `${resultMessage}\n\n` +
-        `**Gain net :** **${netGain >= 0 ? '+' : ''}${netGain}** ${config.currencyEmoji}\n` +
-        `**Nouveau solde :** **${newBalance}** ${config.currencyEmoji}`
-      )
-      .setColor(embedColor)
-      .setTimestamp();
+        `${resultMessage}`
+      ))
+      .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
+      .addTextDisplayComponents(text(
+        `${E.arrow} **Gain net :** **${netGain >= 0 ? '+' : ''}${netGain}** ${config.currencyEmoji}\n` +
+        `${E.arrow} **Nouveau solde :** **${newBalance}** ${config.currencyEmoji}`
+      ));
 
-    await interaction.reply({ embeds: [embed] });
+    await interaction.reply(v2(container));
   } catch (err: any) {
     await interaction.reply({
-      embeds: [errorEmbed('Erreur', err.message || 'Impossible de jouer aux dés.')],
-      flags: [MessageFlags.Ephemeral]
+      ...v2(errorContainer('Erreur', err.message || 'Impossible de jouer aux dés.')),
+      flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral
     });
   }
 }

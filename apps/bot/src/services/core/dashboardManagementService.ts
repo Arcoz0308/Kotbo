@@ -4,8 +4,8 @@ export const defaultFeatures = [
   // ─── Tableau de bord ───
   {
     featureKey: 'dashboard',
-    featureName: 'Vue d\'ensemble',
-    description: 'Page d\'accueil du tableau de bord',
+    featureName: "Vue d\'ensemble",
+    description: "Page d\'accueil du tableau de bord",
     category: 'dashboard',
   },
   {
@@ -71,8 +71,8 @@ export const defaultFeatures = [
   },
   {
     featureKey: 'activity',
-    featureName: 'Journal d\'activité',
-    description: 'Suivi de l\'activité utilisateur',
+    featureName: "Journal d\'activité",
+    description: "Suivi de l\'activité utilisateur",
     category: 'moderation',
     isFixed: true, // Cannot be disabled
   },
@@ -98,7 +98,7 @@ export const defaultFeatures = [
   {
     featureKey: 'tutoring',
     featureName: 'Tutorat & Formation',
-    description: 'Périodes d\'essai et mentorat',
+    description: "Périodes d\'essai et mentorat",
     category: 'staff',
   },
   {
@@ -141,7 +141,7 @@ export const defaultFeatures = [
   {
     featureKey: 'news',
     featureName: 'Actualités & RSS',
-    description: 'Publication d\'articles par le staff et génération de flux RSS',
+    description: "Publication d\'articles par le staff et génération de flux RSS",
     category: 'management',
   },
   // ─── Configuration ───
@@ -198,7 +198,7 @@ export const defaultFeatures = [
   {
     featureKey: 'leveling',
     featureName: 'Leveling & XP',
-    description: 'Système d\'expérience textuelle/vocale, niveaux et rôles récompenses',
+    description: "Système d\'expérience textuelle/vocale, niveaux et rôles récompenses",
     category: 'management',
   },
   {
@@ -239,8 +239,8 @@ export const defaultFeatures = [
   },
   {
     featureKey: 'embed_builder',
-    featureName: 'Créateur d\'Embeds',
-    description: 'Création et édition d\'embeds personnalisés sur le serveur',
+    featureName: "Créateur d\'Embeds",
+    description: "Création et édition d\'embeds personnalisés sur le serveur",
     category: 'management',
   },
 ];

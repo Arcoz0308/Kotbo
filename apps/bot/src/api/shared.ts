@@ -139,7 +139,36 @@ import { publishNewsArticle, generateRssXml } from '../services/core/newsService
 import { env } from 'node:process';
 import crypto from 'node:crypto';
 import { fetchAllMembers } from '../utils/discord.js';
+import { getCurrentInstance } from '../utils/instanceContext.js';
 
+// Instance-aware getters — resolve from white-label context when available
+export function getDiscordClientId(): string {
+  try { return getCurrentInstance().discordClientId; } catch { return process.env.DISCORD_CLIENT_ID || ''; }
+}
+export function getDiscordClientSecret(): string {
+  try { return getCurrentInstance().discordClientSecret; } catch { return process.env.DISCORD_CLIENT_SECRET || ''; }
+}
+export function getDiscordRedirectUri(): string {
+  try { return getCurrentInstance().discordRedirectUri || process.env.DISCORD_REDIRECT_URI || ''; } catch { return process.env.DISCORD_REDIRECT_URI || ''; }
+}
+export function getJwtSecret(): string {
+  try { return getCurrentInstance().jwtSecret; } catch {
+    if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+    logger.warn('DashboardAPI', 'JWT_SECRET variable is not set. Generating ephemeral secret. Instance-isolated!');
+    return crypto.randomBytes(32).toString('hex');
+  }
+}
+export function getDashboardUrl(): string {
+  try { return getCurrentInstance().dashboardUrl; } catch { return process.env.DASHBOARD_URL || 'http://localhost:5173'; }
+}
+export function getDashboardOrigin(): string {
+  try { return getCurrentInstance().dashboardOrigin; } catch {
+    const url = process.env.DASHBOARD_URL || 'http://localhost:5173';
+    try { return new URL(url).origin; } catch { return url.replace(/\/$/, ''); }
+  }
+}
+
+// Backward-compatible aliases (read from getters)
 export const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 export const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
 export const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI;
@@ -160,10 +189,13 @@ export const DEFAULT_TRANSLATION_TARGET_LANG = 'FR';
 export const DISCORD_CLIENT_OWNER_ID = process.env.DISCORD_CLIENT_OWNER_ID;
 
 export const getMissingOAuthConfig = ({ includeSecret = false }: { includeSecret?: boolean } = {}) => {
+  const clientId = getDiscordClientId();
+  const redirectUri = getDiscordRedirectUri();
+  const clientSecret = getDiscordClientSecret();
   const missing: string[] = [];
-  if (!DISCORD_CLIENT_ID?.trim()) missing.push('DISCORD_CLIENT_ID');
-  if (!DISCORD_REDIRECT_URI?.trim()) missing.push('DISCORD_REDIRECT_URI');
-  if (includeSecret && !DISCORD_CLIENT_SECRET?.trim()) missing.push('DISCORD_CLIENT_SECRET');
+  if (!clientId?.trim()) missing.push('DISCORD_CLIENT_ID');
+  if (!redirectUri?.trim()) missing.push('DISCORD_REDIRECT_URI');
+  if (includeSecret && !clientSecret?.trim()) missing.push('DISCORD_CLIENT_SECRET');
   return missing;
 };
 
@@ -767,25 +799,25 @@ export const MODULE_DESCRIPTIONS: Record<string, string> = {
   staff_management: 'Gestion complète du personnel, recrutements et absences.',
   sanctions: 'Historique et gestion des sanctions (warns, mutes, bans).',
   members: 'Gestion avancée des membres et détection de doubles comptes.',
-  logs: 'Journaux d\'événements Discord (messages, salons, membres).',
+  logs: "Journaux d\'événements Discord (messages, salons, membres).",
   nickname_moderation: 'Détection et modération automatique des pseudos inappropriés.',
-  activity: 'Suivi détaillé de l\'activité utilisateur sur le dashboard.',
+  activity: "Suivi détaillé de l\'activité utilisateur sur le dashboard.",
   auto_thread: 'Création automatique de fils de discussion sur les messages.',
-  analytics: 'Statistiques de croissance et d\'engagement du serveur.',
+  analytics: "Statistiques de croissance et d\'engagement du serveur.",
   profile: 'Gestion du profil utilisateur et paramètres personnels.',
   fun: 'Salons de jeux et divertissement (comptage, one word story, nombre mystère).',
   recruitment: 'Suivi des candidatures et intégration du personnel.',
-  tickets: 'Système complet de tickets d\'assistance et de support configurable.',
+  tickets: "Système complet de tickets d\'assistance et de support configurable.",
   youtube: 'Intégration YouTube pour les notifications de nouvelles vidéos.',
   twitch: 'Intégration Twitch pour les notifications de lives.',
   social_networks: 'Configuration des flux YouTube et Twitch suivis.',
   digest: 'Génération de résumés automatiques et flux RSS.',
-  tutoring: 'Gestion des périodes d\'essai et formation des nouveaux staff.',
-  meetings: 'Planification et suivi des réunions d\'équipe.',
+  tutoring: "Gestion des périodes d\'essai et formation des nouveaux staff.",
+  meetings: "Planification et suivi des réunions d\'équipe.",
   absences: 'Gestion des congés et disponibilités du personnel.',
   double_accounts: 'Détection et gestion des comptes multiples pour la sécurité.',
-  events: 'Organisation et gestion d\'événements communautaires et quiz.',
-  economy: 'Système complet d\'économie et d\'aventures RPG textuelles.',
+  events: "Organisation et gestion d\'événements communautaires et quiz.",
+  economy: "Système complet d\'économie et d\'aventures RPG textuelles.",
 };
 
 export const DEFAULT_SEVERITY_BY_MODULE: Array<{ module: string; level: SeverityLevel }> = [
@@ -1124,7 +1156,7 @@ export const verifyAuth = (req: IncomingMessage): AuthClaims | null => {
   if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
   const token = authHeader.split(' ')[1];
   try {
-    return jwt.verify(token, JWT_SECRET!) as AuthClaims;
+    return jwt.verify(token, getJwtSecret()) as AuthClaims;
   } catch {
     return null;
   }
@@ -1143,7 +1175,7 @@ export const verifyRecruitmentWebhookAuth = async (req: IncomingMessage, guildId
     const token = authHeader.split(' ')[1];
     try {
       return {
-        auth: jwt.verify(token, JWT_SECRET!) as AuthClaims,
+        auth: jwt.verify(token, getJwtSecret()) as AuthClaims,
         reason: 'ok_jwt',
       };
     } catch {
@@ -1706,8 +1738,8 @@ export function parseCaseField(details: string, label: string): string | null {
 }
 
 export function parseInviteFromDetails(details: string): MemberCaseInviteInfo | null {
-  const inviteCode = parseCaseField(details, 'Invite utilisée') ?? parseCaseField(details, 'Invite d\'arrivée');
-  const inviter = parseCaseField(details, 'Créateur de l\'invite');
+  const inviteCode = parseCaseField(details, 'Invite utilisée') ?? parseCaseField(details, "Invite d\'arrivée");
+  const inviter = parseCaseField(details, "Créateur de l\'invite");
   const inviterId = parseCaseField(details, 'ID créateur');
 
   if (!inviteCode && !inviter && !inviterId) return null;
@@ -2713,7 +2745,7 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     },
     {
       id: 'activity',
-      name: 'Journal d\'activité',
+      name: "Journal d\'activité",
       description: MODULE_DESCRIPTIONS.activity,
       status: 'active',
       uptime: 100,

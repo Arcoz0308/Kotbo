@@ -134,7 +134,7 @@ export async function sendFeedsPanel(
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId('config:feed:autopub_all')
-      .setLabel(allAutoPublish ? '⚡ Désactiver l’auto-publication (tous)' : '⚡ Activer l’auto-publication (tous)')
+      .setLabel(allAutoPublish ? "⚡ Désactiver l'auto-publication (tous)" : "⚡ Activer l'auto-publication (tous)")
       .setStyle(allAutoPublish ? ButtonStyle.Danger : ButtonStyle.Success),
     new ButtonBuilder().setCustomId('config:feed:add').setLabel('➕ Ajouter').setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId('cfg:back:main').setLabel('◀ Retour').setStyle(ButtonStyle.Secondary),
@@ -182,7 +182,7 @@ export async function sendChannelSelectionPanel(
   const embed = new EmbedBuilder()
     .setColor(COLORS.primary)
     .setTitle('📺 Configuration du salon YouTube')
-    .setDescription('Sélectionnez le salon où seront envoyées les vidéos YouTube validées.\n\n*Si rien n’est défini, le salon public sera utilisé.*');
+    .setDescription("Sélectionnez le salon où seront envoyées les vidéos YouTube validées.\n\n*Si rien n'est défini, le salon public sera utilisé.*");
 
   const select = new ChannelSelectMenuBuilder()
     .setCustomId('config:select_yt_channel')
@@ -366,10 +366,10 @@ export function buildDigestModal(guild?: { digestTime?: string | null, digestCus
     .setTitle('📅 Paramètres du digest')
     .addComponents(
       new ActionRowBuilder<TextInputBuilder>().addComponents(
-        new TextInputBuilder().setCustomId('digest_time').setLabel("Heure d'envoi (HH:MM)").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(5).setValue(guild?.digestTime ?? '08:00'),
+        new TextInputBuilder().setCustomId("digest_time").setLabel("Heure d'envoi (HH:MM)").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(5).setValue(guild?.digestTime ?? "08:00"),
       ),
       new ActionRowBuilder<TextInputBuilder>().addComponents(
-        new TextInputBuilder().setCustomId('digest_text').setLabel("Texte d'introduction (optionnel)").setStyle(TextInputStyle.Paragraph).setRequired(false).setMaxLength(500).setValue(guild?.digestCustomText ?? ''),
+        new TextInputBuilder().setCustomId("digest_text").setLabel("Texte d'introduction (optionnel)").setStyle(TextInputStyle.Paragraph).setRequired(false).setMaxLength(500).setValue(guild?.digestCustomText ?? ""),
       ),
     );
 }
@@ -397,7 +397,7 @@ export async function sendGlobalKeywordsPanel(
   const embed = new EmbedBuilder()
     .setColor(COLORS.primary)
     .setTitle('🔑 Mots-clés Globaux')
-    .setDescription('Ces mots-clés s\'appliquent à TOUS les flux RSS du serveur.')
+    .setDescription("Ces mots-clés s\'appliquent à TOUS les flux RSS du serveur.")
     .addFields(
       { name: `✅ Toujours inclure (${guild.globalIncludeKeywords.length})`, value: formatKws(guild.globalIncludeKeywords), inline: false },
       { name: `🚫 Toujours exclure (${guild.globalExcludeKeywords.length})`, value: formatKws(guild.globalExcludeKeywords), inline: false },

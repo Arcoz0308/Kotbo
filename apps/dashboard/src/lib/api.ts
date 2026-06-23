@@ -85,7 +85,7 @@ async function dashboardMutation(path: string, options: {
         toast.success('Opération réussie');
       }
     } else {
-      let message = 'Erreur lors de l\'opération';
+      let message = "Erreur lors de l\'opération";
       try {
         const data = await response.json();
         message = data.error || data.message || message;
@@ -1016,6 +1016,23 @@ export async function scanSuspectedDetections(thresholdDays?: number, guildId = 
   });
 }
 
+export async function linkDetectedAccount(userId: string, altUserId: string, reason?: string, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/detections/${userId}/link`, {
+    method: 'POST',
+    payload: { altUserId, reason },
+    guildId,
+    errorContext: 'API Error (Link Detected Account):'
+  });
+}
+
+export async function dismissDetection(userId: string, guildId = authStore.selectedGuildId) {
+  return dashboardMutation(`/detections/${userId}/dismiss`, {
+    method: 'POST',
+    guildId,
+    errorContext: 'API Error (Dismiss Detection):'
+  });
+}
+
 export async function updateFeatureConfiguration(featureKey, config, guildId = authStore.selectedGuildId) {
   return dashboardMutation(`/notifications/features/${featureKey}`, {
     method: 'PATCH',
@@ -1117,7 +1134,7 @@ export async function fetchGlobalDailyAlgoLeaderboard() {
 
 export async function fetchAdminGuildInvite(guildId: string) {
   const response = await authorizedFetch(`${API_BASE_URL}/api/admin/guilds/${guildId}/invite`, { method: 'POST' });
-  if (!response.ok) throw new Error('Erreur lors de la création de l\'invitation');
+  if (!response.ok) throw new Error("Erreur lors de la création de l\'invitation");
   return response.json();
 }
 
@@ -1141,14 +1158,14 @@ export async function addGlobalAdmin(userId: string) {
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || 'Erreur lors de l\'ajout de l\'admin global');
+    throw new Error(error.error || "Erreur lors de l\'ajout de l\'admin global");
   }
   return response.json();
 }
 
 export async function removeGlobalAdmin(userId: string) {
   const response = await authorizedFetch(`${API_BASE_URL}/api/admin/admins/${userId}`, { method: 'DELETE' });
-  if (!response.ok) throw new Error('Erreur lors de la suppression de l\'admin global');
+  if (!response.ok) throw new Error("Erreur lors de la suppression de l\'admin global");
   return response.json();
 }
 
@@ -1166,7 +1183,7 @@ export async function addGlobalBlacklist(userId: string, reason: string) {
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || 'Erreur d\'ajout blacklist');
+    throw new Error(error.error || "Erreur d\'ajout blacklist");
   }
   return response.json();
 }
@@ -1229,19 +1246,19 @@ export async function updateRecruitmentConfig(payload: any, guildId: string = au
 
 export async function fetchActivationCodes() {
   const response = await authorizedFetch(`${API_BASE_URL}/api/admin/activation-codes`, { method: 'GET' });
-  if (!response.ok) throw new Error('Erreur lors du chargement des codes d\'activation');
+  if (!response.ok) throw new Error("Erreur lors du chargement des codes d\'activation");
   return response.json();
 }
 
 export async function createActivationCode() {
   const response = await authorizedFetch(`${API_BASE_URL}/api/admin/activation-codes`, { method: 'POST' });
-  if (!response.ok) throw new Error('Erreur lors de la génération du code d\'activation');
+  if (!response.ok) throw new Error("Erreur lors de la génération du code d\'activation");
   return response.json();
 }
 
 export async function deleteActivationCode(id: string) {
   const response = await authorizedFetch(`${API_BASE_URL}/api/admin/activation-codes/${id}`, { method: 'DELETE' });
-  if (!response.ok) throw new Error('Erreur lors de la suppression du code d\'activation');
+  if (!response.ok) throw new Error("Erreur lors de la suppression du code d\'activation");
   return response.json();
 }
 
@@ -1253,7 +1270,7 @@ export async function deactivateAdminGuild(guildId: string) {
 
 export async function activateAdminGuildAuto(guildId: string) {
   const response = await authorizedFetch(`${API_BASE_URL}/api/admin/guilds/${guildId}/activate-auto`, { method: 'POST' });
-  if (!response.ok) throw new Error('Erreur lors de l\'activation automatique du serveur');
+  if (!response.ok) throw new Error("Erreur lors de l\'activation automatique du serveur");
   return response.json();
 }
 
@@ -1282,7 +1299,7 @@ export async function activateGuildWithCode(code: string, guildId = authStore.se
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || 'Erreur lors de l\'activation du serveur');
+    throw new Error(error.error || "Erreur lors de l\'activation du serveur");
   }
   return response.json();
 }
@@ -1488,9 +1505,20 @@ export async function updateChannelsManagementConfig(
     tempVoiceCategoryId?: string | null;
     tempVoiceNameTemplate?: string;
     honeypotEnabled?: boolean;
-    honeypotChannelId?: string | null;
+    honeypotChannelIds?: string[];
     honeypotSanction?: string;
     honeypotReinvite?: boolean;
+    createHoneypotChannel?: boolean;
+    verificationEnabled?: boolean;
+    verificationMode?: string;
+    verificationAction?: string;
+    verificationChannelId?: string | null;
+    verificationRoleId?: string | null;
+    verificationLogChannelId?: string | null;
+    verificationEmbedTitle?: string;
+    verificationEmbedDesc?: string;
+    verificationEmbedColor?: string;
+    verificationOnJoin?: boolean;
   },
   guildId = authStore.selectedGuildId
 ) {
@@ -1583,7 +1611,7 @@ export async function saveGlobalBannedWords(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || 'Erreur lors de l\'enregistrement des mots globaux');
+    throw new Error(error.error || "Erreur lors de l\'enregistrement des mots globaux");
   }
 
   return response.json();
@@ -2134,4 +2162,105 @@ export async function fetchMcpDirectUrl(keyId: string, guildId = authStore.selec
 
 export async function fetchMcpLogs(guildId = authStore.selectedGuildId) {
   return dashboardRequest('/mcp-logs', { method: 'GET', guildId, errorContext: 'API Error (Fetch MCP Logs):' });
+}
+
+// ============================================================================
+// WHITE-LABEL ADMIN API
+// ============================================================================
+
+export async function fetchWhiteLabelInstances() {
+  const res = await authorizedFetch(`${API_BASE_URL}/api/admin/whitelabel`);
+  if (!res.ok) throw new Error('Erreur lors de la récupération des instances');
+  return res.json();
+}
+
+export async function fetchWhiteLabelInstance(id: string) {
+  const res = await authorizedFetch(`${API_BASE_URL}/api/admin/whitelabel/${id}`);
+  if (!res.ok) throw new Error('Erreur lors de la récupération de l\'instance');
+  return res.json();
+}
+
+export async function createWhiteLabelInstance(data: Record<string, any>) {
+  const res = await authorizedFetch(`${API_BASE_URL}/api/admin/whitelabel`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Erreur lors de la création');
+  }
+  return res.json();
+}
+
+export async function updateWhiteLabelInstance(id: string, data: Record<string, any>) {
+  const res = await authorizedFetch(`${API_BASE_URL}/api/admin/whitelabel/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Erreur lors de la mise à jour');
+  }
+  return res.json();
+}
+
+export async function deleteWhiteLabelInstance(id: string) {
+  const res = await authorizedFetch(`${API_BASE_URL}/api/admin/whitelabel/${id}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Erreur lors de la suppression');
+  }
+  return res.json();
+}
+
+export async function bindGuildToInstance(instanceId: string, guildId: string) {
+  const res = await authorizedFetch(`${API_BASE_URL}/api/admin/whitelabel/${instanceId}/guilds`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ guildId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Erreur lors du rattachement');
+  }
+  return res.json();
+}
+
+// ============================================================================
+// CUSTOM BOT API (per-guild)
+// ============================================================================
+
+export async function fetchCustomBotConfig(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/custom-bot', { method: 'GET', guildId, errorContext: 'API Error (Custom Bot):' });
+}
+
+export async function updateCustomBotConfig(data: Record<string, any>, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/custom-bot', { method: 'PATCH', payload: data, guildId, errorContext: 'API Error (Custom Bot Update):' });
+}
+
+export async function validateCustomBotToken(botToken: string, guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/custom-bot/validate', { method: 'POST', payload: { botToken }, guildId, errorContext: 'API Error (Token Validation):' });
+}
+
+export async function startCustomBot(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/custom-bot/start', { method: 'POST', guildId, errorContext: 'API Error (Start Bot):' });
+}
+
+export async function stopCustomBot(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/custom-bot/stop', { method: 'POST', guildId, errorContext: 'API Error (Stop Bot):' });
+}
+
+export async function unbindGuildFromInstance(instanceId: string, guildId: string) {
+  const res = await authorizedFetch(`${API_BASE_URL}/api/admin/whitelabel/${instanceId}/guilds/${guildId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Erreur lors du détachement');
+  }
+  return res.json();
 }

@@ -22,7 +22,7 @@ const data = new SlashCommandBuilder()
   .addUserOption(option =>
     option
       .setName('membre')
-      .setDescription('Le membre à qui donner l’objet')
+      .setDescription("Le membre à qui donner l'objet")
       .setRequired(true)
   )
   .addStringOption(option =>
@@ -35,7 +35,7 @@ const data = new SlashCommandBuilder()
   .addIntegerOption(option =>
     option
       .setName('quantite')
-      .setDescription('La quantité d’objets à offrir (défaut : 1)')
+      .setDescription("La quantité d'objets à offrir (défaut : 1)")
       .setRequired(false)
       .setMinValue(1)
   );
@@ -73,7 +73,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
   if (receiver.bot) {
     await interaction.reply({
-      embeds: [errorEmbed('Erreur', 'Vous ne pouvez pas donner d’objet à un bot !')],
+      embeds: [errorEmbed('Erreur', "Vous ne pouvez pas donner d'objet à un bot !")],
       flags: [MessageFlags.Ephemeral]
     });
     return;
@@ -81,7 +81,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
   if (receiver.id === senderId) {
     await interaction.reply({
-      embeds: [errorEmbed('Erreur', 'Vous ne pouvez pas vous donner d’objet à vous-même !')],
+      embeds: [errorEmbed('Erreur', "Vous ne pouvez pas vous donner d'objet à vous-même !")],
       flags: [MessageFlags.Ephemeral]
     });
     return;
@@ -93,14 +93,14 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     await interaction.reply({
       embeds: [
         successEmbed(
-          'Don d’objet réussi !',
+          "Don d'objet réussi !",
           `Vous avez donné **${quantity}x** ${giftResult.itemEmoji} **${giftResult.itemName}** à <@${receiver.id}>.`
         )
       ]
     });
   } catch (err: any) {
     await interaction.reply({
-      embeds: [errorEmbed('Don échoué', err.message || 'Impossible d’offrir l’objet.')],
+      embeds: [errorEmbed('Don échoué', err.message || "Impossible d'offrir l'objet.")],
       flags: [MessageFlags.Ephemeral]
     });
   }

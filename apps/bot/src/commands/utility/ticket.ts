@@ -112,7 +112,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
   if (!ticket) {
     await interaction.reply({
-      content: '❌ Aucun ticket n\'est associé à ce salon.',
+      content: "❌ Aucun ticket n\'est associé à ce salon.",
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -231,7 +231,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
   if (subcommand === 'close') {
     if (!isOpener && !isStaff) {
       await interaction.reply({
-        content: '❌ Vous n\'avez pas la permission de fermer ce ticket.',
+        content: "❌ Vous n\'avez pas la permission de fermer ce ticket.",
         flags: [MessageFlags.Ephemeral],
       });
       return;
@@ -293,7 +293,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
     if (ticket.status !== 'CLOSED') {
       await interaction.reply({
-        content: '⚠️ Le ticket n\'est pas fermé.',
+        content: "⚠️ Le ticket n\'est pas fermé.",
         flags: [MessageFlags.Ephemeral],
       });
       return;
@@ -488,7 +488,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
   if (!canRename) {
     await interaction.reply({
-      content: '❌ Vous n\'avez pas la permission de renommer ce ticket.',
+      content: "❌ Vous n\'avez pas la permission de renommer ce ticket.",
       flags: [MessageFlags.Ephemeral],
     });
     return;

@@ -8,6 +8,7 @@
   import HourlyHeatmap from '../lib/components/analytics/HourlyHeatmap.svelte';
   import WeeklyComparison from '../lib/components/analytics/WeeklyComparison.svelte';
   import { fetchGrowthAndRetention, fetchHourlyHeatmap, fetchWeeklyComparison } from '../lib/api';
+  import LoadingHint from '../lib/components/LoadingHint.svelte';
 
 
   let growthData: any = $state(null);
@@ -115,6 +116,7 @@
         <Papicon icon="loader" size={48} class="animate-spin text-primary" />
       </div>
       <p class="text-xs font-semibold uppercase tracking-widest text-on-surface-variant/60">Chargement des données...</p>
+      <LoadingHint context="analytics" />
     </div>
   {:else if growthData && heatmapData && weeklyData}
     {#if activeTab === 'growth'}

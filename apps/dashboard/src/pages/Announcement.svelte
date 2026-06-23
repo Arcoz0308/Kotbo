@@ -8,6 +8,7 @@
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
+  import LoadingHint from '../lib/components/LoadingHint.svelte';
   import { fetchWelcomeConfig, updateWelcomeConfig } from '../lib/api';
 
   const actionState = createAsyncActionState();
@@ -211,6 +212,9 @@
     <div class="space-y-6">
       <Skeleton height="60px" radius="1.5rem" />
       <Skeleton height="450px" radius="2.5rem" />
+    </div>
+    <div class="flex justify-center mt-4">
+      <LoadingHint context="config" />
     </div>
   {:else}
     <!-- Tabs Header -->

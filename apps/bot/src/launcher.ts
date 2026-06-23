@@ -3,14 +3,131 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
 
-import { ShardingManager } from 'discord.js';
+import { ShardingManager, Client, GatewayIntentBits, ActivityType, type PresenceStatusData } from 'discord.js';
 import prisma from './utils/db.js';
 import { logger } from './utils/logger.js';
+import { loadAllInstances, type ResolvedInstance } from './utils/instanceResolver.js';
+
+// Custom Bot instances (lightweight clients managed per-guild)
+const customBotClients = new Map<string, Client>();
+
+const STATUS_MAP: Record<string, PresenceStatusData> = {
+  ONLINE: 'online', IDLE: 'idle', DND: 'dnd', INVISIBLE: 'invisible',
+};
+
+const ACTIVITY_MAP: Record<string, ActivityType> = {
+  PLAYING: ActivityType.Playing,
+  STREAMING: ActivityType.Streaming,
+  LISTENING: ActivityType.Listening,
+  WATCHING: ActivityType.Watching,
+  COMPETING: ActivityType.Competing,
+};
+
+async function startCustomBot(guildId: string, config: {
+  botToken: string;
+  botStatus?: string;
+  activityType?: string;
+  activityText?: string;
+  activityUrl?: string;
+  botName?: string;
+}) {
+  if (customBotClients.has(guildId)) {
+    const existing = customBotClients.get(guildId)!;
+    existing.destroy();
+    customBotClients.delete(guildId);
+  }
+
+  const client = new Client({
+    intents: [GatewayIntentBits.Guilds],
+  });
+
+  client.once('ready', async (c) => {
+    logger.success('CustomBot', `[${guildId}] Bot "${c.user.tag}" connecté.`);
+
+    const status = STATUS_MAP[config.botStatus || 'ONLINE'] || 'online';
+    const activities: any[] = [];
+
+    if (config.activityType && config.activityType !== 'NONE' && config.activityText) {
+      activities.push({
+        name: config.activityText,
+        type: ACTIVITY_MAP[config.activityType] ?? ActivityType.Playing,
+        url: config.activityType === 'STREAMING' ? config.activityUrl : undefined,
+      });
+    }
+
+    c.user.setPresence({ status, activities });
+
+    await prisma.customBotConfig.update({
+      where: { guildId },
+      data: { isRunning: true, lastStartedAt: new Date(), lastError: null },
+    }).catch(() => {});
+  });
+
+  client.on('error', async (err) => {
+    logger.error('CustomBot', `[${guildId}] Erreur:`, err);
+    await prisma.customBotConfig.update({
+      where: { guildId },
+      data: { lastError: err.message },
+    }).catch(() => {});
+  });
+
+  try {
+    await client.login(config.botToken);
+    customBotClients.set(guildId, client);
+  } catch (err: any) {
+    logger.error('CustomBot', `[${guildId}] Impossible de se connecter:`, err);
+    await prisma.customBotConfig.update({
+      where: { guildId },
+      data: { isRunning: false, lastError: err.message || 'Login failed' },
+    }).catch(() => {});
+  }
+}
+
+async function stopCustomBot(guildId: string) {
+  const client = customBotClients.get(guildId);
+  if (client) {
+    client.destroy();
+    customBotClients.delete(guildId);
+    logger.info('CustomBot', `[${guildId}] Bot arrêté.`);
+  }
+  await prisma.customBotConfig.update({
+    where: { guildId },
+    data: { isRunning: false },
+  }).catch(() => {});
+}
+
+async function bootCustomBots() {
+  try {
+    const configs = await prisma.customBotConfig.findMany({
+      where: { enabled: true, isRunning: true, botToken: { not: null } },
+    });
+
+    if (configs.length === 0) return;
+
+    logger.info('CustomBot', `Restauration de ${configs.length} custom bot(s)...`);
+    for (const cfg of configs) {
+      if (!cfg.botToken) continue;
+      await startCustomBot(cfg.guildId, {
+        botToken: cfg.botToken,
+        botStatus: cfg.botStatus,
+        activityType: cfg.activityType,
+        activityText: cfg.activityText || undefined,
+        activityUrl: cfg.activityUrl || undefined,
+        botName: cfg.botName || undefined,
+      });
+    }
+  } catch (err) {
+    logger.warn('CustomBot', 'Impossible de restaurer les custom bots (table manquante ?):', err);
+  }
+}
 
 type ShardingConfig = {
   mode: 'auto' | 'fixed';
   shardCount?: number;
 };
+
+console.log("TOKEN DANS LE SHARD :", process.env.DISCORD_TOKEN ? "OK" : "MANQUANT");
+console.log("DATABASE_URL DANS LE SHARD :", process.env.DATABASE_URL ? "OK" : "MANQUANT");
 
 const SHARDING_CONFIG_KEY = 'SHARDING_CONFIG';
 
@@ -36,49 +153,36 @@ async function loadShardingConfig(): Promise<ShardingConfig> {
   }
 }
 
-async function main() {
-  const token = process.env.DISCORD_TOKEN;
-  if (!token) {
-    logger.error('Bot', 'DISCORD_TOKEN non défini dans .env !');
-    process.exit(1);
-  }
-
-  const shardingConfig = await loadShardingConfig();
-  const workerPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'index.ts');
-
-  // Allow an environment override for local testing: SHARD_COUNT
-  const envShardCount = process.env.SHARD_COUNT ? Number(process.env.SHARD_COUNT) : undefined;
-  let totalShards: number | 'auto' = shardingConfig.mode === 'fixed' && shardingConfig.shardCount
-    ? shardingConfig.shardCount
-    : 'auto';
-
-  if (envShardCount && Number.isFinite(envShardCount) && envShardCount > 0) {
-    totalShards = Math.floor(envShardCount);
-    logger.info('Sharding', `SHARD_COUNT override: démarrage en ${totalShards} shard(s).`);
-  }
-
-  const manager = new ShardingManager(workerPath, {
-    token,
-    totalShards,
-    respawn: true,
-  });
-
+function setupShardListeners(manager: ShardingManager, instanceLabel: string) {
   manager.on('shardCreate', (shard) => {
-    logger.info('Sharding', `Shard ${shard.id} initialisé.`);
+    logger.info('Sharding', `[${instanceLabel}] Shard ${shard.id} initialisé.`);
+
+    shard.on('spawn', (childProcess) => {
+      const pid = 'pid' in childProcess ? childProcess.pid : undefined;
+      logger.info('Sharding', `[${instanceLabel}] Processus enfant pour le Shard ${shard.id} démarré (PID: ${pid}).`);
+
+      if ('stderr' in childProcess && childProcess.stderr) {
+        childProcess.stderr.on('data', (data: Buffer) => {
+          logger.error('Sharding', `[${instanceLabel}][Shard ${shard.id} STDERR] ${data.toString().trim()}`);
+        });
+      }
+    });
+
+    shard.on('death', (childProcess) => {
+      const exitCode = 'exitCode' in childProcess ? childProcess.exitCode : undefined;
+      logger.error('Sharding', `[${instanceLabel}] Le Shard ${shard.id} est mort de manière inattendue (Code de sortie: ${exitCode}).`);
+    });
 
     shard.on('message', (message: any) => {
       try {
         if (!message || typeof message !== 'object') return;
 
-        // Legacy: request a full container restart
         if (message.type === 'restart-container') {
-          logger.warn('Sharding', `Redémarrage du conteneur demandé par le shard ${shard.id}.`);
-          // If the launcher is configured to rely on container restart (Dokploy), exit.
+          logger.warn('Sharding', `[${instanceLabel}] Redémarrage du conteneur demandé par le shard ${shard.id}.`);
           if (process.env.MANAGER_USE_CONTAINER_RESTART === 'true') {
             process.exit(0);
           }
 
-          // Otherwise attempt an in-process respawn of all shards.
           if (typeof (manager as any).respawnAll === 'function') {
             (manager as any).respawnAll();
           } else {
@@ -92,27 +196,109 @@ async function main() {
           return;
         }
 
-        // Request to respawn a specific shard
+        // Custom bot management via IPC
+        if (message.type === 'custom-bot-start' && message.guildId && message.config?.botToken) {
+          startCustomBot(message.guildId, message.config);
+          return;
+        }
+        if (message.type === 'custom-bot-stop' && message.guildId) {
+          stopCustomBot(message.guildId);
+          return;
+        }
+
         if (message.type === 'respawn-shard' && Number.isInteger(Number(message.shardId))) {
           const target = Number(message.shardId);
-          logger.warn('Sharding', `Respawn demandé pour le shard ${target} (via shard ${shard.id}).`);
+          logger.warn('Sharding', `[${instanceLabel}] Respawn demandé pour le shard ${target} (via shard ${shard.id}).`);
           if (typeof (manager as any).respawn === 'function') {
             try {
               (manager as any).respawn(target);
             } catch (err) {
-              logger.error('Sharding', `Erreur lors du respawn du shard ${target}:`, err);
+              logger.error('Sharding', `[${instanceLabel}] Erreur lors du respawn du shard ${target}:`, err);
             }
           }
           return;
         }
       } catch (err) {
-        logger.error('Sharding', 'Erreur en traitant le message IPC du shard:', err);
+        logger.error('Sharding', `[${instanceLabel}] Erreur en traitant le message IPC du shard:`, err);
       }
     });
   });
+}
+
+async function spawnInstance(instance: ResolvedInstance, workerPath: string): Promise<ShardingManager> {
+  const shardingConfig = await loadShardingConfig();
+  const label = instance.isDefault ? 'default' : instance.slug;
+
+  const envShardCount = process.env.SHARD_COUNT ? Number(process.env.SHARD_COUNT) : undefined;
+  let totalShards: number | 'auto' = shardingConfig.mode === 'fixed' && shardingConfig.shardCount
+    ? shardingConfig.shardCount
+    : 'auto';
+
+  if (instance.isDefault && envShardCount && Number.isFinite(envShardCount) && envShardCount > 0) {
+    totalShards = Math.floor(envShardCount);
+    logger.info('Sharding', `[${label}] SHARD_COUNT override: démarrage en ${totalShards} shard(s).`);
+  }
+
+  // White-label instances run with a single shard by default (small communities)
+  if (!instance.isDefault && totalShards === 'auto') {
+    totalShards = 1;
+  }
+
+  const manager = new ShardingManager(workerPath, {
+    token: instance.discordToken,
+    totalShards,
+    respawn: true,
+    shardArgs: [`--instance-id=${instance.id}`],
+    execArgv: [],
+  });
+
+  setupShardListeners(manager, label);
 
   await manager.spawn();
-  logger.success('Sharding', `Bot lancé avec ${manager.totalShards} shard(s).`);
+  logger.success('Sharding', `[${label}] Bot lancé avec ${manager.totalShards} shard(s) — port API ${instance.apiPort}`);
+
+  return manager;
+}
+
+async function main() {
+  const instances = await loadAllInstances();
+  const workerPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'index.ts');
+
+  const defaultInstance = instances.find(i => i.isDefault);
+  if (!defaultInstance || !defaultInstance.discordToken) {
+    logger.error('Bot', 'DISCORD_TOKEN non défini dans .env !');
+    process.exit(1);
+  }
+
+  const managers: ShardingManager[] = [];
+
+  // Spawn default instance first
+  const defaultManager = await spawnInstance(defaultInstance, workerPath);
+  managers.push(defaultManager);
+
+  // Spawn white-label instances in parallel
+  const wlInstances = instances.filter(i => !i.isDefault);
+  if (wlInstances.length > 0) {
+    logger.info('WhiteLabel', `Démarrage de ${wlInstances.length} instance(s) white-label...`);
+
+    const results = await Promise.allSettled(
+      wlInstances.map(inst => spawnInstance(inst, workerPath))
+    );
+
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      if (result.status === 'fulfilled') {
+        managers.push(result.value);
+      } else {
+        logger.error('WhiteLabel', `Impossible de démarrer l'instance "${wlInstances[i].name}" (${wlInstances[i].slug}):`, result.reason);
+      }
+    }
+  }
+
+  logger.success('Sharding', `${managers.length} instance(s) bot démarrée(s) au total.`);
+
+  // Restore custom bots that were running before restart
+  await bootCustomBots();
 }
 
 main().catch((error) => {

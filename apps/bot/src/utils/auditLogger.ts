@@ -53,7 +53,7 @@ export async function flushAuditLogs(): Promise<void> {
       })),
     });
   } catch (error) {
-    logger.error('AuditLogger', 'Erreur lors du flush des logs d\'audit en BDD', error);
+    logger.error('AuditLogger', "Erreur lors du flush des logs d\'audit en BDD", error);
   }
 }
 

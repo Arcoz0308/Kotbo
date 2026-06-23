@@ -291,7 +291,7 @@ export async function handleAdminRoutes(
         } else if (result.error === 'NO_CHANNEL') {
           json(res, 400, { error: 'Impossible de créer une invitation (pas de salon textuel ou pas la permission)' });
         } else if (result.error === 'CREATE_FAILED') {
-          json(res, 500, { error: 'Erreur lors de la création de l\'invitation' });
+          json(res, 500, { error: "Erreur lors de la création de l\'invitation" });
         } else if (result.url) {
           json(res, 200, { url: result.url });
         }
@@ -310,7 +310,7 @@ export async function handleAdminRoutes(
           const invite = await (channel as TextChannel).createInvite({ maxAge: 86400, maxUses: 1 });
           json(res, 200, { url: invite.url });
         } catch (err) {
-          json(res, 500, { error: 'Erreur lors de la création de l\'invitation' });
+          json(res, 500, { error: "Erreur lors de la création de l\'invitation" });
         }
       }
       return true;
@@ -800,7 +800,7 @@ export async function handleAdminRoutes(
                   .setTitle('📢 Annonce Globale Kotbo')
                   .setDescription(context.message)
                   .setColor(COLORS.primary)
-                  .setFooter({ text: 'Système d\'annonce globale' })
+                  .setFooter({ text: "Système d\'annonce globale" })
                   .setTimestamp();
                 await channel.send({ embeds: [embed] });
                 shardSuccessCount++;
@@ -840,7 +840,7 @@ export async function handleAdminRoutes(
                 .setTitle('📢 Annonce Globale Kotbo')
                 .setDescription(body.message)
                 .setColor(COLORS.primary)
-                .setFooter({ text: 'Système d\'annonce globale' })
+                .setFooter({ text: "Système d\'annonce globale" })
                 .setTimestamp();
               await channel.send({ embeds: [embed] });
               successCount++;
@@ -889,7 +889,7 @@ export async function handleAdminRoutes(
       json(res, 200, enrichedCodes);
     } catch (err) {
       logger.error('AdminAPI', 'Erreur lors de la récupération des codes :', err);
-      json(res, 500, { error: 'Erreur lors de la récupération des codes d\'activation.' });
+      json(res, 500, { error: "Erreur lors de la récupération des codes d\'activation." });
     }
     return true;
   }
@@ -909,8 +909,8 @@ export async function handleAdminRoutes(
 
       json(res, 201, newCode);
     } catch (err) {
-      logger.error('AdminAPI', 'Erreur lors de la création d\'un code :', err);
-      json(res, 500, { error: 'Erreur lors de la création du code d\'activation.' });
+      logger.error('AdminAPI', "Erreur lors de la création d\'un code :", err);
+      json(res, 500, { error: "Erreur lors de la création du code d\'activation." });
     }
     return true;
   }
@@ -939,7 +939,7 @@ export async function handleAdminRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('AdminAPI', 'Erreur lors de la suppression du code :', err);
-      json(res, 500, { error: 'Erreur lors de la suppression du code d\'activation.' });
+      json(res, 500, { error: "Erreur lors de la suppression du code d\'activation." });
     }
     return true;
   }
@@ -976,7 +976,7 @@ export async function handleAdminRoutes(
       json(res, 200, { ok: true, code, message: 'Le serveur a été activé automatiquement.' });
     } catch (err) {
       logger.error('AdminAPI', 'Erreur lors de la génération et affectation du code :', err);
-      json(res, 500, { error: 'Erreur lors de l\'activation automatique du serveur.' });
+      json(res, 500, { error: "Erreur lors de l\'activation automatique du serveur." });
     }
     return true;
   }
@@ -1032,6 +1032,255 @@ export async function handleAdminRoutes(
     } catch (err) {
       logger.error('AdminAPI', 'POST rescan-stats error:', err);
       json(res, 500, { error: 'Erreur lors du lancement du scraping' });
+    }
+    return true;
+  }
+
+  // ============================================================================
+  // WHITE-LABEL INSTANCE MANAGEMENT
+  // ============================================================================
+
+  // GET /api/admin/whitelabel — List all instances
+  if (parts[2] === 'whitelabel' && parts.length === 3 && method === 'GET') {
+    try {
+      const instances = await prisma.whiteLabelInstance.findMany({
+        include: { _count: { select: { guilds: true } } },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const safe = instances.map(inst => ({
+        id: inst.id,
+        slug: inst.slug,
+        name: inst.name,
+        enabled: inst.enabled,
+        discordClientId: inst.discordClientId,
+        dashboardUrl: inst.dashboardUrl,
+        apiPort: inst.apiPort,
+        brandName: inst.brandName,
+        brandColor: inst.brandColor,
+        brandLogoUrl: inst.brandLogoUrl,
+        brandFaviconUrl: inst.brandFaviconUrl,
+        brandFooterText: inst.brandFooterText,
+        ownerId: inst.ownerId,
+        maxGuilds: inst.maxGuilds,
+        guildCount: inst._count.guilds,
+        createdAt: inst.createdAt,
+        updatedAt: inst.updatedAt,
+      }));
+
+      json(res, 200, { instances: safe });
+    } catch (err) {
+      logger.error('AdminAPI', 'GET whitelabel error:', err);
+      json(res, 500, { error: 'Erreur lors de la récupération des instances' });
+    }
+    return true;
+  }
+
+  // POST /api/admin/whitelabel — Create instance
+  if (parts[2] === 'whitelabel' && parts.length === 3 && method === 'POST') {
+    try {
+      const body = await readJsonBody(req);
+      if (!body) { json(res, 400, { error: 'Body JSON requis' }); return true; }
+
+      const { slug, name, discordToken, discordClientId, discordClientSecret,
+        discordRedirectUri, dashboardUrl, apiPort, brandName, brandColor,
+        brandLogoUrl, brandFaviconUrl, brandFooterText, ownerId, maxGuilds } = body;
+
+      if (!slug || !name || !discordToken || !discordClientId || !discordClientSecret || !ownerId) {
+        json(res, 400, { error: 'Champs requis: slug, name, discordToken, discordClientId, discordClientSecret, ownerId' });
+        return true;
+      }
+
+      const existing = await prisma.whiteLabelInstance.findUnique({ where: { slug } });
+      if (existing) {
+        json(res, 409, { error: `Le slug "${slug}" est déjà utilisé.` });
+        return true;
+      }
+
+      const instance = await prisma.whiteLabelInstance.create({
+        data: {
+          slug,
+          name,
+          discordToken,
+          discordClientId,
+          discordClientSecret,
+          discordRedirectUri: discordRedirectUri || null,
+          dashboardUrl: dashboardUrl || null,
+          apiPort: apiPort ? Number(apiPort) : null,
+          brandName: brandName || null,
+          brandColor: brandColor || '#5865F2',
+          brandLogoUrl: brandLogoUrl || null,
+          brandFaviconUrl: brandFaviconUrl || null,
+          brandFooterText: brandFooterText || null,
+          ownerId,
+          maxGuilds: maxGuilds ? Number(maxGuilds) : 1,
+        },
+      });
+
+      json(res, 201, { instance: { id: instance.id, slug: instance.slug, name: instance.name } });
+    } catch (err) {
+      logger.error('AdminAPI', 'POST whitelabel error:', err);
+      json(res, 500, { error: 'Erreur lors de la création de l\'instance' });
+    }
+    return true;
+  }
+
+  // GET /api/admin/whitelabel/:id — Get instance details
+  if (parts[2] === 'whitelabel' && parts[3] && parts.length === 4 && method === 'GET') {
+    try {
+      const instance = await prisma.whiteLabelInstance.findUnique({
+        where: { id: parts[3] },
+        include: {
+          guilds: { select: { id: true, activated: true } },
+        },
+      });
+
+      if (!instance) {
+        json(res, 404, { error: 'Instance introuvable' });
+        return true;
+      }
+
+      json(res, 200, {
+        instance: {
+          ...instance,
+          discordToken: '••••' + instance.discordToken.slice(-6),
+          discordClientSecret: '••••' + instance.discordClientSecret.slice(-4),
+          jwtSecret: instance.jwtSecret ? '••••' : null,
+        },
+      });
+    } catch (err) {
+      logger.error('AdminAPI', 'GET whitelabel/:id error:', err);
+      json(res, 500, { error: 'Erreur lors de la récupération de l\'instance' });
+    }
+    return true;
+  }
+
+  // PATCH /api/admin/whitelabel/:id — Update instance
+  if (parts[2] === 'whitelabel' && parts[3] && parts.length === 4 && method === 'PATCH') {
+    try {
+      const body = await readJsonBody(req);
+      if (!body) { json(res, 400, { error: 'Body JSON requis' }); return true; }
+
+      const existing = await prisma.whiteLabelInstance.findUnique({ where: { id: parts[3] } });
+      if (!existing) {
+        json(res, 404, { error: 'Instance introuvable' });
+        return true;
+      }
+
+      const allowedFields = [
+        'name', 'slug', 'enabled', 'discordToken', 'discordClientId',
+        'discordClientSecret', 'discordRedirectUri', 'dashboardUrl', 'apiPort',
+        'brandName', 'brandColor', 'brandLogoUrl', 'brandFaviconUrl',
+        'brandFooterText', 'jwtSecret', 'ownerId', 'maxGuilds',
+      ] as const;
+
+      const updateData: Record<string, any> = {};
+      for (const field of allowedFields) {
+        if (body[field] !== undefined) {
+          if (field === 'apiPort' || field === 'maxGuilds') {
+            updateData[field] = body[field] === null ? null : Number(body[field]);
+          } else if (field === 'enabled') {
+            updateData[field] = Boolean(body[field]);
+          } else {
+            updateData[field] = body[field];
+          }
+        }
+      }
+
+      if (updateData.dashboardUrl) {
+        try {
+          updateData.dashboardOrigin = new URL(updateData.dashboardUrl).origin;
+        } catch {
+          updateData.dashboardOrigin = updateData.dashboardUrl.replace(/\/$/, '');
+        }
+      }
+
+      const updated = await prisma.whiteLabelInstance.update({
+        where: { id: parts[3] },
+        data: updateData,
+      });
+
+      json(res, 200, { instance: { id: updated.id, slug: updated.slug, name: updated.name } });
+    } catch (err) {
+      logger.error('AdminAPI', 'PATCH whitelabel/:id error:', err);
+      json(res, 500, { error: 'Erreur lors de la mise à jour de l\'instance' });
+    }
+    return true;
+  }
+
+  // DELETE /api/admin/whitelabel/:id — Delete instance
+  if (parts[2] === 'whitelabel' && parts[3] && parts.length === 4 && method === 'DELETE') {
+    try {
+      const existing = await prisma.whiteLabelInstance.findUnique({
+        where: { id: parts[3] },
+        include: { _count: { select: { guilds: true } } },
+      });
+
+      if (!existing) {
+        json(res, 404, { error: 'Instance introuvable' });
+        return true;
+      }
+
+      if (existing._count.guilds > 0) {
+        json(res, 409, { error: `Impossible de supprimer : ${existing._count.guilds} guild(s) rattachée(s). Détachez-les d'abord.` });
+        return true;
+      }
+
+      await prisma.whiteLabelInstance.delete({ where: { id: parts[3] } });
+      json(res, 200, { ok: true });
+    } catch (err) {
+      logger.error('AdminAPI', 'DELETE whitelabel/:id error:', err);
+      json(res, 500, { error: 'Erreur lors de la suppression de l\'instance' });
+    }
+    return true;
+  }
+
+  // POST /api/admin/whitelabel/:id/guilds — Bind a guild to an instance
+  if (parts[2] === 'whitelabel' && parts[3] && parts[4] === 'guilds' && parts.length === 5 && method === 'POST') {
+    try {
+      const body = await readJsonBody(req);
+      if (!body?.guildId) { json(res, 400, { error: 'guildId requis' }); return true; }
+
+      const instance = await prisma.whiteLabelInstance.findUnique({
+        where: { id: parts[3] },
+        include: { _count: { select: { guilds: true } } },
+      });
+
+      if (!instance) {
+        json(res, 404, { error: 'Instance introuvable' });
+        return true;
+      }
+
+      if (instance._count.guilds >= instance.maxGuilds) {
+        json(res, 409, { error: `Limite atteinte : ${instance.maxGuilds} guild(s) maximum pour cette instance.` });
+        return true;
+      }
+
+      await prisma.guild.update({
+        where: { id: body.guildId },
+        data: { instanceId: instance.id },
+      });
+
+      json(res, 200, { ok: true });
+    } catch (err) {
+      logger.error('AdminAPI', 'POST whitelabel/:id/guilds error:', err);
+      json(res, 500, { error: 'Erreur lors du rattachement de la guild' });
+    }
+    return true;
+  }
+
+  // DELETE /api/admin/whitelabel/:id/guilds/:guildId — Unbind a guild
+  if (parts[2] === 'whitelabel' && parts[3] && parts[4] === 'guilds' && parts[5] && parts.length === 6 && method === 'DELETE') {
+    try {
+      await prisma.guild.update({
+        where: { id: parts[5] },
+        data: { instanceId: null },
+      });
+
+      json(res, 200, { ok: true });
+    } catch (err) {
+      logger.error('AdminAPI', 'DELETE whitelabel guild unbind error:', err);
+      json(res, 500, { error: 'Erreur lors du détachement de la guild' });
     }
     return true;
   }

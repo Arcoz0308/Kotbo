@@ -94,13 +94,13 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       });
     } else {
       await interaction.reply({
-        embeds: [errorEmbed('Impossible d’utiliser', `L’objet **${item.name}** ne peut pas être utilisé directement.`)],
+        embeds: [errorEmbed("Impossible d'utiliser", `L'objet **${item.name}** ne peut pas être utilisé directement.`)],
         flags: [MessageFlags.Ephemeral]
       });
     }
   } catch (err: any) {
     await interaction.reply({
-      embeds: [errorEmbed('Erreur', err.message || 'Impossible d’utiliser l’objet.')],
+      embeds: [errorEmbed('Erreur', err.message || "Impossible d'utiliser l'objet.")],
       flags: [MessageFlags.Ephemeral]
     });
   }

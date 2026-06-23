@@ -24,7 +24,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     const config = await getOrCreateEconomyConfig(guildId);
     if (!config.enabled) {
       await interaction.reply({
-        embeds: [errorEmbed('Module Désactivé', 'Le système d’économie est désactivé sur ce serveur.')],
+        embeds: [errorEmbed('Module Désactivé', "Le système d'économie est désactivé sur ce serveur.")],
         flags: [MessageFlags.Ephemeral]
       });
       return;
@@ -33,7 +33,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     const profile = await getOrCreateRpgProfile(guildId, userId);
     if (profile.balance < bet) {
       await interaction.reply({
-        embeds: [errorEmbed('Solde insuffisant', `Vous n’avez pas assez de pièces pour parier **${bet}** 🪙 (Solde actuel : **${profile.balance}** 🪙).`)],
+        embeds: [errorEmbed('Solde insuffisant', `Vous n'avez pas assez de pièces pour parier **${bet}** 🪙 (Solde actuel : **${profile.balance}** 🪙).`)],
         flags: [MessageFlags.Ephemeral]
       });
       return;
@@ -41,7 +41,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
     if (profile.health <= 0) {
       await interaction.reply({
-        embeds: [errorEmbed('Hors service', 'Vous n’avez plus aucun point de vie (0 PV). Soignez-vous avec des potions avant de retenter votre chance !')],
+        embeds: [errorEmbed('Hors service', "Vous n'avez plus aucun point de vie (0 PV). Soignez-vous avec des potions avant de retenter votre chance !")],
         flags: [MessageFlags.Ephemeral]
       });
       return;

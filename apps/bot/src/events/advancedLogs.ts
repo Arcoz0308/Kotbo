@@ -1158,8 +1158,8 @@ export function registerAdvancedLogsListener(client: Client): void {
         .setDescription(`Le membre **${member.user.tag}** (<@${member.id}>) a été automatiquement exclu dès son arrivée suite à une politique de sécurité.`)
         .addFields(
           { name: 'Motif du blocage', value: suspensionReason, inline: false },
-          { name: 'Code d\'invitation utilisé', value: usedInvite?.code ? `\`${usedInvite.code}\`` : 'Inconnu', inline: true },
-          { name: 'Créateur de l\'invite', value: usedInvite ? formatInviteCreator(usedInvite) : 'Inconnu', inline: true },
+          { name: "Code d\'invitation utilisé", value: usedInvite?.code ? `\`${usedInvite.code}\`` : 'Inconnu', inline: true },
+          { name: "Créateur de l\'invite", value: usedInvite ? formatInviteCreator(usedInvite) : 'Inconnu', inline: true },
           { name: 'ID du créateur', value: usedInvite?.inviterId ? `\`${usedInvite.inviterId}\`` : 'Inconnu', inline: true }
         )
         .setTimestamp()
@@ -1205,8 +1205,8 @@ export function registerAdvancedLogsListener(client: Client): void {
 
     const embed = EmbedBuilder.from(base).addFields(
       { name: 'Invite utilisée', value: inviteCode, inline: true },
-      { name: 'Créateur de l\'invite', value: inviter, inline: true },
-      { name: 'Âge du compte', value: accountAgeDays === 0 ? 'Moins d\'un jour' : `${accountAgeDays} jours`, inline: true },
+      { name: "Créateur de l\'invite", value: inviter, inline: true },
+      { name: 'Âge du compte', value: accountAgeDays === 0 ? "Moins d\'un jour" : `${accountAgeDays} jours`, inline: true },
     );
 
     if (isVeryYoung) {
@@ -1237,7 +1237,7 @@ export function registerAdvancedLogsListener(client: Client): void {
     const stayDuration = member.joinedAt ? Date.now() - member.joinedAt.getTime() : null;
     const stayDurationDays = stayDuration ? Math.floor(stayDuration / (1000 * 60 * 60 * 24)) : null;
     const stayDurationFmt = stayDurationDays !== null 
-      ? (stayDurationDays === 0 ? 'Moins d\'un jour' : `${stayDurationDays} jours`) 
+      ? (stayDurationDays === 0 ? "Moins d\'un jour" : `${stayDurationDays} jours`) 
       : 'Inconnu';
     
     void recordInvitedMemberLeave(member.guild.id, member.id);
@@ -1255,12 +1255,12 @@ export function registerAdvancedLogsListener(client: Client): void {
       },
     ).addFields(
       {
-        name: 'Invite d\'arrivée',
+        name: "Invite d\'arrivée",
         value: joinedInvite?.code ?? 'Inconnue (pas détectée pendant cette session bot)',
         inline: true,
       },
       {
-        name: 'Créateur de l\'invite',
+        name: "Créateur de l\'invite",
         value: joinedInvite
           ? formatInviteCreator({ inviterId: joinedInvite.inviterId, inviterTag: joinedInvite.inviterTag })
           : 'Inconnu',

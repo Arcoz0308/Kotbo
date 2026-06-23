@@ -14,8 +14,9 @@ import {
   checkRateLimit,
   getClientIp,
   getMissingOAuthConfig,
-  DISCORD_CLIENT_ID,
-  DASHBOARD_ORIGIN,
+  getDiscordClientId,
+  getDashboardOrigin,
+  getDashboardUrl,
 } from '../shared.js';
 import {
   isValidMcpGuildId,
@@ -155,7 +156,24 @@ export async function handlePublicRoutes(
       return true;
     }
 
-    json(res, 200, { discordClientId: DISCORD_CLIENT_ID });
+    json(res, 200, { discordClientId: getDiscordClientId() });
+    return true;
+  }
+
+  // GET /api/branding — white-label branding info for the dashboard
+  if (url.pathname === '/api/branding' && method === 'GET') {
+    const { getCurrentInstance } = await import('../../utils/instanceContext.js');
+    const inst = getCurrentInstance();
+    json(res, 200, {
+      instanceId: inst.id,
+      slug: inst.slug,
+      name: inst.brandName,
+      color: inst.brandColor,
+      logoUrl: inst.brandLogoUrl,
+      faviconUrl: inst.brandFaviconUrl,
+      footerText: inst.brandFooterText,
+      isWhiteLabel: !inst.isDefault,
+    });
     return true;
   }
 
@@ -439,7 +457,7 @@ export async function handlePublicRoutes(
 
       const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
       const guildName = discordGuild?.name ?? `Serveur ${guildId}`;
-      const dashboardUrl = process.env.DASHBOARD_URL || 'http://localhost:5173';
+      const dashboardUrl = getDashboardUrl();
       const apiUrl = process.env.VITE_API_URL || '';
 
       const rssXml = generateRssXml(guildName, guildId, dashboardUrl, apiUrl, articles, category, subcategory);
@@ -583,7 +601,7 @@ export async function handlePublicRoutes(
           "style-src 'unsafe-inline'",
           'img-src https: data:',
           'media-src https:',
-          `frame-ancestors ${DASHBOARD_ORIGIN} http://localhost:5173 http://localhost:3000`,
+          `frame-ancestors ${getDashboardOrigin()} http://localhost:5173 http://localhost:3000`,
           "base-uri 'none'",
           "form-action 'none'",
         ].join('; ')

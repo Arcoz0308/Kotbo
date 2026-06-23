@@ -47,7 +47,7 @@ const data = new SlashCommandBuilder()
   .addSubcommand((sub) =>
     sub
       .setName('scan')
-      .setDescription('Scanner les membres et signaler ceux dont le compte est trop récent à l’arrivée.')
+      .setDescription("Scanner les membres et signaler ceux dont le compte est trop récent à l'arrivée.")
       .addIntegerOption((opt) =>
         opt
           .setName('seuil_jours')
@@ -91,7 +91,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
     }
 
     if (!(await canUseModerationTools(interaction))) {
-      return interaction.reply({ content: '❌ Tu n’as pas les permissions nécessaires pour lancer ce scan.', flags: [MessageFlags.Ephemeral] });
+      return interaction.reply({ content: "❌ Tu n'as pas les permissions nécessaires pour lancer ce scan.", flags: [MessageFlags.Ephemeral] });
     }
 
     const thresholdDays = interaction.options.getInteger('seuil_jours') ?? 3;
@@ -100,7 +100,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
     const result = await scanGuildMembersForYoungAccounts(guild, thresholdMs);
-    const preview = result.matches.slice(0, 10).map((match) => `• <@${match.userId}> — compte créé ${match.accountAgeLabel} avant l’arrivée`).join('\n');
+    const preview = result.matches.slice(0, 10).map((match) => `• <@${match.userId}> — compte créé ${match.accountAgeLabel} avant l'arrivée`).join('\n');
 
     const summaryLines = [
       `Membres analysés : **${result.scannedCount}**`,
@@ -159,7 +159,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
         user2Id: u2.id,
         type: 'MANUAL',
         status: 'PENDING',
-        reason: reason || 'Déclaration de bonne foi par l\'utilisateur',
+        reason: reason || "Déclaration de bonne foi par l\'utilisateur",
         linkedByUserId: interaction.user.id,
         metadata: { linkedBy: interaction.user.id, at: new Date().toISOString() }
       });
@@ -240,7 +240,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
   if (subcommand === 'list') {
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.ModerateMembers)) {
-      return interaction.reply({ content: '❌ Tu n’as pas la permission de modération requise.', flags: [MessageFlags.Ephemeral] });
+      return interaction.reply({ content: "❌ Tu n'as pas la permission de modération requise.", flags: [MessageFlags.Ephemeral] });
     }
 
     const target = interaction.options.getUser('cible', true);
@@ -272,7 +272,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
     const logChannelId = dbGuild?.logChannelId;
 
     if (!logChannelId) {
-      return interaction.reply({ content: '❌ Le système de logs n’est pas configuré. Contacte un administrateur.', flags: [MessageFlags.Ephemeral] });
+      return interaction.reply({ content: "❌ Le système de logs n'est pas configuré. Contacte un administrateur.", flags: [MessageFlags.Ephemeral] });
     }
 
     const logChannel = await guild.channels.fetch(logChannelId).catch(() => null);
@@ -286,7 +286,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
       user2Id: mainAccount.id,
       type: 'MANUAL',
       status: 'PENDING',
-      reason: 'Déclaration de bonne foi par l\'utilisateur',
+      reason: "Déclaration de bonne foi par l\'utilisateur",
       linkedByUserId: interaction.user.id,
       metadata: { linkedBy: interaction.user.id, at: new Date().toISOString() }
     });
@@ -322,7 +322,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
   if (subcommand === 'unlink') {
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.ModerateMembers)) {
-      return interaction.reply({ content: '❌ Tu n’as pas la permission de modération requise.', flags: [MessageFlags.Ephemeral] });
+      return interaction.reply({ content: "❌ Tu n'as pas la permission de modération requise.", flags: [MessageFlags.Ephemeral] });
     }
 
     const u1 = interaction.options.getUser('compte1', true);

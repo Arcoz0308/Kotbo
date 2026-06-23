@@ -112,7 +112,7 @@ export async function publishEvent(client: Client, eventId: string) {
 
     const lbBtn = new ButtonBuilder()
       .setCustomId(`event-ctf-leaderboard-btn:${event.id}`)
-      .setLabel('ðŸ“Š Classement')
+      .setLabel('ðŸ"Š Classement')
       .setStyle(ButtonStyle.Success);
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(submitBtn, progressBtn, lbBtn);
@@ -195,7 +195,7 @@ export async function nextQuestion(client: Client, eventId: string) {
   const currentIdx = event.questions.findIndex(q => q.id === nextQuestion.id) + 1;
 
   const embed = new EmbedBuilder()
-    .setTitle(`â�“ Question ${currentIdx}/${totalQuestions} : ${nextQuestion.text}`)
+    .setTitle(`â�" Question ${currentIdx}/${totalQuestions} : ${nextQuestion.text}`)
     .setDescription('Choisissez la bonne rÃ©ponse ci-dessous !')
     .setColor(COLORS.info)
     .setTimestamp();
@@ -287,7 +287,7 @@ export async function prevQuestion(client: Client, eventId: string) {
   const currentIdx = event.questions.findIndex(q => q.id === prevQuestion.id) + 1;
 
   const embed = new EmbedBuilder()
-    .setTitle(`â�“ Question ${currentIdx}/${totalQuestions} : ${prevQuestion.text}`)
+    .setTitle(`â�" Question ${currentIdx}/${totalQuestions} : ${prevQuestion.text}`)
     .setDescription('Choisissez la bonne rÃ©ponse ci-dessous !')
     .setColor(COLORS.info)
     .setTimestamp();
@@ -576,7 +576,7 @@ export async function finishEvent(client: Client, eventId: string) {
 
   const leaderboard = event.participants
     .slice(0, 10)
-    .map((p: any, i: number) => `${i + 1}. **${p.userTag || p.userId}** â€” ${p.score} pts`)
+    .map((p: any, i: number) => `${i + 1}. **${p.userTag || p.userId}** â€" ${p.score} pts`)
     .join('\n') || 'Aucun participant.';
 
   let description = `Bravo Ã  tous les participants !\n\n**Classement Final :**\n${leaderboard}`;
@@ -621,12 +621,12 @@ export async function finishEvent(client: Client, eventId: string) {
   if (message) {
     const statsButton = new ButtonBuilder()
       .setCustomId(`event-stats:${eventId}`)
-      .setLabel('ðŸ“Š Stats/Analytics')
+      .setLabel('ðŸ"Š Stats/Analytics')
       .setStyle(ButtonStyle.Secondary);
 
     const detailsButton = new ButtonBuilder()
       .setCustomId(`event-result-page:${eventId}:0`)
-      .setLabel('ðŸ”� DÃ©tails')
+      .setLabel('ðŸ"� DÃ©tails')
       .setStyle(ButtonStyle.Primary);
 
     const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://localhost:5173';
@@ -642,12 +642,12 @@ export async function finishEvent(client: Client, eventId: string) {
   } else {
     const statsButton = new ButtonBuilder()
       .setCustomId(`event-stats:${eventId}`)
-      .setLabel('ðŸ“Š Stats/Analytics')
+      .setLabel('ðŸ"Š Stats/Analytics')
       .setStyle(ButtonStyle.Secondary);
 
     const detailsButton = new ButtonBuilder()
       .setCustomId(`event-result-page:${eventId}:0`)
-      .setLabel('ðŸ”� DÃ©tails')
+      .setLabel('ðŸ"� DÃ©tails')
       .setStyle(ButtonStyle.Primary);
 
     const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://localhost:5173';
@@ -686,7 +686,7 @@ export async function buildEventResultsView(interaction: any, eventId: string, p
     }
 
     const embed = new EmbedBuilder()
-      .setTitle('ðŸ“ˆ Tes RÃ©sultats Quiz')
+      .setTitle('ðŸ"ˆ Tes RÃ©sultats Quiz')
       .setDescription('SÃ©lectionne un Ã©vÃ©nement pour voir le dÃ©tail de tes rÃ©ponses.')
       .setColor(COLORS.info);
 
@@ -729,7 +729,7 @@ export async function buildEventResultsView(interaction: any, eventId: string, p
   const visibleQuestions = event.questions.slice(start, end);
 
   const embed = new EmbedBuilder()
-    .setTitle(`ðŸ“ˆ RÃ©sultats : ${event.title}`)
+    .setTitle(`ðŸ"ˆ RÃ©sultats : ${event.title}`)
     .setDescription(`Voici le dÃ©tail de tes rÃ©ponses (Page ${page + 1}/${totalPages}).`)
     .setColor(COLORS.info)
     .setTimestamp();
@@ -818,7 +818,7 @@ export async function handleCtfFlagSubmission(interaction: any, eventId: string,
   });
 
   if (!event || event.status !== 'ONGOING') {
-    return interaction.reply({ content: 'â�Œ Ce CTF n\'est pas actif.', ephemeral: true });
+    return interaction.reply({ content: "â�Œ Ce CTF n\'est pas actif.", ephemeral: true });
   }
 
   const challenge = (event as any).ctfChallenges.find((c: any) => c.flag.trim().toLowerCase() === flag.trim().toLowerCase());

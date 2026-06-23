@@ -65,10 +65,10 @@ export async function sendMainConfigPanel(
   const embed = new EmbedBuilder()
     .setColor(0x5865f2)
     .setTitle('🧭 Dashboard de configuration Kotbo')
-    .setDescription('Vue d’ensemble du serveur. Ouvre une section ci-dessous pour ajuster un module précis.')
+    .setDescription("Vue d'ensemble du serveur. Ouvre une section ci-dessous pour ajuster un module précis.")
     .addFields(
       {
-        name: '📰 Flux d’actualité',
+        name: "📰 Flux d'actualité",
         value: `RSS : ${activeFeeds}/${feedCount}\nYouTube : ${formatToggleState(guild.youtubeEnabled)}\nDigest : ${formatToggleState(guild.digestEnabled)}\nTraduction : ${formatToggleState(guild.translationEnabled)}`,
         inline: true,
       },
@@ -149,7 +149,7 @@ export async function sendNewsConfigSectionPanel(
 
   const embed = new EmbedBuilder()
     .setColor(0x3a86ff)
-    .setTitle('📰 Flux d’actualité - Menu de section')
+    .setTitle("📰 Flux d'actualité - Menu de section")
     .setDescription('Choisis une fonctionnalité pour ouvrir son panneau détaillé.')
     .addFields(
       {
@@ -230,7 +230,7 @@ export async function sendCodePoliceConfig(
       },
       {
         name: 'Action',
-        value: 'Le message est reposté dans un bloc de code puis l’original est supprimé.',
+        value: "Le message est reposté dans un bloc de code puis l'original est supprimé.",
         inline: false,
       },
       {
@@ -300,7 +300,7 @@ export async function sendDailyAlgoConfig(
 
   const timeBtn = new ButtonBuilder()
     .setCustomId('cfg:modal:daily-algo:time')
-    .setLabel('🕐 Changer l\'heure')
+    .setLabel("🕐 Changer l\'heure")
     .setStyle(ButtonStyle.Primary);
 
   const clearChannelBtn = new ButtonBuilder()
@@ -512,7 +512,7 @@ export async function sendAdvancedLogsConfig(interaction: PanelInteraction, guil
 export async function buildSetTimeModal(): Promise<ModalBuilder> {
   return new ModalBuilder()
     .setCustomId('cfg:modal:daily-algo:time')
-    .setTitle('Configurer l\'heure - Daily Algo')
+    .setTitle("Configurer l\'heure - Daily Algo")
     .addComponents(
       new ActionRowBuilder<TextInputBuilder>().addComponents(
         new TextInputBuilder()

@@ -26,7 +26,7 @@ export async function initializeScheduler(client: Client): Promise<void> {
       await startSchedule(client, task);
     }
   } catch (error) {
-    logger.error('Scheduler', 'Erreur lors de l\'initialisation du planificateur:', error);
+    logger.error('Scheduler', "Erreur lors de l\'initialisation du planificateur:", error);
   }
 }
 

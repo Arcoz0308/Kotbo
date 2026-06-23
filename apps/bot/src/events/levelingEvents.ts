@@ -85,7 +85,7 @@ export function registerLevelingListener(client: Client) {
       }
 
     } catch (err) {
-      logger.error('LevelingEvents', 'Erreur lors de la boucle d\'XP vocale :', err);
+      logger.error('LevelingEvents', "Erreur lors de la boucle d\'XP vocale :", err);
     }
   }, 60000) as any;
 

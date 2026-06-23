@@ -35,7 +35,7 @@ describe('logger', () => {
     delete process.env.LOG_LEVEL;
   });
 
-  test('affiche des logs d\'information', () => {
+  test("affiche des logs d\'information", () => {
     logger.info('TestTag', 'message info');
     expect(logOutput.length).toBeGreaterThan(0);
     expect(logOutput[0]).toContain('TestTag');
@@ -71,13 +71,13 @@ describe('logger', () => {
     expect(logOutput[0]).toContain('DEBUG');
   });
 
-  test('n\'affiche pas debug quand LOG_LEVEL n\'est pas debug', () => {
+  test("n\'affiche pas debug quand LOG_LEVEL n\'est pas debug", () => {
     process.env.LOG_LEVEL = 'info';
     logger.debug('TestTag', 'message debug');
     expect(logOutput.length).toBe(0);
   });
 
-  test('n\'affiche pas debug sans LOG_LEVEL', () => {
+  test("n\'affiche pas debug sans LOG_LEVEL", () => {
     logger.debug('TestTag', 'message debug');
     expect(logOutput.length).toBe(0);
   });

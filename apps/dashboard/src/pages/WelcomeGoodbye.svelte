@@ -8,6 +8,7 @@
   import ToggleSwitch from '../lib/components/ToggleSwitch.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import Skeleton from '../lib/components/Skeleton.svelte';
+  import LoadingHint from '../lib/components/LoadingHint.svelte';
   import { fetchWelcomeConfig, updateWelcomeConfig } from '../lib/api';
 
   const actionState = createAsyncActionState();
@@ -154,6 +155,9 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <Skeleton height="450px" radius="2.5rem" />
       <Skeleton height="450px" radius="2.5rem" />
+    </div>
+    <div class="flex justify-center mt-4">
+      <LoadingHint context="config" />
     </div>
   {:else}
     <!-- Guide and Variable Reference -->

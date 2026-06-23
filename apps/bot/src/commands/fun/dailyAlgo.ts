@@ -50,7 +50,7 @@ async function replyPreviousRun(interaction: ChatInputCommandInteraction, guildI
 
   if (!previousRun) {
     await interaction.reply({
-      content: 'ℹ️ Aucun Daily Algo précédent n\'a encore été publié sur ce serveur.',
+      content: "ℹ️ Aucun Daily Algo précédent n\'a encore été publié sur ce serveur.",
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -105,7 +105,7 @@ async function replyScoring(interaction: ChatInputCommandInteraction): Promise<v
       },
       {
         name: '💬 Commentaires',
-        value: 'Le code est-il documenté ? L\'approche est-elle expliquée clairement ?',
+        value: "Le code est-il documenté ? L\'approche est-elle expliquée clairement ?",
         inline: false,
       },
       {
@@ -158,7 +158,7 @@ async function replyRanking(interaction: ChatInputCommandInteraction, guildId: s
   const currentUserRank = ranking.find((entry) => entry.authorId === interaction.user.id) ?? null;
   const userLine = currentUserRank
     ? `Ton rang: **#${currentUserRank.rank}** sur **${ranking.length}** · streak **${currentUserRank.currentStreak}** · ${formatTierBadge(currentUserRank.tier)}`
-    : 'Tu n\'es pas encore classé (aucune soumission validée).';
+    : "Tu n\'es pas encore classé (aucune soumission validée).";
 
   const embed = baseEmbed(COLORS.info, { user: interaction.user })
     .setTitle('📊 Classement Daily Algo du serveur')

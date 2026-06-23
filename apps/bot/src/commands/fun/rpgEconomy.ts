@@ -72,7 +72,7 @@ async function checkEconomyEnabled(interaction: ChatInputCommandInteraction): Pr
   const config = await getOrCreateEconomyConfig(interaction.guildId!);
   if (!config.enabled) {
     await interaction.reply({
-      embeds: [errorEmbed('Module Désactivé', 'Le système d\'économie et de RPG n\'est pas activé sur ce serveur.')],
+      embeds: [errorEmbed('Module Désactivé', "Le système d\'économie et de RPG n\'est pas activé sur ce serveur.")],
       flags: [MessageFlags.Ephemeral]
     });
     return false;
@@ -83,7 +83,7 @@ async function checkEconomyEnabled(interaction: ChatInputCommandInteraction): Pr
 // 1. RPG PROFILE COMMAND
 const rpgProfileData = new SlashCommandBuilder()
   .setName('rpg-profile')
-  .setDescription('🛡️ Consulter votre profil RPG et votre solde d\'économie')
+  .setDescription("🛡️ Consulter votre profil RPG et votre solde d\'économie")
   .addUserOption(option =>
     option
       .setName('membre')
@@ -172,7 +172,7 @@ export const rpgDailyCommand = { data: rpgDailyData, execute: rpgDailyExecute } 
 // 3. TRAVEL / ADVENTURE COMMAND
 const rpgTravelData = new SlashCommandBuilder()
   .setName('rpg-travel')
-  .setDescription('✈️ Démarrer ou résoudre un voyage d\'aventure');
+  .setDescription("✈️ Démarrer ou résoudre un voyage d\'aventure");
 
 async function rpgTravelExecute(interaction: ChatInputCommandInteraction) {
   if (!await checkEconomyEnabled(interaction)) return;
@@ -183,7 +183,7 @@ async function rpgTravelExecute(interaction: ChatInputCommandInteraction) {
 
   if (!config.rpgEnabled) {
     await interaction.reply({
-      embeds: [errorEmbed('RPG désactivé', 'Le système d\'aventures RPG est désactivé sur ce serveur.')],
+      embeds: [errorEmbed('RPG désactivé', "Le système d\'aventures RPG est désactivé sur ce serveur.")],
       flags: [MessageFlags.Ephemeral]
     });
     return;
@@ -205,7 +205,7 @@ async function rpgTravelExecute(interaction: ChatInputCommandInteraction) {
 
     if (status.noEvent) {
       await interaction.reply({
-        embeds: [successEmbed('Voyage terminé', 'Vous êtes bien arrivé à destination mais rien de particulier ne s\'est passé en chemin.')]
+        embeds: [successEmbed('Voyage terminé', "Vous êtes bien arrivé à destination mais rien de particulier ne s\'est passé en chemin.")]
       });
       return;
     }
@@ -242,7 +242,7 @@ async function rpgTravelExecute(interaction: ChatInputCommandInteraction) {
 
     collector.on('collect', async (i) => {
       if (i.user.id !== interaction.user.id) {
-        await i.reply({ content: 'Ce n\'est pas votre aventure !', flags: [MessageFlags.Ephemeral] });
+        await i.reply({ content: "Ce n\'est pas votre aventure !", flags: [MessageFlags.Ephemeral] });
         return;
       }
 
@@ -292,8 +292,8 @@ async function rpgTravelExecute(interaction: ChatInputCommandInteraction) {
   ];
 
   const embed = new EmbedBuilder()
-    .setTitle('✈️ Commencer un voyage d\'aventure')
-    .setDescription('Choisissez une destination ci-dessous. Voyager consomme **20 points d\'énergie** et prend un certain temps réel.\nÀ la fin de la durée, lancez à nouveau la commande pour faire face à un événement aléatoire !')
+    .setTitle("✈️ Commencer un voyage d\'aventure")
+    .setDescription("Choisissez une destination ci-dessous. Voyager consomme **20 points d\'énergie** et prend un certain temps réel.\nÀ la fin de la durée, lancez à nouveau la commande pour faire face à un événement aléatoire !")
     .setColor(COLORS.primary)
     .addFields({ name: 'Énergie actuelle', value: `${profile.energy} / ${config.maxEnergy}` });
 
@@ -445,7 +445,7 @@ async function rpgShopExecute(interaction: ChatInputCommandInteraction) {
       collector.stop();
     } catch (err: any) {
       await interaction.editReply({
-        embeds: [errorEmbed('Achat échoué', err.message || 'Impossible d\'effectuer l\'achat.')],
+        embeds: [errorEmbed('Achat échoué', err.message || "Impossible d\'effectuer l\'achat.")],
         components: []
       });
       collector.stop();
@@ -638,7 +638,7 @@ async function rpgGuildExecute(interaction: ChatInputCommandInteraction) {
     const profile = await getOrCreateRpgProfile(guildId, userId);
     if (!profile.rpgGuildId) {
       await interaction.reply({
-        embeds: [errorEmbed('Pas de guilde', 'Vous n\'appartenez à aucune guilde. Créez-en une avec `/rpg-guild create` ou rejoignez-en une avec `/rpg-guild join`.')],
+        embeds: [errorEmbed('Pas de guilde', "Vous n\'appartenez à aucune guilde. Créez-en une avec `/rpg-guild create` ou rejoignez-en une avec `/rpg-guild join`.")],
         flags: [MessageFlags.Ephemeral]
       });
       return;
@@ -698,7 +698,7 @@ async function rpgGuildExecute(interaction: ChatInputCommandInteraction) {
 
     if (!targetGuild) {
       await interaction.reply({
-        embeds: [errorEmbed('Guilde introuvable', 'Aucune guilde avec ce nom n\'existe sur ce serveur.')],
+        embeds: [errorEmbed('Guilde introuvable', "Aucune guilde avec ce nom n\'existe sur ce serveur.")],
         flags: [MessageFlags.Ephemeral]
       });
       return;
@@ -791,12 +791,12 @@ async function rpgPayExecute(interaction: ChatInputCommandInteraction) {
   const amount = interaction.options.getInteger('montant', true);
 
   if (receiver.bot) {
-    await interaction.reply({ embeds: [errorEmbed('Erreur', 'Vous ne pouvez pas envoyer d\'argent à un bot !')], flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({ embeds: [errorEmbed('Erreur', "Vous ne pouvez pas envoyer d\'argent à un bot !")], flags: [MessageFlags.Ephemeral] });
     return;
   }
 
   if (receiver.id === senderId) {
-    await interaction.reply({ embeds: [errorEmbed('Erreur', 'Vous ne pouvez pas vous envoyer d\'argent à vous-même !')], flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({ embeds: [errorEmbed('Erreur', "Vous ne pouvez pas vous envoyer d\'argent à vous-même !")], flags: [MessageFlags.Ephemeral] });
     return;
   }
 
@@ -842,7 +842,7 @@ const rpgSellData = new SlashCommandBuilder()
   .addStringOption(option =>
     option
       .setName('objet')
-      .setDescription('Le nom de l\'objet à vendre')
+      .setDescription("Le nom de l\'objet à vendre")
       .setRequired(true)
   );
 
@@ -876,7 +876,7 @@ async function rpgSellExecute(interaction: ChatInputCommandInteraction) {
 
     await interaction.reply({ embeds: [embed] });
   } catch (err: unknown) {
-    const errMsg = err instanceof Error ? err.message : 'Impossible de vendre l\'objet.';
+    const errMsg = err instanceof Error ? err.message : "Impossible de vendre l\'objet.";
     await interaction.reply({
       embeds: [errorEmbed('Erreur vente', errMsg)],
       flags: [MessageFlags.Ephemeral]
@@ -889,7 +889,7 @@ export const rpgSellCommand = { data: rpgSellData, execute: rpgSellExecute } sat
 // 9. DROP COMMAND
 const rpgDropData = new SlashCommandBuilder()
   .setName('rpg-drop')
-  .setDescription('🎁 Faire tomber des KotboCoins ou de l\'XP RPG dans le salon')
+  .setDescription("🎁 Faire tomber des KotboCoins ou de l\'XP RPG dans le salon")
   .addStringOption(option =>
     option
       .setName('type')
@@ -959,28 +959,28 @@ export const rpgDropCommand = { data: rpgDropData, execute: rpgDropExecute } sat
 // 10. ADMIN COMMANDS
 const rpgAdminData = new SlashCommandBuilder()
   .setName('rpg-admin')
-  .setDescription('⚙️ Gérer le système RPG et d\'économie (Admin uniquement)')
+  .setDescription("⚙️ Gérer le système RPG et d\'économie (Admin uniquement)")
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addSubcommand(sub =>
     sub
       .setName('set-balance')
-      .setDescription('Modifier le solde d\'un joueur')
+      .setDescription("Modifier le solde d\'un joueur")
       .addUserOption(opt => opt.setName('membre').setDescription('Le membre cible').setRequired(true))
       .addIntegerOption(opt => opt.setName('solde').setDescription('Le nouveau solde').setRequired(true).setMinValue(0))
   )
   .addSubcommand(sub =>
     sub
       .setName('set-level')
-      .setDescription('Modifier le niveau RPG d\'un joueur')
+      .setDescription("Modifier le niveau RPG d\'un joueur")
       .addUserOption(opt => opt.setName('membre').setDescription('Le membre cible').setRequired(true))
       .addIntegerOption(opt => opt.setName('niveau').setDescription('Le nouveau niveau').setRequired(true).setMinValue(1))
   )
   .addSubcommand(sub =>
     sub
       .setName('set-xp')
-      .setDescription('Modifier les points d\'expérience RPG d\'un joueur')
+      .setDescription("Modifier les points d\'expérience RPG d\'un joueur")
       .addUserOption(opt => opt.setName('membre').setDescription('Le membre cible').setRequired(true))
-      .addIntegerOption(opt => opt.setName('xp').setDescription('Le nouveau montant d\'XP').setRequired(true).setMinValue(0))
+      .addIntegerOption(opt => opt.setName('xp').setDescription("Le nouveau montant d\'XP").setRequired(true).setMinValue(0))
   )
   .addSubcommand(sub =>
     sub
@@ -995,7 +995,7 @@ const rpgAdminData = new SlashCommandBuilder()
             { name: 'Tout réinitialiser (Global)', value: 'all' },
             { name: 'Profils des joueurs (Comptes, inventaires...)', value: 'profiles' },
             { name: 'Objets de la boutique', value: 'items' },
-            { name: 'Configuration de l\'économie', value: 'config' },
+            { name: "Configuration de l\'économie", value: 'config' },
             { name: 'Guildes RPG', value: 'guilds' }
           )
       )
@@ -1038,7 +1038,7 @@ async function rpgAdminExecute(interaction: ChatInputCommandInteraction) {
   const targetUser = interaction.options.getUser('membre', true);
   if (targetUser.bot) {
     await interaction.reply({
-      embeds: [errorEmbed('Erreur', 'Impossible de modifier les stats d\'un bot.')],
+      embeds: [errorEmbed('Erreur', "Impossible de modifier les stats d\'un bot.")],
       flags: [MessageFlags.Ephemeral]
     });
     return;

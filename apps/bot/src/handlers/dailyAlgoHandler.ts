@@ -34,7 +34,7 @@ export function registerDailyAlgoHandlers(client: Client): void {
       const feedback = await getDailyAlgoSubmissionFeedbackForUser(runId, interaction.user.id);
       if (!feedback) {
         await interaction.reply({
-          content: 'ℹ️ Tu n’as pas participé à ce Daily Algo.',
+          content: "ℹ️ Tu n'as pas participé à ce Daily Algo.",
           flags: [MessageFlags.Ephemeral],
         });
         return;

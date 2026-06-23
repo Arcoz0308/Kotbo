@@ -16,7 +16,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
     if (richest.length === 0) {
       await interaction.reply({
-        content: 'Aucun profil n’existe encore sur ce serveur.',
+        content: "Aucun profil n'existe encore sur ce serveur.",
         flags: [MessageFlags.Ephemeral]
       });
       return;

@@ -9,7 +9,7 @@ const data = new SlashCommandBuilder()
   .addStringOption((option) =>
     option
       .setName('catégorie')
-      .setDescription('Catégorie de l\'excuse (optionnel)')
+      .setDescription("Catégorie de l\'excuse (optionnel)")
       .setRequired(false)
       .addChoices(
         { name: '🎯 Les classiques incontournables', value: 'classiques' },
@@ -19,7 +19,7 @@ const data = new SlashCommandBuilder()
         { name: '⚙️ Back-end, APIs & Data', value: 'backend' },
         { name: '📦 Enfer des dépendances & Runtimes', value: 'dependencies' },
         { name: '📋 Gestion de projet & Spécifications', value: 'management' },
-        { name: '🤖 L\'ère de l\'IA & Génération de code', value: 'ai' },
+        { name: "🤖 L\'ère de l\'IA & Génération de code", value: 'ai' },
         { name: '💻 Physique, Réseau & Hardware', value: 'hardware' },
         { name: '🃏 Mauvaise foi pure & Facteur humain', value: 'bad_faith' },
       ),

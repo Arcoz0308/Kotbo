@@ -114,7 +114,7 @@ export async function handleGuildGeneralRoutes(
         ? 'Exécutez les migrations Prisma : bun run db:migrate:deploy'
         : undefined;
       json(res, 500, {
-        error: 'Erreur interne de chargement de l\'état de la guilde',
+        error: "Erreur interne de chargement de l\'état de la guilde",
         ...(hint ? { hint } : {}),
       });
     }
@@ -173,7 +173,7 @@ export async function handleGuildGeneralRoutes(
       const body = await readJsonBody<{ code?: string }>(req);
       const rawCode = body?.code?.trim() || '';
       if (!rawCode) {
-        json(res, 400, { error: 'Le code d\'activation est requis.' });
+        json(res, 400, { error: "Le code d\'activation est requis." });
         return true;
       }
 
@@ -182,12 +182,12 @@ export async function handleGuildGeneralRoutes(
       });
 
       if (!codeRow) {
-        json(res, 404, { error: 'Code d\'activation introuvable.' });
+        json(res, 404, { error: "Code d\'activation introuvable." });
         return true;
       }
 
       if (!codeRow.isActive || codeRow.usedAt) {
-        json(res, 400, { error: 'Ce code d\'activation a déjà été utilisé ou est désactivé.' });
+        json(res, 400, { error: "Ce code d\'activation a déjà été utilisé ou est désactivé." });
         return true;
       }
 
@@ -195,7 +195,7 @@ export async function handleGuildGeneralRoutes(
       json(res, 200, { ok: true, message: 'Le serveur a été activé avec succès.' });
     } catch (err) {
       logger.error('GeneralAPI', `Error activating guild ${guildId}:`, err);
-      json(res, 500, { error: 'Erreur lors de l\'activation du serveur.' });
+      json(res, 500, { error: "Erreur lors de l\'activation du serveur." });
     }
     return true;
   }

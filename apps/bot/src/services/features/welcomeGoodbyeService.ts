@@ -3,6 +3,7 @@ import { createCanvas, loadImage } from '@napi-rs/canvas';
 import prisma from '../../utils/db.js';
 import { canvasFont, ensureCanvasFonts } from '../../utils/canvasFonts.js';
 import { logger } from '../../utils/logger.js';
+import { resolvePlaceholders } from '../../utils/placeholders.js';
 
 /**
  * Récupère ou initialise la configuration d'accueil d'une guilde
@@ -32,16 +33,11 @@ export async function getOrCreateWelcomeConfig(guildId: string) {
   return config;
 }
 
-/**
- * Remplace les variables d'un template par les valeurs réelles du membre
- */
 function replaceTokens(template: string, member: GuildMember): string {
-  return template
-    .replace(/{user}/g, `<@${member.id}>`)
-    .replace(/{username}/g, member.user.username)
-    .replace(/{server}/g, member.guild.name)
-    .replace(/{memberCount}/g, String(member.guild.memberCount))
-    .replace(/{boostCount}/g, String(member.guild.premiumSubscriptionCount ?? 0));
+  return resolvePlaceholders(template, {
+    guild: member.guild,
+    member,
+  });
 }
 
 /**

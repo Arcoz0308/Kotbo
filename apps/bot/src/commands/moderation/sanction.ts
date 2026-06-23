@@ -94,7 +94,7 @@ const data = new SlashCommandBuilder()
   .addSubcommand((sub) =>
     sub
       .setName('list')
-      .setDescription('Affiche la liste des sanctions d\'un membre')
+      .setDescription("Affiche la liste des sanctions d\'un membre")
       .addUserOption((option) => option.setName('membre').setDescription('Membre à afficher').setRequired(true)),
   )
   .addSubcommand((sub) =>
@@ -174,7 +174,7 @@ async function notifyModeratorDashboardReportReminder(
 
   try {
     await interaction.followUp({
-      embeds: [infoEmbed('Rapport requis', 'N\'oubliez pas de compléter le rapport de sanction sur le dashboard.')],
+      embeds: [infoEmbed('Rapport requis', "N\'oubliez pas de compléter le rapport de sanction sur le dashboard.")],
       flags: [MessageFlags.Ephemeral],
     });
   } catch {
@@ -332,7 +332,7 @@ async function execute(interaction: ChatInputCommandInteraction | UserContextMen
 
 async function executeInternal(interaction: ChatInputCommandInteraction | UserContextMenuCommandInteraction): Promise<void> {
   if (!canModerate(interaction)) {
-    await replyError(interaction as any, 'Serveur requis', 'Cette commande ne peut être utilisée qu\'en serveur.');
+    await replyError(interaction as any, 'Serveur requis', "Cette commande ne peut être utilisée qu\'en serveur.");
     return;
   }
 
@@ -691,14 +691,14 @@ async function executeInternal(interaction: ChatInputCommandInteraction | UserCo
           targetLabel: targetUser.tag,
         });
       } catch (err: any) {
-        const embed = errorEmbed('Erreur de sanction progressive', err.message || 'Impossible d\'appliquer la sanction progressive.');
+        const embed = errorEmbed('Erreur de sanction progressive', err.message || "Impossible d\'appliquer la sanction progressive.");
         await interaction.editReply({ embeds: [embed] });
       }
       return;
     }
 
     await interaction.reply({
-      embeds: [infoEmbed('Sous-commande inconnue', 'Cette sous-commande n\'est pas encore supportée.')],
+      embeds: [infoEmbed('Sous-commande inconnue', "Cette sous-commande n\'est pas encore supportée.")],
       flags: [MessageFlags.Ephemeral],
     });
   } catch (error) {

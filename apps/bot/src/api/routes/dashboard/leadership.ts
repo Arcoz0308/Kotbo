@@ -492,7 +492,7 @@ export async function handleGuildLeadershipRoutes(
         }
 
         if (!endDate && !body.confirmIndefinite) {
-          json(res, 400, { error: 'Confirmez explicitement l\'absence indéterminée' });
+          json(res, 400, { error: "Confirmez explicitement l\'absence indéterminée" });
           return true;
         }
 
@@ -520,7 +520,7 @@ export async function handleGuildLeadershipRoutes(
         json(res, 201, { absence });
       } catch (err) {
         logger.error('StaffAPI', 'Error creating absence:', err);
-        json(res, 500, { error: err instanceof Error ? err.message : 'Erreur lors de la création de l\'absence' });
+        json(res, 500, { error: err instanceof Error ? err.message : "Erreur lors de la création de l\'absence" });
       }
       return true;
     }
@@ -569,7 +569,7 @@ export async function handleGuildLeadershipRoutes(
         json(res, 200, { absence });
       } catch (err) {
         logger.error('StaffAPI', 'Error updating absence status:', err);
-        json(res, 500, { error: 'Erreur lors de la mise à jour de l\'absence' });
+        json(res, 500, { error: "Erreur lors de la mise à jour de l\'absence" });
       }
       return true;
     }
@@ -609,7 +609,7 @@ export async function handleGuildLeadershipRoutes(
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('StaffAPI', 'Error deleting absence:', err);
-        json(res, 500, { error: 'Erreur lors de la suppression de l\'absence' });
+        json(res, 500, { error: "Erreur lors de la suppression de l\'absence" });
       }
       return true;
     }
@@ -905,7 +905,7 @@ export async function handleGuildLeadershipRoutes(
 
         const scheduledAt = new Date(body.scheduledAt);
         if (Number.isNaN(scheduledAt.getTime())) {
-          json(res, 400, { error: 'Date d\'appel invalide' });
+          json(res, 400, { error: "Date d\'appel invalide" });
           return true;
         }
 
@@ -936,7 +936,7 @@ export async function handleGuildLeadershipRoutes(
         json(res, 201, { call });
       } catch (err: any) {
         logger.error('StaffAPI', 'Error creating call:', err);
-        json(res, 500, { error: err.message || 'Erreur lors de la planification de l\'appel' });
+        json(res, 500, { error: err.message || "Erreur lors de la planification de l\'appel" });
       }
       return true;
     }
@@ -977,7 +977,7 @@ export async function handleGuildLeadershipRoutes(
         json(res, 200, { call });
       } catch (err: any) {
         logger.error('StaffAPI', 'Error updating call:', err);
-        json(res, 500, { error: err.message || 'Erreur lors de la mise à jour de l\'appel' });
+        json(res, 500, { error: err.message || "Erreur lors de la mise à jour de l\'appel" });
       }
       return true;
     }
@@ -1001,7 +1001,7 @@ export async function handleGuildLeadershipRoutes(
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('StaffAPI', 'Error deleting call:', err);
-        json(res, 500, { error: 'Erreur lors de la suppression de l\'appel' });
+        json(res, 500, { error: "Erreur lors de la suppression de l\'appel" });
       }
       return true;
     }
@@ -1335,7 +1335,7 @@ export async function handleGuildLeadershipRoutes(
         json(res, 201, { member });
       } catch (err) {
         logger.error('StaffAPI', 'Error adding staff member:', err);
-        json(res, 500, { error: 'Erreur lors de l\'ajout du membre staff' });
+        json(res, 500, { error: "Erreur lors de l\'ajout du membre staff" });
       }
       return true;
     }
@@ -1556,7 +1556,7 @@ export async function handleGuildLeadershipRoutes(
         json(res, 201, { warning });
       } catch (err) {
         logger.error('StaffAPI', 'Error issuing warning:', err);
-        json(res, 500, { error: 'Erreur lors de la génération de l\'avertissement' });
+        json(res, 500, { error: "Erreur lors de la génération de l\'avertissement" });
       }
       return true;
     }
@@ -1592,7 +1592,7 @@ export async function handleGuildLeadershipRoutes(
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('StaffAPI', 'Error deleting staff warning:', err);
-        json(res, 500, { error: 'Erreur lors de la suppression de l\'avertissement' });
+        json(res, 500, { error: "Erreur lors de la suppression de l\'avertissement" });
       }
       return true;
     }
@@ -2039,7 +2039,7 @@ export async function handleGuildLeadershipRoutes(
         json(res, 200, schema);
       } catch (err) {
         logger.error('StaffAPI', 'Error getting hierarchy schema:', err);
-        json(res, 500, { error: 'Erreur lors de la récupération de l\'organigramme' });
+        json(res, 500, { error: "Erreur lors de la récupération de l\'organigramme" });
       }
       return true;
     }
@@ -2133,7 +2133,7 @@ export async function handleGuildLeadershipRoutes(
         json(res, 200, result);
       } catch (err: any) {
         logger.error('StaffAPI', 'Error importing role members:', err);
-        json(res, 500, { error: err.message || 'Erreur lors de l\'import' });
+        json(res, 500, { error: err.message || "Erreur lors de l\'import" });
       }
       return true;
     }
@@ -2153,7 +2153,7 @@ export async function handleGuildLeadershipRoutes(
         logger.error('StaffAPI', 'Error adding member to hierarchy:', err);
         json(res, /détecter automatiquement/i.test(err.message)
           ? 400
-          : 500, { error: err.message || 'Erreur lors de l\'ajout' });
+          : 500, { error: err.message || "Erreur lors de l\'ajout" });
       }
       return true;
     }
@@ -2562,7 +2562,7 @@ export async function handleGuildLeadershipRoutes(
         }
 
         if (resignation.status !== 'PENDING') {
-          json(res, 409, { error: 'Impossible d\'ouvrir un ticket : la demande est déjà traitée' });
+          json(res, 409, { error: "Impossible d\'ouvrir un ticket : la demande est déjà traitée" });
           return true;
         }
 
@@ -2812,7 +2812,7 @@ export async function handleGuildLeadershipRoutes(
         json(res, 201, { report });
       } catch (err) {
         logger.error('StaffAPI', 'Error adding mentor report:', err);
-        json(res, 500, { error: 'Erreur lors de l\'ajout du rapport tuteur' });
+        json(res, 500, { error: "Erreur lors de l\'ajout du rapport tuteur" });
       }
       return true;
     }

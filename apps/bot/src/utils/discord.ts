@@ -28,7 +28,7 @@ export async function fetchAllMembers(guild: Guild): Promise<Collection<string, 
         options.after = lastId;
       }
       
-      const chunk = (await guild.members.fetch(options)) as unknown as Collection<string, GuildMember>;
+      const chunk = await guild.members.list(options);
       if (!chunk || chunk.size === 0) {
         break;
       }

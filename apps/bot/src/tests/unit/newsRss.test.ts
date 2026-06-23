@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { generateRssXml } from '../../services/core/newsService';
 
 describe('news RSS generator', () => {
-  test('génère un document XML RSS 2.0 valide à partir d\'articles', () => {
+  test("génère un document XML RSS 2.0 valide à partir d\'articles", () => {
     const guildName = 'Serveur Test';
     const guildId = '123456789';
     const dashboardUrl = 'https://dashboard.example.com';
@@ -56,7 +56,7 @@ describe('news RSS generator', () => {
     expect(items[2]).not.toContain('media:content');
   });
 
-  test('génère un canal vide si aucun article n\'est passé', () => {
+  test("génère un canal vide si aucun article n\'est passé", () => {
     const xml = generateRssXml('Serveur Vide', '000', 'https://dash.com', 'https://api.com', []);
     expect(xml).toContain('<channel>');
     expect(xml).not.toContain('<item>');

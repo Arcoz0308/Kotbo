@@ -1,0 +1,57 @@
+// ============================================================================
+// CUSTOM BOT — Configuration self-service par guild
+// ============================================================================
+
+enum BotStatusType {
+  ONLINE
+  IDLE
+  DND
+  INVISIBLE
+}
+
+enum BotActivityType {
+  NONE
+  PLAYING
+  STREAMING
+  LISTENING
+  WATCHING
+  COMPETING
+}
+
+model CustomBotConfig {
+  guildId String @id
+
+  enabled Boolean @default(false)
+
+  // Discord Bot Application credentials
+  botToken        String?
+  botClientId     String?
+  botClientSecret String?
+
+  // Bot profile customization
+  botName         String?  // Nom custom du bot
+  botAvatarUrl    String?  // URL de l'avatar
+  botBannerUrl    String?  // URL de la bannière
+  botBio          String?  // Bio du bot (max 190 chars)
+
+  // Status & Activity
+  botStatus       BotStatusType  @default(ONLINE)
+  activityType    BotActivityType @default(NONE)
+  activityText    String?  // Texte d'activité (ex: "/help")
+  activityUrl     String?  // URL pour le type STREAMING
+
+  // Dashboard personnalisé
+  customDashboardUrl String? // URL perso du dashboard
+
+  // Runtime state (géré par le système)
+  isRunning       Boolean  @default(false)
+  lastStartedAt   DateTime?
+  lastError       String?
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("custom_bot_configs")
+}

@@ -1,0 +1,44 @@
+enum VerificationMode {
+  DM
+  EMBED
+}
+
+enum VerificationAction {
+  AUTO_LINK
+  NOTIFY_STAFF
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  FLAGGED
+  EXPIRED
+}
+
+model SecurityVerification {
+  id String @id @default(cuid())
+
+  guildId String
+  userId  String
+  token   String @unique
+
+  status    VerificationStatus @default(PENDING)
+  ipAddress String?
+  verifiedDiscordId String?
+  verifiedAt        DateTime?
+
+  duplicateDetected   Boolean @default(false)
+  duplicateUserId     String?
+  duplicateEvidence   Json?
+
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, userId])
+  @@index([token])
+  @@index([guildId, status])
+  @@index([expiresAt])
+  @@map("security_verifications")
+}

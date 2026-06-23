@@ -9,6 +9,7 @@
   import { fetchChannelsManagementConfig, updateChannelsManagementConfig, rescanChannelsManagementStats } from '../lib/api';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
+  import LoadingHint from '../lib/components/LoadingHint.svelte';
 
   // Config State
   let config = $state({
@@ -43,7 +44,7 @@
     tempVoiceCategoryId: '',
     tempVoiceNameTemplate: '🔊 Salon de {user}',
     honeypotEnabled: false,
-    honeypotChannelId: '',
+    honeypotChannelIds: [] as string[],
     honeypotSanction: 'TIMEOUT',
     honeypotReinvite: false,
   });
@@ -81,7 +82,7 @@
     tempVoiceCategoryId: '',
     tempVoiceNameTemplate: '🔊 Salon de {user}',
     honeypotEnabled: false,
-    honeypotChannelId: '',
+    honeypotChannelIds: [] as string[],
     honeypotSanction: 'TIMEOUT',
     honeypotReinvite: false,
   })));
@@ -166,7 +167,7 @@
         config.tempVoiceCategoryId = res.tempVoiceCategoryId ?? '';
         config.tempVoiceNameTemplate = res.tempVoiceNameTemplate || '🔊 Salon de {user}';
         config.honeypotEnabled = res.honeypotEnabled ?? false;
-        config.honeypotChannelId = res.honeypotChannelId ?? '';
+        config.honeypotChannelIds = Array.isArray(res.honeypotChannelIds) ? res.honeypotChannelIds : [];
         config.honeypotSanction = res.honeypotSanction ?? 'TIMEOUT';
         config.honeypotReinvite = res.honeypotReinvite ?? false;
         savedConfig = JSON.parse(JSON.stringify(config));
@@ -203,7 +204,7 @@
         tempVoiceCategoryId: config.tempVoiceCategoryId || null,
         tempVoiceNameTemplate: config.tempVoiceNameTemplate,
         honeypotEnabled: config.honeypotEnabled,
-        honeypotChannelId: config.honeypotChannelId || null,
+        honeypotChannelIds: config.honeypotChannelIds,
         honeypotSanction: config.honeypotSanction,
         honeypotReinvite: config.honeypotReinvite,
       } as any);
@@ -214,7 +215,7 @@
       if (res.resolved) {
         if (res.resolved.tempVoiceChannelId) config.tempVoiceChannelId = res.resolved.tempVoiceChannelId;
         if (res.resolved.tempVoiceCategoryId) config.tempVoiceCategoryId = res.resolved.tempVoiceCategoryId;
-        if (res.resolved.honeypotChannelId) config.honeypotChannelId = res.resolved.honeypotChannelId;
+        if (Array.isArray(res.resolved.honeypotChannelIds)) config.honeypotChannelIds = res.resolved.honeypotChannelIds;
         if (res.resolved.honeypotSanction) config.honeypotSanction = res.resolved.honeypotSanction;
         if (res.resolved.honeypotReinvite !== undefined) config.honeypotReinvite = res.resolved.honeypotReinvite;
         if (res.resolved.statsConfig) {
@@ -263,6 +264,9 @@
     <div class="flex flex-col gap-6 animate-pulse">
       <div class="h-12 w-48 bg-surface-container-low/60 rounded-xl"></div>
       <div class="h-64 rounded-xl bg-surface-container-low/60"></div>
+    </div>
+    <div class="flex justify-center mt-4">
+      <LoadingHint context="config" />
     </div>
   {:else if loadError}
     <div class="rounded-xl bg-error/10 border border-error/20 p-6 text-error text-sm font-semibold">
@@ -1035,28 +1039,64 @@
 
           {#if config.honeypotEnabled}
             <div class="space-y-6 pt-4 border-t border-outline-variant/10 max-w-xl">
-              <!-- Honeypot Channel Selection -->
+              <!-- Honeypot Channels Selection (multi) -->
               <div class="space-y-1.5">
-                <label for="honeypot-channel-select" class="text-xs font-bold text-on-surface/80 block">⚠️ Salon Piège (Honeypot)</label>
-                <div class="flex gap-2">
-                  <div class="flex-1">
-                    <SearchableSelect 
-                      id="honeypot-channel-select"
-                      options={availableChannels.map(c => ({ id: c.id, name: `# ${c.name}` }))} 
-                      bind:value={config.honeypotChannelId} 
-                      placeholder="— Créer le salon automatiquement (Ne rien envoyer) —"
-                    />
+                <label class="text-xs font-bold text-on-surface/80 block">⚠️ Salons Piège (Honeypot)</label>
+                {#if config.honeypotChannelIds.length > 0}
+                  <div class="space-y-2">
+                    {#each config.honeypotChannelIds as channelId, i}
+                      <div class="flex gap-2 items-center">
+                        <div class="flex-1">
+                          <SearchableSelect
+                            id="honeypot-channel-select-{i}"
+                            options={availableChannels.map(c => ({ id: c.id, name: `# ${c.name}` }))}
+                            bind:value={config.honeypotChannelIds[i]}
+                            placeholder="Sélectionner un salon..."
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onclick={() => {
+                            config.honeypotChannelIds = config.honeypotChannelIds.filter((_: string, idx: number) => idx !== i);
+                          }}
+                          class="px-3 py-2.5 bg-error/10 hover:bg-error/20 text-error border border-error/20 text-xs font-bold rounded-lg transition-all"
+                        >
+                          Retirer
+                        </button>
+                      </div>
+                    {/each}
                   </div>
+                {:else}
+                  <p class="text-[10px] text-on-surface-variant/40">Aucun salon honeypot configuré. Ajoutez-en un ou créez-en un automatiquement.</p>
+                {/if}
+                <div class="flex gap-2 mt-2">
+                  <button
+                    type="button"
+                    onclick={() => {
+                      config.honeypotChannelIds = [...config.honeypotChannelIds, ''];
+                    }}
+                    class="px-4 py-2.5 bg-surface-container-high/40 hover:bg-surface-container-high/60 text-on-surface/80 border border-outline-variant/10 text-xs font-bold rounded-lg transition-all"
+                  >
+                    + Ajouter un salon existant
+                  </button>
                   <button
                     type="button"
                     onclick={async () => {
-                      config.honeypotChannelId = '';
-                      await handleSave();
+                      const res = await updateChannelsManagementConfig({
+                        honeypotEnabled: true,
+                        honeypotChannelIds: config.honeypotChannelIds,
+                        createHoneypotChannel: true,
+                      } as any);
+                      if (res?.resolved?.honeypotChannelIds) {
+                        config.honeypotChannelIds = res.resolved.honeypotChannelIds;
+                        savedConfig = JSON.parse(JSON.stringify(config));
+                        toast.success('Salon honeypot créé avec succès !');
+                      }
                     }}
                     disabled={saveAction.state.loading || loading}
-                    class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="px-4 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Créer le salon
+                    Créer un salon automatiquement
                   </button>
                 </div>
               </div>
@@ -1071,10 +1111,11 @@
                 >
                   <option value="TIMEOUT">Exclusion Temporaire / Timeout (TO) — Par défaut</option>
                   <option value="BAN">Bannissement Définitif</option>
+                  <option value="SOFTBAN">Softban (Ban + Déban immédiat, purge les messages)</option>
                   <option value="KICK">Exclusion Simple (Kick)</option>
                   <option value="WARN">Avertissement Simple (Warn)</option>
                 </select>
-                <p class="text-[10px] text-on-surface-variant/40 mt-1">Sélectionnez la sanction automatique à appliquer lorsqu'un membre écrit dans le salon piège.</p>
+                <p class="text-[10px] text-on-surface-variant/40 mt-1">Sélectionnez la sanction automatique à appliquer lorsqu'un membre écrit dans un salon piège.</p>
               </div>
 
               {#if config.honeypotSanction === 'KICK'}

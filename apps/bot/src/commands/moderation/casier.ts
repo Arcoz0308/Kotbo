@@ -19,9 +19,9 @@ const data = new SlashCommandBuilder()
   .addSubcommand((sub) =>
     sub
       .setName('voir')
-      .setDescription('Affiche le casier d’un membre ou d’un ID Discord')
+      .setDescription("Affiche le casier d'un membre ou d'un ID Discord")
       .addUserOption((option) => option.setName('membre').setDescription('Membre à consulter').setRequired(false))
-      .addStringOption((option) => option.setName('id').setDescription('ID Discord à consulter si le membre n’est plus présent').setRequired(false)),
+      .addStringOption((option) => option.setName('id').setDescription("ID Discord à consulter si le membre n'est plus présent").setRequired(false)),
   );
 
 const contextData = new ContextMenuCommandBuilder()

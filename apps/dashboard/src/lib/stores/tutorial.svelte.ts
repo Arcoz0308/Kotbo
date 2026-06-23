@@ -35,10 +35,10 @@ export const tutorialSteps: TutorialStep[] = [
   },
   {
     id: 'overview',
-    title: 'Vue d\'ensemble',
-    description: 'La page d\'accueil vous donne une vue globale de votre serveur avec les statistiques principales et l\'activité récente.',
+    title: "Vue d\'ensemble",
+    description: "La page d\'accueil vous donne une vue globale de votre serveur avec les statistiques principales et l\'activité récente.",
     target: '/',
-    action: 'Cliquez sur "Vue d\'ensemble" dans la sidebar',
+    action: `Cliquez sur "Vue d\'ensemble" dans la sidebar`,
     icon: 'layout-grid',
   },
   {
@@ -60,7 +60,7 @@ export const tutorialSteps: TutorialStep[] = [
   {
     id: 'staff',
     title: 'Staff Management',
-    description: 'Organisez votre équipe avec l\'annuaire, les hiérarchies, le recrutement, les tickets, et le tutorat.',
+    description: "Organisez votre équipe avec l\'annuaire, les hiérarchies, le recrutement, les tickets, et le tutorat.",
     target: '/staff-management?tab=members',
     action: 'Allez dans Staff > Annuaire',
     icon: 'shield',
@@ -76,7 +76,7 @@ export const tutorialSteps: TutorialStep[] = [
   {
     id: 'leveling',
     title: 'Leveling & XP',
-    description: 'Système de niveaux et d\'XP avec récompenses, classements, et configuration des rôles de niveaux.',
+    description: "Système de niveaux et d\'XP avec récompenses, classements, et configuration des rôles de niveaux.",
     target: '/leveling',
     action: 'Allez dans Communauté > Leveling & XP',
     icon: 'trophy',
@@ -107,7 +107,7 @@ export const tutorialSteps: TutorialStep[] = [
   {
     id: 'complete',
     title: 'Tutoriel terminé !',
-    description: 'Vous avez terminé le tutoriel de base. Explorez toutes les fonctionnalités du dashboard et n\'hésitez pas à consulter l\'aide.',
+    description: "Vous avez terminé le tutoriel de base. Explorez toutes les fonctionnalités du dashboard et n\'hésitez pas à consulter l\'aide.",
     position: 'center',
     icon: 'check-circle',
   },

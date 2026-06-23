@@ -115,7 +115,7 @@ function detectLoopRisks(content: string): CodeRisk[] {
     risks.push({
       level: 'WARNING',
       title: 'Boucle potentiellement infinie',
-      feedback: 'Ajoute une condition d\'arrêt claire ou une limite d\'itérations pour éviter un blocage.',
+      feedback: "Ajoute une condition d\'arrêt claire ou une limite d\'itérations pour éviter un blocage.",
     });
   }
 
@@ -143,7 +143,7 @@ function detectLoopRisks(content: string): CodeRisk[] {
       risks.push({
         level: 'WARNING',
         title: `Récursion potentiellement sans cas de sortie : ${name}`,
-        feedback: 'La fonction semble s\'appeler elle-même sans garde visible. Ajoute un cas de base explicite pour stopper la récursion.',
+        feedback: "La fonction semble s\'appeler elle-même sans garde visible. Ajoute un cas de base explicite pour stopper la récursion.",
       });
       break;
     }
@@ -262,11 +262,11 @@ export function isAlreadyFormatted(content: string): boolean {
 export function buildCorrectedMessage(authorTag: string, content: string, analysis: CodeAnalysis, rules: CodePoliceRule[]): string {
   const adviceByLanguage: Record<CodeLanguage, string> = {
     javascript: 'Sur Discord, utilise les blocs de code (```js) et ajoute un garde explicite avant toute boucle ou récursion.',
-    python: 'Sur Discord, utilise les blocs de code (```python) et pense à ajouter un cas de base si la fonction s\'appelle elle-même.',
+    python: "Sur Discord, utilise les blocs de code (```python) et pense à ajouter un cas de base si la fonction s\'appelle elle-même.",
     sql: 'Sur Discord, utilise les blocs de code (```sql) et évite la concaténation directe: préfère des requêtes paramétrées.',
-    shell: 'Sur Discord, utilise les blocs de code (```bash) et vérifie chaque commande avant de l\'exécuter.',
-    html: 'Sur Discord, utilise les blocs de code (```html) et vérifie l\'échappement des données injectées.',
-    java: 'Sur Discord, utilise les blocs de code (```java) et ajoute une condition d\'arrêt claire pour les boucles/récursions.',
+    shell: "Sur Discord, utilise les blocs de code (```bash) et vérifie chaque commande avant de l\'exécuter.",
+    html: "Sur Discord, utilise les blocs de code (```html) et vérifie l\'échappement des données injectées.",
+    java: "Sur Discord, utilise les blocs de code (```java) et ajoute une condition d\'arrêt claire pour les boucles/récursions.",
     cpp: 'Sur Discord, utilise les blocs de code (```cpp) et vérifie les bornes des boucles ainsi que les accès sensibles.',
     generic: 'Sur Discord, utilise les blocs de code (```) pour une meilleure lisibilité. Ajoute aussi le langage si possible, par exemple ```js ou ```python.',
   };
@@ -294,6 +294,6 @@ export function buildSafetyWarning(authorTag: string, analysis: CodeAnalysis, ru
   return [
     `${authorTag}, je n\'ai pas reformatté ${languageTag} car il contient des motifs de sécurité sensibles.`,
     lines.length > 0 ? `🛑 **Motifs détectés :**\n- ${lines.join('\n- ')}` : null,
-    'Si tu veux, je peux t\'aider à le transformer en version sûre et bornée.',
+    "Si tu veux, je peux t\'aider à le transformer en version sûre et bornée.",
   ].filter(Boolean).join('\n\n');
 }

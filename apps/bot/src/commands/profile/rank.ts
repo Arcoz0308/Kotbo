@@ -1,41 +1,45 @@
 import type { SlashCommandDefinition } from '../../commands.js';
-import { SlashCommandBuilder, AttachmentBuilder, MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
+import {
+  SlashCommandBuilder,
+  AttachmentBuilder,
+  ContainerBuilder,
+  MediaGalleryBuilder,
+  MediaGalleryItemBuilder,
+  MessageFlags,
+  type ChatInputCommandInteraction,
+} from 'discord.js';
 import { getMemberRankData, generateRankCard } from '../../services/progression/levelingService.js';
 import { extractTrackingInfo, resolveModuleFromCommand, wrapModuleTracking } from '../../utils/moduleTracking.js';
+import { COLORS_RAW, text } from '../../utils/embeds.js';
+import { E } from '../../utils/emojis.js';
 
 const data = new SlashCommandBuilder()
   .setName('rank')
-  .setDescription('⭐ Affiche votre carte de niveau et d\'expérience')
+  .setDescription("⭐ Affiche votre carte de niveau et d'expérience")
   .addUserOption((option) =>
     option
       .setName('membre')
       .setDescription('Membre à afficher (par défaut: vous)')
-      .setRequired(false)
+      .setRequired(false),
   );
 
 async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const { guildId, userId } = extractTrackingInfo(interaction);
   const moduleName = resolveModuleFromCommand('rank');
 
-  // Wrapper pour tracker les performances et l'utilisation
-  await wrapModuleTracking(
-    moduleName,
-    executeInternal,
-    [interaction],
-    {
-      actionType: 'command',
-      actionName: 'rank',
-      guildId,
-      userId,
-    }
-  );
+  await wrapModuleTracking(moduleName, executeInternal, [interaction], {
+    actionType: 'command',
+    actionName: 'rank',
+    guildId,
+    userId,
+  });
 }
 
 async function executeInternal(interaction: ChatInputCommandInteraction): Promise<void> {
   const guildId = interaction.guildId;
   if (!guildId) {
     await interaction.reply({
-      content: '❌ Cette commande doit être utilisée sur un serveur.',
+      content: `${E.error} Cette commande doit être utilisée sur un serveur.`,
       flags: [MessageFlags.Ephemeral],
     });
     return;
@@ -46,7 +50,7 @@ async function executeInternal(interaction: ChatInputCommandInteraction): Promis
   const targetUser = interaction.options.getUser('membre') || interaction.user;
   const member = await interaction.guild?.members.fetch(targetUser.id).catch(() => null);
   if (!member) {
-    await interaction.editReply('❌ Impossible de trouver ce membre sur le serveur.');
+    await interaction.editReply({ content: `${E.error} Impossible de trouver ce membre sur le serveur.` });
     return;
   }
 
@@ -55,11 +59,21 @@ async function executeInternal(interaction: ChatInputCommandInteraction): Promis
     const imageBuffer = await generateRankCard(member, rankData.level, rankData.xp, rankData.rank);
     const attachment = new AttachmentBuilder(imageBuffer, { name: 'rank-card.png' });
 
+    const container = new ContainerBuilder()
+      .setAccentColor(COLORS_RAW.primary)
+      .addMediaGalleryComponents(
+        new MediaGalleryBuilder().addItems(
+          new MediaGalleryItemBuilder({ media: { url: 'attachment://rank-card.png' } }),
+        ),
+      );
+
     await interaction.editReply({
+      components: [container],
       files: [attachment],
+      flags: MessageFlags.IsComponentsV2,
     });
-  } catch (err) {
-    await interaction.editReply('❌ Une erreur est survenue lors de la génération de la carte de niveau.');
+  } catch {
+    await interaction.editReply({ content: `${E.error} Une erreur est survenue lors de la génération de la carte de niveau.` });
   }
 }
 

@@ -57,7 +57,7 @@ export async function createSuggestion(guildId: string, userId: string, username
     .setDescription(content)
     .setAuthor({ name: member?.displayName || username, iconURL: avatarUrl || undefined })
     .addFields(
-      { name: 'Statut', value: '⏳ En cours d\'évaluation', inline: true },
+      { name: 'Statut', value: "⏳ En cours d\'évaluation", inline: true },
       { name: 'Votes', value: '👍 Upvotes : `0` | 👎 Downvotes : `0`', inline: true }
     )
     .setColor('#FE75C2')
@@ -148,7 +148,7 @@ export async function handleSuggestionVote(interaction: any, type: 'up' | 'down'
         if (originalEmbed) {
           const updatedEmbed = EmbedBuilder.from(originalEmbed)
             .setFields(
-              { name: 'Statut', value: '⏳ En cours d\'évaluation', inline: true },
+              { name: 'Statut', value: "⏳ En cours d\'évaluation", inline: true },
               { name: 'Votes', value: `👍 Upvotes : \`${upvoters.length}\` | 👎 Downvotes : \`${downvoters.length}\``, inline: true }
             );
 
@@ -215,7 +215,7 @@ export async function resolveSuggestion(
         if (message) {
           const originalEmbed = message.embeds[0];
           if (originalEmbed) {
-            let statusText = '⏳ En cours d\'évaluation';
+            let statusText = "⏳ En cours d\'évaluation";
             let color = '#FE75C2';
 
             if (status === 'APPROVED') {

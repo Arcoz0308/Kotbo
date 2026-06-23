@@ -152,7 +152,7 @@ export async function handleBackupRoutes(
       }
 
       if (backup.guildId !== guildId) {
-        json(res, 403, { error: 'Cette sauvegarde n\'appartient pas à ce serveur' });
+        json(res, 403, { error: "Cette sauvegarde n\'appartient pas à ce serveur" });
         return true;
       }
 
@@ -192,7 +192,7 @@ export async function handleBackupRoutes(
       }
 
       if (backup.guildId !== guildId) {
-        json(res, 403, { error: 'Cette sauvegarde n\'appartient pas à ce serveur' });
+        json(res, 403, { error: "Cette sauvegarde n\'appartient pas à ce serveur" });
         return true;
       }
 
@@ -250,7 +250,7 @@ export async function handleBackupRoutes(
       res.end(buffer);
     } catch (error) {
       logger.error('BackupAPI', 'Error exporting backup:', error);
-      json(res, 500, { error: 'Erreur lors de l\'export de la sauvegarde' });
+      json(res, 500, { error: "Erreur lors de l\'export de la sauvegarde" });
     }
     return true;
   }
@@ -344,7 +344,7 @@ export async function handleBackupRoutes(
       json(res, 200, newBackup);
     } catch (error) {
       logger.error('BackupAPI', 'Error importing backup:', error);
-      json(res, 500, { error: 'Erreur lors de l\'import de la sauvegarde' });
+      json(res, 500, { error: "Erreur lors de l\'import de la sauvegarde" });
     }
     return true;
   }

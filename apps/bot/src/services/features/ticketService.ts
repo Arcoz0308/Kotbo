@@ -19,7 +19,8 @@ import {
   MessageFlags,
   type GuildMember,
   type Guild,
-  type ThreadChannel
+  type ThreadChannel,
+  Message
 } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
@@ -105,7 +106,7 @@ function normalizeTicketPanelTypes(rawTypes: unknown, fallback: {
 function resolveTicketPanelType(guildConfig: any, typeId?: string | null): TicketPanelTypeConfig {
   const ticketTypes = normalizeTicketPanelTypes(guildConfig.ticketTypes, {
     label: guildConfig.ticketEmbedButtonText || 'Ouvrir un ticket',
-    description: guildConfig.ticketEmbedDesc || 'Cliquez sur le bouton ci-dessous pour ouvrir un ticket d\'assistance.',
+    description: guildConfig.ticketEmbedDesc || "Cliquez sur le bouton ci-dessous pour ouvrir un ticket d\'assistance.",
     categoryId: guildConfig.ticketCategoryId ?? null,
     staffRoleId: guildConfig.ticketStaffRoleId ?? null,
     emoji: '📩',
@@ -136,12 +137,12 @@ export async function renameTicketChannel(
   newName: string,
 ): Promise<string> {
   if (!ticket.channelId) {
-    throw new Error('Ce ticket n\'a pas de salon actif à renommer.');
+    throw new Error("Ce ticket n\'a pas de salon actif à renommer.");
   }
 
   const channel = await client.channels.fetch(ticket.channelId).catch(() => null);
   if (!channel || !(channel instanceof TextChannel)) {
-    throw new Error('Le salon du ticket est introuvable ou n\'est pas un salon textuel.');
+    throw new Error("Le salon du ticket est introuvable ou n\'est pas un salon textuel.");
   }
 
   const finalName = buildTicketChannelName(newName, ticket.username || ticket.userId);
@@ -187,25 +188,25 @@ export function canManageTicket(member: GuildMember | APIInteractionGuildMember 
 export async function sendTicketSetupEmbed(client: Client, guildId: string): Promise<void> {
   const guildConfig = await prisma.guild.findUnique({ where: { id: guildId } });
   if (!guildConfig || !guildConfig.ticketChannelId) {
-    throw new Error('Le salon d\'embed des tickets n\'est pas configuré.');
+    throw new Error("Le salon d\'embed des tickets n\'est pas configuré.");
   }
 
   const channel = client.channels.cache.get(guildConfig.ticketChannelId);
   if (!channel || !(channel instanceof TextChannel)) {
-    throw new Error('Le salon d\'embed des tickets est introuvable ou n\'est pas un salon textuel.');
+    throw new Error("Le salon d\'embed des tickets est introuvable ou n\'est pas un salon textuel.");
   }
 
   const colorHex = guildConfig.ticketEmbedColor || '#5865F2';
   const ticketTypes = normalizeTicketPanelTypes(guildConfig.ticketTypes, {
     label: guildConfig.ticketEmbedButtonText || 'Ouvrir un ticket',
-    description: guildConfig.ticketEmbedDesc || 'Cliquez sur le bouton ci-dessous pour ouvrir un ticket d\'assistance.',
+    description: guildConfig.ticketEmbedDesc || "Cliquez sur le bouton ci-dessous pour ouvrir un ticket d\'assistance.",
     categoryId: guildConfig.ticketCategoryId ?? null,
     staffRoleId: guildConfig.ticketStaffRoleId ?? null,
     emoji: '📩',
     buttonStyle: 'PRIMARY',
   });
   
-  let desc = guildConfig.ticketEmbedDesc || 'Cliquez sur le bouton ci-dessous pour ouvrir un ticket d\'assistance.';
+  let desc = guildConfig.ticketEmbedDesc || "Cliquez sur le bouton ci-dessous pour ouvrir un ticket d\'assistance.";
   if (ticketTypes.length > 0) {
     desc += '\n\n**Types de tickets**\n';
     ticketTypes.forEach(t => {
@@ -547,7 +548,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
       });
     } catch (err) {
       logger.error('Ticket', 'Error building member profile card for ticket:', err);
-      await interaction.editReply({ content: '❌ Impossible de générer la fiche de l\'utilisateur.' });
+      await interaction.editReply({ content: "❌ Impossible de générer la fiche de l\'utilisateur." });
     }
     return;
   }
@@ -559,7 +560,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
     const isStaff = canManageTicket(member as GuildMember, guildConfig, ticket.staffRoleId);
 
     if (!isOpener && !isStaff) {
-      await interaction.reply({ content: '❌ Vous n\'avez pas la permission de fermer ce ticket.', flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({ content: "❌ Vous n\'avez pas la permission de fermer ce ticket.", flags: [MessageFlags.Ephemeral] });
       return;
     }
 
@@ -704,7 +705,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
       const dmEmbed = new EmbedBuilder()
         .setTitle('📄 Transcription de ticket')
         .setDescription(`Le ticket d'assistance **${ticket.reason}** du serveur **${guild.name}** a été supprimé.\n\nVoici le lien pour consulter la transcription complète :`)
-        .addFields([{ name: 'Lien d\'accès', value: `🌐 [Consulter le transcript](${publicLink})` }])
+        .addFields([{ name: "Lien d\'accès", value: `🌐 [Consulter le transcript](${publicLink})` }])
         .setColor(COLORS.primary as any)
         .setTimestamp();
         
@@ -993,7 +994,7 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
     } catch (err) {
       logger.error('Ticket', 'Error creating ticket:', err);
       await interaction.editReply({
-        content: '❌ Une erreur est survenue lors de l\'ouverture du ticket. Veuillez contacter un administrateur.'
+        content: "❌ Une erreur est survenue lors de l\'ouverture du ticket. Veuillez contacter un administrateur."
       });
     }
   }
@@ -1002,7 +1003,7 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
 /**
  * Relays a DM message from a ticket creator to the staff thread.
  */
-export async function relayDmToThread(client: Client, message: import('discord.js').Message): Promise<void> {
+export async function relayDmToThread(client: Client, message: Message): Promise<void> {
   if (message.author.bot || message.guild) return;
 
   const ticket = await prisma.ticket.findFirst({
@@ -1038,7 +1039,7 @@ export async function relayDmToThread(client: Client, message: import('discord.j
 /**
  * Relays a staff thread message to the DM ticket creator.
  */
-export async function relayThreadToDm(client: Client, message: import('discord.js').Message): Promise<void> {
+export async function relayThreadToDm(client: Client, message: Message): Promise<void> {
   if (message.author.bot || !message.channel.isThread()) return;
 
   const ticket = await prisma.ticket.findFirst({
@@ -1266,6 +1267,6 @@ export async function checkTicketInactivity(client: Client): Promise<void> {
       }
     }
   } catch (err) {
-    logger.error('Ticket', 'Erreur lors de la vérification de l\'inactivité des tickets:', err);
+    logger.error('Ticket', "Erreur lors de la vérification de l\'inactivité des tickets:", err);
   }
 }

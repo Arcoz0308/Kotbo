@@ -12,6 +12,8 @@ import {
   DashboardAccessLevel,
   AuthClaims,
 } from '../shared.js';
+import { getCurrentInstance, isWhiteLabelInstance } from '../../utils/instanceContext.js';
+import prisma from '../../utils/db.js';
 
 interface DiscordGuild {
   id: string;
@@ -102,6 +104,17 @@ export async function handleUserRoutes(
         }
       }
 
+      // For white-label instances, only show guilds bound to this instance
+      let instanceGuildIds: Set<string> | null = null;
+      if (isWhiteLabelInstance()) {
+        const instance = getCurrentInstance();
+        const boundGuilds = await prisma.guild.findMany({
+          where: { instanceId: instance.id },
+          select: { id: true },
+        });
+        instanceGuildIds = new Set(boundGuilds.map(g => g.id));
+      }
+
       const isGlobalAdmin = await resolveAdminAccess(client, user.userId);
       const accessibleGuildsList: Array<{
         id: string;
@@ -114,6 +127,10 @@ export async function handleUserRoutes(
 
       for (const botGuild of client.guilds.cache.values()) {
         const guildId = botGuild.id;
+
+        // White-label: skip guilds not bound to this instance
+        if (instanceGuildIds && !instanceGuildIds.has(guildId)) continue;
+
         const isMember = userGuildsById.has(guildId);
         if (!isMember && !isGlobalAdmin) continue;
 

@@ -1,5 +1,6 @@
 import { Guild, Role, Channel, GuildEmoji, Sticker, GuildMember } from 'discord.js';
 import prisma from '../../utils/db.js';
+import { fetchAllMembers } from '../../utils/discord.js';
 
 export interface BackupOptions {
   name: string;
@@ -173,10 +174,10 @@ export async function createBackup(guild: Guild, options: BackupOptions) {
 
   // Backup des membres
   if (options.includeMembers) {
-    console.log('[BackupService] Fetching members from API (5s timeout)...');
+    console.log('[BackupService] Fetching members from API...');
     try {
-      // Fetch members with a 5s timeout to prevent hanging if intent is missing/ignored by gateway
-      const members = await guild.members.fetch({ time: 5000 });
+      // Fetch members reliably using the fetchAllMembers utility
+      const members = await fetchAllMembers(guild);
       backupData.members = members.map((member) => ({
         id: member.id,
         username: member.user.username,

@@ -5,8 +5,10 @@ export interface PageConfig {
   featureKey?: string;
   /** Affiche le badge BETA dans la sidebar et la bannière page */
   beta?: boolean;
-  /** Affiche le badge WIP dans la sidebar et l’overlay page */
+  /** Affiche le badge WIP dans la sidebar et l'overlay page */
   wip?: boolean;
+  /** Message custom sur l'overlay WIP (remplace le texte par défaut) */
+  wipMessage?: string;
 }
 
 export function isPageBeta(page: PageConfig): boolean {
@@ -28,8 +30,7 @@ export const moderationItems: PageConfig[] = [
   { name: "Sanctions",           icon: "alert-triangle",href: "/sanctions",          featureKey: "sanctions", beta: false, wip: false },
   { name: "Modération auto",     icon: "shield-alert",  href: "/automod",            featureKey: "automod", beta: true, wip: false },
   { name: "Pseudos",             icon: "filter",        href: "/nickname-moderation",featureKey: "nickname_moderation", beta: false, wip: false },
-  { name: "Doubles Comptes",     icon: "copy",          href: "/double-accounts",    featureKey: "double_accounts", beta: false, wip: false },
-  { name: "Détections",          icon: "bell",          href: "/detections",         featureKey: "double_accounts", beta: false, wip: false },
+  { name: "Sécurité & DC",       icon: "shield",        href: "/double-accounts",    featureKey: "double_accounts", beta: false, wip: false },
   { name: "Invitations",         icon: "link",          href: "/invitations",        featureKey: "members", beta: false, wip: false },
   { name: "Logs Discord",        icon: "file-text",     href: "/logs",              featureKey: "logs", beta: false, wip: false },
   { name: "Journal d'activité",  icon: "history",       href: "/activity",          featureKey: "activity", beta: false, wip: false },
@@ -73,6 +74,7 @@ export const configItems: PageConfig[] = [
   { name: "Sauvegardes",         icon: "archive",        href: "/backups",              featureKey: "settings", beta: false, wip: false },
   { name: "Planifications",      icon: "calendar",      href: "/schedules",            featureKey: "settings", beta: true, wip: false },
   { name: "API MCP",             icon: "cpu",           href: "/mcp-settings",         featureKey: "settings", beta: true, wip: false },
+  { name: "Custom Bot",          icon: "bot",           href: "/custom-bot",           featureKey: "settings", beta: false, wip: true, wipMessage: "Cette fonctionnalité est disponible sur demande. Contactez l'administrateur de Kotbo en message privé sur Discord pour l'activer (service payant)." },
 ];
 
 export const otherPages: PageConfig[] = [
@@ -90,16 +92,16 @@ export const allPages: PageConfig[] = [
   ...otherPages
 ];
 
-export function getPageStatus(path: string, url: string = path): { beta: boolean; wip: boolean; name: string } | null {
+export function getPageStatus(path: string, url: string = path): { beta: boolean; wip: boolean; name: string; wipMessage?: string } | null {
   for (const page of allPages) {
     const [pPath, pQuery] = page.href.split('?');
     if (pQuery) {
       if (path === pPath && url.includes(pQuery)) {
-        return { beta: isPageBeta(page), wip: isPageWip(page), name: page.name };
+        return { beta: isPageBeta(page), wip: isPageWip(page), name: page.name, wipMessage: page.wipMessage };
       }
     } else {
       if (path === pPath || (pPath !== '/' && path.startsWith(`${pPath}/`))) {
-        return { beta: isPageBeta(page), wip: isPageWip(page), name: page.name };
+        return { beta: isPageBeta(page), wip: isPageWip(page), name: page.name, wipMessage: page.wipMessage };
       }
     }
   }
