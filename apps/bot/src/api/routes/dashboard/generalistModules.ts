@@ -2,7 +2,7 @@ import { IncomingMessage, ServerResponse } from 'node:http';
 import { Client, EmbedBuilder } from 'discord.js';
 import prisma from '../../../utils/db.js';
 import { logger } from '../../../utils/logger.js';
-import { getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel } from '../../../services/progression/levelingService.js';
+import { getOrCreateLevelConfig, updateMemberLevelRoles, getXpForLevel, getLevelFromXp } from '../../../services/progression/levelingService.js';
 import { getOrCreateWelcomeConfig } from '../../../services/features/welcomeGoodbyeService.js';
 import { getOrCreateAutoModConfig, invalidateAutoModCache, syncDiscordAutoModRules } from '../../../services/moderation/autoModService.js';
 import { createGiveaway, endGiveaway, rerollGiveaway } from '../../../services/features/giveawayService.js';
@@ -291,15 +291,17 @@ export async function handleGeneralistModulesRoutes(
           let xp = item.xp;
           let level = item.level;
 
+          // Si seul le niveau est fourni, on déduit l'XP minimale de ce niveau.
           if (xp === undefined && level !== undefined) {
-            xp = getXpForLevel(level - 1);
-          } else if (level === undefined && xp !== undefined) {
-            level = 0;
-            let nextXp = getXpForLevel(level);
-            while (xp >= nextXp) {
-              level++;
-              nextXp = getXpForLevel(level);
-            }
+            xp = getXpForLevel(Math.max(0, level) - 1);
+          }
+
+          // L'XP est la source de vérité : on clampe les négatifs et on recalcule
+          // toujours le niveau, pour ne jamais stocker de couple incohérent
+          // (ex. niveau importé d'un autre bot avec une autre courbe).
+          if (xp !== undefined) {
+            xp = Math.max(0, xp);
+            level = getLevelFromXp(xp);
           }
 
           if (xp === undefined || level === undefined) {

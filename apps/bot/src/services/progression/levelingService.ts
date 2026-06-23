@@ -16,6 +16,21 @@ export function getXpForLevel(level: number): number {
   return 100 * Math.pow(level, 2) + 200 * level;
 }
 
+/**
+ * Dérive le niveau à partir de l'XP totale.
+ * L'XP est la source de vérité : le niveau en est toujours déduit, ce qui
+ * permet d'auto-réparer les lignes incohérentes (ex. données importées d'un
+ * autre bot avec une courbe différente).
+ */
+export function getLevelFromXp(xp: number): number {
+  if (xp < 0) return 0;
+  let level = 0;
+  while (xp >= getXpForLevel(level)) {
+    level++;
+  }
+  return level;
+}
+
 export async function getOrCreateLevelConfig(guildId: string) {
   const cacheKey = `guild:${guildId}:level_config`;
   let config = await cache.get<any>(cacheKey);
@@ -133,28 +148,25 @@ export async function addXp(guildId: string, userId: string, amount: number, cli
     },
   });
 
-  let currentLevel = memberLevel.level;
-  let currentXp = memberLevel.xp;
+  const previousLevel = memberLevel.level;
+  // Le niveau est toujours recalculé depuis l'XP totale : ça gère les montées
+  // de niveau et auto-répare les lignes dont le niveau était incohérent.
+  const newLevel = getLevelFromXp(memberLevel.xp);
 
-  // Calculer si passage de niveau
-  let nextLevelXp = getXpForLevel(currentLevel);
-  let leveledUp = false;
-
-  while (currentXp >= nextLevelXp) {
-    currentLevel++;
-    nextLevelXp = getXpForLevel(currentLevel);
-    leveledUp = true;
-  }
-
-  if (leveledUp) {
+  if (newLevel !== previousLevel) {
     // Mettre à jour en BDD
     await prisma.memberLevel.update({
       where: { guildId_userId: { guildId, userId } },
-      data: { level: currentLevel },
+      data: { level: newLevel },
     });
 
-    // Envoyer la notification et attribuer les récompenses
-    await processLevelUp(guildId, userId, currentLevel, client, channelId);
+    if (newLevel > previousLevel) {
+      // Montée de niveau : notification + récompenses (rôles, économie)
+      await processLevelUp(guildId, userId, newLevel, client, channelId);
+    } else {
+      // Correction vers le bas : on retire les rôles attribués en trop, sans message
+      await updateMemberLevelRoles(guildId, userId, newLevel, client).catch(() => null);
+    }
   }
 }
 
@@ -301,6 +313,19 @@ export async function getMemberRankData(guildId: string, userId: string) {
     };
   }
 
+  // L'XP est la source de vérité : on recalcule le niveau et on auto-répare la
+  // ligne si elle est incohérente (ex. niveau importé d'un autre bot).
+  const correctLevel = getLevelFromXp(memberLevel.xp);
+  if (memberLevel.id && correctLevel !== memberLevel.level) {
+    memberLevel.level = correctLevel;
+    prisma.memberLevel
+      .update({
+        where: { guildId_userId: { guildId, userId } },
+        data: { level: correctLevel },
+      })
+      .catch(err => logger.error('LevelingService', `Auto-réparation du niveau échouée pour ${userId}:`, err));
+  }
+
   const currentLevelXp = getXpForLevel(memberLevel.level - 1);
   const nextLevelXp = getXpForLevel(memberLevel.level);
   
@@ -421,10 +446,13 @@ export async function generateRankCard(member: GuildMember, level: number, xp: n
   ctx.textAlign = 'left';
 
   // XP progression
-  const prevXpNeeded = getXpForLevel(level - 1);
-  const nextXpNeeded = getXpForLevel(level);
-  const xpInCurrentLevel = xp - prevXpNeeded;
-  const xpRequiredForNextLevel = nextXpNeeded - prevXpNeeded;
+  // On dérive le niveau de l'XP pour rester cohérent même si le niveau passé
+  // était erroné, et on clampe pour ne jamais afficher de valeur négative.
+  const safeLevel = getLevelFromXp(xp);
+  const prevXpNeeded = getXpForLevel(safeLevel - 1);
+  const nextXpNeeded = getXpForLevel(safeLevel);
+  const xpInCurrentLevel = Math.max(0, xp - prevXpNeeded);
+  const xpRequiredForNextLevel = Math.max(1, nextXpNeeded - prevXpNeeded);
   const progressPercent = Math.min(1, Math.max(0, xpInCurrentLevel / xpRequiredForNextLevel));
 
   ctx.fillStyle = '#8b949e';
