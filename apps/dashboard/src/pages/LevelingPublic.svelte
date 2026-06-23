@@ -40,6 +40,16 @@
     return 100 * Math.pow(level, 2) + 200 * level;
   }
 
+  // L'XP est la source de vérité : le niveau en est dérivé, identique au bot.
+  function getLevelFromXp(xp: number): number {
+    if (xp < 0) return 0;
+    let level = 0;
+    while (xp >= getXpForLevel(level)) {
+      level++;
+    }
+    return level;
+  }
+
   const filteredLevels = $derived(
     levels.filter(u => {
       const q = searchQuery.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
@@ -51,8 +61,8 @@
 
   // Stats globales
   const totalXp = $derived(levels.reduce((sum, u) => sum + u.xp, 0));
-  const avgLevel = $derived(levels.length > 0 ? Math.round(levels.reduce((sum, u) => sum + u.level, 0) / levels.length) : 0);
-  const maxLevel = $derived(levels.length > 0 ? levels[0]?.level ?? 0 : 0);
+  const avgLevel = $derived(levels.length > 0 ? Math.round(levels.reduce((sum, u) => sum + getLevelFromXp(u.xp), 0) / levels.length) : 0);
+  const maxLevel = $derived(levels.length > 0 ? getLevelFromXp(levels[0]?.xp ?? 0) : 0);
 
   function formatXp(xp: number): string {
     if (xp >= 1_000_000) return `${(xp / 1_000_000).toFixed(1)}M`;
@@ -200,7 +210,7 @@
                         <p class="font-bold text-slate-800 dark:text-slate-100 truncate text-sm" title={levels[1].displayName}>
                           {levels[1].displayName || levels[1].username || 'Inconnu'}
                         </p>
-                        <p class="text-xs text-slate-400 dark:text-slate-500">Niveau {levels[1].level}</p>
+                        <p class="text-xs text-slate-400 dark:text-slate-500">Niveau {getLevelFromXp(levels[1].xp)}</p>
                       </div>
                     </div>
                   </div>
@@ -231,7 +241,7 @@
                         <p class="font-semibold text-slate-800 dark:text-slate-100 truncate text-base" title={levels[0].displayName}>
                           {levels[0].displayName || levels[0].username || 'Inconnu'}
                         </p>
-                        <p class="text-xs text-amber-500 dark:text-amber-400 font-bold">Niveau {levels[0].level}</p>
+                        <p class="text-xs text-amber-500 dark:text-amber-400 font-bold">Niveau {getLevelFromXp(levels[0].xp)}</p>
                       </div>
                     </div>
                   </div>
@@ -259,7 +269,7 @@
                         <p class="font-bold text-slate-800 dark:text-slate-100 truncate text-sm" title={levels[2].displayName}>
                           {levels[2].displayName || levels[2].username || 'Inconnu'}
                         </p>
-                        <p class="text-xs text-slate-400 dark:text-slate-500">Niveau {levels[2].level}</p>
+                        <p class="text-xs text-slate-400 dark:text-slate-500">Niveau {getLevelFromXp(levels[2].xp)}</p>
                       </div>
                     </div>
                   </div>
@@ -319,8 +329,9 @@
             <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60 bg-white dark:bg-[#111a2e]">
               {#each filteredLevels as userLvl}
                 {@const index = levels.findIndex(l => l.userId === userLvl.userId)}
-                {@const nextLvlXp = getXpForLevel(userLvl.level)}
-                {@const prevLvlXp = getXpForLevel(userLvl.level - 1)}
+                {@const lvl = getLevelFromXp(userLvl.xp)}
+                {@const nextLvlXp = getXpForLevel(lvl)}
+                {@const prevLvlXp = getXpForLevel(lvl - 1)}
                 {@const progress = nextLvlXp - prevLvlXp > 0 ? ((userLvl.xp - prevLvlXp) / (nextLvlXp - prevLvlXp)) * 100 : 0}
                 {@const percent = Math.min(100, Math.max(0, progress))}
                 {@const color = getRankColor(index)}
@@ -362,7 +373,7 @@
 
                   <!-- Niveau -->
                   <td class="px-6 py-4 font-bold text-slate-700 dark:text-slate-300 text-sm">
-                    {userLvl.level}
+                    {lvl}
                   </td>
 
                   <!-- XP -->

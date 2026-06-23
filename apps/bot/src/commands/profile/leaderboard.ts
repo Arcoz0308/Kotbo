@@ -3,7 +3,7 @@ import { EmbedBuilder, MessageFlags, SlashCommandBuilder, AttachmentBuilder, Gui
 import prisma from '../../utils/db.js';
 import { generateLeaderboardImage } from '../../services/core/imageService.js';
 import { COLORS } from '../../utils/embeds.js';
-import { getXpForLevel } from '../../services/progression/levelingService.js';
+import { getXpForLevel, getLevelFromXp } from '../../services/progression/levelingService.js';
 
 const data = new SlashCommandBuilder()
   .setName('leaderboard')
@@ -71,7 +71,9 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     topMembers = xpStats.map((stat) => ({
       userId: stat.userId,
       score: stat.xp,
-      level: stat.level,
+      // Le niveau est dérivé de l'XP (source de vérité) pour rester cohérent
+      // avec la carte /rank et le dashboard, même si la ligne n'est pas réparée.
+      level: getLevelFromXp(stat.xp),
     }));
   } else {
     const now = new Date();

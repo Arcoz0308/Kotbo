@@ -212,6 +212,16 @@
     return 100 * Math.pow(level, 2) + 200 * level;
   }
 
+  // L'XP est la source de vérité : le niveau en est dérivé, identique au bot.
+  function getLevelFromXp(xp: number): number {
+    if (xp < 0) return 0;
+    let level = 0;
+    while (xp >= getXpForLevel(level)) {
+      level++;
+    }
+    return level;
+  }
+
   async function copyPublicUrl() {
     if (!publicLeaderboardUrl) return;
     await navigator.clipboard.writeText(publicLeaderboardUrl);
@@ -230,8 +240,8 @@
 
   // Stats du classement
   const totalXp = $derived(levels.reduce((sum, u) => sum + u.xp, 0));
-  const avgLevel = $derived(levels.length > 0 ? Math.round(levels.reduce((sum, u) => sum + u.level, 0) / levels.length) : 0);
-  const maxLevel = $derived(levels.length > 0 ? Math.max(...levels.map(u => u.level)) : 0);
+  const avgLevel = $derived(levels.length > 0 ? Math.round(levels.reduce((sum, u) => sum + getLevelFromXp(u.xp), 0) / levels.length) : 0);
+  const maxLevel = $derived(levels.length > 0 ? Math.max(...levels.map(u => getLevelFromXp(u.xp))) : 0);
 
   // Import states
   let importRawJson = $state('');
@@ -861,7 +871,7 @@
                   </div>
                   
                   <div class="flex items-center justify-between border-t border-outline-variant/5 pt-3 text-xs">
-                    <span class="text-on-surface-variant/70 font-semibold">Niveau {levels[1].level}</span>
+                    <span class="text-on-surface-variant/70 font-semibold">Niveau {getLevelFromXp(levels[1].xp)}</span>
                     <span class="text-on-surface-variant/80 font-mono font-medium">{levels[1].xp.toLocaleString()} XP</span>
                   </div>
                 </div>
@@ -903,7 +913,7 @@
                   </div>
                   
                   <div class="flex items-center justify-between border-t border-tertiary/10 pt-3 text-sm">
-                    <span class="text-tertiary font-extrabold">Niveau {levels[0].level}</span>
+                    <span class="text-tertiary font-extrabold">Niveau {getLevelFromXp(levels[0].xp)}</span>
                     <span class="text-tertiary/90 font-mono font-bold">{levels[0].xp.toLocaleString()} XP</span>
                   </div>
                 </div>
@@ -942,7 +952,7 @@
                   </div>
                   
                   <div class="flex items-center justify-between border-t border-outline-variant/5 pt-3 text-xs">
-                    <span class="text-on-surface-variant/70 font-semibold">Niveau {levels[2].level}</span>
+                    <span class="text-on-surface-variant/70 font-semibold">Niveau {getLevelFromXp(levels[2].xp)}</span>
                     <span class="text-on-surface-variant/80 font-mono font-medium">{levels[2].xp.toLocaleString()} XP</span>
                   </div>
                 </div>
@@ -956,10 +966,11 @@
         <div class="space-y-3 max-h-[600px] overflow-y-auto pr-1">
           {#each filteredLevels as userLvl}
             {@const index = levels.findIndex(l => l.userId === userLvl.userId)}
-            {@const nextLvlXp = getXpForLevel(userLvl.level)}
-            {@const prevLvlXp = getXpForLevel(userLvl.level - 1)}
-            {@const currentProgress = userLvl.xp - prevLvlXp}
-            {@const neededProgress = nextLvlXp - prevLvlXp}
+            {@const lvl = getLevelFromXp(userLvl.xp)}
+            {@const nextLvlXp = getXpForLevel(lvl)}
+            {@const prevLvlXp = getXpForLevel(lvl - 1)}
+            {@const currentProgress = Math.max(0, userLvl.xp - prevLvlXp)}
+            {@const neededProgress = Math.max(1, nextLvlXp - prevLvlXp)}
             {@const percent = Math.min(100, Math.max(0, (currentProgress / neededProgress) * 100))}
             
             <div class="flex items-center gap-4 p-4 rounded-lg bg-surface-container-high/15 border border-outline-variant/5 hover:bg-surface-container-high/30 hover:border-outline-variant/15 transition-all duration-350 group">
@@ -1000,7 +1011,7 @@
                       style="width: {percent}%"
                     ></div>
                   </div>
-                  <span class="text-[11px] font-bold text-on-surface-variant/40 whitespace-nowrap font-mono tracking-wide">{userLvl.xp.toLocaleString()} / {nextLvlXp.toLocaleString()} XP</span>
+                  <span class="text-[11px] font-bold text-on-surface-variant/40 whitespace-nowrap font-mono tracking-wide">{currentProgress.toLocaleString()} / {neededProgress.toLocaleString()} XP</span>
                 </div>
               </div>
 
@@ -1011,7 +1022,7 @@
                    index === 1 ? 'bg-slate-400/10 text-slate-500 border-slate-400/20' : 
                    index === 2 ? 'bg-amber-700/10 text-amber-600 border-amber-700/20' : 
                    'bg-primary/10 text-primary border-primary/15'}">
-                  Lvl {userLvl.level}
+                  Lvl {lvl}
                 </span>
               </div>
             </div>
