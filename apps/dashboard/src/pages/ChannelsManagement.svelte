@@ -46,7 +46,7 @@
     tempVoiceRequiredRoleId: '',
     tempVoiceGenerators: [] as any[],
     honeypotEnabled: false,
-    honeypotChannelIds: [] as string[],
+    honeypotChannelId: '',
     honeypotSanction: 'TIMEOUT',
     honeypotReinvite: false,
   });
@@ -86,7 +86,7 @@
     tempVoiceRequiredRoleId: '',
     tempVoiceGenerators: [] as any[],
     honeypotEnabled: false,
-    honeypotChannelIds: [] as string[],
+    honeypotChannelId: '',
     honeypotSanction: 'TIMEOUT',
     honeypotReinvite: false,
   })));
@@ -249,7 +249,7 @@
         config.tempVoiceRequiredRoleId = res.tempVoiceRequiredRoleId ?? '';
         config.tempVoiceGenerators = Array.isArray(res.tempVoiceGenerators) ? res.tempVoiceGenerators : [];
         config.honeypotEnabled = res.honeypotEnabled ?? false;
-        config.honeypotChannelIds = Array.isArray(res.honeypotChannelIds) ? res.honeypotChannelIds : [];
+        config.honeypotChannelId = res.honeypotChannelId ?? '';
         config.honeypotSanction = res.honeypotSanction ?? 'TIMEOUT';
         config.honeypotReinvite = res.honeypotReinvite ?? false;
         savedConfig = JSON.parse(JSON.stringify(config));
@@ -288,7 +288,7 @@
         tempVoiceRequiredRoleId: config.tempVoiceRequiredRoleId || null,
         tempVoiceGenerators: config.tempVoiceGenerators || [],
         honeypotEnabled: config.honeypotEnabled,
-        honeypotChannelIds: config.honeypotChannelIds,
+        honeypotChannelId: config.honeypotChannelId || null,
         honeypotSanction: config.honeypotSanction,
         honeypotReinvite: config.honeypotReinvite,
       } as any);
@@ -300,7 +300,7 @@
         if (res.resolved.tempVoiceChannelId) config.tempVoiceChannelId = res.resolved.tempVoiceChannelId;
         if (res.resolved.tempVoiceCategoryId) config.tempVoiceCategoryId = res.resolved.tempVoiceCategoryId;
         if (Array.isArray(res.resolved.tempVoiceGenerators)) config.tempVoiceGenerators = res.resolved.tempVoiceGenerators;
-        if (Array.isArray(res.resolved.honeypotChannelIds)) config.honeypotChannelIds = res.resolved.honeypotChannelIds;
+        if (res.resolved.honeypotChannelId) config.honeypotChannelId = res.resolved.honeypotChannelId;
         if (res.resolved.honeypotSanction) config.honeypotSanction = res.resolved.honeypotSanction;
         if (res.resolved.honeypotReinvite !== undefined) config.honeypotReinvite = res.resolved.honeypotReinvite;
         if (res.resolved.statsConfig) {
@@ -1475,64 +1475,36 @@
 
           {#if config.honeypotEnabled}
             <div class="space-y-6 pt-4 border-t border-outline-variant/10 max-w-xl">
-              <!-- Honeypot Channels Selection (multi) -->
+              <!-- Honeypot Channel Selection -->
               <div class="space-y-1.5">
-                <label class="text-xs font-bold text-on-surface/80 block">⚠️ Salons Piège (Honeypot)</label>
-                {#if config.honeypotChannelIds.length > 0}
-                  <div class="space-y-2">
-                    {#each config.honeypotChannelIds as channelId, i}
-                      <div class="flex gap-2 items-center">
-                        <div class="flex-1">
-                          <SearchableSelect
-                            id="honeypot-channel-select-{i}"
-                            options={availableChannels.map(c => ({ id: c.id, name: `# ${c.name}` }))}
-                            bind:value={config.honeypotChannelIds[i]}
-                            placeholder="Sélectionner un salon..."
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onclick={() => {
-                            config.honeypotChannelIds = config.honeypotChannelIds.filter((_: string, idx: number) => idx !== i);
-                          }}
-                          class="px-3 py-2.5 bg-error/10 hover:bg-error/20 text-error border border-error/20 text-xs font-bold rounded-lg transition-all"
-                        >
-                          Retirer
-                        </button>
-                      </div>
-                    {/each}
+                <label for="honeypot-channel-select" class="text-xs font-bold text-on-surface/80 block">⚠️ Salon Piège (Honeypot)</label>
+                <div class="flex gap-2">
+                  <div class="grow">
+                    <SearchableSelect
+                      id="honeypot-channel-select"
+                      options={availableChannels.map(c => ({ id: c.id, name: `# ${c.name}` }))}
+                      bind:value={config.honeypotChannelId}
+                      placeholder="— Sélectionner un salon —"
+                    />
                   </div>
-                {:else}
-                  <p class="text-[10px] text-on-surface-variant/40">Aucun salon honeypot configuré. Ajoutez-en un ou créez-en un automatiquement.</p>
-                {/if}
-                <div class="flex gap-2 mt-2">
-                  <button
-                    type="button"
-                    onclick={() => {
-                      config.honeypotChannelIds = [...config.honeypotChannelIds, ''];
-                    }}
-                    class="px-4 py-2.5 bg-surface-container-high/40 hover:bg-surface-container-high/60 text-on-surface/80 border border-outline-variant/10 text-xs font-bold rounded-lg transition-all"
-                  >
-                    + Ajouter un salon existant
-                  </button>
                   <button
                     type="button"
                     onclick={async () => {
                       const res = await updateChannelsManagementConfig({
                         honeypotEnabled: true,
-                        honeypotChannelIds: config.honeypotChannelIds,
+                        honeypotChannelId: null,
                         createHoneypotChannel: true,
                       } as any);
-                      if (res?.resolved?.honeypotChannelIds) {
-                        config.honeypotChannelIds = res.resolved.honeypotChannelIds;
+                      if (res?.resolved?.honeypotChannelId) {
+                        config.honeypotChannelId = res.resolved.honeypotChannelId;
                         savedConfig = JSON.parse(JSON.stringify(config));
                         toast.success('Salon honeypot créé avec succès !');
                       }
                     }}
                     disabled={saveAction.state.loading || loading}
-                    class="px-4 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="px-4 py-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Créer un salon automatiquement
+                    Créer automatiquement
                   </button>
                 </div>
               </div>

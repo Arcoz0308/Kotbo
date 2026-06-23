@@ -1424,7 +1424,7 @@ export async function handleModulesRoutes(
             tempVoiceRequiredRoleId: true,
             tempVoiceGenerators: true,
             honeypotEnabled: true,
-            honeypotChannelIds: true,
+            honeypotChannelId: true,
             honeypotSanction: true,
             honeypotReinvite: true,
             verificationEnabled: true,
@@ -1456,7 +1456,7 @@ export async function handleModulesRoutes(
           tempVoiceRequiredRoleId: guild.tempVoiceRequiredRoleId,
           tempVoiceGenerators: guild.tempVoiceGenerators,
           honeypotEnabled: guild.honeypotEnabled,
-          honeypotChannelIds: guild.honeypotChannelIds,
+          honeypotChannelId: guild.honeypotChannelId,
           honeypotSanction: guild.honeypotSanction,
           honeypotReinvite: guild.honeypotReinvite,
           verificationEnabled: guild.verificationEnabled,
@@ -1492,7 +1492,7 @@ export async function handleModulesRoutes(
           tempVoiceRequiredRoleId?: string | null;
           tempVoiceGenerators?: Array<{ channelId?: string; categoryId?: string; nameTemplate?: string; requiredRoleId?: string | null }>;
           honeypotEnabled?: boolean;
-          honeypotChannelIds?: string[];
+          honeypotChannelId?: string | null;
           honeypotSanction?: string;
           honeypotReinvite?: boolean;
           verificationEnabled?: boolean;
@@ -1549,10 +1549,8 @@ export async function handleModulesRoutes(
         if (Object.prototype.hasOwnProperty.call(body, 'honeypotEnabled')) {
           data.honeypotEnabled = !!body.honeypotEnabled;
         }
-        if (Object.prototype.hasOwnProperty.call(body, 'honeypotChannelIds')) {
-          data.honeypotChannelIds = Array.isArray(body.honeypotChannelIds)
-            ? body.honeypotChannelIds.filter((id: unknown): id is string => typeof id === 'string' && id.length > 0)
-            : [];
+        if (Object.prototype.hasOwnProperty.call(body, 'honeypotChannelId')) {
+          data.honeypotChannelId = body.honeypotChannelId;
         }
         if (Object.prototype.hasOwnProperty.call(body, 'honeypotSanction')) {
           if (['WARN', 'KICK', 'TIMEOUT', 'BAN', 'SOFTBAN'].includes(body.honeypotSanction as string)) {
@@ -1669,8 +1667,7 @@ export async function handleModulesRoutes(
               ],
             }).catch(() => null);
             if (newHoneypot) {
-              const currentIds = Array.isArray(data.honeypotChannelIds) ? data.honeypotChannelIds : [];
-              data.honeypotChannelIds = [...currentIds, newHoneypot.id];
+              data.honeypotChannelId = newHoneypot.id;
 
               const honeyEmbed = new EmbedBuilder()
                 .setTitle('⚠️ SALON PROTECTEUR - NE PAS ÉCRIRE ⚠️')
@@ -1850,7 +1847,7 @@ export async function handleModulesRoutes(
             tempVoiceChannelId: data.tempVoiceChannelId,
             tempVoiceCategoryId: data.tempVoiceCategoryId,
             tempVoiceGenerators: data.tempVoiceGenerators,
-            honeypotChannelIds: data.honeypotChannelIds,
+            honeypotChannelId: data.honeypotChannelId,
             honeypotSanction: data.honeypotSanction,
             honeypotReinvite: data.honeypotReinvite,
             statsConfig: data.statsConfig,

@@ -197,7 +197,7 @@ model Guild {
 
   // Honeypot trap channels
   honeypotEnabled         Boolean  @default(false)
-  honeypotChannelIds      String[] @default([])
+  honeypotChannelId       String?
   honeypotSanction        SanctionType @default(TIMEOUT)
   honeypotReinvite        Boolean  @default(false)
 

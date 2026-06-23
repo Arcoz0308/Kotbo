@@ -1507,7 +1507,7 @@ export async function updateChannelsManagementConfig(
     tempVoiceRequiredRoleId?: string | null;
     tempVoiceGenerators?: Array<{ channelId?: string; categoryId?: string; nameTemplate?: string; requiredRoleId?: string | null }>;
     honeypotEnabled?: boolean;
-    honeypotChannelIds?: string[];
+    honeypotChannelId?: string | null;
     honeypotSanction?: string;
     honeypotReinvite?: boolean;
     createHoneypotChannel?: boolean;

@@ -18,7 +18,7 @@ export function registerHoneypotListener(client: Client): void {
     try {
       const guildConfig = await getCachedGuild(guild.id);
 
-      if (!guildConfig || !guildConfig.honeypotEnabled || !guildConfig.honeypotChannelIds.includes(channelId)) {
+      if (!guildConfig || !guildConfig.honeypotEnabled || guildConfig.honeypotChannelId !== channelId) {
         return;
       }
 
