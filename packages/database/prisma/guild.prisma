@@ -191,7 +191,9 @@ model Guild {
   tempVoiceChannelId      String?
   tempVoiceCategoryId     String?
   tempVoiceNameTemplate   String   @default("🔊 Salon de {user}")
+  tempVoiceRequiredRoleId String?
   tempVoiceGenerators     Json?
+  tempVoiceChannels       TempVoiceChannel[]
 
   // Honeypot trap channels
   honeypotEnabled         Boolean  @default(false)
@@ -361,3 +363,16 @@ model GuildLogEventConfig {
   @@unique([guildId, eventType])
   @@map("guild_log_event_configs")
 }
+
+model TempVoiceChannel {
+  id         String   @id
+  guildId    String
+  creatorId  String
+  roleId     String?  // Optional role restriction
+  createdAt  DateTime @default(now())
+
+  guild      Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@map("temp_voice_channels")
+}
+

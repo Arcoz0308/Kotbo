@@ -1504,6 +1504,8 @@ export async function updateChannelsManagementConfig(
     tempVoiceChannelId?: string | null;
     tempVoiceCategoryId?: string | null;
     tempVoiceNameTemplate?: string;
+    tempVoiceRequiredRoleId?: string | null;
+    tempVoiceGenerators?: Array<{ channelId?: string; categoryId?: string; nameTemplate?: string; requiredRoleId?: string | null }>;
     honeypotEnabled?: boolean;
     honeypotChannelIds?: string[];
     honeypotSanction?: string;
@@ -1536,6 +1538,24 @@ export async function rescanChannelsManagementStats(payload: { force: boolean },
     payload,
     guildId,
     errorContext: 'API Error (Rescan Stats):'
+  });
+}
+
+export async function fetchTempVoiceChannels(guildId = authStore.selectedGuildId) {
+  return dashboardRequest('/channels-management/temp-voice/channels', {
+    method: 'GET',
+    guildId,
+    errorContext: 'API Error (Fetch Temp Voice Channels):',
+    silent: true
+  });
+}
+
+export async function updateTempVoiceChannel(channelId: string, data: { name?: string; roleId?: string | null; action?: 'DELETE' }, guildId = authStore.selectedGuildId) {
+  return dashboardRequest(`/channels-management/temp-voice/channels/${channelId}`, {
+    method: 'PATCH',
+    payload: data,
+    guildId,
+    errorContext: 'API Error (Update Temp Voice Channel):'
   });
 }
 

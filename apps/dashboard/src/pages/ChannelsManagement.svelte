@@ -6,7 +6,7 @@
   import Papicon from '../lib/components/Papicon.svelte';
   import SearchableSelect from '../lib/components/SearchableSelect.svelte';
   import { createAsyncActionState } from '../lib/asyncAction.svelte';
-  import { fetchChannelsManagementConfig, updateChannelsManagementConfig, rescanChannelsManagementStats } from '../lib/api';
+  import { fetchChannelsManagementConfig, updateChannelsManagementConfig, rescanChannelsManagementStats, fetchTempVoiceChannels, updateTempVoiceChannel } from '../lib/api';
   import { dashboardStore } from '../lib/stores/dashboard.svelte';
   import { toast } from '../lib/stores/toast.svelte';
   import LoadingHint from '../lib/components/LoadingHint.svelte';
@@ -43,6 +43,8 @@
     tempVoiceChannelId: '',
     tempVoiceCategoryId: '',
     tempVoiceNameTemplate: '🔊 Salon de {user}',
+    tempVoiceRequiredRoleId: '',
+    tempVoiceGenerators: [] as any[],
     honeypotEnabled: false,
     honeypotChannelIds: [] as string[],
     honeypotSanction: 'TIMEOUT',
@@ -81,6 +83,8 @@
     tempVoiceChannelId: '',
     tempVoiceCategoryId: '',
     tempVoiceNameTemplate: '🔊 Salon de {user}',
+    tempVoiceRequiredRoleId: '',
+    tempVoiceGenerators: [] as any[],
     honeypotEnabled: false,
     honeypotChannelIds: [] as string[],
     honeypotSanction: 'TIMEOUT',
@@ -139,6 +143,82 @@
     availableChannels.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
+  let activeTempChannels = $state([] as any[]);
+  let loadingTempChannels = $state(false);
+
+  async function loadActiveTempChannels() {
+    if (!config.tempVoiceEnabled) return;
+    loadingTempChannels = true;
+    try {
+      const res = await fetchTempVoiceChannels();
+      if (Array.isArray(res)) {
+        activeTempChannels = res;
+      }
+    } catch (err) {
+      console.error('Error fetching temp voice channels:', err);
+    } finally {
+      loadingTempChannels = false;
+    }
+  }
+
+  $effect(() => {
+    if (activeTab === 'temp-voice') {
+      loadActiveTempChannels();
+    }
+  });
+
+  let editingChannel = $state(null as string | null);
+  let newChannelName = $state('');
+  let actionInProgress = $state(false);
+
+  async function handleRenameChannel(channelId: string) {
+    if (!newChannelName.trim()) return;
+    actionInProgress = true;
+    try {
+      const res = await updateTempVoiceChannel(channelId, { name: newChannelName.trim() });
+      if (res && res.ok) {
+        toast.success('Salon renommé avec succès.');
+        await loadActiveTempChannels();
+        editingChannel = null;
+      }
+    } catch (err) {
+      toast.error('Impossible de renommer le salon.');
+    } finally {
+      actionInProgress = false;
+    }
+  }
+
+  async function handleReserveChannel(channelId: string, roleId: string | null) {
+    actionInProgress = true;
+    try {
+      const res = await updateTempVoiceChannel(channelId, { roleId });
+      if (res && res.ok) {
+        toast.success(roleId ? 'Salon réservé avec succès.' : 'Réservation annulée avec succès.');
+        await loadActiveTempChannels();
+      }
+    } catch (err) {
+      toast.error('Impossible de modifier la réservation.');
+    } finally {
+      actionInProgress = false;
+    }
+  }
+
+  async function handleDeleteChannel(channelId: string) {
+    if (!confirm('Êtes-vous sûr de vouloir fermer ce salon temporaire et expulser tous ses membres ?')) return;
+    actionInProgress = true;
+    try {
+      const res = await updateTempVoiceChannel(channelId, { action: 'DELETE' });
+      if (res && res.ok) {
+        toast.success('Salon temporaire fermé.');
+        await loadActiveTempChannels();
+      }
+    } catch (err) {
+      toast.error('Impossible de fermer le salon.');
+    } finally {
+      actionInProgress = false;
+    }
+  }
+
   onMount(async () => {
     try {
       await dashboardStore.refresh();
@@ -166,6 +246,8 @@
         config.tempVoiceChannelId = res.tempVoiceChannelId ?? '';
         config.tempVoiceCategoryId = res.tempVoiceCategoryId ?? '';
         config.tempVoiceNameTemplate = res.tempVoiceNameTemplate || '🔊 Salon de {user}';
+        config.tempVoiceRequiredRoleId = res.tempVoiceRequiredRoleId ?? '';
+        config.tempVoiceGenerators = Array.isArray(res.tempVoiceGenerators) ? res.tempVoiceGenerators : [];
         config.honeypotEnabled = res.honeypotEnabled ?? false;
         config.honeypotChannelIds = Array.isArray(res.honeypotChannelIds) ? res.honeypotChannelIds : [];
         config.honeypotSanction = res.honeypotSanction ?? 'TIMEOUT';
@@ -203,6 +285,8 @@
         tempVoiceChannelId: config.tempVoiceChannelId || null,
         tempVoiceCategoryId: config.tempVoiceCategoryId || null,
         tempVoiceNameTemplate: config.tempVoiceNameTemplate,
+        tempVoiceRequiredRoleId: config.tempVoiceRequiredRoleId || null,
+        tempVoiceGenerators: config.tempVoiceGenerators || [],
         honeypotEnabled: config.honeypotEnabled,
         honeypotChannelIds: config.honeypotChannelIds,
         honeypotSanction: config.honeypotSanction,
@@ -215,6 +299,7 @@
       if (res.resolved) {
         if (res.resolved.tempVoiceChannelId) config.tempVoiceChannelId = res.resolved.tempVoiceChannelId;
         if (res.resolved.tempVoiceCategoryId) config.tempVoiceCategoryId = res.resolved.tempVoiceCategoryId;
+        if (Array.isArray(res.resolved.tempVoiceGenerators)) config.tempVoiceGenerators = res.resolved.tempVoiceGenerators;
         if (Array.isArray(res.resolved.honeypotChannelIds)) config.honeypotChannelIds = res.resolved.honeypotChannelIds;
         if (res.resolved.honeypotSanction) config.honeypotSanction = res.resolved.honeypotSanction;
         if (res.resolved.honeypotReinvite !== undefined) config.honeypotReinvite = res.resolved.honeypotReinvite;
@@ -1001,6 +1086,149 @@
                 <p class="text-[10px] text-on-surface-variant/40 mt-1">Le mot clé `{"{user}"}` sera remplacé par le pseudonyme du membre.</p>
               </div>
 
+              <!-- Role Restriction Selection -->
+              <div class="space-y-1.5">
+                <label for="temp-voice-role-select" class="text-xs font-bold text-on-surface/80 block">👑 Rôle requis pour utiliser</label>
+                <SearchableSelect 
+                  id="temp-voice-role-select"
+                  options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} 
+                  bind:value={config.tempVoiceRequiredRoleId} 
+                  placeholder="— Aucun rôle requis (ouvert à tous) —"
+                />
+              </div>
+
+              {#if !config.tempVoiceGenerators}
+                {config.tempVoiceGenerators = []}
+              {/if}
+
+              <!-- Secondary Voice Generators List -->
+              <div class="border-t border-outline-variant/10 pt-6 mt-6 space-y-4">
+                <div>
+                  <h4 class="text-sm font-semibold flex items-center gap-2 text-primary">
+                    <Papicon icon="plus-circle" size={16} />
+                    Salons Générateurs Additionnels
+                  </h4>
+                  <p class="text-xs text-on-surface-variant/60">Ajoutez d'autres salons générateurs de salons temporaires (ex: pour d'autres catégories ou avec d'autres templates de noms).</p>
+                </div>
+
+                <div class="grid grid-cols-1 gap-6">
+                  {#each config.tempVoiceGenerators as generator, index}
+                    <div class="p-5 bg-surface-container-high/10 border border-outline-variant/5 rounded-xl space-y-4 transition-all">
+                      <div class="flex items-center justify-between border-b border-outline-variant/10 pb-3 mb-2">
+                        <span class="text-[10px] font-semibold uppercase tracking-wider text-primary">Générateur #{index + 2}</span>
+                        <button
+                          type="button"
+                          onclick={() => {
+                            config.tempVoiceGenerators = config.tempVoiceGenerators.filter((_, i) => i !== index);
+                          }}
+                          class="text-on-surface-variant/60 hover:text-error transition-all flex items-center gap-1.5 text-xs font-bold"
+                          title="Supprimer ce générateur"
+                        >
+                          <Papicon icon="trash-2" size={14} />
+                          Supprimer
+                        </button>
+                      </div>
+
+                      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <!-- Generator Voice Channel Selection -->
+                        <div class="space-y-1.5">
+                          <label for="temp-voice-channel-select-{index}" class="text-xs font-bold text-on-surface/80 block">🔊 Salon Vocal Générateur</label>
+                          <div class="flex gap-2">
+                            <div class="flex-1">
+                              <SearchableSelect 
+                                id="temp-voice-channel-select-{index}"
+                                options={availableVoiceChannels.map(c => ({ id: c.id, name: `🔊 ${c.name}` }))} 
+                                bind:value={generator.channelId} 
+                                placeholder="— Créer automatiquement —"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onclick={async () => {
+                                generator.channelId = '';
+                                await handleSave();
+                              }}
+                              disabled={saveAction.state.loading || loading}
+                              class="px-3 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all"
+                            >
+                              Créer
+                            </button>
+                          </div>
+                        </div>
+
+                        <!-- Target Category Selection -->
+                        <div class="space-y-1.5">
+                          <label for="temp-voice-category-select-{index}" class="text-xs font-bold text-on-surface/80 block">📁 Catégorie de création</label>
+                          <div class="flex gap-2">
+                            <div class="flex-1">
+                              <SearchableSelect 
+                                id="temp-voice-category-select-{index}"
+                                options={availableCategories.map(c => ({ id: c.id, name: `📁 ${c.name}` }))} 
+                                bind:value={generator.categoryId} 
+                                placeholder="— Créer automatiquement —"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onclick={async () => {
+                                generator.categoryId = '';
+                                await handleSave();
+                              }}
+                              disabled={saveAction.state.loading || loading}
+                              class="px-3 py-2.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all"
+                            >
+                              Créer
+                            </button>
+                          </div>
+                        </div>
+
+                        <!-- Name Template -->
+                        <div class="space-y-1.5">
+                          <label for="temp-voice-name-template-input-{index}" class="text-xs font-bold text-on-surface/80 block">✏️ Modèle de nom du salon</label>
+                          <input 
+                            id="temp-voice-name-template-input-{index}"
+                            type="text" 
+                            bind:value={generator.nameTemplate} 
+                            placeholder="Ex: 🔊 Salon de {'{user}'}" 
+                            class="w-full bg-surface-container-high/40 border border-outline-variant/10 rounded-lg px-4 py-2.5 text-xs outline-none focus:ring-1 focus:ring-primary/30 transition-all"
+                          />
+                        </div>
+
+                        <!-- Required Role Selector -->
+                        <div class="space-y-1.5">
+                          <label for="temp-voice-role-select-{index}" class="text-xs font-bold text-on-surface/80 block">👑 Rôle requis</label>
+                          <SearchableSelect 
+                            id="temp-voice-role-select-{index}"
+                            options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} 
+                            bind:value={generator.requiredRoleId} 
+                            placeholder="— Aucun rôle (public) —"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  {/each}
+
+                  <button
+                    type="button"
+                    onclick={() => {
+                      config.tempVoiceGenerators = [
+                        ...(config.tempVoiceGenerators || []),
+                        {
+                          channelId: '',
+                          categoryId: '',
+                          nameTemplate: '🔊 Salon de {user}',
+                          requiredRoleId: ''
+                        }
+                      ];
+                    }}
+                    class="py-4 border border-dashed border-outline-variant/20 hover:border-primary/40 text-on-surface-variant/60 hover:text-primary transition-all rounded-xl text-xs font-semibold flex items-center justify-center gap-2"
+                  >
+                    <Papicon icon="plus" size={16} />
+                    Ajouter un salon vocal générateur supplémentaire
+                  </button>
+                </div>
+              </div>
+
               <!-- Description of Chat Control Embed -->
               <div class="p-5 bg-primary/5 border border-primary/20 rounded-xl mt-4">
                 <h4 class="text-xs font-semibold text-primary uppercase tracking-wider mb-2">ℹ️ Embed de gestion du salon</h4>
@@ -1015,6 +1243,214 @@
             </div>
           {/if}
         </section>
+
+        {#if config.tempVoiceEnabled}
+          <section class="bg-surface-container-low/30 border border-outline-variant/10 p-8 rounded-xl space-y-6 mt-6">
+            <div class="flex items-center justify-between border-b border-outline-variant/10 pb-4">
+              <div>
+                <h3 class="text-xl font-semibold flex items-center gap-3">
+                  <Papicon icon="volume-2" size={20} class="text-primary" />
+                  Salons Temporaires Actifs
+                </h3>
+                <p class="text-xs text-on-surface-variant/60 mt-1">Liste des salons temporaires créés et actifs sur le serveur.</p>
+              </div>
+              
+              <button
+                type="button"
+                onclick={loadActiveTempChannels}
+                disabled={loadingTempChannels}
+                class="px-3.5 py-2 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold rounded-lg transition-all flex items-center gap-2"
+              >
+                <Papicon icon="refresh" size={14} class={loadingTempChannels ? "animate-spin" : ""} />
+                Actualiser
+              </button>
+            </div>
+
+            {#if loadingTempChannels}
+              <div class="flex items-center justify-center py-12">
+                <div class="w-8 h-8 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+              </div>
+            {:else if activeTempChannels.length === 0}
+              <div class="flex flex-col items-center justify-center py-12 text-on-surface-variant/30">
+                <Papicon icon="volume-x" size={32} class="opacity-50 mb-2" />
+                <p class="text-xs font-bold">Aucun salon temporaire actif</p>
+              </div>
+            {:else}
+              <!-- Desktop Table -->
+              <div class="hidden md:block overflow-x-auto w-full">
+                <table class="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr class="border-b border-outline-variant/15 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant/70">
+                      <th class="py-3 px-4">Nom du Salon</th>
+                      <th class="py-3 px-4">Créateur</th>
+                      <th class="py-3 px-4 text-center">Membres</th>
+                      <th class="py-3 px-4">Réservation</th>
+                      <th class="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {#each activeTempChannels as chan}
+                      <tr class="border-b border-outline-variant/10 hover:bg-white/5 transition-colors">
+                        <td class="py-3 px-4">
+                          {#if editingChannel === chan.id}
+                            <div class="flex items-center gap-2">
+                              <input 
+                                type="text" 
+                                bind:value={newChannelName}
+                                class="bg-surface-container-high/40 border border-outline-variant/20 rounded-md px-2.5 py-1 text-xs text-on-surface outline-none focus:ring-1 focus:ring-primary/50"
+                              />
+                              <button
+                                type="button"
+                                onclick={() => handleRenameChannel(chan.id)}
+                                disabled={actionInProgress}
+                                class="px-2 py-1 bg-primary text-white text-[10px] font-semibold rounded-md hover:scale-105 active:scale-95 transition-transform"
+                              >
+                                Valider
+                              </button>
+                              <button
+                                type="button"
+                                onclick={() => editingChannel = null}
+                                class="px-2 py-1 bg-surface-container text-on-surface text-[10px] font-semibold rounded-md border border-outline-variant/20"
+                              >
+                                Annuler
+                              </button>
+                            </div>
+                          {:else}
+                            <div class="flex items-center gap-2">
+                              <span class="font-mono text-sm font-bold text-on-surface">🔊 {chan.name}</span>
+                              <button
+                                type="button"
+                                onclick={() => {
+                                  editingChannel = chan.id;
+                                  newChannelName = chan.name;
+                                }}
+                                class="text-on-surface-variant/40 hover:text-primary transition-colors"
+                                title="Renommer"
+                              >
+                                <Papicon icon="edit" size={13} />
+                              </button>
+                            </div>
+                          {/if}
+                        </td>
+                        <td class="py-3 px-4">
+                          <div class="flex items-center gap-2">
+                            {#if chan.creatorAvatar}
+                              <img src={chan.creatorAvatar} alt={chan.creatorName} class="w-6 h-6 rounded-full border border-outline-variant/10" />
+                            {:else}
+                              <div class="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold">
+                                {chan.creatorName.slice(0, 1).toUpperCase()}
+                              </div>
+                            {/if}
+                            <span class="text-xs text-on-surface-variant font-medium">{chan.creatorName}</span>
+                          </div>
+                        </td>
+                        <td class="py-3 px-4 text-center">
+                          <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20">
+                            👤 {chan.membersCount}
+                          </span>
+                        </td>
+                        <td class="py-3 px-4">
+                          <div class="max-w-[200px]">
+                            <SearchableSelect 
+                              options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} 
+                              value={chan.roleId || ''} 
+                              on:change={(e) => handleReserveChannel(chan.id, e.detail.value || null)}
+                              placeholder="— Public (Aucun rôle) —"
+                            />
+                          </div>
+                        </td>
+                        <td class="py-3 px-4 text-right">
+                          <button
+                            type="button"
+                            onclick={() => handleDeleteChannel(chan.id)}
+                            disabled={actionInProgress}
+                            class="px-2.5 py-1.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg text-[10px] font-semibold uppercase tracking-wider hover:bg-rose-500 hover:text-white transition-all inline-flex items-center gap-1"
+                          >
+                            <Papicon icon="trash-2" size={12} />
+                            Fermer
+                          </button>
+                        </td>
+                      </tr>
+                    {/each}
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Mobile Cards -->
+              <div class="md:hidden space-y-3">
+                {#each activeTempChannels as chan}
+                  <div class="rounded-xl border border-outline-variant/10 bg-surface-container/20 p-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                      {#if editingChannel === chan.id}
+                        <div class="flex items-center gap-2">
+                          <input 
+                            type="text" 
+                            bind:value={newChannelName}
+                            class="bg-surface-container-high/40 border border-outline-variant/20 rounded-md px-2.5 py-1 text-xs text-on-surface outline-none"
+                          />
+                          <button
+                            type="button"
+                            onclick={() => handleRenameChannel(chan.id)}
+                            disabled={actionInProgress}
+                            class="px-2 py-1 bg-primary text-white text-[10px] font-semibold rounded-md"
+                          >
+                            OK
+                          </button>
+                        </div>
+                      {:else}
+                        <span class="font-mono text-sm font-bold text-on-surface truncate">🔊 {chan.name}</span>
+                        <button
+                          type="button"
+                          onclick={() => {
+                            editingChannel = chan.id;
+                            newChannelName = chan.name;
+                          }}
+                          class="text-on-surface-variant/40 hover:text-primary transition-colors"
+                        >
+                          <Papicon icon="edit" size={13} />
+                        </button>
+                      {/if}
+                    </div>
+
+                    <div class="flex items-center justify-between text-xs border-t border-b border-outline-variant/5 py-2">
+                      <div class="flex items-center gap-1.5">
+                        {#if chan.creatorAvatar}
+                          <img src={chan.creatorAvatar} alt={chan.creatorName} class="w-5 h-5 rounded-full" />
+                        {/if}
+                        <span class="text-on-surface-variant">{chan.creatorName}</span>
+                      </div>
+                      <span class="px-2 py-0.5 rounded-full text-[9px] font-semibold bg-primary/10 text-primary border border-primary/20">
+                        👤 {chan.membersCount} connectés
+                      </span>
+                    </div>
+
+                    <div class="space-y-1">
+                      <span class="text-[10px] font-bold text-on-surface-variant/60 block">Réservation :</span>
+                      <SearchableSelect 
+                        options={availableRoles.map(r => ({ id: r.id, name: `@${r.name}` }))} 
+                        value={chan.roleId || ''} 
+                        on:change={(e) => handleReserveChannel(chan.id, e.detail.value || null)}
+                        placeholder="— Public (Aucun rôle) —"
+                      />
+                    </div>
+
+                    <div class="flex justify-end pt-1">
+                      <button
+                        type="button"
+                        onclick={() => handleDeleteChannel(chan.id)}
+                        disabled={actionInProgress}
+                        class="px-2.5 py-1.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg text-[9px] font-semibold uppercase tracking-wider hover:bg-rose-500 hover:text-white transition-all inline-flex items-center gap-1"
+                      >
+                        <Papicon icon="trash-2" size={12} />
+                        Fermer le salon
+                      </button>
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          </section>
+        {/if}
 
       {:else if activeTab === 'honeypot'}
         <!-- HONEYPOT TRAP TAB -->

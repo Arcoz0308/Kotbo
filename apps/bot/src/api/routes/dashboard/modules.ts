@@ -1244,6 +1244,167 @@ export async function handleModulesRoutes(
     return true;
   }
 
+  // GET /api/dashboard/guilds/:guildId/channels-management/temp-voice/channels
+  if (moduleKey === 'channels-management' && parts.length === 7 && parts[5] === 'temp-voice' && parts[6] === 'channels' && method === 'GET') {
+    try {
+      const dbChannels = await prisma.tempVoiceChannel.findMany({
+        where: { guildId }
+      });
+
+      const discordGuild = client.guilds.cache.get(guildId);
+      const activeChannels = [];
+
+      for (const dbChan of dbChannels) {
+        const channel = discordGuild?.channels.cache.get(dbChan.id);
+        if (channel && channel.type === ChannelType.GuildVoice) {
+          const creatorMember = discordGuild ? await discordGuild.members.fetch(dbChan.creatorId).catch(() => null) : null;
+          activeChannels.push({
+            id: dbChan.id,
+            name: channel.name,
+            creatorId: dbChan.creatorId,
+            creatorName: creatorMember?.displayName || 'Inconnu',
+            creatorAvatar: creatorMember?.user.displayAvatarURL() || null,
+            membersCount: channel.members.size,
+            roleId: dbChan.roleId,
+            createdAt: dbChan.createdAt
+          });
+        } else {
+          // Clean up stale database entry
+          await prisma.tempVoiceChannel.delete({ where: { id: dbChan.id } }).catch(() => null);
+        }
+      }
+
+      json(res, 200, activeChannels);
+    } catch (err) {
+      logger.error('ChannelsManagementAPI', 'GET active channels error:', err);
+      json(res, 500, { error: 'Erreur lors du chargement des salons actifs.' });
+    }
+    return true;
+  }
+
+  // PATCH /api/dashboard/guilds/:guildId/channels-management/temp-voice/channels/:channelId
+  if (moduleKey === 'channels-management' && parts.length === 8 && parts[5] === 'temp-voice' && parts[6] === 'channels' && method === 'PATCH') {
+    const channelId = parts[7];
+    try {
+      const body = await readJsonBody<{ name?: string; roleId?: string | null; action?: 'DELETE' }>(req);
+      const discordGuild = client.guilds.cache.get(guildId);
+      const channel = discordGuild?.channels.cache.get(channelId);
+
+      if (!channel || channel.type !== ChannelType.GuildVoice) {
+        json(res, 404, { error: 'Salon introuvable.' });
+        return true;
+      }
+
+      const dbChan = await prisma.tempVoiceChannel.findUnique({
+        where: { id: channelId }
+      });
+
+      if (!dbChan) {
+        json(res, 404, { error: 'Salon non enregistré.' });
+        return true;
+      }
+
+      // 1. Action Delete
+      if (body?.action === 'DELETE') {
+        // Disconnect members
+        for (const [_, member] of channel.members) {
+          await member.voice.disconnect('Salon temporaire fermé via le dashboard.').catch(() => null);
+        }
+        await channel.delete('Fermé par le dashboard.').catch(() => null);
+        await prisma.tempVoiceChannel.delete({ where: { id: channelId } }).catch(() => null);
+
+        // Also clean up from local memory cache
+        const { tempChannels } = await import('../../../events/tempVoice.js');
+        tempChannels.delete(channelId);
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: `Fermeture forcée du salon temporaire ${channel.name}`,
+          context: getGuildName(client, guildId),
+          module: 'Gestion des salons',
+          eventType: 'Manuel',
+          details: `Salon temporaire ${channel.name} (${channelId}) supprimé par l'administrateur.`,
+          channelId: null
+        });
+
+        json(res, 200, { ok: true, message: 'Salon fermé avec succès.' });
+        return true;
+      }
+
+      // 2. Action Update (Rename/Reserve)
+      const data: Record<string, unknown> = {};
+
+      if (body?.name !== undefined && body.name.trim() !== '') {
+        const newName = body.name.trim();
+        await channel.setName(newName).catch(() => null);
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: `Renommer salon temporaire ${channel.name} -> ${newName}`,
+          context: getGuildName(client, guildId),
+          module: 'Gestion des salons',
+          eventType: 'Manuel',
+          details: `Renommé de ${channel.name} à ${newName}.`,
+          channelId: null
+        });
+      }
+
+      if (body?.roleId !== undefined) {
+        const newRoleId = body.roleId; // string | null
+
+        if (newRoleId) {
+          // Deny everyone connect
+          await channel.permissionOverwrites.edit(guildId, {
+            Connect: false
+          }).catch(() => null);
+
+          // Allow creator
+          await channel.permissionOverwrites.edit(dbChan.creatorId, {
+            Connect: true,
+            ViewChannel: true,
+            Speak: true
+          }).catch(() => null);
+
+          // Allow role
+          await channel.permissionOverwrites.edit(newRoleId, {
+            Connect: true,
+            ViewChannel: true,
+            Speak: true
+          }).catch(() => null);
+
+          data.roleId = newRoleId;
+        } else {
+          // Clear role connect restriction, revert back to general connect permission for everyone
+          await channel.permissionOverwrites.edit(guildId, {
+            Connect: true
+          }).catch(() => null);
+
+          data.roleId = null;
+        }
+
+        await prisma.tempVoiceChannel.update({
+          where: { id: channelId },
+          data
+        });
+
+        await pushAudit(guildId, {
+          user: auditUser,
+          action: newRoleId ? `Réservation du salon ${channel.name} pour le rôle ID ${newRoleId}` : `Libération de la réservation du salon ${channel.name}`,
+          context: getGuildName(client, guildId),
+          module: 'Gestion des salons',
+          eventType: 'Manuel',
+          details: newRoleId ? `Accès restreint au rôle ${newRoleId}.` : `Salon ouvert à tous.`,
+          channelId: null
+        });
+      }
+
+      json(res, 200, { ok: true, message: 'Salon mis à jour avec succès.' });
+    } catch (err) {
+      logger.error('ChannelsManagementAPI', 'PATCH active channel error:', err);
+      json(res, 500, { error: 'Erreur lors du mise à jour du salon.' });
+    }
+    return true;
+  }
+
   // GET/PATCH /api/dashboard/guilds/:guildId/channels-management
   if (moduleKey === 'channels-management' && parts.length === 5) {
     if (method === 'GET') {
@@ -1260,6 +1421,7 @@ export async function handleModulesRoutes(
             tempVoiceChannelId: true,
             tempVoiceCategoryId: true,
             tempVoiceNameTemplate: true,
+            tempVoiceRequiredRoleId: true,
             tempVoiceGenerators: true,
             honeypotEnabled: true,
             honeypotChannelIds: true,
@@ -1291,6 +1453,7 @@ export async function handleModulesRoutes(
           tempVoiceChannelId: guild.tempVoiceChannelId,
           tempVoiceCategoryId: guild.tempVoiceCategoryId,
           tempVoiceNameTemplate: guild.tempVoiceNameTemplate,
+          tempVoiceRequiredRoleId: guild.tempVoiceRequiredRoleId,
           tempVoiceGenerators: guild.tempVoiceGenerators,
           honeypotEnabled: guild.honeypotEnabled,
           honeypotChannelIds: guild.honeypotChannelIds,
@@ -1326,7 +1489,8 @@ export async function handleModulesRoutes(
           tempVoiceChannelId?: string | null;
           tempVoiceCategoryId?: string | null;
           tempVoiceNameTemplate?: string;
-          tempVoiceGenerators?: Array<{ channelId?: string; categoryId?: string; nameTemplate?: string }>;
+          tempVoiceRequiredRoleId?: string | null;
+          tempVoiceGenerators?: Array<{ channelId?: string; categoryId?: string; nameTemplate?: string; requiredRoleId?: string | null }>;
           honeypotEnabled?: boolean;
           honeypotChannelIds?: string[];
           honeypotSanction?: string;
@@ -1375,6 +1539,9 @@ export async function handleModulesRoutes(
         }
         if (Object.prototype.hasOwnProperty.call(body, 'tempVoiceNameTemplate')) {
           data.tempVoiceNameTemplate = body.tempVoiceNameTemplate;
+        }
+        if (Object.prototype.hasOwnProperty.call(body, 'tempVoiceRequiredRoleId')) {
+          data.tempVoiceRequiredRoleId = body.tempVoiceRequiredRoleId;
         }
         if (Object.prototype.hasOwnProperty.call(body, 'tempVoiceGenerators')) {
           data.tempVoiceGenerators = body.tempVoiceGenerators;
