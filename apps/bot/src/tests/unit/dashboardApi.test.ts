@@ -9,12 +9,12 @@ import { type Client } from 'discord.js';
 // Setup DB Mock before importing route modules
 const mockDb = {
   memberProfile: {
-    findUnique: mock(() => Promise.resolve<any>(null)),
+    findUnique: mock(() => Promise.resolve<unknown>(null)),
     update: mock(() => Promise.resolve({})),
     findMany: mock(() => Promise.resolve([])),
   },
   guild: {
-    findUnique: mock(() => Promise.resolve<any>(null)),
+    findUnique: mock(() => Promise.resolve<unknown>(null)),
     findMany: mock(() => Promise.resolve([])),
   },
   newsArticle: {
@@ -88,7 +88,7 @@ mock.module(dbJsPath, () => ({
 
 // Setup Guild Activation Mock
 const mockActivation = {
-  isGuildActivated: mock((guildId: string) => true),
+  isGuildActivated: mock((_guildId: string) => true),
   activateGuild: mock(() => Promise.resolve({})),
   deactivateGuild: mock(() => Promise.resolve({})),
 };
@@ -114,7 +114,7 @@ mock.module(mcpKeyServicePath, () => mockMcpKeyService);
 mock.module(mcpKeyServiceJsPath, () => mockMcpKeyService);
 
 const mockMcpTools = {
-  registerMcpTools: mock((server: any, _guildId: string, _permissions: string[], _client: Client, options?: { securitySchemes?: unknown }) => {
+  registerMcpTools: mock((server: unknown, _guildId: string, _permissions: string[], _client: Client, options?: { securitySchemes?: unknown }) => {
     const securitySchemes = options?.securitySchemes ?? [{ type: 'oauth2', scopes: ['mcp'] }];
     server.registerTool(
       'test_tool',
@@ -189,7 +189,7 @@ function createMockResponse(): MockResponse {
     }
   });
 
-  res.setHeader = (name: string, value: any) => {
+  res.setHeader = (name: string, value: unknown) => {
     _headers[name.toLowerCase()] = String(value);
     return res;
   };
@@ -198,7 +198,7 @@ function createMockResponse(): MockResponse {
     return _headers[name.toLowerCase()];
   };
 
-  res.writeHead = (statusCode: number, headers?: any) => {
+  res.writeHead = (statusCode: number, headers?: unknown) => {
     _statusCode = statusCode;
     if (headers) {
       for (const key of Object.keys(headers)) {
@@ -208,16 +208,16 @@ function createMockResponse(): MockResponse {
     return res;
   };
 
-  res.write = (chunk: any) => {
+  res.write = (chunk: unknown) => {
     _body += chunk.toString();
     return true;
   };
 
-  res.end = (chunk?: any) => {
+  res.end = (chunk?: unknown) => {
     if (chunk) {
       _body += chunk.toString();
     }
-    (res as any).finished = true;
+    (res as unknown).finished = true;
     res.body = _body;
     return res;
   };
@@ -255,11 +255,11 @@ const mockClient = {
             get: mock((channelId: string) => ({
               id: channelId,
               isTextBased: () => true,
-              send: mock((options: any) => Promise.resolve({ id: 'sent-msg-id', ...options })),
+              send: mock((options: unknown) => Promise.resolve({ id: 'sent-msg-id', ...options })),
               messages: {
                 fetch: mock((messageId: string) => Promise.resolve({
                   id: messageId,
-                  edit: mock((options: any) => Promise.resolve({ id: messageId, ...options })),
+                  edit: mock((options: unknown) => Promise.resolve({ id: messageId, ...options })),
                 })),
               },
             })),
@@ -767,7 +767,7 @@ describe('Modular Routers Unit Tests', () => {
         id: clientId,
         guildId: '112233445566778899',
         isActive: true,
-      } as any));
+      } as unknown));
 
       const req = createMockRequest({
         method: 'POST',
@@ -805,13 +805,13 @@ describe('Modular Routers Unit Tests', () => {
         guildId: '112233445566778899',
         permissions: ['READ_STATS'],
         isActive: true,
-      } as any));
+      } as unknown));
       mockMcpKeyService.getActiveMcpKeyById.mockImplementation(() => Promise.resolve({
         id: keyId,
         guildId: '112233445566778899',
         permissions: ['READ_STATS'],
         isActive: true,
-      } as any));
+      } as unknown));
 
       const authorizeReq = createMockRequest({
         method: 'POST',
@@ -895,7 +895,7 @@ describe('Modular Routers Unit Tests', () => {
         guildId: '112233445566778899',
         permissions: ['READ_STATS'],
         isActive: true,
-      } as any));
+      } as unknown));
 
       const initializeResponse = await requestMcpOverHttp(
         {
@@ -959,7 +959,7 @@ describe('Modular Routers Unit Tests', () => {
         guildId: '112233445566778899',
         permissions: ['READ_STATS'],
         isActive: true,
-      } as any));
+      } as unknown));
 
       const registerReq = createMockRequest({
         method: 'POST',

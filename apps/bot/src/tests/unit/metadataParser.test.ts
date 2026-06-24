@@ -5,7 +5,7 @@ describe('fetchArticleMetadata', () => {
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
-    globalThis.fetch = mock() as any;
+    globalThis.fetch = mock() as unknown;
   });
 
   afterEach(() => {
@@ -39,7 +39,7 @@ describe('fetchArticleMetadata', () => {
     expect(data.rssUrl).toBe('https://example.com/feed.xml');
   });
 
-  test("retourne des valeurs nulles en cas d\'erreur reseau", async () => {
+  test("retourne des valeurs nulles en cas d'erreur reseau", async () => {
     const fetchMock = globalThis.fetch as unknown as ReturnType<typeof mock>;
     fetchMock.mockRejectedValue(new Error('network error'));
 

@@ -1,5 +1,5 @@
 import prisma from '../../utils/db.js';
-import type { TutoringItem, TutoringConfig, TestingPeriod, TutoringItemState } from '@prisma/client';
+import type { TutoringConfig, TutoringItemState } from '@prisma/client';
 
 /**
  * Service de gestion du tutorat
@@ -37,7 +37,7 @@ export const getTutoringItems = async (guildId: string) => {
   });
 };
 
-export const upsertTutoringItem = async (guildId: string, data: any) => {
+export const upsertTutoringItem = async (guildId: string, data: unknown) => {
   if (data.id) {
     return prisma.tutoringItem.update({
       where: { id: data.id },
@@ -74,7 +74,7 @@ export const deleteTestingPeriod = async (id: string) => {
 };
 
 export const getTutorDashboard = async (guildId: string, tutorUserId: string, fetchAll: boolean = false) => {
-  const where: any = {
+  const where: unknown = {
     guildId,
     status: 'ONGOING'
   };

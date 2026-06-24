@@ -1,4 +1,4 @@
-import { IncomingMessage } from 'node:http';
+
 
 declare module 'node:http' {
   interface IncomingMessage {
@@ -7,8 +7,11 @@ declare module 'node:http' {
 }
 
 declare global {
+  // eslint-disable-next-line no-var
   var KOTBO_MAINTENANCE_MODE: boolean;
+  // eslint-disable-next-line no-var
   var KOTBO_BLACKLIST: Set<string>;
+  // eslint-disable-next-line no-var
   var KOTBO_WS_BROADCASTER: ((guildId: string, reason: string) => void) | undefined;
 }
 

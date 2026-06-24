@@ -24,7 +24,7 @@ describe('Contrats des features', () => {
       expect(commandName).not.toBeNull();
 
       if (!commandName) continue;
-      expect(names.has(commandName), `Commande dupliquée \"${commandName}\" dans ${relativePath}`).toBeFalse();
+      expect(names.has(commandName), `Commande dupliquée "${commandName}" dans ${relativePath}`).toBeFalse();
       names.add(commandName);
     }
   });
@@ -44,7 +44,7 @@ describe('Contrats des features', () => {
     }
   });
 
-  test("Le point d\'entrée du bot charge toutes les commandes déclarées", () => {
+  test("Le point d'entrée du bot charge toutes les commandes déclarées", () => {
     const entryPath = listSourceFiles('.').find((file) => file.replace(/\\/g, '/').endsWith('/index.ts'));
     expect(entryPath).toBeDefined();
     if (!entryPath) return;

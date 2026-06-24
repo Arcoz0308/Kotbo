@@ -1,4 +1,4 @@
-import { type Client, Events } from 'discord.js';
+import { type Client } from 'discord.js';
 import cron from 'node-cron';
 import prisma from '../utils/db.js';
 import { runDailyAlgoForAllGuilds, runDailyAlgoSummariesForAllGuilds } from '../services/progression/dailyAlgoService.js';
@@ -10,7 +10,7 @@ import { runActivitySnapshot } from './advancedLogs.js';
 import { enqueueBackgroundJob, registerBackgroundJobHandlers, type BackgroundJobName } from '../infra/queues/backgroundQueue.js';
 import { checkYoutubeFollows } from '../services/integrations/youtubeService.js';
 import { checkTwitchFollows } from '../services/integrations/twitchService.js';
-import { initializeDatabaseBackup, performDatabaseBackup } from '../services/system/databaseBackupService.js';
+import { initializeDatabaseBackup } from '../services/system/databaseBackupService.js';
 import { checkTicketInactivity } from '../services/features/ticketService.js';
 import { refreshAllAutoLeaderboards } from '../services/progression/leaderboardService.js';
 
@@ -52,7 +52,7 @@ async function runCronJob(name: string, task: () => Promise<void>, jitterMs = 0)
 }
 
 async function expireStaffWarnings(): Promise<void> {
-  logger.debug('Cron', "Vérification de l\'expiration des avertissements staff...");
+  logger.debug('Cron', "Vérification de l'expiration des avertissements staff...");
   const now = new Date();
 
   const expiredWarnings = await prisma.staffWarning.findMany({
@@ -75,7 +75,7 @@ async function expireStaffWarnings(): Promise<void> {
 }
 
 async function expireStaffBlacklist(): Promise<void> {
-  logger.debug('Cron', "Vérification de l\'expiration de la blacklist staff...");
+  logger.debug('Cron', "Vérification de l'expiration de la blacklist staff...");
   const now = new Date();
 
   const expiredBlacklists = await prisma.staffBlacklist.findMany({
@@ -98,7 +98,7 @@ async function expireStaffBlacklist(): Promise<void> {
 }
 
 export async function registerCrons(client: Client): Promise<void> {
-  logger.info('Cron', "Début de l\'enregistrement des cron jobs...");
+  logger.info('Cron', "Début de l'enregistrement des cron jobs...");
   // Initialiser le backup automatique de la base de données
   initializeDatabaseBackup();
   logger.info('Cron', 'Backup automatique initialisé');
@@ -145,7 +145,7 @@ export async function registerCrons(client: Client): Promise<void> {
     'staff-blacklist-expiration': expireStaffBlacklist,
     'activity-10min-snapshot': async () => {
       runActivitySnapshot(client).catch((error) => {
-        logger.error('Analytics', "Erreur lors du snapshot d\'activité en arrière-plan:", error);
+        logger.error('Analytics', "Erreur lors du snapshot d'activité en arrière-plan:", error);
       });
     },
     'missing-reports-check': async () => {
@@ -153,7 +153,7 @@ export async function registerCrons(client: Client): Promise<void> {
       await checkMissingReports();
     },
     'ticket-inactivity': async () => {
-      logger.debug('Cron', "Vérification de l\'inactivité des tickets...");
+      logger.debug('Cron', "Vérification de l'inactivité des tickets...");
       await checkTicketInactivity(client);
     },
     'leaderboard-refresh': async () => {
@@ -172,7 +172,7 @@ export async function registerCrons(client: Client): Promise<void> {
 
       for (const cfg of featureConfigs) {
         try {
-          const meta = cfg.metadata as any;
+          const meta = cfg.metadata as unknown;
           const autoEnabled = meta?.workflowDraft?.autoDetectionEnabled ?? meta?.autoDetectionEnabled ?? false;
           if (!autoEnabled) continue;
 
@@ -194,7 +194,7 @@ export async function registerCrons(client: Client): Promise<void> {
     },
   });
 
-  logger.info('Cron', "Handlers de jobs de fond enregistrés, début de l\'enregistrement des cron schedules...");
+  logger.info('Cron', "Handlers de jobs de fond enregistrés, début de l'enregistrement des cron schedules...");
 
 
   // 📊 Daily Algo: Toutes les minutes (vérification de l'heure configurée)
@@ -267,7 +267,7 @@ export async function registerCrons(client: Client): Promise<void> {
 
       for (const cfg of featureConfigs) {
         try {
-          const meta = cfg.metadata as any;
+          const meta = cfg.metadata as unknown;
           const autoEnabled = meta?.workflowDraft?.autoDetectionEnabled ?? meta?.autoDetectionEnabled ?? false;
           if (!autoEnabled) continue;
 
@@ -309,5 +309,5 @@ export async function registerCrons(client: Client): Promise<void> {
     }, 5000);
   });
 
-  logger.success('Cron', "Tous les jobs cron sont enregistrés (Suivi d\'activité minute activé)");
+  logger.success('Cron', "Tous les jobs cron sont enregistrés (Suivi d'activité minute activé)");
 }

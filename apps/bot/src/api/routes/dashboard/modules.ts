@@ -48,8 +48,7 @@ import { invalidateNicknameModerationCache } from '../../../events/nicknameModer
 import { invalidateAutoThreadCache } from '../../../events/autoThread.js';
 import { updateGuildStats } from '../../../events/stats.js';
 import { invalidateBannedWordsCache } from '../../../services/moderation/bannedWordsService.js';
-import { sendTicketSetupEmbed } from '../../../services/features/ticketService.js';
-import { generateTranscript } from '../../../services/features/transcriptService.js';
+
 import { parseDiscordMarkdown, extractMediaUrls } from '../../shared.js';
 import {
   getModuleStatsSummary,
@@ -72,14 +71,14 @@ const PRESET_COMMAND_OVERRIDES: Record<DashboardPresetKey, Partial<Record<string
   dev: { dailyAlgo: 'tout_le_monde' },
 };
 
-const DEFAULT_SEVERITY_BY_MODULE = [
+const _DEFAULT_SEVERITY_BY_MODULE = [
   { module: 'auth', level: 'info' as SeverityLevel },
   { module: 'moderation', level: 'attention' as SeverityLevel },
   { module: 'tickets', level: 'info' as SeverityLevel },
   { module: 'system', level: 'critique' as SeverityLevel }
 ];
 
-const DEFAULT_MESSAGE_TEMPLATE = 'Bonjour {user}, ...';
+const _DEFAULT_MESSAGE_TEMPLATE = 'Bonjour {user}, ...';
 
 function resolveDailyAlgoFinalScore(submission: {
   scoreFinal: number | null;
@@ -386,7 +385,7 @@ const buildCommandRestrictionsForPreset = (
     modRoleIds: string[];
   }
 ) => {
-  const list: any[] = [];
+  const list: unknown[] = [];
   const rules = PRESET_COMMAND_OVERRIDES[presetKey] || {};
 
   const modRole = options.moderatorRoleId ? [options.moderatorRoleId] : options.modRoleIds;
@@ -463,7 +462,7 @@ export async function handleModulesRoutes(
           : moduleId;
       
       // Mapper l'ID du module vers le nom KotboModule
-      const moduleMapping: Record<string, any> = {
+      const moduleMapping: Record<string, unknown> = {
         'codepolice': 'codePolice',
         'daily_algo': 'dailyAlgo',
         'translation': 'translation',
@@ -594,7 +593,7 @@ export async function handleModulesRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('PresetsAPI', 'Error applying preset:', err);
-      json(res, 500, { error: "Erreur lors de l\'application du preset" });
+      json(res, 500, { error: "Erreur lors de l'application du preset" });
     }
     return true;
   }
@@ -602,7 +601,7 @@ export async function handleModulesRoutes(
   // PUT /api/dashboard/guilds/:guildId/sanctions/tables
   if (moduleKey === 'sanctions' && parts.length === 6 && parts[5] === 'tables' && method === 'PUT') {
     try {
-      const tables = await readJsonBody<any[]>(req);
+      const tables = await readJsonBody<unknown[]>(req);
       if (!Array.isArray(tables)) {
         json(res, 400, { error: 'Payload invalide. Doit être un tableau.' });
         return true;
@@ -622,7 +621,7 @@ export async function handleModulesRoutes(
           json(res, 400, { error: `Le tableau "${table.name}" doit avoir une liste de paliers.` });
           return true;
         }
-        const levels = table.tiers.map((t: any) => t.level);
+        const levels = table.tiers.map((t: unknown) => t.level);
         levels.sort((a: number, b: number) => a - b);
         for (let i = 0; i < levels.length; i++) {
           if (levels[i] !== i + 1) {
@@ -685,7 +684,7 @@ export async function handleModulesRoutes(
 
           if (table.tiers.length > 0) {
             await tx.sanctionTier.createMany({
-              data: table.tiers.map((tier: any) => ({
+              data: table.tiers.map((tier: unknown) => ({
                 tableId,
                 level: tier.level,
                 action: tier.action,
@@ -754,7 +753,7 @@ export async function handleModulesRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('SanctionsAPI', 'Error deleting sanction:', err);
-      json(res, 500, { error: "Erreur lors de la suppression de l\'infraction" });
+      json(res, 500, { error: "Erreur lors de la suppression de l'infraction" });
     }
     return true;
   }
@@ -788,7 +787,7 @@ export async function handleModulesRoutes(
       }
 
       if (!incidentAt || Number.isNaN(incidentAt.getTime())) {
-        json(res, 400, { error: "Date/heure de l\'incident invalide." });
+        json(res, 400, { error: "Date/heure de l'incident invalide." });
         return true;
       }
 
@@ -879,7 +878,7 @@ export async function handleModulesRoutes(
       }
 
       if (existingReport.createdByUserId !== user.userId && access.level !== 'admin') {
-        json(res, 403, { error: "Seul l\'auteur du rapport ou un administrateur peut le modifier." });
+        json(res, 403, { error: "Seul l'auteur du rapport ou un administrateur peut le modifier." });
         return true;
       }
 
@@ -921,7 +920,7 @@ export async function handleModulesRoutes(
         data: {
           brokenRules: updatedBrokenRules,
           detailedReason: updatedDetailedReason,
-          evidenceLinks: updatedEvidenceLinks as any,
+          evidenceLinks: updatedEvidenceLinks as unknown,
           additionalNotes: updatedAdditionalNotes,
         }
       });
@@ -978,13 +977,13 @@ export async function handleModulesRoutes(
         json(res, 200, {
           enabled: guild.autoNicknameModerationEnabled,
           whitelist: guild.nicknameModerationWhitelist,
-          bypass: (guild as any).nicknameModerationBypass ?? [],
-          onJoin: (guild as any).nickModOnJoin ?? true,
-          onUpdate: (guild as any).nickModOnUpdate ?? true,
-          checkInvisible: (guild as any).nickModCheckInvisible ?? true,
-          checkGlobal: (guild as any).nickModCheckGlobal ?? true,
-          checkCustom: (guild as any).nickModCheckCustom ?? true,
-          discordAutoModSync: (guild as any).nickModDiscordAutoModSync ?? false,
+          bypass: (guild as unknown).nicknameModerationBypass ?? [],
+          onJoin: (guild as unknown).nickModOnJoin ?? true,
+          onUpdate: (guild as unknown).nickModOnUpdate ?? true,
+          checkInvisible: (guild as unknown).nickModCheckInvisible ?? true,
+          checkGlobal: (guild as unknown).nickModCheckGlobal ?? true,
+          checkCustom: (guild as unknown).nickModCheckCustom ?? true,
+          discordAutoModSync: (guild as unknown).nickModDiscordAutoModSync ?? false,
         });
       } catch (err) {
         logger.error('NicknameAPI', 'GET nickname-moderation error:', err);
@@ -997,7 +996,7 @@ export async function handleModulesRoutes(
       try {
         const body = await readJsonBody<{ enabled?: boolean; whitelist?: string[]; bypass?: string[]; onJoin?: boolean; onUpdate?: boolean; checkInvisible?: boolean; checkGlobal?: boolean; checkCustom?: boolean; discordAutoModSync?: boolean }>(req);
         
-        const updateData: any = {};
+        const updateData: unknown = {};
         if (body && Object.prototype.hasOwnProperty.call(body, 'enabled')) {
           updateData.autoNicknameModerationEnabled = !!body.enabled;
         }
@@ -1012,7 +1011,7 @@ export async function handleModulesRoutes(
         ] as const;
         for (const { key, dbKey } of toggleFields) {
           if (body && Object.prototype.hasOwnProperty.call(body, key)) {
-            updateData[dbKey] = !!(body as any)[key];
+            updateData[dbKey] = !!(body as unknown)[key];
           }
         }
         if (body && Object.prototype.hasOwnProperty.call(body, 'whitelist')) {
@@ -1125,7 +1124,7 @@ export async function handleModulesRoutes(
   // GET /api/dashboard/guilds/:guildId/modules/stats - Module statistics
   if (moduleKey === 'modules' && parts.length === 6 && parts[5] === 'stats' && method === 'GET') {
     try {
-      const moduleName = url.searchParams.get('moduleName') as any || undefined;
+      const moduleName = url.searchParams.get('moduleName') as unknown || undefined;
       const startDate = url.searchParams.get('startDate') || undefined;
       const endDate = url.searchParams.get('endDate') || undefined;
       const periodDays = url.searchParams.get('period') ? parseInt(url.searchParams.get('period')!) : 30;
@@ -1183,7 +1182,7 @@ export async function handleModulesRoutes(
           return true;
         }
 
-        const data: any = {};
+        const data: unknown = {};
         if (Object.prototype.hasOwnProperty.call(body, 'enabled')) {
           data.autoThreadEnabled = !!body.enabled;
         }
@@ -1495,7 +1494,7 @@ export async function handleModulesRoutes(
           autoThreadChannels?: string[];
           autoThreadBotsEnabled?: boolean;
           statsEnabled?: boolean;
-          statsConfig?: any;
+          statsConfig?: unknown;
           tempVoiceEnabled?: boolean;
           tempVoiceChannelId?: string | null;
           tempVoiceCategoryId?: string | null;
@@ -1523,7 +1522,7 @@ export async function handleModulesRoutes(
           return true;
         }
 
-        const data: any = {};
+        const data: unknown = {};
         if (Object.prototype.hasOwnProperty.call(body, 'autoThreadEnabled')) {
           data.autoThreadEnabled = !!body.autoThreadEnabled;
         }
@@ -1684,7 +1683,7 @@ export async function handleModulesRoutes(
                 .setTitle('⚠️ SALON PROTECTEUR - NE PAS ÉCRIRE ⚠️')
                 .setDescription(
                   '### 🛡️ Honeypot de Sécurité\n\n' +
-                  "Ce salon sert d\'appât pour intercepter les bots de spam et les comptes compromis.\n\n" +
+                  "Ce salon sert d'appât pour intercepter les bots de spam et les comptes compromis.\n\n" +
                   '> 🛑 **RÈGLE CRUCIALE** : Ne postez **absolument aucun** message dans ce salon sous peine de **BANNISSEMENT DÉFINITIF ET IMMÉDIAT** de ce serveur Discord.\n\n' +
                   '*Si vous êtes un utilisateur légitime, ignorez ou masquez simplement ce salon.*'
                 )
@@ -1697,7 +1696,7 @@ export async function handleModulesRoutes(
           }
 
           if (body.statsEnabled && body.statsConfig) {
-            const sc = body.statsConfig as any;
+            const sc = body.statsConfig as unknown;
 
             const needsMember = sc.memberChannelId === '' || sc.memberChannelId === null;
             const needsBot = sc.botChannelId === '' || sc.botChannelId === null;
@@ -1705,7 +1704,7 @@ export async function handleModulesRoutes(
             const needsChannel = sc.channelChannelId === '' || sc.channelChannelId === null;
             const needsCategory = sc.categoryChannelId === '' || sc.categoryChannelId === null;
             const needsActivity = sc.activityChannelId === '' || sc.activityChannelId === null;
-            const needsCustomStats = Array.isArray(sc.customStats) && sc.customStats.some((c: any) => c.enabled && !c.channelId);
+            const needsCustomStats = Array.isArray(sc.customStats) && sc.customStats.some((c: unknown) => c.enabled && !c.channelId);
 
             if (needsMember || needsBot || needsRole || needsChannel || needsCategory || needsActivity || needsCustomStats || !sc.categoryId) {
               let statsCatId: string | undefined = sc.categoryId || undefined;
@@ -1959,12 +1958,12 @@ export async function handleModulesRoutes(
         broadcastDashboardStateChange(guildId, 'banned_words_updated');
 
         json(res, 201, { ok: true, id: created.id });
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (err?.code === 'P2002') {
           json(res, 409, { error: 'Ce mot existe déjà sur ce serveur' });
         } else {
           logger.error('BannedWordsAPI', 'POST banned-words error:', err);
-          json(res, 500, { error: "Erreur lors de l\'ajout du mot" });
+          json(res, 500, { error: "Erreur lors de l'ajout du mot" });
         }
       }
       return true;
@@ -2104,7 +2103,7 @@ export async function handleModulesRoutes(
         notifyViaDM?: boolean;
         loggingEnabled?: boolean;
         userActivityTracking?: boolean;
-        metadata?: Record<string, any>;
+        metadata?: Record<string, unknown>;
       }>(req);
 
       if (!body) {
@@ -2155,7 +2154,7 @@ export async function handleModulesRoutes(
         }>(req);
 
         if (!body || !Array.isArray(body.roleAccessConfigs)) {
-          json(res, 400, { error: "Payload d\'accès de rôle invalide" });
+          json(res, 400, { error: "Payload d'accès de rôle invalide" });
           return true;
         }
 
@@ -2338,7 +2337,7 @@ export async function handleModulesRoutes(
         },
       });
 
-      const data: any = {};
+      const data: unknown = {};
       let applyLockChanged = false;
       if (Object.prototype.hasOwnProperty.call(body, 'discordChannel')) {
         data.statusCheckChannelId = extractDiscordSnowflake(body.discordChannel);
@@ -2476,7 +2475,7 @@ export async function handleModulesRoutes(
       }
 
       const syncFeature = async (featureKey: string, featureName: string, enabled?: boolean, channelId?: string | null, secondaryChannelId?: string | null) => {
-        const updateData: any = {};
+        const updateData: unknown = {};
         if (enabled !== undefined) updateData.enabled = enabled;
         if (channelId !== undefined) updateData.channelId = channelId;
         if (secondaryChannelId !== undefined) updateData.secondaryChannelId = secondaryChannelId;
@@ -2508,7 +2507,7 @@ export async function handleModulesRoutes(
       await syncFeature('regulation', 'Règlement', undefined, data.regulationChannelId, undefined);
       await syncFeature('meetings', 'Réunions', undefined, data.meetingAnnouncementChannelId, data.meetingVoiceChannelId);
       await syncFeature('settings', 'Paramètres', undefined, data.configChannelId, undefined);
-      await syncFeature('dashboard', "Vue d\'ensemble", undefined, data.publicChannelId, undefined);
+      await syncFeature('dashboard', "Vue d'ensemble", undefined, data.publicChannelId, undefined);
       await syncFeature('news', 'Actualités & RSS', undefined, data.newsChannelId, undefined);
       await syncFeature('auto_thread', 'Auto-Thread', data.autoThreadEnabled, undefined, undefined);
       
@@ -2524,7 +2523,7 @@ export async function handleModulesRoutes(
         await syncFeature('social_networks', 'Réseaux Sociaux', body.socialNetworksEnabled, undefined, undefined);
       }
 
-      const runtime = await getOrCreateRuntime(guildId);
+      const _runtime = await getOrCreateRuntime(guildId);
       const dashboardSettingsPatch: { messageTemplate?: string; sidebarFavorites?: string[] } = {};
       if (typeof body.messageTemplate === 'string') {
         dashboardSettingsPatch.messageTemplate = body.messageTemplate;
@@ -2638,7 +2637,7 @@ export async function handleModulesRoutes(
         json(res, 201, { ok: true, articleId: article.id });
       } catch (err) {
         logger.error('RegulationAPI', 'Error creating regulation article:', err);
-        json(res, 500, { error: "Erreur lors de la création de l\'article" });
+        json(res, 500, { error: "Erreur lors de la création de l'article" });
       }
       return true;
     }
@@ -2765,7 +2764,7 @@ export async function handleModulesRoutes(
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('RegulationAPI', 'Error patching article:', err);
-        json(res, 500, { error: "Erreur lors de la modification de l\'article" });
+        json(res, 500, { error: "Erreur lors de la modification de l'article" });
       }
       return true;
     }
@@ -2813,7 +2812,7 @@ export async function handleModulesRoutes(
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('RegulationAPI', 'Error deleting article:', err);
-        json(res, 500, { error: "Erreur lors de la suppression de l\'article" });
+        json(res, 500, { error: "Erreur lors de la suppression de l'article" });
       }
       return true;
     }
@@ -2856,7 +2855,7 @@ export async function handleModulesRoutes(
           orderBy: { publishedAt: 'desc' },
         });
         json(res, 200, articles);
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('NewsAPI', `Error listing news for guild ${guildId}: ${err.message}`);
         json(res, 500, { error: 'Erreur lors de la récupération des actualités' });
       }
@@ -2923,9 +2922,9 @@ export async function handleModulesRoutes(
         }
 
         json(res, 201, article);
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('NewsAPI', `Error creating news for guild ${guildId}: ${err.message}`);
-        json(res, 500, { error: "Erreur lors de la création de l\'actualité" });
+        json(res, 500, { error: "Erreur lors de la création de l'actualité" });
       }
       return true;
     }
@@ -2993,9 +2992,9 @@ export async function handleModulesRoutes(
         }
 
         json(res, 200, updated);
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('NewsAPI', `Error updating news article ${articleId}: ${err.message}`);
-        json(res, 500, { error: "Erreur lors de la modification de l\'actualité" });
+        json(res, 500, { error: "Erreur lors de la modification de l'actualité" });
       }
       return true;
     }
@@ -3028,9 +3027,9 @@ export async function handleModulesRoutes(
         });
 
         json(res, 200, { success: true });
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('NewsAPI', `Error deleting news article ${articleId}: ${err.message}`);
-        json(res, 500, { error: "Erreur lors de la suppression de l\'actualité" });
+        json(res, 500, { error: "Erreur lors de la suppression de l'actualité" });
       }
       return true;
     }
@@ -3043,7 +3042,7 @@ export async function handleModulesRoutes(
           orderBy: { category: 'asc' },
         });
         json(res, 200, configs);
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('NewsAPI', `Error listing news category configs for guild ${guildId}: ${err.message}`);
         json(res, 500, { error: 'Erreur lors de la récupération de la configuration des catégories' });
       }
@@ -3109,9 +3108,9 @@ export async function handleModulesRoutes(
         });
 
         json(res, 200, config);
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('NewsAPI', `Error saving news category config for guild ${guildId}: ${err.message}`);
-        json(res, 500, { error: "Erreur lors de l\'enregistrement de la configuration de catégorie" });
+        json(res, 500, { error: "Erreur lors de l'enregistrement de la configuration de catégorie" });
       }
       return true;
     }
@@ -3144,7 +3143,7 @@ export async function handleModulesRoutes(
         });
 
         json(res, 200, { success: true });
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('NewsAPI', `Error deleting news category config ${configId}: ${err.message}`);
         json(res, 500, { error: 'Erreur lors de la suppression de la configuration de catégorie' });
       }
@@ -3200,10 +3199,10 @@ export async function handleModulesRoutes(
   if (moduleKey === 'social-follows') {
     if (parts.length === 5 && method === 'GET') {
       try {
-        const youtube = await (prisma as any).youtubeChannelFollow.findMany({ where: { guildId } });
-        const twitch = await (prisma as any).twitchChannelFollow.findMany({ where: { guildId } });
+        const youtube = await (prisma as unknown).youtubeChannelFollow.findMany({ where: { guildId } });
+        const twitch = await (prisma as unknown).twitchChannelFollow.findMany({ where: { guildId } });
         json(res, 200, { youtube, twitch });
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('SocialFollowsAPI', `Error fetching social follows: ${err.message}`);
         json(res, 500, { error: 'Erreur lors de la récupération des réseaux sociaux suivis' });
       }
@@ -3225,7 +3224,7 @@ export async function handleModulesRoutes(
         }
 
         const { channelId, channelName } = resolved;
-        const follow = await (prisma as any).youtubeChannelFollow.upsert({
+        const follow = await (prisma as unknown).youtubeChannelFollow.upsert({
           where: { guildId_channelId: { guildId, channelId } },
           create: {
             guildId,
@@ -3254,9 +3253,9 @@ export async function handleModulesRoutes(
         });
 
         json(res, 200, follow);
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('SocialFollowsAPI', `Error adding youtube follow: ${err.message}`);
-        json(res, 500, { error: "Erreur lors de l\'ajout du suivi YouTube" });
+        json(res, 500, { error: "Erreur lors de l'ajout du suivi YouTube" });
       }
       return true;
     }
@@ -3264,9 +3263,9 @@ export async function handleModulesRoutes(
     if (parts.length === 7 && parts[5] === 'youtube' && method === 'DELETE') {
       try {
         const followId = parts[6];
-        const follow = await (prisma as any).youtubeChannelFollow.findUnique({ where: { id: followId } });
+        const follow = await (prisma as unknown).youtubeChannelFollow.findUnique({ where: { id: followId } });
         if (follow) {
-          await (prisma as any).youtubeChannelFollow.delete({ where: { id: followId } });
+          await (prisma as unknown).youtubeChannelFollow.delete({ where: { id: followId } });
           await pushAudit(guildId, {
             user: auditUser,
             action: 'YouTube Unfollow',
@@ -3278,7 +3277,7 @@ export async function handleModulesRoutes(
           });
         }
         json(res, 200, { success: true });
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('SocialFollowsAPI', `Error deleting youtube follow: ${err.message}`);
         json(res, 500, { error: 'Erreur lors de la suppression du suivi YouTube' });
       }
@@ -3295,7 +3294,7 @@ export async function handleModulesRoutes(
         const streamerName = body.streamerName.toLowerCase().trim();
         const streamerId = await getTwitchUserId(streamerName);
 
-        const follow = await (prisma as any).twitchChannelFollow.upsert({
+        const follow = await (prisma as unknown).twitchChannelFollow.upsert({
           where: { guildId_streamerName: { guildId, streamerName } },
           create: {
             guildId,
@@ -3322,9 +3321,9 @@ export async function handleModulesRoutes(
         });
 
         json(res, 200, follow);
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('SocialFollowsAPI', `Error adding twitch follow: ${err.message}`);
-        json(res, 500, { error: "Erreur lors de l\'ajout du suivi Twitch" });
+        json(res, 500, { error: "Erreur lors de l'ajout du suivi Twitch" });
       }
       return true;
     }
@@ -3332,9 +3331,9 @@ export async function handleModulesRoutes(
     if (parts.length === 7 && parts[5] === 'twitch' && method === 'DELETE') {
       try {
         const followId = parts[6];
-        const follow = await (prisma as any).twitchChannelFollow.findUnique({ where: { id: followId } });
+        const follow = await (prisma as unknown).twitchChannelFollow.findUnique({ where: { id: followId } });
         if (follow) {
-          await (prisma as any).twitchChannelFollow.delete({ where: { id: followId } });
+          await (prisma as unknown).twitchChannelFollow.delete({ where: { id: followId } });
           await pushAudit(guildId, {
             user: auditUser,
             action: 'Twitch Unfollow',
@@ -3346,7 +3345,7 @@ export async function handleModulesRoutes(
           });
         }
         json(res, 200, { success: true });
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('SocialFollowsAPI', `Error deleting twitch follow: ${err.message}`);
         json(res, 500, { error: 'Erreur lors de la suppression du suivi Twitch' });
       }
@@ -3415,8 +3414,8 @@ export async function handleModulesRoutes(
           difficulty?: string;
           language?: string;
           functionName?: string;
-          functionArgs?: any;
-          unitTests?: any;
+          functionArgs?: unknown;
+          unitTests?: unknown;
           allowedLanguages?: string[];
         }>(req);
         if (!body || !body.title || !body.description) {
@@ -3451,7 +3450,7 @@ export async function handleModulesRoutes(
         json(res, 201, problem);
       } catch (err) {
         logger.error('DailyAlgoAPI', 'Error creating daily algo problem:', err);
-        json(res, 500, { error: "Erreur lors de la création de l\'exercice" });
+        json(res, 500, { error: "Erreur lors de la création de l'exercice" });
       }
       return true;
     }
@@ -3475,8 +3474,8 @@ export async function handleModulesRoutes(
           difficulty?: string;
           language?: string;
           functionName?: string;
-          functionArgs?: any;
-          unitTests?: any;
+          functionArgs?: unknown;
+          unitTests?: unknown;
           allowedLanguages?: string[];
         }>(req);
 
@@ -3522,7 +3521,7 @@ export async function handleModulesRoutes(
         json(res, 200, updated);
       } catch (err) {
         logger.error('DailyAlgoAPI', `Error updating daily algo problem ${problemId}:`, err);
-        json(res, 500, { error: "Erreur lors de la modification de l\'exercice" });
+        json(res, 500, { error: "Erreur lors de la modification de l'exercice" });
       }
       return true;
     }
@@ -3565,7 +3564,7 @@ export async function handleModulesRoutes(
         json(res, 200, { success: true });
       } catch (err) {
         logger.error('DailyAlgoAPI', `Error deleting daily algo problem ${problemId}:`, err);
-        json(res, 500, { error: "Erreur lors de la suppression de l\'exercice" });
+        json(res, 500, { error: "Erreur lors de la suppression de l'exercice" });
       }
       return true;
     }
@@ -3852,7 +3851,7 @@ export async function handleModulesRoutes(
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('InvitationsAPI', `Error suspending invite ${code}:`, err);
-        json(res, 500, { error: "Erreur lors de la suspension de l\'invitation" });
+        json(res, 500, { error: "Erreur lors de la suspension de l'invitation" });
       }
       return true;
     }
@@ -3900,7 +3899,7 @@ export async function handleModulesRoutes(
         json(res, 200, { purgedCount });
       } catch (err) {
         logger.error('InvitationsAPI', `Error purging members of invite ${code}:`, err);
-        json(res, 500, { error: "Erreur lors de la purge de l\'invitation" });
+        json(res, 500, { error: "Erreur lors de la purge de l'invitation" });
       }
       return true;
     }
@@ -3940,7 +3939,7 @@ export async function handleModulesRoutes(
         json(res, 200, { ok: true });
       } catch (err) {
         logger.error('InvitationsAPI', `Error deleting invite ${code}:`, err);
-        json(res, 500, { error: "Erreur lors de la suppression de l\'invitation" });
+        json(res, 500, { error: "Erreur lors de la suppression de l'invitation" });
       }
       return true;
     }
@@ -4217,7 +4216,7 @@ export async function handleModulesRoutes(
         });
       } catch (err) {
         logger.error('DailyAlgoAPI', 'Error getting submissions history:', err);
-        json(res, 500, { error: "Erreur lors de la récupération de l\'historique des soumissions" });
+        json(res, 500, { error: "Erreur lors de la récupération de l'historique des soumissions" });
       }
       return true;
     }
@@ -4361,7 +4360,7 @@ export async function handleModulesRoutes(
   // POST /api/dashboard/guilds/:guildId/import
   if (moduleKey === 'import' && parts.length === 5 && method === 'POST') {
     try {
-      const body = await readJsonBody<any>(req);
+      const body = await readJsonBody<unknown>(req);
       if (!body) {
         json(res, 400, { error: 'Payload import invalide' });
         return true;
@@ -4394,7 +4393,7 @@ export async function handleModulesRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('ImportAPI', 'Error importing state:', err);
-      json(res, 500, { error: "Erreur lors de l\'importation de la configuration" });
+      json(res, 500, { error: "Erreur lors de l'importation de la configuration" });
     }
     return true;
   }
@@ -4417,7 +4416,7 @@ export async function handleModulesRoutes(
     }
 
     if (isGetMethod && !access.canViewDashboard) {
-      json(res, 403, { error: "Accès refusé. Vous n\'avez pas accès au dashboard." });
+      json(res, 403, { error: "Accès refusé. Vous n'avez pas accès au dashboard." });
       return true;
     }
 
@@ -4578,9 +4577,36 @@ export async function handleModulesRoutes(
           }
         });
         json(res, 200, { transcripts });
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('TicketsAPI', `Error listing transcripts: ${err.message}`);
         json(res, 500, { error: 'Erreur lors de la récupération des transcriptions' });
+      }
+      return true;
+    }
+
+    // GET /api/dashboard/guilds/:guildId/tickets/transcripts/:transcriptId/signed-url
+    if (parts.length === 8 && parts[5] === 'transcripts' && parts[7] === 'signed-url' && method === 'GET') {
+      const transcriptId = parts[6];
+      if (!/^[a-zA-Z0-9_-]+$/.test(transcriptId)) {
+        json(res, 400, { error: 'ID de transcription invalide' });
+        return true;
+      }
+      try {
+        const transcript = await prisma.transcript.findUnique({
+          where: { id: transcriptId },
+          select: { id: true, guildId: true },
+        });
+        if (!transcript || transcript.guildId !== guildId) {
+          json(res, 404, { error: 'Transcription introuvable' });
+          return true;
+        }
+        const { generateTranscriptSignature } = await import('@kotbo/core');
+        const { expires, signature } = generateTranscriptSignature(transcriptId, 3600);
+        const signedUrl = `/api/public/transcripts/${transcriptId}?expires=${expires}&sig=${signature}`;
+        json(res, 200, { signedUrl });
+      } catch (err: unknown) {
+        logger.error('TicketsAPI', `Error generating signed transcript URL: ${err.message}`);
+        json(res, 500, { error: 'Erreur lors de la génération du lien signé' });
       }
       return true;
     }
@@ -4593,7 +4619,7 @@ export async function handleModulesRoutes(
       }
 
       try {
-        const body = await readJsonBody<any>(req);
+        const body = await readJsonBody<unknown>(req);
         const updated = await prisma.guild.update({
           where: { id: guildId },
           data: {
@@ -4612,8 +4638,8 @@ export async function handleModulesRoutes(
               ? {
                   ticketTypes: Array.isArray(body.ticketTypes)
                     ? body.ticketTypes
-                        .filter((item: any) => item && typeof item === 'object')
-                        .map((item: any, index: number) => ({
+                        .filter((item: unknown) => item && typeof item === 'object')
+                        .map((item: unknown, index: number) => ({
                           id: typeof item.id === 'string' && item.id.trim() ? item.id.trim() : `ticket-type-${index + 1}`,
                           label: typeof item.label === 'string' && item.label.trim() ? item.label.trim().slice(0, 80) : `Ticket ${index + 1}`,
                           description: typeof item.description === 'string' ? item.description.trim().slice(0, 200) : null,
@@ -4636,7 +4662,7 @@ export async function handleModulesRoutes(
         });
 
         json(res, 200, { success: true, config: updated });
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('TicketsAPI', `Error updating ticket config: ${err.message}`);
         json(res, 500, { error: 'Erreur lors de la mise à jour de la configuration' });
       }
@@ -4654,9 +4680,9 @@ export async function handleModulesRoutes(
         const { sendTicketSetupEmbed } = await import('../../../services/features/ticketService.js');
         await sendTicketSetupEmbed(client, guildId);
         json(res, 200, { success: true });
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('TicketsAPI', `Error sending ticket setup embed: ${err.message}`);
-        json(res, 500, { error: err.message || "Erreur lors de l\'envoi de l\'embed" });
+        json(res, 500, { error: err.message || "Erreur lors de l'envoi de l'embed" });
       }
       return true;
     }
@@ -4707,7 +4733,7 @@ export async function handleModulesRoutes(
           }
         });
         json(res, 200, { tickets: enrichedTickets, config: guildConfig || {} });
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('TicketsAPI', `Error listing tickets: ${err.message}`);
         json(res, 500, { error: 'Erreur lors de la récupération des tickets' });
       }
@@ -4728,7 +4754,7 @@ export async function handleModulesRoutes(
         }
 
         let channelName: string | null = null;
-        let messages: any[] = [];
+        let messages: unknown[] = [];
         if (ticket.channelId) {
           const discordChannel = client.channels.cache.get(ticket.channelId);
           if (discordChannel && discordChannel instanceof TextChannel) {
@@ -4751,7 +4777,7 @@ export async function handleModulesRoutes(
                 createdAt: m.createdAt.toISOString()
               }));
               messages.reverse();
-            } catch (fetchErr) {}
+            } catch { /* ignored */ }
           }
         }
 
@@ -4767,7 +4793,7 @@ export async function handleModulesRoutes(
         const claimedByAvatar = ticket.claimedById ? await fetchAvatarDetail(ticket.claimedById) : null;
 
         json(res, 200, { ticket: { ...ticket, channelName, userAvatar, claimedByAvatar }, messages });
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('TicketsAPI', `Error reading ticket details: ${err.stack}`);
         json(res, 500, { error: `Erreur lors de la récupération du ticket: ${err.stack}` });
       }
@@ -4813,9 +4839,9 @@ export async function handleModulesRoutes(
             createdAt: sent.createdAt.toISOString()
           }
         });
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('TicketsAPI', `Error sending message to ticket: ${err.message}`);
-        json(res, 500, { error: "Erreur lors de l\'envoi du message" });
+        json(res, 500, { error: "Erreur lors de l'envoi du message" });
       }
       return true;
     }
@@ -4893,7 +4919,7 @@ export async function handleModulesRoutes(
                 const oldEmbed = welcomeMsg.embeds[0];
                 if (oldEmbed) {
                   const updatedEmbed = EmbedBuilder.from(oldEmbed)
-                    .setColor(COLORS.warning as any)
+                    .setColor(COLORS.warning as unknown)
                     .setDescription(`Ce ticket est actuellement pris en charge par **${user.username}**.\n\n**Auteur :** <@${ticket.userId}>\n**Raison :** ${ticket.reason}\n**Description :** ${ticket.description}`)
                     .setFields([
                       { name: 'Statut', value: `🛠️ Pris en charge par <@${user.userId}>`, inline: true }
@@ -4925,7 +4951,7 @@ export async function handleModulesRoutes(
         }
 
         json(res, 200, updated);
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('TicketsAPI', `Error claiming ticket: ${err.message}`);
         json(res, 500, { error: 'Erreur lors de la prise en charge du ticket' });
       }
@@ -4966,7 +4992,7 @@ export async function handleModulesRoutes(
             const closeEmbed = new EmbedBuilder()
               .setTitle('🔒 Ticket Fermé')
               .setDescription(`Le ticket a été fermé depuis le Dashboard Kotbo par **${user.username}**.`)
-              .setColor(COLORS.danger as any)
+              .setColor(COLORS.danger as unknown)
               .setTimestamp();
 
             const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -4979,7 +5005,7 @@ export async function handleModulesRoutes(
         }
 
         json(res, 200, updated);
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('TicketsAPI', `Error closing ticket: ${err.message}`);
         json(res, 500, { error: 'Erreur' });
       }
@@ -5025,7 +5051,7 @@ export async function handleModulesRoutes(
         }
 
         json(res, 200, updated);
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('TicketsAPI', `Error reopening ticket: ${err.message}`);
         json(res, 500, { error: 'Erreur' });
       }
@@ -5065,7 +5091,7 @@ export async function handleModulesRoutes(
         );
 
         json(res, 200, { success: true, channelName: finalName });
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('TicketsAPI', `Error renaming ticket: ${err.message}`);
         json(res, 500, { error: 'Erreur lors du renommage du ticket' });
       }
@@ -5086,7 +5112,7 @@ export async function handleModulesRoutes(
           return true;
         }
         if (!ticket.transcriptId) {
-          json(res, 400, { error: "Ce ticket n\'a pas de transcription associée." });
+          json(res, 400, { error: "Ce ticket n'a pas de transcription associée." });
           return true;
         }
 
@@ -5141,7 +5167,7 @@ export async function handleModulesRoutes(
         const cleanedUsername = ticket.username.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'membre';
         const channelName = `ticket-${cleanedUsername}`;
 
-        const permissionOverwrites: any[] = [
+        const permissionOverwrites: unknown[] = [
           { id: discordGuild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
           { id: ticket.userId, allow: [
             PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages,
@@ -5182,7 +5208,7 @@ export async function handleModulesRoutes(
           const headerEmbed = new EmbedBuilder()
             .setTitle('📜 Historique restauré')
             .setDescription(`Ce ticket a été restauré depuis une transcription par **${user.username || 'Staff'}**.\nLes messages ci-dessous sont une restitution de la conversation d'origine.`)
-            .setColor(COLORS.primary as any)
+            .setColor(COLORS.primary as unknown)
             .setTimestamp();
           await ticketChannel.send({ embeds: [headerEmbed] });
 
@@ -5197,7 +5223,7 @@ export async function handleModulesRoutes(
             for (const e of msg.embeds) {
               const eb = new EmbedBuilder();
               if (e.color) {
-                try { eb.setColor(e.color as any); } catch {}
+                try { eb.setColor(e.color as unknown); } catch { /* ignored */ }
               }
               if (e.authorName) {
                 eb.setAuthor({ name: e.authorName, iconURL: e.authorIconUrl || undefined, url: e.authorUrl || undefined });
@@ -5233,7 +5259,7 @@ export async function handleModulesRoutes(
                 avatarURL: msg.avatarUrl || undefined,
                 embeds: discordEmbeds.length > 0 ? discordEmbeds.slice(0, 10) : undefined,
               });
-            } catch (sendErr: any) {
+            } catch (sendErr: unknown) {
               logger.warn('TicketsAPI', `Failed to replay message from ${msg.username}: ${sendErr.message}`);
             }
           }
@@ -5245,7 +5271,7 @@ export async function handleModulesRoutes(
         const restoreEmbed = new EmbedBuilder()
           .setTitle('🔄 Ticket Restauré')
           .setDescription(`Ce ticket a été réouvert par **${user.username || "Staff"}** depuis le Dashboard.\n\n**Raison d'origine :** ${ticket.reason}\n**Description :** ${ticket.description || "Aucune"}`)
-          .setColor(COLORS.primary as any)
+          .setColor(COLORS.primary as unknown)
           .setTimestamp()
           .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
 
@@ -5276,7 +5302,7 @@ export async function handleModulesRoutes(
             const logEmbed = new EmbedBuilder()
               .setTitle('🔄 Ticket Restauré')
               .setDescription(`Le ticket de **${ticket.username}** a été restauré depuis le Dashboard par **${user.username}**.`)
-              .setColor(COLORS.primary as any)
+              .setColor(COLORS.primary as unknown)
               .addFields([
                 { name: 'Créateur', value: `<@${ticket.userId}>`, inline: true },
                 { name: 'Restauré par', value: `<@${user.userId}>`, inline: true },
@@ -5289,7 +5315,7 @@ export async function handleModulesRoutes(
         }
 
         json(res, 200, { success: true, channelId: ticketChannel.id });
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('TicketsAPI', `Error restoring ticket: ${err.stack}`);
         json(res, 500, { error: `Erreur lors de la restauration: ${err.message}` });
       }
@@ -5340,7 +5366,7 @@ export async function handleModulesRoutes(
            const dmEmbed = new EmbedBuilder()
             .setTitle('📄 Transcription de ticket')
             .setDescription(`Le ticket d'assistance **${ticket.reason}** du serveur **${serverName}** a été supprimé.\n\nVoici le lien pour consulter la transcription complète :`)
-            .addFields([{ name: "Lien d\'accès", value: `🌐 [Consulter le transcript](${publicLink})` }])
+            .addFields([{ name: "Lien d'accès", value: `🌐 [Consulter le transcript](${publicLink})` }])
             .setColor('#5865F2')
             .setTimestamp()
             .setFooter({ text: `Serveur : ${serverName}` });
@@ -5349,7 +5375,7 @@ export async function handleModulesRoutes(
             try {
               const dmUser = await client.users.fetch(dmUserId);
               if (dmUser) await dmUser.send({ embeds: [dmEmbed] });
-            } catch (err) {}
+            } catch { /* ignored */ }
           }
 
           if (guildConfig && guildConfig.ticketLogChannelId) {
@@ -5382,7 +5408,7 @@ export async function handleModulesRoutes(
           });
           json(res, 200, { success: true });
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('TicketsAPI', `Error deleting ticket: ${err.message}`);
         json(res, 500, { error: 'Erreur lors de la suppression' });
       }
@@ -5393,13 +5419,13 @@ export async function handleModulesRoutes(
   return false;
 }
 
-function msgEmbedsMap(embeds: any[], guild: any) {
+function msgEmbedsMap(embeds: unknown[], guild: unknown) {
   return embeds.map(e => ({
     title: e.title,
     description: e.description,
     htmlDescription: e.description ? parseDiscordMarkdown(e.description, guild) : '',
     color: e.hexColor,
-    fields: e.fields ? e.fields.map((f: any) => ({
+    fields: e.fields ? e.fields.map((f: unknown) => ({
       name: f.name,
       value: f.value,
       htmlValue: f.value ? parseDiscordMarkdown(f.value, guild) : ''

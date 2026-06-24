@@ -1,6 +1,6 @@
 import { Client, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, MessageFlags } from 'discord.js';
 import prisma from '../../utils/db.js';
-import { logger } from '../../utils/logger.js';
+
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
 
 /**
@@ -13,7 +13,7 @@ export async function createSuggestion(guildId: string, userId: string, username
     select: { publicChannelId: true, dashboardFeatureConfigs: true }
   });
 
-  const featureConfig = (guildConfig?.dashboardFeatureConfigs || []).find((f: any) => f.featureKey === 'suggestions');
+  const featureConfig = (guildConfig?.dashboardFeatureConfigs || []).find((f: unknown) => f.featureKey === 'suggestions');
   if (featureConfig && featureConfig.enabled === false) {
     throw new Error('Le système de suggestions est désactivé sur ce serveur.');
   }
@@ -58,7 +58,7 @@ export async function createSuggestion(guildId: string, userId: string, username
     .setDescription(resolveEmojiShortcodes(content))
     .setAuthor({ name: member?.displayName || username, iconURL: avatarUrl || undefined })
     .addFields(
-      { name: 'Statut', value: "⏳ En cours d\'évaluation", inline: true },
+      { name: 'Statut', value: "⏳ En cours d'évaluation", inline: true },
       { name: 'Votes', value: '👍 Upvotes : `0` | 👎 Downvotes : `0`', inline: true }
     )
     .setColor('#FE75C2')
@@ -95,7 +95,7 @@ export async function createSuggestion(guildId: string, userId: string, username
 /**
  * Traite les votes sur une suggestion (Upvote / Downvote)
  */
-export async function handleSuggestionVote(interaction: any, type: 'up' | 'down') {
+export async function handleSuggestionVote(interaction: unknown, type: 'up' | 'down') {
   const suggestionId = interaction.customId.split(':')[1];
   const userId = interaction.user.id;
 
@@ -134,7 +134,7 @@ export async function handleSuggestionVote(interaction: any, type: 'up' | 'down'
   }
 
   // Enregistrer les votes
-  const updated = await prisma.suggestion.update({
+  const _updated = await prisma.suggestion.update({
     where: { id: suggestionId },
     data: { upvoters, downvoters },
   });
@@ -149,7 +149,7 @@ export async function handleSuggestionVote(interaction: any, type: 'up' | 'down'
         if (originalEmbed) {
           const updatedEmbed = EmbedBuilder.from(originalEmbed)
             .setFields(
-              { name: 'Statut', value: "⏳ En cours d\'évaluation", inline: true },
+              { name: 'Statut', value: "⏳ En cours d'évaluation", inline: true },
               { name: 'Votes', value: `👍 Upvotes : \`${upvoters.length}\` | 👎 Downvotes : \`${downvoters.length}\``, inline: true }
             );
 
@@ -216,7 +216,7 @@ export async function resolveSuggestion(
         if (message) {
           const originalEmbed = message.embeds[0];
           if (originalEmbed) {
-            let statusText = "⏳ En cours d\'évaluation";
+            let statusText = "⏳ En cours d'évaluation";
             let color = '#FE75C2';
 
             if (status === 'APPROVED') {
@@ -231,7 +231,7 @@ export async function resolveSuggestion(
             }
 
             const updatedEmbed = EmbedBuilder.from(originalEmbed)
-              .setColor(color as any)
+              .setColor(color as unknown)
               .setFields(
                 { name: 'Statut', value: statusText, inline: true },
                 { name: 'Votes finaux', value: `👍 Upvotes : \`${updated.upvoters.length}\` | 👎 Downvotes : \`${updated.downvoters.length}\``, inline: true },

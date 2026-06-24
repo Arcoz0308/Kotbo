@@ -1,6 +1,6 @@
 import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction, type AutocompleteInteraction, MessageFlags } from 'discord.js';
-import prisma from '../../utils/db.js';
+
 import { getOrCreateRpgProfile, consumePotionItem, equipInventoryItem } from '../../services/features/economyService.js';
 import { errorEmbed, successEmbed } from '../../utils/embeds.js';
 
@@ -98,7 +98,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
         flags: [MessageFlags.Ephemeral]
       });
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     await interaction.reply({
       embeds: [errorEmbed('Erreur', err.message || "Impossible d'utiliser l'objet.")],
       flags: [MessageFlags.Ephemeral]

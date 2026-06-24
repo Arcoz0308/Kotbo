@@ -1,4 +1,4 @@
-import { type Client, type Guild, type Invite } from 'discord.js';
+import { type Client, type Guild } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 

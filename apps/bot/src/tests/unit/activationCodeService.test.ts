@@ -4,17 +4,18 @@ import path from 'node:path';
 // Mock the database dependency
 const mockDb = {
   activationCode: {
-    update: mock(() => Promise.resolve({} as any)) as any,
-    findFirst: mock(() => Promise.resolve(null as any)) as any,
-    findUnique: mock(() => Promise.resolve(null as any)) as any,
-    delete: mock(() => Promise.resolve({} as any)) as any,
+    update: mock(() => Promise.resolve({} as unknown)) as unknown,
+    findFirst: mock(() => Promise.resolve(null as unknown)) as unknown,
+    findUnique: mock(() => Promise.resolve(null as unknown)) as unknown,
+    delete: mock(() => Promise.resolve({} as unknown)) as unknown,
   },
   guild: {
-    findMany: mock(() => Promise.resolve([] as any[])) as any,
-    findUnique: mock(() => Promise.resolve(null as any)) as any,
-    update: mock(() => Promise.resolve({} as any)) as any,
-    upsert: mock(() => Promise.resolve({} as any)) as any,
-  }
+    findMany: mock(() => Promise.resolve([] as unknown[])) as unknown,
+    findUnique: mock(() => Promise.resolve(null as unknown)) as unknown,
+    update: mock(() => Promise.resolve({} as unknown)) as unknown,
+    upsert: mock(() => Promise.resolve({} as unknown)) as unknown,
+  },
+  $transaction: mock(async (fn: (tx: unknown) => Promise<unknown>) => fn(mockDb)) as unknown,
 };
 
 const dbPath = path.resolve(__dirname, '../../utils/db.ts');
@@ -48,6 +49,8 @@ describe('activation service', () => {
     mockDb.guild.findUnique.mockClear();
     mockDb.guild.update.mockClear();
     mockDb.guild.upsert.mockClear();
+    (mockDb.$transaction as ReturnType<typeof mock>).mockClear();
+    (mockDb.$transaction as ReturnType<typeof mock>).mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => fn(mockDb));
     activatedGuilds.clear();
   });
 
@@ -67,6 +70,7 @@ describe('activation service', () => {
   });
 
   test('activateGuild should update DB activation code, upsert guild, and add to cache', async () => {
+    mockDb.activationCode.findUnique.mockResolvedValue({ code: 'KB-TEST-CODE', isActive: true, usedAt: null });
     mockDb.activationCode.update.mockResolvedValue({});
     mockDb.guild.upsert.mockResolvedValue({});
 
@@ -77,7 +81,7 @@ describe('activation service', () => {
       data: {
         usedAt: expect.any(Date),
         usedByGuildId: 'guild-123',
-        isActive: false
+        isActive: false,
       }
     });
 
@@ -86,13 +90,13 @@ describe('activation service', () => {
       update: {
         activated: true,
         activatedAt: expect.any(Date),
-        activationCode: 'KB-TEST-CODE'
+        activationCode: expect.any(String),
       },
       create: {
         id: 'guild-123',
         activated: true,
         activatedAt: expect.any(Date),
-        activationCode: 'KB-TEST-CODE'
+        activationCode: expect.any(String),
       }
     });
 

@@ -23,6 +23,7 @@ import { logger } from '../../utils/logger.js';
  * invisibles ou non affichables (espaces zero-width, soft hyphen, BOM, etc.)
  */
 export const INVISIBLE_ONLY_REGEX =
+  // eslint-disable-next-line no-misleading-character-class
   /^[\s\u200B\u200C\u200D\u00AD\uFEFF\u2060\u180E\u00A0\u2000-\u200A\u202F\u205F\u3000]+$/;
 
 // ---------------------------------------------------------------------------

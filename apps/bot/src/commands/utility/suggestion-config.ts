@@ -46,7 +46,7 @@ const data = new SlashCommandBuilder()
       .addChannelOption((option) =>
         option
           .setName('channel')
-          .setDescription("Salon où envoyer l\'embed")
+          .setDescription("Salon où envoyer l'embed")
           .setRequired(true)
           .addChannelTypes(ChannelType.GuildText)
       )
@@ -86,7 +86,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       });
     } catch (err) {
       await interaction.editReply({
-        embeds: [errorEmbed('Erreur', "Impossible d\'activer le module de suggestions.")],
+        embeds: [errorEmbed('Erreur', "Impossible d'activer le module de suggestions.")],
       });
     }
   } else if (subcommand === 'disable') {
@@ -154,7 +154,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
           embeds: [
             errorEmbed(
               'Module désactivé',
-              "Le module de suggestions doit être activé avant d\'envoyer l\'embed. Utilisez `/suggestion-config enable`."
+              "Le module de suggestions doit être activé avant d'envoyer l'embed. Utilisez `/suggestion-config enable`."
             ),
           ],
         });
@@ -199,7 +199,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       });
     } catch (err) {
       await interaction.editReply({
-        embeds: [errorEmbed('Erreur', "Impossible d\'envoyer l\'embed.")],
+        embeds: [errorEmbed('Erreur', "Impossible d'envoyer l'embed.")],
       });
     }
   }

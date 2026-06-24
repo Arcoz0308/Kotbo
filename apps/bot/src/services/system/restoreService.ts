@@ -1,5 +1,5 @@
-import { Guild, Role, Channel, GuildMember, PermissionFlagsBits, ButtonStyle, ComponentType, ActionRowBuilder, ButtonBuilder, StringSelectMenuBuilder, EmbedBuilder, type ChatInputCommandInteraction, PermissionOverwrites } from 'discord.js';
-import prisma from '../../utils/db.js';
+import { Guild, Role, ButtonStyle, ActionRowBuilder, ButtonBuilder, EmbedBuilder, type ChatInputCommandInteraction } from 'discord.js';
+
 import { BackupData, RoleData, ChannelData, MemberData, EmojiData, StickerData } from './backupService.js';
 
 export interface RestoreOptions {
@@ -284,7 +284,7 @@ async function restoreChannel(
 
       // Mettre à jour le salon existant
       if ('edit' in existingChannel) {
-        const updateData: any = {};
+        const updateData: unknown = {};
         if (channelData.topic) updateData.topic = channelData.topic;
         if (channelData.nsfw !== undefined) updateData.nsfw = channelData.nsfw;
         if (channelData.rateLimitPerUser) updateData.rateLimitPerUser = channelData.rateLimitPerUser;
@@ -302,7 +302,7 @@ async function restoreChannel(
       }
     } else {
       // Créer un nouveau salon
-      const createData: any = {
+      const createData: unknown = {
         name: channelData.name,
         type: channelData.type,
         position: channelData.position,
@@ -345,7 +345,7 @@ async function restoreChannel(
         }
 
         if (overwritesToSet.length > 0) {
-          await (newChannel as any).permissionOverwrites.set(overwritesToSet);
+          await (newChannel as unknown).permissionOverwrites.set(overwritesToSet);
         }
       }
     }
@@ -404,7 +404,7 @@ async function restoreMembers(
 /**
  * Restaure les messages
  */
-async function restoreMessages(guild: Guild, messages: any[], channelIdMap: Map<string, string>): Promise<void> {
+async function restoreMessages(guild: Guild, messages: unknown[], channelIdMap: Map<string, string>): Promise<void> {
   console.log(`🔄 Restauration de ${messages.length} messages...`);
 
   for (const messageData of messages) {

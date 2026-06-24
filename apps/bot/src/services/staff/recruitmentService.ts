@@ -35,7 +35,7 @@ function isParagraphField(key: string): boolean {
   const shortFieldIndicators = [
     'âge', 'age', 'ans',
     'micro', 'microphone',
-    'discord', 'pseudo', 'username', 'identifiant', "nom d\'utilisateur",
+    'discord', 'pseudo', 'username', 'identifiant', "nom d'utilisateur",
     'email', 'mail',
     'prénom', 'prenom', 'nom',
     'horodateur', 'timestamp',
@@ -136,7 +136,7 @@ export async function getCandidatures(guildId: string) {
 
 export async function createCandidature(
   guildId: string,
-  data: any,
+  data: unknown,
   options?: { autoRejectEnabled?: boolean }
 ) {
   // Try to find identifiers in the data
@@ -215,7 +215,7 @@ export async function createCandidature(
   }
 
   return { candidature, autoRejected: autoRejectCheck.rejected, autoRejectReason: autoRejectCheck.reason };
-};
+}
 
 export async function updateCandidatureStatus(id: string, status: CandidatureStatus, notes?: string) {
   return await prisma.recruitmentCandidature.update({
@@ -271,7 +271,7 @@ export async function approveCandidature(
   // Create the ticket channel
   const categoryId = guild?.recruitmentCategoryId || undefined;
   
-  const permissionOverwrites: any[] = [
+  const permissionOverwrites: unknown[] = [
     {
       id: discordGuild.id, // @everyone
       deny: [PermissionFlagsBits.ViewChannel],
@@ -754,7 +754,7 @@ export async function getCandidatureHistory(guildId: string, discordId: string) 
 export async function handleRecruitmentButton(
   client: Client,
   customId: string,
-  interaction: any,
+  interaction: unknown,
 ) {
   const parts = customId.split(':');
   const action = parts[1]; // claim, info, close, delete

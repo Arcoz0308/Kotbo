@@ -22,12 +22,17 @@ export type BackgroundJobName =
   | 'dc-scan'
   | 'ticket-inactivity'
   | 'scheduled-events'
-  | 'leaderboard-refresh';
+  | 'leaderboard-refresh'
+  | 'history-scrape'
+  | 'data-retention';
 
 
 
 type BackgroundJobPayload = {
   jitterMs?: number;
+  guildId?: string;
+  channelId?: string;
+  beforeMessageId?: string;
 };
 
 const QUEUE_NAME = 'kotbo-background-jobs';
@@ -139,4 +144,21 @@ export async function enqueueBackgroundJob(
 
 export function isBackgroundQueueEnabled(): boolean {
   return Boolean(queue && worker);
+}
+
+export async function enqueueHistoryScrape(
+  guildId: string,
+  channelId: string,
+  beforeMessageId?: string,
+): Promise<boolean> {
+  return enqueueBackgroundJob(
+    'history-scrape',
+    { guildId, channelId, beforeMessageId },
+    {
+      priority: 10,
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 5000 },
+      jobId: `history-scrape-${guildId}-${channelId}`,
+    },
+  );
 }

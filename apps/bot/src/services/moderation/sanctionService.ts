@@ -51,7 +51,7 @@ function getDateKey(date = new Date()): string {
 
 async function incrementModerationStats(guildId: string, type: SanctionType): Promise<void> {
   const dateKey = getDateKey();
-  const updateData: any = { sanctionsCount: { increment: 1 } };
+  const updateData: unknown = { sanctionsCount: { increment: 1 } };
 
   if (type === SanctionType.WARN) updateData.warnsCount = { increment: 1 };
   else if (type === SanctionType.KICK) updateData.kicksCount = { increment: 1 };
@@ -287,15 +287,15 @@ async function emitSanctionReportReminder(params: {
     // Prefill draft report with matched rules and empty evidence links
     const sanction = await prisma.sanction.findUnique({
       where: { id: params.sanctionId },
-      include: { sanctionTable: true } as any
+      include: { sanctionTable: true } as unknown
     });
-    const tableName = (sanction as any)?.sanctionTable?.name;
+    const tableName = (sanction as unknown)?.sanctionTable?.name;
 
     const regulationRules = await prisma.guildRegulationArticle.findMany({
       where: { guildId: params.guildId }
     });
 
-    const matchedRules: any[] = [];
+    const matchedRules: unknown[] = [];
     if (tableName) {
       const matchedRule = regulationRules.find(r => 
         r.title.toLowerCase().includes(tableName.toLowerCase()) ||
@@ -391,7 +391,7 @@ async function emitSanctionReportReminder(params: {
   }
 }
 
-async function notifyStaffOfSanction(guildId: string, sanction: any) {
+async function notifyStaffOfSanction(guildId: string, sanction: unknown) {
   const userIdsToNotify = new Set<string>();
 
 
@@ -401,7 +401,7 @@ async function notifyStaffOfSanction(guildId: string, sanction: any) {
     });
 
     if (targetStaff) {
-      const grades = await (prisma as any).staffMemberHierarchyGrade.findMany({
+      const grades = await (prisma as unknown).staffMemberHierarchyGrade.findMany({
         where: { staffMemberId: targetStaff.id },
         include: {
           hierarchy: true
@@ -448,7 +448,7 @@ async function notifyStaffOfSanction(guildId: string, sanction: any) {
   }
 }
 
-async function propagateSanction(client: Client, originalGuildId: string, sanction: any) {
+async function propagateSanction(client: Client, originalGuildId: string, sanction: unknown) {
   const originalGuild = await prisma.guild.findUnique({
     where: { id: originalGuildId },
     select: { propagateSanctions: true }
@@ -492,7 +492,7 @@ async function propagateSanction(client: Client, originalGuildId: string, sancti
         )
         .setTimestamp();
 
-      await (channel as any).send({ embeds: [embed] }).catch(() => null);
+      await (channel as unknown).send({ embeds: [embed] }).catch(() => null);
     } catch (err) {
       logger.debug('Sanctions', `Error propagating sanction to guild ${guildConfig.id}: ${String(err)}`);
     }

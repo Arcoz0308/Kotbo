@@ -4,7 +4,7 @@ import {
   type ChatInputCommandInteraction,
   PermissionFlagsBits,
 } from 'discord.js';
-import prisma from '../../utils/db.js';
+
 import { sendSetupWelcome } from '../../panels/setupPanel.js';
 
 const data = new SlashCommandBuilder()

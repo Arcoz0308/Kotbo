@@ -29,7 +29,7 @@ const data = new SlashCommandBuilder()
       .addStringOption((option) =>
         option
           .setName('type')
-          .setDescription("Type d\'absence")
+          .setDescription("Type d'absence")
           .setRequired(true)
           .addChoices(
             { name: 'Congé', value: 'Conge' },
@@ -47,7 +47,7 @@ const data = new SlashCommandBuilder()
       .addStringOption((option) =>
         option
           .setName('raison')
-          .setDescription("Motif de l\'absence")
+          .setDescription("Motif de l'absence")
           .setRequired(true),
       )
       .addUserOption((option) =>
@@ -76,7 +76,7 @@ const data = new SlashCommandBuilder()
       .addStringOption((option) =>
         option
           .setName('absence_id')
-          .setDescription("ID de l\'absence à clôturer (optionnel)")
+          .setDescription("ID de l'absence à clôturer (optionnel)")
           .setRequired(false),
       )
       .addUserOption((option) =>
@@ -136,7 +136,7 @@ const askIndefiniteConfirmation = async (
     const value = submit.fields.getTextInputValue('confirmation').trim().toUpperCase();
     if (value !== 'INDETERMINE') {
       await submit.reply({
-        ...v2(errorContainer('Confirmation invalide', "La déclaration d\'absence a été annulée.")),
+        ...v2(errorContainer('Confirmation invalide', "La déclaration d'absence a été annulée.")),
         flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
       });
       return null;
@@ -159,7 +159,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
   const staff = await getStaffMember(interaction.guildId, interaction.user.id);
   if (!staff) {
     await interaction.reply({
-      ...v2(errorContainer('Accès refusé', "Vous ne faites pas partie de l\'équipe Staff.")),
+      ...v2(errorContainer('Accès refusé', "Vous ne faites pas partie de l'équipe Staff.")),
       flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     });
     return;
@@ -291,7 +291,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
     if (!isTargetStaff && !isAssignedSuperior) {
       await interaction.reply({
-        ...v2(errorContainer('Permission refusée', "Vous ne pouvez clôturer que votre absence ou celle d\'un staff dont vous êtes le supérieur notifié.")),
+        ...v2(errorContainer('Permission refusée', "Vous ne pouvez clôturer que votre absence ou celle d'un staff dont vous êtes le supérieur notifié.")),
         flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
       });
       return;

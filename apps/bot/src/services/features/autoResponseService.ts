@@ -1,9 +1,9 @@
-import { Client, Message, EmbedBuilder } from 'discord.js';
+import { Message, EmbedBuilder } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 
 // Cache for triggers: key is guildId, value is list of auto responses
-const responsesCache = new Map<string, any[]>();
+const responsesCache = new Map<string, unknown[]>();
 
 /**
  * Invalide le cache des auto-réponses pour une guilde donnée
@@ -63,8 +63,8 @@ export async function handleAutoResponse(message: Message) {
 
         // ── Filtres rôle ───────────────────────────────────────────────
         const member = message.member || await message.guild?.members.fetch(message.author.id).catch(() => null);
-        if (item.bannedRoleIds?.length && member?.roles.cache.some((r: any) => item.bannedRoleIds.includes(r.id))) continue;
-        if (item.allowedRoleIds?.length && !member?.roles.cache.some((r: any) => item.allowedRoleIds.includes(r.id))) continue;
+        if (item.bannedRoleIds?.length && member?.roles.cache.some((r: unknown) => item.bannedRoleIds.includes(r.id))) continue;
+        if (item.allowedRoleIds?.length && !member?.roles.cache.some((r: unknown) => item.allowedRoleIds.includes(r.id))) continue;
 
         // 1. Actions sur les rôles
         if (member) {
@@ -91,7 +91,7 @@ export async function handleAutoResponse(message: Message) {
         const responseText = item.response;
         if (responseText && responseText.trim()) {
           const isJson = responseText.startsWith('{') && responseText.endsWith('}');
-          let sendPayload: any = responseText;
+          let sendPayload: unknown = responseText;
 
           if (isJson) {
             try {
@@ -105,7 +105,7 @@ export async function handleAutoResponse(message: Message) {
           }
 
           if (item.deleteTrigger && 'send' in message.channel) {
-            await (message.channel as any).send(sendPayload).catch(() => null);
+            await (message.channel as unknown).send(sendPayload).catch(() => null);
           } else {
             await message.reply(sendPayload).catch(() => null);
           }

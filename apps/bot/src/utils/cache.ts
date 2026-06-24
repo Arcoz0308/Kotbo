@@ -7,7 +7,7 @@ interface MemoryCacheEntry<T> {
   expiresAt: number;
 }
 
-const memoryCache = new Map<string, MemoryCacheEntry<any>>();
+const memoryCache = new Map<string, MemoryCacheEntry<unknown>>();
 
 export const cache = {
   async get<T>(key: string): Promise<T | null> {
@@ -113,7 +113,7 @@ export const cache = {
  */
 export async function getCachedGuild(guildId: string) {
   const cacheKey = `guild:${guildId}:config`;
-  let guild = await cache.get<any>(cacheKey);
+  let guild = await cache.get<unknown>(cacheKey);
 
   if (!guild) {
     guild = await prisma.guild.findUnique({
@@ -131,7 +131,7 @@ export async function getCachedGuild(guildId: string) {
  */
 export async function getCachedDashboardSettings(guildId: string) {
   const cacheKey = `guild:${guildId}:dashboard_settings`;
-  let settings = await cache.get<any>(cacheKey);
+  let settings = await cache.get<unknown>(cacheKey);
 
   if (!settings) {
     settings = await prisma.dashboardSettings.findUnique({

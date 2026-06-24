@@ -36,7 +36,7 @@ try {
   let cleanupSuccess = 0;
   for (const result of cleanupResults) {
     if (result.status === 'fulfilled') {
-      const { guild, ok, err } = result.value as any;
+      const { guild, ok, err } = result.value as unknown;
       if (ok) {
         cleanupSuccess++;
       } else {

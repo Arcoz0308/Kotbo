@@ -397,7 +397,7 @@ export async function sendGlobalKeywordsPanel(
   const embed = new EmbedBuilder()
     .setColor(COLORS.primary)
     .setTitle('🔑 Mots-clés Globaux')
-    .setDescription("Ces mots-clés s\'appliquent à TOUS les flux RSS du serveur.")
+    .setDescription("Ces mots-clés s'appliquent à TOUS les flux RSS du serveur.")
     .addFields(
       { name: `✅ Toujours inclure (${guild.globalIncludeKeywords.length})`, value: formatKws(guild.globalIncludeKeywords), inline: false },
       { name: `🚫 Toujours exclure (${guild.globalExcludeKeywords.length})`, value: formatKws(guild.globalExcludeKeywords), inline: false },
@@ -417,7 +417,7 @@ export async function sendGlobalKeywordsPanel(
     ...guild.globalIgnoredKeywords.map(k => ({ label: `[Ignorer] ${truncate(k, 50)}`, value: `global:ignore:${k}` })),
   ].slice(0, 25);
 
-  const components: any[] = [row1];
+  const components: unknown[] = [row1];
 
   if (allKeywords.length > 0) {
     const select = new StringSelectMenuBuilder()
@@ -479,7 +479,7 @@ export async function sendFeedKeywordsPanel(
     ...feed.ignoredKeywords.map(k => ({ label: `[Ignorer] ${truncate(k, 50)}`, value: `feed:${feed.id}:ignore:${k}` })),
   ].slice(0, 25);
 
-  const components: any[] = [row1];
+  const components: unknown[] = [row1];
 
   if (allKeywords.length > 0) {
     const select = new StringSelectMenuBuilder()

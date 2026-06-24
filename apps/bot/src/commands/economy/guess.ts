@@ -39,7 +39,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
     await interaction.reply({ embeds: [initialEmbed] });
 
-    const filter = (m: any) => m.author.id === userId && !isNaN(parseInt(m.content, 10));
+    const filter = (m: unknown) => m.author.id === userId && !isNaN(parseInt(m.content, 10));
     const collector = interaction.channel?.createMessageCollector({
       filter,
       time: 60000 // 1 minute globale
@@ -116,11 +116,11 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
           await interaction.followUp({ embeds: [timeoutEmbed] });
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         // Handle end-of-collector db errors silently or log them
       }
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     await interaction.reply({
       embeds: [errorEmbed('Erreur', err.message || 'Impossible de démarrer le jeu.')],
       flags: [MessageFlags.Ephemeral]

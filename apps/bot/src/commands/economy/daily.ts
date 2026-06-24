@@ -1,7 +1,7 @@
 import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags, EmbedBuilder } from 'discord.js';
 import { claimDaily, getOrCreateEconomyConfig } from '../../services/features/economyService.js';
-import { errorEmbed, successEmbed, COLORS } from '../../utils/embeds.js';
+import { errorEmbed, COLORS } from '../../utils/embeds.js';
 
 const data = new SlashCommandBuilder()
   .setName('daily')
@@ -36,7 +36,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       .setTimestamp();
 
     await interaction.reply({ embeds: [embed] });
-  } catch (err: any) {
+  } catch (err: unknown) {
     await interaction.reply({
       embeds: [errorEmbed('Erreur', err.message || 'Impossible de réclamer la récompense.')],
       flags: [MessageFlags.Ephemeral]

@@ -1,7 +1,7 @@
 import { SanctionType, LinkedAccountType, LinkedAccountStatus } from '@prisma/client';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
-import { type Client, type GuildMember } from 'discord.js';
+import { type Client  } from 'discord.js';
 import * as sanctionService from './sanctionService.js';
 import { createNotification } from '../staff/staffLeadershipService.js';
 
@@ -69,7 +69,7 @@ export async function linkAccounts(params: {
   status?: LinkedAccountStatus;
   reason?: string;
   linkedByUserId?: string;
-  metadata?: any;
+  metadata?: unknown;
 }) {
   const { guildId, user1Id, user2Id, type, status = LinkedAccountStatus.VALIDATED, reason, linkedByUserId, metadata } = params;
 

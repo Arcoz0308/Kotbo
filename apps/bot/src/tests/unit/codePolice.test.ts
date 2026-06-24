@@ -106,7 +106,7 @@ describe('codePolice analysis', () => {
     expect(analysis.signals.length).toBeGreaterThan(0);
   });
 
-  test("retourne generic si aucun langage spécifique n\'est détecté", () => {
+  test("retourne generic si aucun langage spécifique n'est détecté", () => {
     const analysis = analyzeCodeContent('hello world', []);
     expect(analysis.language).toBe('generic');
   });

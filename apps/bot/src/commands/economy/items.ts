@@ -29,7 +29,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
   try {
     const profile = await getOrCreateRpgProfile(guildId, userId);
-    const config = await getOrCreateEconomyConfig(guildId);
+    const _config = await getOrCreateEconomyConfig(guildId);
     const inventory = profile.inventory as unknown as LocalInventoryEntry[];
 
     if (inventory.length === 0) {
@@ -65,7 +65,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     embed.addFields({ name: 'Contenu du sac à dos', value: list });
 
     await interaction.reply({ embeds: [embed] });
-  } catch (err: any) {
+  } catch (err: unknown) {
     await interaction.reply({
       embeds: [errorEmbed('Erreur', err.message || "Impossible de lister l'inventaire.")],
       flags: [MessageFlags.Ephemeral]

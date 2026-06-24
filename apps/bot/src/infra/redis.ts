@@ -81,3 +81,18 @@ export function createRedisForWorker(): Redis | null {
 export function getRedis(): Redis | null {
   return sharedRedis;
 }
+
+export async function assertRedisConnection(): Promise<void> {
+  const client = sharedRedis ?? await initRedis();
+  if (!client) {
+    throw new Error(
+      'Redis indisponible — BullMQ requiert une connexion Redis active. ' +
+      'Configurez REDIS_URL ou REDIS_HOST.'
+    );
+  }
+  try {
+    await client.ping();
+  } catch (err) {
+    throw new Error(`Redis indisponible — ping échoué: ${String(err)}`);
+  }
+}

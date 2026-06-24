@@ -51,7 +51,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     const firedChamber = 1;
     const rolledChamber = Math.floor(Math.random() * 6) + 1;
 
-    let isShot = rolledChamber === firedChamber;
+    const isShot = rolledChamber === firedChamber;
     let netGain = 0;
     let newHp = profile.health;
     let resultMessage = '';
@@ -97,7 +97,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     }
 
     await interaction.reply({ embeds: [embed] });
-  } catch (err: any) {
+  } catch (err: unknown) {
     await interaction.reply({
       embeds: [errorEmbed('Erreur', err.message || 'Impossible de jouer à la roulette.')],
       flags: [MessageFlags.Ephemeral]

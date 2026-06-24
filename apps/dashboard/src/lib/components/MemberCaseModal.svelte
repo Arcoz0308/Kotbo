@@ -475,17 +475,6 @@
     return `#${channel.name}`;
   }
 
-  function getHeroBackground() {
-    if (caseData?.profile?.bannerUrl) {
-      return `background-image: linear-gradient(to bottom, transparent 30%, var(--surface-container-lowest) 100%), url('${caseData?.profile?.bannerUrl}'); background-size: cover; background-position: center;`;
-    }
-    if (caseData?.profile?.accentColor) {
-      const hex = '#' + caseData?.profile?.accentColor.toString(16).padStart(6, '0');
-      return `background: linear-gradient(135deg, ${hex}40 0%, var(--color-primary) 50%, var(--color-secondary) 100%);`;
-    }
-    return `background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-container) 50%, var(--color-secondary) 100%);`;
-  }
-
   function getPresenceColor(status: string | null | undefined) {
     if (!status) return 'bg-slate-400';
     const s = status.toLowerCase();
@@ -571,7 +560,31 @@
 
     <!-- ── Hero Section ──────────────────────────────────────── -->
     <div class="relative overflow-hidden rounded-t-3xl -mt-6 -mx-6" style="min-height: 180px;">
-      <div class="absolute inset-0" style={getHeroBackground()}></div>
+      {#if caseData?.profile?.bannerUrl}
+        <div class="absolute inset-0" style="background-image: linear-gradient(to bottom, transparent 30%, var(--surface-container-lowest) 100%), url('{caseData.profile.bannerUrl}'); background-size: cover; background-position: center;"></div>
+      {:else}
+        <!-- Vagues colorées style kotbo.fr -->
+        <div class="absolute inset-0" style="background: linear-gradient(135deg, #f97316 0%, #f472b6 35%, #a855f7 65%, #7c3aed 100%);"></div>
+        <svg class="absolute inset-0 h-full w-full" viewBox="0 0 900 200" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="hero-w1" x1="0" y1="0" x2="1" y2="0.8">
+              <stop offset="0%" stop-color="#fdba74" />
+              <stop offset="100%" stop-color="#f9a8d4" />
+            </linearGradient>
+            <linearGradient id="hero-w2" x1="0" y1="0" x2="1" y2="0.5">
+              <stop offset="0%" stop-color="#e879f9" stop-opacity="0.6" />
+              <stop offset="100%" stop-color="#8b5cf6" stop-opacity="0.8" />
+            </linearGradient>
+            <linearGradient id="hero-w3" x1="0.2" y1="0" x2="0.8" y2="1">
+              <stop offset="0%" stop-color="#c084fc" stop-opacity="0.4" />
+              <stop offset="100%" stop-color="#6d28d9" stop-opacity="0.7" />
+            </linearGradient>
+          </defs>
+          <path d="M0,40 C100,80 250,10 400,55 C550,100 720,25 900,65 L900,0 L0,0 Z" fill="url(#hero-w1)" opacity="0.7" />
+          <path d="M0,110 C180,60 320,140 520,85 C700,30 820,95 900,55 L900,200 L0,200 Z" fill="url(#hero-w2)" />
+          <path d="M0,155 C200,125 380,165 580,130 C740,100 850,145 900,115 L900,200 L0,200 Z" fill="url(#hero-w3)" />
+        </svg>
+      {/if}
       <div class="absolute inset-0 bg-linear-to-b from-transparent via-transparent to-(--surface-container-lowest)"></div>
 
       <!-- Close button -->

@@ -33,7 +33,7 @@ export function getLevelFromXp(xp: number): number {
 
 export async function getOrCreateLevelConfig(guildId: string) {
   const cacheKey = `guild:${guildId}:level_config`;
-  let config = await cache.get<any>(cacheKey);
+  let config = await cache.get<unknown>(cacheKey);
 
   if (config) return config;
 
@@ -210,7 +210,7 @@ async function processLevelUp(guildId: string, userId: string, newLevel: number,
       if (!config.stackRewards) {
         const eligibleRewards = rewards.filter(r => newLevel >= r.level);
         if (eligibleRewards.length > 1) {
-          const highestReward = eligibleRewards[eligibleRewards.length - 1];
+          const _highestReward = eligibleRewards[eligibleRewards.length - 1];
           // Retirer tous les autres rôles récompenses plus bas
           for (const prevReward of eligibleRewards.slice(0, -1)) {
             if (member.roles.cache.has(prevReward.roleId) && !rolesToRemove.includes(prevReward.roleId)) {
@@ -258,7 +258,7 @@ async function processLevelUp(guildId: string, userId: string, newLevel: number,
         coinRewardText = ` Tu as également gagné **${rewardAmount}** ${econConfig.currencyEmoji} **${econConfig.currencyName}** !`;
       }
     } catch (econErr) {
-      logger.error('LevelingService', "Erreur lors de l\'attribution du bonus d\'économie pour le level up :", econErr);
+      logger.error('LevelingService', "Erreur lors de l'attribution du bonus d'économie pour le level up :", econErr);
     }
 
     // 2. Envoi du message de félicitations
@@ -509,7 +509,7 @@ export async function generateRankCard(member: GuildMember, level: number, xp: n
 }
 
 // Helper pour dessiner des rectangles arrondis
-function roundRect(ctx: any, x: number, y: number, w: number, h: number, r: number, fill: string | CanvasGradient) {
+function roundRect(ctx: unknown, x: number, y: number, w: number, h: number, r: number, fill: string | CanvasGradient) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
   ctx.lineTo(x + w - r, y);
@@ -562,7 +562,7 @@ export async function updateMemberLevelRoles(guildId: string, userId: string, le
       if (!config.stackRewards) {
         const eligibleRewards = rewards.filter(r => level >= r.level);
         if (eligibleRewards.length > 1) {
-          const highestReward = eligibleRewards[eligibleRewards.length - 1];
+          const _highestReward = eligibleRewards[eligibleRewards.length - 1];
           for (const prevReward of eligibleRewards.slice(0, -1)) {
             if (member.roles.cache.has(prevReward.roleId) && !rolesToRemove.includes(prevReward.roleId)) {
               rolesToRemove.push(prevReward.roleId);

@@ -300,7 +300,7 @@ export async function sendDailyAlgoConfig(
 
   const timeBtn = new ButtonBuilder()
     .setCustomId('cfg:modal:daily-algo:time')
-    .setLabel("🕐 Changer l\'heure")
+    .setLabel("🕐 Changer l'heure")
     .setStyle(ButtonStyle.Primary);
 
   const clearChannelBtn = new ButtonBuilder()
@@ -512,7 +512,7 @@ export async function sendAdvancedLogsConfig(interaction: PanelInteraction, guil
 export async function buildSetTimeModal(): Promise<ModalBuilder> {
   return new ModalBuilder()
     .setCustomId('cfg:modal:daily-algo:time')
-    .setTitle("Configurer l\'heure - Daily Algo")
+    .setTitle("Configurer l'heure - Daily Algo")
     .addComponents(
       new ActionRowBuilder<TextInputBuilder>().addComponents(
         new TextInputBuilder()

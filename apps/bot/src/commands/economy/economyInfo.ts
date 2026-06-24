@@ -41,7 +41,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       .addTextDisplayComponents(text(`-# ${E.info} Activé : ${config.enabled ? `${E.success} Oui` : `${E.error} Non`}`));
 
     await interaction.reply(v2(container));
-  } catch (err: any) {
+  } catch (err: unknown) {
     await interaction.reply({ content: `${E.error} Impossible de récupérer les informations de l'économie.`, flags: [MessageFlags.Ephemeral] });
   }
 }

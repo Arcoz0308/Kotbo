@@ -18,11 +18,11 @@ import { errorEmbed, successEmbed, COLORS } from '../../utils/embeds.js';
 
 const data = new SlashCommandBuilder()
   .setName('signal')
-  .setDescription("🚨 Signale un utilisateur Discord à l\'administrateur du bot")
+  .setDescription("🚨 Signale un utilisateur Discord à l'administrateur du bot")
   .addUserOption((option) =>
     option
       .setName('membre')
-      .setDescription("L\'utilisateur à signaler")
+      .setDescription("L'utilisateur à signaler")
       .setRequired(true),
   )
   .addStringOption((option) =>
@@ -57,7 +57,7 @@ export async function sendReportToAdmin(params: {
 
     const embed = new EmbedBuilder()
       .setColor(COLORS.warning)
-      .setTitle("🚨 Nouveau signalement d\'utilisateur")
+      .setTitle("🚨 Nouveau signalement d'utilisateur")
       .setDescription(`Un utilisateur a été signalé via le bot.`)
       .addFields(
         { name: 'Cible (Utilisateur signalé)', value: `${params.target} (\`${params.target.id}\` - @${params.target.username})`, inline: false },
@@ -70,7 +70,7 @@ export async function sendReportToAdmin(params: {
     await owner.send({ embeds: [embed] });
     return true;
   } catch (error) {
-    console.error("Erreur lors de l\'envoi du signalement à l\'admin:", error);
+    console.error("Erreur lors de l'envoi du signalement à l'admin:", error);
     return false;
   }
 }
@@ -97,7 +97,7 @@ async function executeSlash(interaction: ChatInputCommandInteraction): Promise<v
     });
   } else {
     await interaction.editReply({
-      embeds: [errorEmbed("Échec de l\'envoi", "Impossible de transmettre le signalement à l\'administrateur du bot.")],
+      embeds: [errorEmbed("Échec de l'envoi", "Impossible de transmettre le signalement à l'administrateur du bot.")],
     });
   }
 }

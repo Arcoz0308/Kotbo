@@ -132,7 +132,7 @@ export async function sendVerificationEmbed(
   client: Client,
   guildId: string,
   channelId: string,
-  dashboardUrl: string,
+  _dashboardUrl: string,
 ): Promise<boolean> {
   const guildConfig = await prisma.guild.findUnique({
     where: { id: guildId },
@@ -175,7 +175,7 @@ export async function sendVerificationEmbed(
 }
 
 export async function handleVerifyButtonClick(
-  interaction: any,
+  interaction: unknown,
   dashboardUrl: string,
 ): Promise<void> {
   const guildId = interaction.guildId;
@@ -403,7 +403,7 @@ async function notifyStaffOfDuplicate(
   guildId: string,
   userId1: string,
   userId2: string,
-  evidence: any,
+  evidence: unknown,
   logChannelId: string | null | undefined,
   autoLinked: boolean,
 ): Promise<void> {
@@ -411,7 +411,7 @@ async function notifyStaffOfDuplicate(
   if (!guild) return;
 
   const method = evidence.method === 'oauth_mismatch'
-    ? "L\'utilisateur s\'est authentifié avec un compte Discord différent de celui attendu."
+    ? "L'utilisateur s'est authentifié avec un compte Discord différent de celui attendu."
     : `Les deux comptes partagent la même adresse IP.`;
 
   const embed = new EmbedBuilder()
@@ -476,7 +476,7 @@ async function notifyStaffOfDuplicate(
   );
 }
 
-export async function handleVerificationStaffAction(interaction: any): Promise<void> {
+export async function handleVerificationStaffAction(interaction: unknown): Promise<void> {
   if (!interaction.isButton()) return;
 
   const parts = interaction.customId.split(':');

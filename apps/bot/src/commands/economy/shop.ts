@@ -65,7 +65,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     };
 
     // Group items by type
-    const groupedItems = items.reduce((acc: Record<string, LocalRpgItem[]>, item: any) => {
+    const groupedItems = items.reduce((acc: Record<string, LocalRpgItem[]>, item: unknown) => {
       const localItem = item as LocalRpgItem;
       acc[localItem.type] = acc[localItem.type] || [];
       acc[localItem.type].push(localItem);
@@ -87,7 +87,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     }
 
     await interaction.reply({ embeds: [embed] });
-  } catch (err: any) {
+  } catch (err: unknown) {
     await interaction.reply({
       embeds: [errorEmbed('Erreur', err.message || "Impossible d'ouvrir la boutique.")],
       flags: [MessageFlags.Ephemeral]

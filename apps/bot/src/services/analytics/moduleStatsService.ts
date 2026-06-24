@@ -67,7 +67,7 @@ export async function setModuleActivation(
   guildId: string,
   moduleName: KotboModule,
   enabled: boolean,
-  config?: Record<string, any>
+  config?: Record<string, unknown>
 ): Promise<void> {
   const now = new Date();
   
@@ -108,7 +108,7 @@ export async function incrementModuleUsage(options: UsageIncrementOptions): Prom
   const { guildId, moduleName, actionType = 'command', actionName, userId } = options;
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
-  const updateData: any = {};
+  const updateData: unknown = {};
 
   if (actionType === 'command') {
     updateData.commandExecutions = { increment: 1 };
@@ -258,7 +258,7 @@ export async function recordModulePerformance(options: PerformanceRecordOptions)
 /**
  * Récupère les stats d'activation des modules
  */
-export async function getModuleActivationStats(guildId?: string): Promise<any[]> {
+export async function getModuleActivationStats(guildId?: string): Promise<unknown[]> {
   const where = guildId ? { guildId } : { guildId: null };
   
   const stats = await prisma.moduleActivationStat.findMany({
@@ -285,10 +285,10 @@ export async function getModuleUsageStats(options: {
   startDate?: string;
   endDate?: string;
   periodDays?: number;
-}): Promise<any[]> {
+}): Promise<unknown[]> {
   const { guildId, moduleName, startDate, endDate, periodDays = 30 } = options;
 
-  let dateKeyFilter: any = {};
+  let dateKeyFilter: unknown = {};
   if (startDate && endDate) {
     dateKeyFilter = { gte: startDate, lte: endDate };
   } else if (periodDays) {
@@ -298,7 +298,7 @@ export async function getModuleUsageStats(options: {
     dateKeyFilter = { gte: startDateKey };
   }
 
-  const where: any = {};
+  const where: unknown = {};
   if (Object.keys(dateKeyFilter).length > 0) {
     where.dateKey = dateKeyFilter;
   }
@@ -334,10 +334,10 @@ export async function getModulePerformanceStats(options: {
   startDate?: string;
   endDate?: string;
   periodDays?: number;
-}): Promise<any[]> {
+}): Promise<unknown[]> {
   const { guildId, moduleName, startDate, endDate, periodDays = 30 } = options;
 
-  let dateKeyFilter: any = {};
+  let dateKeyFilter: unknown = {};
   if (startDate && endDate) {
     dateKeyFilter = { gte: startDate, lte: endDate };
   } else if (periodDays) {
@@ -347,7 +347,7 @@ export async function getModulePerformanceStats(options: {
     dateKeyFilter = { gte: startDateKey };
   }
 
-  const where: any = {};
+  const where: unknown = {};
   if (Object.keys(dateKeyFilter).length > 0) {
     where.dateKey = dateKeyFilter;
   }
@@ -383,9 +383,9 @@ export async function getModuleStatsSummary(options: {
   guildId?: string;
   periodDays?: number;
 }): Promise<{
-  activation: any[];
-  usage: any[];
-  performance: any[];
+  activation: unknown[];
+  usage: unknown[];
+  performance: unknown[];
   topModules: Array<{
     moduleName: string;
     totalUsage: number;

@@ -19,7 +19,7 @@ export async function createReactionRoleMenu(
       guildId,
       channelId,
       title,
-      options: options as any,
+      options: options as unknown,
     },
   });
 
@@ -107,7 +107,7 @@ export async function sendOrUpdateMenuMessage(client: Client, menuId: string) {
 /**
  * Bascule (ajoute ou retire) un rôle à un membre suite à un clic sur bouton
  */
-export async function handleRoleToggleInteraction(interaction: any) {
+export async function handleRoleToggleInteraction(interaction: unknown) {
   try {
     const roleId = interaction.customId.split(':')[1];
     const member = interaction.member;

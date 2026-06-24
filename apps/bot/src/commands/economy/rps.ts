@@ -114,7 +114,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       .setTimestamp();
 
     await interaction.reply({ embeds: [embed] });
-  } catch (err: any) {
+  } catch (err: unknown) {
     await interaction.reply({
       embeds: [errorEmbed('Erreur', err.message || 'Impossible de jouer au rps.')],
       flags: [MessageFlags.Ephemeral]

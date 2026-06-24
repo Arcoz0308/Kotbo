@@ -19,7 +19,7 @@ const data = new SlashCommandBuilder()
       .addChannelOption((o) => o.setName('salon').setDescription('Salon de publication (défaut: salon actuel)').setRequired(false))
       .addIntegerOption((o) => o.setName('xp').setDescription('XP RPG bonus à faire gagner').setRequired(false))
       .addIntegerOption((o) => o.setName('pieces').setDescription('KotboCoins bonus à faire gagner').setRequired(false))
-      .addStringOption((o) => o.setName('objet').setDescription("ID de l\'objet RPG bonus à faire gagner").setRequired(false))
+      .addStringOption((o) => o.setName('objet').setDescription("ID de l'objet RPG bonus à faire gagner").setRequired(false))
       .addBooleanOption((o) => o.setName('validation').setDescription('Requérir la validation du staff avant de donner le gain').setRequired(false))
   )
   .addSubcommand((sub) =>
@@ -128,11 +128,11 @@ async function executeInternal(interaction: ChatInputCommandInteraction): Promis
     }
 
     if (!giveaway.ended) {
-      await interaction.reply({ content: "❌ Ce giveaway n\'est pas encore terminé.", flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({ content: "❌ Ce giveaway n'est pas encore terminé.", flags: [MessageFlags.Ephemeral] });
       return;
     }
 
-    await interaction.reply({ content: "⏳ Tirage d\'un nouveau gagnant...", flags: [MessageFlags.Ephemeral] });
+    await interaction.reply({ content: "⏳ Tirage d'un nouveau gagnant...", flags: [MessageFlags.Ephemeral] });
     await rerollGiveaway(interaction.client, id);
     await interaction.editReply(`🎲 Un nouveau gagnant a été tiré au sort pour le giveaway \`${id}\`.`);
   }

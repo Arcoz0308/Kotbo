@@ -291,7 +291,7 @@ export async function handleAdminRoutes(
         } else if (result.error === 'NO_CHANNEL') {
           json(res, 400, { error: 'Impossible de créer une invitation (pas de salon textuel ou pas la permission)' });
         } else if (result.error === 'CREATE_FAILED') {
-          json(res, 500, { error: "Erreur lors de la création de l\'invitation" });
+          json(res, 500, { error: "Erreur lors de la création de l'invitation" });
         } else if (result.url) {
           json(res, 200, { url: result.url });
         }
@@ -310,7 +310,7 @@ export async function handleAdminRoutes(
           const invite = await (channel as TextChannel).createInvite({ maxAge: 86400, maxUses: 1 });
           json(res, 200, { url: invite.url });
         } catch (err) {
-          json(res, 500, { error: "Erreur lors de la création de l\'invitation" });
+          json(res, 500, { error: "Erreur lors de la création de l'invitation" });
         }
       }
       return true;
@@ -800,7 +800,7 @@ export async function handleAdminRoutes(
                   .setTitle('📢 Annonce Globale Kotbo')
                   .setDescription(context.message)
                   .setColor(COLORS.primary)
-                  .setFooter({ text: "Système d\'annonce globale" })
+                  .setFooter({ text: "Système d'annonce globale" })
                   .setTimestamp();
                 await channel.send({ embeds: [embed] });
                 shardSuccessCount++;
@@ -840,7 +840,7 @@ export async function handleAdminRoutes(
                 .setTitle('📢 Annonce Globale Kotbo')
                 .setDescription(body.message)
                 .setColor(COLORS.primary)
-                .setFooter({ text: "Système d\'annonce globale" })
+                .setFooter({ text: "Système d'annonce globale" })
                 .setTimestamp();
               await channel.send({ embeds: [embed] });
               successCount++;
@@ -889,7 +889,7 @@ export async function handleAdminRoutes(
       json(res, 200, enrichedCodes);
     } catch (err) {
       logger.error('AdminAPI', 'Erreur lors de la récupération des codes :', err);
-      json(res, 500, { error: "Erreur lors de la récupération des codes d\'activation." });
+      json(res, 500, { error: "Erreur lors de la récupération des codes d'activation." });
     }
     return true;
   }
@@ -909,8 +909,8 @@ export async function handleAdminRoutes(
 
       json(res, 201, newCode);
     } catch (err) {
-      logger.error('AdminAPI', "Erreur lors de la création d\'un code :", err);
-      json(res, 500, { error: "Erreur lors de la création du code d\'activation." });
+      logger.error('AdminAPI', "Erreur lors de la création d'un code :", err);
+      json(res, 500, { error: "Erreur lors de la création du code d'activation." });
     }
     return true;
   }
@@ -939,7 +939,7 @@ export async function handleAdminRoutes(
       json(res, 200, { ok: true });
     } catch (err) {
       logger.error('AdminAPI', 'Erreur lors de la suppression du code :', err);
-      json(res, 500, { error: "Erreur lors de la suppression du code d\'activation." });
+      json(res, 500, { error: "Erreur lors de la suppression du code d'activation." });
     }
     return true;
   }
@@ -976,7 +976,7 @@ export async function handleAdminRoutes(
       json(res, 200, { ok: true, code, message: 'Le serveur a été activé automatiquement.' });
     } catch (err) {
       logger.error('AdminAPI', 'Erreur lors de la génération et affectation du code :', err);
-      json(res, 500, { error: "Erreur lors de l\'activation automatique du serveur." });
+      json(res, 500, { error: "Erreur lors de l'activation automatique du serveur." });
     }
     return true;
   }
@@ -1174,7 +1174,7 @@ export async function handleAdminRoutes(
         'brandFooterText', 'jwtSecret', 'ownerId', 'maxGuilds',
       ] as const;
 
-      const updateData: Record<string, any> = {};
+      const updateData: Record<string, unknown> = {};
       for (const field of allowedFields) {
         if (body[field] !== undefined) {
           if (field === 'apiPort' || field === 'maxGuilds') {

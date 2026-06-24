@@ -106,10 +106,10 @@ function normalizeTicketPanelTypes(rawTypes: unknown, fallback: {
   }];
 }
 
-function resolveTicketPanelType(guildConfig: any, typeId?: string | null): TicketPanelTypeConfig {
+function resolveTicketPanelType(guildConfig: unknown, typeId?: string | null): TicketPanelTypeConfig {
   const ticketTypes = normalizeTicketPanelTypes(guildConfig.ticketTypes, {
     label: guildConfig.ticketEmbedButtonText || 'Ouvrir un ticket',
-    description: guildConfig.ticketEmbedDesc || "Cliquez sur le bouton ci-dessous pour ouvrir un ticket d\'assistance.",
+    description: guildConfig.ticketEmbedDesc || "Cliquez sur le bouton ci-dessous pour ouvrir un ticket d'assistance.",
     categoryId: guildConfig.ticketCategoryId ?? null,
     staffRoleId: guildConfig.ticketStaffRoleId ?? null,
     emoji: '📩',
@@ -135,17 +135,17 @@ function resolveButtonStyle(style?: TicketPanelTypeConfig['buttonStyle']): Butto
 export async function renameTicketChannel(
   client: Client,
   ticket: { id: string; guildId: string; channelId: string | null; userId: string; username: string; reason: string; description: string },
-  guildConfig: any,
+  guildConfig: unknown,
   executor: { id: string; username: string },
   newName: string,
 ): Promise<string> {
   if (!ticket.channelId) {
-    throw new Error("Ce ticket n\'a pas de salon actif à renommer.");
+    throw new Error("Ce ticket n'a pas de salon actif à renommer.");
   }
 
   const channel = await client.channels.fetch(ticket.channelId).catch(() => null);
   if (!channel || !(channel instanceof TextChannel)) {
-    throw new Error("Le salon du ticket est introuvable ou n\'est pas un salon textuel.");
+    throw new Error("Le salon du ticket est introuvable ou n'est pas un salon textuel.");
   }
 
   const finalName = buildTicketChannelName(newName, ticket.username || ticket.userId);
@@ -163,7 +163,7 @@ export async function renameTicketChannel(
 /**
  * Checks if a member has permission to moderate/manage tickets.
  */
-export function canManageTicket(member: GuildMember | APIInteractionGuildMember | null | undefined, guildConfig: any, ticketStaffRoleId?: string | null): boolean {
+export function canManageTicket(member: GuildMember | APIInteractionGuildMember | null | undefined, guildConfig: unknown, ticketStaffRoleId?: string | null): boolean {
   if (!member) return false;
 
   const permissionBits = (member as GuildMember | APIInteractionGuildMember).permissions;
@@ -192,12 +192,12 @@ export function canManageTicket(member: GuildMember | APIInteractionGuildMember 
 export async function sendTicketSetupEmbed(client: Client, guildId: string): Promise<void> {
   const guildConfig = await prisma.guild.findUnique({ where: { id: guildId } });
   if (!guildConfig || !guildConfig.ticketChannelId) {
-    throw new Error("Le salon d\'embed des tickets n\'est pas configuré.");
+    throw new Error("Le salon d'embed des tickets n'est pas configuré.");
   }
 
   const channel = client.channels.cache.get(guildConfig.ticketChannelId);
   if (!channel || !(channel instanceof TextChannel)) {
-    throw new Error("Le salon d\'embed des tickets est introuvable ou n\'est pas un salon textuel.");
+    throw new Error("Le salon d'embed des tickets est introuvable ou n'est pas un salon textuel.");
   }
 
   const colorHex = guildConfig.ticketEmbedColor || '#5865F2';
@@ -205,7 +205,7 @@ export async function sendTicketSetupEmbed(client: Client, guildId: string): Pro
 
   const ticketTypes = normalizeTicketPanelTypes(guildConfig.ticketTypes, {
     label: guildConfig.ticketEmbedButtonText || 'Ouvrir un ticket',
-    description: guildConfig.ticketEmbedDesc || "Cliquez sur le bouton ci-dessous pour ouvrir un ticket d\'assistance.",
+    description: guildConfig.ticketEmbedDesc || "Cliquez sur le bouton ci-dessous pour ouvrir un ticket d'assistance.",
     categoryId: guildConfig.ticketCategoryId ?? null,
     staffRoleId: guildConfig.ticketStaffRoleId ?? null,
     emoji: '📩',
@@ -213,7 +213,7 @@ export async function sendTicketSetupEmbed(client: Client, guildId: string): Pro
   });
 
   const title = resolveEmojiShortcodes(guildConfig.ticketEmbedTitle || 'Support Technique');
-  let desc = resolveEmojiShortcodes(guildConfig.ticketEmbedDesc || "Cliquez sur le bouton ci-dessous pour ouvrir un ticket d\'assistance.");
+  let desc = resolveEmojiShortcodes(guildConfig.ticketEmbedDesc || "Cliquez sur le bouton ci-dessous pour ouvrir un ticket d'assistance.");
   if (ticketTypes.length > 0) {
     desc += '\n\n**Types de tickets**\n';
     ticketTypes.forEach(t => {
@@ -484,7 +484,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
     await interaction.deferUpdate();
 
     // Mettre à jour en base de données
-    const updated = await prisma.ticket.update({
+    const _updated = await prisma.ticket.update({
       where: { id: ticketId },
       data: {
         status: 'CLAIMED',
@@ -501,7 +501,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
         const oldEmbed = welcomeMessage.embeds[0];
         if (oldEmbed) {
           const updatedEmbed = EmbedBuilder.from(oldEmbed)
-            .setColor(COLORS.warning as any)
+            .setColor(COLORS.warning as unknown)
             .setDescription(`Ce ticket est actuellement pris en charge par **${user.username}**.\n\n**Auteur :** <@${ticket.userId}>\n**Raison :** ${ticket.reason}\n**Description :** ${ticket.description}`)
             .setFields([
               { name: 'Statut', value: `🛠️ Pris en charge par <@${user.id}>`, inline: true }
@@ -556,7 +556,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
       });
     } catch (err) {
       logger.error('Ticket', 'Error building member profile card for ticket:', err);
-      await interaction.editReply({ content: "❌ Impossible de générer la fiche de l\'utilisateur." });
+      await interaction.editReply({ content: "❌ Impossible de générer la fiche de l'utilisateur." });
     }
     return;
   }
@@ -568,7 +568,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
     const isStaff = canManageTicket(member as GuildMember, guildConfig, ticket.staffRoleId);
 
     if (!isOpener && !isStaff) {
-      await interaction.reply({ content: "❌ Vous n\'avez pas la permission de fermer ce ticket.", flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({ content: "❌ Vous n'avez pas la permission de fermer ce ticket.", flags: [MessageFlags.Ephemeral] });
       return;
     }
 
@@ -608,7 +608,7 @@ export async function handleTicketButton(client: Client, customId: string, inter
       const closeEmbed = new EmbedBuilder()
         .setTitle('🔒 Ticket Fermé')
         .setDescription(`Le ticket a été fermé par <@${user.id}>.\n\nLes membres du personnel peuvent maintenant exporter la transcription ou supprimer définitivement le salon.`)
-        .setColor(COLORS.danger as any)
+        .setColor(COLORS.danger as unknown)
         .setTimestamp();
 
       const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -713,8 +713,8 @@ export async function handleTicketButton(client: Client, customId: string, inter
       const dmEmbed = new EmbedBuilder()
         .setTitle('📄 Transcription de ticket')
         .setDescription(`Le ticket d'assistance **${ticket.reason}** du serveur **${guild.name}** a été supprimé.\n\nVoici le lien pour consulter la transcription complète :`)
-        .addFields([{ name: "Lien d\'accès", value: `🌐 [Consulter le transcript](${publicLink})` }])
-        .setColor(COLORS.primary as any)
+        .addFields([{ name: "Lien d'accès", value: `🌐 [Consulter le transcript](${publicLink})` }])
+        .setColor(COLORS.primary as unknown)
         .setTimestamp();
         
       for (const dmUserId of usersToDm) {
@@ -763,7 +763,7 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
     const description = interaction.fields.getTextInputValue('description');
     const typeId = customId.startsWith('modal:ticket:open:') ? customId.split(':')[3] : null;
     const ticketType = resolveTicketPanelType(guildConfig, typeId);
-    const ticketMode = (guildConfig as any).ticketMode || 'CHANNEL';
+    const ticketMode = (guildConfig as unknown).ticketMode || 'CHANNEL';
 
     try {
       const ticketStaffRoleId = ticketType.staffRoleId || guildConfig.ticketStaffRoleId || null;
@@ -771,7 +771,7 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
 
       if (ticketMode === 'DM') {
         // ─── Mode DM : ticket via messages privés ───────────────────────
-        const relayChannelId = (guildConfig as any).ticketDmRelayChannelId || guildConfig.ticketLogChannelId;
+        const relayChannelId = (guildConfig as unknown).ticketDmRelayChannelId || guildConfig.ticketLogChannelId;
         const relayChannel = relayChannelId ? await client.channels.fetch(relayChannelId).catch(() => null) : null;
 
         if (!relayChannel || !(relayChannel instanceof TextChannel)) {
@@ -806,7 +806,7 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
         const staffEmbed = new EmbedBuilder()
           .setTitle(`🎫 Nouveau Ticket MP · ${ticketType.label}`)
           .setDescription(`**Créateur :** <@${user.id}> (${user.username})\n**Raison :** ${reason}\n\n**Description :**\n${description}\n\n> Les messages envoyés ici seront relayés en MP à l'utilisateur.`)
-          .setColor(COLORS.primary as any)
+          .setColor(COLORS.primary as unknown)
           .setTimestamp()
           .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
 
@@ -825,7 +825,7 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
         const dmEmbed = new EmbedBuilder()
           .setTitle(`🎫 Ticket ouvert · ${guild.name}`)
           .setDescription(`Votre ticket d'assistance a bien été créé !\nLe personnel va prendre en charge votre demande. **Répondez directement ici** pour communiquer avec le staff.\n\n**Raison :** ${reason}\n**Description :** ${description}`)
-          .setColor(COLORS.primary as any)
+          .setColor(COLORS.primary as unknown)
           .setTimestamp()
           .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
 
@@ -879,7 +879,7 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
         const welcomeEmbed = new EmbedBuilder()
           .setTitle(`🎫 Ticket d'Assistance · ${ticketType.label}`)
           .setDescription(`Bonjour <@${user.id}> !\n${staffMention ? `Le personnel ${staffMention} va prendre en charge votre demande rapidement.` : 'Un membre du personnel va prendre en charge votre demande rapidement.'}\n\n**Description du problème :**\n${description}`)
-          .setColor(COLORS.primary as any)
+          .setColor(COLORS.primary as unknown)
           .setTimestamp()
           .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
 
@@ -908,7 +908,7 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
         const cleanedUsername = user.username.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'membre';
         const channelName = `ticket-${cleanedUsername}`;
 
-        const permissionOverwrites: any[] = [
+        const permissionOverwrites: unknown[] = [
           {
             id: guild.roles.everyone.id,
             deny: [PermissionFlagsBits.ViewChannel]
@@ -979,7 +979,7 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
         const welcomeEmbed = new EmbedBuilder()
           .setTitle(`🎫 Ticket d'Assistance · ${ticketType.label}`)
           .setDescription(`Bonjour <@${user.id}> !\n${staffMention ? `Le personnel ${staffMention} va prendre en charge votre demande rapidement.` : 'Un membre du personnel va prendre en charge votre demande rapidement.'} En attendant, merci de bien détailler vos questions ou explications.\n\n**Description du problème :**\n${description}`)
-          .setColor(COLORS.primary as any)
+          .setColor(COLORS.primary as unknown)
           .setTimestamp()
           .setFooter({ text: `Kotbo · Ticket ID: ${ticket.id}` });
 
@@ -1002,7 +1002,7 @@ export async function handleTicketModalSubmit(client: Client, customId: string, 
     } catch (err) {
       logger.error('Ticket', 'Error creating ticket:', err);
       await interaction.editReply({
-        content: "❌ Une erreur est survenue lors de l\'ouverture du ticket. Veuillez contacter un administrateur."
+        content: "❌ Une erreur est survenue lors de l'ouverture du ticket. Veuillez contacter un administrateur."
       });
     }
   }
@@ -1032,7 +1032,7 @@ export async function relayDmToThread(client: Client, message: Message): Promise
     const relayEmbed = new EmbedBuilder()
       .setAuthor({ name: message.author.username, iconURL: message.author.displayAvatarURL() })
       .setDescription(message.content || '*Pièce jointe*')
-      .setColor(COLORS.primary as any)
+      .setColor(COLORS.primary as unknown)
       .setTimestamp();
 
     const files = message.attachments.map(a => a.url);
@@ -1063,13 +1063,13 @@ export async function relayThreadToDm(client: Client, message: Message): Promise
     const dmUser = await client.users.fetch(ticket.userId);
     if (!dmUser) return;
 
-    const guildConfig = await prisma.guild.findUnique({ where: { id: ticket.guildId } });
+    const _guildConfig = await prisma.guild.findUnique({ where: { id: ticket.guildId } });
     const guildName = client.guilds.cache.get(ticket.guildId)?.name || 'Serveur';
 
     const relayEmbed = new EmbedBuilder()
       .setAuthor({ name: `${message.author.username} · ${guildName}`, iconURL: message.author.displayAvatarURL() })
       .setDescription(message.content || '*Pièce jointe*')
-      .setColor(COLORS.primary as any)
+      .setColor(COLORS.primary as unknown)
       .setTimestamp()
       .setFooter({ text: `Ticket: ${ticket.reason}` });
 
@@ -1085,10 +1085,10 @@ export async function relayThreadToDm(client: Client, message: Message): Promise
  */
 async function logTicketEvent(
   client: Client,
-  guildConfig: any,
+  guildConfig: unknown,
   action: 'OPENED' | 'CLAIMED' | 'CLOSED' | 'REOPENED' | 'DELETED' | 'RENAMED',
-  ticket: any,
-  executor: any,
+  ticket: unknown,
+  executor: unknown,
   transcriptLink?: string
 ): Promise<void> {
   if (!guildConfig.ticketLogChannelId) return;
@@ -1105,7 +1105,7 @@ async function logTicketEvent(
       embed
         .setTitle('🎫 Nouveau Ticket Créé')
         .setDescription(`Le ticket <#${ticket.channelId}> a été ouvert.`)
-        .setColor(COLORS.success as any)
+        .setColor(COLORS.success as unknown)
         .addFields([
           { name: 'Type', value: ticket.ticketTypeLabel || ticket.ticketTypeId || 'Ticket standard', inline: true },
           { name: 'Créateur', value: `<@${ticket.userId}> (${ticket.username})`, inline: true },
@@ -1118,7 +1118,7 @@ async function logTicketEvent(
       embed
         .setTitle('🛠️ Ticket Pris en Charge')
         .setDescription(`Le ticket <#${ticket.channelId}> a été pris en charge par <@${executor.id}>.`)
-        .setColor(COLORS.warning as any)
+        .setColor(COLORS.warning as unknown)
         .addFields([
           { name: 'Créateur', value: `<@${ticket.userId}>`, inline: true },
           { name: 'Staff', value: `<@${executor.id}>`, inline: true }
@@ -1129,7 +1129,7 @@ async function logTicketEvent(
       embed
         .setTitle('🔒 Ticket Fermé')
         .setDescription(`Le ticket <#${ticket.channelId}> a été fermé par <@${executor.id}>.`)
-        .setColor(COLORS.danger as any)
+        .setColor(COLORS.danger as unknown)
         .addFields([
           { name: 'Créateur', value: `<@${ticket.userId}>`, inline: true },
           { name: 'Fermé par', value: `<@${executor.id}>`, inline: true }
@@ -1140,7 +1140,7 @@ async function logTicketEvent(
       embed
         .setTitle('🔓 Ticket Réouvert')
         .setDescription(`Le ticket <#${ticket.channelId}> a été réouvert par <@${executor.id}>.`)
-        .setColor(COLORS.primary as any)
+        .setColor(COLORS.primary as unknown)
         .addFields([
           { name: 'Créateur', value: `<@${ticket.userId}>`, inline: true },
           { name: 'Réouvert par', value: `<@${executor.id}>`, inline: true }
@@ -1166,7 +1166,7 @@ async function logTicketEvent(
       embed
         .setTitle('✏️ Ticket Renommé')
         .setDescription(`Le ticket <#${ticket.channelId}> a été renommé en **#${transcriptLink || 'inconnu'}** par <@${executor.id}>.`)
-        .setColor(COLORS.primary as any)
+        .setColor(COLORS.primary as unknown)
         .addFields([
           { name: 'Créateur', value: `<@${ticket.userId}>`, inline: true },
           { name: 'Renommé par', value: `<@${executor.id}>`, inline: true }
@@ -1275,6 +1275,6 @@ export async function checkTicketInactivity(client: Client): Promise<void> {
       }
     }
   } catch (err) {
-    logger.error('Ticket', "Erreur lors de la vérification de l\'inactivité des tickets:", err);
+    logger.error('Ticket', "Erreur lors de la vérification de l'inactivité des tickets:", err);
   }
 }

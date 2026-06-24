@@ -21,9 +21,9 @@ export async function fetchAllMembers(guild: Guild): Promise<Collection<string, 
   const allMembers = new Collection<string, GuildMember>();
   let lastId: string | undefined = undefined;
 
-  while (true) {
+  for (;;) {
     try {
-      const options: any = { limit: 1000 };
+      const options: unknown = { limit: 1000 };
       if (lastId) {
         options.after = lastId;
       }

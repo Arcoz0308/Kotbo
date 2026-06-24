@@ -96,7 +96,7 @@ async function performAutoBackup(guild: Guild): Promise<void> {
  */
 async function cleanupOldAutoBackups(guildId: string): Promise<void> {
   // Récupérer tous les backups automatiques du serveur
-  const autoBackups = await (prisma as any).$queryRaw`
+  const autoBackups = await (prisma as unknown).$queryRaw`
     SELECT * FROM server_backups 
     WHERE guild_id = ${guildId} 
     AND created_by_username = 'Kotbo Auto Backup'
@@ -108,7 +108,7 @@ async function cleanupOldAutoBackups(guildId: string): Promise<void> {
     const toDelete = autoBackups.slice(MAX_AUTO_BACKUPS);
     
     for (const backup of toDelete) {
-      await (prisma as any).$executeRaw`
+      await (prisma as unknown).$executeRaw`
         DELETE FROM server_backups 
         WHERE id = ${backup.id}
       `;

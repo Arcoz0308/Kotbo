@@ -153,13 +153,13 @@ async function upsertMemberProfile(snapshot: MemberProfileSnapshot): Promise<voi
       },
       update: updateData,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     // Defensive: if DB schema is not in sync with Prisma (missing columns), avoid crashing the whole flow.
     // Log the error and continue. Migration should be applied to fix the root cause.
     try {
       const { logger } = await import('../../utils/logger.js');
       logger.error('MemberProfile', `Upsert failed for ${snapshot.guildId}/${snapshot.userId}: ${String(err)}`);
-    } catch {}
+    } catch { /* ignored */ }
     return;
   }
 }

@@ -33,7 +33,7 @@ export async function handleEventsRoutes(
   client: Client,
   user: AuthClaims,
   guildId: string,
-  access: DashboardAccess
+  _access: DashboardAccess
 ): Promise<boolean> {
   const method = req.method;
 
@@ -56,7 +56,7 @@ export async function handleEventsRoutes(
   // POST /api/dashboard/guilds/:guildId/events
   if (method === 'POST' && !parts[5]) {
     try {
-      const body = await readJsonBody<any>(req);
+      const body = await readJsonBody<unknown>(req);
       let event;
       if (body.type === 'CUSTOM') {
         event = await createCustomEvent(client, guildId, body);
@@ -150,7 +150,7 @@ export async function handleEventsRoutes(
     // PATCH /api/dashboard/guilds/:guildId/events/:eventId
     if (method === 'PATCH' && !parts[6]) {
       try {
-        const body = await readJsonBody<any>(req);
+        const body = await readJsonBody<unknown>(req);
         const currentEvent = await prisma.event.findUnique({ where: { id: eventId } });
         const isLive = currentEvent?.status === 'ONGOING';
 
@@ -165,10 +165,10 @@ export async function handleEventsRoutes(
             triggerType: body.triggerType,
             triggerValue: body.triggerValue,
             config: body.config,
-            triggerStatus: (body.triggerType !== (currentEvent as any)?.triggerType || body.triggerValue !== (currentEvent as any)?.triggerValue) ? 'PENDING' : undefined,
-            questions: (body.questions && !isLive && (currentEvent as any)?.type === 'QUIZ') ? {
+            triggerStatus: (body.triggerType !== (currentEvent as unknown)?.triggerType || body.triggerValue !== (currentEvent as unknown)?.triggerValue) ? 'PENDING' : undefined,
+            questions: (body.questions && !isLive && (currentEvent as unknown)?.type === 'QUIZ') ? {
               deleteMany: {},
-              create: body.questions.map((q: any, i: number) => ({
+              create: body.questions.map((q: unknown, i: number) => ({
                 text: q.text,
                 options: q.options,
                 correctOptionIndex: q.correctOptionIndex,
@@ -176,9 +176,9 @@ export async function handleEventsRoutes(
                 imageUrl: q.imageUrl
               }))
             } : undefined,
-            ctfChallenges: (body.ctfChallenges && !isLive && (currentEvent as any)?.type === 'CTF') ? {
+            ctfChallenges: (body.ctfChallenges && !isLive && (currentEvent as unknown)?.type === 'CTF') ? {
               deleteMany: {},
-              create: body.ctfChallenges.map((c: any, i: number) => ({
+              create: body.ctfChallenges.map((c: unknown, i: number) => ({
                 title: c.title,
                 description: c.description || '',
                 flag: c.flag,
@@ -189,11 +189,11 @@ export async function handleEventsRoutes(
                 sortOrder: i
               }))
             } : undefined
-          } as any,
-          include: { questions: true, ctfChallenges: true } as any
+          } as unknown,
+          include: { questions: true, ctfChallenges: true } as unknown
         });
 
-        if (isLive && body.questions && (currentEvent as any)?.type === 'QUIZ') {
+        if (isLive && body.questions && (currentEvent as unknown)?.type === 'QUIZ') {
           const existingQuestions = await prisma.eventQuizQuestion.findMany({
             where: { eventId },
             orderBy: { sortOrder: 'asc' }
@@ -215,15 +215,15 @@ export async function handleEventsRoutes(
           }
         }
 
-        if (isLive && body.ctfChallenges && (currentEvent as any)?.type === 'CTF') {
-          const existingChallenges = await (prisma as any).eventCtfChallenge.findMany({
+        if (isLive && body.ctfChallenges && (currentEvent as unknown)?.type === 'CTF') {
+          const existingChallenges = await (prisma as unknown).eventCtfChallenge.findMany({
             where: { eventId },
             orderBy: { sortOrder: 'asc' }
           });
 
           for (let i = 0; i < Math.min(existingChallenges.length, body.ctfChallenges.length); i++) {
             const c = body.ctfChallenges[i];
-            await (prisma as any).eventCtfChallenge.update({
+            await (prisma as unknown).eventCtfChallenge.update({
               where: { id: existingChallenges[i].id },
               data: {
                 title: c.title,

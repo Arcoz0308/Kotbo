@@ -9,9 +9,9 @@ import {
  * Wrapper pour tracker automatiquement les performances et l'utilisation des modules
  * Utilisation: wrapModuleTracking(moduleName, handlerFunction, args, options)
  */
-export async function wrapModuleTracking<T extends any[]>(
+export async function wrapModuleTracking<T extends unknown[]>(
   moduleName: KotboModule,
-  handler: (...args: T) => Promise<any>,
+  handler: (...args: T) => Promise<unknown>,
   args: T,
   options?: {
     actionType?: 'command' | 'api' | 'event';
@@ -27,7 +27,7 @@ export async function wrapModuleTracking<T extends any[]>(
   try {
     const result = await handler(...args);
     return result;
-  } catch (error: any) {
+  } catch (error: unknown) {
     success = false;
     errorType = error?.name || error?.constructor?.name || 'UnknownError';
     throw error;
@@ -65,7 +65,7 @@ export async function wrapModuleTracking<T extends any[]>(
 /**
  * Helper pour extraire guildId et userId d'une interaction Discord
  */
-export function extractTrackingInfo(interaction: any): { guildId?: string; userId?: string } {
+export function extractTrackingInfo(interaction: unknown): { guildId?: string; userId?: string } {
   const guildId = interaction.guildId || interaction.guild?.id;
   const userId = interaction.user?.id || interaction.author?.id || interaction.member?.user?.id;
   return { guildId, userId };
@@ -153,7 +153,7 @@ export async function trackModuleActivation(
   guildId: string,
   moduleName: KotboModule,
   enabled: boolean,
-  config?: Record<string, any>
+  config?: Record<string, unknown>
 ): Promise<void> {
   try {
     await setModuleActivation(guildId, moduleName, enabled, config);

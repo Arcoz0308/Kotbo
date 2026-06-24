@@ -13,12 +13,12 @@ import type { SlashCommandDefinition } from '../../commands.js';
 
 const data = new SlashCommandBuilder()
   .setName('activate')
-  .setDescription("Activer le bot sur ce serveur à l\'aide d\'un code d\'activation")
+  .setDescription("Activer le bot sur ce serveur à l'aide d'un code d'activation")
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addStringOption((option) =>
     option
       .setName('code')
-      .setDescription("Le code d\'activation fourni par l\'administrateur global")
+      .setDescription("Le code d'activation fourni par l'administrateur global")
       .setRequired(true)
   );
 
@@ -55,7 +55,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
     if (!activationCode) {
       return interaction.editReply(
-        v2(errorContainer('Code Invalide', "Le code d\'activation fourni est invalide, expiré ou déjà utilisé.")),
+        v2(errorContainer('Code Invalide', "Le code d'activation fourni est invalide, expiré ou déjà utilisé.")),
       );
     }
 
@@ -84,7 +84,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
   } catch (error) {
     console.error('Command activate error:', error);
     await interaction.editReply(
-      v2(errorContainer('Erreur Système', "Une erreur est survenue lors de l\'activation de votre serveur. Veuillez contacter un administrateur.")),
+      v2(errorContainer('Erreur Système', "Une erreur est survenue lors de l'activation de votre serveur. Veuillez contacter un administrateur.")),
     );
   }
 }

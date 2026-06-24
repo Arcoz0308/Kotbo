@@ -144,14 +144,14 @@ export async function handleAnalyticsRoutes(
       const joinMap = new Map<string, Map<string, number>>();
       for (const j of memberJoins) {
         const code = j.inviteCode ?? 'unknown';
-        const d = new Date(j.joinedAt as any);
+        const d = new Date(j.joinedAt as unknown);
         const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         if (!joinMap.has(code)) joinMap.set(code, new Map());
         const dm = joinMap.get(code)!;
         dm.set(dateKey, (dm.get(dateKey) ?? 0) + 1);
       }
 
-      const formattedInvites: any[] = [];
+      const formattedInvites: unknown[] = [];
       for (const inv of invitesArray) {
         const inviterId = inv.inviter?.id ?? null;
         let createdBy = inv.inviter?.tag || 'Inconnu';
@@ -310,7 +310,7 @@ export async function handleAnalyticsRoutes(
       const startDateKey = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`;
       const endDateKey = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
 
-      let dailyStats: any[] = [];
+      let dailyStats: unknown[] = [];
       const granularity = url.searchParams.get('granularity');
       const use30Min = periodDays === 1 || granularity === '30';
       // For periods > 90 days, aggregate by week to keep the dataset lean
@@ -365,7 +365,7 @@ export async function handleAnalyticsRoutes(
           orderBy: { dateKey: 'asc' },
         });
         // Group by ISO year-week
-        const weekMap = new Map<string, any>();
+        const weekMap = new Map<string, unknown>();
         for (const d of rawDailyStats) {
           const date = new Date(d.dateKey + 'T12:00:00Z');
           const dayOfWeek = date.getUTCDay(); // 0=Sun
@@ -673,7 +673,7 @@ export async function handleAnalyticsRoutes(
 
       // Fetch member join/leave timestamps with a single bulk query (avoids N×3 round-trips)
       // For weekly-aggregated periods we skip per-day detail (too noisy) and return empty arrays.
-      let dailyJoinsLeaves: Array<{ dateKey: string; joins: any[]; leaves: any[]; invites: any[] }> = [];
+      let dailyJoinsLeaves: Array<{ dateKey: string; joins: unknown[]; leaves: unknown[]; invites: unknown[] }> = [];
       if (!useWeeklyAggregation) {
         const [allJoins, allLeaves, allInviteJoins] = await Promise.all([
           prisma.memberProfile.findMany({
@@ -703,7 +703,7 @@ export async function handleAnalyticsRoutes(
         ]);
 
         // Group in-memory by dateKey
-        const joinsMap = new Map<string, any[]>();
+        const joinsMap = new Map<string, unknown[]>();
         for (const j of allJoins) {
           if (!j.guildJoinedAt) continue;
           const d = j.guildJoinedAt;
@@ -711,7 +711,7 @@ export async function handleAnalyticsRoutes(
           if (!joinsMap.has(key)) joinsMap.set(key, []);
           joinsMap.get(key)!.push({ userId: j.userId, name: j.displayName ?? j.globalName ?? j.username ?? 'Inconnu', avatarUrl: j.avatarUrl, joinedAt: j.guildJoinedAt?.toISOString() });
         }
-        const leavesMap = new Map<string, any[]>();
+        const leavesMap = new Map<string, unknown[]>();
         for (const l of allLeaves) {
           if (!l.guildLeftAt) continue;
           const d = l.guildLeftAt;
@@ -719,7 +719,7 @@ export async function handleAnalyticsRoutes(
           if (!leavesMap.has(key)) leavesMap.set(key, []);
           leavesMap.get(key)!.push({ userId: l.userId, name: l.displayName ?? l.globalName ?? l.username ?? 'Inconnu', avatarUrl: l.avatarUrl, leftAt: l.guildLeftAt?.toISOString() });
         }
-        const invitesMap = new Map<string, any[]>();
+        const invitesMap = new Map<string, unknown[]>();
         for (const i of allInviteJoins) {
           if (!i.joinedAt) continue;
           const d = i.joinedAt as Date;
@@ -756,10 +756,10 @@ export async function handleAnalyticsRoutes(
 
       let clanTag: string | null = null;
       let clanTaggedMembersCount = 0;
-      let taggedMembersList: any[] = [];
+      let taggedMembersList: unknown[] = [];
       if (discordGuild) {
         try {
-          const rawGuild = await client.rest.get(Routes.guild(guildId)) as any;
+          const rawGuild = await client.rest.get(Routes.guild(guildId)) as unknown;
           if (rawGuild.clan && rawGuild.clan.tag) {
             clanTag = rawGuild.clan.tag;
           }
@@ -768,7 +768,7 @@ export async function handleAnalyticsRoutes(
         }
 
         if (!clanTag) {
-          clanTag = (discordGuild as any).clan?.tag || (discordGuild as any).clanTag;
+          clanTag = (discordGuild as unknown).clan?.tag || (discordGuild as unknown).clanTag;
         }
 
         try {
@@ -776,7 +776,7 @@ export async function handleAnalyticsRoutes(
           
           if (!clanTag) {
             for (const [_, m] of allMembers) {
-              const primaryGuild = (m.user as any).primaryGuild;
+              const primaryGuild = (m.user as unknown).primaryGuild;
               if (primaryGuild && primaryGuild.identityGuildId === guildId && primaryGuild.tag) {
                 clanTag = primaryGuild.tag;
                 break;
@@ -787,8 +787,8 @@ export async function handleAnalyticsRoutes(
           if (clanTag) {
             const tagLower = clanTag.toLowerCase();
             const taggedMembers = allMembers.filter(m => {
-              const hasNativeTag = (m.user as any).clan?.tag === clanTag || 
-                                   (m.user as any).primaryGuild?.tag === clanTag;
+              const hasNativeTag = (m.user as unknown).clan?.tag === clanTag || 
+                                   (m.user as unknown).primaryGuild?.tag === clanTag;
               
               const hasNicknameTag = m.nickname?.toLowerCase().includes(`[${tagLower}]`) || 
                                      m.nickname?.toLowerCase().includes(`(${tagLower})`) ||

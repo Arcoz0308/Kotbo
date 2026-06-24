@@ -5,7 +5,7 @@ import { registerWarnSanction, registerTimeoutSanction } from './sanctionService
 import { loadBannedWords, loadGlobalWords, loadCustomWords } from './bannedWordsService.js';
 
 // Cache for AutoMod configs: key is guildId, value is the config object
-const autoModConfigsCache = new Map<string, any>();
+const autoModConfigsCache = new Map<string, unknown>();
 
 // In-memory spam tracker: key is "guildId:userId", value is array of timestamps of messages sent
 const userMessageTimestamps = new Map<string, number[]>();
@@ -68,7 +68,7 @@ export async function getOrCreateAutoModConfig(guildId: string) {
 /**
  * Synchronise les configurations AutoMod avec les règles natives de Discord
  */
-export async function syncDiscordAutoModRules(client: Client, guildId: string, config: any) {
+export async function syncDiscordAutoModRules(client: Client, guildId: string, config: unknown) {
   const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
   if (!guild) {
     throw new Error(`Serveur ${guildId} introuvable ou inaccessible par le bot.`);
@@ -124,11 +124,11 @@ export async function syncDiscordAutoModRules(client: Client, guildId: string, c
     // 1. Règle Anti-Spam
     if (config.spamEnabled) {
       const existingSpam = existingRules.find(r => r.name === ruleNames.spam);
-      const actions: any[] = [
+      const actions: unknown[] = [
         {
           type: AutoModerationActionType.BlockMessage,
           metadata: {
-            customMessage: "Message bloqué par l\'AutoMod Kotbo (Spam détecté)."
+            customMessage: "Message bloqué par l'AutoMod Kotbo (Spam détecté)."
           }
         }
       ];
@@ -170,11 +170,11 @@ export async function syncDiscordAutoModRules(client: Client, guildId: string, c
     // 2. Règle Anti-Mentions
     if (config.mentionsEnabled) {
       const existingMentions = existingRules.find(r => r.name === ruleNames.mentions);
-      const actions: any[] = [
+      const actions: unknown[] = [
         {
           type: AutoModerationActionType.BlockMessage,
           metadata: {
-            customMessage: "Message bloqué par l\'AutoMod Kotbo (Excès de mentions)."
+            customMessage: "Message bloqué par l'AutoMod Kotbo (Excès de mentions)."
           }
         }
       ];
@@ -221,11 +221,11 @@ export async function syncDiscordAutoModRules(client: Client, guildId: string, c
     // 3. Règle Anti-Liens & Invitations
     if (config.linksEnabled) {
       const existingLinks = existingRules.find(r => r.name === ruleNames.links);
-      const actions: any[] = [
+      const actions: unknown[] = [
         {
           type: AutoModerationActionType.BlockMessage,
           metadata: {
-            customMessage: "Message bloqué par l\'AutoMod Kotbo (Lien ou invitation non autorisé)."
+            customMessage: "Message bloqué par l'AutoMod Kotbo (Lien ou invitation non autorisé)."
           }
         }
       ];
@@ -382,7 +382,7 @@ export async function syncDiscordAutoModProfileRule(client: Client, guildId: str
         keywordFilter: keywords,
         allowList: allowList.length > 0 ? allowList : undefined
       },
-      actions: actions as any[], // Need to cast as any[] to match discord.js rule creation types
+      actions: actions as unknown[], // Need to cast as any[] to match discord.js rule creation types
       enabled: true,
       exemptRoles,
       exemptChannels: []
@@ -409,7 +409,7 @@ export async function syncDiscordAutoModProfileRule(client: Client, guildId: str
  * Analyse un message et applique des sanctions si nécessaire
  * @returns true si le message a été supprimé ou l'utilisateur sanctionné (interrompre le traitement)
  */
-export async function handleAutoMod(message: Message, client: any): Promise<boolean> {
+export async function handleAutoMod(message: Message, client: unknown): Promise<boolean> {
   // Ignorer si message privé, envoyé par un bot, ou par un administrateur du serveur
   if (!message.guild || !message.member || message.author.bot) return false;
   if (message.member.permissions.has(PermissionFlagsBits.Administrator)) return false;
@@ -464,7 +464,7 @@ export async function handleAutoMod(message: Message, client: any): Promise<bool
           await applySanction(
             message,
             config.linksAction,
-            "[AutoMod] Partage d\'invitation Discord non autorisé",
+            "[AutoMod] Partage d'invitation Discord non autorisé",
             client
           );
           return true;
@@ -546,7 +546,7 @@ export async function handleAutoMod(message: Message, client: any): Promise<bool
       }
     }
   } catch (err) {
-    logger.error('AutoModService', "Erreur lors de l\'exécution d\'AutoMod :", err);
+    logger.error('AutoModService', "Erreur lors de l'exécution d'AutoMod :", err);
   }
 
   return false;
@@ -562,7 +562,7 @@ async function deleteMessage(message: Message) {
 /**
  * Applique une sanction (WARN, TIMEOUT, ou DELETE_AND_WARN)
  */
-async function applySanction(message: Message, action: string, reason: string, client: any) {
+async function applySanction(message: Message, action: string, reason: string, client: unknown) {
   const guildId = message.guild!.id;
   const target = {
     id: message.author.id,
@@ -575,7 +575,7 @@ async function applySanction(message: Message, action: string, reason: string, c
 
   // Informer l'utilisateur dans le salon d'origine de manière éphémère (ou message normal supprimé rapidement)
   if (action !== 'DELETE_ONLY') {
-    const warnAlert = await (message.channel as any).send(`⚠️ <@${message.author.id}>, votre message a été supprimé : ${reason.replace('[AutoMod] ', '')}`).catch(() => null);
+    const warnAlert = await (message.channel as unknown).send(`⚠️ <@${message.author.id}>, votre message a été supprimé : ${reason.replace('[AutoMod] ', '')}`).catch(() => null);
     if (warnAlert) {
       setTimeout(() => {
         warnAlert.delete().catch(() => null);
@@ -603,11 +603,11 @@ async function applySanction(message: Message, action: string, reason: string, c
           )
           .setColor('#ED4245')
           .setTimestamp();
-        await (logChannel as any).send({ embeds: [embed] }).catch(() => null);
+        await (logChannel as unknown).send({ embeds: [embed] }).catch(() => null);
       }
     }
   } catch (err) {
-    logger.warn('AutoModService', "Impossible d\'envoyer le log AutoMod :", err);
+    logger.warn('AutoModService', "Impossible d'envoyer le log AutoMod :", err);
   }
 
   // Appliquer l'effet de sanction réel
@@ -680,8 +680,8 @@ export async function handleGhostPingDelete(message: Message | PartialMessage, c
       const deletionLog = auditLogs.entries.find(entry => {
         const isRecent = Date.now() - entry.createdTimestamp < 5000;
         const isTargetMessage =
-          (entry.target as any)?.id === message.author.id &&
-          (entry.extra as any)?.channel?.id === message.channel.id;
+          (entry.target as unknown)?.id === message.author.id &&
+          (entry.extra as unknown)?.channel?.id === message.channel.id;
         return isRecent && isTargetMessage;
       });
 
@@ -772,7 +772,7 @@ async function triggerGhostPingAlert(
   targetRoles: Collection<string, Role>,
   hasEveryone: boolean,
   isEdit: boolean,
-  config: any,
+  config: unknown,
   client: Client
 ) {
   const guildId = message.guild!.id;
@@ -795,7 +795,7 @@ async function triggerGhostPingAlert(
     ? `👻 **Ghost Ping détecté !** <@${author.id}> a mentionné ${targetsString} puis a modifié son message pour retirer la mention.`
     : `👻 **Ghost Ping détecté !** <@${author.id}> a mentionné ${targetsString} puis a supprimé son message.`;
 
-  await (message.channel as any).send(alertText).catch(() => null);
+  await (message.channel as unknown).send(alertText).catch(() => null);
 
   // 3. Notifier dans le salon de log si configuré
   try {
@@ -813,7 +813,7 @@ async function triggerGhostPingAlert(
             { name: 'Utilisateur', value: `${author.tag} (${author.id})`, inline: true },
             { name: 'Cibles mentionnées', value: targetsString || 'Inconnues', inline: true },
             { name: 'Action', value: action, inline: true },
-            { name: "Type d\'infraction", value: isEdit ? 'Modification de message' : 'Suppression de message', inline: true }
+            { name: "Type d'infraction", value: isEdit ? 'Modification de message' : 'Suppression de message', inline: true }
           )
           .setColor('#ED4245')
           .setTimestamp();
@@ -824,11 +824,11 @@ async function triggerGhostPingAlert(
           embed.addFields({ name: 'Message original', value: contentSnippet, inline: false });
         }
 
-        await (logChannel as any).send({ embeds: [embed] }).catch(() => null);
+        await (logChannel as unknown).send({ embeds: [embed] }).catch(() => null);
       }
     }
   } catch (err) {
-    logger.warn('AutoModService', "Impossible d\'envoyer le log de Ghost Ping :", err);
+    logger.warn('AutoModService', "Impossible d'envoyer le log de Ghost Ping :", err);
   }
 
   // 4. Appliquer une sanction d'avertissement (WARN) si configurée
@@ -929,7 +929,7 @@ export async function handleAntiBotAdd(member: GuildMember, client: Client): Pro
             )
             .setColor('#ED4245')
             .setTimestamp();
-          await (logChannel as any).send({ embeds: [embed] }).catch(() => null);
+          await (logChannel as unknown).send({ embeds: [embed] }).catch(() => null);
         }
       }
     } catch (err) {

@@ -1,7 +1,7 @@
 import { Client, Events, type GuildMember } from 'discord.js';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
-import { sendVerificationDM, sendVerificationEmbed, cleanupExpiredVerifications } from '../services/moderation/securityVerificationService.js';
+import { sendVerificationDM, cleanupExpiredVerifications } from '../services/moderation/securityVerificationService.js';
 
 const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://localhost:5173';
 

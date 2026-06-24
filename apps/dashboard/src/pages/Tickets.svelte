@@ -32,6 +32,7 @@
   let config = $state<any>({});
   let selectedTicketId = $state<string | null>(null);
   let selectedTicketDetail = $state<any>(null);
+  let signedTranscriptUrl = $state<string | null>(null);
   let messages = $state<any[]>([]);
   
   // Loading & Error State
@@ -323,7 +324,21 @@
       selectedTicketDetail = data.ticket;
       messages = data.messages || [];
       ticketRenameName = data.ticket?.channelName || '';
-      
+
+      signedTranscriptUrl = null;
+      if (data.ticket?.transcriptId && messages.length === 0) {
+        try {
+          const signRes = await fetch(
+            `${API_BASE_URL}/api/dashboard/guilds/${authStore.selectedGuildId}/tickets/transcripts/${data.ticket.transcriptId}/signed-url`,
+            { headers: { Authorization: `Bearer ${authStore.token}` } },
+          );
+          if (signRes.ok) {
+            const signData = await signRes.json();
+            signedTranscriptUrl = `${API_BASE_URL}${signData.signedUrl}`;
+          }
+        } catch {}
+      }
+
       if (autoScroll) {
         setTimeout(scrollToBottom, 50);
       }
@@ -498,6 +513,7 @@
       showDeleteConfirmModal = false;
       selectedTicketId = null;
       selectedTicketDetail = null;
+      signedTranscriptUrl = null;
       messages = [];
       await loadTicketsAndConfig();
     } catch (err: any) {
@@ -925,9 +941,9 @@
                 <div class="w-8 h-8 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
               </div>
             {:else if messages.length === 0}
-              {#if selectedTicketDetail?.transcriptId}
+              {#if selectedTicketDetail?.transcriptId && signedTranscriptUrl}
                 <iframe
-                  src={`${API_BASE_URL}/api/public/transcripts/${selectedTicketDetail.transcriptId}`}
+                  src={signedTranscriptUrl}
                   title="Transcription du Ticket"
                   class="w-full h-full border-none bg-[#313338]"
                 ></iframe>

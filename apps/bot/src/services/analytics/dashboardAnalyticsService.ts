@@ -13,7 +13,7 @@ export const getDashboardAnalytics = async (guildId: string, options: { days?: n
   }
   const finalStartKey = startKey.split('T')[0];
 
-  let dailyStats: any[] = [];
+  let dailyStats: unknown[] = [];
   
   // Check if we should use hourly resolution (days=1 OR custom range < 72h)
   let useHourly = days === 1 && !options.startDate;
@@ -28,7 +28,7 @@ export const getDashboardAnalytics = async (guildId: string, options: { days?: n
 
   if (useHourly) {
     // Hourly resolution
-    const hourlyWhere: any = { guildId };
+    const hourlyWhere: unknown = { guildId };
     
     if (options.startDate && options.endDate) {
       const sDate = options.startDate.split('T')[0];
@@ -45,7 +45,7 @@ export const getDashboardAnalytics = async (guildId: string, options: { days?: n
       take: options.startDate ? 200 : 24 
     });
     
-    const stats: any[] = [];
+    const stats: unknown[] = [];
     for (const h of hourlyStats) {
       const hourStr = String(h.hour).padStart(2, '0');
       
@@ -155,7 +155,7 @@ export const getDashboardAnalytics = async (guildId: string, options: { days?: n
     acc[curr.userId].messageCount += curr.messagesCount;
     acc[curr.userId].voiceTimeSeconds += curr.voiceMinutes * 60;
     return acc;
-  }, {} as Record<string, any>);
+  }, {} as Record<string, unknown>);
 
   const memberTotalsArray = Object.values(memberTotals);
   
@@ -945,7 +945,7 @@ export const getGlobalInteractions = async (guildId: string, options: { days?: n
   const topUserSet = new Set(topUsers);
 
   // Filter edges to only include top users
-  const filteredEdges: any[] = [];
+  const filteredEdges: unknown[] = [];
   for (const edge of edgeMap.values()) {
     if (topUserSet.has(edge.from) && topUserSet.has(edge.to)) {
       if (edge.mention > 0) {

@@ -61,7 +61,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
       // 2. Cloner le salon avec la même position et configurations
       const position = currentGuildChannel.position;
-      const cloned = await (currentGuildChannel as any).clone({
+      const cloned = await (currentGuildChannel as unknown).clone({
         position,
         reason: `Salon nettoyé par ${interaction.user.tag} (commande /channel clear)`,
       });
@@ -111,8 +111,8 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
     try {
-      const finalName = newName || `${(targetGuildChannel as any).name}-copy`;
-      const cloned = await (targetGuildChannel as any).clone({
+      const finalName = newName || `${(targetGuildChannel as unknown).name}-copy`;
+      const cloned = await (targetGuildChannel as unknown).clone({
         name: finalName,
         reason: `Salon dupliqué par ${interaction.user.tag} (commande /channel duplicate)`,
       });

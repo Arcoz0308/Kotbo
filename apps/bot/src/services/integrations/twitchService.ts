@@ -77,7 +77,7 @@ export async function getTwitchUserId(username: string): Promise<string | null> 
     });
 
     if (!res.ok) return null;
-    const data = await res.json() as any;
+    const data = await res.json() as unknown;
     const users = data.data || [];
     if (users.length > 0) {
       return users[0].id;
@@ -100,7 +100,7 @@ export async function checkTwitchFollows(client: Client) {
   }
 
   try {
-    const follows = await (prisma as any).twitchChannelFollow.findMany({
+    const follows = await (prisma as unknown).twitchChannelFollow.findMany({
       include: {
         guild: {
           include: {
@@ -115,15 +115,15 @@ export async function checkTwitchFollows(client: Client) {
     if (follows.length === 0) return;
 
     // Check features configuration
-    const activeFollows = follows.filter((follow: any) => {
-      const config = follow.guild.dashboardFeatureConfigs.find((c: any) => c.featureKey === 'twitch');
+    const activeFollows = follows.filter((follow: unknown) => {
+      const config = follow.guild.dashboardFeatureConfigs.find((c: unknown) => c.featureKey === 'twitch');
       return !config || config.enabled; // skip if explicitly disabled
     });
 
     if (activeFollows.length === 0) return;
 
     // Group active follows by streamerName to fetch statuses in batches (max 100 per request)
-    const usernames = activeFollows.map((f: any) => f.streamerName);
+    const usernames = activeFollows.map((f: unknown) => f.streamerName);
     const uniqueUsernames = Array.from(new Set(usernames));
 
     // Twitch stream endpoint accepts multiple user_login parameters
@@ -142,10 +142,10 @@ export async function checkTwitchFollows(client: Client) {
       return;
     }
 
-    const resData = await res.json() as any;
+    const resData = await res.json() as unknown;
     const liveStreams = resData.data || [];
     // Map live streams by username in lowercase for quick O(1) lookup
-    const liveMap = new Map<string, any>(liveStreams.map((s: any) => [s.user_login.toLowerCase(), s]));
+    const liveMap = new Map<string, unknown>(liveStreams.map((s: unknown) => [s.user_login.toLowerCase(), s]));
 
     for (const follow of activeFollows) {
       const name = follow.streamerName.toLowerCase();
@@ -181,7 +181,7 @@ export async function checkTwitchFollows(client: Client) {
           }
 
           // Update DB follow state
-          await (prisma as any).twitchChannelFollow.update({
+          await (prisma as unknown).twitchChannelFollow.update({
             where: { id: follow.id },
             data: {
               isLive: true,
@@ -210,7 +210,7 @@ export async function checkTwitchFollows(client: Client) {
           }
 
           // Update DB state
-          await (prisma as any).twitchChannelFollow.update({
+          await (prisma as unknown).twitchChannelFollow.update({
             where: { id: follow.id },
             data: { isLive: false },
           });

@@ -53,7 +53,7 @@ export function registerTicketLeaveFollowUpListener(client: Client): void {
             `Le membre <@${member.id}> a quitté le serveur alors que ce ticket est encore actif.\n\n` +
             'Souhaitez-vous fermer ou supprimer ce ticket ?'
           )
-          .setColor(COLORS.warning as any)
+          .setColor(COLORS.warning as unknown)
           .setTimestamp();
 
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(

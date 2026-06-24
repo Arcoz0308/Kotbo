@@ -9,7 +9,7 @@ let ready = false;
 export function ensureCanvasFonts(): void {
   if (ready) return;
 
-  (GlobalFonts as any).loadSystemFonts?.();
+  (GlobalFonts as unknown).loadSystemFonts?.();
 
   const candidates = [
     '/usr/share/fonts/ttf-dejavu/DejaVuSans-Bold.ttf',

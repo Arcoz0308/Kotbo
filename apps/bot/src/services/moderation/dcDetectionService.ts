@@ -1,6 +1,6 @@
 import { type Guild, type GuildMember, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import prisma from '../../utils/db.js';
-import { logger } from '../../utils/logger.js';
+
 import { LinkedAccountType, LinkedAccountStatus } from '@prisma/client';
 import * as altAccountService from './altAccountService.js';
 import { createNotification } from '../staff/staffLeadershipService.js';
@@ -10,7 +10,7 @@ const ACCOUNT_CREATION_PROXIMITY_MS = 15 * 60 * 1000;
 export const JOIN_TO_ACCOUNT_CREATION_PROXIMITY_MS = 3 * 24 * 60 * 60 * 1000;
 const USERNAME_SIMILARITY_THRESHOLD = 0.75;
 const JOIN_PROXIMITY_MS = 10 * 60 * 1000; // joined within 10 min of each other
-const AVATAR_DEFAULT_HASH_PREFIX = 'a_'; // animated avatars prefix
+const _AVATAR_DEFAULT_HASH_PREFIX = 'a_'; // animated avatars prefix
 
 export type DetectionReason = {
   type: 'young_account' | 'creation_proximity' | 'username_similarity' | 'invite_link' | 'join_proximity' | 'shared_avatar' | 'shared_locale' | 'low_activity_pair' | 'role_pattern' | 'sequential_ids';
@@ -92,7 +92,7 @@ function getSimilarityScore(s1: string, s2: string): number {
 }
 
 function extractUsernameBase(username: string): string {
-  return username.toLowerCase().replace(/[0-9_.\-]+$/g, '');
+  return username.toLowerCase().replace(/[0-9_.-]+$/g, '');
 }
 
 function areDiscordIdsSequential(id1: string, id2: string): boolean {
@@ -395,7 +395,7 @@ export async function getDetectionEvidence(guildId: string, userId: string): Pro
       type: 'young_account',
       label: 'Marqué comme suspect par un scan précédent',
       score: 10,
-      detail: "Ce membre a été signalé lors d\'un scan de détection. Les conditions exactes ne sont plus reproductibles (seuil ou données modifiées depuis).",
+      detail: "Ce membre a été signalé lors d'un scan de détection. Les conditions exactes ne sont plus reproductibles (seuil ou données modifiées depuis).",
     });
   }
 
@@ -492,10 +492,10 @@ async function reportSuspectedDC(member: GuildMember, evidence: DetectionEvidenc
       .setStyle(ButtonStyle.Secondary),
   );
 
-  await (logChannel as any).send({ embeds: [embed], components: [row] });
+  await (logChannel as unknown).send({ embeds: [embed], components: [row] });
 }
 
-export async function handleDCInteraction(interaction: any): Promise<void> {
+export async function handleDCInteraction(interaction: unknown): Promise<void> {
   if (!interaction.isButton()) return;
   if (!interaction.customId.startsWith('dc_')) return;
 

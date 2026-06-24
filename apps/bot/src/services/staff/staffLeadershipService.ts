@@ -10,7 +10,7 @@ import {
 } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
-import { getOrCreateFeatureConfigs } from '../core/dashboardManagementService.js';
+
 import type { 
   StaffAbsence, StaffMeeting, StaffMeetingPresence, 
   StaffManagerNote, StaffPoll, StaffPollOption, StaffPollVote,
@@ -47,7 +47,7 @@ export const getAbsences = async (guildId: string) => {
     const superior = absence.superiorUserId ? superiors.find(s => s.userId === absence.superiorUserId) : null;
 
     // Helper to resolve display name: Pseudo > Tag > Username > Discord ID
-    const resolveName = (m: any, defaultId: string) => {
+    const resolveName = (m: unknown, defaultId: string) => {
       if (!m) return defaultId;
       return m.displayName || m.userTag || m.username || m.userId || defaultId;
     };
@@ -86,15 +86,15 @@ const getAbsenceFeatureConfig = async (guildId: string) => {
 
 const sendAbsenceDiscordRelay = async (params: {
   guildId: string;
-  absence: any;
-  requester: any;
-  superior: any;
+  absence: unknown;
+  requester: unknown;
+  superior: unknown;
   featureConfig: {
     enabled: boolean;
     channelId: string | null;
     notificationRoleId: string | null;
     notifyViaDiscordChannel: boolean;
-    metadata?: any;
+    metadata?: unknown;
     notificationTargets?: Array<{
       targetType: string;
       targetId: string | null;
@@ -118,7 +118,7 @@ const sendAbsenceDiscordRelay = async (params: {
     }
   }
 
-  const webhookUrl = params.featureConfig.metadata && (params.featureConfig.metadata as any).webhookUrl;
+  const webhookUrl = params.featureConfig.metadata && (params.featureConfig.metadata as unknown).webhookUrl;
 
   if (targetChannelIds.size === 0 && !webhookUrl) return;
 
@@ -167,11 +167,11 @@ const sendAbsenceDiscordRelay = async (params: {
         const channel = await client.channels.fetch(channelId).catch(() => null);
         if (!channel || !('send' in channel)) return;
 
-        await (channel as any).send({
+        await (channel as unknown).send({
           content,
           embeds: [embed],
           allowedMentions: params.featureConfig?.notificationRoleId ? { roles: [params.featureConfig.notificationRoleId] } : undefined,
-        }).catch((error: any) => {
+        }).catch((error: unknown) => {
           logger.warn('StaffLeadership', `Impossible d'envoyer le relai Discord d'absence vers ${channelId}: ${String(error)}`);
         });
       }));
@@ -274,7 +274,7 @@ export const createAbsence = async (
     await createNotification(
       params.guildId,
       params.superiorUserId,
-      "Validation d\'absence en attente",
+      "Validation d'absence en attente",
       `Une absence a été soumise par un de vos subordonnés. Type: ${params.type}. Durée: ${formatAbsenceDuration(params.startDate, params.endDate)}. Motif: ${params.reason}.`,
       'WARNING',
       '/planning',
@@ -347,7 +347,7 @@ const formatAbsenceDuration = (startDate: Date, endDate?: Date) => {
   return `${days} j ${Number.isInteger(remainingHours) ? remainingHours.toFixed(0) : remainingHours.toFixed(1)} h`;
 };
 
-const getAbsenceDisplayName = (member: any, fallback: string) => {
+const getAbsenceDisplayName = (member: unknown, fallback: string) => {
   if (!member) return fallback;
   return member.displayName || member.userTag || member.username || member.userId || fallback;
 };
@@ -530,7 +530,7 @@ export const createMeeting = async (
         .setEmoji('✅'),
       new ButtonBuilder()
         .setCustomId(`meeting_rsvp:${meeting.id}:EXCUSED`)
-        .setLabel("S\'excuser")
+        .setLabel("S'excuser")
         .setStyle(ButtonStyle.Primary)
         .setEmoji('⏳'),
       new ButtonBuilder()
@@ -540,7 +540,7 @@ export const createMeeting = async (
         .setEmoji('❌')
     );
 
-    const announcementMessage = await (announcementChannel as any).send({
+    const announcementMessage = await (announcementChannel as unknown).send({
       content: '📢 **Nouvelle réunion staff planifiée !** @everyone',
       embeds: [embed],
       components: [row]
@@ -633,7 +633,7 @@ export const updateMeeting = async (
           logger.warn('StaffLeadership', `Discord event ${meeting.discordEventId} not found for meeting ${meeting.id}`);
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('StaffLeadership', `Failed to update Discord event ${meeting.discordEventId}: ${err.message}`, err.stack);
     }
   }
@@ -649,15 +649,15 @@ export const updateMeeting = async (
       if (guildConfig?.meetingAnnouncementChannelId) {
         const channel = await client.channels.fetch(guildConfig.meetingAnnouncementChannelId).catch(() => null);
         if (channel?.isTextBased()) {
-          const msg = await (channel as any).messages.fetch(meeting.discordMessageId).catch(() => null);
+          const msg = await (channel as unknown).messages.fetch(meeting.discordMessageId).catch(() => null);
           if (msg) {
             const embed = EmbedBuilder.from(msg.embeds[0])
               .setTitle(`📅 Réunion : ${meeting.title}`)
               .setDescription(meeting.description || 'Aucune description fournie.')
               .setFields(
                 { name: 'Date & Heure', value: `<t:${Math.floor(meeting.scheduledAt.getTime() / 1000)}:F> (<t:${Math.floor(meeting.scheduledAt.getTime() / 1000)}:R>)`, inline: false },
-                { name: 'Lieu', value: msg.embeds[0].fields.find((f: any) => f.name === 'Lieu')?.value || 'Inconnu', inline: true },
-                { name: 'Organisateur', value: msg.embeds[0].fields.find((f: any) => f.name === 'Organisateur')?.value || 'Inconnu', inline: true }
+                { name: 'Lieu', value: msg.embeds[0].fields.find((f: unknown) => f.name === 'Lieu')?.value || 'Inconnu', inline: true },
+                { name: 'Organisateur', value: msg.embeds[0].fields.find((f: unknown) => f.name === 'Organisateur')?.value || 'Inconnu', inline: true }
               );
             await msg.edit({ embeds: [embed] });
           }
@@ -712,7 +712,7 @@ export const deleteMeeting = async (
       if (guildConfig?.meetingAnnouncementChannelId) {
         const channel = await client.channels.fetch(guildConfig.meetingAnnouncementChannelId).catch(() => null);
         if (channel?.isTextBased()) {
-          const msg = await (channel as any).messages.fetch(meeting.discordMessageId).catch(() => null);
+          const msg = await (channel as unknown).messages.fetch(meeting.discordMessageId).catch(() => null);
           if (msg) {
             await msg.delete().catch(() => null);
           }
@@ -803,7 +803,7 @@ export const checkInMeeting = async (
   return result;
 };
 
-export const updateMeetingAnnouncement = async (client: any, meetingId: string) => {
+export const updateMeetingAnnouncement = async (client: unknown, meetingId: string) => {
   const meeting = await prisma.staffMeeting.findUnique({
     where: { id: meetingId },
     include: {
@@ -1436,8 +1436,8 @@ export const logStaffVoiceSession = async (
  * Récupère les données du calendrier pour le staff (absences + vocal)
  */
 export const getStaffCalendarData = async (guildId: string, start: Date, end: Date, staffUserIds?: string[]) => {
-  let absences: any[] = [];
-  let voiceSessions: any[] = [];
+  let absences: unknown[] = [];
+  let voiceSessions: unknown[] = [];
 
   try {
     absences = await prisma.staffAbsence.findMany({
@@ -1460,7 +1460,7 @@ export const getStaffCalendarData = async (guildId: string, start: Date, end: Da
       },
       include: { staffMember: true }
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('StaffLeadership', `Error fetching absences: ${err.message}`);
   }
 
@@ -1480,11 +1480,11 @@ export const getStaffCalendarData = async (guildId: string, start: Date, end: Da
       },
       include: { staffMember: true }
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('StaffLeadership', `Error fetching voice sessions: ${err.message}`);
   }
 
-  let meetings: any[] = [];
+  let meetings: unknown[] = [];
   try {
     meetings = await prisma.staffMeeting.findMany({
       where: {
@@ -1508,11 +1508,11 @@ export const getStaffCalendarData = async (guildId: string, start: Date, end: Da
         }
       }
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('StaffLeadership', `Error fetching meetings: ${err.message}`);
   }
 
-  let calls: any[] = [];
+  let calls: unknown[] = [];
   try {
     calls = await prisma.staffCall.findMany({
       where: {
@@ -1528,11 +1528,11 @@ export const getStaffCalendarData = async (guildId: string, start: Date, end: Da
         }
       }
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('StaffLeadership', `Error fetching calls: ${err.message}`);
   }
 
-  let tasks: any[] = [];
+  let tasks: unknown[] = [];
   try {
     tasks = await prisma.staffTask.findMany({
       where: {
@@ -1555,7 +1555,7 @@ export const getStaffCalendarData = async (guildId: string, start: Date, end: Da
         creator: true
       }
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('StaffLeadership', `Error fetching tasks: ${err.message}`);
   }
 
@@ -1612,7 +1612,7 @@ export const createCall = async (
         if (configChan) categoryId = configChan.parentId ?? undefined;
       }
 
-      const permissionOverwrites: any[] = [
+      const permissionOverwrites: unknown[] = [
         {
           id: discordGuild.id,
           deny: channelType === 'THREAD' ? [] : ['Connect', 'ViewChannel']
@@ -1714,7 +1714,7 @@ export const updateCall = async (
   });
   if (!existingCall) throw new Error("Appel introuvable.");
 
-  const updatePayload: any = {};
+  const updatePayload: unknown = {};
   if (data.title) updatePayload.title = data.title;
   if (data.description !== undefined) updatePayload.description = data.description;
   if (data.scheduledAt) updatePayload.scheduledAt = data.scheduledAt;

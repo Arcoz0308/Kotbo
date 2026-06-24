@@ -1,4 +1,4 @@
-import { Guild, Role, Channel, GuildEmoji, Sticker, GuildMember } from 'discord.js';
+import { Guild } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { fetchAllMembers } from '../../utils/discord.js';
 
@@ -94,12 +94,12 @@ export interface MessageData {
   timestamp: string;
   editedTimestamp?: string;
   attachments: string[];
-  embeds: any[];
+  embeds: unknown[];
   reactions: ReactionData[];
 }
 
 export interface ReactionData {
-  emoji: any;
+  emoji: unknown;
   count: number;
 }
 
@@ -158,7 +158,7 @@ export async function createBackup(guild: Guild, options: BackupOptions) {
       if ('bitrate' in channel) channelData.bitrate = channel.bitrate;
       if ('userLimit' in channel) channelData.userLimit = channel.userLimit;
       if ('permissionOverwrites' in channel) {
-        channelData.permissionOverwrites = channel.permissionOverwrites.cache.map((overwrite: any) => ({
+        channelData.permissionOverwrites = channel.permissionOverwrites.cache.map((overwrite: unknown) => ({
           id: overwrite.id,
           type: overwrite.type === 0 ? 'role' : 'member',
           allow: overwrite.allow.bitfield.toString(),
@@ -227,9 +227,9 @@ export async function createBackup(guild: Guild, options: BackupOptions) {
       // Wrap stickers fetch in a promise race to enforce a 5s timeout
       const stickers = await Promise.race([
         guild.stickers.fetch(),
-        new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Timeout fetching stickers')), 5000))
+        new Promise<unknown>((_, reject) => setTimeout(() => reject(new Error('Timeout fetching stickers')), 5000))
       ]);
-      backupData.stickers = stickers.map((sticker: any) => ({
+      backupData.stickers = stickers.map((sticker: unknown) => ({
         id: sticker.id,
         name: sticker.name,
         description: sticker.description,
@@ -258,10 +258,10 @@ export async function createBackup(guild: Guild, options: BackupOptions) {
     console.log('[BackupService] Fetching messages from channels...');
     backupData.messages = [];
     const textChannels = guild.channels.cache.filter((c) => c.isTextBased());
-    for (const [channelId, channel] of textChannels) {
+    for (const [_channelId, channel] of textChannels) {
       try {
-        const fetchedMessages = await (channel as any).messages.fetch({ limit: 50 });
-        for (const [msgId, msg] of fetchedMessages) {
+        const fetchedMessages = await (channel as unknown).messages.fetch({ limit: 50 });
+        for (const [_msgId, msg] of fetchedMessages) {
           if (msg.content || msg.embeds.length > 0 || msg.attachments.size > 0) {
             backupData.messages.push({
               id: msg.id,
@@ -270,9 +270,9 @@ export async function createBackup(guild: Guild, options: BackupOptions) {
               content: msg.content,
               timestamp: msg.createdAt.toISOString(),
               editedTimestamp: msg.editedAt?.toISOString() || undefined,
-              attachments: msg.attachments.map((a: any) => a.url),
-              embeds: msg.embeds.map((e: any) => e.toJSON()),
-              reactions: msg.reactions.cache.map((r: any) => ({
+              attachments: msg.attachments.map((a: unknown) => a.url),
+              embeds: msg.embeds.map((e: unknown) => e.toJSON()),
+              reactions: msg.reactions.cache.map((r: unknown) => ({
                 emoji: r.emoji.id ? { id: r.emoji.id, name: r.emoji.name } : r.emoji.name,
                 count: r.count,
               })),
@@ -294,7 +294,7 @@ export async function createBackup(guild: Guild, options: BackupOptions) {
 
   // Sauvegarder dans la base de données
   try {
-    const backup = await (prisma as any).serverBackup.create({
+    const backup = await (prisma as unknown).serverBackup.create({
       data: {
         guildId: guild.id,
         name: options.name,

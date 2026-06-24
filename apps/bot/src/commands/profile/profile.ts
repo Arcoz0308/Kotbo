@@ -20,7 +20,7 @@ import { getPublicProfileSnapshot } from '../../services/progression/profileServ
 import { getStaffMember } from '../../services/staff/staffManagementService.js';
 import { generateProfileCard } from '../../services/core/imageService.js';
 import { getMemberRankData } from '../../services/progression/levelingService.js';
-import { COLORS_RAW, truncate, text, separator, section, thumbnail } from '../../utils/embeds.js';
+import { COLORS_RAW, truncate, text } from '../../utils/embeds.js';
 import { E, rankEmoji } from '../../utils/emojis.js';
 
 const data = new SlashCommandBuilder()

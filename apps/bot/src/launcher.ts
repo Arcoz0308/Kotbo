@@ -45,7 +45,7 @@ async function startCustomBot(guildId: string, config: {
     logger.success('CustomBot', `[${guildId}] Bot "${c.user.tag}" connecté.`);
 
     const status = STATUS_MAP[config.botStatus || 'ONLINE'] || 'online';
-    const activities: any[] = [];
+    const activities: unknown[] = [];
 
     if (config.activityType && config.activityType !== 'NONE' && config.activityText) {
       activities.push({
@@ -74,7 +74,7 @@ async function startCustomBot(guildId: string, config: {
   try {
     await client.login(config.botToken);
     customBotClients.set(guildId, client);
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('CustomBot', `[${guildId}] Impossible de se connecter:`, err);
     await prisma.customBotConfig.update({
       where: { guildId },
@@ -173,7 +173,7 @@ function setupShardListeners(manager: ShardingManager, instanceLabel: string) {
       logger.error('Sharding', `[${instanceLabel}] Le Shard ${shard.id} est mort de manière inattendue (Code de sortie: ${exitCode}).`);
     });
 
-    shard.on('message', (message: any) => {
+    shard.on('message', (message: unknown) => {
       try {
         if (!message || typeof message !== 'object') return;
 
@@ -183,13 +183,13 @@ function setupShardListeners(manager: ShardingManager, instanceLabel: string) {
             process.exit(0);
           }
 
-          if (typeof (manager as any).respawnAll === 'function') {
-            (manager as any).respawnAll();
+          if (typeof (manager as unknown).respawnAll === 'function') {
+            (manager as unknown).respawnAll();
           } else {
-            const total = Number((manager as any).totalShards ?? (manager as any).shards?.size ?? 0);
+            const total = Number((manager as unknown).totalShards ?? (manager as unknown).shards?.size ?? 0);
             for (let i = 0; i < total; i += 1) {
-              if (typeof (manager as any).respawn === 'function') {
-                (manager as any).respawn(i);
+              if (typeof (manager as unknown).respawn === 'function') {
+                (manager as unknown).respawn(i);
               }
             }
           }
@@ -209,9 +209,9 @@ function setupShardListeners(manager: ShardingManager, instanceLabel: string) {
         if (message.type === 'respawn-shard' && Number.isInteger(Number(message.shardId))) {
           const target = Number(message.shardId);
           logger.warn('Sharding', `[${instanceLabel}] Respawn demandé pour le shard ${target} (via shard ${shard.id}).`);
-          if (typeof (manager as any).respawn === 'function') {
+          if (typeof (manager as unknown).respawn === 'function') {
             try {
-              (manager as any).respawn(target);
+              (manager as unknown).respawn(target);
             } catch (err) {
               logger.error('Sharding', `[${instanceLabel}] Erreur lors du respawn du shard ${target}:`, err);
             }

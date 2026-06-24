@@ -362,7 +362,7 @@ export async function generateStatsImage(guildId: string): Promise<Buffer> {
 // ─────────────────────────────────────────────────────────────
 // generateWeeklyRecapImage — Terminal-Style Weekly Recap
 // ─────────────────────────────────────────────────────────────
-export async function generateWeeklyRecapImage(guildId: string, items: any[]): Promise<Buffer> {
+export async function generateWeeklyRecapImage(guildId: string, items: unknown[]): Promise<Buffer> {
   ensureCanvasFonts();
   const itemX = 50;
   const itemW = 900;
@@ -697,11 +697,21 @@ export async function generateLeaderboardImage(
     const avatarX = 100, avatarY = y + 27;
     await drawCircularAvatar(ctx, member.avatarUrl || '', avatarX, avatarY, 18, member.name);
 
-    // Name / Level (chalk text)
+    // Level badge first, then name
+    let nameStartX = 130;
+    if (member.level !== undefined) {
+      const lvlText = `Niv.${member.level}`;
+      ctx.font = canvasFont(11, 'bold');
+      const lvlW = ctx.measureText(lvlText).width + 12;
+      roundRect(ctx, nameStartX, y + 12, lvlW, 20, 3, BRAND.postItYellow);
+      ctx.fillStyle = '#3A3A3A';
+      ctx.font = canvasFont(11, 'bold');
+      ctx.fillText(lvlText, nameStartX + 6, y + 26);
+      nameStartX += lvlW + 8;
+    }
     ctx.fillStyle = BRAND.chalk;
     ctx.font = canvasFont(15, 'bold');
-    const displayName = member.level !== undefined ? `${member.name}  Niv.${member.level}` : member.name;
-    ctx.fillText(truncate(displayName, 22), 130, y + 24);
+    ctx.fillText(truncate(member.name, 20), nameStartX, y + 27);
 
     // Chalk bar
     const barX = 340, barMaxW = 200;

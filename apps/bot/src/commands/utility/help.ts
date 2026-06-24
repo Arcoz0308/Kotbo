@@ -21,7 +21,7 @@ import {
   type AnySelectMenuInteraction,
   type ModalSubmitInteraction,
 } from 'discord.js';
-import { COLORS_RAW, text, separator } from '../../utils/embeds.js';
+import { COLORS_RAW, text } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 
 interface CommandOption {
@@ -215,7 +215,7 @@ function buildCategoryView(commands: SlashCommandDefinition[], categoryName: str
     .setPlaceholder('📁 Choisir une autre catégorie...')
     .addOptions(CATEGORIES.map(c => ({ label: c.name, value: `cat:${c.name}`, emoji: '📁', default: c.name === cat.name })));
 
-  const components: any[] = [container, new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectCategory)];
+  const components: unknown[] = [container, new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectCategory)];
 
   if (catCmds.length > 0) {
     const selectCommand = new StringSelectMenuBuilder()
@@ -264,7 +264,7 @@ function buildCommandView(commands: SlashCommandDefinition[], commandName: strin
   const prevCmd = catCmds[(currentIndex - 1 + catCmds.length) % catCmds.length];
   const nextCmd = catCmds[(currentIndex + 1) % catCmds.length];
 
-  const components: any[] = [container];
+  const components: unknown[] = [container];
 
   const selectCategory = new StringSelectMenuBuilder()
     .setCustomId('help_category_select')

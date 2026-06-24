@@ -13,6 +13,7 @@ import {
   getJwtSecret,
   readJsonBody,
   HttpError,
+  resolveDashboardAccess,
 } from '../shared.js';
 import {
   getVerificationByToken,
@@ -97,7 +98,7 @@ export async function handleVerifyRoutes(
 
   // POST /api/verify/:guildId/:token/complete — complete verification with Discord token
   if (parts.length === 5 && parts[4] === 'complete' && method === 'POST') {
-    const guildId = parts[2];
+    const _guildId = parts[2];
     const token = parts[3];
     const ipAddress = getClientIp(req);
 
@@ -241,6 +242,13 @@ export async function handleVerifyRoutes(
       return true;
     }
 
+    // Vérifier que l'utilisateur a les droits staff/admin sur ce serveur
+    const access = await resolveDashboardAccess(client, guildId, claims.userId);
+    if (access.level !== 'admin' && access.level !== 'moderator') {
+      json(res, 403, { error: 'Accès refusé — droits insuffisants sur ce serveur.' });
+      return true;
+    }
+
     try {
       const body = await readJsonBody<{ channelId: string }>(req);
       if (!body?.channelId) {
@@ -254,7 +262,7 @@ export async function handleVerifyRoutes(
       if (success) {
         json(res, 200, { success: true, message: 'Embed de vérification envoyé.' });
       } else {
-        json(res, 400, { error: "Impossible d\'envoyer l\'embed." });
+        json(res, 400, { error: "Impossible d'envoyer l'embed." });
       }
     } catch (err) {
       if (err instanceof HttpError) {

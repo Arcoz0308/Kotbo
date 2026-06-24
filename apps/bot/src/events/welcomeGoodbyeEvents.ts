@@ -56,5 +56,5 @@ export function registerWelcomeGoodbyeListener(client: Client) {
     }
   });
 
-  logger.info('System', "Écouteurs d\'Accueil, Départ & Boost enregistrés.");
+  logger.info('System', "Écouteurs d'Accueil, Départ & Boost enregistrés.");
 }

@@ -13,7 +13,7 @@ const __dirname = path.dirname(__filename);
 const DATABASE_BACKUP_ENABLED = true;
 const DATABASE_BACKUP_TIME = '02:00'; // 2h du matin
 const DATABASE_BACKUP_TIMEZONE = 'Europe/Paris';
-const RETENTION_DAYS = 7; // Garder les backups pendant 7 jours
+const _RETENTION_DAYS = 7; // Garder les backups pendant 7 jours
 
 let backupTask: cron.ScheduledTask | null = null;
 

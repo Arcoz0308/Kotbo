@@ -254,10 +254,10 @@ export async function generateTranscript(channel: TextChannel): Promise<{ id: st
   logger.info('Transcript', `Génération de la transcription pour #${channel.name} (${channel.id})...`);
   
   // 1. Fetch ALL messages in chronological order
-  let allMessages: Message[] = [];
+  const allMessages: Message[] = [];
   let lastId: string | undefined;
 
-  while (true) {
+  for (;;) {
     const options = { limit: 100, before: lastId };
     const messages = await channel.messages.fetch(options);
     if (messages.size === 0) break;

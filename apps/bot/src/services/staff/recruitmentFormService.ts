@@ -417,7 +417,7 @@ export function generateDefaultRecruitmentForm(): FormStructure {
         id: 'discord_id',
         type: 'short_text',
         label: 'ID Discord',
-        description: "Votre ID Discord numérique (clic droit sur votre profil > Copier l\'ID)",
+        description: "Votre ID Discord numérique (clic droit sur votre profil > Copier l'ID)",
         required: true,
         validation: {
           pattern: '^\\d{17,19}$',

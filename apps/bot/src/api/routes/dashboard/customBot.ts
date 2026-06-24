@@ -10,14 +10,14 @@ import {
   type AuthClaims,
 } from '../../shared.js';
 
-const STATUS_MAP: Record<string, PresenceStatusData> = {
+const _STATUS_MAP: Record<string, PresenceStatusData> = {
   ONLINE: 'online',
   IDLE: 'idle',
   DND: 'dnd',
   INVISIBLE: 'invisible',
 };
 
-const ACTIVITY_MAP: Record<string, ActivityType> = {
+const _ACTIVITY_MAP: Record<string, ActivityType> = {
   PLAYING: ActivityType.Playing,
   STREAMING: ActivityType.Streaming,
   LISTENING: ActivityType.Listening,
@@ -87,7 +87,7 @@ export async function handleCustomBotRoutes(
         'customDashboardUrl',
       ] as const;
 
-      const updateData: Record<string, any> = {};
+      const updateData: Record<string, unknown> = {};
       for (const field of allowedFields) {
         if (body[field] !== undefined) {
           if (field === 'enabled') {

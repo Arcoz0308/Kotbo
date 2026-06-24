@@ -1,6 +1,11 @@
+import crypto from 'node:crypto';
 import prisma from './db.js';
 import { logger } from './logger.js';
 import { getClient } from './client.js';
+
+function hashActivationCode(code: string): string {
+  return crypto.createHash('sha256').update(code).digest('hex');
+}
 
 export const activatedGuilds = new Set<string>();
 
@@ -39,46 +44,53 @@ export function isGuildActivated(guildId: string): boolean {
 export async function activateGuild(guildId: string, code: string): Promise<void> {
   const normalizedCode = code.trim().toUpperCase();
 
-  // 1. Mark the code as used
-  await prisma.activationCode.update({
-    where: { code: normalizedCode },
-    data: {
-      usedAt: new Date(),
-      usedByGuildId: guildId,
-      isActive: false
+  await prisma.$transaction(async (tx) => {
+    const activationCode = await tx.activationCode.findUnique({
+      where: { code: normalizedCode },
+    });
+
+    if (!activationCode || !activationCode.isActive || activationCode.usedAt) {
+      throw new Error('Code invalide, déjà utilisé ou expiré.');
     }
+
+    await tx.activationCode.update({
+      where: { code: normalizedCode },
+      data: {
+        usedAt: new Date(),
+        usedByGuildId: guildId,
+        isActive: false,
+      },
+    });
+
+    await tx.guild.upsert({
+      where: { id: guildId },
+      update: {
+        activated: true,
+        activatedAt: new Date(),
+        activationCode: hashActivationCode(normalizedCode),
+      },
+      create: {
+        id: guildId,
+        activated: true,
+        activatedAt: new Date(),
+        activationCode: hashActivationCode(normalizedCode),
+      },
+    });
   });
 
-  // 2. Activate the guild
-  await prisma.guild.upsert({
-    where: { id: guildId },
-    update: {
-      activated: true,
-      activatedAt: new Date(),
-      activationCode: normalizedCode
-    },
-    create: {
-      id: guildId,
-      activated: true,
-      activatedAt: new Date(),
-      activationCode: normalizedCode
-    }
-  });
-
-  // 3. Update cache
   activatedGuilds.add(guildId);
-  logger.success('Activation', `Le serveur ${guildId} a été activé avec le code ${normalizedCode}.`);
+  logger.success('Activation', `Le serveur ${guildId} a été activé.`);
 
   // Broadcast to other shards if present
   try {
     const client = getClient();
-    if ((client as any).shard) {
+    if ((client as unknown).shard) {
       const activationPath = import.meta.url;
-      await (client as any).shard.broadcastEval((c: any, context: { id: string; activationPath: string }) => {
+      await (client as unknown).shard.broadcastEval((c: unknown, context: { id: string; activationPath: string }) => {
         import(context.activationPath).then((m) => {
           m.activatedGuilds.add(context.id);
         }).catch(() => {});
-      }, { context: { id: guildId, activationPath } }).catch((err: any) => {
+      }, { context: { id: guildId, activationPath } }).catch((err: unknown) => {
         logger.error('Activation', `Failed to broadcast activation for ${guildId}:`, err);
       });
     }
@@ -126,13 +138,13 @@ export async function deactivateGuild(guildId: string): Promise<void> {
   // Broadcast to other shards if present
   try {
     const client = getClient();
-    if ((client as any).shard) {
+    if ((client as unknown).shard) {
       const activationPath = import.meta.url;
-      await (client as any).shard.broadcastEval((c: any, context: { id: string; activationPath: string }) => {
+      await (client as unknown).shard.broadcastEval((c: unknown, context: { id: string; activationPath: string }) => {
         import(context.activationPath).then((m) => {
           m.activatedGuilds.delete(context.id);
         }).catch(() => {});
-      }, { context: { id: guildId, activationPath } }).catch((err: any) => {
+      }, { context: { id: guildId, activationPath } }).catch((err: unknown) => {
         logger.error('Activation', `Failed to broadcast deactivation for ${guildId}:`, err);
       });
     }

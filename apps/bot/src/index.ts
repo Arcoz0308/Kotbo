@@ -54,7 +54,7 @@ import { syncOngoingDailyAlgoButtons } from './services/progression/dailyAlgoSer
 import { checkTranslationProviderHealth } from './services/integrations/translationService.js';
 import { startDashboardApi } from './api/dashboardApi.js';
 import { initBotSentry, captureException } from './observability/sentry.js';
-import { initRedis } from './infra/redis.js';
+import { initRedis, assertRedisConnection } from './infra/redis.js';
 import { startBackgroundQueueWorker } from './infra/queues/backgroundQueue.js';
 import botPackageJson from '../package.json';
 import { registerLevelingListener } from './events/levelingEvents.js';
@@ -107,7 +107,7 @@ setClient(client);
 // Guild Activation Central Event Interceptor Gate
 // ==========================================================
 const originalEmit = client.emit;
-client.emit = function (eventName: string | symbol, ...args: any[]) {
+client.emit = function (eventName: string | symbol, ...args: unknown[]) {
   // Allow system/ready events
   if (
     eventName === Events.ClientReady ||
@@ -195,7 +195,7 @@ async function enforceCommandAccess(interaction: ChatInputCommandInteraction): P
       if (Array.isArray(interaction.member.roles)) {
         roleIds = interaction.member.roles;
       } else if (interaction.member.roles && 'cache' in interaction.member.roles) {
-        roleIds = interaction.member.roles.cache.map((role: any) => role.id);
+        roleIds = interaction.member.roles.cache.map((role: unknown) => role.id);
       }
     }
     if (roleIds.length === 0) {
@@ -237,20 +237,23 @@ client.once(Events.ClientReady, async (c) => {
   );
 
   await initRedis();
+  await assertRedisConnection().catch((err) => {
+    logger.warn('Redis', String(err));
+  });
   await startBackgroundQueueWorker();
   await checkTranslationProviderHealth();
 
   // Load global config & blacklist into memory
   try {
     const config = await prisma.botGlobalConfig.findUnique({ where: { key: 'MAINTENANCE_MODE' } });
-    (global as any).KOTBO_MAINTENANCE_MODE = config?.value === 'true';
+    (global as unknown).KOTBO_MAINTENANCE_MODE = config?.value === 'true';
 
     const blacklist = await prisma.globalBlacklist.findMany({ select: { userId: true } });
-    (global as any).KOTBO_BLACKLIST = new Set(blacklist.map(b => b.userId));
+    (global as unknown).KOTBO_BLACKLIST = new Set(blacklist.map(b => b.userId));
   } catch (err) {
     logger.error('System', 'Erreur lors du chargement de la config globale', err);
-    (global as any).KOTBO_MAINTENANCE_MODE = false;
-    (global as any).KOTBO_BLACKLIST = new Set();
+    (global as unknown).KOTBO_MAINTENANCE_MODE = false;
+    (global as unknown).KOTBO_BLACKLIST = new Set();
   }
 
   registerCodePoliceListener(client);
@@ -286,7 +289,7 @@ client.once(Events.ClientReady, async (c) => {
   );
   logger.info('System', 'Synchronisation DailyAlgo terminée, initialisation des backups automatiques...');
   await initializeAutoBackupForAllGuilds(c.guilds.cache.values()).catch((error) =>
-    logger.error('AutoBackup', "Impossible d\'initialiser les backups automatiques:", error)
+    logger.error('AutoBackup', "Impossible d'initialiser les backups automatiques:", error)
   );
   logger.info('System', 'Backups automatiques initialisés');
 
@@ -299,7 +302,7 @@ client.once(Events.ClientReady, async (c) => {
     });
 
     for (const g of activatedGuilds) {
-      let config = (g.statsConfig as any) || {};
+      let config = (g.statsConfig as unknown) || {};
       
       // If the scraping was stuck in IN_PROGRESS (e.g. bot crashed/restarted), reset it so it can be resumed
       if (config.historicalScrapeStatus === 'IN_PROGRESS') {
@@ -373,11 +376,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
   logger.info('Interactions', `Interaction reçue: ${interaction.type} - ${interaction.id}`);
   try {
     // 1. Vérification de la blacklist globale
-    const blacklist: Set<string> = (global as any).KOTBO_BLACKLIST || new Set();
+    const blacklist: Set<string> = (global as unknown).KOTBO_BLACKLIST || new Set();
     if (blacklist.has(interaction.user.id)) {
       if (interaction.isRepliable()) {
         await interaction.reply({
-          content: "❌ Vous avez été banni globalement de l\'utilisation de ce bot.",
+          content: "❌ Vous avez été banni globalement de l'utilisation de ce bot.",
           flags: [MessageFlags.Ephemeral]
         });
       }
@@ -385,7 +388,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
 
     // 2. Vérification du mode maintenance (sauf pour créateur et admins globaux)
-    if ((global as any).KOTBO_MAINTENANCE_MODE && interaction.user.id !== process.env.DISCORD_CLIENT_OWNER_ID) {
+    if ((global as unknown).KOTBO_MAINTENANCE_MODE && interaction.user.id !== process.env.DISCORD_CLIENT_OWNER_ID) {
       // Allow global admins bypass
       const admin = await prisma.globalAdmin.findUnique({ where: { userId: interaction.user.id } });
       if (!admin) {
@@ -407,7 +410,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const cmd = slashCommands.get(interaction.commandName);
       if (!cmd) {
         await interaction.reply({
-          content: "⚠️ Cette commande n\'est pas encore disponible sur cette instance du bot. Redémarre le bot puis redéploie les commandes.",
+          content: "⚠️ Cette commande n'est pas encore disponible sur cette instance du bot. Redémarre le bot puis redéploie les commandes.",
           flags: [MessageFlags.Ephemeral],
         });
         return;
@@ -501,7 +504,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (interaction.isRepliable() && !interaction.deferred && !interaction.replied) {
         await replyOrFollowUp(interaction, { content: '❌ Une erreur est survenue.', flags: [MessageFlags.Ephemeral] });
       } else {
-        logger.warn('Event', "Interaction déjà acquittée au moment de la gestion d\'erreur; aucun message supplémentaire envoyé.");
+        logger.warn('Event', "Interaction déjà acquittée au moment de la gestion d'erreur; aucun message supplémentaire envoyé.");
       }
     } catch (e){
       captureException(e, 'interaction-create-error-handler');

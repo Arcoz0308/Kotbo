@@ -1,11 +1,11 @@
 import type { SlashCommandDefinition } from '../../commands.js';
 import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags, EmbedBuilder } from 'discord.js';
 import { work, getOrCreateEconomyConfig } from '../../services/features/economyService.js';
-import { errorEmbed, successEmbed, COLORS } from '../../utils/embeds.js';
+import { errorEmbed, COLORS } from '../../utils/embeds.js';
 
 const data = new SlashCommandBuilder()
   .setName('work')
-  .setDescription("💼 Travaille pendant une heure pour gagner des pièces et de l\'XP");
+  .setDescription("💼 Travaille pendant une heure pour gagner des pièces et de l'XP");
 
 const WORK_MESSAGES = [
   "Vous avez nettoyé la taverne locale du sol au plafond.",
@@ -58,7 +58,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     }
 
     await interaction.reply({ embeds: [embed] });
-  } catch (err: any) {
+  } catch (err: unknown) {
     await interaction.reply({
       embeds: [errorEmbed('Erreur', err.message || 'Impossible de travailler.')],
       flags: [MessageFlags.Ephemeral]

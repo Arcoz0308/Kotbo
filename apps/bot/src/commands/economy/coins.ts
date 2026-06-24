@@ -42,7 +42,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       );
 
     await interaction.reply(v2(container));
-  } catch (err: any) {
+  } catch (err: unknown) {
     await interaction.reply({
       ...v2(errorContainer('Erreur', err.message || 'Impossible de consulter le solde.')),
       flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral

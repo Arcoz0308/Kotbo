@@ -2,7 +2,7 @@ import { Client, Events, Message } from 'discord.js';
 import { handleTextXp, addXp, getOrCreateLevelConfig } from '../services/progression/levelingService.js';
 import { handleUserActivity } from '../services/features/economyService.js';
 import { logger } from '../utils/logger.js';
-import prisma from '../utils/db.js';
+
 
 let voiceXpInterval: Timer | null = null;
 
@@ -27,14 +27,14 @@ export function registerLevelingListener(client: Client) {
         if (!config || !config.enabled || config.vocalXpPerMin <= 0) continue;
 
         // Parcourir tous les salons vocaux de la guilde
-        for (const [channelId, channel] of guild.channels.cache) {
+        for (const [_channelId, channel] of guild.channels.cache) {
           if (!channel.isVoiceBased()) continue;
 
           // Vérifier si le salon vocal est exclu
           if (config.ignoredChannels && config.ignoredChannels.includes(channel.id)) continue;
 
           // Parcourir tous les membres connectés
-          for (const [memberId, member] of channel.members) {
+          for (const [_memberId, member] of channel.members) {
             if (member.user.bot) continue;
 
             // Ne pas donner d'XP s'il est muet ou sourd (auto-muet, sourd d'oreille, etc.)
@@ -85,9 +85,9 @@ export function registerLevelingListener(client: Client) {
       }
 
     } catch (err) {
-      logger.error('LevelingEvents', "Erreur lors de la boucle d\'XP vocale :", err);
+      logger.error('LevelingEvents', "Erreur lors de la boucle d'XP vocale :", err);
     }
-  }, 60000) as any;
+  }, 60000) as unknown;
 
   logger.info('System', 'Écouteurs de Leveling & XP enregistrés.');
 }

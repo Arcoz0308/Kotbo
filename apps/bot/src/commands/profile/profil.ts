@@ -12,7 +12,7 @@ import {
 } from 'discord.js';
 import { getStaffMember, getStaffMemberStats } from '../../services/staff/staffManagementService.js';
 import { getStaffProfileSnapshot } from '../../services/progression/profileService.js';
-import { COLORS_RAW, text, separator, truncate } from '../../utils/embeds.js';
+import { COLORS_RAW, text, truncate } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import { logger } from '../../utils/logger.js';
 

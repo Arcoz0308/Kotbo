@@ -7,7 +7,7 @@ import {
   SeparatorSpacingSize,
   MessageFlags,
 } from 'discord.js';
-import { COLORS_RAW, text, separator, errorContainer, v2 } from '../../utils/embeds.js';
+import { COLORS_RAW, text, errorContainer, v2 } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import prisma from '../../utils/db.js';
 
@@ -41,11 +41,11 @@ function getStatusLabel(code: number): string {
 
 const data = new SlashCommandBuilder()
   .setName('status')
-  .setDescription("Vérifie le statut HTTP d\'une URL")
+  .setDescription("Vérifie le statut HTTP d'une URL")
   .addStringOption(option =>
     option
       .setName('url')
-      .setDescription("L\'URL à vérifier (ex: https://example.com)")
+      .setDescription("L'URL à vérifier (ex: https://example.com)")
       .setRequired(true)
   );
 
@@ -76,7 +76,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
     url = new URL(urlStr);
   } catch {
     await interaction.reply({
-      ...v2(errorContainer('URL invalide', "La URL fournie n\'est pas valide")),
+      ...v2(errorContainer('URL invalide', "La URL fournie n'est pas valide")),
       flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     });
     return;

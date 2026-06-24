@@ -98,7 +98,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
         )
       ]
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     await interaction.reply({
       embeds: [errorEmbed('Don échoué', err.message || "Impossible d'offrir l'objet.")],
       flags: [MessageFlags.Ephemeral]

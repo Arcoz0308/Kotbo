@@ -31,7 +31,7 @@ export async function handleRecruitmentWebhookRoute(
   req: IncomingMessage,
   res: ServerResponse,
   parts: string[],
-  client: Client
+  _client: Client
 ): Promise<boolean> {
   if (
     parts.length === 6 &&
@@ -80,7 +80,7 @@ export async function handleRecruitmentRoutes(
   client: Client,
   user: AuthClaims,
   guildId: string,
-  access: DashboardAccess
+  _access: DashboardAccess
 ): Promise<boolean> {
   const method = req.method;
 
@@ -172,7 +172,7 @@ export async function handleRecruitmentRoutes(
           return true;
         }
 
-        await updateCandidatureStatus(candidatureId, nextStatus as any, body?.notes);
+        await updateCandidatureStatus(candidatureId, nextStatus as unknown, body?.notes);
         json(res, 200, { ok: true });
         return true;
       }

@@ -35,7 +35,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       interaction.client
     );
     await interaction.editReply(`💡 Votre suggestion a été publiée avec succès ! (ID : \`${suggestion.id}\`)`);
-  } catch (err: any) {
+  } catch (err: unknown) {
     await interaction.editReply(`❌ Impossible de publier la suggestion : ${err?.message || 'erreur inconnue'}`);
   }
 }

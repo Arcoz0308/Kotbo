@@ -1,6 +1,6 @@
 import prisma from '../../utils/db.js';
 import { cache } from '../../utils/cache.js';
-import type { StaffMember, TestingPeriod, APIKey } from '@prisma/client';
+
 import crypto from 'node:crypto';
 import { createNotification } from './staffLeadershipService.js';
 import { getClient } from '../../utils/client.js';
@@ -50,7 +50,7 @@ const resolveStaffMemberId = async (guildId: string, staffIdentifier: string) =>
   }
 
   const cacheKey = `guild:${guildId}:staff_member:${staffIdentifier}`;
-  const cached = await cache.get<any>(cacheKey);
+  const cached = await cache.get<unknown>(cacheKey);
   if (cached) {
     if (cached.isNotStaff) return null;
     return cached.id;
@@ -527,7 +527,7 @@ export const issueStaffWarning = async (
       userIdsToNotify.add(issuedByUserId);
     }
 
-    const grades = await (prisma as any).staffMemberHierarchyGrade.findMany({
+    const grades = await (prisma as unknown).staffMemberHierarchyGrade.findMany({
       where: { staffMemberId: member.id },
       include: {
         hierarchy: true
@@ -575,7 +575,7 @@ export const blacklistStaff = async (
   const linkedUserIds = await altAccountService.getAllLinkedUserIds(guildId, staffUserId);
 
   const resolveOrCreateBlacklistedStaffMember = async (userId: string) => {
-    let resolvedStaffMemberId = await resolveStaffMemberId(guildId, userId);
+    const resolvedStaffMemberId = await resolveStaffMemberId(guildId, userId);
     if (resolvedStaffMemberId) {
       return resolvedStaffMemberId;
     }

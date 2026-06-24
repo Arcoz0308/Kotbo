@@ -17,6 +17,7 @@
       "dependencies": {
         "@hono/swagger-ui": "^0.6.1",
         "@hono/zod-openapi": "^0.19.6",
+        "@kotbo/core": "workspace:*",
         "@kotbo/database": "workspace:*",
         "@modelcontextprotocol/sdk": "^1.29.0",
         "@napi-rs/canvas": "^0.1.100",
@@ -76,6 +77,21 @@
         "svelte": "^5.53.12",
         "tailwindcss": "^4.2.2",
         "vite": "8.0.1",
+      },
+    },
+    "packages/contracts": {
+      "name": "@kotbo/contracts",
+      "version": "1.0.0",
+      "dependencies": {
+        "zod": "^3.25.67",
+      },
+    },
+    "packages/core": {
+      "name": "@kotbo/core",
+      "version": "1.0.0",
+      "dependencies": {
+        "@kotbo/database": "workspace:*",
+        "@prisma/client": "^7.8.0",
       },
     },
     "packages/database": {
@@ -200,6 +216,10 @@
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
     "@kotbo/bot": ["@kotbo/bot@workspace:apps/bot"],
+
+    "@kotbo/contracts": ["@kotbo/contracts@workspace:packages/contracts"],
+
+    "@kotbo/core": ["@kotbo/core@workspace:packages/core"],
 
     "@kotbo/dashboard": ["@kotbo/dashboard@workspace:apps/dashboard"],
 

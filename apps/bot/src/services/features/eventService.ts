@@ -51,7 +51,7 @@ export async function getEvent(eventId: string) {
         orderBy: [
           { score: 'desc' },
           { lastSolveAt: 'asc' }
-        ] as any,
+        ] as unknown,
         include: {
           profile: true,
         },
@@ -60,7 +60,7 @@ export async function getEvent(eventId: string) {
         orderBy: { createdAt: 'asc' },
       },
       customForm: true,
-    } as any,
+    } as unknown,
   });
 }
 
@@ -70,7 +70,7 @@ export async function createEvent(guildId: string, data: { title: string; descri
       guildId,
       title: data.title,
       description: data.description,
-      type: data.type as any,
+      type: data.type as unknown,
       channelId: data.channelId,
     },
   });
@@ -156,14 +156,14 @@ export async function nextQuestion(client: Client, eventId: string) {
     },
   });
 
-  if (!event || !event.messageId || !event.channelId) throw new Error('Ã‰vÃ©nement non publiÃ©');
+  if (!event || !event.messageId || !event.channelId) throw new Error('Ã‰vénement non publié');
 
   // Trouver la question en cours ou la suivante
   const currentQuestion = event.questions.find((q) => q.status === 'ONGOING');
   const nextQuestion = event.questions.find((q) => q.status === 'DRAFT');
 
   if (currentQuestion) {
-    // ClÃ´turer la question actuelle
+    // Clôturer la question actuelle
     await prisma.eventQuizQuestion.update({
       where: { id: currentQuestion.id },
       data: { status: 'COMPLETED', endTime: new Date() },
@@ -171,7 +171,7 @@ export async function nextQuestion(client: Client, eventId: string) {
   }
 
   if (!nextQuestion) {
-    // Plus de questions, terminer l'Ã©vent
+    // Plus de questions, terminer l'évent
     return finishEvent(client, eventId);
   }
 
@@ -197,22 +197,22 @@ export async function nextQuestion(client: Client, eventId: string) {
 
   const embed = new EmbedBuilder()
     .setTitle(`â�" Question ${currentIdx}/${totalQuestions} : ${nextQuestion.text}`)
-    .setDescription('Choisissez la bonne rÃ©ponse ci-dessous !')
+    .setDescription('Choisissez la bonne réponse ci-dessous !')
     .setColor(COLORS.info)
     .setTimestamp();
 
   if (currentQuestion) {
     const prevAnswer = (currentQuestion.options as string[])[currentQuestion.correctOptionIndex];
     embed.addFields({ 
-      name: 'âœ… DerniÃ¨re rÃ©ponse', 
-      value: `La bonne rÃ©ponse Ã  la question prÃ©cÃ©dente Ã©tait : **${prevAnswer}**` 
+      name: '✅ Dernière réponse', 
+      value: `La bonne réponse à la question précédente était : **${prevAnswer}**` 
     });
   }
 
   if (nextQuestion.imageUrl) embed.setImage(nextQuestion.imageUrl);
 
   const options = nextQuestion.options as string[];
-  const components: any[] = [];
+  const components: unknown[] = [];
 
   if (options.length <= 5) {
     const row = new ActionRowBuilder<ButtonBuilder>();
@@ -229,7 +229,7 @@ export async function nextQuestion(client: Client, eventId: string) {
     const row = new ActionRowBuilder<StringSelectMenuBuilder>();
     const select = new StringSelectMenuBuilder()
       .setCustomId(`event-quiz-select:${nextQuestion.id}`)
-      .setPlaceholder('Choisissez votre rÃ©ponse...');
+      .setPlaceholder('Choisissez votre réponse...');
 
     options.forEach((opt, idx) => {
       select.addOptions({
@@ -256,13 +256,13 @@ export async function prevQuestion(client: Client, eventId: string) {
     },
   });
 
-  if (!event || !event.messageId || !event.channelId) throw new Error('Ã‰vÃ©nement non publiÃ©');
+  if (!event || !event.messageId || !event.channelId) throw new Error('Ã‰vénement non publié');
 
   const currentQuestion = event.questions.find((q) => q.status === 'ONGOING');
   const completedQuestions = event.questions.filter((q) => q.status === 'COMPLETED');
   const prevQuestion = completedQuestions[completedQuestions.length - 1];
 
-  if (!prevQuestion) throw new Error('Pas de question prÃ©cÃ©dente');
+  if (!prevQuestion) throw new Error('Pas de question précédente');
 
   // Reset current ONGOING to DRAFT
   if (currentQuestion) {
@@ -289,7 +289,7 @@ export async function prevQuestion(client: Client, eventId: string) {
 
   const embed = new EmbedBuilder()
     .setTitle(`â�" Question ${currentIdx}/${totalQuestions} : ${prevQuestion.text}`)
-    .setDescription('Choisissez la bonne rÃ©ponse ci-dessous !')
+    .setDescription('Choisissez la bonne réponse ci-dessous !')
     .setColor(COLORS.info)
     .setTimestamp();
 
@@ -297,15 +297,15 @@ export async function prevQuestion(client: Client, eventId: string) {
   if (questionBeforePrev) {
     const prevAnswer = (questionBeforePrev.options as string[])[questionBeforePrev.correctOptionIndex];
     embed.addFields({ 
-      name: 'âœ… DerniÃ¨re rÃ©ponse', 
-      value: `La bonne rÃ©ponse Ã  la question prÃ©cÃ©dente Ã©tait : **${prevAnswer}**` 
+      name: '✅ Dernière réponse', 
+      value: `La bonne réponse à la question précédente était : **${prevAnswer}**` 
     });
   }
 
   if (prevQuestion.imageUrl) embed.setImage(prevQuestion.imageUrl);
 
   const options = prevQuestion.options as string[];
-  const components: any[] = [];
+  const components: unknown[] = [];
 
   if (options.length <= 5) {
     const row = new ActionRowBuilder<ButtonBuilder>();
@@ -321,7 +321,7 @@ export async function prevQuestion(client: Client, eventId: string) {
   } else {
     const select = new StringSelectMenuBuilder()
       .setCustomId(`event-quiz-select:${prevQuestion.id}`)
-      .setPlaceholder('Choisissez votre rÃ©ponse...')
+      .setPlaceholder('Choisissez votre réponse...')
       .addOptions(
         options.map((opt, idx) => ({
           label: truncate(opt, 100),
@@ -346,10 +346,10 @@ export async function handleQuizInteraction(
   });
 
   if (!question || question.status !== 'ONGOING') {
-    return interaction.reply({ content: 'Cette question est terminÃ©e ou invalide.', ephemeral: true });
+    return interaction.reply({ content: 'Cette question est terminée ou invalide.', ephemeral: true });
   }
 
-  // S'assurer que le profil membre existe (nÃ©cessaire pour la relation EventParticipant -> MemberProfile)
+  // S'assurer que le profil membre existe (nécessaire pour la relation EventParticipant -> MemberProfile)
   await prisma.memberProfile.upsert({
     where: {
       guildId_userId: {
@@ -362,18 +362,18 @@ export async function handleQuizInteraction(
       userId: interaction.user.id,
       userTag: interaction.user.tag,
       username: interaction.user.username,
-      displayName: (interaction.member as any)?.displayName || interaction.user.username,
+      displayName: (interaction.member as unknown)?.displayName || interaction.user.username,
       avatarUrl: interaction.user.displayAvatarURL(),
     },
     update: {
       userTag: interaction.user.tag,
       username: interaction.user.username,
-      displayName: (interaction.member as any)?.displayName || interaction.user.username,
+      displayName: (interaction.member as unknown)?.displayName || interaction.user.username,
       avatarUrl: interaction.user.displayAvatarURL(),
     },
   });
 
-  // CrÃ©er ou rÃ©cupÃ©rer le participant
+  // Créer ou récupérer le participant
   const participant = await prisma.eventParticipant.upsert({
     where: {
       eventId_userId: {
@@ -418,7 +418,7 @@ export async function handleQuizInteraction(
     },
   });
 
-  // Mettre Ã  jour le score global du participant
+  // Mettre à jour le score global du participant
   const allResponses = await prisma.eventQuizResponse.findMany({
     where: { participantId: participant.id },
   });
@@ -431,7 +431,7 @@ export async function handleQuizInteraction(
   });
 
   return interaction.reply({
-    content: `Ta rÃ©ponse a Ã©tÃ© enregistrÃ©e : **${(question.options as string[])[optionIndex]}**`,
+    content: `Ta réponse a été enregistrée : **${(question.options as string[])[optionIndex]}**`,
     ephemeral: true,
   });
 }
@@ -455,7 +455,7 @@ export async function getEventStats(eventId: string) {
   if (!event) return null;
 
   if (event.type === 'CTF') {
-    const ctfChallenges = await (prisma as any).eventCtfChallenge.findMany({
+    const ctfChallenges = await (prisma as unknown).eventCtfChallenge.findMany({
       where: { eventId },
       include: {
         solves: {
@@ -468,14 +468,14 @@ export async function getEventStats(eventId: string) {
     });
     return {
       type: 'CTF',
-      challenges: ctfChallenges.map((c: any) => ({
+      challenges: ctfChallenges.map((c: unknown) => ({
         id: c.id,
         title: c.title,
         points: c.points,
         xpReward: c.xpReward,
         roleIdReward: c.roleIdReward,
         solveCount: c.solves.length,
-        solves: c.solves.map((s: any) => ({
+        solves: c.solves.map((s: unknown) => ({
           userId: s.participant.userId,
           username: s.participant.username || s.participant.userTag || s.participant.userId,
           solvedAt: s.solvedAt,
@@ -486,7 +486,7 @@ export async function getEventStats(eventId: string) {
 
   let currentQuestion = event.questions.find((q) => q.status === 'ONGOING');
   
-  // Si la question en cours n'a pas encore de rÃ©ponses, on affiche les stats de la derniÃ¨re question terminÃ©e
+  // Si la question en cours n'a pas encore de réponses, on affiche les stats de la dernière question terminée
   if (currentQuestion && currentQuestion.responses.length === 0) {
     const lastCompleted = [...event.questions]
       .reverse()
@@ -513,7 +513,7 @@ export async function getEventStats(eventId: string) {
 
   for (const q of event.questions) {
     const qOptions = q.options as string[];
-    const qSortOrder = (q as any).sortOrder ?? 0;
+    const qSortOrder = (q as unknown).sortOrder ?? 0;
     for (const r of q.responses) {
       const userId = r.participant.userId;
       const existing = latestResponses.get(userId);
@@ -544,7 +544,7 @@ export async function getEventStats(eventId: string) {
     questionText: currentQuestion.text,
     distribution,
     options: currentQuestion.options as string[],
-    latestResponses: Array.from(latestResponses.values()).map(({ sortOrder, ...rest }) => rest),
+    latestResponses: Array.from(latestResponses.values()).map(({ _sortOrder, ...rest }) => rest),
     responses: currentQuestion.responses.map(r => ({
       userId: r.participant.userId,
       userTag: r.participant.userTag,
@@ -568,7 +568,7 @@ export async function finishEvent(client: Client, eventId: string) {
     },
   });
 
-  if (!event || !event.messageId || !event.channelId) throw new Error('Ã‰vÃ©nement introuvable');
+  if (!event || !event.messageId || !event.channelId) throw new Error('Ã‰vénement introuvable');
 
   const channel = (await client.channels.fetch(event.channelId).catch(() => null)) as TextChannel | null;
   if (!channel) throw new Error('Salon Discord introuvable');
@@ -577,7 +577,7 @@ export async function finishEvent(client: Client, eventId: string) {
 
   const leaderboard = event.participants
     .slice(0, 10)
-    .map((p: any, i: number) => `${i + 1}. **${p.userTag || p.userId}** â€" ${p.score} pts`)
+    .map((p: unknown, i: number) => `${i + 1}. **${p.userTag || p.userId}** â€" ${p.score} pts`)
     .join('\n') || 'Aucun participant.';
 
   let description = `Bravo à tous les participants !
@@ -632,7 +632,7 @@ ${leaderboard}`;
 
     const detailsButton = new ButtonBuilder()
       .setCustomId(`event-result-page:${eventId}:0`)
-      .setLabel('ðŸ"� DÃ©tails')
+      .setLabel('ðŸ"� Détails')
       .setStyle(ButtonStyle.Primary);
 
     const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://localhost:5173';
@@ -653,7 +653,7 @@ ${leaderboard}`;
 
     const detailsButton = new ButtonBuilder()
       .setCustomId(`event-result-page:${eventId}:0`)
-      .setLabel('ðŸ"� DÃ©tails')
+      .setLabel('ðŸ"� Détails')
       .setStyle(ButtonStyle.Primary);
 
     const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://localhost:5173';
@@ -676,7 +676,7 @@ ${leaderboard}`;
   return { status: 'completed' };
 }
 
-export async function buildEventResultsView(interaction: any, eventId: string, page: number = 0) {
+export async function buildEventResultsView(interaction: unknown, eventId: string, page: number = 0) {
   const userId = interaction.user.id;
   const guildId = interaction.guildId;
 
@@ -688,17 +688,17 @@ export async function buildEventResultsView(interaction: any, eventId: string, p
     });
 
     if (participations.length === 0) {
-      return { content: "â�Œ Tu n'as participÃ© Ã  aucun quiz pour le moment.", embeds: [], components: [] };
+      return { content: "â�Œ Tu n'as participé à aucun quiz pour le moment.", embeds: [], components: [] };
     }
 
     const embed = new EmbedBuilder()
-      .setTitle('ðŸ"ˆ Tes RÃ©sultats Quiz')
-      .setDescription('SÃ©lectionne un Ã©vÃ©nement pour voir le dÃ©tail de tes rÃ©ponses.')
+      .setTitle('ðŸ"ˆ Tes Résultats Quiz')
+      .setDescription('Sélectionne un événement pour voir le détail de tes réponses.')
       .setColor(COLORS.info);
 
     const select = new StringSelectMenuBuilder()
       .setCustomId('event-result-select')
-      .setPlaceholder('Choisir un Ã©vÃ©nement...')
+      .setPlaceholder('Choisir un événement...')
       .addOptions(
         participations.slice(0, 25).map(p => ({
           label: truncate(p.event.title, 100),
@@ -726,7 +726,7 @@ export async function buildEventResultsView(interaction: any, eventId: string, p
     }
   });
 
-  if (!event) return { content: 'â�Œ Ã‰vÃ©nement introuvable.', embeds: [], components: [] };
+  if (!event) return { content: 'â�Œ Ã‰vénement introuvable.', embeds: [], components: [] };
 
   const pageSize = 10;
   const totalPages = Math.ceil(event.questions.length / pageSize) || 1;
@@ -735,32 +735,32 @@ export async function buildEventResultsView(interaction: any, eventId: string, p
   const visibleQuestions = event.questions.slice(start, end);
 
   const embed = new EmbedBuilder()
-    .setTitle(`ðŸ"ˆ RÃ©sultats : ${event.title}`)
-    .setDescription(`Voici le dÃ©tail de tes rÃ©ponses (Page ${page + 1}/${totalPages}).`)
+    .setTitle(`ðŸ"ˆ Résultats : ${event.title}`)
+    .setDescription(`Voici le détail de tes réponses (Page ${page + 1}/${totalPages}).`)
     .setColor(COLORS.info)
     .setTimestamp();
 
   visibleQuestions.forEach((q, i) => {
-    // Chercher la rÃ©ponse correspondant Ã  l'utilisateur parmi les rÃ©ponses disponibles.
-    // On ne se fie pas uniquement Ã  la relation WHERE cÃ´tÃ© Prisma car il arrive
-    // que les donnÃ©es aient Ã©tÃ© enregistrÃ©es avec une relation incorrecte (bug question 39, etc.).
+    // Chercher la réponse correspondant à l'utilisateur parmi les réponses disponibles.
+    // On ne se fie pas uniquement à la relation WHERE côté Prisma car il arrive
+    // que les données aient été enregistrées avec une relation incorrecte (bug question 39, etc.).
     const userResponse = Array.isArray(q.responses)
-      ? q.responses.find((r: any) => r.participant && r.participant.userId === userId)
+      ? q.responses.find((r: unknown) => r.participant && r.participant.userId === userId)
       : undefined;
     const options = q.options as string[];
     const correctLabel = options[q.correctOptionIndex];
     
-    let userLabel = '*Pas de rÃ©ponse*';
+    let userLabel = '*Pas de réponse*';
     let icon = 'âšª';
 
     if (userResponse) {
       userLabel = options[userResponse.optionIndex];
-      icon = userResponse.isCorrect ? 'âœ…' : 'â�Œ';
+      icon = userResponse.isCorrect ? '✅' : 'â�Œ';
     }
 
     embed.addFields({
       name: `${start + i + 1}. ${truncate(q.text, 200)}`,
-      value: `Ta rÃ©ponse : ${icon} **${truncate(userLabel, 100)}**\nBonne rÃ©ponse : **${truncate(correctLabel, 100)}**`
+      value: `Ta réponse : ${icon} **${truncate(userLabel, 100)}**\nBonne réponse : **${truncate(correctLabel, 100)}**`
     });
   });
 
@@ -769,7 +769,7 @@ export async function buildEventResultsView(interaction: any, eventId: string, p
     row.addComponents(
       new ButtonBuilder()
         .setCustomId(`event-result-page:${eventId}:${page - 1}`)
-        .setLabel('PrÃ©cÃ©dent')
+        .setLabel('Précédent')
         .setStyle(ButtonStyle.Secondary)
     );
   }
@@ -785,7 +785,7 @@ export async function buildEventResultsView(interaction: any, eventId: string, p
   row.addComponents(
     new ButtonBuilder()
       .setCustomId('event-result-back')
-      .setLabel('Retour Ã  la liste')
+      .setLabel('Retour à la liste')
       .setStyle(ButtonStyle.Danger)
   );
 
@@ -817,17 +817,17 @@ export async function deleteEvent(client: Client, eventId: string) {
   });
 }
 
-export async function handleCtfFlagSubmission(interaction: any, eventId: string, flag: string) {
+export async function handleCtfFlagSubmission(interaction: unknown, eventId: string, flag: string) {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
     include: { ctfChallenges: true }
   });
 
   if (!event || event.status !== 'ONGOING') {
-    return interaction.reply({ content: "â�Œ Ce CTF n\'est pas actif.", ephemeral: true });
+    return interaction.reply({ content: "â�Œ Ce CTF n'est pas actif.", ephemeral: true });
   }
 
-  const challenge = (event as any).ctfChallenges.find((c: any) => c.flag.trim().toLowerCase() === flag.trim().toLowerCase());
+  const challenge = (event as unknown).ctfChallenges.find((c: unknown) => c.flag.trim().toLowerCase() === flag.trim().toLowerCase());
   if (!challenge) {
     return interaction.reply({ content: 'â�Œ Flag incorrect. Essayez encore !', ephemeral: true });
   }
@@ -844,13 +844,13 @@ export async function handleCtfFlagSubmission(interaction: any, eventId: string,
       userId: interaction.user.id,
       userTag: interaction.user.tag,
       username: interaction.user.username,
-      displayName: (interaction.member as any)?.displayName || interaction.user.username,
+      displayName: (interaction.member as unknown)?.displayName || interaction.user.username,
       avatarUrl: interaction.user.displayAvatarURL(),
     },
     update: {
       userTag: interaction.user.tag,
       username: interaction.user.username,
-      displayName: (interaction.member as any)?.displayName || interaction.user.username,
+      displayName: (interaction.member as unknown)?.displayName || interaction.user.username,
       avatarUrl: interaction.user.displayAvatarURL(),
     },
   });
@@ -875,7 +875,7 @@ export async function handleCtfFlagSubmission(interaction: any, eventId: string,
     },
   });
 
-  const existingSolve = await (prisma as any).eventCtfSolve.findUnique({
+  const existingSolve = await (prisma as unknown).eventCtfSolve.findUnique({
     where: {
       challengeId_participantId: {
         challengeId: challenge.id,
@@ -885,14 +885,14 @@ export async function handleCtfFlagSubmission(interaction: any, eventId: string,
   });
 
   if (existingSolve) {
-    return interaction.reply({ content: 'âš ï¸� Vous avez dÃ©jÃ  rÃ©solu ce challenge !', ephemeral: true });
+    return interaction.reply({ content: 'âš ï¸� Vous avez déjà résolu ce challenge !', ephemeral: true });
   }
 
-  const previousSolvesCount = await (prisma as any).eventCtfSolve.count({
+  const previousSolvesCount = await (prisma as unknown).eventCtfSolve.count({
     where: { challengeId: challenge.id }
   });
 
-  await (prisma as any).eventCtfSolve.create({
+  await (prisma as unknown).eventCtfSolve.create({
     data: {
       challengeId: challenge.id,
       participantId: participant.id,
@@ -915,7 +915,7 @@ export async function handleCtfFlagSubmission(interaction: any, eventId: string,
     if (member && 'roles' in member) {
       const role = interaction.guild?.roles.cache.get(challenge.roleIdReward);
       if (role) {
-        await (member.roles as any).add(role).catch((err: any) => {
+        await (member.roles as unknown).add(role).catch((err: unknown) => {
           logger.error('CtfService', 'Failed to add reward role:', err);
         });
         roleFeedback = ` et le rôle **${role.name}** vous a été attribué`;
@@ -951,7 +951,7 @@ export async function handleCtfFlagSubmission(interaction: any, eventId: string,
 }
 
 
-export async function buildCtfLeaderboard(interaction: any, eventId: string) {
+export async function buildCtfLeaderboard(interaction: unknown, eventId: string) {
   const participants = await prisma.eventParticipant.findMany({
     where: { eventId },
     orderBy: [
@@ -977,7 +977,7 @@ export async function buildCtfLeaderboard(interaction: any, eventId: string) {
   return interaction.reply({ embeds: [embed], ephemeral: true });
 }
 
-export async function buildCtfParticipantProgress(interaction: any, eventId: string) {
+export async function buildCtfParticipantProgress(interaction: unknown, eventId: string) {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
     include: {
@@ -1001,15 +1001,15 @@ export async function buildCtfParticipantProgress(interaction: any, eventId: str
     },
   });
 
-  const solvedChallengeIds = new Set((participant as any)?.ctfSolves.map((s: any) => s.challengeId) || []);
+  const solvedChallengeIds = new Set((participant as unknown)?.ctfSolves.map((s: unknown) => s.challengeId) || []);
 
-  const list = (event as any).ctfChallenges.map((c: any) => {
+  const list = (event as unknown).ctfChallenges.map((c: unknown) => {
     const isSolved = solvedChallengeIds.has(c.id);
     const statusIcon = isSolved ? '✅' : '❌';
     return `${statusIcon} **${c.title}** (${c.points} pts) ${c.xpReward > 0 ? `[+${c.xpReward} XP]` : ''}`;
   }).join('\n') || 'Aucun challenge dans ce CTF.';
 
-  const totalPoints = (event as any).ctfChallenges.reduce((acc: number, c: any) => acc + c.points, 0);
+  const totalPoints = (event as unknown).ctfChallenges.reduce((acc: number, c: unknown) => acc + c.points, 0);
   const userPoints = participant?.score || 0;
 
   const embed = new EmbedBuilder()
@@ -1125,7 +1125,7 @@ export async function publishCustomEventAnnouncement(client: Client, eventId: st
   if (!event) throw new Error('Evenement introuvable');
   if (event.type !== 'CUSTOM') throw new Error("Cet evenement n'est pas de type CUSTOM");
 
-  const config = (event.config as any) || {};
+  const config = (event.config as unknown) || {};
   const createDiscordEvent = config.createDiscordEvent !== false;
   const sendEmbed = config.sendEmbed !== false;
   const location = config.location || 'Discord';
@@ -1208,7 +1208,7 @@ export async function publishCustomEventAnnouncement(client: Client, eventId: st
           row.addComponents(eventLinkBtn);
           embed.addFields({ name: '📅 Evenement Discord', value: `[Cliquez ici](https://discord.com/events/${discordGuild.id}/${discordEvent.id})`, inline: true });
         }
-      } catch {}
+      } catch { /* ignored */ }
     }
 
     const message = await (channel as TextChannel).send({ embeds: [embed], components: [row] });
@@ -1244,10 +1244,10 @@ export async function handleCustomEventRegisterButton(interaction: ButtonInterac
   }
 
   // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.formId
-  if (event.formId && (event as any).customForm) {
+  if (event.formId && (event as unknown).customForm) {
     const { buildFormModal } = await import('./customFormService.js');
     // @ts-expect-error - Prisma client needs to be regenerated by user to recognize Event.formId
-    const modal = buildFormModal(event.formId, eventId, (event as any).customForm.structure);
+    const modal = buildFormModal(event.formId, eventId, (event as unknown).customForm.structure);
     return interaction.showModal(modal);
   }
 

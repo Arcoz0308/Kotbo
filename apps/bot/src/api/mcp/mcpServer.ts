@@ -65,7 +65,7 @@ export type McpConnectionLog = {
 
 const mcpConnectionLogs: McpConnectionLog[] = [];
 const MCP_CONNECTION_LOG_LIMIT = 500;
-const MCP_DIRECT_TOKEN_TTL_SECONDS = 180 * 24 * 60 * 60;
+const MCP_DIRECT_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 // Clean expired codes every 15 min
 setInterval(() => {
@@ -530,7 +530,7 @@ function makeAccessToken(opts: {
       subject: opts.keyId,
       issuer: opts.issuer,
       audience: opts.audience,
-      expiresIn: '90d',
+      expiresIn: '1h',
     }
   );
 }
@@ -1015,7 +1015,7 @@ export async function handleMCPRoutes(
       guildId,
       keyId: ac.keyId,
       resource: tokenAudience,
-      expiresAt: Date.now() + 180 * 24 * 60 * 60 * 1000,
+      expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
     });
     mcpLog(req, 'token_authorization_code_success', { guildId, clientId: ac.clientId, keyId: ac.keyId, resource: tokenAudience });
 

@@ -8,10 +8,10 @@ import {
   SeparatorBuilder,
   SeparatorSpacingSize,
 } from 'discord.js';
-import { COLORS_RAW, text, separator, successContainer, errorContainer, infoContainer, v2, truncate } from '../../utils/embeds.js';
+import { COLORS_RAW, text, successContainer, errorContainer, infoContainer, v2 } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import prisma from '../../utils/db.js';
-import { createPagination } from '../../utils/pagination.js';
+
 import { logger } from '../../utils/logger.js';
 import {
   getModuleStatsSummary,
@@ -117,7 +117,7 @@ const data = new SlashCommandBuilder()
   .addSubcommand(sub =>
     sub
       .setName('rescan-stats')
-      .setDescription("Scrapper l\'historique des messages pour initialiser les statistiques")
+      .setDescription("Scrapper l'historique des messages pour initialiser les statistiques")
       .addBooleanOption(option =>
         option
           .setName('forcer')
@@ -252,7 +252,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
   } else if (subcommand === 'stats') {
     const type = interaction.options.getString('type', true);
     const period = interaction.options.getInteger('period') || 30;
-    const moduleName = interaction.options.getString('module') as any || undefined;
+    const moduleName = interaction.options.getString('module') as unknown || undefined;
 
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 

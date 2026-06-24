@@ -47,7 +47,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
         )
       ]
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     await interaction.reply({
       embeds: [errorEmbed('Erreur', err.message || 'Impossible de retirer les pièces.')],
       flags: [MessageFlags.Ephemeral]

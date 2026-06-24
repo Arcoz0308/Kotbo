@@ -11,7 +11,7 @@ import {
 import prisma from '../../utils/db.js';
 import { getStaffMember } from '../../services/staff/staffManagementService.js';
 import { errorContainer, v2 } from '../../utils/embeds.js';
-import { E } from '../../utils/emojis.js';
+
 
 const data = new SlashCommandBuilder()
   .setName('demission')
@@ -23,7 +23,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
   const staff = await getStaffMember(interaction.guildId, interaction.user.id);
   if (!staff) {
     await interaction.reply({
-      ...v2(errorContainer('Accès refusé', "Vous ne faites pas partie de l\'équipe Staff.")),
+      ...v2(errorContainer('Accès refusé', "Vous ne faites pas partie de l'équipe Staff.")),
       flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     });
     return;
@@ -40,7 +40,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
   if (pending) {
     await interaction.reply({
-      ...v2(errorContainer('Demande existante', "Vous avez déjà une demande de démission en attente d\'approbation.")),
+      ...v2(errorContainer('Demande existante', "Vous avez déjà une demande de démission en attente d'approbation.")),
       flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     });
     return;

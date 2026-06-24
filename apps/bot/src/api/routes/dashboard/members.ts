@@ -36,7 +36,7 @@ export async function handleMembersRoutes(
   user: AuthClaims,
   guildId: string,
   access: DashboardAccess,
-  featureAccess: any
+  featureAccess: unknown
 ): Promise<boolean> {
   const method = req.method;
   const auditUser = user.username ?? `User${user.userId}`;
@@ -125,12 +125,12 @@ export async function handleMembersRoutes(
           try {
             const member1 = await client.users.fetch(link.user1Id).catch(() => null);
             if (member1) await member1.send({ embeds: [dmEmbed] }).catch(() => null);
-          } catch (e) {}
+          } catch { /* ignored */ }
 
           try {
             const member2 = await client.users.fetch(link.user2Id).catch(() => null);
             if (member2) await member2.send({ embeds: [dmEmbed] }).catch(() => null);
-          } catch (e) {}
+          } catch { /* ignored */ }
         }
 
         json(res, 200, updatedLink);
@@ -178,12 +178,12 @@ export async function handleMembersRoutes(
         try {
           const member1 = await client.users.fetch(link.user1Id).catch(() => null);
           if (member1) await member1.send({ embeds: [dmEmbed] }).catch(() => null);
-        } catch (e) {}
+        } catch { /* ignored */ }
 
         try {
           const member2 = await client.users.fetch(link.user2Id).catch(() => null);
           if (member2) await member2.send({ embeds: [dmEmbed] }).catch(() => null);
-        } catch (e) {}
+        } catch { /* ignored */ }
 
         json(res, 200, { success: true });
       } catch (err) {
@@ -204,7 +204,7 @@ export async function handleMembersRoutes(
       }
 
       const discordGuild = client.guilds.cache.get(guildId);
-      const discordMembers: Map<string, any> = new Map();
+      const discordMembers: Map<string, unknown> = new Map();
 
       if (discordGuild) {
         const allServerMembers = await getGuildMembers(discordGuild).catch(() => null);
@@ -373,10 +373,10 @@ export async function handleMembersRoutes(
   }
 
   // 3. Members search, Case files, and Note editing
-  // GET /api/dashboard/guilds/:guildId/members/search - Search members from Discord + database
+  // GET /api/dashboard/guilds/:guildId/members/search — Pagination SQL via MemberRepository
   if (parts.length === 6 && parts[4] === 'members' && parts[5] === 'search' && method === 'GET') {
     try {
-      const searchQuery = (url.searchParams.get('q') ?? '').trim().toLowerCase();
+      const searchQuery = (url.searchParams.get('q') ?? '').trim();
       const limit = Math.min(Number(url.searchParams.get('limit') ?? '24'), 100);
       const page = Math.max(Number(url.searchParams.get('page') ?? '1'), 1);
       const sortBy = url.searchParams.get('sortBy') ?? 'lastSeenAt';
@@ -384,135 +384,60 @@ export async function handleMembersRoutes(
       const serverStatus = url.searchParams.get('serverStatus') ?? 'on_server';
       const botFilter = url.searchParams.get('botFilter') ?? 'human';
 
-      const validSortFields = ['lastSeenAt', 'messageCount', 'guildJoinedAt'];
-      const finalSortBy = validSortFields.includes(sortBy) ? sortBy : 'lastSeenAt';
+      const validSortFields = ['lastSeenAt', 'messageCount', 'guildJoinedAt'] as const;
+      const finalSortBy = (validSortFields as readonly string[]).includes(sortBy)
+        ? (sortBy as typeof validSortFields[number])
+        : 'lastSeenAt';
 
-      const discordGuild = client.guilds.cache.get(guildId);
-      const discordMembers: Map<string, any> = new Map();
+      const botFilterMap: Record<string, 'include' | 'exclude' | 'only'> = {
+        human: 'exclude',
+        bot: 'only',
+        all: 'include',
+      };
+      const serverStatusMap: Record<string, 'on_server' | 'left' | undefined> = {
+        on_server: 'on_server',
+        left: 'left',
+        all: undefined,
+      };
 
-      if (discordGuild) {
-        try {
-          const allServerMembers = await getGuildMembers(discordGuild);
-          if (allServerMembers) {
-            for (const member of allServerMembers.values()) {
-              discordMembers.set(member.id, member);
-            }
-          }
-        } catch (err) {
-          logger.debug('MembersAPI', 'Could not fetch Discord members:', String(err));
-        }
-      }
+      const { MemberRepository } = await import('@kotbo/database/repositories/member.repository.js');
+      const memberRepo = new MemberRepository(prisma);
 
-      const allDbMembers = await prisma.memberProfile.findMany({
-        where: { guildId },
-        select: {
-          userId: true,
-          username: true,
-          displayName: true,
-          globalName: true,
-          userTag: true,
-          avatarUrl: true,
-          isBot: true,
-          lastSeenAt: true,
-          guildJoinedAt: true,
-          messageCount: true,
-          guildLeftAt: true,
-        },
+      const result = await memberRepo.search({
+        guildId,
+        query: searchQuery || undefined,
+        page,
+        limit,
+        sortBy: finalSortBy,
+        sortOrder: sortOrder === 'asc' ? 'asc' : 'desc',
+        serverStatus: serverStatusMap[serverStatus],
+        botFilter: botFilterMap[botFilter] ?? 'exclude',
       });
 
-      const dbMemberMap = new Map(allDbMembers.map(m => [m.userId, m]));
-      let allMembers: any[] = [];
+      // Compteurs globaux (requêtes légères)
+      const [onServerCount, leftCount, botCount] = await Promise.all([
+        prisma.memberProfile.count({ where: { guildId, guildLeftAt: null } }),
+        prisma.memberProfile.count({ where: { guildId, guildLeftAt: { not: null } } }),
+        prisma.memberProfile.count({ where: { guildId, isBot: true } }),
+      ]);
 
-      for (const [userId, discordMember] of discordMembers.entries()) {
-        const dbMember = dbMemberMap.get(userId);
-        allMembers.push({
-          id: userId,
-          username: dbMember?.username || discordMember.user.username,
-          displayName: dbMember?.displayName || discordMember.displayName || discordMember.user.globalName || discordMember.user.username,
-          avatarUrl: dbMember?.avatarUrl || discordMember.user.displayAvatarURL({ size: 256 }),
-          isBot: discordMember.user.bot,
-          lastSeenAt: dbMember?.lastSeenAt?.toISOString() ?? null,
-          messageCount: dbMember?.messageCount || 0,
-          guildJoinedAt: discordMember.joinedAt?.toISOString() ?? dbMember?.guildJoinedAt?.toISOString() ?? null,
-          guildLeftAt: null,
-          isOnServer: true,
-          presenceStatus: discordMember.presence?.status ?? null,
-        });
-      }
-
-      for (const dbMember of allDbMembers) {
-        if (!discordMembers.has(dbMember.userId)) {
-          allMembers.push({
-            id: dbMember.userId,
-            username: dbMember.username || 'Utilisateur inconnu',
-            displayName: dbMember.displayName || dbMember.globalName || dbMember.userTag || dbMember.username || 'Utilisateur inconnu',
-            avatarUrl: dbMember.avatarUrl,
-            isBot: dbMember.isBot || false,
-            lastSeenAt: dbMember.lastSeenAt?.toISOString() ?? null,
-            messageCount: dbMember.messageCount || 0,
-            guildJoinedAt: dbMember.guildJoinedAt?.toISOString() ?? null,
-            guildLeftAt: dbMember.guildLeftAt?.toISOString() ?? null,
-            isOnServer: false,
-            presenceStatus: 'left',
-          });
-        }
-      }
-
-      const onServerCount = allMembers.filter(m => m.isOnServer).length;
-      const leftCount = allMembers.filter(m => !m.isOnServer).length;
-      const botCount = allMembers.filter(m => m.isBot).length;
-
-      if (serverStatus === 'on_server') {
-        allMembers = allMembers.filter(m => m.isOnServer);
-      } else if (serverStatus === 'left') {
-        allMembers = allMembers.filter(m => !m.isOnServer);
-      }
-
-      if (searchQuery) {
-        allMembers = allMembers.filter(member =>
-          member.username?.toLowerCase().includes(searchQuery) ||
-          member.displayName?.toLowerCase().includes(searchQuery) ||
-          member.id.includes(searchQuery)
-        );
-      }
-
-      if (botFilter === 'human') {
-        allMembers = allMembers.filter(m => !m.isBot);
-      } else if (botFilter === 'bot') {
-        allMembers = allMembers.filter(m => m.isBot);
-      }
-
-      const finalSortOrder = sortOrder === 'asc' ? 1 : -1;
-      if (sortBy === 'messageCount') {
-        allMembers.sort((a, b) => (a.messageCount - b.messageCount) * finalSortOrder);
-      } else if (sortBy === 'guildJoinedAt') {
-        allMembers.sort((a, b) => {
-          const dateA = a.guildJoinedAt ? new Date(a.guildJoinedAt).getTime() : 0;
-          const dateB = b.guildJoinedAt ? new Date(b.guildJoinedAt).getTime() : 0;
-          return (dateA - dateB) * finalSortOrder;
-        });
-      } else {
-        allMembers.sort((a, b) => {
-          const dateA = a.lastSeenAt ? new Date(a.lastSeenAt).getTime() : 0;
-          const dateB = b.lastSeenAt ? new Date(b.lastSeenAt).getTime() : 0;
-          return (dateA - dateB) * finalSortOrder;
-        });
-      }
-      
-      const totalFound = allMembers.length;
-      const totalPages = Math.ceil(totalFound / limit);
-      const skip = (page - 1) * limit;
-      const paginatedMembers = allMembers.slice(skip, skip + limit);
-
-      const members = paginatedMembers.map(m => {
-        const { _sortKey, ...member } = m;
-        return member;
-      });
+      const members = result.members.map((m) => ({
+        id: m.userId,
+        username: m.username ?? 'Utilisateur inconnu',
+        displayName: m.displayName ?? m.username ?? 'Utilisateur inconnu',
+        avatarUrl: m.avatarUrl,
+        isBot: m.isBot,
+        lastSeenAt: m.lastSeenAt?.toISOString() ?? null,
+        messageCount: m.messageCount,
+        guildJoinedAt: m.guildJoinedAt?.toISOString() ?? null,
+        guildLeftAt: m.guildLeftAt?.toISOString() ?? null,
+        isOnServer: !m.guildLeftAt,
+      }));
 
       json(res, 200, {
         members,
-        totalFound,
-        totalPages,
+        totalFound: result.totalFound,
+        totalPages: result.totalPages,
         onServerCount,
         leftCount,
         botCount,
@@ -549,7 +474,7 @@ export async function handleMembersRoutes(
       const reason = body?.reason;
 
       if (!u2Id) {
-        json(res, 400, { error: "L\'ID du compte cible est requis." });
+        json(res, 400, { error: "L'ID du compte cible est requis." });
         return true;
       }
 
@@ -594,12 +519,12 @@ export async function handleMembersRoutes(
       try {
         const member1 = await client.users.fetch(u1Id).catch(() => null);
         if (member1) await member1.send({ embeds: [dmEmbed] }).catch(() => null);
-      } catch (e) {}
+      } catch { /* ignored */ }
 
       try {
         const member2 = await client.users.fetch(u2Id).catch(() => null);
         if (member2) await member2.send({ embeds: [dmEmbed] }).catch(() => null);
-      } catch (e) {}
+      } catch { /* ignored */ }
 
       json(res, 200, { success: true });
     } catch (err) {
@@ -636,12 +561,12 @@ export async function handleMembersRoutes(
       try {
         const member1 = await client.users.fetch(u1Id).catch(() => null);
         if (member1) await member1.send({ embeds: [dmEmbed] }).catch(() => null);
-      } catch (e) {}
+      } catch { /* ignored */ }
 
       try {
         const member2 = await client.users.fetch(u2Id).catch(() => null);
         if (member2) await member2.send({ embeds: [dmEmbed] }).catch(() => null);
-      } catch (e) {}
+      } catch { /* ignored */ }
 
       json(res, 200, { success: true });
     } catch (err) {
@@ -798,7 +723,7 @@ export async function handleMembersRoutes(
       }
     } catch (err) {
       logger.error('MembersAPI', `Error executing moderation action for ${userId}:`, err);
-      json(res, 500, { error: "Erreur lors de l\'exécution de l\'action de modération", details: String(err) });
+      json(res, 500, { error: "Erreur lors de l'exécution de l'action de modération", details: String(err) });
     }
     return true;
   }
@@ -976,7 +901,7 @@ export async function handleMembersRoutes(
 
           await pushAudit(guildId, {
             user: auditUser,
-            action: "Suspension créateur d\'invitations",
+            action: "Suspension créateur d'invitations",
             context: getGuildName(client, guildId),
             module: 'Invitations',
             eventType: 'Manuel',
@@ -1022,7 +947,7 @@ export async function handleMembersRoutes(
 
           await pushAudit(guildId, {
             user: auditUser,
-            action: "Réhabilitation créateur d\'invitations",
+            action: "Réhabilitation créateur d'invitations",
             context: getGuildName(client, guildId),
             module: 'Invitations',
             eventType: 'Manuel',
@@ -1105,7 +1030,7 @@ export async function handleMembersRoutes(
     if (parts[5] && parts[5] !== 'suspended-inviters' && parts[5] !== 'inviters') {
       const code = parts[5];
       if (!isValidInviteCode(code)) {
-        json(res, 400, { error: "Code d\'invitation invalide" });
+        json(res, 400, { error: "Code d'invitation invalide" });
         return true;
       }
 
@@ -1191,7 +1116,7 @@ export async function handleMembersRoutes(
           });
         } catch (err) {
           logger.error('InvitationsAPI', `Error fetching invite details for ${code}:`, err);
-          json(res, 500, { error: "Erreur lors de la récupération des détails de l\'invitation" });
+          json(res, 500, { error: "Erreur lors de la récupération des détails de l'invitation" });
         }
         return true;
       }
@@ -1229,7 +1154,7 @@ export async function handleMembersRoutes(
             json(res, 200, { ok: true, invite: updatedInvite });
           } catch (err) {
             logger.error('InvitationsAPI', `Error toggling invite suspension for ${code}:`, err);
-            json(res, 500, { error: "Erreur lors de la modification de l\'invitation" });
+            json(res, 500, { error: "Erreur lors de la modification de l'invitation" });
           }
           return true;
         }
@@ -1273,7 +1198,7 @@ export async function handleMembersRoutes(
           json(res, 200, { ok: true, invite: updatedInvite });
         } catch (err) {
           logger.error('InvitationsAPI', `Error deleting invite ${code}:`, err);
-          json(res, 500, { error: "Erreur lors de la suppression de l\'invitation" });
+          json(res, 500, { error: "Erreur lors de la suppression de l'invitation" });
         }
         return true;
       }
@@ -1335,7 +1260,7 @@ export async function handleMembersRoutes(
             json(res, 200, { ok: true, purgedCount });
           } catch (err) {
             logger.error('InvitationsAPI', `Error purging invite ${code}:`, err);
-            json(res, 500, { error: "Erreur lors de la purge de l\'invitation" });
+            json(res, 500, { error: "Erreur lors de la purge de l'invitation" });
           }
           return true;
         }

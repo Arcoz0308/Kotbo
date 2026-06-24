@@ -19,16 +19,16 @@ import {
 import prisma from '../utils/db.js';
 import { getCachedGuild } from '../utils/cache.js';
 import { logger } from '../utils/logger.js';
-import { DigestFrequency, SanctionType } from '@prisma/client';
+import { SanctionType } from '@prisma/client';
 import { COLORS, successEmbed, errorEmbed, truncate } from '../utils/embeds.js';
-import { handleConfigButton, handleConfigChannelSelect, handleConfigModal, handleConfigSelectMenu } from './configHandler.js';
+import { handleConfigChannelSelect, handleConfigModal, handleConfigSelectMenu } from './configHandler.js';
 import { sendSetupStep1, sendSetupStep2, sendSetupStep3, sendSetupFinish } from '../panels/setupPanel.js';
 import { reviewDailyAlgoSubmission } from '../services/progression/dailyAlgoService.js';
 import { renderPanelTarget } from '../utils/interactionResponses.js';
 import { parseSetupStep, parseUserCaseRoute, parseValidateRoute, parseEventQuizRoute, parseEventResultRoute } from './interactionRoutes.js';
 import { handleQuizInteraction, buildEventResultsView, getEventStats } from '../services/features/eventService.js';
 import { toggleGuildBoolean } from '../utils/prismaToggles.js';
-import { requireSingleSelectedValue, validateTimeField } from '../utils/interactionValidation.js';
+import { requireSingleSelectedValue } from '../utils/interactionValidation.js';
 import { buildMemberCasePanel, type MemberCaseSection } from '../services/moderation/memberCaseService.js';
 import { handleRecruitmentButton } from '../services/staff/recruitmentService.js';
 import { handleTicketButton, handleTicketModalSubmit, handleTicketSelectMenu } from '../services/features/ticketService.js';
@@ -126,7 +126,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
         const drop = await tx.rpgDrop.findUnique({
           where: { id: dropId }
         });
-        if (!drop) throw new Error("Ce drop n\'existe plus.");
+        if (!drop) throw new Error("Ce drop n'existe plus.");
         if (drop.claimed) throw new Error('Ce drop a déjà été réclamé.');
 
         await tx.rpgDrop.update({
@@ -202,7 +202,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     await adminResetGuildEconomy(guildId!, component);
 
     const componentLabels: Record<string, string> = {
-      all: "l\'Économie & RPG (Global)",
+      all: "l'Économie & RPG (Global)",
       profiles: 'les Profils des joueurs',
       items: 'les Objets de la boutique',
       config: 'la Configuration',
@@ -229,7 +229,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     const giveawayId = customId.split(':')[1];
     const member = await resolveGuildMemberByUserId(interaction, user.id);
     if (!(await canModerate(member, guildId!))) {
-      await interaction.reply({ content: "❌ Vous n\'avez pas les permissions pour valider ce giveaway.", flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({ content: "❌ Vous n'avez pas les permissions pour valider ce giveaway.", flags: [MessageFlags.Ephemeral] });
       return;
     }
 
@@ -244,7 +244,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     const giveawayId = customId.split(':')[1];
     const member = await resolveGuildMemberByUserId(interaction, user.id);
     if (!(await canModerate(member, guildId!))) {
-      await interaction.reply({ content: "❌ Vous n\'avez pas les permissions pour relancer ce giveaway.", flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({ content: "❌ Vous n'avez pas les permissions pour relancer ce giveaway.", flags: [MessageFlags.Ephemeral] });
       return;
     }
 
@@ -438,7 +438,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
   if (customId.startsWith('secverif_validate:') || customId.startsWith('secverif_reject:')) {
     const member = await resolveGuildMemberByUserId(interaction, user.id);
     if (!(await canModerate(member, guildId!))) {
-      await interaction.reply({ content: "❌ Tu n\'as pas les permissions nécessaires.", flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({ content: "❌ Tu n'as pas les permissions nécessaires.", flags: [MessageFlags.Ephemeral] });
       return;
     }
     await handleVerificationStaffAction(interaction);
@@ -475,7 +475,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
     if (!staffMember) {
       await interaction.reply({
-        content: "❌ Vous ne faites pas partie de l\'équipe staff enregistrée sur ce serveur.",
+        content: "❌ Vous ne faites pas partie de l'équipe staff enregistrée sur ce serveur.",
         flags: [MessageFlags.Ephemeral],
       });
       return;
@@ -485,7 +485,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     if (status === 'EXCUSED') {
       const modal = new ModalBuilder()
         .setCustomId(`meeting_excuse_modal:${meetingId}`)
-        .setTitle("Justification d\'absence");
+        .setTitle("Justification d'absence");
 
       const reasonInput = new TextInputBuilder()
         .setCustomId('excuse_reason')
@@ -508,7 +508,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
         ABSENT: 'Absent ❌' 
       };
 
-      await checkInMeeting(client, meetingId, staffMember.id, status as any);
+      await checkInMeeting(client, meetingId, staffMember.id, status as unknown);
       
       let response = `✅ Votre statut pour cette réunion est désormais : **${labels[status] || status}**.`;
       if (status === 'ABSENT') {
@@ -522,7 +522,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
     } catch (error) {
       logger.error('Handler', `Error during meeting RSVP: ${error}`);
       await interaction.reply({
-        content: "❌ Une erreur est survenue lors de l\'enregistrement de votre réponse.",
+        content: "❌ Une erreur est survenue lors de l'enregistrement de votre réponse.",
         flags: [MessageFlags.Ephemeral],
       });
     }
@@ -655,13 +655,13 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
       }
 
       const embed = new EmbedBuilder()
-        .setTitle("📊 Statistiques de l\'événement")
+        .setTitle("📊 Statistiques de l'événement")
         .setDescription(stats.questionText ? truncate(stats.questionText, 200) : 'Distribution des réponses')
         .setColor(COLORS.info)
         .setTimestamp();
 
       const distribution = stats.distribution || {};
-      const total = Object.values(distribution).reduce((s: number, v: any) => s + (v || 0), 0);
+      const total = Object.values(distribution).reduce((s: number, v: unknown) => s + (v || 0), 0);
 
       (Object.keys(distribution) || []).forEach((k) => {
         const idx = parseInt(k, 10);
@@ -742,7 +742,7 @@ export async function handleButton(interaction: Interaction, client: Client): Pr
 
     const member = await resolveGuildMemberByUserId(interaction, user.id);
     if (!(await canModerate(member, guildId))) {
-      await interaction.reply({ content: "❌ Vous n\'avez pas le rôle modérateur requis pour cette action.", flags: [MessageFlags.Ephemeral] });
+      await interaction.reply({ content: "❌ Vous n'avez pas le rôle modérateur requis pour cette action.", flags: [MessageFlags.Ephemeral] });
       return;
     }
 
@@ -1020,7 +1020,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
         content: `💡 Votre suggestion a été publiée avec succès ! (ID : \`${suggestion.id}\`)`,
         flags: [MessageFlags.Ephemeral],
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       await interaction.reply({
         content: `❌ Impossible de publier la suggestion : ${err?.message || 'erreur inconnue'}`,
         flags: [MessageFlags.Ephemeral],
@@ -1037,7 +1037,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
       });
 
       if (!staff) {
-        await interaction.reply({ content: "❌ Vous ne faites pas partie de l\'équipe Staff.", flags: [MessageFlags.Ephemeral] });
+        await interaction.reply({ content: "❌ Vous ne faites pas partie de l'équipe Staff.", flags: [MessageFlags.Ephemeral] });
         return;
       }
 
@@ -1057,7 +1057,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
         const confirmEmbed = new EmbedBuilder()
           .setTitle('📨 Demande de démission reçue')
           .setDescription(
-            `Votre demande de démission a bien été enregistrée et est en attente d\'approbation par la direction.\n\n` +
+            `Votre demande de démission a bien été enregistrée et est en attente d'approbation par la direction.\n\n` +
             `**Motif fourni :**\n> ${reason}\n\n` +
             `Vous serez notifié de la décision finale. Vous pouvez suivre le statut dans votre profil sur le dashboard.`
           )
@@ -1128,7 +1128,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
     } catch (err) {
       logger.error('Handler', 'Error during resignation modal submit:', err);
       await interaction.reply({
-        content: "❌ Une erreur est survenue lors de l\'enregistrement de votre demande.",
+        content: "❌ Une erreur est survenue lors de l'enregistrement de votre demande.",
         flags: [MessageFlags.Ephemeral]
       });
     }
@@ -1172,7 +1172,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
     } catch (error) {
       logger.error('Handler', `Error during meeting excuse modal submit: ${error}`);
       await interaction.reply({
-        content: "❌ Une erreur est survenue lors de l\'enregistrement de votre excuse.",
+        content: "❌ Une erreur est survenue lors de l'enregistrement de votre excuse.",
         flags: [MessageFlags.Ephemeral]
       });
     }
@@ -1192,7 +1192,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
 
     const member = await resolveGuildMemberByUserId(interaction, interaction.user.id);
     if (!(await canModerate(member, interaction.guildId!))) {
-      await interaction.editReply("❌ Vous n\'avez pas les permissions.");
+      await interaction.editReply("❌ Vous n'avez pas les permissions.");
       return;
     }
 
@@ -1272,11 +1272,11 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
     const submissionId = customId.split(':')[2];
     if (!submissionId) return;
 
-    function parseScore(raw: string): number | null {
+    const parseScore = (raw: string): number | null => {
       const n = Number.parseInt(raw.trim(), 10);
       if (Number.isNaN(n) || n < 1 || n > 5) return null;
       return n;
-    }
+    };
 
     const correctness = parseScore(interaction.fields.getTextInputValue('score_correctness'));
     const comments = parseScore(interaction.fields.getTextInputValue('score_comments'));
@@ -1445,7 +1445,7 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction, cli
       });
     } else {
       await interaction.editReply({
-        embeds: [errorEmbed("Échec de l\'envoi", "Impossible de transmettre le signalement à l\'administrateur du bot.")],
+        embeds: [errorEmbed("Échec de l'envoi", "Impossible de transmettre le signalement à l'administrateur du bot.")],
       });
     }
     return;

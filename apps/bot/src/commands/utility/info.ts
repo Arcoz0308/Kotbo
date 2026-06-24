@@ -1,5 +1,5 @@
 import type { SlashCommandDefinition } from '../../commands.js';
-import { SlashCommandBuilder, type ChatInputCommandInteraction, EmbedBuilder, MessageFlags } from 'discord.js';
+import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from 'discord.js';
 import { errorEmbed, COLORS, baseEmbed } from '../../utils/embeds.js';
 import prisma from '../../utils/db.js';
 import fs from 'fs/promises';

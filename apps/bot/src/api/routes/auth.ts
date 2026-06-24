@@ -35,7 +35,7 @@ export async function handleAuthRoutes(
   res: ServerResponse,
   parts: string[],
   url: URL,
-  client: Client
+  _client: Client
 ): Promise<boolean> {
   const method = req.method;
 

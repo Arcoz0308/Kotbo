@@ -68,16 +68,16 @@ export async function updateGuildStats(client: Client, guildId: string): Promise
   const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
   if (!guild) return;
 
-  const config = guildConfig.statsConfig as any;
+  const config = guildConfig.statsConfig as unknown;
 
   // 1. Gather all counts upfront
-  let membersCount = guild.memberCount;
+  const membersCount = guild.memberCount;
   let botsCount = 0;
   let roleCount = 0;
 
   let needsFetch = config.botChannelId || (config.roleChannelId && config.roleTargetId);
   if (!needsFetch && Array.isArray(config.customStats)) {
-    needsFetch = config.customStats.some((c: any) => c.enabled && (c.type === 'role' || c.type === 'online' || c.type === 'bots'));
+    needsFetch = config.customStats.some((c: unknown) => c.enabled && (c.type === 'role' || c.type === 'online' || c.type === 'bots'));
   }
 
   let allMembers = guild.members.cache;
@@ -97,7 +97,7 @@ export async function updateGuildStats(client: Client, guildId: string): Promise
   const boostCount = guild.premiumSubscriptionCount || 0;
 
   let activityCount = 0;
-  if (config.activityChannelId || (Array.isArray(config.customStats) && config.customStats.some((c: any) => c.enabled && c.type === 'activity'))) {
+  if (config.activityChannelId || (Array.isArray(config.customStats) && config.customStats.some((c: unknown) => c.enabled && c.type === 'activity'))) {
     activityCount = await prisma.memberProfile.count({
       where: {
         guildId,

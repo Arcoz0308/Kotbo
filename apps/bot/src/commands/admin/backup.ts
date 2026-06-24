@@ -9,11 +9,11 @@ import {
   MessageFlags,
 } from 'discord.js';
 import prisma from '../../utils/db.js';
-import { COLORS_RAW, text, separator, successContainer, errorContainer, infoContainer, v2 } from '../../utils/embeds.js';
+import { COLORS_RAW, text, successContainer, errorContainer, infoContainer, v2 } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import { createBackup } from '../../services/system/backupService.js';
 import { restoreBackup, RestoreOptions } from '../../services/system/restoreService.js';
-import { extractTrackingInfo, resolveModuleFromCommand, wrapModuleTracking } from '../../utils/moduleTracking.js';
+import { extractTrackingInfo, resolveModuleFromCommand } from '../../utils/moduleTracking.js';
 
 const MAX_BACKUPS_PER_GUILD = 3;
 
@@ -125,7 +125,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   } catch (error) {
     console.error('Error in backup command:', error);
     await interaction.reply({
-      ...v2(errorContainer('Erreur', "Une erreur est survenue lors de l\'exécution de la commande.")),
+      ...v2(errorContainer('Erreur', "Une erreur est survenue lors de l'exécution de la commande.")),
       flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     });
   }
@@ -134,8 +134,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 async function handleCreate(
   interaction: ChatInputCommandInteraction,
   guildId: string,
-  moduleInfo: ReturnType<typeof resolveModuleFromCommand>,
-  trackingInfo: ReturnType<typeof extractTrackingInfo>,
+  _moduleInfo: ReturnType<typeof resolveModuleFromCommand>,
+  _trackingInfo: ReturnType<typeof extractTrackingInfo>,
 ): Promise<void> {
   await interaction.deferReply({ ephemeral: true });
 
@@ -221,7 +221,7 @@ async function handleList(interaction: ChatInputCommandInteraction, guildId: str
     .addTextDisplayComponents(text(`### ${E.shield} Sauvegardes du serveur`))
     .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
 
-  for (const [index, backup] of (backups as any[]).entries()) {
+  for (const [index, backup] of (backups as unknown[]).entries()) {
     container.addTextDisplayComponents(text(
       `**${index + 1}. ${backup.name}**\n` +
       `${E.calendar} ${backup.createdAt.toLocaleDateString('fr-FR')} ${backup.createdAt.toLocaleTimeString('fr-FR')}\n` +
@@ -257,7 +257,7 @@ async function handleRestore(interaction: ChatInputCommandInteraction, guildId: 
 
   if (backup.guildId !== guildId) {
     await interaction.editReply(
-      v2(errorContainer('Accès refusé', "Cette sauvegarde n\'appartient pas à ce serveur.")),
+      v2(errorContainer('Accès refusé', "Cette sauvegarde n'appartient pas à ce serveur.")),
     );
     return;
   }
@@ -290,7 +290,7 @@ async function handleRestore(interaction: ChatInputCommandInteraction, guildId: 
       )),
     );
 
-    await restoreBackup(guild, backup.data as any, restoreOptions, interaction);
+    await restoreBackup(guild, backup.data as unknown, restoreOptions, interaction);
 
     await interaction.followUp(
       v2(successContainer('Restauration terminée', `Restauration terminée avec succès!\n\nSauvegarde: **${backup.name}**`)),
@@ -321,7 +321,7 @@ async function handleDelete(interaction: ChatInputCommandInteraction, guildId: s
 
   if (backup.guildId !== guildId) {
     await interaction.editReply(
-      v2(errorContainer('Accès refusé', "Cette sauvegarde n\'appartient pas à ce serveur.")),
+      v2(errorContainer('Accès refusé', "Cette sauvegarde n'appartient pas à ce serveur.")),
     );
     return;
   }
@@ -353,7 +353,7 @@ async function handleExport(interaction: ChatInputCommandInteraction, guildId: s
 
   if (backup.guildId !== guildId) {
     await interaction.editReply(
-      v2(errorContainer('Accès refusé', "Cette sauvegarde n\'appartient pas à ce serveur.")),
+      v2(errorContainer('Accès refusé', "Cette sauvegarde n'appartient pas à ce serveur.")),
     );
     return;
   }
@@ -442,7 +442,7 @@ async function handleImport(interaction: ChatInputCommandInteraction, guildId: s
   }
 
   // Parser le JSON
-  let importData: any;
+  let importData: unknown;
   try {
     const jsonString = buffer.toString('utf-8');
     importData = JSON.parse(jsonString);
@@ -480,7 +480,7 @@ async function handleImport(interaction: ChatInputCommandInteraction, guildId: s
 
   try {
     // Créer le backup dans la base de données
-    const newBackup = await prisma.serverBackup.create({
+    const _newBackup = await prisma.serverBackup.create({
       data: {
         guildId,
         name: backupName,
@@ -526,7 +526,7 @@ async function handleImport(interaction: ChatInputCommandInteraction, guildId: s
 
     await interaction.editReply({ components: [container], flags: MessageFlags.IsComponentsV2 });
   } catch (error) {
-    console.error("Erreur lors de l\'import:", error);
+    console.error("Erreur lors de l'import:", error);
     await interaction.editReply(
       v2(errorContainer('Erreur d\'import', `Erreur lors de l'import: ${error instanceof Error ? error.message : 'Erreur inconnue'}`)),
     );

@@ -8,7 +8,7 @@ const data = new SlashCommandBuilder()
 
 export async function execute(interaction: ChatInputCommandInteraction) {
   const start = Date.now();
-  const reply = await interaction.reply({ content: '🏓 Pong... calcul en cours', fetchReply: true });
+  const _reply = await interaction.reply({ content: '🏓 Pong... calcul en cours', fetchReply: true });
 
   const latency = Date.now() - start;
   const apiLatency = Math.round(interaction.client.ws.ping);

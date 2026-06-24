@@ -31,7 +31,9 @@
     "deploy": "bun db:migrate:deploy && bun run quality:bot && bun deploy-commands",
     "update:all": "ncu -u && bun install && bun run quality:bot && bun deploy-commands",
     "update:dashboard": "ncu -u -f '^(?!@kotbo/.*)' && bun install && bun run quality:bot && bun deploy-commands",
-    "update:bot": "ncu -u -f '^(?!@kotbo/.*)' && bun install && bun run quality:bot && bun deploy-commands"
+    "update:bot": "ncu -u -f '^(?!@kotbo/.*)' && bun install && bun run quality:bot && bun deploy-commands",
+    "lint": "bun run --filter @kotbo/bot lint && bun run --filter @kotbo/dashboard lint",
+    "format": "bun run --filter @kotbo/bot format && bun run --filter @kotbo/dashboard format"
   },
   "dependencies": {
     "@prisma/client-runtime-utils": "^7.8.0",

@@ -46,7 +46,7 @@ interface YouTubeSearchItem {
 
 interface YouTubeSearchResponse {
   items?: YouTubeSearchItem[];
-  error?: any;
+  error?: unknown;
 }
 
 interface YouTubePlaylistItemSnippet {
@@ -68,7 +68,7 @@ interface YouTubePlaylistItem {
 interface YouTubePlaylistItemsResponse {
   items?: YouTubePlaylistItem[];
   nextPageToken?: string;
-  error?: any;
+  error?: unknown;
 }
 
 interface LiveStatus {
@@ -99,13 +99,13 @@ const YOUTUBE_CONFIG = {
 // ==================== CACHE ====================
 
 class YouTubeCache {
-  private cache = new Map<string, { data: any; timestamp: number }>();
+  private cache = new Map<string, { data: unknown; timestamp: number }>();
 
-  set(key: string, data: any): void {
+  set(key: string, data: unknown): void {
     this.cache.set(key, { data, timestamp: Date.now() });
   }
 
-  get(key: string): any | null {
+  get(key: string): unknown | null {
     const entry = this.cache.get(key);
     if (!entry) return null;
     
@@ -252,7 +252,7 @@ function extractFromUrl(query: string): { handle: string | null; channelId: stri
     if (matchChannel) {
       channelId = matchChannel[1];
     } else {
-      const matchHandle = query.match(/\/@([^\/\?\s#]+)/);
+      const matchHandle = query.match(/\/@([^/?\s#]+)/);
       if (matchHandle) {
         handle = '@' + matchHandle[1];
       }
@@ -465,7 +465,7 @@ async function sendNotification(
   guildId: string,
   targetChannelId: string,
   content: string,
-  embed: any,
+  embed: unknown,
   mention?: string
 ): Promise<void> {
   const discordGuild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
@@ -483,7 +483,7 @@ async function sendNotification(
 }
 
 async function updateFollowRecord(followId: string, updates: Record<string, string>): Promise<void> {
-  await (prisma as any).youtubeChannelFollow.update({
+  await (prisma as unknown).youtubeChannelFollow.update({
     where: { id: followId },
     data: updates,
   }).catch((e: Error) => logger.error('YouTubeService', 'Failed to update follow record:', e));
@@ -501,7 +501,7 @@ export async function checkYoutubeFollows(client: Client) {
   }
 
   try {
-    const follows = await (prisma as any).youtubeChannelFollow.findMany({
+    const follows = await (prisma as unknown).youtubeChannelFollow.findMany({
       include: {
         guild: {
           include: {
@@ -513,7 +513,7 @@ export async function checkYoutubeFollows(client: Client) {
       },
     });
 
-    const processingPromises = follows.map((follow: any) => 
+    const processingPromises = follows.map((follow: unknown) => 
       rateLimiter.execute(() => processFollow(client, follow, key))
     );
 
@@ -527,10 +527,10 @@ export async function checkYoutubeFollows(client: Client) {
 
 async function processFollow(
   client: Client,
-  follow: any,
+  follow: unknown,
   key: string
 ): Promise<void> {
-  const ytFeatureConfig = follow.guild.dashboardFeatureConfigs.find((c: any) => c.featureKey === 'youtube');
+  const ytFeatureConfig = follow.guild.dashboardFeatureConfigs.find((c: unknown) => c.featureKey === 'youtube');
   if (ytFeatureConfig && !ytFeatureConfig.enabled) {
     return;
   }
@@ -547,9 +547,9 @@ async function processFollow(
 
 async function checkAndNotifyLive(
   client: Client,
-  follow: any,
+  follow: unknown,
   channelId: string,
-  discordGuild: any
+  _discordGuild: unknown
 ): Promise<void> {
   const liveStatus = await checkYoutubeLiveStatus(channelId);
   
@@ -588,10 +588,10 @@ async function checkAndNotifyLive(
 
 async function checkAndNotifyVideos(
   client: Client,
-  follow: any,
+  follow: unknown,
   channelId: string,
   key: string,
-  discordGuild: any
+  _discordGuild: unknown
 ): Promise<void> {
   const videos = await fetchRecentVideos(channelId, key);
   

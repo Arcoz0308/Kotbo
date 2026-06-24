@@ -91,7 +91,7 @@ export async function createGiveaway(
 /**
  * Gère l'action de clic sur le bouton d'inscription d'un giveaway
  */
-export async function handleGiveawayJoin(interaction: any) {
+export async function handleGiveawayJoin(interaction: unknown) {
   const giveawayId = interaction.customId.split(':')[1];
   const userId = interaction.user.id;
 
@@ -178,7 +178,7 @@ export async function handleGiveawayJoin(interaction: any) {
       content: responseText,
       flags: [MessageFlags.Ephemeral],
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err.message === 'ENDED_OR_NOT_FOUND') {
       return interaction.reply({
         content: '❌ Ce giveaway est terminé !',

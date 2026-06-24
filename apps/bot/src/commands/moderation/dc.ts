@@ -11,7 +11,7 @@ import {
 } from 'discord.js';
 import * as altAccountService from '../../services/moderation/altAccountService.js';
 import prisma from '../../utils/db.js';
-import { COLORS, successEmbed, errorEmbed, infoEmbed } from '../../utils/embeds.js';
+import { COLORS, successEmbed, infoEmbed } from '../../utils/embeds.js';
 import { scanGuildMembersForYoungAccounts } from '../../services/moderation/dcDetectionService.js';
 
 const data = new SlashCommandBuilder()
@@ -159,7 +159,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
         user2Id: u2.id,
         type: 'MANUAL',
         status: 'PENDING',
-        reason: reason || "Déclaration de bonne foi par l\'utilisateur",
+        reason: reason || "Déclaration de bonne foi par l'utilisateur",
         linkedByUserId: interaction.user.id,
         metadata: { linkedBy: interaction.user.id, at: new Date().toISOString() }
       });
@@ -228,10 +228,10 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
     try {
       await u1.send({ embeds: [dmEmbed] }).catch(() => null);
-    } catch (e) {}
+    } catch { /* ignored */ }
     try {
       await u2.send({ embeds: [dmEmbed] }).catch(() => null);
-    } catch (e) {}
+    } catch { /* ignored */ }
 
     return interaction.reply({
       embeds: [successEmbed('Comptes liés', `Les comptes <@${u1.id}> et <@${u2.id}> sont désormais liés. Les utilisateurs ont été prévenus par MP.`) ]
@@ -286,7 +286,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
       user2Id: mainAccount.id,
       type: 'MANUAL',
       status: 'PENDING',
-      reason: "Déclaration de bonne foi par l\'utilisateur",
+      reason: "Déclaration de bonne foi par l'utilisateur",
       linkedByUserId: interaction.user.id,
       metadata: { linkedBy: interaction.user.id, at: new Date().toISOString() }
     });
@@ -339,10 +339,10 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
     try {
       await u1.send({ embeds: [dmEmbed] }).catch(() => null);
-    } catch (e) {}
+    } catch { /* ignored */ }
     try {
       await u2.send({ embeds: [dmEmbed] }).catch(() => null);
-    } catch (e) {}
+    } catch { /* ignored */ }
 
     return interaction.reply({
       embeds: [successEmbed('Comptes déliés', `Le lien entre <@${u1.id}> et <@${u2.id}> a été supprimé. Les utilisateurs ont été prévenus par MP.`)]

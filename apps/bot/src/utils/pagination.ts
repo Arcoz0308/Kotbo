@@ -10,8 +10,7 @@ import {
   type ChatInputCommandInteraction,
   ComponentType,
 } from 'discord.js';
-import { COLORS_RAW, text, separator } from './embeds.js';
-import { E } from './emojis.js';
+import { COLORS_RAW, text } from './embeds.js';
 
 export interface PaginationOptions {
   interaction: ChatInputCommandInteraction;

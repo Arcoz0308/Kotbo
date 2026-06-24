@@ -1,12 +1,6 @@
 import { IncomingMessage } from 'node:http';
 import { Socket } from 'node:net';
 import { Client } from 'discord.js';
-import { appendFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const debugLogFile = path.resolve(__dirname, '../../scratch/debug_api.log');
 
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
@@ -190,16 +184,16 @@ export const startDashboardApi = async (client: Client) => {
         req.headers[key.toLowerCase()] = value;
       });
 
-      const logFile = debugLogFile;
       const logMsg = (msg: string) => {
-        try {
-          appendFileSync(logFile, `[${new Date().toISOString()}] ${msg}\n`, 'utf8');
-        } catch (_e) {
-          // Ignore debug log write errors
+        if (process.env.NODE_ENV !== 'production') {
+          logger.debug('LegacyAPI', msg);
         }
       };
 
-      logMsg(`[Legacy] Request: ${request.method} ${request.url}`);
+      const sanitizedPath = url.pathname.replace(/mcp_[a-f0-9]+/gi, 'mcp_[REDACTED]')
+        .replace(/kotbo_ac_[A-Za-z0-9_-]+/gi, 'kotbo_ac_[REDACTED]')
+        .replace(/kotbo_rt_[A-Za-z0-9_-]+/gi, 'kotbo_rt_[REDACTED]');
+      logMsg(`[Legacy] Request: ${request.method} ${sanitizedPath}`);
 
       let bodyText = '';
       if (request.method !== 'GET' && request.method !== 'HEAD') {
@@ -351,11 +345,11 @@ export const startDashboardApi = async (client: Client) => {
   let server: ReturnType<typeof startServer>;
   try {
     server = startServer(port);
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err?.code === 'EADDRINUSE') {
       logger.warn('DashboardAPI', `Port ${port} occupé, tentative de libération...`);
       try {
-        const proc = Bun.spawnSync(['cmd', '/c', `for /f "tokens=5" %a in ('netstat -ano ^| findstr :${port} ^| findstr LISTENING') do taskkill /PID %a /F`]);
+        const _proc = Bun.spawnSync(['cmd', '/c', `for /f "tokens=5" %a in ('netstat -ano ^| findstr :${port} ^| findstr LISTENING') do taskkill /PID %a /F`]);
         await new Promise(r => setTimeout(r, 1000));
         server = startServer(port);
       } catch {

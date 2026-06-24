@@ -251,7 +251,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
       endId = ((BigInt(endTimestamp) - 1420070400000n) << 22n).toString();
     }
 
-    let fetchedMessages: Message[] = [];
+    const fetchedMessages: Message[] = [];
 
     if (startId !== undefined) {
       // Fetch forward from startId
@@ -275,7 +275,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
       }
 
       let lastId = firstId;
-      while (true) {
+      for (;;) {
         const messages = await channel.messages.fetch({ limit: 100, after: lastId });
         if (messages.size === 0) break;
 

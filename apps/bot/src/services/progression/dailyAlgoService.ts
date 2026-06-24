@@ -1720,12 +1720,12 @@ export async function sendDailyAlgo(client: Client, guildId: string): Promise<Da
   }
 
   if (!guild.dailyAlgoEnabled) {
-    throw new Error("Le Daily Algo n\'est pas activé pour ce serveur.");
+    throw new Error("Le Daily Algo n'est pas activé pour ce serveur.");
   }
 
   const channelId = guild.dailyAlgoChannelId;
   if (!channelId) {
-    throw new Error("Le salon du Daily Algo n\'est pas configuré.");
+    throw new Error("Le salon du Daily Algo n'est pas configuré.");
   }
 
   const dateKey = getLocalDateKey();

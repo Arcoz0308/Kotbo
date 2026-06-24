@@ -37,6 +37,6 @@ export function readModuleSource(absolutePath: string): string {
 }
 
 export function extractSlashCommandName(source: string): string | null {
-  const match = source.match(/\.setName\((['\"])(?<name>[^'\"]+)\1\)/);
+  const match = source.match(/\.setName\((['"])(?<name>[^'"]+)\1\)/);
   return match?.groups?.name ?? null;
 }

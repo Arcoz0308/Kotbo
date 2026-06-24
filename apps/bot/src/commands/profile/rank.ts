@@ -10,7 +10,7 @@ import {
 } from 'discord.js';
 import { getMemberRankData, generateRankCard } from '../../services/progression/levelingService.js';
 import { extractTrackingInfo, resolveModuleFromCommand, wrapModuleTracking } from '../../utils/moduleTracking.js';
-import { COLORS_RAW, text } from '../../utils/embeds.js';
+import { COLORS_RAW } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 
 const data = new SlashCommandBuilder()

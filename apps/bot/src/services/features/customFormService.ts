@@ -16,7 +16,7 @@ import {
 import prisma from '../../utils/db.js';
 import { Prisma } from '@prisma/client';
 import { logger } from '../../utils/logger.js';
-import { COLORS } from '../../utils/embeds.js';
+
 
 // ============================================================================
 // TYPES
@@ -354,7 +354,7 @@ export async function handleDirectRegistration(
   } catch (err) {
     logger.error('CustomFormService', 'Error registering participant:', err);
     return interaction.reply({
-      content: "❌ Une erreur est survenue lors de l\'inscription.",
+      content: "❌ Une erreur est survenue lors de l'inscription.",
       ephemeral: true,
     });
   }

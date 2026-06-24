@@ -41,5 +41,5 @@ function getClientIp(c: Parameters<Parameters<typeof createMiddleware>[0]>[0]): 
     return forwarded.split(',')[0].trim();
   }
   // Hono sur Bun expose l'IP via le contexte
-  return (c.env as any)?.ip ?? '127.0.0.1';
+  return (c.env as unknown)?.ip ?? '127.0.0.1';
 }

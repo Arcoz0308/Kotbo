@@ -56,7 +56,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
         )
       ]
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     await interaction.reply({
       embeds: [errorEmbed('Transaction échouée', err.message || "Impossible d'envoyer les pièces.")],
       flags: [MessageFlags.Ephemeral]

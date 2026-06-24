@@ -1,11 +1,5 @@
-import { createServer, type IncomingMessage, ServerResponse } from 'node:http';
-import { Socket } from 'node:net';
-import { appendFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
+import { type IncomingMessage, ServerResponse } from 'node:http';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const debugLogFile = path.resolve(__dirname, '../../scratch/debug_api.log');
 
 import {
   ActionRowBuilder,
@@ -22,15 +16,12 @@ import {
   GuildMember,
   Guild,
 } from 'discord.js';
-import { SanctionType, TutoringItemState } from '@prisma/client';
+import { SanctionType } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 import prisma from '../utils/db.js';
 import { logger } from '../utils/logger.js';
 export { COLORS, successEmbed } from '../utils/embeds.js';
-import { isGuildActivated, activateGuild, deactivateGuild, activatedGuilds } from '../utils/activation.js';
-import { translate } from '../services/integrations/translationService.js';
-import { getTwitchUserId } from '../services/integrations/twitchService.js';
-import { resolveYoutubeChannel } from '../services/integrations/youtubeService.js';
+
 export {
   registerBanSanction,
   registerKickSanction,
@@ -45,7 +36,7 @@ import {
   normalizeCommandRestrictions,
   type CommandRestrictionRule,
 } from '../utils/commandAccess.js';
-import { getDailyAlgoUserProfile, getDailyAlgoUserParticipations, getLocalDateKey, reviewDailyAlgoSubmission } from '../services/progression/dailyAlgoService.js';
+
 import {
   hashAPIKey,
   generateAPIKey,
@@ -133,10 +124,7 @@ import {
   getCandidatureHistory,
 } from '../services/staff/recruitmentService.js';
 import * as altAccountService from '../services/moderation/altAccountService.js';
-import { scanGuildMembersForYoungAccounts } from '../services/moderation/dcDetectionService.js';
-import { publishOrUpdateRegulationMessage } from '../services/staff/regulationService.js';
-import { publishNewsArticle, generateRssXml } from '../services/core/newsService.js';
-import { env } from 'node:process';
+
 import crypto from 'node:crypto';
 import { fetchAllMembers } from '../utils/discord.js';
 import { getCurrentInstance } from '../utils/instanceContext.js';
@@ -799,25 +787,25 @@ export const MODULE_DESCRIPTIONS: Record<string, string> = {
   staff_management: 'Gestion complète du personnel, recrutements et absences.',
   sanctions: 'Historique et gestion des sanctions (warns, mutes, bans).',
   members: 'Gestion avancée des membres et détection de doubles comptes.',
-  logs: "Journaux d\'événements Discord (messages, salons, membres).",
+  logs: "Journaux d'événements Discord (messages, salons, membres).",
   nickname_moderation: 'Détection et modération automatique des pseudos inappropriés.',
-  activity: "Suivi détaillé de l\'activité utilisateur sur le dashboard.",
+  activity: "Suivi détaillé de l'activité utilisateur sur le dashboard.",
   auto_thread: 'Création automatique de fils de discussion sur les messages.',
-  analytics: "Statistiques de croissance et d\'engagement du serveur.",
+  analytics: "Statistiques de croissance et d'engagement du serveur.",
   profile: 'Gestion du profil utilisateur et paramètres personnels.',
   fun: 'Salons de jeux et divertissement (comptage, one word story, nombre mystère).',
   recruitment: 'Suivi des candidatures et intégration du personnel.',
-  tickets: "Système complet de tickets d\'assistance et de support configurable.",
+  tickets: "Système complet de tickets d'assistance et de support configurable.",
   youtube: 'Intégration YouTube pour les notifications de nouvelles vidéos.',
   twitch: 'Intégration Twitch pour les notifications de lives.',
   social_networks: 'Configuration des flux YouTube et Twitch suivis.',
   digest: 'Génération de résumés automatiques et flux RSS.',
-  tutoring: "Gestion des périodes d\'essai et formation des nouveaux staff.",
-  meetings: "Planification et suivi des réunions d\'équipe.",
+  tutoring: "Gestion des périodes d'essai et formation des nouveaux staff.",
+  meetings: "Planification et suivi des réunions d'équipe.",
   absences: 'Gestion des congés et disponibilités du personnel.',
   double_accounts: 'Détection et gestion des comptes multiples pour la sécurité.',
-  events: "Organisation et gestion d\'événements communautaires et quiz.",
-  economy: "Système complet d\'économie et d\'aventures RPG textuelles.",
+  events: "Organisation et gestion d'événements communautaires et quiz.",
+  economy: "Système complet d'économie et d'aventures RPG textuelles.",
 };
 
 export const DEFAULT_SEVERITY_BY_MODULE: Array<{ module: string; level: SeverityLevel }> = [
@@ -1421,36 +1409,20 @@ export class BunServerResponse extends ServerResponse {
 
 export const readJsonBody = async <T>(req: IncomingMessage): Promise<T | null> => {
   const contentType = req.headers['content-type'];
-  const logFile = '/mnt/c/Users/Elouan/Documents/GitHub/Kotbo/apps/bot/scratch/debug_api.log';
-  const logMsg = (msg: string) => {
-    try {
-      appendFileSync(logFile, `[${new Date().toISOString()}] [readJsonBody] ${msg}\n`, 'utf8');
-    } catch {}
-  };
-
-  logMsg(`URL: ${req.url}, contentType: ${contentType}`);
 
   if (!contentType || !contentType.includes('application/json')) {
-    logMsg(`Invalid content type: ${contentType}`);
     throw new HttpError(415, 'Content-Type doit être application/json');
   }
 
   if (req.bodyText !== undefined) {
     const text = req.bodyText.trim();
-    logMsg(`Using pre-read bodyText: length=${text.length}, content="${text}"`);
     if (!text) {
-      logMsg(`Empty bodyText, returning null`);
-      logger.info('readJsonBody', `Empty body for URL: ${req.url}`);
       return null;
     }
     try {
-      const parsed = JSON.parse(text) as T;
-      logMsg(`JSON parse success`);
-      return parsed;
+      return JSON.parse(text) as T;
     } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      logMsg(`JSON parse error: ${errMsg}`);
-      logger.error('readJsonBody', `JSON parse error for URL ${req.url}, text="${text}":`, err);
+      logger.error('readJsonBody', `JSON parse error for URL ${req.url}:`, err);
       throw new HttpError(400, 'Format JSON invalide');
     }
   }
@@ -1687,7 +1659,7 @@ export function formatChannelName(guild: { channels: { cache: Map<string, { id: 
 export function interpretMentions(guild: Guild | null, content: string): string {
   if (!content) return content;
   
-  let escaped = content
+  const escaped = content
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -1738,8 +1710,8 @@ export function parseCaseField(details: string, label: string): string | null {
 }
 
 export function parseInviteFromDetails(details: string): MemberCaseInviteInfo | null {
-  const inviteCode = parseCaseField(details, 'Invite utilisée') ?? parseCaseField(details, "Invite d\'arrivée");
-  const inviter = parseCaseField(details, "Créateur de l\'invite");
+  const inviteCode = parseCaseField(details, 'Invite utilisée') ?? parseCaseField(details, "Invite d'arrivée");
+  const inviter = parseCaseField(details, "Créateur de l'invite");
   const inviterId = parseCaseField(details, 'ID créateur');
 
   if (!inviteCode && !inviter && !inviterId) return null;
@@ -2745,7 +2717,7 @@ export const getGuildState = async (client: Client, guildId: string, access: Das
     },
     {
       id: 'activity',
-      name: "Journal d\'activité",
+      name: "Journal d'activité",
       description: MODULE_DESCRIPTIONS.activity,
       status: 'active',
       uptime: 100,
@@ -3156,7 +3128,7 @@ export function escapeHtml(text: string): string {
     .replace(/'/g, '&#039;');
 }
 
-export function parseDiscordMarkdown(text: string, guild?: any): string {
+export function parseDiscordMarkdown(text: string, guild?: unknown): string {
   if (!text) return '';
   let escaped = escapeHtml(text);
 

@@ -283,7 +283,7 @@ model MemberProfile {
   locale String?
   isBot Boolean @default(false)
   bio String?
-  isProfilePrivate Boolean @default(false)
+  isProfilePrivate Boolean @default(true)
 
   accountCreatedAt DateTime?
   guildJoinedAt DateTime?
@@ -316,6 +316,8 @@ model MemberProfile {
   @@unique([guildId, userId])
   @@index([guildId, lastSeenAt])
   @@index([guildId, guildJoinedAt])
+  @@index([guildId, messageCount])
+  @@index([guildId, username])
   @@map("member_profiles")
 }
 

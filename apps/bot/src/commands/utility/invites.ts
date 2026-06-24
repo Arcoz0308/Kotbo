@@ -84,7 +84,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
     if (leaderboard.length === 0) {
       await interaction.editReply({
-        content: "❌ Aucune statistique d\'invitation disponible pour ce serveur.",
+        content: "❌ Aucune statistique d'invitation disponible pour ce serveur.",
       });
       return;
     }

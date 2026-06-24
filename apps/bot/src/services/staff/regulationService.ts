@@ -167,7 +167,7 @@ export async function publishOrUpdateRegulationMessage(client: Client, guildId: 
           guildId,
           m.userId,
           'Règlement mis à jour',
-          "Le règlement du serveur a été mis à jour. Merci d\'en prendre connaissance.",
+          "Le règlement du serveur a été mis à jour. Merci d'en prendre connaissance.",
           'INFO',
           '/regulation',
           true
@@ -185,7 +185,7 @@ export async function publishOrUpdateRegulationMessage(client: Client, guildId: 
                 guildId,
                 m.id,
                 'Règlement mis à jour',
-                "Le règlement du serveur a été mis à jour. Merci d\'en prendre connaissance.",
+                "Le règlement du serveur a été mis à jour. Merci d'en prendre connaissance.",
                 'INFO',
                 '/regulation',
                 true

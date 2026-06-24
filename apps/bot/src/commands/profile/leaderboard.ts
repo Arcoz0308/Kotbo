@@ -15,7 +15,7 @@ import {
 } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { generateLeaderboardImage } from '../../services/core/imageService.js';
-import { COLORS_RAW, text, separator } from '../../utils/embeds.js';
+import { COLORS_RAW, text } from '../../utils/embeds.js';
 import { E, rankEmoji, buildProgressBar } from '../../utils/emojis.js';
 import { getXpForLevel, getLevelFromXp } from '../../services/progression/levelingService.js';
 
@@ -104,13 +104,25 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       _sum: { messagesCount: true, voiceMinutes: true },
     });
 
-    topMembers = dailyStats.map((stat) => {
+    const sorted = dailyStats.map((stat) => {
       let score = 0;
       if (type === 'messages') score = stat._sum.messagesCount ?? 0;
       else if (type === 'voice') score = stat._sum.voiceMinutes ?? 0;
       else score = (stat._sum.messagesCount ?? 0) + (stat._sum.voiceMinutes ?? 0) * 2;
       return { userId: stat.userId, score };
     }).sort((a, b) => b.score - a.score).slice(0, 10);
+
+    const userIds = sorted.map(m => m.userId);
+    const levels = await prisma.memberLevel.findMany({
+      where: { guildId, userId: { in: userIds } },
+      select: { userId: true, xp: true },
+    });
+    const levelMap = new Map(levels.map(l => [l.userId, getLevelFromXp(l.xp)]));
+
+    topMembers = sorted.map(m => ({
+      ...m,
+      level: levelMap.get(m.userId) ?? 0,
+    }));
   }
 
   const discordGuild = interaction.client.guilds.cache.get(guildId);

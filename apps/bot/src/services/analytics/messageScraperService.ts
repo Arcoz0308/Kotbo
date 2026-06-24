@@ -24,7 +24,7 @@ export async function startHistoricalScraping(client: Client, guildId: string, f
     return;
   }
 
-  let statsConfig = (guildDb.statsConfig as any) || {};
+  let statsConfig = (guildDb.statsConfig as unknown) || {};
   const status = statsConfig.historicalScrapeStatus || 'NOT_STARTED';
 
   if (status === 'IN_PROGRESS' && !force) {
@@ -91,12 +91,12 @@ async function runScrapeTask(client: Client, guildId: string, force = false): Pr
       c.permissionsFor(me)?.has(['ViewChannel', 'ReadMessageHistory'])
     ) as TextChannel[];
 
-    let guildDb = await prisma.guild.findUnique({
+    const guildDb = await prisma.guild.findUnique({
       where: { id: guildId },
       select: { statsConfig: true },
     });
 
-    let statsConfig = (guildDb?.statsConfig as any) || {};
+    const statsConfig = (guildDb?.statsConfig as unknown) || {};
 
     // Establish the boundary date so we only scrape historical messages older than when the bot started real-time tracking
     let scrapingBoundaryDate = statsConfig.scrapingBoundaryDate;
@@ -151,7 +151,7 @@ async function runScrapeTask(client: Client, guildId: string, force = false): Pr
         });
       }
 
-      let channelMessagesScraped = 0;
+      const _channelMessagesScraped = 0;
       let messagesSinceLastFlush = 0;
       let hasMore = true;
 
@@ -293,7 +293,7 @@ async function runScrapeTask(client: Client, guildId: string, force = false): Pr
               continue;
             }
 
-            channelMessagesScraped++;
+            _channelMessagesScraped++;
             totalMessagesScraped++;
             messagesSinceLastFlush++;
 
@@ -399,7 +399,7 @@ async function markScrapeFailed(guildId: string, errorMsg: string): Promise<void
       select: { statsConfig: true },
     });
 
-    const statsConfig = (guildDb?.statsConfig as any) || {};
+    const statsConfig = (guildDb?.statsConfig as unknown) || {};
     statsConfig.historicalScrapeStatus = 'FAILED';
     statsConfig.historicalScrapeError = errorMsg;
     delete statsConfig.historicalScrapeProgress;

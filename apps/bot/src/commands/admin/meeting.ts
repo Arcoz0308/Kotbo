@@ -7,7 +7,7 @@ import {
   SeparatorBuilder,
   SeparatorSpacingSize,
 } from 'discord.js';
-import { COLORS_RAW, text, separator, successContainer, errorContainer, v2 } from '../../utils/embeds.js';
+import { COLORS_RAW, text, successContainer, errorContainer, v2 } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import { checkInMeeting, getMeetings, createMeeting, syncMeetingPresencesWithAbsences } from '../../services/staff/staffLeadershipService.js';
 import { getStaffMember } from '../../services/staff/staffManagementService.js';
@@ -38,7 +38,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
   const staff = await getStaffMember(interaction.guildId, interaction.user.id);
   if (!staff) {
     await interaction.reply({
-      ...v2(errorContainer('Accès refusé', "Vous ne faites pas partie de l\'équipe Staff.")),
+      ...v2(errorContainer('Accès refusé', "Vous ne faites pas partie de l'équipe Staff.")),
       flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
     });
     return;
@@ -129,7 +129,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
     }
 
     try {
-      const meeting = await createMeeting(interaction.client, interaction.guildId, interaction.user.id, title, description, scheduledAt);
+      const _meeting = await createMeeting(interaction.client, interaction.guildId, interaction.user.id, title, description, scheduledAt);
 
       await interaction.reply({
         ...v2(successContainer('Réunion planifiée', `Réunion planifiée: **${title}** pour le <t:${Math.floor(scheduledAt.getTime()/1000)}:F>.\nL'événement Discord a été créé et l'annonce a été postée.`)),

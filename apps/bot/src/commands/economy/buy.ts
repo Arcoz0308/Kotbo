@@ -60,7 +60,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
         )
       ]
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     await interaction.reply({
       embeds: [errorEmbed('Achat échoué', err.message || "Impossible d'effectuer l'achat.")],
       flags: [MessageFlags.Ephemeral]

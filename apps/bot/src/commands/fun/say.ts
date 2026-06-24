@@ -50,21 +50,21 @@ const data = new SlashCommandBuilder()
   .addStringOption(option =>
     option
       .setName('titre')
-      .setDescription("Titre de l\'embed — si renseigné, le message sera envoyé en embed")
+      .setDescription("Titre de l'embed — si renseigné, le message sera envoyé en embed")
       .setRequired(false)
       .setMaxLength(256),
   )
   .addStringOption(option =>
     option
       .setName('couleur')
-      .setDescription("Couleur de l\'embed (uniquement en mode embed)")
+      .setDescription("Couleur de l'embed (uniquement en mode embed)")
       .setRequired(false)
       .addChoices(...COLOR_CHOICES),
   )
   .addBooleanOption(option =>
     option
       .setName('anonyme')
-      .setDescription("Masquer votre nom dans le footer de l\'embed (défaut : false)")
+      .setDescription("Masquer votre nom dans le footer de l'embed (défaut : false)")
       .setRequired(false),
   );
 
@@ -97,7 +97,7 @@ async function execute(interaction: ChatInputCommandInteraction) {
       const color = COLOR_MAP[colorKey] ?? COLORS.primary;
 
       const embed = new EmbedBuilder()
-        .setColor(color as any)
+        .setColor(color as unknown)
         .setDescription(message)
         .setTimestamp();
 
@@ -125,9 +125,9 @@ async function execute(interaction: ChatInputCommandInteraction) {
 
     logger.info('Say', `${interaction.user.tag} a envoyé un message dans #${targetChannel.name} (${interaction.guildId})`);
   } catch (error) {
-    logger.error('Say', "Impossible d\'envoyer le message :", error);
+    logger.error('Say', "Impossible d'envoyer le message :", error);
     await interaction.reply({
-      embeds: [errorEmbed('Erreur', "Impossible d\'envoyer le message. Vérifiez les permissions du bot dans ce salon.")],
+      embeds: [errorEmbed('Erreur', "Impossible d'envoyer le message. Vérifiez les permissions du bot dans ce salon.")],
       flags: [MessageFlags.Ephemeral],
     });
   }

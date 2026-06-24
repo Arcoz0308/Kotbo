@@ -1,0 +1,13 @@
+{
+  "name": "@kotbo/core",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@kotbo/database": "workspace:*",
+    "@prisma/client": "^7.8.0"
+  }
+}

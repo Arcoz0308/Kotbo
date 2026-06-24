@@ -82,7 +82,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
         )
       ]
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     await interaction.reply({
       embeds: [errorEmbed('Erreur', err.message || "Impossible de faire apparaître l'objet.")],
       flags: [MessageFlags.Ephemeral]

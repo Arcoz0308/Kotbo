@@ -6,6 +6,7 @@ import { healthRouter } from './routes/health.js';
 import { configRouter } from './routes/config.js';
 import { authRouter } from './routes/auth.js';
 import { createPublicProfileRouter } from './routes/public/profile.js';
+import { createVerificationRouter } from './routes/verification.js';
 import { logger } from '../../utils/logger.js';
 
 /**
@@ -38,6 +39,7 @@ export function createHonoApp(client: Client): OpenAPIHono {
   app.route('/', configRouter);
   app.route('/', authRouter);
   app.route('/', createPublicProfileRouter(client));
+  app.route('/', createVerificationRouter(client));
 
   // ---------------------------------------------------------------------------
   // OpenAPI / Swagger UI (uniquement en développement)
@@ -63,7 +65,7 @@ export function createHonoApp(client: Client): OpenAPIHono {
   app.onError((err, c) => {
     // HTTPException : erreur intentionnelle avec status code
     if ('status' in err && typeof err.status === 'number') {
-      return c.json({ error: err.message }, err.status as any);
+      return c.json({ error: err.message }, err.status as unknown);
     }
 
     logger.error('HonoAPI', 'Erreur non gérée:', err);

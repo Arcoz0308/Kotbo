@@ -7,7 +7,7 @@ import {
   SeparatorSpacingSize,
   MessageFlags,
 } from 'discord.js';
-import { COLORS_RAW, text, separator, errorContainer, v2 } from '../../utils/embeds.js';
+import { COLORS_RAW, text, errorContainer, v2 } from '../../utils/embeds.js';
 import { E } from '../../utils/emojis.js';
 import { createHash } from 'crypto';
 
@@ -100,7 +100,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
 
       if (!decoded) {
         await interaction.reply({
-          ...v2(errorContainer('JWT invalide', "Le token fourni n\'est pas un JWT valide")),
+          ...v2(errorContainer('JWT invalide', "Le token fourni n'est pas un JWT valide")),
           flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral,
         });
         return;
