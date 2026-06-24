@@ -66,7 +66,7 @@ export async function handleReportErrorRoute(
       const userAgentStr = userAgent ? userAgent.slice(0, 250) : 'Inconnu';
       const guildIdStr = guildId ? guildId.slice(0, 50) : 'Aucun';
 
-      const allowedOriginPattern = /^(https?:\/\/)?([a-zA-Z0-9-]+\.)*(nathaan\.me|localhost)(:\d+)?(\/.*)?$/;
+      const allowedOriginPattern = /^(https?:\/\/)?([a-zA-Z0-9-]+\.)*(kotbo\.fr|localhost)(:\d+)?(\/.*)?$/;
       if (errorUrl && !allowedOriginPattern.test(errorUrl)) {
         json(res, 400, { error: 'URL non autorisée' });
         return true;
