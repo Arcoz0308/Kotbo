@@ -6,10 +6,12 @@ WORKDIR /app
 # Copy root monorepo config
 COPY package.json bun.lock tsconfig.json bunfig.toml ./
 
-# Copy dashboard package.json
+# Copy all workspace package.json for resolution
 COPY apps/dashboard/package.json apps/dashboard/
 COPY apps/bot/package.json apps/bot/
 COPY packages/database/package.json packages/database/
+COPY packages/core/package.json packages/core/
+COPY packages/contracts/package.json packages/contracts/
 
 # Install dependencies (only for the dashboard)
 RUN bun install --frozen-lockfile

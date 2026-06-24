@@ -8,6 +8,8 @@ COPY package.json bun.lock tsconfig.json bunfig.toml ./
 
 # Copy dependency definitions for caching
 COPY packages/database/package.json packages/database/
+COPY packages/core/package.json packages/core/
+COPY packages/contracts/package.json packages/contracts/
 COPY apps/bot/package.json apps/bot/
 COPY apps/dashboard/package.json apps/dashboard/
 
@@ -16,6 +18,8 @@ RUN bun install --frozen-lockfile
 
 # Copy source code
 COPY packages/database packages/database
+COPY packages/core packages/core
+COPY packages/contracts packages/contracts
 COPY apps/bot apps/bot
 
 # Generate Prisma client
@@ -34,6 +38,8 @@ WORKDIR /app
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/packages/database ./packages/database
+COPY --from=builder /app/packages/core ./packages/core
+COPY --from=builder /app/packages/contracts ./packages/contracts
 COPY --from=builder /app/apps/bot ./apps/bot
 
 ENV NODE_ENV=production
