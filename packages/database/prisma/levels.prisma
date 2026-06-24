@@ -43,3 +43,22 @@ model LevelConfig {
 
   @@map("level_configs")
 }
+
+model AutoLeaderboard {
+  id        String  @id @default(cuid())
+  guildId   String
+  channelId String
+  messageId String?
+  type      String  // "messages" | "voice" | "mixed" | "xp"
+  style     String  @default("image") // "image" | "embed"
+  periodDays Int    @default(30)
+  enabled   Boolean @default(true)
+
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, channelId, type])
+  @@map("auto_leaderboards")
+}

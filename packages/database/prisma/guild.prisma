@@ -241,6 +241,7 @@ model Guild {
   verificationEmbedColor    String   @default("#5865F2")
   verificationOnJoin        Boolean  @default(true)
   securityVerifications SecurityVerification[]
+  autoLeaderboards AutoLeaderboard[]
 
   @@map("guilds")
 }

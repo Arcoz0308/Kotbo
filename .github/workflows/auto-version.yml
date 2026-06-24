@@ -1,0 +1,123 @@
+name: Auto Version Bump
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      bot: ${{ steps.changes.outputs.bot }}
+      dashboard: ${{ steps.changes.outputs.dashboard }}
+      database: ${{ steps.changes.outputs.database }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect changed paths
+        uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            bot:
+              - 'apps/bot/**'
+            dashboard:
+              - 'apps/dashboard/**'
+            database:
+              - 'packages/database/**'
+
+  bump-bot:
+    name: Bump Bot Version
+    needs: detect-changes
+    if: needs.detect-changes.outputs.bot == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bump version
+        run: |
+          LATEST=$(git tag --list 'bot-v*' --sort=-version:refname | head -1)
+          if [ -z "$LATEST" ]; then
+            LATEST="bot-v0.0"
+          fi
+          VERSION="${LATEST#bot-v}"
+          MAJOR="${VERSION%%.*}"
+          MINOR="${VERSION#*.}"
+          NEW_TAG="bot-v${MAJOR}.$((MINOR + 1))"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$NEW_TAG"
+          git push origin "$NEW_TAG"
+
+          echo "### Bot Version Bump" >> "$GITHUB_STEP_SUMMARY"
+          echo "**${LATEST}** → **${NEW_TAG}**" >> "$GITHUB_STEP_SUMMARY"
+
+  bump-dashboard:
+    name: Bump Dashboard Version
+    needs: detect-changes
+    if: needs.detect-changes.outputs.dashboard == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bump version
+        run: |
+          LATEST=$(git tag --list 'dashboard-v*' --sort=-version:refname | head -1)
+          if [ -z "$LATEST" ]; then
+            LATEST="dashboard-v0.0"
+          fi
+          VERSION="${LATEST#dashboard-v}"
+          MAJOR="${VERSION%%.*}"
+          MINOR="${VERSION#*.}"
+          NEW_TAG="dashboard-v${MAJOR}.$((MINOR + 1))"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$NEW_TAG"
+          git push origin "$NEW_TAG"
+
+          echo "### Dashboard Version Bump" >> "$GITHUB_STEP_SUMMARY"
+          echo "**${LATEST}** → **${NEW_TAG}**" >> "$GITHUB_STEP_SUMMARY"
+
+  bump-database:
+    name: Bump Database Version
+    needs: detect-changes
+    if: needs.detect-changes.outputs.database == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bump version
+        run: |
+          LATEST=$(git tag --list 'database-v*' --sort=-version:refname | head -1)
+          if [ -z "$LATEST" ]; then
+            LATEST="database-v0.0"
+          fi
+          VERSION="${LATEST#database-v}"
+          MAJOR="${VERSION%%.*}"
+          MINOR="${VERSION#*.}"
+          NEW_TAG="database-v${MAJOR}.$((MINOR + 1))"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$NEW_TAG"
+          git push origin "$NEW_TAG"
+
+          echo "### Database Version Bump" >> "$GITHUB_STEP_SUMMARY"
+          echo "**${LATEST}** → **${NEW_TAG}**" >> "$GITHUB_STEP_SUMMARY"

@@ -21,7 +21,8 @@ export type BackgroundJobName =
   | 'meeting-notifications'
   | 'dc-scan'
   | 'ticket-inactivity'
-  | 'scheduled-events';
+  | 'scheduled-events'
+  | 'leaderboard-refresh';
 
 
 

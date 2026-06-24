@@ -131,14 +131,19 @@
       .filter(d => d.length > 0);
 
     let success = false;
+    let syncWarning: string | null = null;
     await actionState.run(async () => {
       const res = await updateAutoModConfig(config);
       if (!res || !res.config) throw new Error('Erreur de sauvegarde AutoMod');
       config = res.config;
       savedConfig = JSON.parse(JSON.stringify(res.config));
+      syncWarning = res.syncWarning ?? null;
       success = true;
+      if (syncWarning) {
+        throw new Error(syncWarning);
+      }
       return true;
-    }, { successMessage: 'Verrous AutoMod mis à jour avec succès !' });
+    }, { successMessage: 'Verrous AutoMod mis à jour et synchronisés avec Discord !' });
     return success;
   }
 

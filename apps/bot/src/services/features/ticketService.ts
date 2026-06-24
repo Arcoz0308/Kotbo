@@ -17,6 +17,8 @@ import {
   TextInputBuilder,
   TextInputStyle,
   MessageFlags,
+  ContainerBuilder,
+  SeparatorSpacingSize,
   type GuildMember,
   type Guild,
   type ThreadChannel,
@@ -24,7 +26,7 @@ import {
 } from 'discord.js';
 import prisma from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
-import { COLORS, successEmbed, errorEmbed } from '../../utils/embeds.js';
+import { COLORS, COLORS_RAW, successEmbed, errorEmbed, v2, text, separator } from '../../utils/embeds.js';
 import { resolveEmojiShortcodes } from '../../utils/emojis.js';
 import { generateTranscript } from './transcriptService.js';
 import { buildMemberCasePanel } from '../moderation/memberCaseService.js';
@@ -184,7 +186,8 @@ export function canManageTicket(member: GuildMember | APIInteractionGuildMember 
 }
 
 /**
- * Sends the ticket opening embed in the configured channel.
+ * Sends the ticket opening embed in the configured channel using V2 components.
+ * Buttons or dropdown are embedded directly inside the container.
  */
 export async function sendTicketSetupEmbed(client: Client, guildId: string): Promise<void> {
   const guildConfig = await prisma.guild.findUnique({ where: { id: guildId } });
@@ -198,6 +201,8 @@ export async function sendTicketSetupEmbed(client: Client, guildId: string): Pro
   }
 
   const colorHex = guildConfig.ticketEmbedColor || '#5865F2';
+  const color = typeof colorHex === 'string' ? parseInt(colorHex.replace('#', ''), 16) : COLORS_RAW.primary;
+
   const ticketTypes = normalizeTicketPanelTypes(guildConfig.ticketTypes, {
     label: guildConfig.ticketEmbedButtonText || 'Ouvrir un ticket',
     description: guildConfig.ticketEmbedDesc || "Cliquez sur le bouton ci-dessous pour ouvrir un ticket d\'assistance.",
@@ -206,8 +211,9 @@ export async function sendTicketSetupEmbed(client: Client, guildId: string): Pro
     emoji: '📩',
     buttonStyle: 'PRIMARY',
   });
-  
-  let desc = guildConfig.ticketEmbedDesc || "Cliquez sur le bouton ci-dessous pour ouvrir un ticket d\'assistance.";
+
+  const title = resolveEmojiShortcodes(guildConfig.ticketEmbedTitle || 'Support Technique');
+  let desc = resolveEmojiShortcodes(guildConfig.ticketEmbedDesc || "Cliquez sur le bouton ci-dessous pour ouvrir un ticket d\'assistance.");
   if (ticketTypes.length > 0) {
     desc += '\n\n**Types de tickets**\n';
     ticketTypes.forEach(t => {
@@ -215,17 +221,14 @@ export async function sendTicketSetupEmbed(client: Client, guildId: string): Pro
     });
   }
 
-  // Build a minimal embed: only title, description and color. No role/category details.
-  const embed = new EmbedBuilder()
-    .setTitle(resolveEmojiShortcodes(guildConfig.ticketEmbedTitle || 'Support Technique'))
-    .setDescription(resolveEmojiShortcodes(desc))
-    .setColor(colorHex as any)
-    .setTimestamp();
+  const container = new ContainerBuilder().setAccentColor(color);
+  container.addTextDisplayComponents(text(`### ${title}`));
+  container.addTextDisplayComponents(text(desc));
+  container.addSeparatorComponents(separator(true, SeparatorSpacingSize.Small));
 
-  const embedType = (guildConfig as any).ticketEmbedType || 'BUTTONS';
+  const embedType = guildConfig.ticketEmbedType || 'BUTTONS';
 
   if (embedType === 'DROPDOWN') {
-    // Create dropdown menu
     const selectMenu = new StringSelectMenuBuilder()
       .setCustomId('ticket:select_type')
       .setPlaceholder('Sélectionnez un type de ticket...')
@@ -238,23 +241,27 @@ export async function sendTicketSetupEmbed(client: Client, guildId: string): Pro
         }))
       );
 
-    const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
-    await channel.send({ embeds: [embed], components: [row] });
+    container.addActionRowComponents(
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu)
+    );
   } else {
-    // Create buttons (default behavior)
     const buttons = ticketTypes.map((type) => new ButtonBuilder()
       .setCustomId(`ticket:open_modal:${type.id}`)
       .setLabel(type.label.slice(0, 80))
       .setStyle(resolveButtonStyle(type.buttonStyle))
       .setEmoji(type.emoji || '📩'));
 
-    const rows: ActionRowBuilder<ButtonBuilder>[] = [];
     for (let index = 0; index < buttons.length; index += 5) {
-      rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(buttons.slice(index, index + 5)));
+      container.addActionRowComponents(
+        new ActionRowBuilder<ButtonBuilder>().addComponents(buttons.slice(index, index + 5))
+      );
     }
-
-    await channel.send({ embeds: [embed], components: rows });
   }
+
+  container.addSeparatorComponents(separator(false, SeparatorSpacingSize.Small));
+  container.addTextDisplayComponents(text('-# Kotbo • Système de tickets'));
+
+  await channel.send(v2(container));
   logger.success('Ticket', `Embed d'ouverture envoyé avec succès dans #${channel.name} (${guildId})`);
 }
 

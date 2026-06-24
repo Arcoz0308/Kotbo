@@ -835,40 +835,75 @@ export async function handleGeneralistModulesRoutes(
           }
         }
 
-        const config = await prisma.autoModConfig.update({
+        const configData = {
+          discordAutoModEnabled: true,
+          spamEnabled: body.spamEnabled,
+          spamLimit: body.spamLimit,
+          spamIntervalSeconds: body.spamIntervalSeconds,
+          spamAction: body.spamAction,
+          linksEnabled: body.linksEnabled,
+          linksAction: body.linksAction,
+          linksWhitelist: body.linksWhitelist,
+          capsEnabled: body.capsEnabled,
+          capsThresholdPercent: body.capsThresholdPercent,
+          capsMinLength: body.capsMinLength,
+          emojisEnabled: body.emojisEnabled,
+          emojisLimit: body.emojisLimit,
+          mentionsEnabled: body.mentionsEnabled,
+          mentionsLimit: body.mentionsLimit,
+          ghostPingEnabled: body.ghostPingEnabled,
+          ghostPingAction: body.ghostPingAction,
+          antiEveryoneEnabled: body.antiEveryoneEnabled,
+          antiEveryoneAction: body.antiEveryoneAction,
+          antiBotEnabled: body.antiBotEnabled,
+          antiBotAction: body.antiBotAction,
+          antiBotBypassUsers: body.antiBotBypassUsers,
+          bypassRoles: body.bypassRoles,
+          bypassChannels: body.bypassChannels,
+        };
+
+        const config = await prisma.autoModConfig.upsert({
           where: { guildId },
-          data: {
-            discordAutoModEnabled: body.discordAutoModEnabled,
-            spamEnabled: body.spamEnabled,
-            spamLimit: body.spamLimit,
-            spamIntervalSeconds: body.spamIntervalSeconds,
-            spamAction: body.spamAction,
-            linksEnabled: body.linksEnabled,
-            linksAction: body.linksAction,
-            linksWhitelist: body.linksWhitelist,
-            capsEnabled: body.capsEnabled,
-            capsThresholdPercent: body.capsThresholdPercent,
-            capsMinLength: body.capsMinLength,
-            emojisEnabled: body.emojisEnabled,
-            emojisLimit: body.emojisLimit,
-            mentionsEnabled: body.mentionsEnabled,
-            mentionsLimit: body.mentionsLimit,
-            ghostPingEnabled: body.ghostPingEnabled,
-            ghostPingAction: body.ghostPingAction,
-            antiEveryoneEnabled: body.antiEveryoneEnabled,
-            antiEveryoneAction: body.antiEveryoneAction,
-            antiBotEnabled: body.antiBotEnabled,
-            antiBotAction: body.antiBotAction,
-            antiBotBypassUsers: body.antiBotBypassUsers,
-            bypassRoles: body.bypassRoles,
-            bypassChannels: body.bypassChannels,
+          update: configData,
+          create: {
+            guildId,
+            ...configData,
+            spamEnabled: body.spamEnabled ?? false,
+            spamLimit: body.spamLimit ?? 5,
+            spamIntervalSeconds: body.spamIntervalSeconds ?? 5,
+            spamAction: body.spamAction ?? 'TIMEOUT',
+            linksEnabled: body.linksEnabled ?? false,
+            linksAction: body.linksAction ?? 'DELETE_AND_WARN',
+            linksWhitelist: body.linksWhitelist ?? [],
+            capsEnabled: body.capsEnabled ?? false,
+            capsThresholdPercent: body.capsThresholdPercent ?? 80,
+            capsMinLength: body.capsMinLength ?? 10,
+            emojisEnabled: body.emojisEnabled ?? false,
+            emojisLimit: body.emojisLimit ?? 10,
+            mentionsEnabled: body.mentionsEnabled ?? false,
+            mentionsLimit: body.mentionsLimit ?? 5,
+            ghostPingEnabled: body.ghostPingEnabled ?? false,
+            ghostPingAction: body.ghostPingAction ?? 'ALERT',
+            antiEveryoneEnabled: body.antiEveryoneEnabled ?? false,
+            antiEveryoneAction: body.antiEveryoneAction ?? 'DELETE_AND_WARN',
+            antiBotEnabled: body.antiBotEnabled ?? false,
+            antiBotAction: body.antiBotAction ?? 'KICK',
+            antiBotBypassUsers: body.antiBotBypassUsers ?? [],
+            bypassRoles: body.bypassRoles ?? [],
+            bypassChannels: body.bypassChannels ?? [],
           },
         });
 
         invalidateAutoModCache(guildId);
 
-        // Synchroniser les règles avec Discord
-        await syncDiscordAutoModRules(client, guildId, config);
+        // Synchroniser les règles natives Discord AutoMod
+        let syncWarning: string | null = null;
+        try {
+          await syncDiscordAutoModRules(client, guildId, config);
+        } catch (syncErr) {
+          logger.error('AutoModAPI', `Erreur lors de la synchronisation Discord AutoMod pour ${guildId}:`, syncErr);
+          syncWarning = 'Configuration sauvegardée mais la synchronisation des règles Discord AutoMod a échoué. Vérifiez que le bot a la permission « Gérer le serveur ».';
+        }
 
         await pushAudit(guildId, {
           user: auditUser,
@@ -880,7 +915,7 @@ export async function handleGeneralistModulesRoutes(
           channelId: null
         });
 
-        json(res, 200, { config });
+        json(res, 200, { config, ...(syncWarning ? { syncWarning } : {}) });
       } catch (err) {
         logger.error('AutoModAPI', 'Error updating config:', err);
         json(res, 500, { error: 'Erreur lors de la mise à jour AutoMod' });

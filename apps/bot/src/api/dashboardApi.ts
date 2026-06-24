@@ -160,9 +160,10 @@ export const startDashboardApi = async (client: Client) => {
       // -----------------------------------------------------------------------
       // 1. Routeur Hono (routes migrées vers Zod + OpenAPI)
       //    Si Hono retourne 404, on tombe dans le fallback legacy.
+      //    On clone le request pour que le body reste lisible par le legacy handler.
       // -----------------------------------------------------------------------
       try {
-        const honoResponse = await honoApp.fetch(request);
+        const honoResponse = await honoApp.fetch(request.clone());
         if (honoResponse.status !== 404) {
           return honoResponse;
         }

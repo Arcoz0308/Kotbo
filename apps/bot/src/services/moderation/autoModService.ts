@@ -27,7 +27,7 @@ export async function getOrCreateAutoModConfig(guildId: string) {
       where: { guildId },
     });
 
-if (!config) {
+    if (!config) {
       config = await prisma.autoModConfig.create({
         data: {
           guildId,
@@ -54,6 +54,11 @@ if (!config) {
           antiBotBypassUsers: [],
         },
       });
+    } else if (!config.discordAutoModEnabled) {
+      config = await prisma.autoModConfig.update({
+        where: { guildId },
+        data: { discordAutoModEnabled: true },
+      });
     }
     autoModConfigsCache.set(guildId, config);
   }
@@ -64,19 +69,22 @@ if (!config) {
  * Synchronise les configurations AutoMod avec les règles natives de Discord
  */
 export async function syncDiscordAutoModRules(client: Client, guildId: string, config: any) {
+  const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+  if (!guild) {
+    throw new Error(`Serveur ${guildId} introuvable ou inaccessible par le bot.`);
+  }
+
+  const botMember = guild.members.me;
+  if (botMember && !botMember.permissions.has(PermissionFlagsBits.ManageGuild)) {
+    throw new Error(`Le bot n'a pas la permission « Gérer le serveur » sur ${guild.name}. Cette permission est nécessaire pour synchroniser les règles AutoMod.`);
+  }
+
+  const existingRules = await guild.autoModerationRules.fetch().catch((err) => {
+    logger.warn('AutoModService', `Impossible de récupérer les règles AutoMod pour ${guild.name} (${guildId}) :`, err);
+    throw new Error(`Impossible de récupérer les règles AutoMod existantes pour ${guild.name}.`);
+  });
+
   try {
-    const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
-    if (!guild) {
-      logger.warn('AutoModService', `Impossible de synchroniser les règles AutoMod : Serveur ${guildId} introuvable ou inaccessible par le bot.`);
-      return;
-    }
-
-    const existingRules = await guild.autoModerationRules.fetch().catch((err) => {
-      logger.warn('AutoModService', `Impossible de récupérer les règles AutoMod pour ${guild.name} (${guildId}) :`, err);
-      return null;
-    });
-
-    if (!existingRules) return;
 
     // Récupérer le logChannelId de la guilde depuis la base de données
     const guildDb = await prisma.guild.findUnique({
@@ -267,6 +275,7 @@ export async function syncDiscordAutoModRules(client: Client, guildId: string, c
 
   } catch (err) {
     logger.error('AutoModService', 'Erreur globale lors de la synchronisation des règles AutoMod Discord Native :', err);
+    throw err;
   }
 }
 

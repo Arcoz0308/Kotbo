@@ -57,6 +57,7 @@
   let ticketEmbedDesc = $state('');
   let ticketEmbedButtonText = $state('');
   let ticketEmbedColor = $state('');
+  let ticketEmbedType = $state<'BUTTONS' | 'DROPDOWN'>('BUTTONS');
   let ticketMode = $state<'CHANNEL' | 'DM' | 'THREAD'>('CHANNEL');
   let ticketDmRelayChannelId = $state('');
   let ticketAllowOverclaim = $state(true);
@@ -105,6 +106,7 @@
     ticketEmbedDesc,
     ticketEmbedButtonText,
     ticketEmbedColor,
+    ticketEmbedType,
     ticketMode,
     ticketDmRelayChannelId,
     ticketAllowOverclaim,
@@ -134,6 +136,7 @@
     ticketEmbedDesc = savedSettingsConfig.ticketEmbedDesc;
     ticketEmbedButtonText = savedSettingsConfig.ticketEmbedButtonText;
     ticketEmbedColor = savedSettingsConfig.ticketEmbedColor;
+    ticketEmbedType = savedSettingsConfig.ticketEmbedType;
     ticketMode = savedSettingsConfig.ticketMode;
     ticketDmRelayChannelId = savedSettingsConfig.ticketDmRelayChannelId;
     ticketAllowOverclaim = savedSettingsConfig.ticketAllowOverclaim;
@@ -245,6 +248,7 @@
       ticketEmbedDesc = config.ticketEmbedDesc || 'Cliquez sur le bouton ci-dessous pour ouvrir un ticket de support.';
       ticketEmbedButtonText = config.ticketEmbedButtonText || 'Ouvrir un ticket';
       ticketEmbedColor = config.ticketEmbedColor || '#5865F2';
+      ticketEmbedType = config.ticketEmbedType === 'DROPDOWN' ? 'DROPDOWN' : 'BUTTONS';
       ticketMode = config.ticketMode || 'CHANNEL';
       ticketDmRelayChannelId = config.ticketDmRelayChannelId || '';
       ticketAllowOverclaim = config.ticketAllowOverclaim !== undefined ? config.ticketAllowOverclaim : true;
@@ -262,6 +266,7 @@
         ticketEmbedDesc,
         ticketEmbedButtonText,
         ticketEmbedColor,
+        ticketEmbedType,
         ticketMode,
         ticketDmRelayChannelId,
         ticketAllowOverclaim,
@@ -519,6 +524,7 @@
           ticketEmbedDesc,
           ticketEmbedButtonText,
           ticketEmbedColor,
+          ticketEmbedType,
           ticketMode,
           ticketDmRelayChannelId,
           ticketTypes,
@@ -1256,6 +1262,29 @@
               <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-2 block">Couleur</span>
               <FormColorPicker bind:value={ticketEmbedColor} />
             </label>
+
+            <div class="border-t border-outline-variant/10 pt-4">
+              <span class="text-xs font-bold text-on-surface-variant/80 ml-1 mb-3 block">Type d'interaction</span>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {#each [
+                  { value: 'BUTTONS', label: 'Boutons', icon: 'mouse-pointer', desc: 'Un bouton par type de ticket, directement dans l\'embed' },
+                  { value: 'DROPDOWN', label: 'Menu déroulant', icon: 'list', desc: 'Un menu déroulant unique avec tous les types de tickets' }
+                ] as typeOption}
+                  <button
+                    onclick={() => ticketEmbedType = typeOption.value as any}
+                    class="p-4 rounded-xl border-2 text-left transition-all {ticketEmbedType === typeOption.value ? 'border-primary bg-primary/5' : 'border-outline-variant/10 hover:border-outline-variant/30 bg-surface-container/20'}"
+                  >
+                    <div class="flex items-center gap-2.5 mb-2">
+                      <div class="w-8 h-8 rounded-lg flex items-center justify-center {ticketEmbedType === typeOption.value ? 'bg-primary/15 text-primary' : 'bg-surface-container text-on-surface-variant/50'}">
+                        <Papicon icon={typeOption.icon} size={16} />
+                      </div>
+                      <span class="text-sm font-semibold {ticketEmbedType === typeOption.value ? 'text-primary' : 'text-on-surface'}">{typeOption.label}</span>
+                    </div>
+                    <p class="text-[10px] text-on-surface-variant/60 leading-relaxed">{typeOption.desc}</p>
+                  </button>
+                {/each}
+              </div>
+            </div>
           </div>
         {/if}
       </div>
@@ -1313,7 +1342,7 @@
             </div>
             <div>
               <p class="text-sm font-semibold text-on-surface">Types de tickets</p>
-              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">{ticketTypes.length} type{ticketTypes.length > 1 ? 's' : ''} — chaque type a son bouton, rôle et catégorie</p>
+              <p class="text-[10px] text-on-surface-variant/60 mt-0.5">{ticketTypes.length} type{ticketTypes.length > 1 ? 's' : ''} — {ticketEmbedType === 'DROPDOWN' ? 'chaque type apparaît comme option du menu' : 'chaque type a son bouton'}, rôle et catégorie</p>
             </div>
           </div>
           <Papicon icon={expandedConfigSection === 'types' ? 'chevron-up' : 'chevron-down'} size={16} class="text-on-surface-variant/40 shrink-0" />

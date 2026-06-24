@@ -12,6 +12,7 @@ import { checkYoutubeFollows } from '../services/integrations/youtubeService.js'
 import { checkTwitchFollows } from '../services/integrations/twitchService.js';
 import { initializeDatabaseBackup, performDatabaseBackup } from '../services/system/databaseBackupService.js';
 import { checkTicketInactivity } from '../services/features/ticketService.js';
+import { refreshAllAutoLeaderboards } from '../services/progression/leaderboardService.js';
 
 const runningJobs = new Set<string>();
 
@@ -155,6 +156,10 @@ export async function registerCrons(client: Client): Promise<void> {
       logger.debug('Cron', "Vérification de l\'inactivité des tickets...");
       await checkTicketInactivity(client);
     },
+    'leaderboard-refresh': async () => {
+      logger.debug('Cron', 'Actualisation des leaderboards automatiques...');
+      await refreshAllAutoLeaderboards(client);
+    },
     'meeting-notifications': async () => {
       await processMeetingNotifications();
     },
@@ -295,6 +300,13 @@ export async function registerCrons(client: Client): Promise<void> {
     await runCronJob('ticket-inactivity', async () => {
       await checkTicketInactivity(client);
     }, 2000);
+  });
+
+  // 🏆 Leaderboard Auto-Refresh: toutes les heures
+  cron.schedule('5 * * * *', async () => {
+    await runCronJob('leaderboard-refresh', async () => {
+      await refreshAllAutoLeaderboards(client);
+    }, 5000);
   });
 
   logger.success('Cron', "Tous les jobs cron sont enregistrés (Suivi d\'activité minute activé)");

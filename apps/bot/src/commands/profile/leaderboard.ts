@@ -10,6 +10,7 @@ import {
   SlashCommandBuilder,
   AttachmentBuilder,
   GuildMember,
+  PermissionFlagsBits,
   type ChatInputCommandInteraction,
 } from 'discord.js';
 import prisma from '../../utils/db.js';
@@ -53,6 +54,12 @@ const data = new SlashCommandBuilder()
         { name: '30 jours', value: 30 },
         { name: 'Tout les temps (90j max)', value: 90 },
       ),
+  )
+  .addBooleanOption((option) =>
+    option
+      .setName('auto_refresh')
+      .setDescription('Actualiser automatiquement toutes les heures dans ce salon')
+      .setRequired(false),
   );
 
 async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -70,6 +77,7 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
   const type = interaction.options.getString('type') as 'messages' | 'voice' | 'mixed' | 'xp';
   const style = (interaction.options.getString('style') as 'image' | 'embed') ?? 'image';
   const periodDays = interaction.options.getInteger('periode') ?? 30;
+  const autoRefresh = interaction.options.getBoolean('auto_refresh');
 
   let topMembers: { userId: string; score: number; level?: number }[] = [];
 
@@ -179,6 +187,51 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
       files: [attachment],
       flags: MessageFlags.IsComponentsV2,
     });
+  }
+
+  if (autoRefresh !== null) {
+    const memberPerms = interaction.memberPermissions;
+    if (!memberPerms?.has(PermissionFlagsBits.ManageGuild)) {
+      await interaction.followUp({
+        content: `${E.error} Tu dois avoir la permission **Gérer le serveur** pour configurer l'actualisation automatique.`,
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
+    if (autoRefresh) {
+      const reply = await interaction.fetchReply();
+      await prisma.autoLeaderboard.upsert({
+        where: { guildId_channelId_type: { guildId, channelId: interaction.channelId, type } },
+        create: {
+          guildId,
+          channelId: interaction.channelId,
+          messageId: reply.id,
+          type,
+          style,
+          periodDays,
+          enabled: true,
+        },
+        update: {
+          messageId: reply.id,
+          style,
+          periodDays,
+          enabled: true,
+        },
+      });
+      await interaction.followUp({
+        content: `${E.success} Le classement **${type}** sera actualisé automatiquement toutes les heures dans ce salon. S'il est dépassé par plus de 5 messages, il sera renvoyé.`,
+        flags: [MessageFlags.Ephemeral],
+      });
+    } else {
+      await prisma.autoLeaderboard.deleteMany({
+        where: { guildId, channelId: interaction.channelId, type },
+      });
+      await interaction.followUp({
+        content: `${E.success} L'actualisation automatique du classement **${type}** a été désactivée pour ce salon.`,
+        flags: [MessageFlags.Ephemeral],
+      });
+    }
   }
 }
 
