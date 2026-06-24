@@ -17,6 +17,19 @@ export interface ChecklistTask {
   autoCompleteRoute?: string;
 }
 
+export interface SetupTask {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  route: string;
+  autoCompleteRoute: string;
+  /** true = must-do first, false = optional / à la carte */
+  essential: boolean;
+}
+
+export type GuideTab = 'discover' | 'setup';
+
 export interface PageTip {
   pageId: string;
   /** Route pattern (exact or startsWith) */
@@ -32,6 +45,8 @@ export interface OnboardingState {
   checklistDismissed: boolean;
   checklistMinimized: boolean;
   completedTasks: string[];
+  completedSetupTasks: string[];
+  activeTab: GuideTab;
   visitedPages: string[];
   startedAt: number;
   completedAt?: number;
@@ -103,6 +118,216 @@ export const checklistTasks: ChecklistTask[] = [
     icon: 'keyboard',
   },
 ];
+
+// ─── Setup Guide Tasks (2nd tutorial) ───────────────────────────────────────
+// Essential tasks first, then optional features
+
+export const setupTasks: SetupTask[] = [
+  // ── Essentiels (à faire en premier) ──
+  {
+    id: 'setup-regulation',
+    title: 'Rédiger le règlement',
+    description: 'Définissez les règles de votre serveur que les membres devront accepter.',
+    icon: 'book',
+    route: '/regulation',
+    autoCompleteRoute: '/regulation',
+    essential: true,
+  },
+  {
+    id: 'setup-hierarchy',
+    title: 'Définir la hiérarchie',
+    description: 'Organisez les rôles et niveaux de responsabilité de votre staff.',
+    icon: 'shield',
+    route: '/staff-management?tab=roles',
+    autoCompleteRoute: '/staff-management',
+    essential: true,
+  },
+  {
+    id: 'setup-channels',
+    title: 'Configurer les salons',
+    description: 'Paramétrez les salons système, les logs et les threads automatiques.',
+    icon: 'hash',
+    route: '/channels-management',
+    autoCompleteRoute: '/channels-management',
+    essential: true,
+  },
+  {
+    id: 'setup-staff-members',
+    title: 'Ajouter le staff',
+    description: 'Enregistrez les membres de votre équipe dans l\'annuaire.',
+    icon: 'user-check',
+    route: '/staff-management?tab=members',
+    autoCompleteRoute: '/staff-management',
+    essential: true,
+  },
+
+  // ── Optionnels (personnalisation) ──
+  {
+    id: 'setup-automod',
+    title: 'Modération automatique',
+    description: 'Protégez votre serveur avec des filtres anti-spam et anti-flood.',
+    icon: 'shield-alert',
+    route: '/automod',
+    autoCompleteRoute: '/automod',
+    essential: false,
+  },
+  {
+    id: 'setup-welcome',
+    title: 'Messages de bienvenue',
+    description: 'Accueillez les nouveaux membres avec un message personnalisé.',
+    icon: 'megaphone',
+    route: '/announcement',
+    autoCompleteRoute: '/announcement',
+    essential: false,
+  },
+  {
+    id: 'setup-leveling',
+    title: 'Leveling & XP',
+    description: 'Activez le système de niveaux pour engager votre communauté.',
+    icon: 'trophy',
+    route: '/leveling',
+    autoCompleteRoute: '/leveling',
+    essential: false,
+  },
+  {
+    id: 'setup-economy',
+    title: 'Économie & RPG',
+    description: 'Monnaie virtuelle, boutique et mini-jeux pour vos membres.',
+    icon: 'coins',
+    route: '/economy',
+    autoCompleteRoute: '/economy',
+    essential: false,
+  },
+  {
+    id: 'setup-tickets',
+    title: 'Tickets de support',
+    description: 'Permettez aux membres d\'ouvrir des tickets pour contacter le staff.',
+    icon: 'message-square',
+    route: '/tickets',
+    autoCompleteRoute: '/tickets',
+    essential: false,
+  },
+  {
+    id: 'setup-reaction-roles',
+    title: 'Reaction Roles',
+    description: 'Laissez les membres choisir leurs rôles via des réactions ou boutons.',
+    icon: 'mouse-pointer',
+    route: '/reaction-roles',
+    autoCompleteRoute: '/reaction-roles',
+    essential: false,
+  },
+  {
+    id: 'setup-suggestions',
+    title: 'Suggestions',
+    description: 'Recueillez les idées de votre communauté avec un système de vote.',
+    icon: 'thumbs-up',
+    route: '/suggestions',
+    autoCompleteRoute: '/suggestions',
+    essential: false,
+  },
+  {
+    id: 'setup-giveaways',
+    title: 'Giveaways',
+    description: 'Organisez des tirages au sort avec des conditions personnalisables.',
+    icon: 'sparkles',
+    route: '/giveaways',
+    autoCompleteRoute: '/giveaways',
+    essential: false,
+  },
+  {
+    id: 'setup-triggers',
+    title: 'Déclencheurs',
+    description: 'Créez des réponses automatiques sur mots-clés et commandes custom.',
+    icon: 'message-square',
+    route: '/triggers',
+    autoCompleteRoute: '/triggers',
+    essential: false,
+  },
+  {
+    id: 'setup-embeds',
+    title: 'Éditeur d\'Embeds',
+    description: 'Créez de beaux messages embed Discord sans coder.',
+    icon: 'file-plus',
+    route: '/embed-builder',
+    autoCompleteRoute: '/embed-builder',
+    essential: false,
+  },
+  {
+    id: 'setup-logs',
+    title: 'Logs Discord',
+    description: 'Suivez les messages supprimés, les modifications de rôles et plus.',
+    icon: 'file-text',
+    route: '/logs',
+    autoCompleteRoute: '/logs',
+    essential: false,
+  },
+  {
+    id: 'setup-recruitment',
+    title: 'Recrutement',
+    description: 'Formulaires de candidature et workflow de validation pour le staff.',
+    icon: 'user-plus',
+    route: '/recruitment',
+    autoCompleteRoute: '/recruitment',
+    essential: false,
+  },
+  {
+    id: 'setup-news',
+    title: 'Actualités & RSS',
+    description: 'Publiez automatiquement des flux RSS dans vos salons Discord.',
+    icon: 'rss',
+    route: '/news',
+    autoCompleteRoute: '/news',
+    essential: false,
+  },
+  {
+    id: 'setup-dailyalgo',
+    title: 'Daily Algo',
+    description: 'Défi algorithmique quotidien avec classement et récompenses.',
+    icon: 'code',
+    route: '/dailyalgo',
+    autoCompleteRoute: '/dailyalgo',
+    essential: false,
+  },
+  {
+    id: 'setup-fun',
+    title: 'Salons Fun',
+    description: 'Salons interactifs automatisés, mini-jeux et compteurs.',
+    icon: 'smile',
+    route: '/fun',
+    autoCompleteRoute: '/fun',
+    essential: false,
+  },
+  {
+    id: 'setup-social',
+    title: 'Réseaux sociaux',
+    description: 'Connectez vos réseaux pour publier automatiquement dans Discord.',
+    icon: 'share-2',
+    route: '/social-networks',
+    autoCompleteRoute: '/social-networks',
+    essential: false,
+  },
+  {
+    id: 'setup-schedules',
+    title: 'Planifications',
+    description: 'Programmez des messages et actions automatiques récurrents.',
+    icon: 'calendar',
+    route: '/schedules',
+    autoCompleteRoute: '/schedules',
+    essential: false,
+  },
+  {
+    id: 'setup-backups',
+    title: 'Sauvegardes',
+    description: 'Créez des sauvegardes de la configuration de votre serveur.',
+    icon: 'archive',
+    route: '/backups',
+    autoCompleteRoute: '/backups',
+    essential: false,
+  },
+];
+
+export const essentialSetupTasks = setupTasks.filter(t => t.essential);
+export const optionalSetupTasks = setupTasks.filter(t => !t.essential);
 
 // ─── Page Tips ──────────────────────────────────────────────────────────────
 
@@ -560,6 +785,8 @@ const DEFAULT_STATE: OnboardingState = {
   checklistDismissed: false,
   checklistMinimized: true,
   completedTasks: [],
+  completedSetupTasks: [],
+  activeTab: 'discover',
   visitedPages: [],
   startedAt: 0,
 };
@@ -586,6 +813,7 @@ function readState(guildId: string): OnboardingState {
           welcomeSeen: true,
           checklistDismissed: true,
           completedTasks: checklistTasks.map(t => t.id),
+          completedSetupTasks: setupTasks.map(t => t.id),
           visitedPages: pageTips.map(p => p.pageId),
           startedAt: parsed.startedAt ?? Date.now(),
           completedAt: parsed.completedAt ?? Date.now(),
@@ -602,6 +830,7 @@ function readState(guildId: string): OnboardingState {
           welcomeSeen: true,
           checklistDismissed: true,
           completedTasks: checklistTasks.map(t => t.id),
+          completedSetupTasks: setupTasks.map(t => t.id),
           visitedPages: pageTips.map(p => p.pageId),
           startedAt: parsed.startedAt ?? Date.now(),
           completedAt: parsed.completedAt ?? Date.now(),
@@ -638,7 +867,7 @@ let pageTipDismissed = $state(false);
 // ─── Store ──────────────────────────────────────────────────────────────────
 
 export const onboardingStore = {
-  // ── Getters ──
+  // ── Getters — Discover tab ──
   get initialized() { return guildId !== null; },
   get welcomeSeen() { return state.welcomeSeen; },
   get showWelcome() { return showWelcome; },
@@ -648,6 +877,7 @@ export const onboardingStore = {
   get visitedPages() { return state.visitedPages; },
   get activePageTip() { return activePageTip; },
   get pageTipDismissed() { return pageTipDismissed; },
+  get activeTab() { return state.activeTab; },
 
   get completedCount() {
     return state.completedTasks.length;
@@ -665,8 +895,54 @@ export const onboardingStore = {
     return state.completedTasks.length >= checklistTasks.length;
   },
 
+  // ── Getters — Setup tab ──
+  get completedSetupTasks() { return state.completedSetupTasks; },
+
+  get completedSetupCount() {
+    return state.completedSetupTasks.length;
+  },
+
+  get totalSetupTasks() {
+    return setupTasks.length;
+  },
+
+  get essentialSetupCount() {
+    return essentialSetupTasks.length;
+  },
+
+  get completedEssentialCount() {
+    return essentialSetupTasks.filter(t => state.completedSetupTasks.includes(t.id)).length;
+  },
+
+  get setupProgress() {
+    return setupTasks.length === 0 ? 100 : Math.round((state.completedSetupTasks.length / setupTasks.length) * 100);
+  },
+
+  get essentialsDone() {
+    return essentialSetupTasks.every(t => state.completedSetupTasks.includes(t.id));
+  },
+
+  get allSetupCompleted() {
+    return state.completedSetupTasks.length >= setupTasks.length;
+  },
+
+  // ── Getters — Combined ──
+  get overallProgress() {
+    const total = checklistTasks.length + setupTasks.length;
+    const done = state.completedTasks.length + state.completedSetupTasks.length;
+    return total === 0 ? 100 : Math.round((done / total) * 100);
+  },
+
+  get bothCompleted() {
+    return this.allCompleted && this.allSetupCompleted;
+  },
+
   isTaskCompleted(taskId: string): boolean {
     return state.completedTasks.includes(taskId);
+  },
+
+  isSetupTaskCompleted(taskId: string): boolean {
+    return state.completedSetupTasks.includes(taskId);
   },
 
   isPageVisited(pageId: string): boolean {
@@ -716,6 +992,11 @@ export const onboardingStore = {
     writeState(guildId, state);
   },
 
+  setActiveTab(tab: GuideTab) {
+    state.activeTab = tab;
+    writeState(guildId, state);
+  },
+
   completeTask(taskId: string) {
     if (state.completedTasks.includes(taskId)) return;
     state.completedTasks = [...state.completedTasks, taskId];
@@ -727,15 +1008,28 @@ export const onboardingStore = {
     writeState(guildId, state);
   },
 
+  completeSetupTask(taskId: string) {
+    if (state.completedSetupTasks.includes(taskId)) return;
+    state.completedSetupTasks = [...state.completedSetupTasks, taskId];
+    writeState(guildId, state);
+  },
+
   // Page tips
   onPageVisit(path: string, queryString: string = '') {
     const fullUrl = path + (queryString ? `?${queryString}` : '');
 
-    // Auto-complete checklist tasks
+    // Auto-complete discover checklist tasks
     for (const task of checklistTasks) {
       if (!task.autoCompleteRoute) continue;
       if (path === task.autoCompleteRoute || path.startsWith(task.autoCompleteRoute + '/')) {
         this.completeTask(task.id);
+      }
+    }
+
+    // Auto-complete setup tasks
+    for (const task of setupTasks) {
+      if (path === task.autoCompleteRoute || path.startsWith(task.autoCompleteRoute + '/')) {
+        this.completeSetupTask(task.id);
       }
     }
 

@@ -400,7 +400,7 @@ export async function handleMembersRoutes(
         all: undefined,
       };
 
-      const { MemberRepository } = await import('@kotbo/database/repositories/member.repository.js');
+      const { MemberRepository } = await import('@kotbo/database');
       const memberRepo = new MemberRepository(prisma);
 
       const result = await memberRepo.search({

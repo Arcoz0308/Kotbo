@@ -2,7 +2,7 @@
   import { onboardingStore } from '../stores/tutorial.svelte';
   import { fade, fly, scale } from 'svelte/transition';
   import { cubicOut, backOut } from 'svelte/easing';
-  import { Sparkles, ArrowRight, Rocket, Zap, Shield, LayoutGrid } from 'lucide-svelte';
+  import { Sparkles, ArrowRight, Rocket, Zap, Shield, LayoutGrid, Compass, Wrench } from 'lucide-svelte';
 
   let show = $derived(onboardingStore.showWelcome);
   let step = $state(0);
@@ -99,47 +99,52 @@
         </div>
 
       {:else}
-        <!-- Step 2: Guide overview -->
+        <!-- Step 2: Two guides overview -->
         <div
-          class="p-8 text-center"
+          class="p-8"
           in:fly={{ x: 30, duration: 300, easing: cubicOut }}
         >
-          <div class="mx-auto w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
-            <Sparkles class="w-8 h-8 text-primary" />
+          <div class="text-center mb-6">
+            <div class="mx-auto w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+              <Sparkles class="w-8 h-8 text-primary" />
+            </div>
+            <h2 class="text-xl font-bold text-on-surface mb-2 tracking-tight">
+              Deux guides pour bien démarrer
+            </h2>
+            <p class="text-on-surface-variant text-sm leading-relaxed max-w-sm mx-auto">
+              Un panneau de progression vous accompagnera en bas à droite. Chaque page affichera aussi un guide contextuel à votre première visite.
+            </p>
           </div>
 
-          <h2 class="text-xl font-bold text-on-surface mb-2 tracking-tight">
-            On vous guide pas à pas
-          </h2>
-          <p class="text-on-surface-variant text-sm leading-relaxed max-w-sm mx-auto mb-6">
-            En explorant le dashboard, vous verrez apparaître des guides contextuels sur chaque page. Un panneau de progression vous accompagnera tout au long de la découverte.
-          </p>
-
-          <!-- Visual checklist preview -->
-          <div class="bg-surface-container rounded-xl border border-outline-variant p-4 mb-8 text-left">
-            <div class="flex items-center gap-2 mb-3">
-              <div class="w-5 h-5 rounded-full bg-primary/15 flex items-center justify-center">
-                <Sparkles class="w-3 h-3 text-primary" />
+          <!-- Two guide cards -->
+          <div class="space-y-3 mb-8">
+            <div
+              class="flex items-start gap-3.5 p-4 rounded-xl bg-surface-container border border-outline-variant text-left"
+              in:fly={{ y: 12, duration: 250, delay: 100, easing: cubicOut }}
+            >
+              <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                <Compass class="w-5 h-5 text-primary" />
               </div>
-              <span class="text-xs font-semibold text-on-surface">Votre progression</span>
-              <span class="ml-auto text-xs text-on-surface-variant">0 / {onboardingStore.totalTasks}</span>
+              <div class="min-w-0">
+                <p class="text-sm font-semibold text-on-surface mb-0.5">Découverte</p>
+                <p class="text-xs text-on-surface-variant leading-relaxed">
+                  Explorez le dashboard, les membres, la modération et les raccourcis clavier.
+                </p>
+              </div>
             </div>
-            <div class="h-1.5 bg-surface-container-high rounded-full overflow-hidden mb-3">
-              <div class="h-full w-0 bg-gradient-to-r from-primary to-secondary rounded-full"></div>
-            </div>
-            <div class="space-y-2">
-              {#each [
-                { text: 'Découvrir le dashboard', done: false },
-                { text: 'Configurer les modules', done: false },
-                { text: 'Consulter les membres', done: false },
-              ] as item}
-                <div class="flex items-center gap-2.5">
-                  <div class="w-4 h-4 rounded-full border-2 border-outline-variant shrink-0"></div>
-                  <span class="text-xs text-on-surface-variant">{item.text}</span>
-                </div>
-              {/each}
-              <div class="flex items-center gap-2.5 text-on-surface-variant/40">
-                <span class="text-xs ml-6.5">+ {onboardingStore.totalTasks - 3} étapes...</span>
+
+            <div
+              class="flex items-start gap-3.5 p-4 rounded-xl bg-surface-container border border-amber-500/20 text-left"
+              in:fly={{ y: 12, duration: 250, delay: 200, easing: cubicOut }}
+            >
+              <div class="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
+                <Wrench class="w-5 h-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div class="min-w-0">
+                <p class="text-sm font-semibold text-on-surface mb-0.5">Configuration</p>
+                <p class="text-xs text-on-surface-variant leading-relaxed">
+                  Paramétrez l'essentiel en premier — règlement, hiérarchie, salons, staff — puis personnalisez chaque fonctionnalité à votre rythme.
+                </p>
               </div>
             </div>
           </div>
